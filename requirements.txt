@@ -1,0 +1,6 @@
+torch
+torchvision
+numpy
+matplotlib
+opt_einsum
+line_profiler
