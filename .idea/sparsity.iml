@@ -11,4 +11,7 @@
     <option name="versionSpecifier" value="Strong equality (==x.y.z)" />
     <option name="modifyBaseFiles" value="true" />
   </component>
+  <component name="PyDocumentationSettings">
+    <option name="renderExternalDocumentation" value="true" />
+  </component>
 </module>
