@@ -12,22 +12,27 @@ from einops.layers.torch import Rearrange, Reduce
 #https://einops.rocks/3-einmix-layer/
 
 import gc
+from typing import List
 
 IGNORE_ASSERTS = True
 
 
-def assert_shape(x, shape):
-    if IGNORE_ASSERTS:
-        return
-    for a, b in zip(x.shape, shape):
-        if b is not None and a != b:
-            raise AssertionError('invalid shape; got {} but expected {}.'.format(x.shape, shape))
+if IGNORE_ASSERTS:
+    def assert_shape(x, shape: List[int]):
+        pass
+else:
+    def assert_shape(x, shape):
+        for a, b in zip(x.shape, shape):
+            if b is not None and a != b:
+                raise AssertionError('invalid shape; got {} but expected {}.'.format(x.shape, shape))
 
 
-def assertf(condition):
-    if IGNORE_ASSERTS:
-        return
-    assert condition
+if IGNORE_ASSERTS:
+    def assertf(condition: bool):
+        pass
+else:
+    def assertf(condition: bool):
+        assert condition
 
 # class Einsum(nn.Module):
 #     def __init__(self, text, *sizes):
@@ -41,7 +46,7 @@ def assertf(condition):
 #         output = torch.einsum(self.text, *tensors)
 #         return output
 
-OPTIMIZED = True
+OPTIMIZED = False
 
 CONTRACT_CACHE = dict()
 
@@ -236,9 +241,11 @@ class BatchSplitFF(nn.Module):
         # self.f2 = nn.Linear(d_ff, d_model)
         self.f2 = nn.Parameter(torch.Tensor(nexperts, expertsets, expertsize, dmodel))
 
+        self.batch_size = BATCH_SIZE
+
     def forward(self, x):
-        assertf(BATCH_SIZE % self.nexperts == 0)
-        assert_shape(x, (BATCH_SIZE, self.dmodel))
+        assertf(self.batch_size % self.nexperts == 0)
+        assert_shape(x, (self.batch_size, self.dmodel))
 
         grouped = x.view((-1, self.nexperts, self.dmodel))
         inner = einsum('Bnd,nsed->Bnse', grouped, self.f1)
@@ -247,9 +254,41 @@ class BatchSplitFF(nn.Module):
         output = einsum('Bnse,nsed->Bnd', inner, self.f2)
         assert_shape(output, (None, self.nexperts, self.dmodel))
         ungrouped = output.reshape((-1, self.dmodel))
-        assert_shape(ungrouped, (BATCH_SIZE, self.dmodel))
+        assert_shape(ungrouped, (self.batch_size, self.dmodel))
         return ungrouped
 
+
+class NewBatchSplitFF(nn.Module):
+    def __init__(self):
+        pass
+
+    def forward(self):
+        #BATCH, embedding
+        #batch, set, embedding <-- this is just reshape
+
+        ## CONTROLLER:
+        # batch, set1, embedding <-- this is starting point
+        # batch, set1, set2(experts), expertsets  <--- this comes from linear
+        # batch, set1, set2(experts), expertsets <--- sample on 1st dimension (set1)
+
+        # transformation with controller
+        # batch, set2(experts), expertsets, embedding
+
+        # f1 weight: set2(experts), expertsets, embedding, expertsize
+        # batch, set2(experts), expertsets, expertsize
+        # ReLU
+        # batch, set2(experts), expertsets, expertsize
+        # f2 weight: set2(experts), expertsets, expertsize, embedding
+        # batch, set2(experts), expertsets, embedding
+
+        # back from the controller, transformation
+        # batch, set1, embedding
+
+        # final reshape
+        # BATCH, embedding
+
+
+        pass
 
 class Residual(nn.Module):
     def __init__(self, layer):
@@ -288,7 +327,7 @@ CUDA = torch.device("cuda")
 
 def timemodel(batch, sample, layers, d_model, d_ff, d_lowrank, sparsity, version):
     model = Model(layers, d_model, d_ff, d_lowrank, sparsity, version)
-    model = torch.jit.script(model)
+    # model = torch.jit.script(model)
     sample = [torch.Tensor(np.random.random((batch, d_model))) for x in range(sample)]
     if GPU:
         model.to(CUDA)
@@ -311,8 +350,8 @@ REPEAT = 1
 LAYERS = 20
 DMODEL = 1024
 DFF = 4 * 1024
-DLOWRANK = 32
-SPARSITY = 64
+DLOWRANK = 16*16
+SPARSITY = 16
 GPU = True
 
 
@@ -351,16 +390,10 @@ if __name__ == "__main__":
     standard_sleep()
     BATCH_SIZE = 4096
     print(BATCH_SIZE)
-    OPTIMIZED = True
     print("batch-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "batch-ff"))
-    # print("dense-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "dense-ff"))
-    OPTIMIZED = False
+    print("dense-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "dense-ff"))
     print("batch-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "batch-ff"))
-    OPTIMIZED = True
-    print("batch-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "batch-ff"))
-    # print("dense-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "dense-ff"))
-    OPTIMIZED = False
-    print("batch-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "batch-ff"))
+    print("dense-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "dense-ff"))
 
 
 # if __name__ == "__main__":
