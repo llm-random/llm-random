@@ -130,5 +130,19 @@ class AttentionTest(GeneralTestCase):
         self.assertShape(out, (batch, seql, dm))
 
 
+class EncoderTowerTest(GeneralTestCase):
+    def test_basic(self):
+        batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
+        nblocks = 3
+        model = bert.EncoderTower(
+            nblocks, dm,
+            (lambda: bert.Attention(dm, heads)),
+            (lambda: bert.FeedForward(dm, dff))
+        )
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = model(input)
+        self.assertShape(out, (batch, seql, dm))
+
+
 if __name__ == '__main__':
     unittest.main()
