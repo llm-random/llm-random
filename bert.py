@@ -103,24 +103,59 @@ class Attention(nn.Module):
         return output
 
 
-def ResidualBlock(layer):
+def ResidualBlock(dmodel, layer):
     return Residual(nn.Sequential(
-        nn.LayerNorm(),
+        nn.LayerNorm(dmodel),
         layer,
-        nn.LayerNorm(),
+        nn.LayerNorm(dmodel),
     ))
 
 
-def EncoderBlock(*layers):
+def EncoderBlock(dmodel, *layers):
     residual_layers = []
     for layer in layers:
-        residual_layers.append(ResidualBlock(layer))
+        residual_layers.append(ResidualBlock(dmodel, layer))
     return nn.Sequential(*residual_layers)
 
 
-def EncoderTower(n_blocks, *layer_funs):
+def EncoderTower(n_blocks, dmodel, *layer_funs):
     encoder_blocks = []
     for i_block in range(n_blocks):
         layers = [layer_fun() for layer_fun in layer_funs]
-        encoder_blocks.append(EncoderBlock(*layers))
+        encoder_blocks.append(EncoderBlock(dmodel, *layers))
     return nn.Sequential(*encoder_blocks)
+
+
+class StopGradient(nn.Module):
+    def __init__(self):
+        pass
+
+    def forward(self, x):
+        return stop_gradient(x)
+
+
+def stop_gradient(x):
+    return x.detach()
+
+
+class StopValuePassGradient(nn.Module):
+    def __init__(self):
+        super(StopValuePassGradient, self).__init__()
+
+    def forward(self, x):
+        return x - x.detach()
+
+
+class Sum(nn.Module):
+    def __init__(self, *layers):
+        super(Sum, self).__init__()
+        self.layers = nn.ModuleList(layers)
+
+    def forward(self, x):
+        result = None
+        for layer in self.layers:
+            if result is None:
+                result = layer(x)
+            else:
+                result += layer(x)
+        return result
