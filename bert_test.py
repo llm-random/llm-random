@@ -101,6 +101,21 @@ class TestFeedForward(GeneralTestCase):
         self.assertShape(output, (batch, seql, dm))
 
 
+class TestBatchedFeedForward(GeneralTestCase):
+    def test_basic(self):
+        batch, dm = 4, 32
+        sets = 5
+        experts = 7
+        seql = experts * 3
+        expertsize = 11
+        dff = sets * experts * expertsize
+        layer = bert.BatchSplitFF([], dm, dff, sets, experts, expertsize)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        output = layer(input)
+        self.assertShape(output, (batch, seql, dm))
+
+
+
 class ResidualTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, dff = 4, 8, 32, 64
@@ -142,6 +157,66 @@ class EncoderTowerTest(GeneralTestCase):
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = model(input)
         self.assertShape(out, (batch, seql, dm))
+
+
+class BERTTest(GeneralTestCase):
+    def test_basic(self):
+        batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
+        vocab_size, max_length = 107, 33
+        output_size = 3
+        n_blocks = 2
+
+        embedding_layer = bert.EmbeddingLayer(
+            bert.PositionalEmbedding(max_length, dm),
+            bert.TokenEmbedding(vocab_size, dm)
+        )
+
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.FeedForward(dm, dff)),
+            (lambda: bert.Attention(dm, heads)),
+        )
+
+        head = bert.PredictionHead(dm, output_size)
+
+        model = bert.BERT(embedding_layer, encoder_tower, head)
+
+        input = torch.randint(0, vocab_size, (batch, seql))
+
+        output = model(input)
+
+        self.assertShape(output, (batch, seql, output_size))
+
+
+class BERTSparseTest(GeneralTestCase):
+    def test_basic(self):
+        batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
+        vocab_size, max_length = 107, 33
+        output_size = 3
+        n_blocks = 2
+
+        embedding_layer = bert.EmbeddingLayer(
+            bert.PositionalEmbedding(max_length, dm),
+            bert.TokenEmbedding(vocab_size, dm)
+        )
+
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.FeedForward(dm, dff)),
+            (lambda: bert.Attention(dm, heads)),
+        )
+
+        head = bert.PredictionHead(dm, output_size)
+
+        model = bert.BERT(embedding_layer, encoder_tower, head)
+
+        input = torch.randint(0, vocab_size, (batch, seql))
+
+        output = model(input)
+
+        self.assertShape(output, (batch, seql, output_size))
 
 
 if __name__ == '__main__':
