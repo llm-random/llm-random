@@ -191,7 +191,8 @@ class BERTTest(GeneralTestCase):
 
 class BERTSparseTest(GeneralTestCase):
     def test_basic(self):
-        batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
+        batch, seql, dm, heads, dff = 3, 12, 32, 4, 64
+
         vocab_size, max_length = 107, 33
         output_size = 3
         n_blocks = 2
@@ -204,7 +205,7 @@ class BERTSparseTest(GeneralTestCase):
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.FeedForward(dm, dff)),
+            (lambda: bert.BatchSplitFF([], dm, dff, 4, 4, 4)),
             (lambda: bert.Attention(dm, heads)),
         )
 
