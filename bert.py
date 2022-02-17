@@ -19,7 +19,7 @@ from typing import List
 
 
 class EinMix(nn.Module):
-    def __init__(self, signature, weight_shape, bias_shape, **kwargs):
+    def __init__(self, signature, weight_shape=None, bias_shape=None, **kwargs):
         super(EinMix, self).__init__()
         self.change_anything = False
         if '...' in signature:
@@ -89,7 +89,7 @@ class BatchSplitFF(nn.Module):
                          d=dm, experts=self.nexperts, sets=self.expertsets,
                          expertsize=self.expertsize)
         self.f2 = EinMix('... experts sets expertsize -> ... experts sets d',
-                         weight_shape='experts sets d expertsize',
+                         weight_shape='experts sets expertsize d',
                          bias_shape='experts sets d',
                          d=dm, experts=self.nexperts, sets=self.expertsets,
                          expertsize=self.expertsize)
@@ -109,7 +109,8 @@ class BatchSplitFF(nn.Module):
         # batch, set1, set2(experts), expertsets <--- sample on 1st dimension (set1)
         # In lieu of adding noise, we can prioritize earlier tokens. This breaks symmetry.
         cont_logits += torch.reshape(
-            torch.linspace(start=0, end=1e-6, steps=self.nexperts),  # to break symmetry
+            torch.linspace(start=0, end=1e-6, steps=self.nexperts,
+                           device=x.device),  # to break symmetry
             (-1, 1, 1),
         )
         cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
@@ -145,6 +146,100 @@ class BatchSplitFF(nn.Module):
         return result_final
 
 
+class AltBatchSplitFF(nn.Module):
+    def __init__(self, register_list, dm, dff, expertsets, nexperts, expertsize):
+        super(AltBatchSplitFF, self).__init__()
+        # register_list will be used, together with some get_loss function, to compute loss
+        # this will require gradients to be already in place!
+        register_list.append(self)
+
+        assert dff == expertsets * nexperts * expertsize
+        self.dm = dm
+        self.dff = dff
+        self.expertsets = expertsets
+        self.nexperts = nexperts
+        self.expertsize = expertsize
+
+        # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
+
+        self.contr = EinMix('... tokens d -> ... tokens experts sets',
+                            weight_shape='d experts sets', bias_shape='experts sets',
+                            d=dm, tokens=self.nexperts, experts=self.nexperts, sets=self.expertsets)
+
+        self.f1 = EinMix('... tokens d -> ... expertsize experts sets tokens',
+                         weight_shape='expertsize experts sets d',
+                         bias_shape='expertsize experts sets',
+                         d=dm, experts=self.nexperts, sets=self.expertsets,
+                         expertsize=self.expertsize)
+        self.f2 = EinMix('... expertsize experts sets tokens -> ... tokens d',
+                         weight_shape='expertsize experts sets d',
+                         # bias_shape='experts sets d',
+                         d=dm, experts=self.nexperts, sets=self.expertsets,
+                         expertsize=self.expertsize)
+
+    def forward(self, x):
+        #BATCH, embedding
+        assert len(x.shape) >= 2
+        assert x.shape[-1] == self.dm
+        #batch, set, embedding <-- this is just reshape
+        grouped = einops.rearrange(x, '... (b g) d -> ... b g d',
+                                   g=self.nexperts)
+
+        ## CONTROLLER:
+        # batch, set1, embedding <-- this is starting point
+        cont_logits = self.contr(grouped)
+        # batch, set1, set2(experts), expertsets  <--- this comes from linear
+        # batch, set1, set2(experts), expertsets <--- sample on 1st dimension (set1)
+        # In lieu of adding noise, we can prioritize earlier tokens. This breaks symmetry.
+        cont_logits += torch.reshape(
+            torch.linspace(start=0, end=1e-6, steps=self.nexperts,
+                           device=x.device),  # to break symmetry
+            (-1, 1, 1),
+        )
+        cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
+        cont_permutation = cont_permutation * 1.  # convert to float tensor
+
+        # transformation with controller
+        # batch, set2(experts), expertsets, embedding
+        prepermuted = self.f1(grouped)
+        inner = torch.einsum(
+            '... e s t, ... f e s t -> ... f e s',
+            cont_permutation, prepermuted)
+        # permuted = torch.einsum(
+        #     '... t d, ... t e s -> ... e s d',
+        #     grouped, cont_permutation
+        # )
+
+        # f1 weight: set2(experts), expertsets, embedding, expertsize
+        # inner = self.f1(permuted)
+        inner = torch.relu(inner)
+        # batch, set2(experts), expertsets, expertsize
+        # ReLU
+        # batch, set2(experts), expertsets, expertsize
+        # result_permuted = self.f2(inner)
+        # f2 weight: set2(experts), expertsets, expertsize, embedding
+        # batch, set2(experts), expertsets, embedding
+
+        # back from the controller, transformation
+        # batch, set1, embedding
+        # inner_unpermuted = torch.einsum(
+        #     '... e s d, ... t e s -> ... t d',
+        #     result_permuted, cont_permutation
+        # )
+        inner_unpermuted = torch.einsum(
+            '... f e s, ... e s t -> ... f e s t',
+            inner, cont_permutation
+        )
+        postpermuted = self.f2(inner_unpermuted)
+
+        # final reshape
+        # BATCH, embedding
+        result_final = einops.rearrange(postpermuted, '... b g d -> ... (b g) d')
+        return result_final
+
+
+
+
 class Residual(nn.Module):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -161,6 +256,9 @@ class Attention(nn.Module):
         if dhead is None:
             assert dmodel % heads == 0
             dhead = dmodel // heads
+        self.heads = heads
+        self.dhead = dhead
+        self.dmodel = dmodel
         layer_fun = lambda: EinMix('... dm -> ... heads dhead',
                                    weight_shape='dm heads dhead', bias_shape='heads dhead',
                                    dm=dmodel, heads=heads, dhead=dhead)
@@ -277,7 +375,7 @@ class PositionalEmbedding(nn.Module):
         # TODO(jaszczur): add initialization as positional encoding
 
     def forward(self, x):
-        positions = torch.arange(0, x.shape[-1])
+        positions = torch.arange(0, x.shape[-1], device=x.device)
         positions = positions * torch.ones_like(x)
         embeddings = self.layer(positions)
         return embeddings
