@@ -14,6 +14,11 @@ from einops.layers.torch import Rearrange, Reduce
 from einops.layers.torch import EinMix as OGEinMix
 import einops
 
+
+def einsum(subscript, *operands, **kwargs):
+    return torch.einsum(subscript, *operands, **kwargs)
+    # return contract(subscript, *operands, **kwargs)
+
 import gc
 from typing import List
 
@@ -52,98 +57,178 @@ def Dense(dinp, dout):
 
 def FeedForward(dmodel, dff):
     # TODO: replace with Linears
-    return nn.Sequential(
-        EinMix('... dm -> ... dff',
-               weight_shape='dm dff', bias_shape='dff',
-               dm=dmodel, dff=dff),
-        nn.ReLU(),
-        EinMix('... dff -> ... dm',
-               weight_shape='dff dm', bias_shape='dm',
-               dm=dmodel, dff=dff)
-    )
+    return TimerLayer('denseFF', nn.Sequential(
+        nn.Linear(dmodel, dff),
+        # EinMix('... dm -> ... dff',
+        #        weight_shape='dm dff', bias_shape='dff',
+        #        dm=dmodel, dff=dff),
+        nn.ReLU(inplace=True),
+        nn.Linear(dff, dmodel),
+        # EinMix('... dff -> ... dm',
+        #        weight_shape='dff dm', bias_shape='dm',
+        #        dm=dmodel, dff=dff)
+    ))
 
 
-class BatchSplitFF(nn.Module):
-    def __init__(self, register_list, dm, dff, expertsets, nexperts, expertsize):
-        super(BatchSplitFF, self).__init__()
-        # register_list will be used, together with some get_loss function, to compute loss
-        # this will require gradients to be already in place!
-        register_list.append(self)
+# class BatchSplitFF(nn.Module):
+#     def __init__(self, register_list, dm, dff, expertsets, nexperts, expertsize):
+#         super(BatchSplitFF, self).__init__()
+#         # register_list will be used, together with some get_loss function, to compute loss
+#         # this will require gradients to be already in place!
+#         register_list.append(self)
+#
+#         assert dff == expertsets * nexperts * expertsize
+#         self.dm = dm
+#         self.dff = dff
+#         self.expertsets = expertsets
+#         self.nexperts = nexperts
+#         self.expertsize = expertsize
+#
+#         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
+#
+#         self.contr = EinMix('... tokens d -> ... tokens experts sets',
+#                             weight_shape='d experts sets', bias_shape='experts sets',
+#                             d=dm, tokens=self.nexperts, experts=self.nexperts, sets=self.expertsets)
+#
+#         self.f1 = EinMix('... experts sets d -> ... experts sets expertsize',
+#                          weight_shape='experts sets d expertsize',
+#                          bias_shape='experts sets expertsize',
+#                          d=dm, experts=self.nexperts, sets=self.expertsets,
+#                          expertsize=self.expertsize)
+#         self.f2 = EinMix('... experts sets expertsize -> ... experts sets d',
+#                          weight_shape='experts sets expertsize d',
+#                          bias_shape='experts sets d',
+#                          d=dm, experts=self.nexperts, sets=self.expertsets,
+#                          expertsize=self.expertsize)
+#
+#     def forward(self, x):
+#         #BATCH, embedding
+#         assert len(x.shape) >= 2
+#         assert x.shape[-1] == self.dm
+#         #batch, set, embedding <-- this is just reshape
+#         grouped = einops.rearrange(x, '... (b g) d -> ... b g d',
+#                                    g=self.nexperts)
+#
+#         ## CONTROLLER:
+#         # batch, set1, embedding <-- this is starting point
+#         cont_logits = self.contr(grouped)
+#         # batch, set1, set2(experts), expertsets  <--- this comes from linear
+#         # batch, set1, set2(experts), expertsets <--- sample on 1st dimension (set1)
+#         # In lieu of adding noise, we can prioritize earlier tokens. This breaks symmetry.
+#         cont_logits += torch.reshape(
+#             torch.linspace(start=0, end=1e-6, steps=self.nexperts,
+#                            device=x.device),  # to break symmetry
+#             (-1, 1, 1),
+#         )
+#         cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
+#         cont_permutation = cont_permutation * 1.  # convert to float tensor
+#
+#         # transformation with controller
+#         # batch, set2(experts), expertsets, embedding
+#         permuted = torch.einsum(
+#             '... t d, ... t e s -> ... e s d',
+#             grouped, cont_permutation
+#         )
+#
+#         # f1 weight: set2(experts), expertsets, embedding, expertsize
+#         inner = self.f1(permuted)
+#         inner = torch.relu(inner)
+#         # batch, set2(experts), expertsets, expertsize
+#         # ReLU
+#         # batch, set2(experts), expertsets, expertsize
+#         result_permuted = self.f2(inner)
+#         # f2 weight: set2(experts), expertsets, expertsize, embedding
+#         # batch, set2(experts), expertsets, embedding
+#
+#         # back from the controller, transformation
+#         # batch, set1, embedding
+#         result_unpermuted = torch.einsum(
+#             '... e s d, ... t e s -> ... t d',
+#             result_permuted, cont_permutation
+#         )
+#
+#         # final reshape
+#         # BATCH, embedding
+#         result_final = einops.rearrange(result_unpermuted, '... b g d -> ... (b g) d')
+#         return result_final
 
-        assert dff == expertsets * nexperts * expertsize
-        self.dm = dm
-        self.dff = dff
-        self.expertsets = expertsets
-        self.nexperts = nexperts
-        self.expertsize = expertsize
 
-        # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
+GLOBAL_TIMERS = dict()
+GLOBAL_NAMES = []
+GLOBAL_DEPTHS = dict()
+CURRENT_DEPTH = [0]
+DISABLED = False
 
-        self.contr = EinMix('... tokens d -> ... tokens experts sets',
-                            weight_shape='d experts sets', bias_shape='experts sets',
-                            d=dm, tokens=self.nexperts, experts=self.nexperts, sets=self.expertsets)
 
-        self.f1 = EinMix('... experts sets d -> ... experts sets expertsize',
-                         weight_shape='experts sets d expertsize',
-                         bias_shape='experts sets expertsize',
-                         d=dm, experts=self.nexperts, sets=self.expertsets,
-                         expertsize=self.expertsize)
-        self.f2 = EinMix('... experts sets expertsize -> ... experts sets d',
-                         weight_shape='experts sets expertsize d',
-                         bias_shape='experts sets d',
-                         d=dm, experts=self.nexperts, sets=self.expertsets,
-                         expertsize=self.expertsize)
+class TimerLayer(nn.Module):
+    def __init__(self, name, layer):
+        super(TimerLayer, self).__init__()
+        self.name = name
+        self.layer = layer
 
-    def forward(self, x):
-        #BATCH, embedding
-        assert len(x.shape) >= 2
-        assert x.shape[-1] == self.dm
-        #batch, set, embedding <-- this is just reshape
-        grouped = einops.rearrange(x, '... (b g) d -> ... b g d',
-                                   g=self.nexperts)
+    def forward(self, *args, **kwargs):
+        with Timer(self.name):
+            result = self.layer(*args, **kwargs)
+        return result
 
-        ## CONTROLLER:
-        # batch, set1, embedding <-- this is starting point
-        cont_logits = self.contr(grouped)
-        # batch, set1, set2(experts), expertsets  <--- this comes from linear
-        # batch, set1, set2(experts), expertsets <--- sample on 1st dimension (set1)
-        # In lieu of adding noise, we can prioritize earlier tokens. This breaks symmetry.
-        cont_logits += torch.reshape(
-            torch.linspace(start=0, end=1e-6, steps=self.nexperts,
-                           device=x.device),  # to break symmetry
-            (-1, 1, 1),
-        )
-        cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
-        cont_permutation = cont_permutation * 1.  # convert to float tensor
 
-        # transformation with controller
-        # batch, set2(experts), expertsets, embedding
-        permuted = torch.einsum(
-            '... t d, ... t e s -> ... e s d',
-            grouped, cont_permutation
-        )
+class Timer(object):
+    def __init__(self, name, disable_inner=False):
+        global DISABLED
+        self.name = name
+        self.disable_inner = disable_inner
+        self.i_disabled = False
+        if not DISABLED:
+            if name not in GLOBAL_TIMERS:
+                GLOBAL_TIMERS[self.name] = []
+                # GLOBAL_TIMERS[self.name+'T'] = []
+            if self.name not in GLOBAL_NAMES:
+                GLOBAL_NAMES.append(name)
+        # self.start = torch.cuda.Event(enable_timing=True)
+        # self.end = torch.cuda.Event(enable_timing=True)
 
-        # f1 weight: set2(experts), expertsets, embedding, expertsize
-        inner = self.f1(permuted)
-        inner = torch.relu(inner)
-        # batch, set2(experts), expertsets, expertsize
-        # ReLU
-        # batch, set2(experts), expertsets, expertsize
-        result_permuted = self.f2(inner)
-        # f2 weight: set2(experts), expertsets, expertsize, embedding
-        # batch, set2(experts), expertsets, embedding
+    def __enter__(self):
+        global DISABLED
+        if not DISABLED:
+            if self.disable_inner:
+                DISABLED = True
+                self.i_disabled = True
+            torch.cuda.synchronize()
+            GLOBAL_DEPTHS[self.name] = CURRENT_DEPTH[0]
+            CURRENT_DEPTH[0] += 1
+            self.start_time = time.time()
+            # self.start.record()
 
-        # back from the controller, transformation
-        # batch, set1, embedding
-        result_unpermuted = torch.einsum(
-            '... e s d, ... t e s -> ... t d',
-            result_permuted, cont_permutation
-        )
+    def __exit__(self, *args):
+        global DISABLED
+        if not DISABLED or self.i_disabled:
+            if self.disable_inner:
+                DISABLED = False
+                self.i_disabled = False
+            # self.end.record()
+            torch.cuda.synchronize()
+            self.end_time = time.time()
 
-        # final reshape
-        # BATCH, embedding
-        result_final = einops.rearrange(result_unpermuted, '... b g d -> ... (b g) d')
-        return result_final
+            CURRENT_DEPTH[0] -= 1
+            GLOBAL_TIMERS[self.name].append(self.end_time - self.start_time)
+            # GLOBAL_TIMERS[self.name+'T'].append(self.start.elapsed_time(self.end)/1000)
+
+
+def reset_times():
+    global GLOBAL_TIMERS, GLOBAL_DEPTHS, GLOBAL_NAMES
+    GLOBAL_TIMERS = dict()
+    GLOBAL_DEPTHS = dict()
+    GLOBAL_NAMES = []
+
+
+def print_times(reset=True):
+    for name in GLOBAL_NAMES:
+        values = GLOBAL_TIMERS[name]
+        depth = GLOBAL_DEPTHS[name]
+        print(f'{" "*depth + name:18}: {round(sum(values), 3)} +/- {round(np.std(values)*len(values)**0.5, 2)}')
+    print('\n\n\n')
+    if reset:
+        reset_times()
 
 
 class AltBatchSplitFF(nn.Module):
@@ -162,82 +247,134 @@ class AltBatchSplitFF(nn.Module):
 
         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
 
-        self.contr = EinMix('... tokens d -> ... tokens experts sets',
-                            weight_shape='d experts sets', bias_shape='experts sets',
-                            d=dm, tokens=self.nexperts, experts=self.nexperts, sets=self.expertsets)
+        self.controller = nn.Parameter(torch.Tensor(
+            dm, nexperts, expertsets,
+        ))
+        self.cp = 'd e s'
+        self.gp = '... t d'
+        self.cout = '... t e s'
+        self.inner = '... e s f'
 
-        self.f1 = EinMix('... tokens d -> ... expertsize experts sets tokens',
-                         weight_shape='expertsize experts sets d',
-                         bias_shape='expertsize experts sets',
-                         d=dm, experts=self.nexperts, sets=self.expertsets,
-                         expertsize=self.expertsize)
-        self.f2 = EinMix('... expertsize experts sets tokens -> ... tokens d',
-                         weight_shape='expertsize experts sets d',
-                         # bias_shape='experts sets d',
-                         d=dm, experts=self.nexperts, sets=self.expertsets,
-                         expertsize=self.expertsize)
+        self.f1p = 'd e s f'
+        self.f1 = nn.Parameter(torch.Tensor(
+            dm, nexperts, expertsets, expertsize
+        ))
+
+        self.f1Q = nn.Parameter(torch.Tensor(
+            dm, nexperts*expertsets*expertsize
+        ))
+
+        self.f2p = 'e s f d'
+        self.f2 = nn.Parameter(torch.Tensor(
+            nexperts, expertsets, expertsize, dm
+        ))
+
+        self.ogp = self.gp.replace('...', '... b')
 
     def forward(self, x):
-        #BATCH, embedding
-        assert len(x.shape) >= 2
-        assert x.shape[-1] == self.dm
-        #batch, set, embedding <-- this is just reshape
-        grouped = einops.rearrange(x, '... (b g) d -> ... b g d',
-                                   g=self.nexperts)
+        with Timer('batchedFF'):
+            #BATCH, embedding
+            assert len(x.shape) >= 2
+            assert x.shape[-1] == self.dm
+            # batch, set, embedding <-- this is just reshape
+            with Timer('grouped'):
+                grouped = einops.rearrange(x, '... (b t) d -> {}'.format(self.ogp),
+                                           t=self.nexperts)
 
-        ## CONTROLLER:
-        # batch, set1, embedding <-- this is starting point
-        cont_logits = self.contr(grouped)
-        # batch, set1, set2(experts), expertsets  <--- this comes from linear
-        # batch, set1, set2(experts), expertsets <--- sample on 1st dimension (set1)
-        # In lieu of adding noise, we can prioritize earlier tokens. This breaks symmetry.
-        cont_logits += torch.reshape(
-            torch.linspace(start=0, end=1e-6, steps=self.nexperts,
-                           device=x.device),  # to break symmetry
-            (-1, 1, 1),
-        )
-        cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
-        cont_permutation = cont_permutation * 1.  # convert to float tensor
-
-        # transformation with controller
-        # batch, set2(experts), expertsets, embedding
-        prepermuted = self.f1(grouped)
-        inner = torch.einsum(
-            '... e s t, ... f e s t -> ... f e s',
-            cont_permutation, prepermuted)
-        # permuted = torch.einsum(
-        #     '... t d, ... t e s -> ... e s d',
-        #     grouped, cont_permutation
-        # )
-
-        # f1 weight: set2(experts), expertsets, embedding, expertsize
-        # inner = self.f1(permuted)
-        inner = torch.relu(inner)
-        # batch, set2(experts), expertsets, expertsize
-        # ReLU
-        # batch, set2(experts), expertsets, expertsize
-        # result_permuted = self.f2(inner)
-        # f2 weight: set2(experts), expertsets, expertsize, embedding
-        # batch, set2(experts), expertsets, embedding
-
-        # back from the controller, transformation
-        # batch, set1, embedding
-        # inner_unpermuted = torch.einsum(
-        #     '... e s d, ... t e s -> ... t d',
-        #     result_permuted, cont_permutation
-        # )
-        inner_unpermuted = torch.einsum(
-            '... f e s, ... e s t -> ... f e s t',
-            inner, cont_permutation
-        )
-        postpermuted = self.f2(inner_unpermuted)
-
-        # final reshape
-        # BATCH, embedding
-        result_final = einops.rearrange(postpermuted, '... b g d -> ... (b g) d')
-        return result_final
+            ## CONTROLLER:
+            # batch, set1, embedding <-- this is starting point
+            with Timer('cont_logits'):
+                cont_logits = einsum('{}, {} -> {}'.format(self.gp, self.cp, self.cout),
+                                     grouped, self.controller)
 
 
+            # batch, set1, set2(experts), expertsets  <--- this comes from linear
+            # batch, set1, set2(experts), expertsets <--- sample on 1st dimension (set1)
+            # In lieu of adding noise, we can prioritize earlier tokens. This breaks symmetry.
+
+            with Timer('cont_probs'):
+                cont_logits += torch.reshape(
+                    torch.linspace(start=0, end=1e-6, steps=self.nexperts,
+                                   device=x.device),  # to break symmetry
+                    (-1, 1, 1),
+                )
+                # cont_permutation = cont_logits
+                cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
+                cont_permutation = cont_permutation * 1.  # convert to float tensor
+
+            with Timer('Einsum 1'):
+                # inner = einsum('... t d, ... t e s, e s f d -> ... e s f',
+                #                grouped, cont_permutation, self.f2)
+
+                with Timer('Einsum 1A-1'):
+                    intermediate = einsum('... t d, d e s f -> ... t e s f',
+                                          grouped, self.f1)
+                with Timer('Einsum 1B'):
+                    inner = einsum('... t e s f, ... t e s -> ... e s f',
+                                   intermediate, cont_permutation)
+
+                with Timer('Einsum 1A-T'):
+                    intermediate = einsum('... t d, d E -> ... t E',
+                                          grouped, self.f1Q)
+
+                # with Timer('Einsum Q1A'):
+                #     intermediate = einsum('... t d, ... t e s -> ... t e s d',
+                #                           grouped, cont_permutation)
+                # with Timer('Einsum Q1B'):
+                #     inner = einsum('... t e s d, d e s f -> ... e s f',
+                #                    intermediate, self.f1)
+                #
+                # with Timer('Einsum Q1A-2'):
+                #     intermediate = einsum('... t d, ... t e s -> ... t d e s',
+                #                           grouped, cont_permutation)
+                # with Timer('Einsum Q1B'):
+                #     inner = einsum('... t e s d, d e s f -> ... e s f',
+                #                    intermediate, self.f1)
+
+                # inner = einsum('{}, {}, {} -> {}'.format(self.gp, self.cout, self.f1p, self.inner),
+                #                grouped, cont_permutation, self.f1)
+
+            with Timer('ReLU'):
+                inner = torch.relu_(inner)
+
+            with Timer('Einsum 2'):
+                # result_unpermuted = einsum(
+                #     '{}, {} -> {}'.format(self.cout, self.f2p, self.gp),
+                #     cont_permutation, self.f2
+                # ) * torch.mean(inner)
+
+                # intermediate = einsum('... e s f, ... t e s -> ... e s f t',
+                #                       inner, cont_permutation)
+                # result_unpermuted = einsum('... e s f t, e s f d -> ... t d',
+                #                            intermediate, self.f2)
+
+                with Timer('Einsum 2A'):
+                    intermediate = einsum('... e s f, e s f d -> ... e s d',
+                                          inner, self.f2)
+                with Timer('Einsum 2B'):
+                    result_unpermuted = einsum('... e s d, ... t e s -> ... t d',
+                                               intermediate, cont_permutation)
+
+
+                # intermediate = einsum('... t e s, e s f d -> ... e s f t d',
+                #                       cont_permutation, self.f2)
+                # result_unpermuted = einsum('... e s f t d, ... e s f -> ... t d',
+                #                            intermediate, inner)
+
+
+                # result_unpermuted = einsum('... e s f, ... t e s, e s f d -> ... t d',
+                #                       inner, cont_permutation, self.f2)
+
+                # result_unpermuted = einsum(
+                #     '{}, {}, {} -> {}'.format(self.inner, self.cout, self.f2p, self.gp),
+                #     inner, cont_permutation, self.f2
+                # )
+
+            # final reshape
+            # BATCH, embedding
+            with Timer('rearrange final'):
+                result_final = einops.rearrange(result_unpermuted, '{} -> ... (b t) d'.format(self.ogp))
+            return result_final
 
 
 class Residual(nn.Module):

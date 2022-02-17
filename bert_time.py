@@ -38,17 +38,27 @@ CUDA = torch.device("cuda")
 USE_CUDA = True
 
 
-def main_tests(version):
-    multiplier = 4
-    batch, seql, dm, heads, dff = 4, 1024, 1024, 16, 4096*multiplier
-    expertsets = 16
-    nexperts = 16
-    expertsize = 16 * multiplier
+class NoopEnter(object):
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+def main_tests(version, disable_inner=False):
+    # multiplier = 32
+    one_size = 16
+    total_size = one_size ** 3 * 2
+    batch, seql, dm, heads, dff = 1, 1024, 1024, 16, total_size
+    expertsets = one_size
+    nexperts = one_size
+    expertsize = one_size * 2
     vocab_size, max_length = 107, 1024
     output_size = 64
     n_blocks = 1
-    samples = 10
-    warmup = 5
+    samples = 20
+    warmup = 10
 
     embedding_layer = bert.EmbeddingLayer(
         bert.PositionalEmbedding(max_length, dm),
@@ -92,23 +102,33 @@ def main_tests(version):
 
     times = []
 
-    for input in inputs:
-        start_time = time.time()
-        output = model(input)
-        torch.sum(output).item()  # to make sure everything is computed
-        end_time = time.time()
-        times.append(end_time - start_time)
-    total_time = sum(times[warmup:])
-
-    print('{} time: {}'.format(
-        version,
-        round(total_time, 2)))
+    with torch.no_grad():
+    # with NoopEnter():
+        for input in inputs[:warmup]:
+            output = model(input)
+            torch.sum(output).item()  # to make sure everything is computed
+        bert.reset_times()
+        with bert.Timer(f'{version}', disable_inner=disable_inner):
+            for input in inputs[warmup:]:
+                output = model(input)
+                torch.sum(output).item()  # to make sure everything is computed
+    # total_time = sum(times[warmup:])
+    #
+    # print('{} time: {}'.format(
+    #     version,
+    #     round(total_time, 2)))
 
 
 if __name__ == "__main__":
-    main_tests('alt')
-    main_tests('sparse')
+    main_tests('alt', False)
+    bert.print_times()
+    # main_tests('alt', False)
+    # bert.print_times()
+    # main_tests('alt', True)
+    # bert.print_times()
+    # main_tests('sparse')
     # main_tests('alt')
     main_tests('dense')
-    main_tests('alt')
+    bert.print_times()
+    # main_tests('alt')
     # main_tests(False)
