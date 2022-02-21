@@ -94,10 +94,8 @@ def main_tests(version, disable_inner=False):
         model.to(CUDA)
         inputs = [x.to(CUDA) for x in inputs]
 
-    times = []
-
-    # with torch.no_grad():
-    with NoopEnter():
+    with torch.no_grad():
+    # with NoopEnter():
         for input in inputs[:warmup]:
             output = model(input)
             torch.sum(output).item()  # to make sure everything is computed
