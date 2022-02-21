@@ -4,9 +4,11 @@ import torch.nn as nn
 import einops
 
 from misc import einsum, EinMix, check_layer_funs, Sum
+import ash
 from profile import TimerLayer, Timer
 
 
+@ash.check('... d -> ... d')
 def FeedForward(dmodel, dff):
     # TODO: replace with Linears
     return TimerLayer('denseFF', nn.Sequential(
@@ -16,6 +18,7 @@ def FeedForward(dmodel, dff):
     ))
 
 
+@ash.check('... d -> ... d')
 class BatchSplitFF(nn.Module):
     def __init__(self, register_list, dm, dff, expertsets, nexperts, expertsize):
         super(BatchSplitFF, self).__init__()
@@ -60,8 +63,7 @@ class BatchSplitFF(nn.Module):
     def forward(self, x):
         with Timer('batchedFF', disable_inner=False):
             #BATCH, embedding
-            assert len(x.shape) >= 2
-            assert x.shape[-1] == self.dm
+            ash.assert_shape('... B d', x, d=self.dm)
             # batch, set, embedding <-- this is just reshape
             with Timer('grouped'):
                 grouped = einops.rearrange(x, f'... (b t) d -> {self.ogp}',
@@ -114,6 +116,7 @@ class BatchSplitFF(nn.Module):
             return result_final
 
 
+@ash.check('... d -> ... d')
 class Residual(nn.Module):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -124,6 +127,7 @@ class Residual(nn.Module):
         return out + x
 
 
+@ash.check('... d -> ... d')
 class Attention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(Attention, self).__init__()
@@ -160,6 +164,7 @@ class Attention(nn.Module):
         return output
 
 
+@ash.check('... d -> ... d')
 def ResidualBlock(dmodel, layer):
     return Residual(nn.Sequential(
         nn.LayerNorm(dmodel),
@@ -168,6 +173,7 @@ def ResidualBlock(dmodel, layer):
     ))
 
 
+@ash.check('... d -> ... d')
 def EncoderBlock(dmodel, *layers):
     residual_layers = []
     for layer in layers:
@@ -175,6 +181,7 @@ def EncoderBlock(dmodel, *layers):
     return nn.Sequential(*residual_layers)
 
 
+@ash.check('... d -> ... d')
 def EncoderTower(n_blocks, dmodel, *layer_funs):
     check_layer_funs(*layer_funs)
     encoder_blocks = []
@@ -184,10 +191,12 @@ def EncoderTower(n_blocks, dmodel, *layer_funs):
     return nn.Sequential(*encoder_blocks)
 
 
+@ash.check('... -> ... d')
 def TokenEmbedding(vocab_size, embedding_dim):
     return nn.Embedding(vocab_size, embedding_dim)
 
 
+@ash.check('... -> ... d')
 class PositionalEmbedding(nn.Module):
     def __init__(self, max_length, embedding_dim):
         super(PositionalEmbedding, self).__init__()
@@ -201,14 +210,17 @@ class PositionalEmbedding(nn.Module):
         return embeddings
 
 
+@ash.check('... -> ... d')
 def EmbeddingLayer(*layers):
     return Sum(*layers)
 
 
+@ash.check('... inp -> ... out')
 def PredictionHead(embedding_dim, output_size):
     return nn.Linear(embedding_dim, output_size)
 
 
+@ash.check('... -> ... out')
 def BERT(embedding_layer, encoder_tower, head):
     return nn.Sequential(
         embedding_layer,
