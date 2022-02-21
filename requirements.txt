@@ -1,6 +1,7 @@
-torch
-torchvision
-numpy
+torch==1.10.2+cu113
+torchvision==0.11.2
+numpy==1.22.1
 matplotlib
 opt_einsum
 line_profiler
+einops==0.4.0
