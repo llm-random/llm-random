@@ -49,14 +49,15 @@ class NoopEnter(object):
 def main_tests(version, disable_inner=False):
     # multiplier = 32
     one_size = 16
-    total_size = one_size ** 3 * 2
-    batch, seql, dm, heads, dff = 1, 1024, 1024, 16, total_size
     expertsets = one_size
     nexperts = one_size
-    expertsize = one_size * 2
+    expertsize = one_size * 4
+    dff = expertsets * nexperts * expertsize
+
+    batch, seql, dm, heads = 1, 1024, 1024, 16
     vocab_size, max_length = 107, 1024
     output_size = 64
-    n_blocks = 1
+    n_blocks = 4
     samples = 20
     warmup = 10
 
@@ -66,13 +67,6 @@ def main_tests(version, disable_inner=False):
     )
 
     if version == 'sparse':
-        encoder_tower = bert.EncoderTower(
-            n_blocks,
-            dm,
-            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
-            (lambda: bert.Attention(dm, heads)),
-        )
-    elif version == 'alt':
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
@@ -102,8 +96,8 @@ def main_tests(version, disable_inner=False):
 
     times = []
 
-    with torch.no_grad():
-    # with NoopEnter():
+    # with torch.no_grad():
+    with NoopEnter():
         for input in inputs[:warmup]:
             output = model(input)
             torch.sum(output).item()  # to make sure everything is computed
@@ -112,23 +106,12 @@ def main_tests(version, disable_inner=False):
             for input in inputs[warmup:]:
                 output = model(input)
                 torch.sum(output).item()  # to make sure everything is computed
-    # total_time = sum(times[warmup:])
-    #
-    # print('{} time: {}'.format(
-    #     version,
-    #     round(total_time, 2)))
 
 
 if __name__ == "__main__":
-    main_tests('alt', False)
+    main_tests('sparse', False)
     bert.print_times()
-    # main_tests('alt', False)
-    # bert.print_times()
-    # main_tests('alt', True)
-    # bert.print_times()
-    # main_tests('sparse')
-    # main_tests('alt')
     main_tests('dense')
     bert.print_times()
-    # main_tests('alt')
-    # main_tests(False)
+    # main_tests('sparse', False)
+    # bert.print_times()

@@ -15,9 +15,11 @@ from einops.layers.torch import EinMix as OGEinMix
 import einops
 
 
-def einsum(subscript, *operands, **kwargs):
-    return torch.einsum(subscript, *operands, **kwargs)
-    # return contract(subscript, *operands, **kwargs)
+def einsum(subscript, *operands, use_opt_einsum=False, **kwargs):
+    if use_opt_einsum:
+        return contract(subscript, *operands, **kwargs)
+    else:
+        return torch.einsum(subscript, *operands, **kwargs)
 
 import gc
 from typing import List
@@ -58,15 +60,9 @@ def Dense(dinp, dout):
 def FeedForward(dmodel, dff):
     # TODO: replace with Linears
     return TimerLayer('denseFF', nn.Sequential(
-        nn.Linear(dmodel, dff),
-        # EinMix('... dm -> ... dff',
-        #        weight_shape='dm dff', bias_shape='dff',
-        #        dm=dmodel, dff=dff),
+        TimerLayer('Linear1', nn.Linear(dmodel, dff), off=True),
         nn.ReLU(inplace=True),
-        nn.Linear(dff, dmodel),
-        # EinMix('... dff -> ... dm',
-        #        weight_shape='dff dm', bias_shape='dm',
-        #        dm=dmodel, dff=dff)
+        TimerLayer('Linear2', nn.Linear(dff, dmodel), off=True),
     ))
 
 
@@ -161,14 +157,18 @@ DISABLED = False
 
 
 class TimerLayer(nn.Module):
-    def __init__(self, name, layer):
+    def __init__(self, name, layer, off=False):
         super(TimerLayer, self).__init__()
         self.name = name
         self.layer = layer
+        self.off = off
 
     def forward(self, *args, **kwargs):
-        with Timer(self.name):
+        if self.off:
             result = self.layer(*args, **kwargs)
+        else:
+            with Timer(self.name):
+                result = self.layer(*args, **kwargs)
         return result
 
 
@@ -255,37 +255,40 @@ class AltBatchSplitFF(nn.Module):
         self.cout = '... t e s'
         self.inner = '... e s f'
 
+        self.bias = nn.Parameter(torch.Tensor(
+            nexperts, expertsets, expertsize
+        ))
+
         self.f1p = 'd e s f'
         self.f1 = nn.Parameter(torch.Tensor(
             dm, nexperts, expertsets, expertsize
-        ))
-
-        self.f1Q = nn.Parameter(torch.Tensor(
-            dm, nexperts*expertsets*expertsize
         ))
 
         self.f2p = 'e s f d'
         self.f2 = nn.Parameter(torch.Tensor(
             nexperts, expertsets, expertsize, dm
         ))
+        self.inner2 = '... e s d'
 
         self.ogp = self.gp.replace('...', '... b')
 
     def forward(self, x):
-        with Timer('batchedFF'):
+        with Timer('batchedFF', disable_inner=False):
             #BATCH, embedding
             assert len(x.shape) >= 2
             assert x.shape[-1] == self.dm
             # batch, set, embedding <-- this is just reshape
             with Timer('grouped'):
-                grouped = einops.rearrange(x, '... (b t) d -> {}'.format(self.ogp),
+                grouped = einops.rearrange(x, f'... (b t) d -> {self.ogp}',
                                            t=self.nexperts)
 
             ## CONTROLLER:
             # batch, set1, embedding <-- this is starting point
             with Timer('cont_logits'):
-                cont_logits = einsum('{}, {} -> {}'.format(self.gp, self.cp, self.cout),
+                cont_logits = einsum(f'{self.gp}, {self.cp} -> {self.cout}',
                                      grouped, self.controller)
+                # biases in the controller are not needed, because they are added to
+                # every token in a given expert, and expert chooses the token with max value
 
 
             # batch, set1, set2(experts), expertsets  <--- this comes from linear
@@ -303,143 +306,26 @@ class AltBatchSplitFF(nn.Module):
                 cont_permutation = cont_permutation * 1.  # convert to float tensor
 
             with Timer('Einsum 1'):
-                # inner = einsum('... t d, ... t e s, e s f d -> ... e s f',
-                #                grouped, cont_permutation, self.f2)
+                inner = einsum(f'{self.gp}, {self.f1p}, {self.cout} -> {self.inner}',
+                               grouped, self.f1, cont_permutation,
+                               use_opt_einsum=True)
 
-                # with Timer('Einsum 1A-1'):
-                #     intermediate = einsum('... t d, d e s f -> ... t e s f',
-                #                           grouped, self.f1)
-                # with Timer('Einsum 1B'):
-                #     inner = einsum('... t e s f, ... t e s -> ... e s f',
-                #                    intermediate, cont_permutation)
-
-                with Timer('Einsum Combined'):
-                    inner = contract('... t d, d e s f, ... t e s -> ... e s f',
-                                          grouped, self.f1, cont_permutation)
-
-                # g1 = grouped.contiguous()
-                # f1Q = self.f1Q.contiguous()
-                # # g1 = torch.transpose(grouped, -1, -2).contiguous()
-                # # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
-                # with Timer('Einsum 1A-T'):
-                #     intermediate = einsum('... t d, d E -> ... t E',
-                #                           g1, f1Q)
-                # g1 = grouped.contiguous()
-                # f1Q = self.f1Q.contiguous()
-                # # g1 = torch.transpose(grouped, -1, -2).contiguous()
-                # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
-                # with Timer('Einsum 1A-A'):
-                #     intermediate = einsum('... t d, E d -> ... t E',
-                #                           g1, f1Q)
-                # g1 = grouped.contiguous()
-                # f1Q = self.f1Q.contiguous()
-                # g1 = torch.transpose(grouped, -1, -2).contiguous()
-                # # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
-                # with Timer('Einsum 1A-S'):
-                #     intermediate = einsum('... d t, d E -> ... t E',
-                #                           g1, f1Q)
-                # g1 = grouped.contiguous()
-                # f1Q = self.f1Q.contiguous()
-                # g1 = torch.transpose(grouped, -1, -2).contiguous()
-                # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
-                # with Timer('Einsum 1A-D'):
-                #     intermediate = einsum('... d t, E d -> ... t E',
-                #                           g1, f1Q)
-                #
-                # g1 = grouped.contiguous()
-                # f1Q = self.f1Q.contiguous()
-                # # g1 = torch.transpose(grouped, -1, -2).contiguous()
-                # # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
-                # with Timer('Einsum 1A-T2'):
-                #     intermediate = einsum('... t d, d E -> ... E t',
-                #                           g1, f1Q)
-                # g1 = grouped.contiguous()
-                # f1Q = self.f1Q.contiguous()
-                # # g1 = torch.transpose(grouped, -1, -2).contiguous()
-                # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
-                # with Timer('Einsum 1A-A2'):
-                #     intermediate = einsum('... t d, E d -> ... E t',
-                #                           g1, f1Q)
-                # g1 = grouped.contiguous()
-                # f1Q = self.f1Q.contiguous()
-                # g1 = torch.transpose(grouped, -1, -2).contiguous()
-                # # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
-                # with Timer('Einsum 1A-S2'):
-                #     intermediate = einsum('... d t, d E -> ... E t',
-                #                           g1, f1Q)
-                # g1 = grouped.contiguous()
-                # f1Q = self.f1Q.contiguous()
-                # g1 = torch.transpose(grouped, -1, -2).contiguous()
-                # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
-                # with Timer('Einsum 1A-D2'):
-                #     intermediate = einsum('... d t, E d -> ... E t',
-                #                           g1, f1Q)
-
-                # with Timer('Einsum Q1A'):
-                #     intermediate = einsum('... t d, ... t e s -> ... t e s d',
-                #                           grouped, cont_permutation)
-                # with Timer('Einsum Q1B'):
-                #     inner = einsum('... t e s d, d e s f -> ... e s f',
-                #                    intermediate, self.f1)
-                #
-                # with Timer('Einsum Q1A-2'):
-                #     intermediate = einsum('... t d, ... t e s -> ... t d e s',
-                #                           grouped, cont_permutation)
-                # with Timer('Einsum Q1B'):
-                #     inner = einsum('... t e s d, d e s f -> ... e s f',
-                #                    intermediate, self.f1)
-
-                # inner = einsum('{}, {}, {} -> {}'.format(self.gp, self.cout, self.f1p, self.inner),
-                #                grouped, cont_permutation, self.f1)
+            with Timer('bias'):
+                inner = inner + self.bias
 
             with Timer('ReLU'):
                 inner = torch.relu_(inner)
 
             with Timer('Einsum 2'):
-                # result_unpermuted = einsum(
-                #     '{}, {} -> {}'.format(self.cout, self.f2p, self.gp),
-                #     cont_permutation, self.f2
-                # ) * torch.mean(inner)
-
-                # intermediate = einsum('... e s f, ... t e s -> ... e s f t',
-                #                       inner, cont_permutation)
-                # result_unpermuted = einsum('... e s f t, e s f d -> ... t d',
-                #                            intermediate, self.f2)
-
-                with Timer('Einsum 2A'):
-                    intermediate = einsum('... e s f, e s f d -> ... e s d',
-                                          inner, self.f2)
-                with Timer('Einsum 2B'):
-                    result_unpermuted = einsum('... e s d, ... t e s -> ... t d',
-                                               intermediate, cont_permutation)
-                with Timer('Einsum Combined2A'):
-                    intermediate = contract('... e s f, e s f d, ... t e s -> ... t d',
-                                          inner, self.f2, cont_permutation)
-                with Timer('Einsum Combined2B'):
-                    intermediate = einsum('... e s f, e s f d -> ... e s d',
-                                          inner, self.f2)
-                    result_unpermuted = einsum('... e s d, ... t e s -> ... t d',
-                                               intermediate, cont_permutation)
-
-
-                # intermediate = einsum('... t e s, e s f d -> ... e s f t d',
-                #                       cont_permutation, self.f2)
-                # result_unpermuted = einsum('... e s f t d, ... e s f -> ... t d',
-                #                            intermediate, inner)
-
-
-                # result_unpermuted = einsum('... e s f, ... t e s, e s f d -> ... t d',
-                #                       inner, cont_permutation, self.f2)
-
-                # result_unpermuted = einsum(
-                #     '{}, {}, {} -> {}'.format(self.inner, self.cout, self.f2p, self.gp),
-                #     inner, cont_permutation, self.f2
-                # )
+                intermediate = einsum(f'{self.inner},{self.f2p} -> {self.inner2}',
+                                      inner, self.f2)
+                result_unpermuted = einsum(f'{self.inner2}, {self.cout} -> {self.gp}',
+                                           intermediate, cont_permutation)
 
             # final reshape
             # BATCH, embedding
             with Timer('rearrange final'):
-                result_final = einops.rearrange(result_unpermuted, '{} -> ... (b t) d'.format(self.ogp))
+                result_final = einops.rearrange(result_unpermuted, f'{self.ogp} -> ... (b t) d')
             return result_final
 
 
