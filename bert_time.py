@@ -2,6 +2,9 @@ import bert
 import torch
 import time
 
+import misc
+import profile
+
 
 def test_basic(self):
     batch, seql, dm, heads, dff = 3, 12, 32, 4, 64
@@ -70,7 +73,7 @@ def main_tests(version, disable_inner=False):
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.AltBatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
             (lambda: bert.Attention(dm, heads)),
         )
     elif version == 'dense':
@@ -99,8 +102,8 @@ def main_tests(version, disable_inner=False):
         for input in inputs[:warmup]:
             output = model(input)
             torch.sum(output).item()  # to make sure everything is computed
-        bert.reset_times()
-        with bert.Timer(f'{version}', disable_inner=disable_inner):
+        profile.reset_times()
+        with profile.Timer(f'{version}', disable_inner=disable_inner):
             for input in inputs[warmup:]:
                 output = model(input)
                 torch.sum(output).item()  # to make sure everything is computed
@@ -108,8 +111,8 @@ def main_tests(version, disable_inner=False):
 
 if __name__ == "__main__":
     main_tests('sparse', False)
-    bert.print_times()
+    profile.print_times()
     main_tests('dense')
-    bert.print_times()
+    profile.print_times()
     # main_tests('sparse', False)
     # bert.print_times()
