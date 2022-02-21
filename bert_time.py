@@ -1,8 +1,5 @@
 import bert
 import torch
-import time
-
-import misc
 import profile
 
 

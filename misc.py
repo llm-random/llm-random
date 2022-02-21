@@ -1,12 +1,14 @@
 import torch
 from einops.layers.torch import EinMix as OGEinMix
-from opt_einsum import contract
-from torch import nn as nn
+import opt_einsum
+from torch import nn
+
+import ash
 
 
 def einsum(subscript, *operands, use_opt_einsum=False, **kwargs):
     if use_opt_einsum:
-        return contract(subscript, *operands, **kwargs)
+        return opt_einsum.contract(subscript, *operands, **kwargs)
     else:
         return torch.einsum(subscript, *operands, **kwargs)
 
@@ -37,6 +39,7 @@ class EinMix(nn.Module):
         return newoutput
 
 
+@ash.check('... inp -> ... out')
 def Dense(dinp, dout):
     return EinMix('... dinp -> ... dout',
                   weight_shape='dinp dout', bias_shape='dout',
@@ -50,8 +53,10 @@ def check_layer_funs(*layer_funs):
                             .format(type(layer_fun)))
 
 
+@ash.check('... -> ...')
 class StopGradient(nn.Module):
     def __init__(self):
+        super(StopGradient, self).__init__()
         pass
 
     def forward(self, x):
@@ -62,6 +67,7 @@ def stop_gradient(x):
     return x.detach()
 
 
+@ash.check('... -> ...')
 class StopValuePassGradient(nn.Module):
     def __init__(self):
         super(StopValuePassGradient, self).__init__()
