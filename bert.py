@@ -306,16 +306,74 @@ class AltBatchSplitFF(nn.Module):
                 # inner = einsum('... t d, ... t e s, e s f d -> ... e s f',
                 #                grouped, cont_permutation, self.f2)
 
-                with Timer('Einsum 1A-1'):
-                    intermediate = einsum('... t d, d e s f -> ... t e s f',
-                                          grouped, self.f1)
-                with Timer('Einsum 1B'):
-                    inner = einsum('... t e s f, ... t e s -> ... e s f',
-                                   intermediate, cont_permutation)
+                # with Timer('Einsum 1A-1'):
+                #     intermediate = einsum('... t d, d e s f -> ... t e s f',
+                #                           grouped, self.f1)
+                # with Timer('Einsum 1B'):
+                #     inner = einsum('... t e s f, ... t e s -> ... e s f',
+                #                    intermediate, cont_permutation)
 
-                with Timer('Einsum 1A-T'):
-                    intermediate = einsum('... t d, d E -> ... t E',
-                                          grouped, self.f1Q)
+                with Timer('Einsum Combined'):
+                    inner = contract('... t d, d e s f, ... t e s -> ... e s f',
+                                          grouped, self.f1, cont_permutation)
+
+                # g1 = grouped.contiguous()
+                # f1Q = self.f1Q.contiguous()
+                # # g1 = torch.transpose(grouped, -1, -2).contiguous()
+                # # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
+                # with Timer('Einsum 1A-T'):
+                #     intermediate = einsum('... t d, d E -> ... t E',
+                #                           g1, f1Q)
+                # g1 = grouped.contiguous()
+                # f1Q = self.f1Q.contiguous()
+                # # g1 = torch.transpose(grouped, -1, -2).contiguous()
+                # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
+                # with Timer('Einsum 1A-A'):
+                #     intermediate = einsum('... t d, E d -> ... t E',
+                #                           g1, f1Q)
+                # g1 = grouped.contiguous()
+                # f1Q = self.f1Q.contiguous()
+                # g1 = torch.transpose(grouped, -1, -2).contiguous()
+                # # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
+                # with Timer('Einsum 1A-S'):
+                #     intermediate = einsum('... d t, d E -> ... t E',
+                #                           g1, f1Q)
+                # g1 = grouped.contiguous()
+                # f1Q = self.f1Q.contiguous()
+                # g1 = torch.transpose(grouped, -1, -2).contiguous()
+                # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
+                # with Timer('Einsum 1A-D'):
+                #     intermediate = einsum('... d t, E d -> ... t E',
+                #                           g1, f1Q)
+                #
+                # g1 = grouped.contiguous()
+                # f1Q = self.f1Q.contiguous()
+                # # g1 = torch.transpose(grouped, -1, -2).contiguous()
+                # # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
+                # with Timer('Einsum 1A-T2'):
+                #     intermediate = einsum('... t d, d E -> ... E t',
+                #                           g1, f1Q)
+                # g1 = grouped.contiguous()
+                # f1Q = self.f1Q.contiguous()
+                # # g1 = torch.transpose(grouped, -1, -2).contiguous()
+                # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
+                # with Timer('Einsum 1A-A2'):
+                #     intermediate = einsum('... t d, E d -> ... E t',
+                #                           g1, f1Q)
+                # g1 = grouped.contiguous()
+                # f1Q = self.f1Q.contiguous()
+                # g1 = torch.transpose(grouped, -1, -2).contiguous()
+                # # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
+                # with Timer('Einsum 1A-S2'):
+                #     intermediate = einsum('... d t, d E -> ... E t',
+                #                           g1, f1Q)
+                # g1 = grouped.contiguous()
+                # f1Q = self.f1Q.contiguous()
+                # g1 = torch.transpose(grouped, -1, -2).contiguous()
+                # f1Q = torch.transpose(self.f1Q, -1, -2).contiguous()
+                # with Timer('Einsum 1A-D2'):
+                #     intermediate = einsum('... d t, E d -> ... E t',
+                #                           g1, f1Q)
 
                 # with Timer('Einsum Q1A'):
                 #     intermediate = einsum('... t d, ... t e s -> ... t e s d',
@@ -352,6 +410,14 @@ class AltBatchSplitFF(nn.Module):
                     intermediate = einsum('... e s f, e s f d -> ... e s d',
                                           inner, self.f2)
                 with Timer('Einsum 2B'):
+                    result_unpermuted = einsum('... e s d, ... t e s -> ... t d',
+                                               intermediate, cont_permutation)
+                with Timer('Einsum Combined2A'):
+                    intermediate = contract('... e s f, e s f d, ... t e s -> ... t d',
+                                          inner, self.f2, cont_permutation)
+                with Timer('Einsum Combined2B'):
+                    intermediate = einsum('... e s f, e s f d -> ... e s d',
+                                          inner, self.f2)
                     result_unpermuted = einsum('... e s d, ... t e s -> ... t d',
                                                intermediate, cont_permutation)
 
