@@ -71,14 +71,48 @@ def main_tests(version, disable_inner=False):
             n_blocks,
             dm,
             (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
-            (lambda: bert.Attention(dm, heads)),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
+        )
+    elif version == 'sparse+qkv':
+        modules = 4
+        sparse_linear_projection = lambda: bert.FactoredDense(dm, dm, modules)
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
+        )
+    elif version == 'sparse+lowrank':
+        lowrank = 16
+        sparse_linear_projection = lambda: bert.LowRank(dm, dm, lowrank)
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
+        )
+    elif version == 'sparse+perm':
+        sparse_linear_projection = lambda: bert.PermutationDense(dm)
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
+        )
+    elif version == 'sparse+noop':
+        sparse_linear_projection = lambda: bert.NoopDense()
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
         )
     elif version == 'dense':
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
             (lambda: bert.FeedForward(dm, dff)),
-            (lambda: bert.Attention(dm, heads)),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
         )
     else:
         raise ValueError('Unrecognized type of FF: {}'.format(version))
@@ -107,6 +141,14 @@ def main_tests(version, disable_inner=False):
 
 
 if __name__ == "__main__":
+    main_tests('sparse+qkv', False)
+    profile.print_times()
+    main_tests('sparse+lowrank', False)
+    profile.print_times()
+    main_tests('sparse+noop', False)
+    profile.print_times()
+    main_tests('sparse+perm', False)
+    profile.print_times()
     main_tests('sparse', False)
     profile.print_times()
     main_tests('dense')

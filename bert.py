@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 import einops
+from einops.layers.torch import Rearrange
 
 from misc import einsum, EinMix, check_layer_funs, Sum
 import ash
@@ -56,11 +57,14 @@ class BatchSplitFF(nn.Module):
         self.f2 = nn.Parameter(torch.Tensor(
             nexperts, expertsets, expertsize, dm
         ))
+
         self.inner2 = '... e s d'
 
         self.ogp = self.gp.replace('...', '... b')
 
     def forward(self, x):
+        # TODO: I want to, if model is in .train(), then also run all things
+        # that we need for
         with Timer('batchedFF', disable_inner=False):
             #BATCH, embedding
             ash.assert_shape('... B d', x, d=self.dm)
@@ -127,9 +131,72 @@ class Residual(nn.Module):
         return out + x
 
 
+# @ash.check('... dinp -> ... dout')
+# def FactoredDense(dinput, doutput, modules):
+#     assert doutput % modules == 0
+#     dmodule = doutput // modules
+#     return nn.Sequential(
+#         EinMix('... dinp -> ... modules dinp', weight_shape='modules dinp',# bias_shape='modules dinp',
+#                dinp=dinput, modules=modules),
+#         EinMix('... modules dinp -> ... (modules dmodule)', weight_shape='dinp dmodule',# bias_shape='modules dmodule',
+#                modules=modules, dinp=dinput, dmodule=dmodule),
+#     )
+
+@ash.check('... dinp -> ... dout')
+class FactoredDense(nn.Module):
+    def __init__(self, dinput, doutput, modules):
+        super(FactoredDense, self).__init__()
+        assert doutput % modules == 0
+        dmodule = doutput // modules
+
+        self.gating = nn.Parameter(torch.Tensor(
+            modules, dinput,
+        ))
+        self.projection = nn.Parameter(torch.Tensor(
+            dinput, dmodule
+        ))
+
+    def forward(self, x):
+        y = einsum('... d, m d, d f -> ... m f',
+                   x, self.gating, self.projection,
+                   use_opt_einsum=True)
+        y = einops.rearrange(y, '... modules dmodule -> ... (modules dmodule)')
+        return y
+
+
+@ash.check('... dinp -> ... dinp')
+def PermutationDense(dinput):
+    sqdi = int(round(dinput**0.5))
+    assert sqdi * sqdi == dinput
+    return nn.Sequential(
+        EinMix('... (a b) -> ... (B a)',
+               weight_shape='a b B',
+               a=sqdi, b=sqdi, B=sqdi),
+        EinMix('... (B a) -> ... (A B)',
+               weight_shape='B a A',
+               a=sqdi, A=sqdi, B=sqdi),
+        # EinMix('... (A B) -> ... (A B)',
+        #        weight_shape='A B',
+        #        A=sqdi, B=sqdi),
+    )
+
+
+@ash.check('... -> ...')
+def NoopDense():
+    return nn.Sequential()
+
+
+@ash.check('... dinp -> ... dout')
+def LowRank(dinput, doutput, dlowrank):
+    return nn.Sequential(
+        nn.Linear(dinput, dlowrank, bias=False),
+        nn.Linear(dlowrank, doutput)
+    )
+
+
 @ash.check('... d -> ... d')
 class Attention(nn.Module):
-    def __init__(self, dmodel, heads, dhead=None):
+    def __init__(self, dmodel, heads, dhead=None, layer_fun=None):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
@@ -137,18 +204,27 @@ class Attention(nn.Module):
         self.heads = heads
         self.dhead = dhead
         self.dmodel = dmodel
-        layer_fun = lambda: EinMix('... dm -> ... heads dhead',
-                                   weight_shape='dm heads dhead', bias_shape='heads dhead',
-                                   dm=dmodel, heads=heads, dhead=dhead)
-        self.Q = layer_fun()
-        self.K = layer_fun()
-        self.V = layer_fun()
+        if layer_fun is None:
+            layer_fun = lambda: EinMix('... dmodel -> ... (heads dhead)',
+                                       weight_shape='dmodel heads dhead', bias_shape='heads dhead',
+                                       dmodel=dmodel, heads=heads, dhead=dhead)
+        layer_fun_and_reshape = lambda: nn.Sequential(
+            layer_fun(),
+            Rearrange('... (heads dhead) -> ... heads dhead',
+                      heads=heads, dhead=dhead)
+        )
+
+        self.Q = layer_fun_and_reshape()
+        self.K = layer_fun_and_reshape()
+        self.V = layer_fun_and_reshape()
 
         # self.A = Reduce('... seqlen1 heads dhead, ... seqlen2 heads dhead -> ... heads seqlen1 seqlen2')
 
-        self.D = EinMix('... heads dhead -> ... dm',
-                        weight_shape='heads dhead dm', bias_shape='dm',
-                        dm=dmodel, heads=heads, dhead=dhead)
+        self.D = nn.Sequential(
+            Rearrange('... heads dhead -> ... (heads dhead)',
+                      heads=heads, dhead=dhead),
+            layer_fun()
+        )
 
     def forward(self, x):
         q = self.Q(x)

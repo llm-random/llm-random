@@ -42,6 +42,31 @@ class ResidualTest(GeneralTestCase):
         self.assertTensorEqual(output1+input, output2)
 
 
+class FactoredDenseTest(GeneralTestCase):
+    def test_basic(self):
+        batch, dinp, dout = 4, 32, 64
+        layer = bert.FactoredDense(dinp, dout, modules=4)
+        input = torch.normal(0.0, 1.0, (batch, dinp))
+        output = layer(input)
+        self.assertShape(output, (batch, dout))
+
+    def test_more_dims(self):
+        batch, seql, dinp, dout = 4, 8, 32, 64
+        layer = bert.FactoredDense(dinp, dout, modules=2)
+        input = torch.normal(0.0, 1.0, (batch, seql, dinp))
+        output = layer(input)
+        self.assertShape(output, (batch, seql, dout))
+
+
+class FactoredDenseTest(GeneralTestCase):
+    def test_basic(self):
+        batch, dinp, dout = 4, 64, 64
+        layer = bert.PermutationDense(dinp)
+        input = torch.normal(0.0, 1.0, (batch, dinp))
+        output = layer(input)
+        self.assertShape(output, (batch, dout))
+
+
 class AttentionTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, heads = 3, 7, 32, 4
@@ -105,6 +130,7 @@ class BERTTest(GeneralTestCase):
 class BERTSparseTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, heads, dff = 3, 12, 32, 4, 64
+        modules = 4
 
         vocab_size, max_length = 107, 33
         output_size = 3
@@ -115,11 +141,13 @@ class BERTSparseTest(GeneralTestCase):
             bert.TokenEmbedding(vocab_size, dm)
         )
 
+        factored_dense_fun = lambda: bert.FactoredDense(dm, dm, modules)
+
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
             (lambda: bert.BatchSplitFF([], dm, dff, 4, 4, 4)),
-            (lambda: bert.Attention(dm, heads)),
+            (lambda: bert.Attention(dm, heads, layer_fun=factored_dense_fun)),
         )
 
         head = bert.PredictionHead(dm, output_size)
