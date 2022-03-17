@@ -31,7 +31,8 @@ class EinMix(nn.Module):
         beginning = beginning.split()
         end = end.split()
         assert beginning[0] == end[0] == '...'
-        contracted_dims = len(x.shape)-len(beginning)+1
+        # TODO(jaszczur): fix this hack below, properly
+        contracted_dims = len(x.shape)-len(beginning)+1 + (1 if '(' in ''.join(beginning) else 0)
         ellipsis_shape = list(x.shape[:contracted_dims])
         newx = torch.reshape(x, [-1] + list(x.shape[contracted_dims:]))
         output = self.layer(newx)
