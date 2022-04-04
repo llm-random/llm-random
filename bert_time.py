@@ -57,8 +57,8 @@ def main_tests(version, disable_inner=False):
     batch, seql, dm, heads = 1, 1024, 1024, 16
     vocab_size, max_length = 107, 1024
     output_size = 64
-    n_blocks = 4
-    samples = 20
+    n_blocks = 6
+    samples = 100
     warmup = 10
 
     embedding_layer = bert.EmbeddingLayer(
@@ -76,6 +76,7 @@ def main_tests(version, disable_inner=False):
     elif version == 'sparse+qkv':
         modules = 4
         sparse_linear_projection = lambda: bert.FactoredDense(dm, dm, modules)
+        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
@@ -85,6 +86,7 @@ def main_tests(version, disable_inner=False):
     elif version == 'sparse+lowrank':
         lowrank = 16
         sparse_linear_projection = lambda: bert.LowRank(dm, dm, lowrank)
+        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
@@ -93,6 +95,7 @@ def main_tests(version, disable_inner=False):
         )
     elif version == 'sparse+perm':
         sparse_linear_projection = lambda: bert.PermutationDense(dm)
+        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
@@ -101,6 +104,7 @@ def main_tests(version, disable_inner=False):
         )
     elif version == 'sparse+noop':
         sparse_linear_projection = lambda: bert.NoopDense()
+        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
@@ -108,11 +112,13 @@ def main_tests(version, disable_inner=False):
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
         )
     elif version == 'dense':
+        sparse_linear_projection = lambda: bert.TrueDense(dm, dm)
+        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
             (lambda: bert.FeedForward(dm, dff)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
         )
     else:
         raise ValueError('Unrecognized type of FF: {}'.format(version))
@@ -141,17 +147,17 @@ def main_tests(version, disable_inner=False):
 
 
 if __name__ == "__main__":
-    main_tests('sparse+qkv', False)
-    profile.print_times()
-    main_tests('sparse+lowrank', False)
-    profile.print_times()
-    main_tests('sparse+noop', False)
-    profile.print_times()
+    # main_tests('sparse+qkv', False)
+    # profile.print_times()
+    # main_tests('sparse+lowrank', False)
+    # profile.print_times()
+    # main_tests('sparse+noop', False)
+    # profile.print_times()
     main_tests('sparse+perm', False)
     profile.print_times()
-    main_tests('sparse', False)
-    profile.print_times()
-    main_tests('dense')
-    profile.print_times()
+    # main_tests('sparse', False)
+    # profile.print_times()
+    # main_tests('dense')
+    # profile.print_times()
     # main_tests('sparse', False)
     # bert.print_times()
