@@ -19,8 +19,7 @@ class Check(nn.Module):
         self.constants = kwargs
         self.layer = layer
 
-    @staticmethod
-    def _check_and_add(shape, current, past, index):
+    def _check_and_add(self, shape, current, past, index):
         if current.isnumeric():
             assert shape[index] == int(current)
         elif current.isalpha():
@@ -34,11 +33,10 @@ class Check(nn.Module):
             else:
                 past['...'] = shape[:index + 1]
 
-    @staticmethod
-    def _check_and_add_all(shape, signature, past):
-        for index, current in enumerate(signature,
-                                    start=len(signature)-len(shape)):
-            Check._check_and_add(shape, current, past, index)
+    def _check_and_add_all(self, shape, signature, past):
+        for index, current in enumerate(
+                signature, start=len(signature)-len(shape)):
+            self._check_and_add(shape, current, past, index)
 
     def get_past(self):
         if DISABLE_CHECKS:

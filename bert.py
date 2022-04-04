@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 
@@ -142,6 +144,12 @@ class Residual(nn.Module):
 #                modules=modules, dinp=dinput, dmodule=dmodule),
 #     )
 
+
+@ash.check('... dinp -> ... dout')
+def TrueDense(dinput, doutput):
+    return nn.Linear(dinput, doutput)
+
+
 @ash.check('... dinp -> ... dout')
 class FactoredDense(nn.Module):
     def __init__(self, dinput, doutput, modules):
@@ -164,17 +172,125 @@ class FactoredDense(nn.Module):
         return y
 
 
+class EinSumLayer(nn.Module):
+    def __init__(self, pattern, shape, opt_einsum=False):
+        super(EinSumLayer, self).__init__()
+        self.weight = nn.Parameter(torch.normal(0., 1., shape))
+        self.pattern = pattern
+        self.opt_einsum = opt_einsum
+
+    def forward(self, x):
+        result = einsum(self.pattern, x, self.weight,
+                        use_opt_einsum=self.opt_einsum)
+        return result
+
+
+@ash.check('... dinp -> ... a b')
+class SplitLastAxis(nn.Module):
+    def __init__(self, a, b):
+        super(SplitLastAxis, self).__init__()
+        self.a = a
+        self.b = b
+
+    def forward(self, x):
+        a, b = self.a, self.b
+        assert x.shape[-1] == a * b
+        result = x.view(x.shape[:-1] + (a, b))
+        assert result.shape[-2:] == (a, b)
+        # print("wtf", x.shape, result.shape)
+        return result
+
+
+@ash.check('... a b -> ... dout')
+class MergeLastAxis(nn.Module):
+    def forward(self, x):
+        result = x.reshape(x.shape[:-2] + (-1,))
+        # print('wtf', x.shape, result.shape)
+        return result
+
+
+# @ash.check('... a b -> ... b a')
+class Transpose(nn.Module):
+    def forward(self, x):
+        # return einops.rearrange(x, '... a b -> ... b a')
+        return torch.transpose(x, -1, -2)
+
+
 @ash.check('... dinp -> ... dinp')
 def PermutationDense(dinput):
     sqdi = int(round(dinput**0.5))
     assert sqdi * sqdi == dinput
+
+    # wtflayers = []
+    # for repeat in range(3):
+    #     for variant in ['a c', 'c a', 'b c', 'c b']:
+    #         for v2 in ['a b c', 'a c b', 'b a c', 'b c a',
+    #                    'c a b', 'c b a']:
+    #             layer = TimerLayer(
+    #                 f"{variant};{v2}",
+    #                 EinMix(f"... a b -> ... {variant}",
+    #                        weight_shape=v2,
+    #                        a=sqdi, b=sqdi, c=sqdi))
+    #             wtflayers.append(layer)
+    # random.shuffle(wtflayers)
+
     return nn.Sequential(
-        EinMix('... (a b) -> ... (B a)',
-               weight_shape='a b B',
-               a=sqdi, b=sqdi, B=sqdi),
-        EinMix('... (B a) -> ... (A B)',
-               weight_shape='B a A',
-               a=sqdi, A=sqdi, B=sqdi),
+        # nn.Sequential(
+        #     SplitLastAxis(sqdi, sqdi),
+        #     nn.Sequential(*wtflayers),
+        #     MergeLastAxis(),
+        # ),
+
+        TimerLayer('verA', nn.Sequential(
+            SplitLastAxis(sqdi, sqdi),
+            EinMix('... a b -> ... a c',
+                   weight_shape='a b c',
+                   a=sqdi, b=sqdi, c=sqdi),
+            Transpose(),
+            EinMix('... a b -> ... a c',
+                   weight_shape='a b c',
+                   a=sqdi, b=sqdi, c=sqdi),
+            Transpose(),
+            EinMix('... a b -> ... a c',
+                   weight_shape='a b c',
+                   a=sqdi, b=sqdi, c=sqdi),
+            MergeLastAxis(),
+        )),
+
+        # TimerLayer('verB', nn.Sequential(
+        #     SplitLastAxis(sqdi, sqdi),
+        #     EinMix('... a b -> ... a c',
+        #            weight_shape='a b c',
+        #            a=sqdi, b=sqdi, c=sqdi),
+        #     EinMix('... a b -> ... a c',
+        #            weight_shape='a b c',
+        #            a=sqdi, b=sqdi, c=sqdi),
+        #     EinMix('... a b -> ... a c',
+        #            weight_shape='a b c',
+        #            a=sqdi, b=sqdi, c=sqdi),
+        #     MergeLastAxis(),
+        # )),
+        # EinSumLayer('...')
+
+
+        # TimerLayer('verB', nn.Sequential(
+        #     EinMix('... (a b) -> ... (a B)',
+        #            weight_shape='a b B',
+        #            a=sqdi, b=sqdi, B=sqdi),
+        #     EinMix('... (a b) -> ... (a B)',
+        #            weight_shape='a b B',
+        #            a=sqdi, b=sqdi, B=sqdi),
+        #     EinMix('... (a b) -> ... (a B)',
+        #            weight_shape='a b B',
+        #            a=sqdi, b=sqdi, B=sqdi),
+        #            )),
+        # EinMix('... (b a) -> ... (A b)',
+        #        weight_shape='b a A',
+        #        a=sqdi, A=sqdi, b=sqdi),
+        # EinMix('... (a b) -> ... (B a)',
+        #        weight_shape='a b B',
+        #        a=sqdi, b=sqdi, B=sqdi),
+
         # EinMix('... (A B) -> ... (A B)',
         #        weight_shape='A B',
         #        A=sqdi, B=sqdi),
@@ -209,7 +325,7 @@ class Attention(nn.Module):
                                        weight_shape='dmodel heads dhead', bias_shape='heads dhead',
                                        dmodel=dmodel, heads=heads, dhead=dhead)
         layer_fun_and_reshape = lambda: nn.Sequential(
-            layer_fun(),
+            TimerLayer('QKVproj', layer_fun()),
             Rearrange('... (heads dhead) -> ... heads dhead',
                       heads=heads, dhead=dhead)
         )
