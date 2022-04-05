@@ -5,3 +5,4 @@ matplotlib
 opt_einsum
 line_profiler
 einops==0.4.0
+tensorflow
