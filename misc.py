@@ -6,6 +6,33 @@ from torch import nn
 import ash
 
 
+class GeneralizedReLU(nn.Module):
+    def __init__(self, ndim, bias=False):
+        super(GeneralizedReLU, self).__init__()
+        assert bias is False  # we assume bias was already added
+        self.ndim = ndim
+        self.alpha = nn.Parameter(torch.zeros(ndim))
+        self.beta = nn.Parameter(torch.ones(ndim))
+        self.a = nn.Parameter(torch.zeros(ndim))
+        self.b = nn.Parameter(torch.zeros(ndim))
+
+    def forward(self, x):
+        above_zero = self.beta * x + self.b
+        below_zero = self.alpha * x + self.a
+        result = torch.where(x > 0., above_zero, below_zero)
+        return result
+
+
+# class ParameterLayer(nn.Module):
+#     def __init__(self, tensor):
+#         super(ParameterLayer, self).__init__()
+#         self.parameter = nn.Parameter(tensor)
+#
+#     def forward(self, x):
+#         del x
+#         return self.parameter
+
+
 def einsum(subscript, *operands, use_opt_einsum=False, **kwargs):
     if use_opt_einsum:
         return opt_einsum.contract(subscript, *operands, **kwargs)
