@@ -161,5 +161,48 @@ class BERTSparseTest(GeneralTestCase):
         self.assertShape(output, (batch, seql, output_size))
 
 
+class BERTSparseGradientTest(GeneralTestCase):
+    def test_basic(self):
+        batch, seql, dm, heads, dff = 3, 12, 32, 4, 64
+        modules = 4
+
+        vocab_size, max_length = 107, 33
+        output_size = 3
+        n_blocks = 1
+
+        embedding_layer = bert.EmbeddingLayer(
+            bert.PositionalEmbedding(max_length, dm),
+            bert.TokenEmbedding(vocab_size, dm)
+        )
+
+        factored_dense_fun = lambda: bert.FactoredDense(dm, dm, modules)
+
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.BatchSplitFF([], dm, dff, 4, 4, 4)),
+            (lambda: bert.Attention(dm, heads, layer_fun=factored_dense_fun)),
+        )
+
+        head = bert.PredictionHead(dm, output_size)
+
+        model = bert.BERT(embedding_layer, encoder_tower, head)
+
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+        input = torch.randint(0, vocab_size, (batch, seql))
+
+        output = model(input)
+
+        loss = torch.mean(output[:,0] ** 2)  # TODO: add better loss function
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        self.assertShape(output, (batch, seql, output_size))
+        self.assertShape(loss, ())
+
+
 if __name__ == '__main__':
     unittest.main()
