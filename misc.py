@@ -129,3 +129,9 @@ def GradientLike(value_layer, gradient_layer):
         StopGradient(value_layer),
         StopValuePassGradient(gradient_layer),
     )
+
+
+def fibonacci(x):
+    if x < 2:
+        return x
+    return fibonacci(x-1) + fibonacci(x-2)

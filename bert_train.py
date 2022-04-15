@@ -78,7 +78,8 @@ def get_model():
     encoder_tower = bert.EncoderTower(
         n_blocks,
         dm,
-        (lambda: bert.FeedForward(dm, dff)),
+        # (lambda: bert.FeedForward(dm, dff)),
+        (lambda: bert.BatchSplitFF([], dm, dff, 8, 8, 16)),
         (lambda: bert.Attention(dm, heads)),
     )
 
@@ -170,8 +171,8 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     for step in range(1000000+1):
+        train_step(model, optimizer)
         if step % 1000 == 0:
             eval_loss = eval_step(model)
             print(f'Eval loss:', eval_loss)
-        train_step(model, optimizer)
-
+        print(f'Step {step}')
