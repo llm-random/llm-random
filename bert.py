@@ -2,22 +2,22 @@ import random
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import einops
 from einops.layers.torch import Rearrange
 
-from misc import einsum, EinMix, check_layer_funs, Sum
+from misc import einsum, EinMix, check_layer_funs, Sum, Linear
 import ash
 from profile import TimerLayer, Timer
 
 
 @ash.check('... d -> ... d')
 def FeedForward(dmodel, dff):
-    # TODO: replace with Linears
     return TimerLayer('denseFF', nn.Sequential(
-        TimerLayer('Linear1', nn.Linear(dmodel, dff), off=True),
+        TimerLayer('Linear1', Linear(dmodel, dff), off=True),
         nn.ReLU(inplace=True),
-        TimerLayer('Linear2', nn.Linear(dff, dmodel), off=True),
+        TimerLayer('Linear2', Linear(dff, dmodel), off=True),
     ))
 
 
@@ -33,41 +33,46 @@ class BatchSplitFF(nn.Module):
         assert dff == expertsets * nexperts * expertsize
         self.dm = dm
         self.dff = dff
-        self.expertsets = expertsets
-        self.nexperts = nexperts
+        # self.expertsets = expertsets
+        # self.nexperts = nexperts
+        self.sparsity = nexperts
+        totalexperts = expertsets * nexperts
+        self.totalexperts = totalexperts
+        del expertsets, nexperts
         self.expertsize = expertsize
 
         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
 
         self.controller = nn.Parameter(torch.Tensor(
-            dm, nexperts, expertsets,
+            dm, totalexperts,
         ))
-        self.cp = 'd e s'
+        self.cp = 'd e'
         self.gp = '... t d'
-        self.cout = '... t e s'
-        self.inner = '... e s f'
+        self.cout = '... t e'
+        self.inner = '... e f'
 
         self.new_parameter = nn.Parameter(torch.Tensor(
             dm))
 
         self.bias = nn.Parameter(torch.Tensor(
-            nexperts, expertsets, expertsize
+            totalexperts, expertsize
         ))
 
-        self.f1p = 'd e s f'
+        self.f1p = 'd e f'
         self.f1 = nn.Parameter(torch.Tensor(
-            dm, nexperts, expertsets, expertsize
+            dm, totalexperts, expertsize
         ))
 
-        self.f2p = 'e s f d'
+        self.f2p = 'e f d'
         self.f2 = nn.Parameter(torch.Tensor(
-            nexperts, expertsets, expertsize, dm
+            totalexperts, expertsize, dm
         ))
 
-        self.inner2 = '... e s d'
+        self.inner2 = '... e d'
 
         self.ogp = self.gp.replace('...', '... b')
         self.controller_loss_weight = controller_loss_weight
+        self.controller_loss_temperature = 1e0  # TODO(jaszczur): change to parameter or hyperparameter
 
         self.register_full_backward_hook(BatchSplitFF.backward_hook_batch_split_ff)
         self.last_x = None
@@ -77,39 +82,48 @@ class BatchSplitFF(nn.Module):
         x = self.last_x.detach()
         grad_output = grad_output[0].detach()
         del grad_input
+        with torch.no_grad():
+            combined_x = x.reshape(-1, x.shape[-1])
+            combined_gradient = grad_output.reshape(-1, grad_output.shape[-1])
+
+            grouped = einops.rearrange(combined_x, f'(b e t) d -> b e t d',
+                                       e=self.totalexperts, t=self.sparsity)
+            # TODO(jaszczur): add permutation here!
+
+            inner = einsum(f'... e t d, {self.f1p}-> ... e t f',
+                           grouped, self.f1,
+                           use_opt_einsum=True)
+
+            inner = inner + self.bias.view(self.totalexperts, 1, self.expertsize)
+
+            inner = torch.relu_(inner)
+
+            intermediate = einsum(f'... e t f, {self.f2p} -> ... e t d',
+                                  inner, self.f2)
+            result_unpermuted = intermediate
+
+            gradient_grouped = einops.rearrange(combined_gradient, f'(b e t) d -> b e t d',
+                                                e=self.totalexperts, t=self.sparsity)
+            gradient_similarity = einsum(f'... e t d, ... e t d-> ... e t',
+                                         gradient_grouped, result_unpermuted)
+            best_choice = (gradient_similarity == gradient_similarity.max(dim=-1, keepdim=True)[0]) * 1.0
+            ash.assert_shape('... e t', best_choice)
+
         with torch.enable_grad():
-            wtf = self.new_parameter
-            x = x + wtf
-            print(f"wtf.requires_grad = {wtf.requires_grad}")
-            print(f"x.requires_grad = {x.requires_grad}")
-            something = einsum('... d, ... d -> ...', x, grad_output)
-            something = torch.mean(something)
-            # something.requires_grad = True
+            ## CONTROLLER:
+            # batch, set1, embedding <-- this is starting point
+            cont_logits = einsum(f'... e t d, {self.cp} -> ... e t',
+                                 grouped.detach(), self.controller)
+            # cont_logits_transposed = cont_logits.transpose(1, -1)
+            # best_choice_transposed = best_choice.detach().transpose(1, -1)
+            cont_logits /= self.controller_loss_temperature
+            loss = F.binary_cross_entropy_with_logits(cont_logits, best_choice)
+            loss *= self.controller_loss_weight
+            loss.backward()
 
-            print(f"something: {torch.mean(something)}")
-            print(f"grad_output[0]: {torch.mean(grad_output[0])}")
-            print(f"x: {torch.mean(x)}")
-            print(f"shape of something: {something.shape}")
-            print(f"shape of grad_output[0]: {grad_output[0].shape}")
-            print(f"shape of x: {x.shape}")
+        print(f'loss: {loss.item()}')
+        print(f'grad: {self.controller.grad.norm().item()}')
 
-            print(f"self.new_parameter.grad: {self.new_parameter.grad}")
-            something.backward()
-            print(f"self.new_parameter.grad: {self.new_parameter.grad}")
-            exit(0)
-
-        # grouped: ... b t d
-
-
-
-        # print('backward hook batch split ff')
-        # print(grad_input)
-        # print(grad_output)
-        # print(self.f1.grad)
-        # print(self.f2.grad)
-        # print(self.bias.grad)
-        # print(self.controller.grad)
-        # print('\n')
         pass
 
     def forward(self, x):
@@ -121,7 +135,7 @@ class BatchSplitFF(nn.Module):
             ash.assert_shape('... B d', x, d=self.dm)
             # batch, set, embedding <-- this is just reshape
             grouped = einops.rearrange(x, f'... (b t) d -> {self.ogp}',
-                                       t=self.nexperts)
+                                       t=self.sparsity)
 
 
             ## CONTROLLER:
@@ -137,9 +151,9 @@ class BatchSplitFF(nn.Module):
             # In lieu of adding noise, we can prioritize earlier tokens. This breaks symmetry.
 
             cont_logits += torch.reshape(
-                torch.linspace(start=0, end=1e-6, steps=self.nexperts,
+                torch.linspace(start=0, end=1e-6, steps=self.sparsity,
                                device=x.device),  # to break symmetry
-                (-1, 1, 1),
+                (-1, 1),
             )
             # cont_permutation = cont_logits
             cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
@@ -187,11 +201,6 @@ class Residual(nn.Module):
 #         EinMix('... modules dinp -> ... (modules dmodule)', weight_shape='dinp dmodule',# bias_shape='modules dmodule',
 #                modules=modules, dinp=dinput, dmodule=dmodule),
 #     )
-
-
-@ash.check('... dinp -> ... dout')
-def TrueDense(dinput, doutput):
-    return nn.Linear(dinput, doutput)
 
 
 @ash.check('... dinp -> ... dout')

@@ -33,6 +33,13 @@ class GeneralizedReLU(nn.Module):
 #         return self.parameter
 
 
+def get_init_weight(shape, fan_in, fan_out=None, gain=1.0, dtype=torch.float32):
+    if fan_out is not None:
+        raise ValueError("fan_out unsupported")
+    range_ = gain * (3 / fan_in) ** 0.5
+    return torch.zeros(shape, dtype=dtype).uniform_(-range_, range_)
+
+
 def einsum(subscript, *operands, use_opt_einsum=False, **kwargs):
     if use_opt_einsum:
         return opt_einsum.contract(subscript, *operands, **kwargs)
@@ -72,6 +79,14 @@ def Dense(dinp, dout):
     return EinMix('... dinp -> ... dout',
                   weight_shape='dinp dout', bias_shape='dout',
                   dinp=dinp, dout=dout)
+
+
+@ash.check('... inp -> ... out')
+def Linear(dinp, dout):
+    layer = nn.Linear(dinp, dout)
+    # This is to make sure values after the layer keep the variance
+    layer.weight *= 3 ** 0.5
+    return layer
 
 
 def check_layer_funs(*layer_funs):
@@ -129,9 +144,3 @@ def GradientLike(value_layer, gradient_layer):
         StopGradient(value_layer),
         StopValuePassGradient(gradient_layer),
     )
-
-
-def fibonacci(x):
-    if x < 2:
-        return x
-    return fibonacci(x-1) + fibonacci(x-2)
