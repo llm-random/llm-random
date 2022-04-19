@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import einops
 from einops.layers.torch import Rearrange
 
-from misc import einsum, EinMix, check_layer_funs, Sum, Linear
+import misc
 import ash
 from profile import TimerLayer, Timer
 
@@ -15,9 +15,9 @@ from profile import TimerLayer, Timer
 @ash.check('... d -> ... d')
 def FeedForward(dmodel, dff):
     return TimerLayer('denseFF', nn.Sequential(
-        TimerLayer('Linear1', Linear(dmodel, dff), off=True),
+        TimerLayer('Linear1', misc.Linear(dmodel, dff), off=True),
         nn.ReLU(inplace=True),
-        TimerLayer('Linear2', Linear(dff, dmodel), off=True),
+        TimerLayer('Linear2', misc.Linear(dff, dmodel), off=True),
     ))
 
 
@@ -35,7 +35,8 @@ class BatchSplitFF(nn.Module):
         self.dff = dff
         # self.expertsets = expertsets
         # self.nexperts = nexperts
-        self.sparsity = nexperts
+        sparsity = nexperts
+        self.sparsity = sparsity
         totalexperts = expertsets * nexperts
         self.totalexperts = totalexperts
         del expertsets, nexperts
@@ -43,36 +44,31 @@ class BatchSplitFF(nn.Module):
 
         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
 
-        self.controller = nn.Parameter(torch.Tensor(
-            dm, totalexperts,
-        ))
+        self.controller = nn.Parameter(misc.get_init_weight(
+            (dm, totalexperts), fan_in=dm))
         self.cp = 'd e'
         self.gp = '... t d'
         self.cout = '... t e'
         self.inner = '... e f'
 
-        self.new_parameter = nn.Parameter(torch.Tensor(
-            dm))
-
-        self.bias = nn.Parameter(torch.Tensor(
-            totalexperts, expertsize
-        ))
+        self.bias = nn.Parameter(misc.get_init_bias(
+            (totalexperts, expertsize)))
 
         self.f1p = 'd e f'
-        self.f1 = nn.Parameter(torch.Tensor(
-            dm, totalexperts, expertsize
-        ))
+        self.f1 = nn.Parameter(misc.get_init_weight(
+            (dm, totalexperts, expertsize), fan_in=dm))
 
         self.f2p = 'e f d'
-        self.f2 = nn.Parameter(torch.Tensor(
-            totalexperts, expertsize, dm
-        ))
+        self.f2 = nn.Parameter(misc.get_init_weight(
+            (totalexperts, expertsize, dm), fan_in=(expertsize*totalexperts/sparsity)))
+        # TODO(jaszczur): check if the above is correct regarding fan_in
 
         self.inner2 = '... e d'
 
         self.ogp = self.gp.replace('...', '... b')
         self.controller_loss_weight = controller_loss_weight
-        self.controller_loss_temperature = 1e0  # TODO(jaszczur): change to parameter or hyperparameter
+        self.controller_bias = nn.Parameter(misc.get_init_bias(
+            (totalexperts, )))
 
         self.register_full_backward_hook(BatchSplitFF.backward_hook_batch_split_ff)
         self.last_x = None
@@ -88,41 +84,43 @@ class BatchSplitFF(nn.Module):
 
             grouped = einops.rearrange(combined_x, f'(b e t) d -> b e t d',
                                        e=self.totalexperts, t=self.sparsity)
-            # TODO(jaszczur): add permutation here!
+            # TODO(jaszczur): add permutation here! for x and for gradient
 
-            inner = einsum(f'... e t d, {self.f1p}-> ... e t f',
-                           grouped, self.f1,
-                           use_opt_einsum=True)
+            inner = misc.einsum(f'... e t d, {self.f1p}-> ... e t f',
+                                grouped, self.f1,
+                                use_opt_einsum=True)
 
             inner = inner + self.bias.view(self.totalexperts, 1, self.expertsize)
 
             inner = torch.relu_(inner)
 
-            intermediate = einsum(f'... e t f, {self.f2p} -> ... e t d',
-                                  inner, self.f2)
+            intermediate = misc.einsum(f'... e t f, {self.f2p} -> ... e t d',
+                                       inner, self.f2)
             result_unpermuted = intermediate
 
             gradient_grouped = einops.rearrange(combined_gradient, f'(b e t) d -> b e t d',
                                                 e=self.totalexperts, t=self.sparsity)
-            gradient_similarity = einsum(f'... e t d, ... e t d-> ... e t',
-                                         gradient_grouped, result_unpermuted)
+            gradient_similarity = misc.einsum(f'... e t d, ... e t d-> ... e t',
+                                              gradient_grouped, result_unpermuted)
+            # TODO(jaszczur): the line below is unnecessary, but it's a reminder
+            gradient_similarity = gradient_similarity / self.dm ** 0.5  # This is to normalize outputs
             best_choice = (gradient_similarity == gradient_similarity.max(dim=-1, keepdim=True)[0]) * 1.0
             ash.assert_shape('... e t', best_choice)
 
         with torch.enable_grad():
             ## CONTROLLER:
             # batch, set1, embedding <-- this is starting point
-            cont_logits = einsum(f'... e t d, {self.cp} -> ... e t',
-                                 grouped.detach(), self.controller)
+            cont_logits = misc.einsum(f'... e t d, {self.cp} -> ... e t',
+                                      grouped.detach(), self.controller)
             # cont_logits_transposed = cont_logits.transpose(1, -1)
             # best_choice_transposed = best_choice.detach().transpose(1, -1)
-            cont_logits /= self.controller_loss_temperature
+            cont_logits += self.controller_bias.view(-1, 1)
             loss = F.binary_cross_entropy_with_logits(cont_logits, best_choice)
             loss *= self.controller_loss_weight
             loss.backward()
 
-        print(f'loss: {loss.item()}')
-        print(f'grad: {self.controller.grad.norm().item()}')
+        # print(f'loss: {loss.item()}')
+        # print(f'grad: {self.controller.grad.norm().item()}')
 
         pass
 
@@ -140,8 +138,9 @@ class BatchSplitFF(nn.Module):
 
             ## CONTROLLER:
             # batch, set1, embedding <-- this is starting point
-            cont_logits = einsum(f'{self.gp}, {self.cp} -> {self.cout}',
-                                 grouped, self.controller)
+            cont_logits = misc.einsum(f'{self.gp}, {self.cp} -> {self.cout}',
+                                      grouped, self.controller)
+            cont_logits += self.controller_bias  # This is unnecessary, but it's a reminder
             # biases in the controller are not needed, because they are added to
             # every token in a given expert, and expert chooses the token with max value
 
@@ -159,25 +158,24 @@ class BatchSplitFF(nn.Module):
             cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
             cont_permutation = cont_permutation * 1.  # convert to float tensor
 
-            inner = einsum(f'{self.gp}, {self.f1p}, {self.cout} -> {self.inner}',
-                           grouped, self.f1, cont_permutation,
-                           use_opt_einsum=True)
+            inner = misc.einsum(f'{self.gp}, {self.f1p}, {self.cout} -> {self.inner}',
+                                grouped, self.f1, cont_permutation,
+                                use_opt_einsum=True)
 
             inner = inner + self.bias
 
             inner = torch.relu_(inner)
 
-            intermediate = einsum(f'{self.inner},{self.f2p} -> {self.inner2}',
-                                  inner, self.f2)
-            result_unpermuted = einsum(f'{self.inner2}, {self.cout} -> {self.gp}',
-                                       intermediate, cont_permutation)
+            intermediate = misc.einsum(f'{self.inner},{self.f2p} -> {self.inner2}',
+                                       inner, self.f2)
+            result_unpermuted = misc.einsum(f'{self.inner2}, {self.cout} -> {self.gp}',
+                                            intermediate, cont_permutation)
 
             # final reshape
             # BATCH, embedding
             result_final = einops.rearrange(result_unpermuted, f'{self.ogp} -> ... (b t) d')
 
             return result_final
-
 
 
 @ash.check('... d -> ... d')
@@ -210,32 +208,19 @@ class FactoredDense(nn.Module):
         assert doutput % modules == 0
         dmodule = doutput // modules
 
-        self.gating = nn.Parameter(torch.Tensor(
-            modules, dinput,
-        ))
-        self.projection = nn.Parameter(torch.Tensor(
-            dinput, dmodule
-        ))
+        self.gating = nn.Parameter(
+            misc.get_init_weight((modules, dinput), fan_in=1))
+        self.projection = nn.Parameter(
+            misc.get_init_weight((dinput, dmodule), fan_in=dinput))
+        self.bias = nn.Parameter(misc.get_init_bias(doutput))
 
     def forward(self, x):
-        y = einsum('... d, m d, d f -> ... m f',
-                   x, self.gating, self.projection,
-                   use_opt_einsum=True)
+        y = misc.einsum('... d, m d, d f -> ... m f',
+                        x, self.gating, self.projection,
+                        use_opt_einsum=True)
         y = einops.rearrange(y, '... modules dmodule -> ... (modules dmodule)')
+        y = y + self.bias
         return y
-
-
-class EinSumLayer(nn.Module):
-    def __init__(self, pattern, shape, opt_einsum=False):
-        super(EinSumLayer, self).__init__()
-        self.weight = nn.Parameter(torch.normal(0., 1., shape))
-        self.pattern = pattern
-        self.opt_einsum = opt_einsum
-
-    def forward(self, x):
-        result = einsum(self.pattern, x, self.weight,
-                        use_opt_einsum=self.opt_einsum)
-        return result
 
 
 @ash.check('... dinp -> ... a b')
@@ -296,17 +281,17 @@ def PermutationDense(dinput):
 
         TimerLayer('verA', nn.Sequential(
             SplitLastAxis(sqdi, sqdi),
-            EinMix('... a b -> ... a c',
-                   weight_shape='a b c',
-                   a=sqdi, b=sqdi, c=sqdi),
+            misc.EinMix('... a b -> ... a c',
+                        weight_shape='a b c',
+                        a=sqdi, b=sqdi, c=sqdi),
             Transpose(),
-            EinMix('... a b -> ... a c',
-                   weight_shape='a b c',
-                   a=sqdi, b=sqdi, c=sqdi),
+            misc.EinMix('... a b -> ... a c',
+                        weight_shape='a b c',
+                        a=sqdi, b=sqdi, c=sqdi),
             Transpose(),
-            EinMix('... a b -> ... a c',
-                   weight_shape='a b c',
-                   a=sqdi, b=sqdi, c=sqdi),
+            misc.EinMix('... a b -> ... a c',
+                        weight_shape='a b c',
+                        a=sqdi, b=sqdi, c=sqdi),
             MergeLastAxis(),
         )),
 
@@ -358,8 +343,8 @@ def NoopDense():
 @ash.check('... dinp -> ... dout')
 def LowRank(dinput, doutput, dlowrank):
     return nn.Sequential(
-        nn.Linear(dinput, dlowrank, bias=False),
-        nn.Linear(dlowrank, doutput)
+        misc.Linear(dinput, dlowrank, bias=False),
+        misc.Linear(dlowrank, doutput)
     )
 
 
@@ -374,9 +359,9 @@ class Attention(nn.Module):
         self.dhead = dhead
         self.dmodel = dmodel
         if layer_fun is None:
-            layer_fun = lambda: EinMix('... dmodel -> ... (heads dhead)',
-                                       weight_shape='dmodel heads dhead', bias_shape='heads dhead',
-                                       dmodel=dmodel, heads=heads, dhead=dhead)
+            layer_fun = lambda: misc.EinMix('... dmodel -> ... (heads dhead)',
+                                            weight_shape='dmodel heads dhead', bias_shape='heads dhead',
+                                            dmodel=dmodel, heads=heads, dhead=dhead)
         layer_fun_and_reshape = lambda: nn.Sequential(
             TimerLayer('QKVproj', layer_fun()),
             Rearrange('... (heads dhead) -> ... heads dhead',
@@ -401,7 +386,7 @@ class Attention(nn.Module):
         v = self.V(x)
 
         a = torch.einsum('... l h d, ... L h d -> ... h l L',
-                         q, k) * (1 / self.dhead ** 0.5)
+                         q, k)
         a = a * (1 / self.dhead ** 0.5)
         a = torch.softmax(a, dim=-1)
         prefinal = torch.einsum('... h l L, ... L h d -> ... l h d', a, v)
@@ -428,7 +413,7 @@ def EncoderBlock(dmodel, *layers):
 
 @ash.check('... d -> ... d')
 def EncoderTower(n_blocks, dmodel, *layer_funs):
-    check_layer_funs(*layer_funs)
+    misc.check_layer_funs(*layer_funs)
     encoder_blocks = []
     for i_block in range(n_blocks):
         layers = [layer_fun() for layer_fun in layer_funs]
@@ -457,7 +442,7 @@ class PositionalEmbedding(nn.Module):
 
 @ash.check('... -> ... d')
 def EmbeddingLayer(*layers):
-    return Sum(*layers)
+    return misc.Sum(*layers)
 
 
 @ash.check('... inp -> ... out')

@@ -40,6 +40,14 @@ def get_init_weight(shape, fan_in, fan_out=None, gain=1.0, dtype=torch.float32):
     return torch.zeros(shape, dtype=dtype).uniform_(-range_, range_)
 
 
+def get_init_bias(shape, fan_in=None, fan_out=None, dtype=torch.float32):
+    if fan_in is not None:
+        raise ValueError("fan_in unsupported")
+    if fan_out is not None:
+        raise ValueError("fan_out unsupported")
+    return torch.zeros(shape, dtype=dtype)
+
+
 def einsum(subscript, *operands, use_opt_einsum=False, **kwargs):
     if use_opt_einsum:
         return opt_einsum.contract(subscript, *operands, **kwargs)
@@ -56,6 +64,8 @@ class EinMix(nn.Module):
             self.og_signature = signature
             signature = signature.replace('...', 'squeezed')
         self.layer = OGEinMix(signature, weight_shape=weight_shape, bias_shape=bias_shape, **kwargs)
+        if self.layer.bias is not None:
+            self.layer.bias.data *= 0.0
 
     def forward(self, x):
         if not self.change_anything:
@@ -85,7 +95,8 @@ def Dense(dinp, dout):
 def Linear(dinp, dout):
     layer = nn.Linear(dinp, dout)
     # This is to make sure values after the layer keep the variance
-    layer.weight *= 3 ** 0.5
+    layer.weight.data *= 3 ** 0.5
+    layer.bias.data *= 0.0
     return layer
 
 

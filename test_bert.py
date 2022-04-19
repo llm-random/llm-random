@@ -163,7 +163,7 @@ class BERTSparseTest(GeneralTestCase):
 
 class BERTSparseGradientTest(GeneralTestCase):
     def test_basic(self):
-        batch, seql, dm, heads, dff = 3, 12, 32, 4, 64
+        batch, seql, dm, heads, dff = 4, 16, 32, 4, 64
         modules = 4
 
         vocab_size, max_length = 107, 33
