@@ -20,6 +20,22 @@ class TestDense(GeneralTestCase):
         self.assertShape(output, (batch, seql, dout))
 
 
+class TestLinear(GeneralTestCase):
+    def test_basic(self):
+        batch, dinp, dout = 4, 32, 64
+        layer = misc.Linear(dinp, dout)
+        input = torch.normal(0.0, 1.0, (batch, dinp))
+        output = layer(input)
+        self.assertShape(output, (batch, dout))
+
+    def test_more_dims(self):
+        batch, seql, dinp, dout = 4, 8, 32, 64
+        layer = misc.Linear(dinp, dout)
+        input = torch.normal(0.0, 1.0, (batch, seql, dinp))
+        output = layer(input)
+        self.assertShape(output, (batch, seql, dout))
+
+
 class TestEinMix(GeneralTestCase):
     def test_no_ellipsis(self):
         batch, dinp, dout = 4, 32, 64
