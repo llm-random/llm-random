@@ -169,7 +169,7 @@ if __name__ == "__main__":
     model = get_model()
     model.to(DEVICE)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.000000001)
     for step in range(1000000+1):
         train_step(model, optimizer)
         if step % 1000 == 0:
