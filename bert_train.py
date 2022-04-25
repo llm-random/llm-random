@@ -3,9 +3,13 @@ import tensorflow
 import torch
 from tensorflow.keras.datasets import imdb
 import torch.nn.functional as F
+import datetime
 import random
 import numpy as np
 import bert
+from clearml import Task
+from torch.utils.tensorboard import SummaryWriter
+import time
 
 INDEX_FROM = 4
 CUTOFF = 128
@@ -16,12 +20,16 @@ assert INDEX_FROM == 4
 
 BATCH_SIZE = 64
 MASK_PERCENT = 0.3
-
+LEARNING_RATE = 0.0001
+MASK_RELATIVE_LR = 0.15
 
 # VOCAB_SIZE = 98304
-# VOCAB_SIZE = 16 * 1024
-VOCAB_SIZE = 2048
+VOCAB_SIZE = 4 * 1024
+# VOCAB_SIZE = 2048
 NUM_WORDS = VOCAB_SIZE - INDEX_FROM
+
+TASK = None  # ClearML task
+WRITER = None  # Tensorboard writer
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -69,6 +77,15 @@ def get_model():
     vocab_size, max_length = VOCAB_SIZE, CUTOFF
     output_size = VOCAB_SIZE
     n_blocks = 6
+
+    TASK.connect_configuration(name='hiperparameters', configuration={
+        'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
+        'vocab_size': vocab_size, 'max_length': max_length,
+        'output_size': output_size,
+        'n_blocks': n_blocks,
+        'learning_rate': LEARNING_RATE,
+        'mask_relative_lr': MASK_RELATIVE_LR,
+    })
 
     embedding_layer = bert.EmbeddingLayer(
         bert.PositionalEmbedding(max_length, dm),
@@ -136,7 +153,7 @@ def to_devices(*arr):
     return arr
 
 
-def train_step(model, optimizer):
+def train_step(model, optimizer, step=0):
     model.train()
     x_set, y_class_set, y_token_set = get_batch(x_train, y_train)
 
@@ -144,35 +161,71 @@ def train_step(model, optimizer):
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, VOCAB_SIZE),
         y_token_set.reshape(-1).long())
+    scaled_mask_loss = mask_loss * MASK_RELATIVE_LR
     class_loss = F.binary_cross_entropy_with_logits(
         model_output[:, 0, MASK_ID], y_class_set.double())
-    total_loss = mask_loss + class_loss
+    total_loss = scaled_mask_loss + class_loss
 
     optimizer.zero_grad()
     total_loss.backward()
     optimizer.step()
 
+    if step and WRITER:
+        WRITER.add_scalar('train/loss', total_loss.item(), step)
+        WRITER.add_scalar('train/mask_loss', mask_loss.item(), step)
+        WRITER.add_scalar('train/scaled_mask_loss', scaled_mask_loss.item(), step)
+        WRITER.add_scalar('train/class_loss', class_loss.item(), step)
 
-def eval_step(model):
+
+def eval_step(model, step=0, sample=10):
     model.eval()
     x_set, y_class_set, y_token_set = get_batch(x_test, y_test)
 
     with torch.no_grad():
         model_output = model(x_set)
-        class_loss = F.binary_cross_entropy_with_logits(
-            model_output[:, 0, MASK_ID], y_class_set.double())
+        class_loss = 0.0
+        for sample_i in range(sample):
+            class_loss += F.binary_cross_entropy_with_logits(
+                model_output[:, 0, MASK_ID], y_class_set.double()).detach()
+        class_loss /= sample
+
+        if step and WRITER:
+            WRITER.add_scalar('eval/loss', class_loss.item(), step)
+            WRITER.add_scalar('eval/class_loss', class_loss.item(), step)
 
         return class_loss.detach()
 
 
 if __name__ == "__main__":
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
+    modelpath = f'runs/logtest/{timestamp}'
+
+    writer = SummaryWriter(log_dir=modelpath)
+    task = Task.init(project_name='jaszczur/sparsity/tests',
+                     task_name=f'logging test {timestamp}')
+    TASK = task
+    WRITER = writer
+
     model = get_model()
     model.to(DEVICE)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    for step in range(1000000+1):
-        train_step(model, optimizer)
-        if step % 1000 == 0:
-            eval_loss = eval_step(model)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    EVAL_STEP = 50
+    last_eval_time = None
+    for step in range(10000+1):
+        train_step(model, optimizer, step)
+        if step % EVAL_STEP == 0:
+            begin_eval_time = time.time()
+            eval_loss = eval_step(model, step, sample=EVAL_STEP)
             print(f'Eval loss:', eval_loss)
+            torch.save(model.state_dict(), f'{modelpath}/model.pt')
+            end_eval_time = time.time()
+            if last_eval_time:
+                eval_time = end_eval_time - begin_eval_time
+                since_last_eval = end_eval_time - last_eval_time
+                eval_time_percent = eval_time / since_last_eval
+                print(f'Eval time percent: {eval_time_percent}')
+                if WRITER:
+                    WRITER.add_scalar('time/eval_time_percent', eval_time_percent, step)
+            last_eval_time = end_eval_time
         print(f'Step {step}')
