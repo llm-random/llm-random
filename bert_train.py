@@ -179,12 +179,12 @@ def train_step(model, optimizer, step=0):
 
 def eval_step(model, step=0, sample=10):
     model.eval()
-    x_set, y_class_set, y_token_set = get_batch(x_test, y_test)
 
     with torch.no_grad():
-        model_output = model(x_set)
         class_loss = 0.0
         for sample_i in range(sample):
+            x_set, y_class_set, y_token_set = get_batch(x_test, y_test)
+            model_output = model(x_set)
             class_loss += F.binary_cross_entropy_with_logits(
                 model_output[:, 0, MASK_ID], y_class_set.double()).detach()
         class_loss /= sample
@@ -210,13 +210,13 @@ if __name__ == "__main__":
     model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    EVAL_STEP = 50
+    EVAL_STEP = 100
     last_eval_time = None
-    for step in range(10000+1):
+    for step in range(100000+1):
         train_step(model, optimizer, step)
         if step % EVAL_STEP == 0:
             begin_eval_time = time.time()
-            eval_loss = eval_step(model, step, sample=EVAL_STEP)
+            eval_loss = eval_step(model, step, sample=EVAL_STEP//2)
             print(f'Eval loss:', eval_loss)
             torch.save(model.state_dict(), f'{modelpath}/model.pt')
             end_eval_time = time.time()
