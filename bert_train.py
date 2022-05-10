@@ -11,6 +11,8 @@ from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
 
+import misc
+
 INDEX_FROM = 4
 CUTOFF = 128
 MASK_ID = 3
@@ -205,6 +207,8 @@ if __name__ == "__main__":
                      task_name=f'logging test {timestamp}')
     TASK = task
     WRITER = writer
+
+    misc.print_available_gpus()
 
     model = get_model()
     model.to(DEVICE)

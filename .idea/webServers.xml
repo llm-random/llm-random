@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="b9e2aa51-83d7-4541-9c8c-6f751d464bc4" name="entropy">
+        <fileTransfer rootFolder="/home/sj359674" accessType="SFTP" host="entropy.mimuw.edu.pl" port="22" sshConfigId="e30a30e0-cbe7-4787-b42f-84bb5d239733" sshConfig="sj359674@entropy.mimuw.edu.pl:22 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
