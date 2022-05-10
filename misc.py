@@ -155,3 +155,11 @@ def GradientLike(value_layer, gradient_layer):
         StopGradient(value_layer),
         StopValuePassGradient(gradient_layer),
     )
+
+
+def print_available_gpus():
+    if torch.cuda.is_available():
+        count = torch.cuda.device_count()
+        print('Found {} GPU(s)'.format(count))
+        for i in range(count):
+            print('GPU {}: {}'.format(i, torch.cuda.get_device_name(i)))

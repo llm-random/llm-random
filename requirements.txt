@@ -1,9 +1,12 @@
-torch==1.10.2+cu113
-torchvision==0.11.2
+# torch==1.10.1  # previously: 1.10.2+cu113 ; but it doesn't work on entropy (and 1.10.2 has problems with torchvision)
+# torchvision==0.11.2
+
+torch==1.11.0  # entropy version
+torchvision==0.12.0  # entropy version
 numpy==1.22.1
 matplotlib==3.5.1
 opt_einsum
 line_profiler
 einops==0.4.0
 tensorflow==2.8.0
-clearml==1.3.2
+clearml==1.3.2 # test comment
