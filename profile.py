@@ -11,6 +11,11 @@ CURRENT_DEPTH = [0]
 DISABLED = False
 
 
+def cuda_synchronize():
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+
 class TimerLayer(nn.Module):
     def __init__(self, name, layer, off=False):
         super(TimerLayer, self).__init__()
@@ -48,7 +53,7 @@ class Timer(object):
             if self.disable_inner:
                 DISABLED = True
                 self.i_disabled = True
-            torch.cuda.synchronize()
+            cuda_synchronize()
             GLOBAL_DEPTHS[self.name] = CURRENT_DEPTH[0]
             CURRENT_DEPTH[0] += 1
             self.start_time = time.time()
@@ -61,7 +66,7 @@ class Timer(object):
                 DISABLED = False
                 self.i_disabled = False
             # self.end.record()
-            torch.cuda.synchronize()
+            cuda_synchronize()
             self.end_time = time.time()
 
             CURRENT_DEPTH[0] -= 1
