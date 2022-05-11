@@ -173,10 +173,10 @@ def train_step(model, optimizer, step=0):
     optimizer.step()
 
     if step and WRITER:
-        WRITER.add_scalar('train/loss', total_loss.item(), step)
-        WRITER.add_scalar('train/mask_loss', mask_loss.item(), step)
-        WRITER.add_scalar('train/scaled_mask_loss', scaled_mask_loss.item(), step)
-        WRITER.add_scalar('train/class_loss', class_loss.item(), step)
+        WRITER.add_scalar('loss/train_total', total_loss.item(), step)
+        WRITER.add_scalar('loss/train_mask', mask_loss.item(), step)
+        WRITER.add_scalar('loss/train_scaled_mask', scaled_mask_loss.item(), step)
+        WRITER.add_scalar('loss/train_class', class_loss.item(), step)
 
 
 def eval_step(model, step=0, sample=10):
@@ -192,8 +192,7 @@ def eval_step(model, step=0, sample=10):
         class_loss /= sample
 
         if step and WRITER:
-            WRITER.add_scalar('eval/loss', class_loss.item(), step)
-            WRITER.add_scalar('eval/class_loss', class_loss.item(), step)
+            WRITER.add_scalar('loss/eval_class', class_loss.item(), step)
 
         return class_loss.detach()
 
@@ -216,20 +215,24 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     EVAL_STEP = 100
     last_eval_time = None
-    for step in range(100000+1):
+    for step in range(10000+1):
+        start_train_time = time.time()
         train_step(model, optimizer, step)
+        end_train_time = time.time()
+        WRITER.add_scalar('time/train', end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
             begin_eval_time = time.time()
             eval_loss = eval_step(model, step, sample=EVAL_STEP//2)
             print(f'Eval loss:', eval_loss)
             torch.save(model.state_dict(), f'{modelpath}/model.pt')
             end_eval_time = time.time()
+            WRITER.add_scalar('time/eval', end_eval_time - begin_eval_time, step)
             if last_eval_time:
                 eval_time = end_eval_time - begin_eval_time
                 since_last_eval = end_eval_time - last_eval_time
                 eval_time_percent = eval_time / since_last_eval
                 print(f'Eval time percent: {eval_time_percent}')
                 if WRITER:
-                    WRITER.add_scalar('time/eval_time_percent', eval_time_percent, step)
+                    WRITER.add_scalar('time_percent/eval_time', eval_time_percent, step)
             last_eval_time = end_eval_time
         print(f'Step {step}')
