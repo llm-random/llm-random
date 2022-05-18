@@ -72,3 +72,13 @@ class TestEinMix(GeneralTestCase):
         input = torch.normal(0.0, 1.0, (batch, seqlen, whatever, dinp))
         output = layer(input)
         self.assertShape(output, (batch, seqlen, whatever, dout))
+
+
+class TestGeneralizedReLU(GeneralTestCase):
+    def test_basic(self):
+        batch, dinp = 4, 32
+        bias = False
+        layer = misc.GeneralizedReLU(dinp, bias)
+        input = torch.normal(0.0, 1.0, (batch, dinp))
+        output = layer(input)
+        self.assertShape(output, (batch, dinp))
