@@ -1,5 +1,6 @@
 import random
 
+import torch
 from datasets import load_dataset
 from transformers import BertTokenizer
 from tokenizers.processors import BertProcessing
@@ -48,22 +49,30 @@ class ProcessedExample(object):
 
 
 class ProcessedBatch(object):
-    def __init__(self, processed_examples):
+    def __init__(self, processed_examples, device):
+        self.device = device
         self.sen1_tokens = [example.sen1_tokens for example in processed_examples]
         self.sen2_tokens = [example.sen2_tokens for example in processed_examples]
-        self.tokens = np.array([example.tokens for example in processed_examples])
-        self.special_token_mask = np.array([example.special_token_mask for example in processed_examples])
-        self.mask_mask = np.array([example.mask_mask for example in processed_examples])
-        self.masked_tokens = np.array([example.masked_tokens for example in processed_examples])
-        self.swapped = np.array([example.swapped for example in processed_examples])
+
+        self.tokens = self._make_tensor([example.tokens for example in processed_examples])
+        self.special_token_mask = self._make_tensor([example.special_token_mask for example in processed_examples])
+        self.mask_mask = self._make_tensor([example.mask_mask for example in processed_examples])
+        self.masked_tokens = self._make_tensor([example.masked_tokens for example in processed_examples])
+        self.swapped = self._make_tensor([example.swapped for example in processed_examples])
         assert self.tokens.shape == self.masked_tokens.shape
         assert self.tokens.shape == self.special_token_mask.shape
         assert self.tokens.shape == self.mask_mask.shape
         assert self.swapped.shape == (len(processed_examples),)
 
+    def _make_tensor(self, matrix):
+        matrix = np.array(matrix)
+        matrix = torch.from_numpy(matrix).to(self.device)
+        return matrix
+
 
 class SentencePairProcessor(object):
-    def __init__(self, max_total_length=128):
+    def __init__(self, max_total_length=128, mask_percent=0.15, swap_percent=0.5, device='cpu'):
+        self.device = device
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         self.max_total_length = max_total_length
         self.max_sentence_length = (max_total_length - 4) // 2
@@ -77,8 +86,8 @@ class SentencePairProcessor(object):
         self.pad_id = self.tokenizer._convert_token_to_id('[PAD]')
         self.special_tokens = [self.cls_token, self.sep_token, self.pad_token, self.mask_token]
         self.special_token_ids = [self.cls_id, self.sep_id, self.pad_id, self.mask_id]
-        self.mask_percent = 0.15
-        self.swap_percent = 0.5  # only for batches!
+        self.mask_percent = mask_percent
+        self.swap_percent = swap_percent  # only for batches!
 
     def process(self, sentence_pair):
         return ProcessedExample(sentence_pair, self)
@@ -87,7 +96,8 @@ class SentencePairProcessor(object):
         for i in range(0, int(len(sentence_pairs) * self.swap_percent), 2):
             sentence_pairs[i].swap(sentence_pairs[i + 1])
         random.shuffle(sentence_pairs)
-        return ProcessedBatch([self.process(sentence_pair) for sentence_pair in sentence_pairs])
+        return ProcessedBatch([self.process(sentence_pair) for sentence_pair in sentence_pairs],
+                              device=self.device)
 
     def tokenize_text(self, sentence_text):
         # note: tokenizer.encode _claims_ to be equivalent. This isn't true.

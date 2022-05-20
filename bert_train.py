@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import tensorflow
 import torch
-from tensorflow.keras.datasets import imdb
 import torch.nn.functional as F
 import datetime
 import random
@@ -10,75 +9,45 @@ import bert
 from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
+import wikibookdata
 
 import misc
 
-INDEX_FROM = 4
 CUTOFF = 128
-MASK_ID = 3
-PAD_ID = 0
-CLS_ID = 1
-assert INDEX_FROM == 4
 
 BATCH_SIZE = 64
-MASK_PERCENT = 0.3
+MASK_PERCENT = 0.2
+MASK_LOSS_WEIGHT = 1.0
+CLASS_LOSS_WEIGHT = 1.0
 LEARNING_RATE = 0.0001
-MASK_RELATIVE_LR = 0.15
 
-# VOCAB_SIZE = 98304
-VOCAB_SIZE = 4 * 1024
-# VOCAB_SIZE = 2048
-NUM_WORDS = VOCAB_SIZE - INDEX_FROM
+# # BERT-Mini
+# DM = 256
+# DFF = DM * 4
+# BLOCKS = 4
+# HEADS = 4
+
+# BERT-Small
+DM = 512
+DFF = DM * 4
+BLOCKS = 4
+HEADS = 8
+
+VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 
 TASK = None  # ClearML task
 WRITER = None  # Tensorboard writer
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
-(x_train, y_train), (x_test, y_test) = imdb.load_data(path="imdb.npz",
-                                                      num_words=NUM_WORDS,
-                                                      skip_top=0,
-                                                      maxlen=None,
-                                                      seed=113,
-                                                      start_char=1,
-                                                      oov_char=2,
-                                                      index_from=INDEX_FROM)
+DENSE = True
 
 
-def get_sample(x_set, y_set):
-    assert len(x_set) == len(y_set)
-    indices = np.random.randint(0, len(x_set), size=BATCH_SIZE)
-    x_batch = x_set[indices]
-    y_batch = y_set[indices]
-    return x_batch, y_batch
-
-
-def get_padding(x_set, y_set):
-    x_set = [x[:CUTOFF] for x in x_set]
-    x_set = [x + [PAD_ID] * (CUTOFF - len(x)) for x in x_set]
-    return np.array(x_set), np.array(y_set)
-
-
-def get_mask_target(x_set, y_set):
-    y_class_set = y_set
-    y_token_set = x_set
-    return x_set, y_class_set, y_token_set
-
-
-def apply_mask(x_set, y_class_set, y_token_set):
-    remove_mask = np.random.random(size=x_set.shape) < MASK_PERCENT
-    real_index = x_set >= INDEX_FROM
-    remove_mask = real_index & remove_mask
-    x_set = np.where(remove_mask, MASK_ID, x_set)
-    return x_set, y_class_set, y_token_set
-
-
-def get_model():
-    batch, seql, dm, heads, dff = BATCH_SIZE, CUTOFF, 256, 16, 1024
+def get_model(dense=False):
+    batch, seql, dm, heads, dff = BATCH_SIZE, CUTOFF, DM, HEADS, DFF
     vocab_size, max_length = VOCAB_SIZE, CUTOFF
     output_size = VOCAB_SIZE
-    n_blocks = 6
+    n_blocks = BLOCKS
 
     TASK.connect_configuration(name='hiperparameters', configuration={
         'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
@@ -86,7 +55,8 @@ def get_model():
         'output_size': output_size,
         'n_blocks': n_blocks,
         'learning_rate': LEARNING_RATE,
-        'mask_relative_lr': MASK_RELATIVE_LR,
+        'mask_loss_weight': MASK_LOSS_WEIGHT,
+        'class_loss_weight': CLASS_LOSS_WEIGHT,
     })
 
     embedding_layer = bert.EmbeddingLayer(
@@ -94,11 +64,15 @@ def get_model():
         bert.TokenEmbedding(vocab_size, dm)
     )
 
+    if dense:
+        ff_layer = (lambda: bert.FeedForward(dm, dff))
+    else:
+        ff_layer = (lambda: bert.BatchSplitFF([], dm, dff, 32, 8, 8))
+
     encoder_tower = bert.EncoderTower(
         n_blocks,
         dm,
-        # (lambda: bert.FeedForward(dm, dff)),
-        (lambda: bert.BatchSplitFF([], dm, dff, 8, 8, 16)),
+        ff_layer,
         (lambda: bert.Attention(dm, heads)),
     )
 
@@ -113,60 +87,27 @@ def get_model():
     return model
 
 
-def get_batch(x_set, y_set):
-    processing = [
-        get_sample,
-        get_padding,
-        get_mask_target,
-        apply_mask,
-        convert_to_tensors,
-        to_devices,
-    ]
-
-    arr = x_set, y_set
-    for func in processing:
-        arr = func(*arr)
-    x_set, y_class_set, y_token_set = arr
-    return x_set, y_class_set, y_token_set
-
-
-def get_eval_batch(x_set, y_set):
-    processing = [
-        get_padding,
-        get_mask_target,
-        convert_to_tensors,
-        to_devices,
-    ]
-
-    arr = x_set, y_set
-    for func in processing:
-        arr = func(*arr)
-    x_set, y_class_set, y_token_set = arr
-    return x_set, y_class_set, y_token_set
-
-
-def convert_to_tensors(*arr):
-    arr = [torch.from_numpy(x) for x in arr]
-    return arr
-
-
-def to_devices(*arr):
-    arr = [x.to(DEVICE) for x in arr]
-    return arr
-
-
-def train_step(model, optimizer, step=0):
+def train_step(model, optimizer, pdataset, step=0):
     model.train()
-    x_set, y_class_set, y_token_set = get_batch(x_train, y_train)
+    processed_batch = pdataset.get_batch(BATCH_SIZE)
+    assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+    x_set = processed_batch.masked_tokens
+    y_class_set = processed_batch.swapped
+    y_token_set = processed_batch.tokens
+    y_mask_set = processed_batch.mask_mask
 
     model_output = model(x_set)
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, VOCAB_SIZE),
-        y_token_set.reshape(-1).long())
-    scaled_mask_loss = mask_loss * MASK_RELATIVE_LR
-    class_loss = F.binary_cross_entropy_with_logits(
-        model_output[:, 0, MASK_ID], y_class_set.double())
-    total_loss = scaled_mask_loss + class_loss
+        y_token_set.reshape(-1).long(),
+        reduction='none')
+    mask_loss *= y_mask_set.reshape(-1)  # only check masked words
+    mask_loss = mask_loss.mean() / MASK_PERCENT
+    scaled_mask_loss = mask_loss * MASK_LOSS_WEIGHT
+    # class_loss = F.binary_cross_entropy_with_logits(
+    #     model_output[:, 0, MASK_ID], y_class_set.double())
+    # total_loss = scaled_mask_loss + class_loss
+    total_loss = scaled_mask_loss
 
     optimizer.zero_grad()
     total_loss.backward()
@@ -175,54 +116,79 @@ def train_step(model, optimizer, step=0):
     if step and WRITER:
         WRITER.add_scalar('loss/train_total', total_loss.item(), step)
         WRITER.add_scalar('loss/train_mask', mask_loss.item(), step)
-        WRITER.add_scalar('loss/train_scaled_mask', scaled_mask_loss.item(), step)
-        WRITER.add_scalar('loss/train_class', class_loss.item(), step)
+        # WRITER.add_scalar('loss/train_scaled_mask', scaled_mask_loss.item(), step)
+        # WRITER.add_scalar('loss/train_class', class_loss.item(), step)
 
 
-def eval_step(model, step=0, sample=10):
+def eval_step(model, pdataset, step=0, sample=10):
     model.eval()
 
     with torch.no_grad():
-        class_loss = 0.0
+        total_mask_loss = 0.0
         for sample_i in range(sample):
-            x_set, y_class_set, y_token_set = get_batch(x_test, y_test)
+            processed_batch = pdataset.get_batch(BATCH_SIZE)
+            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+            x_set = processed_batch.masked_tokens
+            y_class_set = processed_batch.swapped
+            y_token_set = processed_batch.tokens
+            y_mask_set = processed_batch.mask_mask
             model_output = model(x_set)
-            class_loss += F.binary_cross_entropy_with_logits(
-                model_output[:, 0, MASK_ID], y_class_set.double()).detach()
-        class_loss /= sample
+            mask_loss = F.cross_entropy(
+                model_output.reshape(-1, VOCAB_SIZE),
+                y_token_set.reshape(-1).long(),
+                reduction='none')
+            mask_loss *= y_mask_set.reshape(-1)  # only check masked words
+            mask_loss = mask_loss.mean() / MASK_PERCENT
+            scaled_mask_loss = mask_loss * MASK_LOSS_WEIGHT
+            total_mask_loss += scaled_mask_loss.item()
+        total_mask_loss /= sample
 
         if step and WRITER:
-            WRITER.add_scalar('loss/eval_class', class_loss.item(), step)
+            WRITER.add_scalar('loss/eval_mask', total_mask_loss, step)
 
-        return class_loss.detach()
+        return total_mask_loss
+
+
+def get_processed_dataset():
+    raw_dataset = wikibookdata.WikiBookDataset()
+    processor = wikibookdata.SentencePairProcessor(
+        max_total_length=CUTOFF,
+        device=DEVICE,
+        mask_percent=MASK_PERCENT,
+        swap_percent=0.0,
+    )
+    return wikibookdata.ProcessedDataset(raw_dataset, processor)
 
 
 if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
-    modelpath = f'runs/logtest/{timestamp}'
+    modelpath = f'runs/wikibooktest/{timestamp}'
 
+    densetext = 'dense' if DENSE else 'sparse'
     writer = SummaryWriter(log_dir=modelpath)
     task = Task.init(project_name='jaszczur/sparsity/tests',
-                     task_name=f'logging test {timestamp}')
+                     task_name=f'wikibook small {densetext} {timestamp}')
     TASK = task
     WRITER = writer
 
     misc.print_available_gpus()
 
-    model = get_model()
+    pdataset = get_processed_dataset()
+
+    model = get_model(DENSE)
     model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     EVAL_STEP = 100
     last_eval_time = None
-    for step in range(10000+1):
+    for step in range(10000000+1):
         start_train_time = time.time()
-        train_step(model, optimizer, step)
+        train_step(model, optimizer, pdataset, step)
         end_train_time = time.time()
         WRITER.add_scalar('time/train', end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
             begin_eval_time = time.time()
-            eval_loss = eval_step(model, step, sample=EVAL_STEP//2)
+            eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP//2)
             print(f'Eval loss:', eval_loss)
             torch.save(model.state_dict(), f'{modelpath}/model.pt')
             end_eval_time = time.time()
