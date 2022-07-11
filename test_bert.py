@@ -124,7 +124,7 @@ class BERTTest(GeneralTestCase):
 
         output = model(input)
 
-        self.assertShape(output, (batch, seql, output_size))j
+        self.assertShape(output, (batch, seql, output_size))
 
 
 class BERTSparseTest(GeneralTestCase):
