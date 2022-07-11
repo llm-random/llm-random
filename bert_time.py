@@ -1,5 +1,7 @@
 import bert
 import torch
+
+import misc
 import profile
 
 
@@ -48,16 +50,23 @@ class NoopEnter(object):
 
 def main_tests(version, disable_inner=False):
     # multiplier = 32
-    one_size = 16
-    expertsets = one_size
-    nexperts = one_size
-    expertsize = one_size * 4
-    dff = expertsets * nexperts * expertsize
+    # one_size = 16
+    # expertsets = one_size
+    total_dff = 2048
+    expertsets = 1
+    # nexperts = int((total_dff/expertsets)**0.5)
+    expertsize = 32
+    # nexperts = one_size
+    nexperts = 64
+    # expertsize = one_size * 4
+    # expertsize = 16
+    assert expertsets * nexperts * expertsize == total_dff
+    # dff = expertsets * nexperts * expertsize
 
-    batch, seql, dm, heads = 1, 1024, 1024, 16
+    batch, seql, dm, heads = 2, 1024, 512, 8
     vocab_size, max_length = 107, 1024
     output_size = 64
-    n_blocks = 6
+    n_blocks = 4
     samples = 100
     warmup = 10
 
@@ -112,7 +121,7 @@ def main_tests(version, disable_inner=False):
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
         )
     elif version == 'dense':
-        sparse_linear_projection = lambda: bert.TrueDense(dm, dm)
+        sparse_linear_projection = lambda: misc.Dense(dm, dm)
         sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
@@ -134,10 +143,13 @@ def main_tests(version, disable_inner=False):
         model.to(CUDA)
         inputs = [x.to(CUDA) for x in inputs]
 
-    with torch.no_grad():
-    # with NoopEnter():
+    # with torch.no_grad():
+    with NoopEnter():
         for input in inputs[:warmup]:
             output = model(input)
+            loss = torch.sum(output)
+            loss.backward()
+            # optimizer.step()
             torch.sum(output).item()  # to make sure everything is computed
         profile.reset_times()
         with profile.Timer(f'{version}', disable_inner=disable_inner):
@@ -153,10 +165,10 @@ if __name__ == "__main__":
     # profile.print_times()
     # main_tests('sparse+noop', False)
     # profile.print_times()
-    main_tests('sparse+perm', False)
-    profile.print_times()
-    # main_tests('sparse', False)
+    # main_tests('sparse+perm', False)
     # profile.print_times()
+    main_tests('sparse', False)
+    profile.print_times()
     # main_tests('dense')
     # profile.print_times()
     # main_tests('sparse', False)

@@ -23,6 +23,14 @@ class GeneralizedReLU(nn.Module):
         return result
 
 
+class Noop(nn.Module):
+    def __init__(self):
+        super(Noop, self).__init__()
+
+    def forward(self, x):
+        return x
+
+
 # class ParameterLayer(nn.Module):
 #     def __init__(self, tensor):
 #         super(ParameterLayer, self).__init__()

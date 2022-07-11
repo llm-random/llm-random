@@ -72,6 +72,7 @@ class BatchSplitFF(nn.Module):
 
         self.register_full_backward_hook(BatchSplitFF.backward_hook_batch_split_ff)
         self.last_x = None
+        self.last_permutation = None
 
     def backward_hook_batch_split_ff(self, grad_input, grad_output):
         # for now we completely ignore which experts were activated etc.
@@ -106,6 +107,39 @@ class BatchSplitFF(nn.Module):
             gradient_similarity = gradient_similarity / self.dm ** 0.5  # This is to normalize outputs
             best_choice = (gradient_similarity == gradient_similarity.max(dim=-1, keepdim=True)[0]) * 1.0
             ash.assert_shape('... e t', best_choice)
+        # # for now we completely ignore which experts were activated etc.
+        # x = self.last_x.detach()
+        # grad_output = grad_output[0].detach()
+        # del grad_input
+        # with torch.no_grad():
+        #     combined_x = x.reshape(-1, x.shape[-1])
+        #     combined_gradient = grad_output.reshape(-1, grad_output.shape[-1])
+        #
+        #     grouped = einops.rearrange(combined_x, f'(b t) d -> b t d',
+        #                                t=self.sparsity)
+        #     # TODO(jaszczur): add permutation here! for x and for gradient
+        #
+        #     inner = misc.einsum(f'... t d, {self.f1p}, ... t e-> ... e f',
+        #                         grouped, self.f1, self.last_permutation,
+        #                         use_opt_einsum=True)
+        #
+        #     inner = inner + self.bias.view(self.totalexperts, 1, self.expertsize)
+        #
+        #     inner = torch.relu_(inner)
+        #
+        #     intermediate = misc.einsum(f'... e f, {self.f2p} -> ... e d',
+        #                                inner, self.f2)
+        #     result_unpermuted = misc.einsum('... e d, ... t e -> ... t d',
+        #                                     intermediate, self.last_permutation)
+        #
+        #     gradient_grouped = einops.rearrange(combined_gradient, f'(b t) d -> b t d',
+        #                                         e=self.totalexperts, t=self.sparsity)
+        #     gradient_similarity = misc.einsum(f'... e t d, ... e t d-> ... e t',
+        #                                       gradient_grouped, result_unpermuted)
+        #     # TODO(jaszczur): the line below is unnecessary, but it's a reminder
+        #     gradient_similarity = gradient_similarity / self.dm ** 0.5  # This is to normalize outputs
+        #     best_choice = (gradient_similarity == gradient_similarity.max(dim=-1, keepdim=True)[0]) * 1.0
+        #     ash.assert_shape('... e t', best_choice)
 
         with torch.enable_grad():
             ## CONTROLLER:
@@ -157,6 +191,7 @@ class BatchSplitFF(nn.Module):
             # cont_permutation = cont_logits
             cont_permutation = torch.eq(cont_logits, torch.max(cont_logits, dim=-3, keepdim=True)[0])
             cont_permutation = cont_permutation * 1.  # convert to float tensor
+            self.last_permutation = cont_permutation.detach()
 
             inner = misc.einsum(f'{self.gp}, {self.f1p}, {self.cout} -> {self.inner}',
                                 grouped, self.f1, cont_permutation,
