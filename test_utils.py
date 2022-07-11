@@ -23,9 +23,9 @@ class GeneralTestCase(unittest.TestCase):
         listA = list1 * (1-almostequal) + list2 * almostequal
         self.assertListEqual(list(listA), list(list2))
 
-    def test_assertShape(self):
-        tensor = torch.rand(2, 3, 4)
-        self.assertShape(tensor, (2, 3, 4))
-        self.assertRaises(
-            AssertionError, self.assertShape, tensor, (2, 3, 5)
-        )
+    # def test_assertShape(self):
+    #     tensor = torch.rand(2, 3, 4)
+    #     self.assertShape(tensor, (2, 3, 4))
+    #     self.assertRaises(
+    #         AssertionError, self.assertShape, tensor, (2, 3, 5)
+    #     )
