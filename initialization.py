@@ -1,7 +1,8 @@
-
+import torch
 from torch import nn
 
 import bert
+import metrics
 import misc
 
 
@@ -19,6 +20,10 @@ class PassThrough(nn.Module):
 
 def FixedLinear(dinput, doutput, relu=False):
     linlayer = nn.Linear(dinput, doutput, bias=False)
+    metrics.LogWeightValue('LinearW', lambda: linlayer.weight)
+    metrics.LogWeightValue('LinearWS', lambda: linlayer.weight, aggregate=torch.std)
+    metrics.LogWeightGradient('LinearWG', lambda: linlayer.weight)
+    metrics.LogWeightGradient('LinearWGS', lambda: linlayer.weight, aggregate=torch.std)
     scaling = 2 if relu else 1
     limit = 3 ** 0.5
     nn.init.uniform_(linlayer.weight, -limit, +limit)
@@ -55,6 +60,10 @@ def StandardLinear(dinput, doutput, relu=False):
 
 def FixedFeedForward(dmodel, dff):
     return nn.Sequential(
+        metrics.LogValue('FFinputV'),
+        metrics.LogValue('FFinputVS', aggregate=torch.std),
+        metrics.LogGradient('FFinputVG'),
+        metrics.LogGradient('FFinputVGS', aggregate=torch.std),
         FixedLinear(dmodel, dff, relu=True),
         FixedLinear(dff, dmodel),
     )
@@ -62,6 +71,10 @@ def FixedFeedForward(dmodel, dff):
 
 def StandardFeedForward(dmodel, dff):
     return nn.Sequential(
+        metrics.LogValue('FFinput'),
+        metrics.LogValue('FFinput', aggregate=torch.std),
+        metrics.LogGradient('FFinput'),
+        metrics.LogGradient('FFinput', aggregate=torch.std),
         StandardLinear(dmodel, dff, relu=True),
         StandardLinear(dff, dmodel),
     )
