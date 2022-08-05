@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 
 import initialization
+import metrics
 import wikibookdata
 
 import misc
@@ -27,7 +28,7 @@ if TESTING:
     CUTOFF = 32
     DM = 16
     DFF = DM * 4
-    BLOCKS = 1
+    BLOCKS = 2
     HEADS = 2
     BATCH_SIZE = 2
 else:
@@ -196,6 +197,7 @@ if __name__ == "__main__":
     # densetext = 'dense' if DENSE else 'sparse'
     varianttext = 'fixed' if FIXED else 'standard'
     writer = SummaryWriter(log_dir=modelpath)
+    metrics.METRIC_WRITER.tb_writer = writer
     realortest = "TEST" if TESTING else "REAL"
     lrmention = f" {LEARNING_RATE}" if LR_FROM_ARG else ""
     task_name = f'{varianttext} {lrmention} init {realortest} {timestamp}'
@@ -211,7 +213,7 @@ if __name__ == "__main__":
     model = get_model(varianttext)
     model.to(DEVICE)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE)
     EVAL_STEP = 100
     last_eval_time = None
     for step in range(10000000+1):
@@ -220,6 +222,8 @@ if __name__ == "__main__":
         end_train_time = time.time()
         WRITER.add_scalar('time/train', end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
+            metrics.METRIC_WRITER.update_step(step)
+            metrics.METRIC_WRITER.write_log()
             begin_eval_time = time.time()
             eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP//2)
             print(f'Eval loss:', eval_loss)

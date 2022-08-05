@@ -8,7 +8,7 @@ template = """#!/bin/bash
 #SBATCH --partition=common
 #SBATCH --qos=16gpu3d
 #SBATCH --gres=gpu:rtx2080ti:1
-#SBATCH --time=0-05:00:00
+#SBATCH --time=0-08:00:00
 #SBATCH --output=/home/sj359674/logs/t{TIMESTAMP}/sbatchlogs{JOB_ID}.txt
 
 source venv/bin/activate
@@ -28,10 +28,12 @@ os.makedirs('/home/sj359674/' + log_dir)
 jobs = []
 REAL_RUN = None
 
-for lr in [0.003, 0.001, 0.0003, 0.0001, 0.00003]:
+# for lr in [0.016, 0.008, 0.004, 0.002, 0.001, 0.0005]:
+for lr in [1.0, 0.1, 0.01, 0.001, 0.0001, 0.00001]:
     jobs.append((f'LEARNING_RATE={lr}', 'STANDARD'))
 
-for lr in [0.003, 0.001, 0.0003, 0.0001, 0.00003]:
+# for lr in [0.016, 0.008, 0.004, 0.002, 0.001, 0.0005]:
+for lr in [1.0, 0.1, 0.01, 0.001, 0.0001, 0.00001]:
     jobs.append((f'LEARNING_RATE={lr}', 'FIXED'))
 
 PREFIX = None

@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import einops
 from einops.layers.torch import Rearrange
 
+import metrics
 import misc
 import ash
 from profile import TimerLayer, Timer
