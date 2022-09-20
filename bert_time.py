@@ -38,6 +38,7 @@ def test_basic(self):
 CUDA = torch.device("cuda")
 
 USE_CUDA = True
+DO_BACKWARD = True
 
 
 class NoopEnter(object):
@@ -48,24 +49,88 @@ class NoopEnter(object):
         pass
 
 
-def main_tests(version, disable_inner=False):
+def test_one_sparse(log_total_dff):
+    logexpertsets = 2
+    logexpertsize = 5
+    lognexperts = log_total_dff - logexpertsets - logexpertsize
+    expertsets = 2 ** logexpertsets
+    expertsize = 2 ** logexpertsize
+    nexperts = 2 ** lognexperts
+    print(logexpertsets, logexpertsize, lognexperts)
+    print(expertsets, expertsize, nexperts)
+    # try:
+    main_tests('simplesparse', disable_inner=False, expertsets=expertsets,
+               expertsize=expertsize, nexperts=nexperts)
+    print('IMPORTANT', round(sum(profile.GLOBAL_TIMERS['batchedFF']), 3))
+    profile.print_times()
+    # except:
+    #     print("FAILED")
+    print("", flush=True)
+
+
+def test_all_sparse(log_total_dff):
+    keys = ['rewrittenFF', 'Controller', 'FF']
+    tables = {
+        key: [['-'] * (log_total_dff+1) for _ in range(log_total_dff+1)]
+        for key in keys
+    }
+
+    for logexpertsets in range(0, log_total_dff+1):
+        for logexpertsize in range(0, log_total_dff+1-logexpertsets):
+            lognexperts = log_total_dff - logexpertsets - logexpertsize
+            expertsets = 2**logexpertsets
+            expertsize = 2**logexpertsize
+            nexperts = 2**lognexperts
+            print(logexpertsets, logexpertsize, lognexperts)
+            print(expertsets, expertsize, nexperts)
+            try:
+                main_tests('rewritten', disable_inner=False, expertsets=expertsets,
+                           expertsize=expertsize, nexperts=nexperts)
+                for key in keys:
+                    time = round(sum(profile.GLOBAL_TIMERS[key]), 3)
+                    tables[key][logexpertsize][logexpertsets] = time
+                profile.print_times()
+            except:
+                print("FAILED")
+                for key in keys:
+                    tables[key][logexpertsize][logexpertsets] = 'nan'
+            print('\n\n\n')
+            for key in keys:
+                print(f'\n\n{key}')
+                for row in tables[key]:
+                    for cell in row:
+                        print(cell, end='\t')
+                    print()
+            print("", flush=True)
+
+
+def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexperts=8):
     # multiplier = 32
     # one_size = 16
     # expertsets = one_size
-    total_dff = 2048
-    expertsets = 1
+    # total_dff = 2048
+
+    total_dff = expertsets * expertsize * nexperts
+
+    # expertsets = 16
     # nexperts = int((total_dff/expertsets)**0.5)
-    expertsize = 32
+    # expertsize = 8
     # nexperts = one_size
-    nexperts = 64
+    # nexperts = 16
     # expertsize = one_size * 4
     # expertsize = 16
     assert expertsets * nexperts * expertsize == total_dff
-    # dff = expertsets * nexperts * expertsize
+    dff = total_dff
 
-    batch, seql, dm, heads = 2, 1024, 512, 8
-    vocab_size, max_length = 107, 1024
-    output_size = 64
+    # DM = 512
+    # DFF = DM * 4
+    # BLOCKS = 4
+    # HEADS = 8
+
+
+    batch, seql, dm, heads = 64, 128, 512, 8
+    vocab_size, max_length = 30522, 128
+    output_size = 30522
     n_blocks = 4
     samples = 100
     warmup = 10
@@ -80,6 +145,20 @@ def main_tests(version, disable_inner=False):
             n_blocks,
             dm,
             (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
+        )
+    elif version == 'rewritten':
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.RewrittenSplitFF([], dm, dff, expertsets*nexperts, nexperts, expertsize)),
+            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
+        )
+    elif version == 'simplesparse':
+        encoder_tower = bert.EncoderTower(
+            n_blocks,
+            dm,
+            (lambda: bert.SimpleSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
         )
     elif version == 'sparse+qkv':
@@ -135,6 +214,7 @@ def main_tests(version, disable_inner=False):
     head = bert.PredictionHead(dm, output_size)
 
     model = bert.BERT(embedding_layer, encoder_tower, head)
+    model = profile.TimerLayer('model', model)
     model.train()
 
     inputs = [torch.randint(0, vocab_size, (batch, seql))
@@ -143,14 +223,14 @@ def main_tests(version, disable_inner=False):
         model.to(CUDA)
         inputs = [x.to(CUDA) for x in inputs]
 
-    # with torch.no_grad():
-    with NoopEnter():
+    with (NoopEnter() if DO_BACKWARD else torch.no_grad()):
         for input in inputs[:warmup]:
             output = model(input)
             loss = torch.sum(output)
-            loss.backward()
-            # optimizer.step()
-            torch.sum(output).item()  # to make sure everything is computed
+            if DO_BACKWARD:
+                loss.backward()
+                # optimizer.step()
+                torch.sum(output).item()  # to make sure everything is computed
         profile.reset_times()
         with profile.Timer(f'{version}', disable_inner=disable_inner):
             for input in inputs[warmup:]:
@@ -167,9 +247,12 @@ if __name__ == "__main__":
     # profile.print_times()
     # main_tests('sparse+perm', False)
     # profile.print_times()
-    main_tests('sparse', False)
+    # test_all_sparse(15)
+    main_tests('rewritten', False)
     profile.print_times()
-    # main_tests('dense')
-    # profile.print_times()
+    main_tests('dense', False)
+    profile.print_times()
+    test_all_sparse(11)
+    # test_all_sparse(15)
     # main_tests('sparse', False)
     # bert.print_times()

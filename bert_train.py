@@ -1,3 +1,5 @@
+import sys
+
 import matplotlib.pyplot as plt
 import tensorflow
 import torch
@@ -10,12 +12,10 @@ from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
 import wikibookdata
+import profile
 
 import misc
 
-CUTOFF = 128
-
-BATCH_SIZE = 64
 MASK_PERCENT = 0.2
 MASK_LOSS_WEIGHT = 1.0
 CLASS_LOSS_WEIGHT = 1.0
@@ -27,11 +27,23 @@ LEARNING_RATE = 0.0001
 # BLOCKS = 4
 # HEADS = 4
 
-# BERT-Small
-DM = 512
-DFF = DM * 4
-BLOCKS = 4
-HEADS = 8
+TESTING = False
+
+# Custom Bert, based on Small BERT
+if TESTING:
+    CUTOFF = 32
+    DM = 16
+    DFF = DM * 4
+    BLOCKS = 2
+    HEADS = 2
+    BATCH_SIZE = 2
+else:
+    CUTOFF = 128
+    DM = 512
+    DFF = DM * 4
+    BLOCKS = 4
+    HEADS = 8
+    BATCH_SIZE = 32
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 
@@ -41,6 +53,32 @@ WRITER = None  # Tensorboard writer
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 DENSE = False
+
+profile.DISABLED = True
+
+NEXPERTS = 32
+SPARSITY = 8
+EXPERTSIZE = 64
+
+
+for arg in sys.argv[1:]:
+    if arg.startswith('LEARNING_RATE='):
+        LEARNING_RATE = float(arg[len('LEARNING_RATE='):])
+        LR_FROM_ARG = True
+    elif arg.startswith('NEXPERTS='):
+        NEXPERTS = int(arg[len('NEXPERTS='):])
+    elif arg.startswith('SPARSITY='):
+        SPARSITY = int(arg[len('SPARSITY='):])
+    elif arg.startswith('EXPERTSIZE='):
+        EXPERTSIZE = int(arg[len('EXPERTSIZE='):])
+    elif arg == 'DENSE':
+        DENSE = True
+    elif arg == 'SPARSE':
+        DENSE = False
+    elif arg.startswith('CLEARMLDIR='):
+        CLEARMLDIR = arg[len('CLEARMLDIR='):]
+    else:
+        raise ValueError('Unknown argument: {}'.format(arg))
 
 
 def get_model(dense=False):
@@ -67,13 +105,16 @@ def get_model(dense=False):
     if dense:
         ff_layer = (lambda: bert.FeedForward(dm, dff))
     else:
-        ff_layer = (lambda: bert.BatchSplitFF([], dm, dff, 8, 16, 16))
+        ff_layer = (lambda: bert.RewrittenSplitFF([], dm, dff,
+                                                  NEXPERTS, SPARSITY, EXPERTSIZE))
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
         dm,
-        ff_layer,
         (lambda: bert.Attention(dm, heads)),
+        ff_layer,
+        ff_layer,
+        ff_layer,
     )
 
     head = bert.PredictionHead(dm, output_size)
@@ -185,6 +226,7 @@ if __name__ == "__main__":
         start_train_time = time.time()
         train_step(model, optimizer, pdataset, step)
         end_train_time = time.time()
+        WRITER.add_scalar('step', step, step)
         WRITER.add_scalar('time/train', end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
             begin_eval_time = time.time()

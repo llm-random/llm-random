@@ -21,7 +21,7 @@ import sys
 MASK_PERCENT = 0.2
 MASK_LOSS_WEIGHT = 1.0
 CLASS_LOSS_WEIGHT = 1.0
-TESTING = False
+TESTING = True
 
 # Custom Bert, based on MiniBert
 if TESTING:
