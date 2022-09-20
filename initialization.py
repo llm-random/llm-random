@@ -20,9 +20,9 @@ class PassThrough(nn.Module):
 
 def FixedLinear(dinput, doutput, relu=False):
     linlayer = nn.Linear(dinput, doutput, bias=False)
-    metrics.LogWeightValue('LinearW', lambda: linlayer.weight)
-    metrics.LogWeightValue('LinearWS', lambda: linlayer.weight, aggregate=torch.std)
-    metrics.LogWeightGradient('LinearWG', lambda: linlayer.weight)
+    metrics.LogWeightValue('LinearWVM', lambda: linlayer.weight)
+    metrics.LogWeightValue('LinearWVS', lambda: linlayer.weight, aggregate=torch.std)
+    metrics.LogWeightGradient('LinearWGM', lambda: linlayer.weight)
     metrics.LogWeightGradient('LinearWGS', lambda: linlayer.weight, aggregate=torch.std)
     scaling = 2 if relu else 1
     limit = 3 ** 0.5
@@ -39,6 +39,10 @@ def FixedLinear(dinput, doutput, relu=False):
 
 def StandardLinear(dinput, doutput, relu=False):
     linlayer = nn.Linear(dinput, doutput, bias=False)
+    metrics.LogWeightValue('LinearWVM', lambda: linlayer.weight)
+    metrics.LogWeightValue('LinearWVS', lambda: linlayer.weight, aggregate=torch.std)
+    metrics.LogWeightGradient('LinearWGM', lambda: linlayer.weight)
+    metrics.LogWeightGradient('LinearWGS', lambda: linlayer.weight, aggregate=torch.std)
     scaling = 6 if relu else 3
     limit = (scaling / dinput) ** 0.5
     nn.init.uniform_(linlayer.weight, -limit, +limit)
@@ -60,12 +64,20 @@ def StandardLinear(dinput, doutput, relu=False):
 
 def FixedFeedForward(dmodel, dff):
     return nn.Sequential(
-        metrics.LogValue('FFinputV'),
+        metrics.LogValue('FFinputVM'),
         metrics.LogValue('FFinputVS', aggregate=torch.std),
-        metrics.LogGradient('FFinputVG'),
+        metrics.LogGradient('FFinputVGM'),
         metrics.LogGradient('FFinputVGS', aggregate=torch.std),
         FixedLinear(dmodel, dff, relu=True),
+        metrics.LogValue('FFmidVM'),
+        metrics.LogValue('FFmidVS', aggregate=torch.std),
+        metrics.LogGradient('FFmidVGM'),
+        metrics.LogGradient('FFmidVGS', aggregate=torch.std),
         FixedLinear(dff, dmodel),
+        metrics.LogValue('FFoutputVM'),
+        metrics.LogValue('FFoutputVS', aggregate=torch.std),
+        metrics.LogGradient('FFoutputVGM'),
+        metrics.LogGradient('FFoutputVGS', aggregate=torch.std),
     )
 
 
@@ -76,7 +88,15 @@ def StandardFeedForward(dmodel, dff):
         metrics.LogGradient('FFinput'),
         metrics.LogGradient('FFinput', aggregate=torch.std),
         StandardLinear(dmodel, dff, relu=True),
+        metrics.LogValue('FFmidVM'),
+        metrics.LogValue('FFmidVS', aggregate=torch.std),
+        metrics.LogGradient('FFmidVGM'),
+        metrics.LogGradient('FFmidVGS', aggregate=torch.std),
         StandardLinear(dff, dmodel),
+        metrics.LogValue('FFoutputVM'),
+        metrics.LogValue('FFoutputVS', aggregate=torch.std),
+        metrics.LogGradient('FFoutputVGM'),
+        metrics.LogGradient('FFoutputVGS', aggregate=torch.std),
     )
 
 

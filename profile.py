@@ -33,12 +33,13 @@ class TimerLayer(nn.Module):
 
 
 class Timer(object):
-    def __init__(self, name, disable_inner=False):
+    def __init__(self, name, disable_inner=False, disable=False):
         global DISABLED
         self.name = name
         self.disable_inner = disable_inner
         self.i_disabled = False
-        if not DISABLED:
+        self.force_disable = disable
+        if (not DISABLED) and (not self.force_disable):
             if name not in GLOBAL_TIMERS:
                 GLOBAL_TIMERS[self.name] = []
                 # GLOBAL_TIMERS[self.name+'T'] = []
@@ -49,7 +50,7 @@ class Timer(object):
 
     def __enter__(self):
         global DISABLED
-        if not DISABLED:
+        if (not DISABLED) and (not self.force_disable):
             if self.disable_inner:
                 DISABLED = True
                 self.i_disabled = True
@@ -61,7 +62,7 @@ class Timer(object):
 
     def __exit__(self, *args):
         global DISABLED
-        if not DISABLED or self.i_disabled:
+        if ((not DISABLED) or self.i_disabled) and (not self.force_disable):
             if self.disable_inner:
                 DISABLED = False
                 self.i_disabled = False

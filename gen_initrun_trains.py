@@ -7,12 +7,12 @@ template = """#!/bin/bash
 #SBATCH --job-name=lizard_train{JOB_ID}
 #SBATCH --partition=common
 #SBATCH --qos=24gpu7d
-#SBATCH --gres=gpu:titanv:1
-#SBATCH --time=0-06:00:00
+#SBATCH --gres=gpu:rtx2080ti:1
+#SBATCH --time=0-01:00:00
 #SBATCH --output=/home/jaszczur/logs/t{TIMESTAMP}/sbatchlogs{JOB_ID}.txt
 
 source venv/bin/activate
-python3 bert_train.py {ARGS}
+python3 initbert_train.py {ARGS}
 """
 
 SLEEPTIME = 3
@@ -28,29 +28,13 @@ os.makedirs('/home/jaszczur/' + log_dir)
 jobs = []
 REAL_RUN = None
 
-# # for lr in [0.016, 0.008, 0.004, 0.002, 0.001, 0.0005]:
-# for lr in [10.0, 5.0, 2.0, 1.0, 0.5, 0.2, 0.1]:
-#     jobs.append((f'LEARNING_RATE={lr}', 'FIXED'))
-#
-# # for lr in [0.016, 0.008, 0.004, 0.002, 0.001, 0.0005]:
-# for lr in [0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]:
-#     jobs.append((f'LEARNING_RATE={lr}', 'STANDARD'))
+# for lr in [0.016, 0.008, 0.004, 0.002, 0.001, 0.0005]:
+for lr in [10.0, 5.0, 2.0, 1.0, 0.5, 0.2, 0.1]:
+    jobs.append((f'LEARNING_RATE={lr}', 'FIXED'))
 
-jobs.append(('DENSE',))
-jobs.append(('DENSE',))
-jobs.append(('DENSE',))
-
-NEXPERTS = 32
-SPARSITY = 8
-EXPERTSIZE = 64
-
-jobs.append(('SPARSE', 'NEXPERTS=32', 'SPARSITY=8', 'EXPERTSIZE=64'))
-jobs.append(('SPARSE', 'NEXPERTS=16', 'SPARSITY=8', 'EXPERTSIZE=128'))
-jobs.append(('SPARSE', 'NEXPERTS=8', 'SPARSITY=8', 'EXPERTSIZE=256'))
-
-jobs.append(('SPARSE', 'NEXPERTS=16', 'SPARSITY=4', 'EXPERTSIZE=128'))
-jobs.append(('SPARSE', 'NEXPERTS=8', 'SPARSITY=4', 'EXPERTSIZE=256'))
-jobs.append(('SPARSE', 'NEXPERTS=4', 'SPARSITY=4', 'EXPERTSIZE=512'))
+# for lr in [0.016, 0.008, 0.004, 0.002, 0.001, 0.0005]:
+for lr in [0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]:
+    jobs.append((f'LEARNING_RATE={lr}', 'STANDARD'))
 
 PREFIX = None
 
