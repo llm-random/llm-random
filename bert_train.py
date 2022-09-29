@@ -27,24 +27,6 @@ LEARNING_RATE = 0.0001
 # BLOCKS = 4
 # HEADS = 4
 
-TESTING = False
-
-# Custom Bert, based on Small BERT
-if TESTING:
-    CUTOFF = 32
-    DM = 16
-    DFF = DM * 4
-    BLOCKS = 2
-    HEADS = 2
-    BATCH_SIZE = 2
-else:
-    CUTOFF = 128
-    DM = 512
-    DFF = DM * 4
-    BLOCKS = 4
-    HEADS = 8
-    BATCH_SIZE = 32
-
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 
 TASK = None  # ClearML task
@@ -52,7 +34,7 @@ WRITER = None  # Tensorboard writer
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-DENSE = False
+DENSE = True
 
 profile.DISABLED = True
 
@@ -60,9 +42,13 @@ NEXPERTS = 32
 SPARSITY = 8
 EXPERTSIZE = 64
 
+NAME = ''
+TESTING = False
 
 for arg in sys.argv[1:]:
-    if arg.startswith('LEARNING_RATE='):
+    if arg == 'TESTING':
+        TESTING = True
+    elif arg.startswith('LEARNING_RATE='):
         LEARNING_RATE = float(arg[len('LEARNING_RATE='):])
         LR_FROM_ARG = True
     elif arg.startswith('NEXPERTS='):
@@ -77,8 +63,28 @@ for arg in sys.argv[1:]:
         DENSE = False
     elif arg.startswith('CLEARMLDIR='):
         CLEARMLDIR = arg[len('CLEARMLDIR='):]
+    elif arg.startswith('NAME='):
+        NAME = arg[len('NAME='):]
     else:
         raise ValueError('Unknown argument: {}'.format(arg))
+
+# Custom Bert, based on Small BERT
+if TESTING:
+    CUTOFF = 32
+    DM = 16
+    DFF = DM * 4
+    BLOCKS = 2
+    HEADS = 2
+    BATCH_SIZE = 2
+    USE_CLEARML = False
+else:
+    CUTOFF = 128
+    DM = 512
+    DFF = DM * 4
+    BLOCKS = 4
+    HEADS = 8
+    BATCH_SIZE = 32
+    USE_CLEARML = True
 
 
 def get_model(dense=False):
@@ -87,15 +93,16 @@ def get_model(dense=False):
     output_size = VOCAB_SIZE
     n_blocks = BLOCKS
 
-    TASK.connect_configuration(name='hiperparameters', configuration={
-        'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
-        'vocab_size': vocab_size, 'max_length': max_length,
-        'output_size': output_size,
-        'n_blocks': n_blocks,
-        'learning_rate': LEARNING_RATE,
-        'mask_loss_weight': MASK_LOSS_WEIGHT,
-        'class_loss_weight': CLASS_LOSS_WEIGHT,
-    })
+    if USE_CLEARML:
+        TASK.connect_configuration(name='hiperparameters', configuration={
+            'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
+            'vocab_size': vocab_size, 'max_length': max_length,
+            'output_size': output_size,
+            'n_blocks': n_blocks,
+            'learning_rate': LEARNING_RATE,
+            'mask_loss_weight': MASK_LOSS_WEIGHT,
+            'class_loss_weight': CLASS_LOSS_WEIGHT,
+        })
 
     embedding_layer = bert.EmbeddingLayer(
         bert.PositionalEmbedding(max_length, dm),
@@ -205,11 +212,15 @@ if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
     modelpath = f'runs/wikibooktest/{timestamp}'
 
-    densetext = 'dense' if DENSE else 'sparse'
+    if NAME:
+        nametext = NAME
+    else:
+        nametext = 'dense' if DENSE else 'sparse'
     writer = SummaryWriter(log_dir=modelpath)
-    task = Task.init(project_name='jaszczur/sparsity/tests',
-                     task_name=f'wikibook small {densetext} {timestamp}')
-    TASK = task
+    if USE_CLEARML:
+        task = Task.init(project_name='jaszczur/sparsity/tests',
+                         task_name=f'{nametext} {timestamp}')
+        TASK = task
     WRITER = writer
 
     misc.print_available_gpus()

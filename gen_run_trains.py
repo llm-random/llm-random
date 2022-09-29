@@ -8,7 +8,7 @@ template = """#!/bin/bash
 #SBATCH --partition=common
 #SBATCH --qos=24gpu7d
 #SBATCH --gres=gpu:titanv:1
-#SBATCH --time=0-06:00:00
+#SBATCH --time=0-08:00:00
 #SBATCH --output=/home/jaszczur/logs/t{TIMESTAMP}/sbatchlogs{JOB_ID}.txt
 
 source venv/bin/activate
@@ -36,24 +36,22 @@ REAL_RUN = None
 # for lr in [0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]:
 #     jobs.append((f'LEARNING_RATE={lr}', 'STANDARD'))
 
-jobs.append(('DENSE',))
-jobs.append(('DENSE',))
-jobs.append(('DENSE',))
 
 NEXPERTS = 32
 SPARSITY = 8
 EXPERTSIZE = 64
 
-jobs.append(('SPARSE', 'NEXPERTS=32', 'SPARSITY=8', 'EXPERTSIZE=64'))
-jobs.append(('SPARSE', 'NEXPERTS=16', 'SPARSITY=8', 'EXPERTSIZE=128'))
-jobs.append(('SPARSE', 'NEXPERTS=8', 'SPARSITY=8', 'EXPERTSIZE=256'))
-
-jobs.append(('SPARSE', 'NEXPERTS=16', 'SPARSITY=4', 'EXPERTSIZE=128'))
-jobs.append(('SPARSE', 'NEXPERTS=8', 'SPARSITY=4', 'EXPERTSIZE=256'))
-jobs.append(('SPARSE', 'NEXPERTS=4', 'SPARSITY=4', 'EXPERTSIZE=512'))
 
 PREFIX = None
 
+DFF = 2048
+
+# for expertsize in [32, 64, 128, 256, 512, 1024, 2048]:
+for expertsize in [512, 1024, 2048]:
+    for sparsity in [2, 4, 8, 16, 32]:
+        jobs.append(('SPARSE', f'NEXPERTS={DFF//expertsize}', f'SPARSITY={sparsity}', f'EXPERTSIZE={expertsize}',
+                     f'NAME=sp{sparsity}_es{expertsize}'))
+    jobs.append(('DENSE', f'NAME=dense'))
 
 REMOVEAFTER = False
 
