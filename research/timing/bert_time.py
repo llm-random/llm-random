@@ -1,8 +1,8 @@
-import bert
+from lizrd.core import misc
+from lizrd.core import bert
 import torch
 
-import misc
-import profile
+from lizrd.support import profile
 
 
 def test_basic(self):
@@ -151,7 +151,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.RewrittenSplitFF([], dm, dff, expertsets*nexperts, nexperts, expertsize)),
+            (lambda: bert.RewrittenSplitFF([], dm, dff, expertsets * nexperts, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
         )
     elif version == 'simplesparse':

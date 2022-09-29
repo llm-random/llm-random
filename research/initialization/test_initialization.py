@@ -1,7 +1,7 @@
 import torch
 
-import initialization
-from test_utils import GeneralTestCase
+from research.initialization import initialization
+from lizrd.support.test_utils import GeneralTestCase
 
 
 class TestPassThrough(GeneralTestCase):

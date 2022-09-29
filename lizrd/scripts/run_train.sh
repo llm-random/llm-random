@@ -8,4 +8,4 @@
 #SBATCH --output=/home/jaszczur/sbatchlogs_s6.txt
 
 source venv/bin/activate
-python3 bert_train.py
+python3 -m lizrd.train.bert_train

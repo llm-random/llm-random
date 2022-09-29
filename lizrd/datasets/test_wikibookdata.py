@@ -1,5 +1,5 @@
-import wikibookdata
-from test_utils import GeneralTestCase
+from lizrd.datasets import wikibookdata
+from lizrd.support.test_utils import GeneralTestCase
 
 
 class TestWikibookdata(GeneralTestCase):

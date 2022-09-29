@@ -1,55 +1,28 @@
-import matplotlib.pyplot as plt
-import tensorflow
+import sys
+
 import torch
 import torch.nn.functional as F
 import datetime
-import random
-import numpy as np
-import bert
+
+
+from lizrd.core import misc
+from lizrd.core import bert
 from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
-
-import initialization
-import metrics
-import wikibookdata
-
-import misc
-import sys
-
+from lizrd.datasets import wikibookdata
+from lizrd.support import profile
 
 MASK_PERCENT = 0.2
 MASK_LOSS_WEIGHT = 1.0
 CLASS_LOSS_WEIGHT = 1.0
-TESTING = True
-
-# Custom Bert, based on MiniBert
-if TESTING:
-    CUTOFF = 32
-    DM = 16
-    DFF = DM * 4
-    BLOCKS = 2
-    HEADS = 2
-    BATCH_SIZE = 2
-else:
-    CUTOFF = 128
-    DM = 128
-    DFF = DM * 16
-    BLOCKS = 3
-    HEADS = 4
-    BATCH_SIZE = 64
+LEARNING_RATE = 0.0001
 
 # # BERT-Mini
 # DM = 256
 # DFF = DM * 4
 # BLOCKS = 4
 # HEADS = 4
-
-# # BERT-Small
-# DM = 512
-# DFF = DM * 4
-# BLOCKS = 4
-# HEADS = 8
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 
@@ -58,57 +31,99 @@ WRITER = None  # Tensorboard writer
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-FIXED = True
+DENSE = True
 
-CLEARMLDIR = 'jaszczur/init/test'
+profile.DISABLED = True
 
-if FIXED:
-    LEARNING_RATE = 0.001
-else:
-    LEARNING_RATE = 0.0001
+NEXPERTS = 32
+SPARSITY = 8
+EXPERTSIZE = 64
 
-LR_FROM_ARG = False
+NAME = ''
+TESTING = False
 
 for arg in sys.argv[1:]:
-    if arg.startswith('LEARNING_RATE='):
+    if arg == 'TESTING':
+        TESTING = True
+    elif arg.startswith('LEARNING_RATE='):
         LEARNING_RATE = float(arg[len('LEARNING_RATE='):])
         LR_FROM_ARG = True
-    elif arg == 'FIXED':
-        FIXED = True
-    elif arg == 'STANDARD':
-        FIXED = False
+    elif arg.startswith('NEXPERTS='):
+        NEXPERTS = int(arg[len('NEXPERTS='):])
+    elif arg.startswith('SPARSITY='):
+        SPARSITY = int(arg[len('SPARSITY='):])
+    elif arg.startswith('EXPERTSIZE='):
+        EXPERTSIZE = int(arg[len('EXPERTSIZE='):])
+    elif arg == 'DENSE':
+        DENSE = True
+    elif arg == 'SPARSE':
+        DENSE = False
     elif arg.startswith('CLEARMLDIR='):
         CLEARMLDIR = arg[len('CLEARMLDIR='):]
+    elif arg.startswith('NAME='):
+        NAME = arg[len('NAME='):]
     else:
         raise ValueError('Unknown argument: {}'.format(arg))
 
+# Custom Bert, based on Small BERT
+if TESTING:
+    CUTOFF = 32
+    DM = 16
+    DFF = DM * 4
+    BLOCKS = 2
+    HEADS = 2
+    BATCH_SIZE = 2
+    USE_CLEARML = False
+else:
+    CUTOFF = 128
+    DM = 512
+    DFF = DM * 4
+    BLOCKS = 4
+    HEADS = 8
+    BATCH_SIZE = 32
+    USE_CLEARML = True
 
-def get_model(variant='fixed'):
+
+def get_model(dense=False):
     batch, seql, dm, heads, dff = BATCH_SIZE, CUTOFF, DM, HEADS, DFF
     vocab_size, max_length = VOCAB_SIZE, CUTOFF
     output_size = VOCAB_SIZE
     n_blocks = BLOCKS
 
-    TASK.connect_configuration(name='hiperparameters', configuration={
-        'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
-        'vocab_size': vocab_size, 'max_length': max_length,
-        'output_size': output_size,
-        'n_blocks': n_blocks,
-        'learning_rate': LEARNING_RATE,
-        'mask_loss_weight': MASK_LOSS_WEIGHT,
-        'class_loss_weight': CLASS_LOSS_WEIGHT,
-    })
+    if USE_CLEARML:
+        TASK.connect_configuration(name='hiperparameters', configuration={
+            'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
+            'vocab_size': vocab_size, 'max_length': max_length,
+            'output_size': output_size,
+            'n_blocks': n_blocks,
+            'learning_rate': LEARNING_RATE,
+            'mask_loss_weight': MASK_LOSS_WEIGHT,
+            'class_loss_weight': CLASS_LOSS_WEIGHT,
+        })
 
-    if variant == 'fixed':
-        model = initialization.FixedBERT(
-            max_length, dm, vocab_size, dff, heads, n_blocks, output_size
-        )
-    elif variant == 'standard':
-        model = initialization.StandardBERT(
-            max_length, dm, vocab_size, dff, heads, n_blocks, output_size
-        )
+    embedding_layer = bert.EmbeddingLayer(
+        bert.PositionalEmbedding(max_length, dm),
+        bert.TokenEmbedding(vocab_size, dm)
+    )
+
+    if dense:
+        ff_layer = (lambda: bert.FeedForward(dm, dff))
     else:
-        raise ValueError('Unknown variant: {}'.format(variant))
+        ff_layer = (lambda: bert.RewrittenSplitFF([], dm, dff,
+                                                  NEXPERTS, SPARSITY, EXPERTSIZE))
+
+    encoder_tower = bert.EncoderTower(
+        n_blocks,
+        dm,
+        (lambda: bert.Attention(dm, heads)),
+        ff_layer,
+        ff_layer,
+        ff_layer,
+    )
+
+    head = bert.PredictionHead(dm, output_size)
+
+    model = bert.BERT(embedding_layer, encoder_tower, head)
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)
@@ -191,39 +206,37 @@ def get_processed_dataset():
 
 
 if __name__ == "__main__":
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
     modelpath = f'runs/wikibooktest/{timestamp}'
 
-    # densetext = 'dense' if DENSE else 'sparse'
-    varianttext = 'fixed' if FIXED else 'standard'
+    if NAME:
+        nametext = NAME
+    else:
+        nametext = 'dense' if DENSE else 'sparse'
     writer = SummaryWriter(log_dir=modelpath)
-    metrics.METRIC_WRITER.tb_writer = writer
-    realortest = "TEST" if TESTING else "REAL"
-    lrmention = f" {LEARNING_RATE}" if LR_FROM_ARG else ""
-    task_name = f'{varianttext} {lrmention} init {realortest} {timestamp}'
-    task = Task.init(project_name=f'{CLEARMLDIR}',
-                     task_name=task_name)
-    TASK = task
+    if USE_CLEARML:
+        task = Task.init(project_name='jaszczur/sparsity/tests',
+                         task_name=f'{nametext} {timestamp}')
+        TASK = task
     WRITER = writer
 
     misc.print_available_gpus()
 
     pdataset = get_processed_dataset()
 
-    model = get_model(varianttext)
+    model = get_model(DENSE)
     model.to(DEVICE)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     EVAL_STEP = 100
     last_eval_time = None
     for step in range(10000000+1):
         start_train_time = time.time()
         train_step(model, optimizer, pdataset, step)
         end_train_time = time.time()
+        WRITER.add_scalar('step', step, step)
         WRITER.add_scalar('time/train', end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
-            metrics.METRIC_WRITER.update_step(step)
-            metrics.METRIC_WRITER.write_log()
             begin_eval_time = time.time()
             eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP//2)
             print(f'Eval loss:', eval_loss)
