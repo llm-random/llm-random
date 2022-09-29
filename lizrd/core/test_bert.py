@@ -1,9 +1,9 @@
 import torch
 
-import bert
+from lizrd.core import bert
 import unittest
 
-from test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase
 
 
 class TestFeedForward(GeneralTestCase):

@@ -1,17 +1,13 @@
-import matplotlib.pyplot as plt
-import tensorflow
 import torch
 from tensorflow.keras.datasets import imdb
 import torch.nn.functional as F
 import datetime
-import random
 import numpy as np
-import bert
+from lizrd.core import misc
+from lizrd.core import bert
 from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
-
-import misc
 
 INDEX_FROM = 4
 CUTOFF = 128

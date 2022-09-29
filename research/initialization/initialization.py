@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 
-import bert
-import metrics
-import misc
+from lizrd.core import misc
+from lizrd.core import bert
+from lizrd.support import metrics
 
 
 class PassThrough(nn.Module):

@@ -1,5 +1,3 @@
-import random
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,10 +5,9 @@ import torch.nn.functional as F
 import einops
 from einops.layers.torch import Rearrange
 
-import metrics
-import misc
-import ash
-from profile import TimerLayer, Timer
+from lizrd.core import misc
+from lizrd.support import ash
+from lizrd.support.profile import TimerLayer, Timer
 
 
 @ash.check('... d -> ... d')

@@ -12,7 +12,7 @@ template = """#!/bin/bash
 #SBATCH --output=/home/jaszczur/logs/t{TIMESTAMP}/sbatchlogs{JOB_ID}.txt
 
 source venv/bin/activate
-python3 bert_train.py {ARGS}
+python3 -m lizrd.train.bert_train {ARGS}
 """
 
 SLEEPTIME = 3
@@ -52,6 +52,8 @@ for expertsize in [512, 1024, 2048]:
         jobs.append(('SPARSE', f'NEXPERTS={DFF//expertsize}', f'SPARSITY={sparsity}', f'EXPERTSIZE={expertsize}',
                      f'NAME=sp{sparsity}_es{expertsize}'))
     jobs.append(('DENSE', f'NAME=dense'))
+
+jobs = jobs[:3]
 
 REMOVEAFTER = False
 

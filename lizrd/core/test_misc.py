@@ -1,7 +1,7 @@
 import torch
 
-import misc
-from test_utils import GeneralTestCase
+from lizrd.core import misc
+from lizrd.support.test_utils import GeneralTestCase
 
 
 class TestDense(GeneralTestCase):

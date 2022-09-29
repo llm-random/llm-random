@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-import ash
+from lizrd.support import ash
 
 
 class MetricWriter(object):
