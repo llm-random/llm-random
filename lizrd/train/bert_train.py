@@ -221,9 +221,9 @@ if __name__ == "__main__":
     WRITER = writer
 
     misc.print_available_gpus()
-
+    
     pdataset = get_processed_dataset()
-
+    
     model = get_model(DENSE)
     model.to(DEVICE)
 
