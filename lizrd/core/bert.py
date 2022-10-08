@@ -433,6 +433,47 @@ class BatchSplitFF(nn.Module):
             return result_final
 
 
+@ash.check('... inp -> ... out')
+class ReinitLinear(nn.Linear):
+    """Linear layer with pruning"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mask = torch.ones_like(self.weight)
+        self.pruned = False
+
+        # initialize to keep variance
+        self.weight.data *= 3 ** 0.5
+        self.bias.data *= 0.0
+
+    def prune_unstr(self, prob: float):
+        if not self.pruned:
+            self.weight_orig = self.weight
+            self.pruned = True
+        
+        mask = torch.rand_like(self.weight)
+        mask[self.mask <= prob] = 0
+        self.mask = self.mask * mask
+        self.weight = self.weight * self.mask
+
+
+@ash.check('... d -> ... d')
+class ReinitFF(nn.Module):
+    """Feedforward layer (with bottleneck) for pruning/reinitialization
+    """
+    def __init__(self, dmodel: int, dff: int):
+        self.linears = nn.Sequential(
+            ReinitLinear(dmodel, dff),
+            ReinitLinear(dff, dmodel)
+        )
+
+    def forward(self, x: torch.Tensor):
+        return self.linears(x)
+
+    def prune_unstr(self, prob: float):
+        for linear in self.linears:
+            linear.prune_unstr(prob)
+
+
 @ash.check('... d -> ... d')
 class Residual(nn.Module):
     def __init__(self, layer):

@@ -29,6 +29,30 @@ class TestBatchedFeedForward(GeneralTestCase):
         self.assertShape(output, (batch, seql, dm))
 
 
+class TestReinitLinear(GeneralTestCase):
+    def test_smoke(self):
+        bert.ReinitLinear(1, 5)
+        bert.ReinitLinear(10, 3)
+        bert.ReinitLinear(2, 3, bias=False)
+        bert.ReinitLinear(7, 5, dtype=torch.float64)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        bert.ReinitLinear(3, 3)
+
+    def test_basic(self):
+        # TODO: check simple cases like pruning with prob 0 and 1
+        pass
+
+
+class TestReinitFF(GeneralTestCase):
+    def test_smoke(self):
+        # TODO: check initialization in various cases
+        pass
+
+    def test_basic(self):
+        # TODO: check pruning with prob 0 or 1
+        pass
+
+
 class ResidualTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, dff = 4, 8, 32, 64
