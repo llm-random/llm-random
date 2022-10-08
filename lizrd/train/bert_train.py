@@ -215,7 +215,7 @@ if __name__ == "__main__":
         nametext = 'dense' if DENSE else 'sparse'
     writer = SummaryWriter(log_dir=modelpath)
     if USE_CLEARML:
-        task = Task.init(project_name='jaszczur/sparsity/tests',
+        task = Task.init(project_name='jkrajewski',
                          task_name=f'{nametext} {timestamp}')
         TASK = task
     WRITER = writer

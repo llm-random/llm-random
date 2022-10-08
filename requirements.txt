@@ -13,3 +13,5 @@ tensorflow==2.8.0
 clearml==1.3.2 # test comment
 datasets
 transformers
+apache-beam
+clearml-agent
