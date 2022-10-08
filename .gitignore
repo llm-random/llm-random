@@ -133,3 +133,6 @@ runs/
 
 # PyCharm stuff
 .idea/
+
+# VS Code stuff
+.vscode/
