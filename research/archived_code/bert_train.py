@@ -3,6 +3,8 @@ from tensorflow.keras.datasets import imdb
 import torch.nn.functional as F
 import datetime
 import numpy as np
+
+import research.conditional.ffs
 from lizrd.core import misc
 from lizrd.core import bert
 from clearml import Task
@@ -94,7 +96,7 @@ def get_model():
         n_blocks,
         dm,
         # (lambda: bert.FeedForward(dm, dff)),
-        (lambda: bert.BatchSplitFF([], dm, dff, 8, 8, 16)),
+        (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 8, 8, 16)),
         (lambda: bert.Attention(dm, heads)),
     )
 

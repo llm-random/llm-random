@@ -6,23 +6,6 @@ from torch import nn
 from lizrd.support import ash
 
 
-class GeneralizedReLU(nn.Module):
-    def __init__(self, ndim, bias=False):
-        super(GeneralizedReLU, self).__init__()
-        assert bias is False  # we assume bias was already added
-        self.ndim = ndim
-        self.alpha = nn.Parameter(torch.zeros(ndim))
-        self.beta = nn.Parameter(torch.ones(ndim))
-        self.a = nn.Parameter(torch.zeros(ndim))
-        self.b = nn.Parameter(torch.zeros(ndim))
-
-    def forward(self, x):
-        above_zero = self.beta * x + self.b
-        below_zero = self.alpha * x + self.a
-        result = torch.where(x > 0., above_zero, below_zero)
-        return result
-
-
 class Noop(nn.Module):
     def __init__(self):
         super(Noop, self).__init__()
@@ -31,14 +14,14 @@ class Noop(nn.Module):
         return x
 
 
-# class ParameterLayer(nn.Module):
-#     def __init__(self, tensor):
-#         super(ParameterLayer, self).__init__()
-#         self.parameter = nn.Parameter(tensor)
-#
-#     def forward(self, x):
-#         del x
-#         return self.parameter
+class ParameterLayer(nn.Module):
+    def __init__(self, tensor):
+        super(ParameterLayer, self).__init__()
+        self.parameter = nn.Parameter(tensor)
+
+    def forward(self, x):
+        del x
+        return self.parameter
 
 
 def get_init_weight(shape, fan_in, fan_out=None, gain=1.0, dtype=torch.float32):
@@ -93,7 +76,7 @@ class EinMix(nn.Module):
 
 
 @ash.check('... inp -> ... out')
-def Dense(dinp, dout):
+def DenseEinMix(dinp, dout):
     return EinMix('... dinp -> ... dout',
                   weight_shape='dinp dout', bias_shape='dout',
                   dinp=dinp, dout=dout)

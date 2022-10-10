@@ -160,7 +160,7 @@ class TestStandardLinear(GeneralTestCase):
         loss.backward()
         # for straight - this will work
         self.assertShape(input.grad, (batch, dinp))
-        self.assertAlmostEqual(std_from_zero(input.grad), 1.0, delta=0.1)
+        self.assertAlmostEqual(std_from_zero(input.grad), 1.0, delta=0.15)
 
 
     def test_singlebatch(self):
