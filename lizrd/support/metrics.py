@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from lizrd.core import nn
 
 from lizrd.support import ash
 

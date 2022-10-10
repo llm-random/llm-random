@@ -1,6 +1,6 @@
 import einops
 import torch
-from torch import nn as nn, nn
+from lizrd.core import nn
 from torch.nn import functional as F
 
 from lizrd.core import misc
