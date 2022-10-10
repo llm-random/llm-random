@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import datetime
 
-
+import research.conditional.ffs
 from lizrd.core import misc
 from lizrd.core import bert
 from clearml import Task
@@ -109,8 +109,8 @@ def get_model(dense=False):
     if dense:
         ff_layer = (lambda: bert.FeedForward(dm, dff))
     else:
-        ff_layer = (lambda: bert.RewrittenSplitFF([], dm, dff,
-                                                  NEXPERTS, SPARSITY, EXPERTSIZE))
+        ff_layer = (lambda: research.conditional.ffs.RewrittenSplitFF([], dm, dff,
+                                                                      NEXPERTS, SPARSITY, EXPERTSIZE))
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
