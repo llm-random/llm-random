@@ -3,7 +3,7 @@ import torch
 from lizrd.core import bert
 import unittest
 
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, PruneLinearCase
 
 
 class TestFeedForward(GeneralTestCase):
@@ -29,28 +29,39 @@ class TestBatchedFeedForward(GeneralTestCase):
         self.assertShape(output, (batch, seql, dm))
 
 
-class TestReinitLinear(GeneralTestCase):
-    def test_smoke(self):
-        bert.ReinitLinear(1, 5)
+class TestReinitLinear(PruneLinearCase):
+    def smoke(self):
+        shapes = [(1, 5), (10, 3), (3, 3)]
+        types = [torch.float32, torch.float64, torch.double]
+        devices = [torch.device('cpu')]
+        if torch.cuda.is_available():
+            devices.append(torch.device('cuda'))
+
         bert.ReinitLinear(10, 3)
-        bert.ReinitLinear(2, 3, bias=False)
-        bert.ReinitLinear(7, 5, dtype=torch.float64)
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        bert.ReinitLinear(3, 3)
+
+        for shape, dtype, device in zip(shapes, types, devices):
+            bert.ReinitLinear(*shape, dtype=dtype, device=device)
 
     def test_basic(self):
-        # TODO: check simple cases like pruning with prob 0 and 1
-        pass
+        layer = bert.ReinitLinear(2, 5)
+        b = layer.bias.data
+        t = torch.rand((10, 2))
+
+        self._test_prune(layer, b, t)
 
 
-class TestReinitFF(GeneralTestCase):
+class TestReinitFF(PruneLinearCase):
     def test_smoke(self):
-        # TODO: check initialization in various cases
-        pass
+        bert.ReinitFF(10, 2)
+        bert.ReinitFF(10, 1)
+        bert.ReinitFF(5, 5)
 
     def test_basic(self):
-        # TODO: check pruning with prob 0 or 1
-        pass
+        layer = bert.ReinitFF(10, 2)
+        b = layer.linears[1].bias.data
+        t = torch.rand((10, 10))
+
+        self._test_prune(layer, b, t)
 
 
 class ResidualTest(GeneralTestCase):
