@@ -434,16 +434,12 @@ class BatchSplitFF(nn.Module):
 
 
 @ash.check('... inp -> ... out')
-class ReinitLinear(nn.Linear):
+class ReinitLinear(misc.Linear):
     """Linear layer with pruning"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.mask = torch.ones_like(self.weight.data)
         self.pruned = False
-
-        # initialize to keep variance
-        self.weight.data *= 3 ** 0.5
-        self.bias.data *= 0.0
 
     def prune_unstr(self, prob: float):
         if not self.pruned:
