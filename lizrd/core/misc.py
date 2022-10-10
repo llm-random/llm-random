@@ -1,7 +1,7 @@
 import torch
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
-from torch import nn
+from lizrd.core import nn
 
 from lizrd.support import ash
 

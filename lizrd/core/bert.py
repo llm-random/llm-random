@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+import lizrd.core.nn as nn
 
 from einops.layers.torch import Rearrange
 

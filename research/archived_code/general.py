@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from lizrd.core import nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
