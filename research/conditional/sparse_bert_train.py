@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import datetime
 
+import research.conditional.ffs
 from lizrd.core import misc
 from lizrd.core import bert
 from clearml import Task
@@ -30,7 +31,13 @@ WRITER = None  # Tensorboard writer
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+DENSE = True
+
 profile.DISABLED = True
+
+NEXPERTS = 32
+SPARSITY = 8
+EXPERTSIZE = 64
 
 NAME = ''
 TESTING = False
@@ -41,6 +48,16 @@ for arg in sys.argv[1:]:
     elif arg.startswith('LEARNING_RATE='):
         LEARNING_RATE = float(arg[len('LEARNING_RATE='):])
         LR_FROM_ARG = True
+    elif arg.startswith('NEXPERTS='):
+        NEXPERTS = int(arg[len('NEXPERTS='):])
+    elif arg.startswith('SPARSITY='):
+        SPARSITY = int(arg[len('SPARSITY='):])
+    elif arg.startswith('EXPERTSIZE='):
+        EXPERTSIZE = int(arg[len('EXPERTSIZE='):])
+    elif arg == 'DENSE':
+        DENSE = True
+    elif arg == 'SPARSE':
+        DENSE = False
     elif arg.startswith('CLEARMLDIR='):
         CLEARMLDIR = arg[len('CLEARMLDIR='):]
     elif arg.startswith('NAME='):
@@ -67,7 +84,7 @@ else:
     USE_CLEARML = True
 
 
-def get_model():
+def get_model(dense=False):
     batch, seql, dm, heads, dff = BATCH_SIZE, CUTOFF, DM, HEADS, DFF
     vocab_size, max_length = VOCAB_SIZE, CUTOFF
     output_size = VOCAB_SIZE
@@ -89,12 +106,18 @@ def get_model():
         bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = (lambda: bert.FeedForward(dm, dff))
+    if dense:
+        ff_layer = (lambda: bert.FeedForward(dm, dff))
+    else:
+        ff_layer = (lambda: research.conditional.ffs.RewrittenSplitFF([], dm, dff,
+                                                                      NEXPERTS, SPARSITY, EXPERTSIZE))
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
         dm,
         (lambda: bert.Attention(dm, heads)),
+        ff_layer,
+        ff_layer,
         ff_layer,
     )
 
@@ -186,7 +209,10 @@ if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
     modelpath = f'runs/wikibooktest/{timestamp}'
 
-    nametext = NAME
+    if NAME:
+        nametext = NAME
+    else:
+        nametext = 'dense' if DENSE else 'sparse'
     writer = SummaryWriter(log_dir=modelpath)
     if USE_CLEARML:
         task = Task.init(project_name='jaszczur/sparsity/tests',
@@ -198,7 +224,7 @@ if __name__ == "__main__":
 
     pdataset = get_processed_dataset()
 
-    model = get_model()
+    model = get_model(DENSE)
     model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
