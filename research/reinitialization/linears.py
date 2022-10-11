@@ -10,19 +10,17 @@ class ReinitLinear(misc.Linear):
     """Linear layer with pruning"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mask = torch.ones_like(self.weight.data)
-        self.pruned = False
+        self.mask = torch.ones_like(self.weight.data, requires_grad=False)
+
+    def forward(self, x: torch.Tensor):
+        A = self.weight.data * self.mask
+        return torch.einsum('ij, jk -> ik', [A, x]) + self.bias.data
 
     def prune_unstr(self, prob: float):
-        if not self.pruned:
-            self.weight_orig = self.weight
-            self.pruned = True
-        
         mask = torch.ones_like(self.weight.data)
         probs = torch.rand_like(self.weight)
         mask[probs <= prob] = 0
         self.mask = self.mask * mask
-        self.weight.data = self.weight.data * self.mask
 
 
 @ash.check('... d -> ... d')
@@ -41,5 +39,5 @@ class ReinitFF(nn.Module):
         return self.linears(x)
 
     def prune_unstr(self, prob: float):
-        for linear in self.linears:
-            linear.prune_unstr(prob)
+        self.linears[0].prune_unstr()
+        self.linears[2].prune_unstr()

@@ -29,17 +29,3 @@ class GeneralTestCase(unittest.TestCase):
     #     self.assertRaises(
     #         AssertionError, self.assertShape, tensor, (2, 3, 5)
     #     )
-
-
-class PruneLinearCase(GeneralTestCase):
-    def _test_prune(self, layer, bias_tensor, input_tensor):
-        # prune with probability 0
-        res = layer(input_tensor)
-        layer.prune_unstr(0)
-        res_after_prune = layer(input_tensor)
-        self.assertTensorEqual(res, res_after_prune)
-
-        # prune with probability 1
-        layer.prune_unstr(1)
-        res_after_prune = layer(input_tensor)
-        self.assertTensorEqual(res_after_prune, bias_tensor.repeat(input_tensor.shape[0], 1))

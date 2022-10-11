@@ -3,7 +3,21 @@ import torch
 from lizrd.core import bert
 import unittest
 
-from lizrd.support.test_utils import PruneLinearCase
+from lizrd.support.test_utils import GeneralTestCase
+
+
+class PruneLinearCase(GeneralTestCase):
+    def _test_prune(self, layer, bias_tensor, input_tensor):
+        # prune with probability 0
+        res = layer(input_tensor)
+        layer.prune_unstr(0)
+        res_after_prune = layer(input_tensor)
+        self.assertTensorEqual(res, res_after_prune)
+
+        # prune with probability 1
+        layer.prune_unstr(1)
+        res_after_prune = layer(input_tensor)
+        self.assertTensorEqual(res_after_prune, bias_tensor.repeat(input_tensor.shape[0], 1))
 
 
 class TestReinitLinear(PruneLinearCase):
@@ -39,4 +53,3 @@ class TestReinitFF(PruneLinearCase):
         t = torch.rand((10, 10))
 
         self._test_prune(layer, b, t)
-        
