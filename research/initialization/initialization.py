@@ -1,5 +1,6 @@
 import torch
-from torch import nn
+from torch.nn import init as nninit
+from lizrd.core import nn
 
 from lizrd.core import misc
 from lizrd.core import bert
@@ -26,7 +27,7 @@ def FixedLinear(dinput, doutput, relu=False):
     metrics.LogWeightGradient('LinearWGS', lambda: linlayer.weight, aggregate=torch.std)
     scaling = 2 if relu else 1
     limit = 3 ** 0.5
-    nn.init.uniform_(linlayer.weight, -limit, +limit)
+    nninit.uniform_(linlayer.weight, -limit, +limit)
     block = nn.Sequential(
         PassThrough(grad_mult=(1.0/doutput)**0.5),
         linlayer,
@@ -45,7 +46,7 @@ def StandardLinear(dinput, doutput, relu=False):
     metrics.LogWeightGradient('LinearWGS', lambda: linlayer.weight, aggregate=torch.std)
     scaling = 6 if relu else 3
     limit = (scaling / dinput) ** 0.5
-    nn.init.uniform_(linlayer.weight, -limit, +limit)
+    nninit.uniform_(linlayer.weight, -limit, +limit)
     block = nn.Sequential(
         linlayer,
         nn.ReLU() if relu else misc.Noop(),

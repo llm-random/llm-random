@@ -1,3 +1,4 @@
+import research.conditional.ffs
 from lizrd.core import misc
 from lizrd.core import bert
 import torch
@@ -20,7 +21,7 @@ def test_basic(self):
     encoder_tower = bert.EncoderTower(
         n_blocks,
         dm,
-        (lambda: bert.BatchSplitFF([], dm, dff, 4, 4, 4)),
+        (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 4, 4, 4)),
         (lambda: bert.Attention(dm, heads)),
     )
 
@@ -144,31 +145,31 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
         )
     elif version == 'rewritten':
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.RewrittenSplitFF([], dm, dff, expertsets * nexperts, nexperts, expertsize)),
+            (lambda: research.conditional.ffs.RewrittenSplitFF([], dm, dff, expertsets * nexperts, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
         )
     elif version == 'simplesparse':
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.SimpleSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: research.conditional.ffs.SimpleSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
         )
     elif version == 'sparse+qkv':
         modules = 4
-        sparse_linear_projection = lambda: bert.FactoredDense(dm, dm, modules)
+        sparse_linear_projection = lambda: research.conditional.ffs.FactoredDense(dm, dm, modules)
         sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
         )
     elif version == 'sparse+lowrank':
@@ -178,29 +179,29 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
         )
     elif version == 'sparse+perm':
-        sparse_linear_projection = lambda: bert.PermutationDense(dm)
+        sparse_linear_projection = lambda: research.conditional.ffs.PermutationDense(dm)
         sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
         )
     elif version == 'sparse+noop':
-        sparse_linear_projection = lambda: bert.NoopDense()
+        sparse_linear_projection = lambda: research.conditional.ffs.NoopDense()
         sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: bert.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
+            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
             (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
         )
     elif version == 'dense':
-        sparse_linear_projection = lambda: misc.Dense(dm, dm)
+        sparse_linear_projection = lambda: misc.DenseEinMix(dm, dm)
         sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
         encoder_tower = bert.EncoderTower(
             n_blocks,

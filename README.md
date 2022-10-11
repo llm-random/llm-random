@@ -28,6 +28,7 @@ By directories:
     * `bert.py` - main layers, bert model
       * in the future, this should be split into layers, models, and some of it should be moved to research
     * `misc.py` - miscellanous functions
+    * `nn.py` - base Module layer, and classes from torch.nn
   * `datasets` - data processing
     * `wikibookdata.py` - data processing of standard BERT training datasets
   * `scripts` - scripts for running experiments

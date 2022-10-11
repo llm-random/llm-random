@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
@@ -16,7 +15,7 @@ from typing import List
 
 from einops.layers.torch import EinMix as Mix
 import torch
-from torch import nn
+from lizrd.core import nn
 from einops.layers.torch import Rearrange, Reduce
 
 
