@@ -7,14 +7,14 @@ from lizrd.support.test_utils import GeneralTestCase
 class TestDense(GeneralTestCase):
     def test_basic(self):
         batch, dinp, dout = 4, 32, 64
-        layer = misc.Dense(dinp, dout)
+        layer = misc.DenseEinMix(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, dinp))
         output = layer(input)
         self.assertShape(output, (batch, dout))
 
     def test_more_dims(self):
         batch, seql, dinp, dout = 4, 8, 32, 64
-        layer = misc.Dense(dinp, dout)
+        layer = misc.DenseEinMix(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, seql, dinp))
         output = layer(input)
         self.assertShape(output, (batch, seql, dout))
@@ -74,11 +74,3 @@ class TestEinMix(GeneralTestCase):
         self.assertShape(output, (batch, seqlen, whatever, dout))
 
 
-class TestGeneralizedReLU(GeneralTestCase):
-    def test_basic(self):
-        batch, dinp = 4, 32
-        bias = False
-        layer = misc.GeneralizedReLU(dinp, bias)
-        input = torch.normal(0.0, 1.0, (batch, dinp))
-        output = layer(input)
-        self.assertShape(output, (batch, dinp))
