@@ -136,3 +136,6 @@ runs/
 
 # VS Code stuff
 .vscode/
+
+# slurm stuff
+slurm*
