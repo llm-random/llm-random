@@ -12,7 +12,7 @@ from lizrd.core import bert
 from lizrd.datasets import wikibookdata
 from lizrd.support import profile
 from research.reinitialization import linears
-from research.reinitialization.misc import ConstScheduler
+from research.reinitialization.pruner import Pruner
 
 MASK_PERCENT = 0.2
 MASK_LOSS_WEIGHT = 1.0
@@ -51,22 +51,22 @@ for arg in sys.argv[1:]:
         raise ValueError('Unknown argument: {}'.format(arg))
 
 # Custom Bert, based on Small BERT
-if TESTING:
-    CUTOFF = 32
-    DM = 16
-    DFF = DM * 4
-    BLOCKS = 2
-    HEADS = 2
-    BATCH_SIZE = 2
-    USE_CLEARML = False
-else:
-    CUTOFF = 128
-    DM = 512
-    DFF = DM * 4
-    BLOCKS = 4
-    HEADS = 8
-    BATCH_SIZE = 32
-    USE_CLEARML = True
+# if TESTING:
+CUTOFF = 32
+DM = 16
+DFF = DM * 4
+BLOCKS = 2
+HEADS = 2
+BATCH_SIZE = 2
+USE_CLEARML = False
+# else:
+#     CUTOFF = 128
+#     DM = 512
+#     DFF = DM * 4
+#     BLOCKS = 4
+#     HEADS = 8
+#     BATCH_SIZE = 32
+#     USE_CLEARML = True
 
 
 def get_model():
@@ -91,7 +91,8 @@ def get_model():
         bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = (lambda: linears.ReinitFF(dm, dff, ConstScheduler(0.02, 100)))
+    pruner = Pruner(100, 0.01)
+    ff_layer = (lambda: linears.ReinitFF(dm, dff, pruner))
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
