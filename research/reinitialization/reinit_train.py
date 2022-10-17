@@ -69,7 +69,7 @@ USE_CLEARML = False
 #     USE_CLEARML = True
 
 
-def get_model():
+def get_model(pruner):
     batch, seql, dm, heads, dff = BATCH_SIZE, CUTOFF, DM, HEADS, DFF
     vocab_size, max_length = VOCAB_SIZE, CUTOFF
     output_size = VOCAB_SIZE
@@ -91,7 +91,6 @@ def get_model():
         bert.TokenEmbedding(vocab_size, dm)
     )
 
-    pruner = Pruner(100, 0.01)
     ff_layer = (lambda: linears.ReinitFF(dm, dff, pruner))
 
     encoder_tower = bert.EncoderTower(
@@ -112,7 +111,8 @@ def get_model():
     return model
 
 
-def train_step(model, optimizer, pdataset, step=0, prune=False):
+def train_step(model, optimizer, pdataset, pruner, step=0):
+    pruner.step()
     model.train()
     processed_batch = pdataset.get_batch(BATCH_SIZE)
     assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
@@ -121,11 +121,6 @@ def train_step(model, optimizer, pdataset, step=0, prune=False):
     y_token_set = processed_batch.tokens
     y_mask_set = processed_batch.mask_mask
 
-    if prune:
-        print('Pruning step')
-        x_set.time_to_prune = True
-    else:
-        x_set.time_to_prune = False
     model_output = model(x_set)
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, VOCAB_SIZE),
@@ -180,16 +175,13 @@ def eval_step(model, pdataset, step=0, sample=10):
 
 
 def get_processed_dataset():
-    print('po')
     raw_dataset = wikibookdata.WikiBookDataset()
-    print('p1')
     processor = wikibookdata.SentencePairProcessor(
         max_total_length=CUTOFF,
         device=DEVICE,
         mask_percent=MASK_PERCENT,
         swap_percent=0.0,
     )
-    print('p2')
     return wikibookdata.ProcessedDataset(raw_dataset, processor)
 
 
@@ -205,7 +197,8 @@ if __name__ == "__main__":
     WRITER = writer
     misc.print_available_gpus()
     pdataset = get_processed_dataset()
-    model = get_model()
+    pruner = Pruner(100, 0.05)
+    model = get_model(pruner)
     model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -213,11 +206,7 @@ if __name__ == "__main__":
     last_eval_time = None
     for step in range(10000000+1):
         start_train_time = time.time()
-        if step % 100 == 0:
-            prune = True
-        else:
-            prune = False
-        train_step(model, optimizer, pdataset, step, prune=prune)
+        train_step(model, optimizer, pdataset, pruner, step)
         end_train_time = time.time()
         WRITER.add_scalar('step', step, step)
         WRITER.add_scalar('time/train', end_train_time - start_train_time, step)
