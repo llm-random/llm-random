@@ -9,8 +9,7 @@ from research.reinitialization.pruner import Pruner
 @ash.check('... inp -> ... out')
 class ReinitLinear(misc.Linear):
     """Linear layer with pruning"""
-    def __init__(self, d_in, d_out, prune_scheduler, **kwargs):
-        print('Reinit linear created')
+    def __init__(self, d_in, d_out, **kwargs):
         super().__init__(d_in, d_out, **kwargs)
         self.mask = nn.parameter.Parameter(torch.empty(self.weight.size()), requires_grad=False)
         self.mask.fill_(1)
@@ -36,12 +35,12 @@ class ReinitFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
         self.linears = nn.Sequential(
-            ReinitLinear(dmodel, dff, pruner),
+            ReinitLinear(dmodel, dff),
             nn.ReLU(inplace=True),
-            ReinitLinear(dff, dmodel, pruner)
+            ReinitLinear(dff, dmodel)
         )
         pruner.register(self.linears[0])
-        pruner.register(self.linears[1])
+        pruner.register(self.linears[2])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.linears(x)
