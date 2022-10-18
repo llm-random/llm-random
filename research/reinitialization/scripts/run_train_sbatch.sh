@@ -5,7 +5,7 @@
 #SBATCH --qos=16gpu7d
 #SBATCH --gres=gpu:titanv:1
 #SBATCH --time=0-02:00:00
-#SBATCH --output=/home/jkrajewski/sbatchlogs_s6.txt
+#SBATCH --output=/home/jkrajewski/sbatchlogs_pruner_normal.txt
 
 source venv/bin/activate
-python3 -m research.reinitialization.reinit_train NAME=pruning-pruner-U
+python3 -m research.reinitialization.reinit_train NAME=pruning-pruner-normal

@@ -19,11 +19,14 @@ MASK_LOSS_WEIGHT = 1.0
 CLASS_LOSS_WEIGHT = 1.0
 LEARNING_RATE = 0.0001
 
-# # BERT-Mini
-# DM = 256
-# DFF = DM * 4
-# BLOCKS = 4
-# HEADS = 4
+# BERT-Mini
+DM = 256
+DFF = DM * 4
+BLOCKS = 4
+HEADS = 4
+CUTOFF = 32
+BATCH_SIZE = 32
+USE_CLEARML = True
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 
@@ -49,24 +52,6 @@ for arg in sys.argv[1:]:
         NAME = arg[len('NAME='):]
     else:
         raise ValueError('Unknown argument: {}'.format(arg))
-
-# Custom Bert, based on Small BERT
-# if TESTING:
-CUTOFF = 32
-DM = 16
-DFF = DM * 4
-BLOCKS = 2
-HEADS = 2
-BATCH_SIZE = 2
-USE_CLEARML = False
-# else:
-#     CUTOFF = 128
-#     DM = 512
-#     DFF = DM * 4
-#     BLOCKS = 4
-#     HEADS = 8
-#     BATCH_SIZE = 32
-#     USE_CLEARML = True
 
 
 def get_model(pruner):
@@ -97,7 +82,7 @@ def get_model(pruner):
         n_blocks,
         dm,
         (lambda: bert.Attention(dm, heads)),
-        # ff_layer,
+        ff_layer,
     )
 
     head = bert.PredictionHead(dm, output_size)
@@ -197,7 +182,7 @@ if __name__ == "__main__":
     WRITER = writer
     misc.print_available_gpus()
     pdataset = get_processed_dataset()
-    pruner = Pruner(100, 0.05)
+    pruner = Pruner(10000, 0.)
     model = get_model(pruner)
     model.to(DEVICE)
 
