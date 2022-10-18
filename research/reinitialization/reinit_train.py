@@ -69,6 +69,8 @@ def get_model(pruner):
             'learning_rate': LEARNING_RATE,
             'mask_loss_weight': MASK_LOSS_WEIGHT,
             'class_loss_weight': CLASS_LOSS_WEIGHT,
+            'pruner_prob': pruner.prob,
+            'pruner_n_steps': pruner.n_steps_prune
         })
 
     embedding_layer = bert.EmbeddingLayer(
@@ -76,7 +78,7 @@ def get_model(pruner):
         bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = (lambda: linears.ReinitFF(dm, dff, pruner))
+    ff_layer = (lambda: linears.StructPruneFF(dm, dff, pruner))
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
@@ -182,7 +184,7 @@ if __name__ == "__main__":
     WRITER = writer
     misc.print_available_gpus()
     pdataset = get_processed_dataset()
-    pruner = Pruner(10000, 0.)
+    pruner = Pruner(100, 0.02)
     model = get_model(pruner)
     model.to(DEVICE)
 
