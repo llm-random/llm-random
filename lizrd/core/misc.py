@@ -80,15 +80,16 @@ def DenseEinMix(dinp, dout):
     return EinMix('... dinp -> ... dout',
                   weight_shape='dinp dout', bias_shape='dout',
                   dinp=dinp, dout=dout)
-
+                  
 
 @ash.check('... inp -> ... out')
-def Linear(dinp, dout):
-    layer = nn.Linear(dinp, dout)
-    # This is to make sure values after the layer keep the variance
-    layer.weight.data *= 3 ** 0.5
-    layer.bias.data *= 0.0
-    return layer
+class Linear(nn.Linear):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # This is to make sure values after the layer keep the variance
+        self.weight.data *= 3 ** 0.5
+        self.bias.data *= 0.0
 
 
 def check_layer_funs(*layer_funs):

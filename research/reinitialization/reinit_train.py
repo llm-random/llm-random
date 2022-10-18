@@ -1,27 +1,32 @@
 import sys
+import time
 
 import torch
 import torch.nn.functional as F
 import datetime
+from torch.utils.tensorboard import SummaryWriter
+from clearml import Task
 
 from lizrd.core import misc
 from lizrd.core import bert
-from clearml import Task
-from torch.utils.tensorboard import SummaryWriter
-import time
 from lizrd.datasets import wikibookdata
 from lizrd.support import profile
+from research.reinitialization import linears
+from research.reinitialization.pruner import Pruner
 
 MASK_PERCENT = 0.2
 MASK_LOSS_WEIGHT = 1.0
 CLASS_LOSS_WEIGHT = 1.0
 LEARNING_RATE = 0.0001
 
-# # BERT-Mini
-# DM = 256
-# DFF = DM * 4
-# BLOCKS = 4
-# HEADS = 4
+# BERT-Mini
+DM = 256
+DFF = DM * 4
+BLOCKS = 4
+HEADS = 4
+CUTOFF = 32
+BATCH_SIZE = 32
+USE_CLEARML = True
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 
@@ -48,26 +53,8 @@ for arg in sys.argv[1:]:
     else:
         raise ValueError('Unknown argument: {}'.format(arg))
 
-# Custom Bert, based on Small BERT
-if TESTING:
-    CUTOFF = 32
-    DM = 16
-    DFF = DM * 4
-    BLOCKS = 2
-    HEADS = 2
-    BATCH_SIZE = 2
-    USE_CLEARML = False
-else:
-    CUTOFF = 128
-    DM = 512
-    DFF = DM * 4
-    BLOCKS = 4
-    HEADS = 8
-    BATCH_SIZE = 32
-    USE_CLEARML = True
 
-
-def get_model():
+def get_model(pruner):
     batch, seql, dm, heads, dff = BATCH_SIZE, CUTOFF, DM, HEADS, DFF
     vocab_size, max_length = VOCAB_SIZE, CUTOFF
     output_size = VOCAB_SIZE
@@ -82,6 +69,8 @@ def get_model():
             'learning_rate': LEARNING_RATE,
             'mask_loss_weight': MASK_LOSS_WEIGHT,
             'class_loss_weight': CLASS_LOSS_WEIGHT,
+            'pruner_prob': pruner.prob,
+            'pruner_n_steps': pruner.n_steps_prune
         })
 
     embedding_layer = bert.EmbeddingLayer(
@@ -89,7 +78,7 @@ def get_model():
         bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = (lambda: bert.FeedForward(dm, dff))
+    ff_layer = (lambda: linears.StructPruneFF(dm, dff, pruner))
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
@@ -109,7 +98,8 @@ def get_model():
     return model
 
 
-def train_step(model, optimizer, pdataset, step=0):
+def train_step(model, optimizer, pdataset, pruner, step=0):
+    pruner.step()
     model.train()
     processed_batch = pdataset.get_batch(BATCH_SIZE)
     assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
@@ -185,20 +175,17 @@ def get_processed_dataset():
 if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
     modelpath = f'runs/wikibooktest/{timestamp}'
-
     nametext = NAME
     writer = SummaryWriter(log_dir=modelpath)
     if USE_CLEARML:
-        task = Task.init(project_name='jaszczur/sparsity/tests',
+        task = Task.init(project_name='jkrajewski/reinit',
                          task_name=f'{nametext} {timestamp}')
         TASK = task
     WRITER = writer
-
     misc.print_available_gpus()
-    
     pdataset = get_processed_dataset()
-
-    model = get_model()
+    pruner = Pruner(100, 0.02)
+    model = get_model(pruner)
     model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -206,7 +193,7 @@ if __name__ == "__main__":
     last_eval_time = None
     for step in range(10000000+1):
         start_train_time = time.time()
-        train_step(model, optimizer, pdataset, step)
+        train_step(model, optimizer, pdataset, pruner, step)
         end_train_time = time.time()
         WRITER.add_scalar('step', step, step)
         WRITER.add_scalar('time/train', end_train_time - start_train_time, step)

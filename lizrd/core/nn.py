@@ -33,11 +33,11 @@ def get_memoized_class(cls_name, parents):
 
 # This class will be a parent of all our modules. It also adds OverModule as a child.
 class Module(torch.nn.Module):
-    def __new__(cls, *args, **kwargs):
-        if issubclass(cls, OverModule):
-            return super(Module, cls).__new__(cls)
-        new_cls = get_memoized_class(cls.__name__, (OverModule, cls))
-        return new_cls.__new__(new_cls)
+    # def __new__(cls, *args, **kwargs):
+    #     if issubclass(cls, OverModule):
+    #         return super(Module, cls).__new__(cls)
+    #     new_cls = get_memoized_class(cls.__name__, (OverModule, cls))
+    #     return new_cls.__new__(new_cls)
 
     def __init__(self, *args, **kwargs):
         super(Module, self).__init__(*args, **kwargs)
