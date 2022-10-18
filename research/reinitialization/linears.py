@@ -7,7 +7,7 @@ from lizrd.support import ash
 from research.reinitialization.pruner import Pruner
 
 
-class RandomPruneLayer:
+class RandomPruneLayer(nn.Module):
     """Base class for layers with random pruning"""
     def _prepare_mask(self, size: torch.Size):
         self.mask = nn.parameter.Parameter(torch.empty(size), requires_grad=False)
@@ -19,6 +19,7 @@ class RandomPruneLayer:
         mask[probs <= prob] = 0
         self.mask.data = self.mask.data * mask
 
+        # TODO: Log this to ClearML
         n_zero = torch.numel(self.mask) - torch.count_nonzero(self.mask)
         print(f'Pruned. Percent of zeros in self.mask: {n_zero * 100 / torch.numel(self.mask)}')
 
@@ -53,7 +54,7 @@ class UnstructPruneFF(nn.Module):
 
 
 @ash.check('... d -> ... d')
-class StructPruneFF(nn.Module, RandomPruneLayer):
+class StructPruneFF(RandomPruneLayer):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
         self.lin1 = nn.Linear(dmodel, dff)
