@@ -12,7 +12,7 @@ class Pruner:
         self.current_step = 0
         self.layers = []
 
-    def register(self, layer: 'RandomPruneLayer'):
+    def register(self, layer: "RandomPruneLayer"):
         self.layers.append(layer)
 
     def step(self):
