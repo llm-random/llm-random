@@ -34,7 +34,7 @@ class MagnitudePruneLayer(nn.Module):
         self.mask = nn.parameter.Parameter(torch.empty(size), requires_grad=False)
         self.mask.fill_(1)
 
-    def _prune(self, part_to_prune: float, weights: torch.Tensor):
+    def _prune_by_weight(self, part_to_prune: float, weights: torch.Tensor):
         mask = torch.ones_like(self.mask, requires_grad=False)
 
         # Determine indices of less important weights
@@ -114,7 +114,7 @@ class MagnitudePruneLinear(misc.Linear, MagnitudePruneLayer):
         return res
 
     def prune(self, prob: float):
-        self._prune(prob, self.weight)
+        self._prune_by_weight(prob, self.weight)
 
 
 @ash.check("... d -> ... d")
@@ -151,5 +151,7 @@ class StructMagnitudePruneFF(MagnitudePruneLayer):
 
     def prune(self, prob: float):
         # calculate  and pass weights
-        weights = misc.einsum("o i -> i", self.lin2.weight)
-        self._prune(prob, weights)
+        weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
+        weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
+        weights = weights1 * weights2
+        self._prune_by_weight(prob, weights)

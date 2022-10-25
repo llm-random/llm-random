@@ -199,6 +199,7 @@ class TestStructMagnitudePruneFF(TestStructPruneFF):
         pruner = Pruner(2, 0.1)
         layer = linears.StructMagnitudePruneFF(10, 10, pruner)
 
+        layer.lin1.weight.data[7, :] = 0
         layer.lin2.weight.data[:, 7] = 0
 
         for _ in range(2):
