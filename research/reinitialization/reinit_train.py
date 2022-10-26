@@ -33,25 +33,25 @@ VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 TASK = None  # ClearML task
 WRITER = None  # Tensorboard writer
 
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 profile.DISABLED = True
 
-NAME = ''
+NAME = ""
 TESTING = False
 
 for arg in sys.argv[1:]:
-    if arg == 'TESTING':
+    if arg == "TESTING":
         TESTING = True
-    elif arg.startswith('LEARNING_RATE='):
-        LEARNING_RATE = float(arg[len('LEARNING_RATE='):])
+    elif arg.startswith("LEARNING_RATE="):
+        LEARNING_RATE = float(arg[len("LEARNING_RATE=") :])
         LR_FROM_ARG = True
-    elif arg.startswith('CLEARMLDIR='):
-        CLEARMLDIR = arg[len('CLEARMLDIR='):]
-    elif arg.startswith('NAME='):
-        NAME = arg[len('NAME='):]
+    elif arg.startswith("CLEARMLDIR="):
+        CLEARMLDIR = arg[len("CLEARMLDIR=") :]
+    elif arg.startswith("NAME="):
+        NAME = arg[len("NAME=") :]
     else:
-        raise ValueError('Unknown argument: {}'.format(arg))
+        raise ValueError("Unknown argument: {}".format(arg))
 
 
 def get_model(pruner):
@@ -61,24 +61,31 @@ def get_model(pruner):
     n_blocks = BLOCKS
 
     if USE_CLEARML:
-        TASK.connect_configuration(name='hiperparameters', configuration={
-            'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
-            'vocab_size': vocab_size, 'max_length': max_length,
-            'output_size': output_size,
-            'n_blocks': n_blocks,
-            'learning_rate': LEARNING_RATE,
-            'mask_loss_weight': MASK_LOSS_WEIGHT,
-            'class_loss_weight': CLASS_LOSS_WEIGHT,
-            'pruner_prob': pruner.prob,
-            'pruner_n_steps': pruner.n_steps_prune
-        })
+        TASK.connect_configuration(
+            name="hiperparameters",
+            configuration={
+                "batch": batch,
+                "seql": seql,
+                "dm": dm,
+                "heads": heads,
+                "dff": dff,
+                "vocab_size": vocab_size,
+                "max_length": max_length,
+                "output_size": output_size,
+                "n_blocks": n_blocks,
+                "learning_rate": LEARNING_RATE,
+                "mask_loss_weight": MASK_LOSS_WEIGHT,
+                "class_loss_weight": CLASS_LOSS_WEIGHT,
+                "pruner_prob": pruner.prob,
+                "pruner_n_steps": pruner.n_steps_prune,
+            },
+        )
 
     embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm),
-        bert.TokenEmbedding(vocab_size, dm)
+        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = (lambda: linears.StructPruneFF(dm, dff, pruner))
+    ff_layer = lambda: linears.StructPruneFF(dm, dff, pruner)
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
@@ -112,7 +119,8 @@ def train_step(model, optimizer, pdataset, pruner, step=0):
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, VOCAB_SIZE),
         y_token_set.reshape(-1).long(),
-        reduction='none')
+        reduction="none",
+    )
     mask_loss *= y_mask_set.reshape(-1)  # only check masked words
     mask_loss = mask_loss.mean() / MASK_PERCENT
     scaled_mask_loss = mask_loss * MASK_LOSS_WEIGHT
@@ -126,8 +134,8 @@ def train_step(model, optimizer, pdataset, pruner, step=0):
     optimizer.step()
 
     if step and WRITER:
-        WRITER.add_scalar('loss/train_total', total_loss.item(), step)
-        WRITER.add_scalar('loss/train_mask', mask_loss.item(), step)
+        WRITER.add_scalar("loss/train_total", total_loss.item(), step)
+        WRITER.add_scalar("loss/train_mask", mask_loss.item(), step)
         # WRITER.add_scalar('loss/train_scaled_mask', scaled_mask_loss.item(), step)
         # WRITER.add_scalar('loss/train_class', class_loss.item(), step)
 
@@ -148,7 +156,8 @@ def eval_step(model, pdataset, step=0, sample=10):
             mask_loss = F.cross_entropy(
                 model_output.reshape(-1, VOCAB_SIZE),
                 y_token_set.reshape(-1).long(),
-                reduction='none')
+                reduction="none",
+            )
             mask_loss *= y_mask_set.reshape(-1)  # only check masked words
             mask_loss = mask_loss.mean() / MASK_PERCENT
             scaled_mask_loss = mask_loss * MASK_LOSS_WEIGHT
@@ -156,7 +165,7 @@ def eval_step(model, pdataset, step=0, sample=10):
         total_mask_loss /= sample
 
         if step and WRITER:
-            WRITER.add_scalar('loss/eval_mask', total_mask_loss, step)
+            WRITER.add_scalar("loss/eval_mask", total_mask_loss, step)
 
         return total_mask_loss
 
@@ -174,12 +183,13 @@ def get_processed_dataset():
 
 if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
-    modelpath = f'runs/wikibooktest/{timestamp}'
+    modelpath = f"runs/wikibooktest/{timestamp}"
     nametext = NAME
     writer = SummaryWriter(log_dir=modelpath)
     if USE_CLEARML:
-        task = Task.init(project_name='jkrajewski/reinit',
-                         task_name=f'{nametext} {timestamp}')
+        task = Task.init(
+            project_name="jkrajewski/reinit", task_name=f"{nametext} {timestamp}"
+        )
         TASK = task
     WRITER = writer
     misc.print_available_gpus()
@@ -191,25 +201,25 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     EVAL_STEP = 100
     last_eval_time = None
-    for step in range(10000000+1):
+    for step in range(10000000 + 1):
         start_train_time = time.time()
         train_step(model, optimizer, pdataset, pruner, step)
         end_train_time = time.time()
-        WRITER.add_scalar('step', step, step)
-        WRITER.add_scalar('time/train', end_train_time - start_train_time, step)
+        WRITER.add_scalar("step", step, step)
+        WRITER.add_scalar("time/train", end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
             begin_eval_time = time.time()
-            eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP//2)
-            print(f'Eval loss:', eval_loss)
-            torch.save(model.state_dict(), f'{modelpath}/model.pt')
+            eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP // 2)
+            print(f"Eval loss:", eval_loss)
+            torch.save(model.state_dict(), f"{modelpath}/model.pt")
             end_eval_time = time.time()
-            WRITER.add_scalar('time/eval', end_eval_time - begin_eval_time, step)
+            WRITER.add_scalar("time/eval", end_eval_time - begin_eval_time, step)
             if last_eval_time:
                 eval_time = end_eval_time - begin_eval_time
                 since_last_eval = end_eval_time - last_eval_time
                 eval_time_percent = eval_time / since_last_eval
-                print(f'Eval time percent: {eval_time_percent}')
+                print(f"Eval time percent: {eval_time_percent}")
                 if WRITER:
-                    WRITER.add_scalar('time_percent/eval_time', eval_time_percent, step)
+                    WRITER.add_scalar("time_percent/eval_time", eval_time_percent, step)
             last_eval_time = end_eval_time
-        print(f'Step {step}')
+        print(f"Step {step}")

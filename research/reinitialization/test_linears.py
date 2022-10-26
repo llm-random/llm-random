@@ -10,9 +10,9 @@ class TestPruneLinear(GeneralTestCase):
     def test_smoke(self):
         shapes = [(1, 5), (10, 3), (3, 3)]
         types = [torch.float32, torch.float64, torch.double]
-        devices = [torch.device('cpu')]
+        devices = [torch.device("cpu")]
         if torch.cuda.is_available():
-            devices.append(torch.device('cuda'))
+            devices.append(torch.device("cuda"))
 
         linears.PruneLinear(10, 3)
 
@@ -78,7 +78,7 @@ class TestUnstructPruneFF(PruneFFTest):
 
     def _assert_perc_nonzero(self, ff_layer, perc_nonzero_exp):
         for linear_layer in [ff_layer.lin1, ff_layer.lin2]:
-            print('Checking first layer...')
+            print("Checking first layer...")
             nonzero = torch.count_nonzero(linear_layer.mask)
             perc_nonzero = 100 * nonzero / torch.numel(linear_layer.mask)
             perc_nonzero = perc_nonzero.item()
@@ -103,3 +103,106 @@ class TestStructPruneFF(PruneFFTest):
         perc_nonzero = 100 * nonzero / torch.numel(ff_layer.mask)
         perc_nonzero = perc_nonzero.item()
         self.assertAlmostEqual(perc_nonzero, perc_nonzero_exp, 0)
+
+
+class TestUnstructMagnitudePruneFF(TestUnstructPruneFF):
+    def test_smoke(self):
+        pruner = Pruner(1, 0.5)
+        linears.UnstructMagnitudePruneFF(10, 2, pruner)
+        linears.UnstructMagnitudePruneFF(10, 1, pruner)
+        linears.UnstructMagnitudePruneFF(5, 5, pruner)
+
+    def test_with_pruner(self):
+        pruner = Pruner(2, 0.2)
+        layer = linears.UnstructMagnitudePruneFF(1000, 100, pruner)
+        inp_tensor = torch.rand((20, 1000))
+
+        for _ in range(4):
+            pruner.step()
+
+        # assert that number of nonzero is approximately as expected
+        self._assert_perc_nonzero(layer, 60)
+
+        res = layer(inp_tensor)
+
+        # make sure using optimizer doesn't cause problems (like changing mask)
+        optimizer = torch.optim.Adam(layer.parameters())
+        loss = torch.sum(2 * res)
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+
+        # assert that number of nonzero is approximately as expected
+        self._assert_perc_nonzero(layer, 60)
+
+        for _ in range(2):
+            pruner.step()
+
+        # assert that number of nonzero is approximately as expected
+        self._assert_perc_nonzero(layer, 40)
+
+    def test_magnitude(self):
+        pruner = Pruner(2, 0.001)
+        layer = linears.UnstructMagnitudePruneFF(1000, 100, pruner)
+
+        d = torch.diagonal(layer.lin1.weight.data)
+        d *= 0
+        r = layer.lin2.weight.data[2] = 0
+
+        for _ in range(2):
+            pruner.step()
+
+        d = torch.diagonal(layer.lin1.mask.data)
+        assert torch.count_nonzero(d) == 0
+
+        r = layer.lin2.mask.data[2]
+        assert torch.count_nonzero(r) == 0
+
+
+class TestStructMagnitudePruneFF(TestStructPruneFF):
+    def test_smoke(self):
+        pruner = Pruner(1, 0.5)
+        linears.StructMagnitudePruneFF(10, 2, pruner)
+        linears.StructMagnitudePruneFF(10, 1, pruner)
+        linears.StructMagnitudePruneFF(5, 5, pruner)
+
+    def test_with_pruner(self):
+        pruner = Pruner(2, 0.2)
+        layer = linears.StructMagnitudePruneFF(1000, 100, pruner)
+        inp_tensor = torch.rand((20, 1000))
+
+        for _ in range(4):
+            pruner.step()
+
+        # assert that number of nonzero is approximately as expected
+        self._assert_perc_nonzero(layer, 60)
+
+        res = layer(inp_tensor)
+
+        # make sure using optimizer doesn't cause problems (like changing mask)
+        optimizer = torch.optim.Adam(layer.parameters())
+        loss = torch.sum(2 * res)
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+
+        # assert that number of nonzero is approximately as expected
+        self._assert_perc_nonzero(layer, 60)
+
+        for _ in range(2):
+            pruner.step()
+
+        # assert that number of nonzero is approximately as expected
+        self._assert_perc_nonzero(layer, 40)
+
+    def test_magnitude(self):
+        pruner = Pruner(2, 0.1)
+        layer = linears.StructMagnitudePruneFF(10, 10, pruner)
+
+        layer.lin1.weight.data[7, :] = 0
+        layer.lin2.weight.data[:, 7] = 0
+
+        for _ in range(2):
+            pruner.step()
+
+        assert layer.mask[7] == 0
