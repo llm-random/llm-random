@@ -91,7 +91,7 @@ def get_model(pruner):
         n_blocks,
         dm,
         (lambda: bert.Attention(dm, heads)),
-        # ff_layer,
+        ff_layer,
     )
 
     head = bert.PredictionHead(dm, output_size)
