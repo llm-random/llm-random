@@ -85,7 +85,7 @@ def get_model(pruner):
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = lambda: linears.StructPruneFF(dm, dff, pruner)
+    ff_layer = lambda: linears.UnstructMagnitudePruneFF(dm, dff, pruner)
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     WRITER = writer
     misc.print_available_gpus()
     pdataset = get_processed_dataset()
-    pruner = Pruner(100, 0.02)
+    pruner = Pruner(200, 0.01)
     model = get_model(pruner)
     model.to(DEVICE)
 
