@@ -100,7 +100,6 @@ def get_model(pruner):
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)
-    del output  # this is just a check
 
     return model
 
@@ -200,26 +199,12 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     EVAL_STEP = 100
-    last_eval_time = None
     for step in range(10000000 + 1):
-        start_train_time = time.time()
         train_step(model, optimizer, pdataset, pruner, step)
-        end_train_time = time.time()
         WRITER.add_scalar("step", step, step)
-        WRITER.add_scalar("time/train", end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
-            begin_eval_time = time.time()
             eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP // 2)
             print(f"Eval loss:", eval_loss)
             torch.save(model.state_dict(), f"{modelpath}/model.pt")
             end_eval_time = time.time()
-            WRITER.add_scalar("time/eval", end_eval_time - begin_eval_time, step)
-            if last_eval_time:
-                eval_time = end_eval_time - begin_eval_time
-                since_last_eval = end_eval_time - last_eval_time
-                eval_time_percent = eval_time / since_last_eval
-                print(f"Eval time percent: {eval_time_percent}")
-                if WRITER:
-                    WRITER.add_scalar("time_percent/eval_time", eval_time_percent, step)
-            last_eval_time = end_eval_time
         print(f"Step {step}")
