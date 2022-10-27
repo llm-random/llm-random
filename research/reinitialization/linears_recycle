@@ -67,6 +67,7 @@ class RandomStructRecycleFF(nn.Module):
         diag[probs <= prob] = 0
 
         # apply mask to lin1
+        # TODO: also reset bias
         new_weights = kaiming_uniform_(torch.empty_like(self.lin1.weight), a=math.sqrt(5))
         new_weights *= 3 ** 0.5
         self.lin1.weight.data = mask @ self.lin1.weight.data + (1 - mask) @ new_weights
