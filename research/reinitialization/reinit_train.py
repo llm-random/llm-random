@@ -12,6 +12,7 @@ from lizrd.core import bert
 from lizrd.datasets import wikibookdata
 from lizrd.support import profile
 from research.reinitialization import linears
+from research.reinitialization import linears_recycle
 from research.reinitialization.pruner import Pruner
 
 MASK_PERCENT = 0.2
@@ -85,7 +86,7 @@ def get_model(pruner):
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = lambda: linears.UnstructMagnitudePruneFF(dm, dff, pruner)
+    ff_layer = lambda: linears_recycle.UnstructMagnitudeRecycleFF(dm, dff, pruner)
 
     encoder_tower = bert.EncoderTower(
         n_blocks,

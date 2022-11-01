@@ -8,6 +8,7 @@ from torch.nn.init import kaiming_uniform_
 from lizrd.core.misc import Linear
 from lizrd.support import ash
 from research.reinitialization.pruner import Pruner
+from lizrd.core import misc
 
 
 class RandomUnstructRecycleFF(nn.Module):
@@ -67,10 +68,84 @@ class RandomStructRecycleFF(nn.Module):
         diag[probs <= prob] = 0
 
         # apply mask to lin1
-        # TODO: also reset bias
         new_weights = kaiming_uniform_(torch.empty_like(self.lin1.weight), a=math.sqrt(5))
         new_weights *= 3 ** 0.5
         self.lin1.weight.data = mask @ self.lin1.weight.data + (1 - mask) @ new_weights
+        self.lin1.bias.data = mask * self.lin1.bias.data
+
+        # apply mask to lin2
+        new_weights = kaiming_uniform_(torch.empty_like(self.lin2.weight), a=math.sqrt(5))
+        new_weights *= 3 ** 0.5
+        self.lin1.weight.data = self.lin2.weight.data @ mask + new_weights @ (1 - mask)
+
+
+class UnstructMagnitudeRecycleFF(nn.Module):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+        super().__init__()
+        self.lin1 = Linear(dmodel, dff)
+        self.lin2 = Linear(dff, dmodel)
+        pruner.register(self)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.lin1(x)
+        x = F.relu(x)
+        x = self.lin2(x)
+        return x
+
+    def prune(self, prob: float):
+        self._recycle_linear(self.lin1, prob)
+        self._recycle_linear(self.lin2, prob)
+
+    def _recycle_linear(self, layer: Linear, prob: float):
+        # create mask and new_weights
+        weights = layer.weight.data
+        mask = torch.ones_like(weights, requires_grad=False)
+        new_weights = kaiming_uniform_(torch.empty_like(layer.weight), a=math.sqrt(5))
+        new_weights *= 3 ** 0.5
+
+        # Determine indices of less important weights
+        weights = layer.weight.data
+        n_els_weights = torch.numel(weights)
+        n_to_prune = round(prob * n_els_weights)
+        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
+
+        mask.view(-1)[topk.indices] = 0
+        layer.weight.data = mask * layer.weight.data + (1 - mask) * new_weights
+
+
+class StructMagnitudeRecycleFF(nn.Module):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+        super().__init__()
+        self.lin1 = Linear(dmodel, dff)
+        self.lin2 = Linear(dff, dmodel)
+        self.dff = dff
+        pruner.register(self)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.lin1(x)
+        x = F.relu(x)
+        x = self.lin2(x)
+        return x
+
+    def prune(self, prob: float):
+        # create mask
+        mask = torch.eye(self.dff)
+        diag = torch.diag(mask)
+
+        # prepare mask
+        weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
+        weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
+        weights = weights1 * weights2
+        n_els_weights = torch.numel(weights)
+        n_to_prune = round(prob * n_els_weights)
+        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
+        diag.view(-1)[topk.indices] = 0
+
+        # apply mask to lin1
+        new_weights = kaiming_uniform_(torch.empty_like(self.lin1.weight), a=math.sqrt(5))
+        new_weights *= 3 ** 0.5
+        self.lin1.weight.data = mask @ self.lin1.weight.data + (1 - mask) @ new_weights
+        self.lin1.bias.data = mask * self.lin1.bias.data
 
         # apply mask to lin2
         new_weights = kaiming_uniform_(torch.empty_like(self.lin2.weight), a=math.sqrt(5))
