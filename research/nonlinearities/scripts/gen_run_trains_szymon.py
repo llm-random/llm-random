@@ -1,4 +1,3 @@
-a = 4
 import os
 import sys
 import datetime
@@ -8,12 +7,12 @@ template = """#!/bin/bash
 #SBATCH --job-name={JOB_ID}
 #SBATCH --partition=common
 #SBATCH --qos=16gpu7d
-#SBATCH --gres=gpu:titanv:1
+#SBATCH --gres=gpu:1
 #SBATCH --time=0-8:00:00
 #SBATCH --output=/home/simontwice/logs_nonlinear/sbatchlogs_{JOB_ID}.txt
 
 source venv/bin/activate
-python3 -m lizrd.train.bert_train {ARGS}
+python3 -m research.nonlinearities.train.bert_train_szymon {ARGS}
 """
 
 SLEEPTIME = 3
