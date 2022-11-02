@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 from lizrd.datasets import wikibookdata
 from lizrd.support import profile
+from research.nonlinearities.core import research_bert
 
 MASK_PERCENT = 0.2
 MASK_LOSS_WEIGHT = 1.0
@@ -34,6 +35,9 @@ for arg in sys.argv[1:]:
     elif arg.startswith("LEARNING_RATE="):
         LEARNING_RATE = float(arg[len("LEARNING_RATE=") :])
         LR_FROM_ARG = True
+    elif arg.startswith("EXP_RATE="):
+        LEARNING_RATE = float(arg[len("EXP_RATE=") :])
+        EXP_RATE_FROM_ARG = True
     elif arg.startswith("CLEARMLDIR="):
         CLEARMLDIR = arg[len("CLEARMLDIR=") :]
     elif arg.startswith("NAME="):
@@ -65,8 +69,8 @@ else:
 
 FF_MODE_MAP = {
     "vanilla": (bert.FeedForward, (DM, DFF)),
-    "bottleneck": (bert.FeedForwardBottleneck, (DM, EXP_RATE)),
-    "multineck": (bert.FeedForwardMultineck, (DM, EXP_RATE, N_FF_HEADS)),
+    "bottleneck": (research_bert.FeedForwardBottleneck, (DM, EXP_RATE)),
+    "multineck": (research_bert.FeedForwardMultineck, (DM, EXP_RATE, N_FF_HEADS)),
 }
 
 
