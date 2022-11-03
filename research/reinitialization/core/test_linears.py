@@ -1,9 +1,9 @@
 import torch
 
-from research.reinitialization import linears
+from research.reinitialization.core import linears
 
 from lizrd.support.test_utils import GeneralTestCase
-from research.reinitialization.pruner import Pruner
+from research.reinitialization.core.pruner import Pruner
 
 
 class TestPruneLinear(GeneralTestCase):
