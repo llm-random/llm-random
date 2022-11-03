@@ -86,7 +86,7 @@ def get_model(pruner):
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = lambda: linears_recycle.UnstructMagnitudeRecycleFF(dm, dff, pruner)
+    ff_layer = lambda: linears_recycle.StructMagnitudeRecycleFF(dm, dff, pruner)
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
