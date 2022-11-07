@@ -70,21 +70,21 @@ if args.use_pruner:
 
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer = lambda: bert.FeedForward(args.dm, args.dff)
+    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff)
 elif args.ff_layer == "unstruct_prune":
-    ff_layer = lambda: linears.UnstructPruneFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.UnstructPruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "struct_prune":
-    ff_layer = lambda: linears.StructPruneFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.StructPruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "unstruct_magnitude_prune":
-    ff_layer = lambda: linears.UnstructMagnitudePruneFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.UnstructMagnitudePruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "struct_magnitude_prune":
-    ff_layer = lambda: linears.StructMagnitudePruneFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.StructMagnitudePruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "unstruct_magnitude_recycle":
-    ff_layer = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
+    ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
     )
 elif args.ff_layer == "struct_magnitude_recycle":
-    ff_layer = lambda: linears_recycle.StructMagnitudeRecycleFF(
+    ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
     )
 
@@ -97,7 +97,7 @@ pdataset = get_processed_dataset(
 model = get_model(
     max_length=args.cutoff,
     vocab_size=VOCAB_SIZE,
-    ff_layer=ff_layer,
+    ff_layer_fun=ff_layer_fun,
     dm=args.dm,
     n_blocks=args.n_blocks,
     heads=args.heads,

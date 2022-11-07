@@ -1,3 +1,5 @@
+from typing import Callable
+
 from attr import define
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -12,7 +14,7 @@ from lizrd.core import misc
 def get_model(
     max_length: int,
     vocab_size: int,
-    ff_layer: torch.nn.Module,
+    ff_layer_fun: Callable[[], torch.nn.Module],
     dm: int,
     n_blocks: int,
     heads: int,
@@ -25,7 +27,7 @@ def get_model(
         n_blocks,
         dm,
         (lambda: bert.Attention(dm, heads)),
-        ff_layer,
+        ff_layer_fun,
     )
     head = bert.PredictionHead(dm, vocab_size)
     model = bert.BERT(embedding_layer, encoder_tower, head)
