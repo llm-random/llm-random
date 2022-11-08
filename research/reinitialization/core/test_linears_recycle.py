@@ -1,9 +1,9 @@
 import torch
 
-from research.reinitialization import linears_recycle
+from research.reinitialization.core import linears_recycle
 
 from lizrd.support.test_utils import GeneralTestCase
-from research.reinitialization.pruner import Pruner
+from research.reinitialization.core.pruner import Pruner
 
 
 class RecycleFFTest(GeneralTestCase):

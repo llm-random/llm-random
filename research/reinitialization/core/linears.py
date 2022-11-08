@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from lizrd.core import misc
 from lizrd.support import ash
-from research.reinitialization.pruner import Pruner
+from research.reinitialization.core.pruner import Pruner
 
 
 class RandomPruneLayer(nn.Module):

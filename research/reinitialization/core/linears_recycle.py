@@ -7,7 +7,7 @@ from torch.nn.init import kaiming_uniform_
 
 from lizrd.core.misc import Linear
 from lizrd.support import ash
-from research.reinitialization.pruner import Pruner
+from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
 
 
