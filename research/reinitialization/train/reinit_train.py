@@ -9,7 +9,6 @@ from torch.utils.tensorboard import SummaryWriter
 from clearml import Task
 
 from lizrd.core import misc, bert
-from lizrd.support import profile
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
