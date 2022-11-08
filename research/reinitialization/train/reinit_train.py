@@ -12,6 +12,7 @@ from lizrd.core import bert
 from lizrd.datasets import wikibookdata
 from lizrd.support import profile
 from research.reinitialization import linears
+from research.reinitialization import linears_recycle
 from research.reinitialization.pruner import Pruner
 
 MASK_PERCENT = 0.2
@@ -85,7 +86,7 @@ def get_model(pruner):
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = lambda: linears.StructPruneFF(dm, dff, pruner)
+    ff_layer = lambda: linears_recycle.StructMagnitudeRecycleFF(dm, dff, pruner)
 
     encoder_tower = bert.EncoderTower(
         n_blocks,
@@ -100,7 +101,6 @@ def get_model(pruner):
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)
-    del output  # this is just a check
 
     return model
 
@@ -194,32 +194,18 @@ if __name__ == "__main__":
     WRITER = writer
     misc.print_available_gpus()
     pdataset = get_processed_dataset()
-    pruner = Pruner(100, 0.02)
+    pruner = Pruner(200, 0.01)
     model = get_model(pruner)
     model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     EVAL_STEP = 100
-    last_eval_time = None
     for step in range(10000000 + 1):
-        start_train_time = time.time()
         train_step(model, optimizer, pdataset, pruner, step)
-        end_train_time = time.time()
         WRITER.add_scalar("step", step, step)
-        WRITER.add_scalar("time/train", end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
-            begin_eval_time = time.time()
             eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP // 2)
             print(f"Eval loss:", eval_loss)
             torch.save(model.state_dict(), f"{modelpath}/model.pt")
             end_eval_time = time.time()
-            WRITER.add_scalar("time/eval", end_eval_time - begin_eval_time, step)
-            if last_eval_time:
-                eval_time = end_eval_time - begin_eval_time
-                since_last_eval = end_eval_time - last_eval_time
-                eval_time_percent = eval_time / since_last_eval
-                print(f"Eval time percent: {eval_time_percent}")
-                if WRITER:
-                    WRITER.add_scalar("time_percent/eval_time", eval_time_percent, step)
-            last_eval_time = end_eval_time
         print(f"Step {step}")
