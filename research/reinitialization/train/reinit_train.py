@@ -36,8 +36,8 @@ parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--learning_rate", type=float, default=1e-4)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
-parser.add_argument("--mask_percent", type=float, default=0.2)
-parser.add_argument("--n_epochs", type=int, default=10000001)
+parser.add_argument("--mask_percent", type=float, default=0.15)
+parser.add_argument("--n_steps", type=int, default=10000001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--name", type=str, default="")
 
@@ -113,4 +113,4 @@ trainer = Trainer(
     modelpath=modelpath,
     writer=writer,
 )
-trainer.train(args.n_epochs, args.n_steps_eval)
+trainer.train(args.n_steps, args.n_steps_eval)
