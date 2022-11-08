@@ -12,7 +12,7 @@ from lizrd.core import misc
 
 
 class RandomUnstructRecycleFF(nn.Module):
-    """Feedforward layer with recycling"""
+    """Feed-Forward layer with recycling"""
 
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
@@ -75,19 +75,20 @@ class RandomStructRecycleFF(nn.Module):
         new_weights *= 3**0.5
 
         self.lin1.weight.data = misc.einsum(
-            "o, o i -> o i", mask, self.lin1.weight.data
-        ) + misc.einsum("o, o i -> o i", 1 - mask, new_weights)
-        self.lin1.bias.data = misc.einsum("o, o -> o", mask, self.lin1.bias.data)
+            "f, f m -> f m", mask, self.lin1.weight.data
+        ) + misc.einsum("f, f m -> f m", 1 - mask, new_weights)
+        self.lin1.bias.data = misc.einsum("f, f -> f", mask, self.lin1.bias.data)
 
         # apply mask to lin2
+        # bias is intentionally not recycled here
         new_weights = kaiming_uniform_(
             torch.empty_like(self.lin2.weight), a=math.sqrt(5)
         )
         new_weights *= 3**0.5
 
         self.lin2.weight.data = misc.einsum(
-            "o, i o -> i o", mask, self.lin2.weight.data
-        ) + misc.einsum("o, i o -> i o", 1 - mask, new_weights)
+            "f, m f -> m f", mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
 
 
 class UnstructMagnitudeRecycleFF(nn.Module):
@@ -111,8 +112,7 @@ class UnstructMagnitudeRecycleFF(nn.Module):
         # create mask and new_weights
         weights = layer.weight.data
         mask = torch.ones_like(weights, requires_grad=False)
-        new_weights = kaiming_uniform_(torch.empty_like(layer.weight), a=math.sqrt(5))
-        new_weights *= 3**0.5
+        new_weights = kaiming_uniform_(torch.empty_like(layer.weight), a=math.sqrt(5 * 3))
 
         # Determine indices of less important weights
         weights = layer.weight.data
@@ -143,10 +143,11 @@ class StructMagnitudeRecycleFF(nn.Module):
         mask = torch.ones(self.dff)
 
         # prepare mask
-        weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
-        weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
+        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
         weights = weights1 * weights2
         n_els_weights = torch.numel(weights)
+        assert n_els_weights == self.dff
         n_to_prune = round(prob * n_els_weights)
         topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
         mask[topk.indices] = 0
@@ -158,9 +159,9 @@ class StructMagnitudeRecycleFF(nn.Module):
         new_weights *= 3**0.5
 
         self.lin1.weight.data = misc.einsum(
-            "o, o i -> o i", mask, self.lin1.weight.data
-        ) + misc.einsum("o, o i -> o i", 1 - mask, new_weights)
-        self.lin1.bias.data = misc.einsum("o, o -> o", mask, self.lin1.bias.data)
+            "f, f m -> f m", mask, self.lin1.weight.data
+        ) + misc.einsum("f, f m -> f m", 1 - mask, new_weights)
+        self.lin1.bias.data = misc.einsum("f, f -> f", mask, self.lin1.bias.data)
 
         # apply mask to lin2
         new_weights = kaiming_uniform_(
@@ -169,5 +170,5 @@ class StructMagnitudeRecycleFF(nn.Module):
         new_weights *= 3**0.5
 
         self.lin2.weight.data = misc.einsum(
-            "o, i o -> i o", mask, self.lin2.weight.data
-        ) + misc.einsum("o, i o -> i o", 1 - mask, new_weights)
+            "f, m f -> m f", mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
