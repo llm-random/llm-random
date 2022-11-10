@@ -8,7 +8,7 @@ import torch
 
 # to avoid cycle import while using hints
 if TYPE_CHECKING:
-    from research.reinitialization.linears import RandomPruneLayer
+    from research.reinitialization.core.linears import RandomPruneLayer
 
 
 class Pruner:
