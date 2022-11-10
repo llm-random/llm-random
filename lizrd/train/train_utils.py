@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from lizrd.core import bert
 from lizrd.datasets import wikibookdata
-from research.reinitialization.core.pruner import BasePruner, Pruner
+from research.reinitialization.core.pruner import VariableProbabilityPruner, Pruner
 from lizrd.core.misc import are_state_dicts_the_same, generate_random_string
 
 
@@ -153,7 +153,7 @@ class LTHTrainer:
     model: torch.nn.Module
     optimizer_creator: Callable[[torch.nn.Module], torch.optim.Optimizer]
     pdataset_creator: Callable[[], wikibookdata.ProcessedDataset]
-    pruner: BasePruner
+    pruner: VariableProbabilityPruner
     batch_size: int
     vocab_size: int
     mask_percent: float
@@ -161,16 +161,16 @@ class LTHTrainer:
     modelpath: str
     n_steps_per_run: int
     n_steps_eval: int
-    target_parameters_left: float = 0.1
-    pruning_rate: float = 0.1
-    writer: Optional[SummaryWriter] = None
+    writer: SummaryWriter
+    pruning_rate: float
+    target_params: float
     model_path: Optional[str] = None
 
-    def save_model_params(self):
-        self.model_path = f"/tmp/{generate_random_string}.pt"
+    def _save_model_params(self):
+        self.model_path = f"/tmp/{generate_random_string(5)}.pt"
         torch.save(self.model.state_dict(), self.model_path)
 
-    def reinitialize_model(self):
+    def _reinitialize_model(self):
         """Reinitialize the model to its original state without losing track of masks."""
         with torch.no_grad():
             masks = copy.deepcopy([layer.mask for layer in self.pruner.layers])
@@ -181,6 +181,14 @@ class LTHTrainer:
             for layer, mask in zip(self.pruner.layers, masks):
                 layer.mask = mask
             assert not are_state_dicts_the_same(self.model.state_dict(), model_state_dict)
+
+    def _log_masks_percentage(self, step):
+        zeros = 0
+        total = 0
+        for layer in self.pruner.layers:
+            zeros += torch.sum(layer.mask == 0).item()
+            total += layer.mask.numel()
+        self.writer.add_scalar("mask_percentage", zeros / total, step)
 
     def _train_step(
         self,
@@ -242,30 +250,29 @@ class LTHTrainer:
                 total_mask_loss += scaled_mask_loss.item()
             total_mask_loss /= sample
 
-            if step and self.writer:
-                self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
-
+            self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
+            print(f"Eval loss:", total_mask_loss)
             return total_mask_loss
 
     def train(self):
-        self.save_model_params()
+        self._save_model_params()
         parameters_left = 1.0
         total_step = 0
-        while parameters_left > self.target_parameters_left:
+        while parameters_left > self.target_params:
             optimizer = self.optimizer_creator(self.model)
             pdataset = self.pdataset_creator()
-            parameters_left *= (1 - self.pruning_rate)
+            self.writer.add_scalar("parameters_left", parameters_left, total_step)
             for step in range(self.n_steps_per_run):
                 self._train_step(
                     optimizer, pdataset, total_step
                 )
                 if step % self.n_steps_eval == 0:
-                    eval_loss = self._eval_step(pdataset, total_step, sample=self.n_steps_eval // 2)
-                    print(f"Eval loss:", eval_loss)
-                    torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
-                if self.writer:
-                    self.writer.add_scalar("total_step", total_step, total_step)
+                    self._eval_step(pdataset, step, sample=self.n_steps_eval // 2)
+                self.writer.add_scalar("total_step", total_step, total_step)
                 print(f"Run step {step}; Total step {total_step}")
                 total_step += 1
-            self.pruner.step()
-            self.reinitialize_model()
+            # just in case parameters left is not exact
+            self._log_masks_percentage(total_step)
+            self.pruner.step(parameters_left * self.pruning_rate)
+            parameters_left *= (1 - self.pruning_rate)
+            self._reinitialize_model()

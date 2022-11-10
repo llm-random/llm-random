@@ -108,5 +108,7 @@ trainer = LTHTrainer(
     writer=writer,
     n_steps_per_run=args.n_steps_per_run,
     n_steps_eval=args.n_steps_eval,
+    pruning_rate=args.pruner_prob,
+    target_params=args.target_params,
 )
 trainer.train()
