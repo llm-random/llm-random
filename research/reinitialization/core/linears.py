@@ -155,26 +155,3 @@ class StructMagnitudePruneFF(MagnitudePruneLayer):
         weights = weights1 * weights2
         self._prune_by_weight(prob, weights)
 
-@ash.check('... d -> ... d')
-class StructLTHPruneFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
-        super().__init__()
-        self.lin1 = nn.Linear(dmodel, dff)
-        self.lin2 = nn.Linear(dff, dmodel)
-        self.mask = nn.parameter.Parameter(torch.empty([dff]), requires_grad=False)
-        self.mask.fill_(1)
-        pruner.register(self)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.lin1(x)
-        x = misc.einsum("... i, i -> ... i", x, self.mask)
-        x = F.relu(x)
-        x = self.lin2(x)
-        return x
-
-    def prune(self, prob: float):
-        # calculate  and pass weights
-        weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
-        weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
-        weights = weights1 * weights2
-        self._prune_by_weight(prob, weights)
