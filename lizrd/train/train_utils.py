@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from lizrd.core import bert
 from lizrd.datasets import wikibookdata
-from research.reinitialization.core.pruner import Pruner
+from research.reinitialization.core.pruner import BasePruner, Pruner
 from lizrd.core.misc import are_state_dicts_the_same, generate_random_string
 
 
@@ -153,7 +153,7 @@ class LTHTrainer:
     model: torch.nn.Module
     optimizer_creator: Callable[[torch.nn.Module], torch.optim.Optimizer]
     pdataset_creator: Callable[[], wikibookdata.ProcessedDataset]
-    pruner: Pruner
+    pruner: BasePruner
     batch_size: int
     vocab_size: int
     mask_percent: float
