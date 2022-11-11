@@ -74,7 +74,7 @@ def get_model():
     n_blocks = BLOCKS
 
     if USE_CLEARML:
-        TASK.connect_configuration(name='hyperparameters', configuration={
+        TASK.connect_configuration(name='hiperparameters', configuration={
             'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
             'vocab_size': vocab_size, 'max_length': max_length,
             'output_size': output_size,

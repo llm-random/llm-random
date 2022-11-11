@@ -84,7 +84,7 @@ def get_model(variant='fixed'):
     output_size = VOCAB_SIZE
     n_blocks = BLOCKS
 
-    TASK.connect_configuration(name='hyperparameters', configuration={
+    TASK.connect_configuration(name='hiperparameters', configuration={
         'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
         'vocab_size': vocab_size, 'max_length': max_length,
         'output_size': output_size,
