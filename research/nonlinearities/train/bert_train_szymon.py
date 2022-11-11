@@ -16,7 +16,7 @@ from research.nonlinearities.core import research_bert
 MASK_PERCENT = 0.2
 MASK_LOSS_WEIGHT = 1.0
 CLASS_LOSS_WEIGHT = 1.0
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.00005
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 
 TASK = None  # ClearML task
@@ -28,20 +28,32 @@ profile.DISABLED = True
 
 NAME = ""
 TESTING = False
+FF_MODE = None
+EXP_RATE_FROM_ARG, N_FF_HEADS_FROM_ARG, N_CHUNKS_FROM_ARG = False, False, False
 
 for arg in sys.argv[1:]:
     if arg == "TESTING":
         TESTING = True
+    elif arg.startswith("FF_MODE="):
+        FF_MODE = str(arg[len("LEARNING_RATE=") :])
     elif arg.startswith("LEARNING_RATE="):
         LEARNING_RATE = float(arg[len("LEARNING_RATE=") :])
         LR_FROM_ARG = True
     elif arg.startswith("EXP_RATE="):
-        LEARNING_RATE = float(arg[len("EXP_RATE=") :])
+        EXP_RATE = int(arg[len("EXP_RATE=") :])
         EXP_RATE_FROM_ARG = True
+    elif arg.startswith("N_FF_HEADS="):
+        N_FF_HEADS = int(arg[len("N_FF_HEADS=") :])
+        N_FF_HEADS_FROM_ARG = True
+    elif arg.startswith("N_CHUNKS="):
+        N_CHUNKS = int(arg[len("EXP_RATE=") :])
+        N_CHUNKS_FROM_ARG = True
     elif arg.startswith("CLEARMLDIR="):
         CLEARMLDIR = arg[len("CLEARMLDIR=") :]
     elif arg.startswith("NAME="):
         NAME = arg[len("NAME=") :]
+    elif arg.startswith("USE_CLEARML="):
+        USE_CLEARML = bool(int(arg[len("USE_CLEARML=") :]))
     else:
         raise ValueError("Unknown argument: {}".format(arg))
 
@@ -65,13 +77,16 @@ else:
     HEADS = 8
     BATCH_SIZE = 32
     USE_CLEARML = True
-    N_FF_HEADS = 8
+
 
 FF_MODE_MAP = {
     "vanilla": (bert.FeedForward, (DM, DFF)),
     "bottleneck": (research_bert.FeedForwardBottleneck, (DM, EXP_RATE)),
     "multineck": (research_bert.FeedForwardMultineck, (DM, EXP_RATE, N_FF_HEADS)),
+    "choppedneck": (research_bert.FeedForwardChoppedneck, (DM, N_CHUNKS)),
 }
+assert FF_MODE is not None, f"FF_MODE must be specified"
+assert None not in FF_MODE_MAP[FF_MODE][1], f"FF args must be specified"
 
 
 def get_model():
@@ -161,15 +176,12 @@ def train_step(model, optimizer, pdataset, step=0):
     optimizer.step()
 
     if step and WRITER:
-        WRITER.add_scalar("loss/train_total", total_loss.item(), step)
+        # WRITER.add_scalar("loss/train_total", total_loss.item(), step)
         WRITER.add_scalar("loss/train_mask", mask_loss.item(), step)
-        # WRITER.add_scalar('loss/train_scaled_mask', scaled_mask_loss.item(), step)
-        # WRITER.add_scalar('loss/train_class', class_loss.item(), step)
 
 
 def eval_step(model, pdataset, step=0, sample=10):
     model.eval()
-
     with torch.no_grad():
         total_mask_loss = 0.0
         for sample_i in range(sample):
@@ -230,6 +242,7 @@ if __name__ == "__main__":
     model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    print(f"learning rate: {LEARNING_RATE}")
     EVAL_STEP = 100
     last_eval_time = None
     for step in range(10000000 + 1):

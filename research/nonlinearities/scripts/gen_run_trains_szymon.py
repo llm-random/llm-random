@@ -23,7 +23,7 @@ timestamp = datetime.datetime.now().strftime("%m_%d_%H_%M_%S")
 # create a directory for the logs
 log_dir = "logs/t" + timestamp
 print("log_dir:", log_dir)
-os.makedirs("/home/simontwice/" + log_dir)
+os.makedirs("~" + log_dir)
 
 jobs = []
 REAL_RUN = None
@@ -45,8 +45,9 @@ for arg in sys.argv[1:]:
         print(f"Unknown argument: {arg}")
         sys.exit(1)
 
-for lr in [5e-4, 3e-4, 1e-4, 6e-5, 3e-5, 1e-5]:
-    jobs.append((f"LEARNING_RATE={lr}", f"NAME={PREFIX}_{lr}"))
+
+for rate in [4, 6, 8, 16, 32]:
+    jobs.append((f"EXP_RATE={rate}", f"NAME={PREFIX}_exprate_{rate}"))
 
 if PREFIX is None:
     raise ValueError("--prefix=<prefix> is required")
