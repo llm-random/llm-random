@@ -33,6 +33,7 @@ parser.add_argument("--pruner_n_steps", type=int)
 parser.add_argument("--project_name", type=str)
 
 parser.add_argument("--ff_layer", type=str, default="regular")
+parser.add_argument("--optimizer", type=str, default="adam")
 parser.add_argument("--learning_rate", type=float, default=1e-4)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
@@ -40,6 +41,7 @@ parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=10000001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--name", type=str, default="")
+parser.add_argument("--pruner_delay", type=int, default=0)
 
 args = parser.parse_args()
 
@@ -61,9 +63,12 @@ writer = SummaryWriter(log_dir=modelpath)
 # set pruner if needed
 if args.use_pruner:
     pruner = Pruner(
-        args.pruner_prob,
         args.pruner_n_steps,
+        args.pruner_prob,
+        args.pruner_delay,
     )
+else:
+    pruner = None
 
 # set ff layer
 if args.ff_layer == "regular":
@@ -100,17 +105,23 @@ model = get_model(
     heads=args.heads,
     device=DEVICE,
 )
-optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+
+# set optimizer
+if args.optimizer == "adam":
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+elif args.optimizer == "sgd":
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+
 trainer = Trainer(
     model=model,
     optimizer=optimizer,
     pdataset=pdataset,
-    pruner=pruner,
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
     mask_loss_weight=args.mask_loss_weight,
     modelpath=modelpath,
+    pruner=pruner,
     writer=writer,
 )
 trainer.train(args.n_steps, args.n_steps_eval)

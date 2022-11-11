@@ -112,7 +112,9 @@ class UnstructMagnitudeRecycleFF(nn.Module):
         # create mask and new_weights
         weights = layer.weight.data
         mask = torch.ones_like(weights, requires_grad=False)
-        new_weights = kaiming_uniform_(torch.empty_like(layer.weight), a=math.sqrt(5 * 3))
+        new_weights = kaiming_uniform_(
+            torch.empty_like(layer.weight), a=math.sqrt(5 * 3)
+        )
 
         # Determine indices of less important weights
         weights = layer.weight.data
@@ -139,8 +141,10 @@ class StructMagnitudeRecycleFF(nn.Module):
         return x
 
     def prune(self, prob: float):
+        device = self.lin1.weight.device
+
         # create mask
-        mask = torch.ones(self.dff)
+        mask = torch.ones(self.dff).to(device)
 
         # prepare mask
         weights1 = misc.einsum("f m -> f", self.lin1.weight**2)

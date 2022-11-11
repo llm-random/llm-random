@@ -6,8 +6,9 @@ if TYPE_CHECKING:
 
 
 class Pruner:
-    def __init__(self, n_steps_prune: int, prob: float):
+    def __init__(self, n_steps_prune: int, prob: float, delay: int = 0):
         self.n_steps_prune = n_steps_prune
+        self.delay = delay
         self.prob = prob
         self.current_step = 0
         self.layers = []
@@ -16,7 +17,10 @@ class Pruner:
         self.layers.append(layer)
 
     def step(self):
-        if self.current_step % self.n_steps_prune == 0:
+        if (
+            self.current_step % self.n_steps_prune == 0
+            and self.current_step > self.delay
+        ):
             print("Pruning step")
             for layer in self.layers:
                 layer.prune(self.prob)
