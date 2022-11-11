@@ -89,8 +89,8 @@ class Linear(nn.Linear):
 
         # This is to make sure values after the layer keep the variance
         self.weight.data *= 3 ** 0.5
-        self.bias.data *= 0.0
-
+        if self.bias is not None:
+            self.bias.data *= 0.0
 
 def check_layer_funs(*layer_funs):
     for layer_fun in layer_funs:
