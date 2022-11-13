@@ -164,17 +164,21 @@ class LTHTrainer:
     writer: SummaryWriter
     pruning_rate: float
     target_params: float
-    model_path: Optional[str] = None
+    initial_model_path: Optional[str] = None
 
     def _save_model_params(self):
-        self.model_path = f"/tmp/{generate_random_string(5)}.pt"
-        torch.save(self.model.state_dict(), self.model_path)
+        self.initial_model_path = f"/tmp/{generate_random_string(5)}.pt"
+        torch.save(self.model.state_dict(), self.initial_model_path)
+    
+    def _save_checkpoint(self, step):
+        model_path = f"{self.modelpath}/{step}.pt"
+        torch.save(self.model.state_dict(), model_path)
 
     def _reinitialize_model(self):
         """Reinitialize the model to its original state without losing track of masks."""
         with torch.no_grad():
             masks = copy.deepcopy([layer.mask for layer in self.pruner.layers])
-            model_state_dict = torch.load(self.model_path)
+            model_state_dict = torch.load(self.initial_model_path)
             assert not are_state_dicts_the_same(self.model.state_dict(), model_state_dict)
             self.model.load_state_dict(model_state_dict)
             assert are_state_dicts_the_same(self.model.state_dict(), model_state_dict)
@@ -267,11 +271,12 @@ class LTHTrainer:
                     optimizer, pdataset, total_step
                 )
                 if step % self.n_steps_eval == 0:
-                    self._eval_step(pdataset, step, sample=self.n_steps_eval // 2)
+                    self._eval_step(pdataset, step=total_step, sample=self.n_steps_eval // 2)
                 self.writer.add_scalar("total_step", total_step, total_step)
                 print(f"Run step {step}; Total step {total_step}")
                 total_step += 1
             # just in case parameters left is not exact
+            self._save_checkpoint(total_step)
             self._log_masks_percentage(total_step)
             self.pruner.step(parameters_left * self.pruning_rate)
             parameters_left *= (1 - self.pruning_rate)
