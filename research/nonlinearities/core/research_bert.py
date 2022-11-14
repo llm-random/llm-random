@@ -46,56 +46,6 @@ def FeedForwardBottleneck(dmodel, exp_rate, bottleneck_chop_ratio=None):
     )
 
 
-def _take_care_of_weight_bias_shapes(parameter_sharing_mode: str):
-    """
-    takes care of weight and bias shapes for FeedForwardMultineck
-    :param parameter_sharing_mode: one of "none", "neck_and_ff", "input_and_neck",
-            "none": no parameter sharing
-            "neck_and_ff": share parameters between the bottleneck layers and the expanded layer
-            "input_and_neck": share parameters between the input and the bottleneck layers as well as the output
-    """
-    assert parameter_sharing_mode in [
-        "none",
-        "neck_and_ff",
-        "input_and_neck",
-    ], f"parameter_sharing_mode={parameter_sharing_mode} is not supported, should be one of 'none', 'neck_and_ff', 'input_and_neck'"
-
-    if parameter_sharing_mode == "input_and_neck":
-        raise NotImplementedError(
-            "parameter_sharing_mode='input_and_neck' is not implemented yet"
-        )
-
-    default_weight_shapes = {
-        "multineck_1": "nheads dmodel dhead",
-        "expand": "nheads dhead dff",
-        "contract": "nheads dff dhead",
-        "multineck_2": "nheads dhead dmodel",
-    }
-
-    default_bias_shapes = {
-        "multineck_1": "nheads dhead",
-        "expand": "nheads dff",
-        "contract": "nheads dhead",
-        "multineck_2": "dmodel",
-    }
-
-    weight_shapes_by_mode = {
-        "none": {},  # no parameter sharing
-        "neck_and_ff": {"expand": "dhead dff", "contract": "dff dhead"},
-    }
-
-    bias_shapes_by_mode = {
-        "none": {},  # no parameter sharing
-        "neck_and_ff": {"expand": "dff", "contract": "dhead"},
-    }
-
-    mode_specific_weight_params = weight_shapes_by_mode[parameter_sharing_mode]
-    mode_specific_bias_params = bias_shapes_by_mode[parameter_sharing_mode]
-    correct_weight_shapes = {**default_weight_shapes, **mode_specific_weight_params}
-    correct_bias_shapes = {**default_bias_shapes, **mode_specific_bias_params}
-    return correct_weight_shapes, correct_bias_shapes
-
-
 @ash.check("... d -> ... d")
 def FeedForwardMultineck(
     dmodel, exp_rate, n_heads, parameter_sharing_mode: str = "none"
@@ -123,6 +73,17 @@ def FeedForwardMultineck(
     assert (
         4 * dmodel % n_heads == 0
     ), f"4*dmodel = {4 * dmodel} should be divisible by n_heads={n_heads}"
+
+    assert parameter_sharing_mode in [
+        "none",
+        "neck_and_ff",
+        "input_and_neck",
+    ], f"parameter_sharing_mode={parameter_sharing_mode} is not supported, should be one of 'none', 'neck_and_ff', 'input_and_neck'"
+
+    if parameter_sharing_mode == "input_and_neck":
+        raise NotImplementedError(
+            "parameter_sharing_mode='input_and_neck' is not implemented yet"
+        )
 
     weight_shapes = {
         "multineck_1": "nheads dmodel dhead",
