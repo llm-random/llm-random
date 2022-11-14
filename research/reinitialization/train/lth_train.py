@@ -51,8 +51,8 @@ if args.use_clearml:
     )
     task.connect(vars(args))
 
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
-modelpath = f"runs/wikibooktest/{timestamp}"
+timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S.%f")
+modelpath = f"runs/lth/{timestamp}"
 writer = SummaryWriter(log_dir=modelpath)
 
 pruner = VariableProbabilityPruner()

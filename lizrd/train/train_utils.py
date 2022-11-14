@@ -167,11 +167,13 @@ class LTHTrainer:
     initial_model_path: Optional[str] = None
 
     def _save_model_params(self):
-        self.initial_model_path = f"/tmp/{generate_random_string(5)}.pt"
+        self.initial_model_path = f"{self.modelpath}/init.pt"
+        print(f'Saving initial model to "{self.initial_model_path}"')
         torch.save(self.model.state_dict(), self.initial_model_path)
     
     def _save_checkpoint(self, step):
         model_path = f"{self.modelpath}/{step}.pt"
+        print(f'Saving checkpoint@{step} to "{model_path}"')
         torch.save(self.model.state_dict(), model_path)
 
     def _reinitialize_model(self):
