@@ -51,8 +51,8 @@ def _take_care_of_weight_bias_shapes(parameter_sharing_mode: str):
     takes care of weight and bias shapes for FeedForwardMultineck
     :param parameter_sharing_mode: one of "none", "neck_and_ff", "input_and_neck",
             "none": no parameter sharing
-            "neck_and_ff": share parameters between the intermediate layers and the FF
-            "input_and_neck": share parameters between the input and the intermediate layers
+            "neck_and_ff": share parameters between the bottleneck layers and the expanded layer
+            "input_and_neck": share parameters between the input and the bottleneck layers as well as the output
     """
     assert parameter_sharing_mode in [
         "none",
@@ -60,8 +60,10 @@ def _take_care_of_weight_bias_shapes(parameter_sharing_mode: str):
         "input_and_neck",
     ], f"parameter_sharing_mode={parameter_sharing_mode} is not supported, should be one of 'none', 'neck_and_ff', 'input_and_neck'"
 
-    if parameter_sharing_mode == "parameter_sharing_mode":
-        raise NotImplementedError("parameter_sharing_mode='input_and_neck' is not implemented yet")
+    if parameter_sharing_mode == "input_and_neck":
+        raise NotImplementedError(
+            "parameter_sharing_mode='input_and_neck' is not implemented yet"
+        )
 
     default_weight_shapes = {
         "multineck_1": "nheads dmodel dhead",
@@ -121,11 +123,29 @@ def FeedForwardMultineck(
     assert (
         4 * dmodel % n_heads == 0
     ), f"4*dmodel = {4 * dmodel} should be divisible by n_heads={n_heads}"
-    weights_shapes, bias_shapes = _take_care_of_weight_bias_shapes(
-        parameter_sharing_mode
-    )
 
-    assert None not in [weights_shapes, bias_shapes]
+    weight_shapes = {
+        "multineck_1": "nheads dmodel dhead",
+        "expand": "nheads dhead dff",
+        "contract": "nheads dff dhead",
+        "multineck_2": "nheads dhead dmodel",
+    }
+
+    bias_shapes = {
+        "multineck_1": "nheads dhead",
+        "expand": "nheads dff",
+        "contract": "nheads dhead",
+        "multineck_2": "dmodel",
+    }
+
+    if parameter_sharing_mode == "neck_and_ff":
+        weight_shapes["expand"] = "dhead dff"
+        weight_shapes["contract"] = "dff dhead"
+
+        bias_shapes["expand"] = "dff"
+        bias_shapes["contract"] = "dhead"
+
+    assert None not in [weight_shapes, bias_shapes]
 
     N = dmodel
     M = exp_rate * N
@@ -133,7 +153,7 @@ def FeedForwardMultineck(
 
     multineck_1 = EinMix(
         "batch seqlen dmodel -> batch seqlen nheads dhead",
-        weight_shape=weights_shapes["multineck_1"],
+        weight_shape=weight_shapes["multineck_1"],
         bias_shape=bias_shapes["multineck_1"],
         dmodel=N,
         nheads=n_heads,
@@ -141,7 +161,7 @@ def FeedForwardMultineck(
     )
     expand = EinMix(
         "batch seqlen nheads dhead -> batch seqlen nheads dff",
-        weight_shape=weights_shapes["expand"],
+        weight_shape=weight_shapes["expand"],
         bias_shape=bias_shapes["expand"],
         dff=M,
         nheads=n_heads,
@@ -149,7 +169,7 @@ def FeedForwardMultineck(
     )
     contract = EinMix(
         "batch seqlen nheads dff -> batch seqlen nheads dhead",
-        weight_shape=weights_shapes["contract"],
+        weight_shape=weight_shapes["contract"],
         bias_shape=bias_shapes["contract"],
         dff=M,
         nheads=n_heads,
@@ -157,7 +177,7 @@ def FeedForwardMultineck(
     )
     multineck_2 = EinMix(
         "batch seqlen nheads dhead -> batch seqlen dmodel",
-        weight_shape=weights_shapes["multineck_2"],
+        weight_shape=weight_shapes["multineck_2"],
         bias_shape=bias_shapes["multineck_2"],
         dmodel=N,
         nheads=n_heads,
@@ -189,7 +209,7 @@ class FeedForwardInceptionNeck(nn.Module):
         )
 
     def forward(self, x):
-        x = torch.stack([head(x) for head in self.bottleneck_heads], axis=-1)
+        x = torch.stack([head(x) for head in self.bottleneck_heads], dim=-1)
         x = torch.einsum("... h -> ...", x)
         x = x / np.sqrt(self.n_heads)
         return x
@@ -200,16 +220,17 @@ class FeedForwardInceptionNeck(nn.Module):
 @ash.check("... d -> ... d")
 def FeedForwardChoppedNeck(dmodel, n_chunks):
     """
-    init params: dmodel, exp_rate, n_chunks
+    init params: dmodel, n_chunks
     Divides both the input vector and the ff layer into n_heads chunks, and restricts the dense layer to operate
     on each chunk pair independently, disallowing inter-pair communication.
     An abvious drawback of this approach is that the different dimensions of the chunks are not able to communicate with each other in the FF layer.
-    An iteration on this should allow exactly that.
+    An iteration on this idea should address that restriction.
     :param dmodel: dimension of the model
     :param n_chunks: number of chunks to divide the input vector into
-    To calculate the ff_layer size, as in ForwardBottleneck, we need to solve the following equation:
-        N*M/n_chunks^2 = N*4N
-        M = 4*n*N
+    To calculate the ff_layer size, as in ForwardBottleneck, we formulate the following equation:
+        n_chunks * (N/n_chunks * M/n_chunks) = N*4N
+    solving for M, we get
+        M = 4*N*n_chunks
     In short, chopping the input vector into n_chunks chunks results in the ff layer being 4 n_chunks times larger
     Hence every chunk in the ff layer is of the size 4*dmodel
     """
@@ -221,7 +242,7 @@ def FeedForwardChoppedNeck(dmodel, n_chunks):
 
     return nn.Sequential(
         EinMix(
-            "batch seqlen (n_chunks chunk_size)-> batch seqlen (n_chunks dff_chunk_size)",
+            "batch seqlen (n_chunks chunk_size)-> batch seqlen n_chunks dff_chunk_size",
             weight_shape="n_chunks chunk_size dff_chunk_size",
             bias_shape="(n_chunks dff_chunk_size)",
             n_chunks=n_chunks,
@@ -230,7 +251,7 @@ def FeedForwardChoppedNeck(dmodel, n_chunks):
         ),
         nn.ReLU(inplace=True),
         EinMix(
-            "batch seqlen (n_chunks dff_chunk_size)-> batch seqlen (n_chunks chunk_size)",
+            "batch seqlen n_chunks dff_chunk_size-> batch seqlen (n_chunks chunk_size)",
             weight_shape="n_chunks dff_chunk_size chunk_size",
             bias_shape="(n_chunks chunk_size)",
             n_chunks=n_chunks,
