@@ -53,7 +53,6 @@ class MagnitudePruneLayer(nn.Module):
             f"Pruned (magnitude). Percent of zeros in self.mask: {n_zero * 100 / torch.numel(self.mask)}"
         )
 
-
 @ash.check("... inp -> ... out")
 class PruneLinear(misc.Linear, RandomPruneLayer):
     """Linear layer with pruning"""
@@ -155,3 +154,4 @@ class StructMagnitudePruneFF(MagnitudePruneLayer):
         weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
         weights = weights1 * weights2
         self._prune_by_weight(prob, weights)
+
