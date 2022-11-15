@@ -129,3 +129,10 @@ class StructMagnitudePruneFF(nn.Module):
         weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
         scores = weights1 * weights2
         self.mask.data = mask_by_score(self.mask, scores, int(self.mask.numel() * prob))
+        
+@ash.check('... d -> ... d')
+class MaskedFF(nn.Module):
+    """Fully masked Feed-Forward layer"""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.zeros_like(x)
