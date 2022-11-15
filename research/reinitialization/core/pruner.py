@@ -19,7 +19,7 @@ class Pruner:
     def step(self):
         if (
             self.current_step % self.n_steps_prune == 0
-            and self.current_step > self.delay
+            and self.current_step >= self.delay
         ):
             print("Pruning step")
             for layer in self.layers:

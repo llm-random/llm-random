@@ -34,7 +34,7 @@ parser.add_argument("--project_name", type=str)
 
 parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--optimizer", type=str, default="adam")
-parser.add_argument("--learning_rate", type=float, default=1e-4)
+parser.add_argument("--learning_rate", type=float, default=8e-4)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
