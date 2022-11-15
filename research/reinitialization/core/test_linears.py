@@ -37,12 +37,15 @@ class TestPruneLinear(GeneralTestCase):
 
 
 class PruneFFTest(GeneralTestCase):
-    def _test_with_pruner(self, layer, pruner, inp_tensor):
-        for _ in range(4):
+    def _test_with_pruner(self, layer, pruner, inp_tensor, prob: float):        
+        N = 3 
+        assert N * prob <= 1
+        
+        for _ in range(N):
             pruner.step()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 64)
+        self._assert_perc_nonzero(layer, 100-int(prob * N * 100))
 
         res = layer(inp_tensor)
 
@@ -54,13 +57,13 @@ class PruneFFTest(GeneralTestCase):
         optimizer.zero_grad()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 64)
+        self._assert_perc_nonzero(layer, 100-int(prob * N * 100))
 
-        for _ in range(2):
+        for _ in range(N):
             pruner.step()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 51.2)
+        self._assert_perc_nonzero(layer, 100-int(prob * 2 * N * 100))
 
 
 class TestUnstructPruneFF(PruneFFTest):
@@ -71,10 +74,11 @@ class TestUnstructPruneFF(PruneFFTest):
         linears.UnstructPruneFF(5, 5, pruner)
 
     def test_with_pruner(self):
-        pruner = Pruner(2, 0.2)
+        P = 0.1
+        pruner = Pruner(1, P)
         layer = linears.UnstructPruneFF(1000, 100, pruner)
         t = torch.rand((20, 1000))
-        self._test_with_pruner(layer, pruner, t)
+        self._test_with_pruner(layer, pruner, t, P)
 
     def _assert_perc_nonzero(self, ff_layer, perc_nonzero_exp):
         for linear_layer in [ff_layer.lin1, ff_layer.lin2]:
@@ -93,10 +97,11 @@ class TestStructPruneFF(PruneFFTest):
         linears.StructPruneFF(5, 5, pruner)
 
     def test_with_pruner(self):
-        pruner = Pruner(2, 0.2)
+        P = 0.1
+        pruner = Pruner(1, P)
         layer = linears.StructPruneFF(10, 100000, pruner)
         t = torch.rand((20, 10))
-        self._test_with_pruner(layer, pruner, t)
+        self._test_with_pruner(layer, pruner, t, P)
 
     def _assert_perc_nonzero(self, ff_layer, perc_nonzero_exp):
         nonzero = torch.count_nonzero(ff_layer.mask)
