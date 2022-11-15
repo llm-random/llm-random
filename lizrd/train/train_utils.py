@@ -265,7 +265,7 @@ class LTHTrainer:
         self._save_model_params()
         parameters_left = 1.0
         total_step = 0
-        while parameters_left > self.target_params:
+        while True:
             optimizer = self.optimizer_creator(self.model)
             pdataset = self.pdataset_creator()
             self.writer.add_scalar("parameters_left", parameters_left, total_step)
@@ -282,5 +282,7 @@ class LTHTrainer:
             self._save_checkpoint(total_step)
             self._log_masks_percentage(total_step)
             self.pruner.step(parameters_left * self.pruning_rate)
+            if parameters_left < self.target_params:
+                break
             parameters_left *= (1 - self.pruning_rate)
             self._reinitialize_model()
