@@ -9,6 +9,10 @@ if TYPE_CHECKING:
 class BasePruner(ABC):
     layers = []
 
+
+class BasePruner(ABC):
+    layers = []
+
     def register(self, layer: "RandomPruneLayer"):
         self.layers.append(layer)
 

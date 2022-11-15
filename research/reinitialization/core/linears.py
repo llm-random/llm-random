@@ -6,67 +6,41 @@ from lizrd.core import misc
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 
+def mask_by_score(mask: torch.Tensor, scores: torch.Tensor, n_to_mask: int) -> torch.Tensor:
+    """`n_to_mask` `mask` entries with the lowest `scores` will be pruned."""
+    assert mask.shape == scores.shape
 
-class RandomPruneLayer(nn.Module):
-    """Base class for layers with random pruning"""
+    mask = torch.clone(mask).detach()
+    scores = torch.clone(scores).detach()
 
-    def _prepare_mask(self, size: torch.Size):
-        self.mask = nn.parameter.Parameter(torch.empty(size), requires_grad=False)
-        self.mask.fill_(1)
+    # Determine indices of least important elements
+    scores[mask == 0] = torch.inf
 
-    def prune(self, prob: float):
-        mask = torch.ones_like(self.mask, requires_grad=False)
-        probs = torch.rand_like(self.mask)
-        mask[probs <= prob] = 0
-        self.mask.data = self.mask.data * mask
+    topk = torch.topk(torch.abs(scores).view(-1), n_to_mask, largest=False)
 
-        # TODO: Log this to ClearML
-        n_zero = torch.numel(self.mask) - torch.count_nonzero(self.mask)
-        print(
-            f"Pruned. Percent of zeros in self.mask: {n_zero * 100 / torch.numel(self.mask)}"
-        )
+    mask.view(-1)[topk.indices] = 0
+    return mask
 
-
-class MagnitudePruneLayer(nn.Module):
-    """Base class for layers with magnitude, non-random pruning"""
-
-    def _prepare_mask(self, size: torch.Size):
-        self.mask = nn.parameter.Parameter(torch.empty(size), requires_grad=False)
-        self.mask.fill_(1)
-
-    def _prune_by_weight(self, part_to_prune: float, weights: torch.Tensor):
-        mask = torch.ones_like(self.mask, requires_grad=False)
-
-        # Determine indices of less important weights
-        weights = torch.clone(weights).detach()
-        weights[self.mask == 0] = torch.inf
-        n_els_weights = torch.numel(weights)
-        n_to_prune = round(part_to_prune * n_els_weights)
-        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
-
-        mask.view(-1)[topk.indices] = 0
-        self.mask.data = self.mask.data * mask
-
-        # TODO: Log this to ClearML
-        n_zero = torch.numel(self.mask) - torch.count_nonzero(self.mask)
-        print(
-            f"Pruned (magnitude). Percent of zeros in self.mask: {n_zero * 100 / torch.numel(self.mask)}"
-        )
-
+def create_mask(size: torch.Size) -> torch.nn.parameter.Parameter:
+    mask = nn.parameter.Parameter(torch.empty(size), requires_grad=False)
+    mask.fill_(1)
+    return mask
 
 @ash.check("... inp -> ... out")
-class PruneLinear(misc.Linear, RandomPruneLayer):
+class PruneLinear(misc.Linear):
     """Linear layer with pruning"""
 
     def __init__(self, d_in, d_out, **kwargs):
         super().__init__(d_in, d_out, **kwargs)
-        self._prepare_mask(self.weight.size())
+        self.mask = create_mask(self.weight.shape)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         A = self.weight * self.mask
         res = misc.einsum("... i, o i -> ... o", x, A) + self.bias
         return res
 
+    def prune(self, prob: float):
+        self.mask.data = mask_by_score(self.mask, torch.rand_like(self.mask), int(self.mask.numel() * prob))
 
 @ash.check("... d -> ... d")
 class UnstructPruneFF(nn.Module):
@@ -85,12 +59,12 @@ class UnstructPruneFF(nn.Module):
 
 
 @ash.check("... d -> ... d")
-class StructPruneFF(RandomPruneLayer):
+class StructPruneFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
         self.lin1 = nn.Linear(dmodel, dff)
         self.lin2 = nn.Linear(dff, dmodel)
-        self._prepare_mask(torch.Size([dff]))
+        self.mask = create_mask(torch.Size([dff]))
         pruner.register(self)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -99,14 +73,16 @@ class StructPruneFF(RandomPruneLayer):
         x = F.relu(x)
         x = self.lin2(x)
         return x
+    
+    def prune(self, prob: float):
+        self.mask.data = mask_by_score(self.mask, torch.rand_like(self.mask), int(self.mask.numel() * prob))
 
-
-class MagnitudePruneLinear(misc.Linear, MagnitudePruneLayer):
+class MagnitudePruneLinear(misc.Linear):
     """Linear layer with magnitude pruning"""
 
     def __init__(self, d_in, d_out, **kwargs):
         super().__init__(d_in, d_out, **kwargs)
-        self._prepare_mask(self.weight.size())
+        self.mask = create_mask(self.weight.shape)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         A = self.weight * self.mask
@@ -114,8 +90,7 @@ class MagnitudePruneLinear(misc.Linear, MagnitudePruneLayer):
         return res
 
     def prune(self, prob: float):
-        self._prune_by_weight(prob, self.weight)
-
+        self.mask.data = mask_by_score(self.mask, self.weight, int(self.mask.numel() * prob))
 
 @ash.check("... d -> ... d")
 class UnstructMagnitudePruneFF(nn.Module):
@@ -134,12 +109,12 @@ class UnstructMagnitudePruneFF(nn.Module):
 
 
 @ash.check("... d -> ... d")
-class StructMagnitudePruneFF(MagnitudePruneLayer):
+class StructMagnitudePruneFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
         self.lin1 = nn.Linear(dmodel, dff)
         self.lin2 = nn.Linear(dff, dmodel)
-        self._prepare_mask(torch.Size([dff]))
+        self.mask = create_mask(torch.Size([dff]))
         pruner.register(self)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -150,8 +125,14 @@ class StructMagnitudePruneFF(MagnitudePruneLayer):
         return x
 
     def prune(self, prob: float):
-        # calculate  and pass weights
         weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
         weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
-        weights = weights1 * weights2
-        self._prune_by_weight(prob, weights)
+        scores = weights1 * weights2
+        self.mask.data = mask_by_score(self.mask, scores, int(self.mask.numel() * prob))
+        
+@ash.check('... d -> ... d')
+class MaskedFF(nn.Module):
+    """Fully masked Feed-Forward layer"""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.zeros_like(x)
