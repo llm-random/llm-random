@@ -8,7 +8,9 @@ import torch.nn.functional as F
 
 from lizrd.core import bert
 from lizrd.datasets import wikibookdata
-from research.reinitialization.core.pruner import VariableProbabilityPruner, Pruner
+from research.reinitialization.core.scheduler import BaseScheduler
+from lizrd.core import misc
+from research.reinitialization.core.pruner import Pruner
 from lizrd.core.misc import are_state_dicts_the_same, generate_random_string
 
 
@@ -62,19 +64,19 @@ class Trainer:
     mask_percent: float
     mask_loss_weight: float
     modelpath: str
+    scheduler: Optional[BaseScheduler] = None
     writer: Optional[SummaryWriter] = None
-    pruner: Optional[Pruner] = None
 
     def _train_step(
         self,
         model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
         pdataset: wikibookdata.ProcessedDataset,
-        pruner: Optional[Pruner] = None,
+        scheduler: Optional[BaseScheduler],
         step=0,
     ):
-        if pruner:
-            pruner.step()
+        if scheduler:
+            scheduler.step()
         model.train()
         processed_batch = pdataset.get_batch(self.batch_size)
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
@@ -138,7 +140,7 @@ class Trainer:
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
             self._train_step(
-                self.model, self.optimizer, self.pdataset, self.pruner, step
+                self.model, self.optimizer, self.pdataset, self.scheduler, step
             )
             self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
@@ -154,7 +156,7 @@ class LTHTrainer:
     model: torch.nn.Module
     optimizer_creator: Callable[[torch.nn.Module], torch.optim.Optimizer]
     pdataset_creator: Callable[[], wikibookdata.ProcessedDataset]
-    pruner: VariableProbabilityPruner
+    pruner: BasePruner
     batch_size: int
     vocab_size: int
     mask_percent: float

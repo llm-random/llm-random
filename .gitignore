@@ -139,3 +139,6 @@ runs/
 
 # slurm stuff
 slurm*
+
+# temporary scripts
+research/reinitialization/scripts/jk_scripts

@@ -7,7 +7,7 @@ python3 -m research.reinitialization.train.reinit_train \
     --use_clearml \
     --name=lizard_train_sparse_pruner \
     --batch_size=32 \
-    --cutoff=32 \
+    --cutoff=128 \
     --dm=256 \
     --dff=1024 \
     --n_blocks=4 \
