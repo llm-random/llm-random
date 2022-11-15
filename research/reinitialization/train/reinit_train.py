@@ -10,6 +10,7 @@ from lizrd.core import misc, bert
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
+from research.reinitialization.core.scheduler import DelayedConstScheduler
 from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
@@ -70,8 +71,11 @@ if args.use_pruner:
         args.pruner_prob,
         args.pruner_delay,
     )
+    scheduler = DelayedConstScheduler(
+        pruner, args.pruner_n_steps, args.pruner_prob, args.pruner_delay
+    )
 else:
-    pruner = None
+    scheduler = None
 
 # set ff layer
 if args.ff_layer == "regular":
@@ -124,7 +128,7 @@ trainer = Trainer(
     mask_percent=args.mask_percent,
     mask_loss_weight=args.mask_loss_weight,
     modelpath=modelpath,
-    pruner=pruner,
+    scheduler=scheduler,
     writer=writer,
 )
 trainer.train(args.n_steps, args.n_steps_eval)
