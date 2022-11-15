@@ -155,3 +155,9 @@ class StructMagnitudePruneFF(MagnitudePruneLayer):
         weights = weights1 * weights2
         self._prune_by_weight(prob, weights)
 
+@ash.check('... d -> ... d')
+class MaskedFF(nn.Module):
+    """Fully masked Feed-Forward layer"""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.zeros_like(x)

@@ -57,23 +57,24 @@ class Trainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     pdataset: wikibookdata.ProcessedDataset
-    pruner: Pruner
     batch_size: int
     vocab_size: int
     mask_percent: float
     mask_loss_weight: float
     modelpath: str
-    writer: SummaryWriter = None
+    writer: Optional[SummaryWriter] = None
+    pruner: Optional[Pruner] = None
 
     def _train_step(
         self,
         model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
         pdataset: wikibookdata.ProcessedDataset,
-        pruner: Pruner,
+        pruner: Optional[Pruner] = None,
         step=0,
     ):
-        pruner.step()
+        if pruner:
+            pruner.step()
         model.train()
         processed_batch = pdataset.get_batch(self.batch_size)
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
