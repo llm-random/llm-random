@@ -23,6 +23,7 @@ do
         $name \
         struct_magnitude_recycle \
         $pruner_n_steps \
-        $pruner_prob
+        $pruner_prob \
+        "new_metrics steps_${pruner_n_steps} frac_${total_frac_pruned}"
     done
 done

@@ -42,6 +42,7 @@ parser.add_argument("--n_steps", type=int, default=10000001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
+parser.add_argument("--tags", nargs="*", type=str, default=None)
 
 args = parser.parse_args()
 
@@ -55,6 +56,8 @@ if args.use_clearml:
         task_name=f"{args.name} {datetime.datetime.now()}",
     )
     task.connect(vars(args))
+    if args.tags:
+        task.add_tags(args.tags)
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
 modelpath = f"runs/wikibooktest/{timestamp}"
