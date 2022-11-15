@@ -22,8 +22,7 @@ def mask_by_score(mask: torch.Tensor, scores: torch.Tensor, n_to_mask: int) -> t
     return mask
 
 def create_mask(size: torch.Size) -> torch.nn.parameter.Parameter:
-    mask = nn.parameter.Parameter(torch.empty(size), requires_grad=False)
-    mask.fill_(1)
+    mask = nn.parameter.Parameter(torch.ones(size), requires_grad=False)
     return mask
 
 @ash.check("... inp -> ... out")
