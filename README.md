@@ -2,6 +2,9 @@
 
 Name suggestions are welcome.
 
+## Getting started
+After cloning the repo, `cd` to repo directory and run `./start-dev.sh`. This will create a virtual environment, install requirements and setup git hooks.
+
 ## Installing requirements
 
 Simple `python3 -m pip install -r requirements.txt` should work. Be sure to use a virtualenv.

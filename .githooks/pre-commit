@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Redirect output to stderr.
+exec 1>&2
+
+# Activate the virtual environment
+. venv/bin/activate
+
+
+# Run tests
+if ! python3 -m unittest
+then
+    echo "Tests failed"
+    exit 1
+# Run formatting check
+elif ! python3 -m black --check . 
+then 
+    echo "Black formatting failed"
+    exit 1
+else
+    echo "Pre-commit passed"
+    exit 0
+fi
