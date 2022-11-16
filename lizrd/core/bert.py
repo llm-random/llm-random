@@ -19,7 +19,8 @@ def FeedForward(dmodel, dff):
         ),
     )
 
-@ash.check('... -> ... ')
+
+@ash.check("... -> ... ")
 class Residual(nn.Module):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -176,8 +177,4 @@ def PredictionHead(embedding_dim, output_size):
 
 @ash.check("... -> ... out")
 def BERT(embedding_layer, encoder_tower, head):
-    return nn.Sequential(
-        embedding_layer,
-        encoder_tower,
-        head
-    )
+    return nn.Sequential(embedding_layer, encoder_tower, head)

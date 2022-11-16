@@ -37,15 +37,15 @@ class TestPruneLinear(GeneralTestCase):
 
 
 class PruneFFTest(GeneralTestCase):
-    def _test_with_pruner(self, layer, pruner, inp_tensor, prob: float):        
-        N = 3 
+    def _test_with_pruner(self, layer, pruner, inp_tensor, prob: float):
+        N = 3
         assert N * prob <= 1
-        
+
         for _ in range(N):
             pruner.step()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 100-int(prob * N * 100))
+        self._assert_perc_nonzero(layer, 100 - int(prob * N * 100))
 
         res = layer(inp_tensor)
 
@@ -57,13 +57,13 @@ class PruneFFTest(GeneralTestCase):
         optimizer.zero_grad()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 100-int(prob * N * 100))
+        self._assert_perc_nonzero(layer, 100 - int(prob * N * 100))
 
         for _ in range(N):
             pruner.step()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 100-int(prob * 2 * N * 100))
+        self._assert_perc_nonzero(layer, 100 - int(prob * 2 * N * 100))
 
 
 class TestUnstructPruneFF(PruneFFTest):

@@ -17,7 +17,7 @@ class MetricWriter(object):
     def get_and_add_metric(self, name):
         if name not in self.metrics:
             self.metrics[name] = 0
-        new_name = f'{name}#{self.metrics[name]}'
+        new_name = f"{name}#{self.metrics[name]}"
         self.metrics[name] += 1
         return new_name
 
@@ -44,7 +44,7 @@ class GenericLog(nn.Module):
         self.metric_writer = metric_writer
         self.subname = subname
         self.last_value = None
-        self.number = self.metric_writer.get_and_add_metric(f'{name}_{subname}')
+        self.number = self.metric_writer.get_and_add_metric(f"{name}_{subname}")
         self.metric_writer.register_logger(self)
 
     def add_scalar(self, value):
@@ -53,7 +53,7 @@ class GenericLog(nn.Module):
     def write_log(self):
         self.log()  # potentially adding scalars etc.
         if self.last_value is not None:
-            full_name = f'{self.name}_{self.subname}/{self.number}'
+            full_name = f"{self.name}_{self.subname}/{self.number}"
             self.metric_writer.add_scalar(full_name, self.last_value)
         self.last_value = None
 
@@ -61,11 +61,11 @@ class GenericLog(nn.Module):
         pass
 
 
-@ash.check('...-> ...')
+@ash.check("...-> ...")
 class LogValue(GenericLog):
     def __init__(self, name, metric_writer=None, aggregate=torch.mean, subname=None):
         if subname is None:
-            subname = 'val_' + aggregate.__name__
+            subname = "val_" + aggregate.__name__
         super(LogValue, self).__init__(name, metric_writer, subname)
         self.aggregate = aggregate
 
@@ -75,11 +75,11 @@ class LogValue(GenericLog):
         return x
 
 
-@ash.check('...-> ...')
+@ash.check("...-> ...")
 class LogGradient(GenericLog):
     def __init__(self, name, metric_writer=None, aggregate=torch.mean, subname=None):
         if subname is None:
-            subname = 'grad_' + aggregate.__name__
+            subname = "grad_" + aggregate.__name__
         super(LogGradient, self).__init__(name, metric_writer, subname)
         self.aggregate = aggregate
 
@@ -95,9 +95,11 @@ class LogGradient(GenericLog):
 
 
 class LogWeightValue(GenericLog):
-    def __init__(self, name, weight_fn, metric_writer=None, aggregate=torch.mean, subname=None):
+    def __init__(
+        self, name, weight_fn, metric_writer=None, aggregate=torch.mean, subname=None
+    ):
         if subname is None:
-            subname = 'val_' + aggregate.__name__
+            subname = "val_" + aggregate.__name__
         super(LogWeightValue, self).__init__(name, metric_writer, subname)
         self.aggregate = aggregate
 
@@ -110,9 +112,11 @@ class LogWeightValue(GenericLog):
 
 
 class LogWeightGradient(GenericLog):
-    def __init__(self, name, weight_fn, metric_writer=None, aggregate=torch.mean, subname=None):
+    def __init__(
+        self, name, weight_fn, metric_writer=None, aggregate=torch.mean, subname=None
+    ):
         if subname is None:
-            subname = 'grad_' + aggregate.__name__
+            subname = "grad_" + aggregate.__name__
         super(LogWeightGradient, self).__init__(name, metric_writer, subname)
         self.aggregate = aggregate
 
@@ -122,7 +126,7 @@ class LogWeightGradient(GenericLog):
         weight = self.weight_fn()
         grad = weight.grad
         if grad is None:
-            print('Warning: weight.grad is None')
+            print("Warning: weight.grad is None")
             return
         grad = self.aggregate(grad)
         self.add_scalar(grad)

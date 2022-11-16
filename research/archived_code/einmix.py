@@ -8,7 +8,8 @@ from time import sleep
 from opt_einsum import contract
 import opt_einsum
 from einops.layers.torch import Rearrange, Reduce
-#https://einops.rocks/3-einmix-layer/
+
+# https://einops.rocks/3-einmix-layer/
 
 import gc
 from typing import List
@@ -19,16 +20,11 @@ from lizrd.core import nn
 from einops.layers.torch import Rearrange, Reduce
 
 
-
 def DenseFF(dmodel, dff):
     return nn.Sequential(
-        Mix('b d -> b f',
-            weight_shape='d f', bias_shape='f',
-            d=dmodel, f=dff),
+        Mix("b d -> b f", weight_shape="d f", bias_shape="f", d=dmodel, f=dff),
         nn.ReLU(),
-        Mix('b f -> b d',
-            weight_shape='d f', bias_shape='d',
-            d=dmodel, f=dff),
+        Mix("b f -> b d", weight_shape="d f", bias_shape="d", d=dmodel, f=dff),
     )
 
 
@@ -49,13 +45,16 @@ def SparseFFController(dmodel, dff, lowrank, sparsity):
     Nexperts = sparsity
     Nsets = dff // sparsity
     return nn.Sequential(
-        Mix('b dm -> b lowrank',
-            weight_shape='dm lowrank',
-            dm=dmodel, lowrank=lowrank),
-        Mix('b lowrank -> b Ns Ne',
-            weight_shape='lowrank Ns Ne', bias_shape='Ns Ne',
-            lowrank=lowrank, Ns=Nsets, Ne=Nexperts),
-        nn.Softmax(dim=-1)
+        Mix("b dm -> b lowrank", weight_shape="dm lowrank", dm=dmodel, lowrank=lowrank),
+        Mix(
+            "b lowrank -> b Ns Ne",
+            weight_shape="lowrank Ns Ne",
+            bias_shape="Ns Ne",
+            lowrank=lowrank,
+            Ns=Nsets,
+            Ne=Nexperts,
+        ),
+        nn.Softmax(dim=-1),
     )
 
 
@@ -80,14 +79,24 @@ def SparseFF(dmodel, dff, lowrank, sparsity):
     return nn.Sequential(
         Multiply(
             SparseFFController(dmodel, dff, lowrank, sparsity),
-            Mix('b dm -> b Ns Ne',
-                weight_shape='dm Ns Ne', bias_shape='Ns Ne',
-                dm=dmodel, Ns=Nsets, Ne=Nexperts),
+            Mix(
+                "b dm -> b Ns Ne",
+                weight_shape="dm Ns Ne",
+                bias_shape="Ns Ne",
+                dm=dmodel,
+                Ns=Nsets,
+                Ne=Nexperts,
+            ),
         ),
         nn.ReLU(),
-        Mix('b Ns Ne -> b dm',
-            weight_shape='Ns Ne dm', bias_shape='dm',
-            dm=dmodel, Ns=Nsets, Ne=Nexperts)
+        Mix(
+            "b Ns Ne -> b dm",
+            weight_shape="Ns Ne dm",
+            bias_shape="dm",
+            dm=dmodel,
+            Ns=Nsets,
+            Ne=Nexperts,
+        ),
     )
 
 
@@ -97,14 +106,12 @@ def testmodel(batch, dmodel, dff):
     dff = 4096
     lowrank = 64
     sparsity = 32
-    model = Residual(
-        SparseFF(dmodel, dff, lowrank, sparsity)
-    )
+    model = Residual(SparseFF(dmodel, dff, lowrank, sparsity))
     # model = SparseFFController(dmodel, dff, lowrank, sparsity)
     sample = torch.Tensor(np.random.random((batch, dmodel)))
     model.train()
     result = str(model(sample).shape)
-    print('worked', result)
+    print("worked", result)
 
 
 if __name__ == "__main__":
