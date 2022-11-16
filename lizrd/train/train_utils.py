@@ -10,8 +10,8 @@ from lizrd.core import bert
 from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from lizrd.core import misc
-from research.reinitialization.core.pruner import Pruner
-from lizrd.core.misc import are_state_dicts_the_same, generate_random_string
+from research.reinitialization.core.pruner import BasePruner
+from lizrd.core.misc import are_state_dicts_the_same
 
 
 def get_model(
@@ -173,7 +173,7 @@ class LTHTrainer:
         self.initial_model_path = f"{self.modelpath}/init.pt"
         print(f'Saving initial model to "{self.initial_model_path}"')
         torch.save(self.model.state_dict(), self.initial_model_path)
-    
+
     def _save_checkpoint(self, step):
         model_path = f"{self.modelpath}/{step}.pt"
         print(f'Saving checkpoint@{step} to "{model_path}"')
