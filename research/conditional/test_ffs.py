@@ -14,7 +14,9 @@ class TestBatchedFeedForward(GeneralTestCase):
         seql = experts * 3
         expertsize = 11
         dff = sets * experts * expertsize
-        layer = research.conditional.ffs.BatchSplitFF([], dm, dff, sets, experts, expertsize)
+        layer = research.conditional.ffs.BatchSplitFF(
+            [], dm, dff, sets, experts, expertsize
+        )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         output = layer(input)
         self.assertShape(output, (batch, seql, dm))
@@ -57,10 +59,12 @@ class BERTSparseTest(GeneralTestCase):
 
         embedding_layer = bert.EmbeddingLayer(
             bert.PositionalEmbedding(max_length, dm),
-            bert.TokenEmbedding(vocab_size, dm)
+            bert.TokenEmbedding(vocab_size, dm),
         )
 
-        factored_dense_fun = lambda: research.conditional.ffs.FactoredDense(dm, dm, modules)
+        factored_dense_fun = lambda: research.conditional.ffs.FactoredDense(
+            dm, dm, modules
+        )
 
         encoder_tower = bert.EncoderTower(
             n_blocks,
@@ -91,10 +95,12 @@ class BERTSparseGradientTest(GeneralTestCase):
 
         embedding_layer = bert.EmbeddingLayer(
             bert.PositionalEmbedding(max_length, dm),
-            bert.TokenEmbedding(vocab_size, dm)
+            bert.TokenEmbedding(vocab_size, dm),
         )
 
-        factored_dense_fun = lambda: research.conditional.ffs.FactoredDense(dm, dm, modules)
+        factored_dense_fun = lambda: research.conditional.ffs.FactoredDense(
+            dm, dm, modules
+        )
 
         encoder_tower = bert.EncoderTower(
             n_blocks,
@@ -113,7 +119,7 @@ class BERTSparseGradientTest(GeneralTestCase):
 
         output = model(input)
 
-        loss = torch.mean(output[:,0] ** 2)  # TODO: add better loss function
+        loss = torch.mean(output[:, 0] ** 2)  # TODO: add better loss function
 
         optimizer.zero_grad()
         loss.backward()

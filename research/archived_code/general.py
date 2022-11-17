@@ -9,7 +9,8 @@ from time import sleep
 from opt_einsum import contract
 import opt_einsum
 from einops.layers.torch import Rearrange, Reduce
-#https://einops.rocks/3-einmix-layer/
+
+# https://einops.rocks/3-einmix-layer/
 
 import gc
 from typing import List
@@ -18,21 +19,30 @@ IGNORE_ASSERTS = True
 
 
 if IGNORE_ASSERTS:
+
     def assert_shape(x, shape: List[int]):
         pass
+
 else:
+
     def assert_shape(x, shape):
         for a, b in zip(x.shape, shape):
             if b is not None and a != b:
-                raise AssertionError('invalid shape; got {} but expected {}.'.format(x.shape, shape))
+                raise AssertionError(
+                    "invalid shape; got {} but expected {}.".format(x.shape, shape)
+                )
 
 
 if IGNORE_ASSERTS:
+
     def assertf(condition: bool):
         pass
+
 else:
+
     def assertf(condition: bool):
         assert condition
+
 
 # class Einsum(nn.Module):
 #     def __init__(self, text, *sizes):
@@ -56,11 +66,13 @@ def add_or_get_contract(text, *tensors):
     key = (text, shapes)
 
     if key not in CONTRACT_CACHE:
-        print('adding {}'.format(key))
-        path = opt_einsum.contract_path(text, *tensors, optimize='optimal')
+        print("adding {}".format(key))
+        path = opt_einsum.contract_path(text, *tensors, optimize="optimal")
         print(path[1])
-        print('...')
-        CONTRACT_CACHE[key] = opt_einsum.contract_expression(text, *shapes, optimize='optimal')
+        print("...")
+        CONTRACT_CACHE[key] = opt_einsum.contract_expression(
+            text, *shapes, optimize="optimal"
+        )
     return CONTRACT_CACHE[key]
 
 
@@ -96,9 +108,9 @@ class DenseFFEinsum(nn.Module):
         self.f2 = nn.Parameter(torch.Tensor(d_ff, d_model))
 
     def forward(self, x):
-        inner = einsum('bm,nm->bn', x, self.f1)
+        inner = einsum("bm,nm->bn", x, self.f1)
         inner = F.relu(inner)
-        output = einsum('bn,nm->bm', inner, self.f2)
+        output = einsum("bn,nm->bm", inner, self.f2)
         assert_shape(output, (None, self.d_model))
         return output
 
@@ -114,7 +126,7 @@ class LowRank(nn.Module):
         # self.contract =
 
     def forward(self, x):
-        out = einsum('bm,ml,lo->bo', x, self.f1, self.f2)
+        out = einsum("bm,ml,lo->bo", x, self.f1, self.f2)
         # out = contract('bm,ml,lo->bo', x, self.f1, self.f2)
         # lowrank = torch.einsum('bm,ml->bl', x, self.f1)
         # out = torch.einsum('bl,lo->bo', lowrank, self.f2)
@@ -184,7 +196,7 @@ class SparseFF(nn.Module):
         assertf(x.shape == (BATCH_SIZE, self.d_model))
         controller_output = self.controller(x)
         if self.training:
-            inner = einsum('bm,enm->ben', x, self.f1)
+            inner = einsum("bm,enm->ben", x, self.f1)
             # inner = self.f1(x)
             # inner = inner.view(BATCH_SIZE, self.d_ff//N, N)
 
@@ -192,7 +204,7 @@ class SparseFF(nn.Module):
             assert_shape(controller_output, (BATCH_SIZE, self.d_ff // N, N))
             inner = F.relu(inner) * controller_output
 
-            output = einsum('ben,enm->bm', inner, self.f2)
+            output = einsum("ben,enm->bm", inner, self.f2)
             # inner = inner.view(BATCH_SIZE, self.d_ff)
             # output = self.f2(inner)
             assert_shape(output, (BATCH_SIZE, self.d_model))
@@ -215,12 +227,12 @@ class SparseFF(nn.Module):
             assert_shape(f1p, (self.d_ff // N, self.d_model))
             assert_shape(f2p, (self.d_ff // N, self.d_model))
 
-            inner = einsum('bm,em->be', x, f1p)
+            inner = einsum("bm,em->be", x, f1p)
 
             assert_shape(inner, (BATCH_SIZE, self.d_ff // N))
 
             inner = F.relu(inner)
-            output = einsum('be,em->bm', inner, f2p)
+            output = einsum("be,em->bm", inner, f2p)
             assert_shape(output, (BATCH_SIZE, self.d_model))
             return output
 
@@ -248,10 +260,10 @@ class BatchSplitFF(nn.Module):
         assert_shape(x, (self.batch_size, self.dmodel))
 
         grouped = x.view((-1, self.nexperts, self.dmodel))
-        inner = einsum('Bnd,nsed->Bnse', grouped, self.f1)
+        inner = einsum("Bnd,nsed->Bnse", grouped, self.f1)
         assert_shape(inner, (None, self.nexperts, self.expertsets, self.expertsize))
         inner = F.relu(inner)
-        output = einsum('Bnse,nsed->Bnd', inner, self.f2)
+        output = einsum("Bnse,nsed->Bnd", inner, self.f2)
         assert_shape(output, (None, self.nexperts, self.dmodel))
         ungrouped = output.reshape((-1, self.dmodel))
         assert_shape(ungrouped, (self.batch_size, self.dmodel))
@@ -263,8 +275,8 @@ class NewBatchSplitFF(nn.Module):
         pass
 
     def forward(self):
-        #BATCH, embedding
-        #batch, set, embedding <-- this is just reshape
+        # BATCH, embedding
+        # batch, set, embedding <-- this is just reshape
 
         ## CONTROLLER:
         # batch, set1, embedding <-- this is starting point
@@ -287,8 +299,8 @@ class NewBatchSplitFF(nn.Module):
         # final reshape
         # BATCH, embedding
 
-
         pass
+
 
 class Residual(nn.Module):
     def __init__(self, layer):
@@ -302,17 +314,15 @@ class Residual(nn.Module):
 class Model(nn.Module):
     def __init__(self, layers, d_model, d_ff, d_lowrank, sparsity, version):
         super(Model, self).__init__()
-        if 'batch' in version:
+        if "batch" in version:
             layer_fun = lambda: BatchSplitFF(d_model, d_ff, 32, 32, 4)
-        elif 'sparse' in version:
+        elif "sparse" in version:
             layer_fun = lambda: SparseFF(d_model, d_ff, d_lowrank, sparsity)
-        elif 'einsum' in version:
+        elif "einsum" in version:
             layer_fun = lambda: DenseFFEinsum(d_model, d_ff)
         else:
             layer_fun = lambda: DenseFF(d_model, d_ff)
-        self.layers = nn.ModuleList(
-            [Residual(layer_fun())
-             for i in range(layers)])
+        self.layers = nn.ModuleList([Residual(layer_fun()) for i in range(layers)])
 
     def forward(self, x):
         for layer in self.layers:
@@ -332,7 +342,7 @@ def timemodel(batch, sample, layers, d_model, d_ff, d_lowrank, sparsity, version
     if GPU:
         model.to(CUDA)
         sample = [x.to(CUDA) for x in sample]
-    if 'train' in version:
+    if "train" in version:
         model.train()
     else:
         model.eval()
@@ -350,7 +360,7 @@ REPEAT = 1
 LAYERS = 20
 DMODEL = 1024
 DFF = 4 * 1024
-DLOWRANK = 16*16
+DLOWRANK = 16 * 16
 SPARSITY = 16
 GPU = True
 
@@ -390,10 +400,30 @@ if __name__ == "__main__":
     standard_sleep()
     BATCH_SIZE = 4096
     print(BATCH_SIZE)
-    print("batch-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "batch-ff"))
-    print("dense-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "dense-ff"))
-    print("batch-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "batch-ff"))
-    print("dense-ff", timemodel(BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "dense-ff"))
+    print(
+        "batch-ff",
+        timemodel(
+            BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "batch-ff"
+        ),
+    )
+    print(
+        "dense-ff",
+        timemodel(
+            BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "dense-ff"
+        ),
+    )
+    print(
+        "batch-ff",
+        timemodel(
+            BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "batch-ff"
+        ),
+    )
+    print(
+        "dense-ff",
+        timemodel(
+            BATCH_SIZE, SAMPLE, LAYERS, DMODEL, DFF, DLOWRANK, SPARSITY, "dense-ff"
+        ),
+    )
 
 
 # if __name__ == "__main__":

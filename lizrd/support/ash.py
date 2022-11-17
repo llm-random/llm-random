@@ -13,7 +13,7 @@ def assert_shape(pattern, tensor, **kwargs):
 class Check(nn.Module):
     def __init__(self, signature, layer, **kwargs):
         super(Check, self).__init__()
-        self.inp_sig, self.out_sig = signature.split('->')
+        self.inp_sig, self.out_sig = signature.split("->")
         self.inp_sig = self.inp_sig.split()
         self.out_sig = self.out_sig.split()
         self.constants = kwargs
@@ -27,15 +27,14 @@ class Check(nn.Module):
                 assert shape[index] == past[current]
             else:
                 past[current] = shape[index]
-        elif current == '...':
-            if '...' in past:
-                assert shape[:index + 1] == past['...']
+        elif current == "...":
+            if "..." in past:
+                assert shape[: index + 1] == past["..."]
             else:
-                past['...'] = shape[:index + 1]
+                past["..."] = shape[: index + 1]
 
     def _check_and_add_all(self, shape, signature, past):
-        for index, current in enumerate(
-                signature, start=len(signature)-len(shape)):
+        for index, current in enumerate(signature, start=len(signature) - len(shape)):
             self._check_and_add(shape, current, past, index)
 
     def get_past(self):
@@ -68,7 +67,7 @@ def check(signature, **kwargs_shape):
         return class_or_fun
 
     def decorator(class_or_fun):
-        if 'forward' in dir(class_or_fun):
+        if "forward" in dir(class_or_fun):
             return class_decorator(class_or_fun)
         else:
             return function_decorator(class_or_fun)
@@ -95,6 +94,7 @@ def check(signature, **kwargs_shape):
     def function_decorator(function):
         def new_function(*args, **kwargs):
             return Check(signature, function(*args, **kwargs), **kwargs_shape)
+
         return new_function
 
     if DISABLE_CHECKS:
