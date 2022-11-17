@@ -49,3 +49,5 @@ By directories:
     * `initialization` - research on better initialization scheme
     * `timing` - tests with profiling the main code
     * `conditional` - research on conditional computation (to be split from `core`)
+    * `nonlinearities` - research on smaller neurons
+    * `reinitialization` - research on recycling neurons
