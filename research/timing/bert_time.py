@@ -14,8 +14,7 @@ def test_basic(self):
     n_blocks = 2
 
     embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm),
-        bert.TokenEmbedding(vocab_size, dm)
+        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
 
     encoder_tower = bert.EncoderTower(
@@ -54,15 +53,20 @@ def test_one_sparse(log_total_dff):
     logexpertsets = 2
     logexpertsize = 5
     lognexperts = log_total_dff - logexpertsets - logexpertsize
-    expertsets = 2 ** logexpertsets
-    expertsize = 2 ** logexpertsize
-    nexperts = 2 ** lognexperts
+    expertsets = 2**logexpertsets
+    expertsize = 2**logexpertsize
+    nexperts = 2**lognexperts
     print(logexpertsets, logexpertsize, lognexperts)
     print(expertsets, expertsize, nexperts)
     # try:
-    main_tests('simplesparse', disable_inner=False, expertsets=expertsets,
-               expertsize=expertsize, nexperts=nexperts)
-    print('IMPORTANT', round(sum(profile.GLOBAL_TIMERS['batchedFF']), 3))
+    main_tests(
+        "simplesparse",
+        disable_inner=False,
+        expertsets=expertsets,
+        expertsize=expertsize,
+        nexperts=nexperts,
+    )
+    print("IMPORTANT", round(sum(profile.GLOBAL_TIMERS["batchedFF"]), 3))
     profile.print_times()
     # except:
     #     print("FAILED")
@@ -70,14 +74,14 @@ def test_one_sparse(log_total_dff):
 
 
 def test_all_sparse(log_total_dff):
-    keys = ['rewrittenFF', 'Controller', 'FF']
+    keys = ["rewrittenFF", "Controller", "FF"]
     tables = {
-        key: [['-'] * (log_total_dff+1) for _ in range(log_total_dff+1)]
+        key: [["-"] * (log_total_dff + 1) for _ in range(log_total_dff + 1)]
         for key in keys
     }
 
-    for logexpertsets in range(0, log_total_dff+1):
-        for logexpertsize in range(0, log_total_dff+1-logexpertsets):
+    for logexpertsets in range(0, log_total_dff + 1):
+        for logexpertsize in range(0, log_total_dff + 1 - logexpertsets):
             lognexperts = log_total_dff - logexpertsets - logexpertsize
             expertsets = 2**logexpertsets
             expertsize = 2**logexpertsize
@@ -85,8 +89,13 @@ def test_all_sparse(log_total_dff):
             print(logexpertsets, logexpertsize, lognexperts)
             print(expertsets, expertsize, nexperts)
             try:
-                main_tests('rewritten', disable_inner=False, expertsets=expertsets,
-                           expertsize=expertsize, nexperts=nexperts)
+                main_tests(
+                    "rewritten",
+                    disable_inner=False,
+                    expertsets=expertsets,
+                    expertsize=expertsize,
+                    nexperts=nexperts,
+                )
                 for key in keys:
                     time = round(sum(profile.GLOBAL_TIMERS[key]), 3)
                     tables[key][logexpertsize][logexpertsets] = time
@@ -94,13 +103,13 @@ def test_all_sparse(log_total_dff):
             except:
                 print("FAILED")
                 for key in keys:
-                    tables[key][logexpertsize][logexpertsets] = 'nan'
-            print('\n\n\n')
+                    tables[key][logexpertsize][logexpertsets] = "nan"
+            print("\n\n\n")
             for key in keys:
-                print(f'\n\n{key}')
+                print(f"\n\n{key}")
                 for row in tables[key]:
                     for cell in row:
-                        print(cell, end='\t')
+                        print(cell, end="\t")
                     print()
             print("", flush=True)
 
@@ -128,7 +137,6 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
     # BLOCKS = 4
     # HEADS = 8
 
-
     batch, seql, dm, heads = 64, 128, 512, 8
     vocab_size, max_length = 30522, 128
     output_size = 30522
@@ -137,89 +145,164 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
     warmup = 10
 
     embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm),
-        bert.TokenEmbedding(vocab_size, dm)
+        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
 
-    if version == 'sparse':
+    if version == "sparse":
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
+            (
+                lambda: research.conditional.ffs.BatchSplitFF(
+                    [], dm, dff, expertsets, nexperts, expertsize
+                )
+            ),
+            (lambda: profile.TimerLayer("attention", bert.Attention(dm, heads))),
         )
-    elif version == 'rewritten':
+    elif version == "rewritten":
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.RewrittenSplitFF([], dm, dff, expertsets * nexperts, nexperts, expertsize)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
+            (
+                lambda: research.conditional.ffs.RewrittenSplitFF(
+                    [], dm, dff, expertsets * nexperts, nexperts, expertsize
+                )
+            ),
+            (lambda: profile.TimerLayer("attention", bert.Attention(dm, heads))),
         )
-    elif version == 'simplesparse':
+    elif version == "simplesparse":
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.SimpleSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads))),
+            (
+                lambda: research.conditional.ffs.SimpleSplitFF(
+                    [], dm, dff, expertsets, nexperts, expertsize
+                )
+            ),
+            (lambda: profile.TimerLayer("attention", bert.Attention(dm, heads))),
         )
-    elif version == 'sparse+qkv':
+    elif version == "sparse+qkv":
         modules = 4
-        sparse_linear_projection = lambda: research.conditional.ffs.FactoredDense(dm, dm, modules)
-        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
+        sparse_linear_projection = lambda: research.conditional.ffs.FactoredDense(
+            dm, dm, modules
+        )
+        sparse_linear_projection = (
+            lambda func=sparse_linear_projection: profile.TimerLayer(
+                "projection", func()
+            )
+        )
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
+            (
+                lambda: research.conditional.ffs.BatchSplitFF(
+                    [], dm, dff, expertsets, nexperts, expertsize
+                )
+            ),
+            (
+                lambda: profile.TimerLayer(
+                    "attention",
+                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                )
+            ),
         )
-    elif version == 'sparse+lowrank':
+    elif version == "sparse+lowrank":
         lowrank = 16
         sparse_linear_projection = lambda: bert.LowRank(dm, dm, lowrank)
-        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
+        sparse_linear_projection = (
+            lambda func=sparse_linear_projection: profile.TimerLayer(
+                "projection", func()
+            )
+        )
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
+            (
+                lambda: research.conditional.ffs.BatchSplitFF(
+                    [], dm, dff, expertsets, nexperts, expertsize
+                )
+            ),
+            (
+                lambda: profile.TimerLayer(
+                    "attention",
+                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                )
+            ),
         )
-    elif version == 'sparse+perm':
+    elif version == "sparse+perm":
         sparse_linear_projection = lambda: research.conditional.ffs.PermutationDense(dm)
-        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
+        sparse_linear_projection = (
+            lambda func=sparse_linear_projection: profile.TimerLayer(
+                "projection", func()
+            )
+        )
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
+            (
+                lambda: research.conditional.ffs.BatchSplitFF(
+                    [], dm, dff, expertsets, nexperts, expertsize
+                )
+            ),
+            (
+                lambda: profile.TimerLayer(
+                    "attention",
+                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                )
+            ),
         )
-    elif version == 'sparse+noop':
+    elif version == "sparse+noop":
         sparse_linear_projection = lambda: research.conditional.ffs.NoopDense()
-        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
+        sparse_linear_projection = (
+            lambda func=sparse_linear_projection: profile.TimerLayer(
+                "projection", func()
+            )
+        )
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, expertsets, nexperts, expertsize)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
+            (
+                lambda: research.conditional.ffs.BatchSplitFF(
+                    [], dm, dff, expertsets, nexperts, expertsize
+                )
+            ),
+            (
+                lambda: profile.TimerLayer(
+                    "attention",
+                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                )
+            ),
         )
-    elif version == 'dense':
+    elif version == "dense":
         sparse_linear_projection = lambda: misc.DenseEinMix(dm, dm)
-        sparse_linear_projection = lambda func=sparse_linear_projection: profile.TimerLayer('projection', func())
+        sparse_linear_projection = (
+            lambda func=sparse_linear_projection: profile.TimerLayer(
+                "projection", func()
+            )
+        )
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
             (lambda: bert.FeedForward(dm, dff)),
-            (lambda: profile.TimerLayer('attention', bert.Attention(dm, heads, layer_fun=sparse_linear_projection))),
+            (
+                lambda: profile.TimerLayer(
+                    "attention",
+                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                )
+            ),
         )
     else:
-        raise ValueError('Unrecognized type of FF: {}'.format(version))
+        raise ValueError("Unrecognized type of FF: {}".format(version))
 
     head = bert.PredictionHead(dm, output_size)
 
     model = bert.BERT(embedding_layer, encoder_tower, head)
-    model = profile.TimerLayer('model', model)
+    model = profile.TimerLayer("model", model)
     model.train()
 
-    inputs = [torch.randint(0, vocab_size, (batch, seql))
-              for s in range(samples+warmup)]
+    inputs = [
+        torch.randint(0, vocab_size, (batch, seql)) for s in range(samples + warmup)
+    ]
     if USE_CUDA:
         model.to(CUDA)
         inputs = [x.to(CUDA) for x in inputs]
@@ -233,7 +316,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
                 # optimizer.step()
                 torch.sum(output).item()  # to make sure everything is computed
         profile.reset_times()
-        with profile.Timer(f'{version}', disable_inner=disable_inner):
+        with profile.Timer(f"{version}", disable_inner=disable_inner):
             for input in inputs[warmup:]:
                 output = model(input)
                 torch.sum(output).item()  # to make sure everything is computed
@@ -249,9 +332,9 @@ if __name__ == "__main__":
     # main_tests('sparse+perm', False)
     # profile.print_times()
     # test_all_sparse(15)
-    main_tests('rewritten', False)
+    main_tests("rewritten", False)
     profile.print_times()
-    main_tests('dense', False)
+    main_tests("dense", False)
     profile.print_times()
     test_all_sparse(11)
     # test_all_sparse(15)

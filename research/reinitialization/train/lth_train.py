@@ -94,7 +94,9 @@ model = get_model(
     heads=args.heads,
     device=DEVICE,
 )
-optimizer_creator = lambda model: torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+optimizer_creator = lambda model: torch.optim.Adam(
+    model.parameters(), lr=args.learning_rate
+)
 trainer = LTHTrainer(
     model=model,
     optimizer_creator=optimizer_creator,
