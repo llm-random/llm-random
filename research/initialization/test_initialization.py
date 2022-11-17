@@ -53,7 +53,7 @@ class TestFixedLinear(GeneralTestCase):
         # self.assertAlmostEqual(std_from_zero(params[0].grad)), 1.0, delta=0.02)
 
     def test_compression(self):
-        batch, dinp, dout = 256*8, 256, 64
+        batch, dinp, dout = 256 * 8, 256, 64
         layer = self.layer_init(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, dinp), requires_grad=True)
         output = layer(input)
@@ -69,7 +69,7 @@ class TestFixedLinear(GeneralTestCase):
         self.assertAlmostEqual(std_from_zero(input.grad), 1.0, delta=0.1)
 
     def test_straight(self):
-        batch, dinp, dout = 256*4, 256, 256
+        batch, dinp, dout = 256 * 4, 256, 256
         layer = self.layer_init(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, dinp), requires_grad=True)
         output = layer(input)
@@ -86,9 +86,8 @@ class TestFixedLinear(GeneralTestCase):
         self.assertShape(input.grad, (batch, dinp))
         self.assertAlmostEqual(std_from_zero(input.grad), 1.0, delta=0.1)
 
-
     def test_singlebatch(self):
-        batch, dinp, dout = 1, 1024*2, 128*2
+        batch, dinp, dout = 1, 1024 * 2, 128 * 2
         layer = self.layer_init(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, dinp), requires_grad=True)
         output = layer(input)
@@ -96,7 +95,6 @@ class TestFixedLinear(GeneralTestCase):
         self.assertEqual(len(params), 1)
         self.assertEqual(params[0].shape, (dout, dinp))
         self.assertAlmostEqual(std_from_zero(params[0]), 1.0, delta=0.02)
-
 
         loss = output.sum()
         loss.backward()
@@ -143,9 +141,8 @@ class TestStandardLinear(GeneralTestCase):
         self.assertEqual(params[0].shape, (dout, dinp))
         self.assertAlmostEqual(std_from_zero(params[0]), dinp**-0.5, delta=0.001)
 
-
     def test_straight(self):
-        batch, dinp, dout = 256*4, 256, 256
+        batch, dinp, dout = 256 * 4, 256, 256
         layer = self.layer_init(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, dinp), requires_grad=True)
         output = layer(input)
@@ -162,9 +159,8 @@ class TestStandardLinear(GeneralTestCase):
         self.assertShape(input.grad, (batch, dinp))
         self.assertAlmostEqual(std_from_zero(input.grad), 1.0, delta=0.15)
 
-
     def test_singlebatch(self):
-        batch, dinp, dout = 1, 1024*2, 128*2
+        batch, dinp, dout = 1, 1024 * 2, 128 * 2
         layer = self.layer_init(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, dinp), requires_grad=True)
         output = layer(input)
@@ -180,8 +176,8 @@ class TestStandardLinear(GeneralTestCase):
         self.assertShape(params[0].grad, (dout, dinp))
         self.assertAlmostEqual(std_from_zero(params[0].grad), 1.0, delta=0.05)
 
+
 # It doesn't exactly work...
 # class TestFixedLinearWithReLU(TestFixedLinear):
 #     def layer_init(self, dinp, dout):
 #         return initialization.FixedLinear(dinp, dout, relu=True)
-

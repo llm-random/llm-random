@@ -37,15 +37,21 @@ class TestPruneLinear(GeneralTestCase):
 
 
 class PruneFFTest(GeneralTestCase):
-    def _test_with_pruner(self, layer, pruner, inp_tensor, prob: float):        
-        N = 3 
+    def _test_with_pruner(
+        self,
+        layer: torch.nn.Module,
+        pruner: Pruner,
+        inp_tensor: torch.Tensor,
+        prob: float,
+    ):
+        N = 3
         assert N * prob <= 1
-        
+
         for _ in range(N):
-            pruner.step()
+            pruner.prune(prob)
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 100-int(prob * N * 100))
+        self._assert_perc_nonzero(layer, 100 - round(prob * N * 100))
 
         res = layer(inp_tensor)
 
@@ -57,25 +63,25 @@ class PruneFFTest(GeneralTestCase):
         optimizer.zero_grad()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 100-int(prob * N * 100))
+        self._assert_perc_nonzero(layer, 100 - round(prob * N * 100))
 
         for _ in range(N):
-            pruner.step()
+            pruner.prune(prob)
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 100-int(prob * 2 * N * 100))
+        self._assert_perc_nonzero(layer, 100 - round(prob * 2 * N * 100))
 
 
 class TestUnstructPruneFF(PruneFFTest):
     def test_smoke(self):
-        pruner = Pruner(1, 0.5)
+        pruner = Pruner()
         linears.UnstructPruneFF(10, 2, pruner)
         linears.UnstructPruneFF(10, 1, pruner)
         linears.UnstructPruneFF(5, 5, pruner)
 
     def test_with_pruner(self):
         P = 0.1
-        pruner = Pruner(1, P)
+        pruner = Pruner()
         layer = linears.UnstructPruneFF(1000, 100, pruner)
         t = torch.rand((20, 1000))
         self._test_with_pruner(layer, pruner, t, P)
@@ -91,14 +97,14 @@ class TestUnstructPruneFF(PruneFFTest):
 
 class TestStructPruneFF(PruneFFTest):
     def test_smoke(self):
-        pruner = Pruner(1, 0.5)
+        pruner = Pruner()
         linears.StructPruneFF(10, 2, pruner)
         linears.StructPruneFF(10, 1, pruner)
         linears.StructPruneFF(5, 5, pruner)
 
     def test_with_pruner(self):
         P = 0.1
-        pruner = Pruner(1, P)
+        pruner = Pruner()
         layer = linears.StructPruneFF(10, 100000, pruner)
         t = torch.rand((20, 10))
         self._test_with_pruner(layer, pruner, t, P)
@@ -112,21 +118,23 @@ class TestStructPruneFF(PruneFFTest):
 
 class TestUnstructMagnitudePruneFF(TestUnstructPruneFF):
     def test_smoke(self):
-        pruner = Pruner(1, 0.5)
+        pruner = Pruner()
         linears.UnstructMagnitudePruneFF(10, 2, pruner)
         linears.UnstructMagnitudePruneFF(10, 1, pruner)
         linears.UnstructMagnitudePruneFF(5, 5, pruner)
 
     def test_with_pruner(self):
-        pruner = Pruner(2, 0.2)
+        P = 0.1
+        N = 3
+        pruner = Pruner()
         layer = linears.UnstructMagnitudePruneFF(1000, 100, pruner)
         inp_tensor = torch.rand((20, 1000))
 
-        for _ in range(4):
-            pruner.step()
+        for _ in range(N):
+            pruner.prune(P)
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 60)
+        self._assert_perc_nonzero(layer, 100 - round(P * N * 100))
 
         res = layer(inp_tensor)
 
@@ -138,24 +146,24 @@ class TestUnstructMagnitudePruneFF(TestUnstructPruneFF):
         optimizer.zero_grad()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 60)
+        self._assert_perc_nonzero(layer, 100 - round(P * N * 100))
 
-        for _ in range(2):
-            pruner.step()
+        for _ in range(N):
+            pruner.prune(P)
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 40)
+        self._assert_perc_nonzero(layer, 100 - 2 * round(P * N * 100))
 
     def test_magnitude(self):
-        pruner = Pruner(2, 0.001)
+        P = 0.001
+        pruner = Pruner()
         layer = linears.UnstructMagnitudePruneFF(1000, 100, pruner)
 
         d = torch.diagonal(layer.lin1.weight.data)
         d *= 0
         r = layer.lin2.weight.data[2] = 0
 
-        for _ in range(2):
-            pruner.step()
+        pruner.prune(P)
 
         d = torch.diagonal(layer.lin1.mask.data)
         assert torch.count_nonzero(d) == 0
@@ -166,21 +174,23 @@ class TestUnstructMagnitudePruneFF(TestUnstructPruneFF):
 
 class TestStructMagnitudePruneFF(TestStructPruneFF):
     def test_smoke(self):
-        pruner = Pruner(1, 0.5)
+        pruner = Pruner()
         linears.StructMagnitudePruneFF(10, 2, pruner)
         linears.StructMagnitudePruneFF(10, 1, pruner)
         linears.StructMagnitudePruneFF(5, 5, pruner)
 
     def test_with_pruner(self):
-        pruner = Pruner(2, 0.2)
+        P = 0.1
+        N = 3
+        pruner = Pruner()
         layer = linears.StructMagnitudePruneFF(1000, 100, pruner)
         inp_tensor = torch.rand((20, 1000))
 
-        for _ in range(4):
-            pruner.step()
+        for _ in range(N):
+            pruner.prune(P)
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 60)
+        self._assert_perc_nonzero(layer, 100 - round(P * N * 100))
 
         res = layer(inp_tensor)
 
@@ -192,22 +202,60 @@ class TestStructMagnitudePruneFF(TestStructPruneFF):
         optimizer.zero_grad()
 
         # assert that number of nonzero is approximately as expected
-        self._assert_perc_nonzero(layer, 60)
+        self._assert_perc_nonzero(layer, 100 - round(P * N * 100))
 
-        for _ in range(2):
-            pruner.step()
+        for _ in range(N):
+            pruner.prune(P)
 
         # assert that number of nonzero is approximately as expected
         self._assert_perc_nonzero(layer, 40)
 
     def test_magnitude(self):
-        pruner = Pruner(2, 0.1)
+        P = 0.1
+        pruner = Pruner()
         layer = linears.StructMagnitudePruneFF(10, 10, pruner)
 
         layer.lin1.weight.data[7, :] = 0
         layer.lin2.weight.data[:, 7] = 0
 
-        for _ in range(2):
-            pruner.step()
+        pruner.prune(P)
 
         assert layer.mask[7] == 0
+
+
+class TestLayersPruningEquivalence(GeneralTestCase):
+    """Tests if pruning the same number of times with the same rate in various pruning layers
+    prunes the same percentage of weights."""
+
+    def test_equivalence(self):
+        P = 0.1
+        N = 6
+        DM = 64
+        DFF = 128
+
+        def get_mask_zeros_part(layer) -> float:
+            return (torch.count_nonzero(layer.mask) / torch.numel(layer.mask)).item()
+
+        classes = [
+            linears.UnstructPruneFF,
+            linears.StructPruneFF,
+            linears.UnstructMagnitudePruneFF,
+            linears.StructMagnitudePruneFF,
+        ]
+
+        registered_layers = []
+
+        for layer_class in classes:
+            pruner = Pruner()
+            layer = layer_class(DM, DFF, pruner)
+            for _ in range(N):
+                pruner.prune(P)
+            registered_layers.extend(pruner.layers)
+
+        masks_parts = [
+            get_mask_zeros_part(layer) if not isinstance(layer, str) else layer
+            for layer in registered_layers
+        ]
+
+        for mask_part in masks_parts:
+            self.assertAlmostEqual(masks_parts[0], mask_part, delta=0.01)

@@ -1,27 +1,20 @@
 from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
 
-# to avoid cycle import while using hints
-if TYPE_CHECKING:
-    from research.reinitialization.core.linears import RandomPruneLayer
-
 
 class BasePruner(ABC):
-    layers = []
+    def __init__(self):
+        self.layers = []
 
-
-class BasePruner(ABC):
-    layers = []
-
-    def register(self, layer: "RandomPruneLayer"):
+    def register(self, layer):
         self.layers.append(layer)
 
     @abstractmethod
-    def prune(self):
+    def prune(self, *args, **kwargs):
         ...
 
 
-class Pruner:
+class Pruner(BasePruner):
     def prune(self, prob: float):
         print("Pruning step")
         for layer in self.layers:

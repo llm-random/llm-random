@@ -6,7 +6,10 @@ from lizrd.core import misc
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 
-def mask_by_score(mask: torch.Tensor, scores: torch.Tensor, n_to_mask: int) -> torch.Tensor:
+
+def mask_by_score(
+    mask: torch.Tensor, scores: torch.Tensor, n_to_mask: int
+) -> torch.Tensor:
     """`n_to_mask` `mask` entries with the lowest `scores` will be pruned."""
     assert mask.shape == scores.shape
 
@@ -21,9 +24,11 @@ def mask_by_score(mask: torch.Tensor, scores: torch.Tensor, n_to_mask: int) -> t
     mask.view(-1)[topk.indices] = 0
     return mask
 
+
 def create_mask(size: torch.Size) -> torch.nn.parameter.Parameter:
     mask = nn.parameter.Parameter(torch.ones(size), requires_grad=False)
     return mask
+
 
 @ash.check("... inp -> ... out")
 class PruneLinear(misc.Linear):
@@ -39,7 +44,10 @@ class PruneLinear(misc.Linear):
         return res
 
     def prune(self, prob: float):
-        self.mask.data = mask_by_score(self.mask, torch.rand_like(self.mask), int(self.mask.numel() * prob))
+        self.mask.data = mask_by_score(
+            self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
+        )
+
 
 @ash.check("... d -> ... d")
 class UnstructPruneFF(nn.Module):
@@ -72,9 +80,12 @@ class StructPruneFF(nn.Module):
         x = F.relu(x)
         x = self.lin2(x)
         return x
-    
+
     def prune(self, prob: float):
-        self.mask.data = mask_by_score(self.mask, torch.rand_like(self.mask), int(self.mask.numel() * prob))
+        self.mask.data = mask_by_score(
+            self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
+        )
+
 
 class MagnitudePruneLinear(misc.Linear):
     """Linear layer with magnitude pruning"""
@@ -89,7 +100,10 @@ class MagnitudePruneLinear(misc.Linear):
         return res
 
     def prune(self, prob: float):
-        self.mask.data = mask_by_score(self.mask, self.weight, int(self.mask.numel() * prob))
+        self.mask.data = mask_by_score(
+            self.mask, self.weight, round(self.mask.numel() * prob)
+        )
+
 
 @ash.check("... d -> ... d")
 class UnstructMagnitudePruneFF(nn.Module):
@@ -127,9 +141,12 @@ class StructMagnitudePruneFF(nn.Module):
         weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
         weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
         scores = weights1 * weights2
-        self.mask.data = mask_by_score(self.mask, scores, int(self.mask.numel() * prob))
-        
-@ash.check('... d -> ... d')
+        self.mask.data = mask_by_score(
+            self.mask, scores, round(self.mask.numel() * prob)
+        )
+
+
+@ash.check("... d -> ... d")
 class MaskedFF(nn.Module):
     """Fully masked Feed-Forward layer"""
 
