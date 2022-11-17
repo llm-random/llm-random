@@ -51,3 +51,4 @@ By directories:
     * `conditional` - research on conditional computation (to be split from `core`)
     * `nonlinearities` - research on smaller neurons
     * `reinitialization` - research on recycling neurons
+    * test merge
