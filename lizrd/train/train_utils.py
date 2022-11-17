@@ -10,8 +10,8 @@ from lizrd.core import bert
 from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from lizrd.core import misc
-from research.reinitialization.core.pruner import Pruner
-from lizrd.core.misc import are_state_dicts_the_same, generate_random_string
+from research.reinitialization.core.pruner import BasePruner
+from lizrd.core.misc import are_state_dicts_the_same
 
 
 def get_model(
@@ -273,7 +273,7 @@ class LTHTrainer:
         self._save_model_params()
         parameters_left = 1.0
         total_step = 0
-        while parameters_left > self.target_params:
+        while True:
             optimizer = self.optimizer_creator(self.model)
             pdataset = self.pdataset_creator()
             self.writer.add_scalar("parameters_left", parameters_left, total_step)
@@ -290,5 +290,7 @@ class LTHTrainer:
             self._save_checkpoint(total_step)
             self._log_masks_percentage(total_step)
             self.pruner.step(parameters_left * self.pruning_rate)
+            if parameters_left < self.target_params:
+                break
             parameters_left *= 1 - self.pruning_rate
             self._reinitialize_model()
