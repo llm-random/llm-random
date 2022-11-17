@@ -1,7 +1,17 @@
+import os
 import unittest
 
 import numpy as np
 import torch
+
+
+def heavy_test(test):
+    def wrapper(*args, **kwargs):
+        if os.getenv("SKIP_HEAVY_TESTS"):
+            return
+        return test(*args, **kwargs)
+
+    return wrapper
 
 
 class GeneralTestCase(unittest.TestCase):
