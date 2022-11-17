@@ -6,6 +6,7 @@ exec 1>&2
 # Activate the virtual environment
 . venv/bin/activate
 
+export SKIP_HEAVY_TESTS=1
 
 # Run tests
 if ! python3 -m unittest
