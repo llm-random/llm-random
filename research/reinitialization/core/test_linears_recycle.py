@@ -15,19 +15,20 @@ class RecycleFFTest(GeneralTestCase):
 
 class TestUnstructMagnitudeRecycleFF(RecycleFFTest):
     def test_smoke(self):
-        pruner = Pruner(1, 0.5)
+        pruner = Pruner()
         linears_recycle.UnstructMagnitudeRecycleFF(10, 2, pruner)
         linears_recycle.UnstructMagnitudeRecycleFF(10, 1, pruner)
         linears_recycle.UnstructMagnitudeRecycleFF(5, 5, pruner)
 
     def test_with_pruner(self):
-        pruner = Pruner(2, 0.2)
+        P = 0.2
+
+        pruner = Pruner()
         layer = linears_recycle.UnstructMagnitudeRecycleFF(100, 1000, pruner)
         weights_before_1 = layer.lin1.weight.data
         weights_before_2 = layer.lin2.weight.data
 
-        for _ in range(2):
-            pruner.step()
+        pruner.prune(P)
 
         # assert that number of changed is as expected
         self._assert_perc_changed(weights_before_1, layer.lin1.weight.data, 20)
@@ -36,15 +37,15 @@ class TestUnstructMagnitudeRecycleFF(RecycleFFTest):
         weights_before_1 = layer.lin1.weight.data
         weights_before_2 = layer.lin2.weight.data
 
-        for _ in range(2):
-            pruner.step()
+        pruner.prune(P)
 
         # assert that number of changed is as expected
         self._assert_perc_changed(weights_before_1, layer.lin1.weight.data, 20)
         self._assert_perc_changed(weights_before_2, layer.lin2.weight.data, 20)
 
     def test_magnitude(self):
-        pruner = Pruner(2, 0.001)
+        P = 0.001
+        pruner = Pruner()
         layer = linears_recycle.UnstructMagnitudeRecycleFF(1000, 100, pruner)
 
         d = torch.diagonal(layer.lin1.weight.data)
@@ -53,7 +54,7 @@ class TestUnstructMagnitudeRecycleFF(RecycleFFTest):
         r.fill_(0)
 
         for _ in range(2):
-            pruner.step()
+            pruner.prune(P)
 
         d = torch.diagonal(layer.lin1.weight.data)
         assert torch.count_nonzero(d) == len(d)
@@ -64,19 +65,20 @@ class TestUnstructMagnitudeRecycleFF(RecycleFFTest):
 
 class TestStructMagnitudeRecycleFF(RecycleFFTest):
     def test_smoke(self):
-        pruner = Pruner(1, 0.5)
+        pruner = Pruner()
         linears_recycle.StructMagnitudeRecycleFF(10, 2, pruner)
         linears_recycle.StructMagnitudeRecycleFF(10, 1, pruner)
         linears_recycle.StructMagnitudeRecycleFF(5, 5, pruner)
 
     def test_with_pruner(self):
-        pruner = Pruner(2, 0.2)
+        P = 0.2
+
+        pruner = Pruner()
         layer = linears_recycle.StructMagnitudeRecycleFF(100, 1000, pruner)
         weights_before_1 = layer.lin1.weight.data
         weights_before_2 = layer.lin2.weight.data
 
-        for _ in range(2):
-            pruner.step()
+        pruner.prune(P)
 
         # assert that number of changed is as expected
         self._assert_perc_changed(weights_before_1, layer.lin1.weight.data, 20)
@@ -85,15 +87,15 @@ class TestStructMagnitudeRecycleFF(RecycleFFTest):
         weights_before_1 = layer.lin1.weight.data
         weights_before_2 = layer.lin2.weight.data
 
-        for _ in range(2):
-            pruner.step()
+        pruner.prune(P)
 
         # assert that number of changed is as expected
         self._assert_perc_changed(weights_before_1, layer.lin1.weight.data, 20)
         self._assert_perc_changed(weights_before_2, layer.lin2.weight.data, 20)
 
     def test_magnitude(self):
-        pruner = Pruner(2, 0.1)
+        P = 0.1
+        pruner = Pruner()
         layer = linears_recycle.StructMagnitudeRecycleFF(100, 10, pruner)
 
         layer.lin1.weight.data[7, :] *= 0
@@ -101,8 +103,7 @@ class TestStructMagnitudeRecycleFF(RecycleFFTest):
         b_before = layer.lin1.bias.data
         b_before += 42
 
-        for _ in range(2):
-            pruner.step()
+        pruner.prune(P)
 
         row = layer.lin1.weight.data[7, :]
         assert torch.count_nonzero(row) == len(row)

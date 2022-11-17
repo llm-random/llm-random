@@ -46,7 +46,7 @@ class PruneLinear(misc.Linear):
 
     def prune(self, prob: float):
         self.mask.data = mask_by_score(
-            self.mask, torch.rand_like(self.mask), int(self.mask.numel() * prob)
+            self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
         )
 
 
@@ -84,7 +84,7 @@ class StructPruneFF(nn.Module):
 
     def prune(self, prob: float):
         self.mask.data = mask_by_score(
-            self.mask, torch.rand_like(self.mask), int(self.mask.numel() * prob)
+            self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
         )
 
 
@@ -102,7 +102,7 @@ class MagnitudePruneLinear(misc.Linear):
 
     def prune(self, prob: float):
         self.mask.data = mask_by_score(
-            self.mask, self.weight, int(self.mask.numel() * prob)
+            self.mask, self.weight, round(self.mask.numel() * prob)
         )
 
 
@@ -142,7 +142,9 @@ class StructMagnitudePruneFF(nn.Module):
         weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
         weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
         scores = weights1 * weights2
-        self.mask.data = mask_by_score(self.mask, scores, int(self.mask.numel() * prob))
+        self.mask.data = mask_by_score(
+            self.mask, scores, round(self.mask.numel() * prob)
+        )
 
 
 @ash.check("... d -> ... d")
