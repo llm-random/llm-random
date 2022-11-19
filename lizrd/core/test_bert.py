@@ -36,6 +36,13 @@ class AttentionTest(GeneralTestCase):
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
+    def test_fat_dhead(self):
+        batch, seql, dm, heads, dhead = 3, 7, 32, 4, 100
+        layer = bert.Attention(dm, heads, dhead=dhead)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+        self.assertShape(out, (batch, seql, dm))
+
     def test_residual(self):
         batch, seql, dm, heads = 3, 7, 32, 4
         layer = bert.Residual(bert.Attention(dm, heads))

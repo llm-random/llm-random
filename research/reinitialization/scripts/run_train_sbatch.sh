@@ -5,6 +5,7 @@
 #SBATCH --qos=16gpu7d
 #SBATCH --gres=gpu:titanv:1
 #SBATCH --output=/home/jkrajewski/sbatchlogs_unstruct_magnitude.txt
+#SBATCH --time=0-30:00:00
 
 source venv/bin/activate
 python3 -m research.reinitialization.train.reinit_train \

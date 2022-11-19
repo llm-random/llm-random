@@ -10,7 +10,7 @@ from lizrd.core import bert
 from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from lizrd.core import misc
-from research.reinitialization.core.pruner import Pruner
+from research.reinitialization.core.pruner import Pruner, BasePruner
 from lizrd.core.misc import are_state_dicts_the_same, generate_random_string
 
 
@@ -18,6 +18,7 @@ def get_model(
     max_length: int,
     vocab_size: int,
     ff_layer_fun: Callable[[], torch.nn.Module],
+    attention_layer_fun: Callable[[], torch.nn.Module],
     dm: int,
     n_blocks: int,
     heads: int,
@@ -29,7 +30,7 @@ def get_model(
     encoder_tower = bert.EncoderTower(
         n_blocks,
         dm,
-        (lambda: bert.Attention(dm, heads)),
+        attention_layer_fun,
         ff_layer_fun,
     )
     head = bert.PredictionHead(dm, vocab_size)
@@ -38,6 +39,7 @@ def get_model(
     # sanity check to make sure it works
     input = torch.randint(0, vocab_size, (16, 10))
     model(input)
+    del input
 
     return model.to(device)
 
@@ -173,7 +175,7 @@ class LTHTrainer:
         self.initial_model_path = f"{self.modelpath}/init.pt"
         print(f'Saving initial model to "{self.initial_model_path}"')
         torch.save(self.model.state_dict(), self.initial_model_path)
-    
+
     def _save_checkpoint(self, step):
         model_path = f"{self.modelpath}/{step}.pt"
         print(f'Saving checkpoint@{step} to "{model_path}"')

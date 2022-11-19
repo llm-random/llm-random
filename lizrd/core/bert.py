@@ -67,41 +67,40 @@ def LowRank(dinput, doutput, dlowrank):
         misc.Linear(dinput, dlowrank, bias=False), misc.Linear(dlowrank, doutput)
     )
 
-
 @ash.check("... d -> ... d")
 class Attention(nn.Module):
-    def __init__(self, dmodel, heads, dhead=None, layer_fun=None):
+    def __init__(self, dmodel, heads, dhead=None):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
             dhead = dmodel // heads
+
         self.heads = heads
         self.dhead = dhead
         self.dmodel = dmodel
-        if layer_fun is None:
-            layer_fun = lambda: misc.EinMix(
-                "... dmodel -> ... (heads dhead)",
+
+        key_query_value_gen = lambda: misc.EinMix(
+                "... dmodel -> ... heads dhead",
                 weight_shape="dmodel heads dhead",
                 bias_shape="heads dhead",
                 dmodel=dmodel,
                 heads=heads,
                 dhead=dhead,
-            )
-        layer_fun_and_reshape = lambda: nn.Sequential(
-            TimerLayer("QKVproj", layer_fun()),
-            Rearrange("... (heads dhead) -> ... heads dhead", heads=heads, dhead=dhead),
         )
 
-        self.Q = layer_fun_and_reshape()
-        self.K = layer_fun_and_reshape()
-        self.V = layer_fun_and_reshape()
+        self.Q = key_query_value_gen()
+        self.K = key_query_value_gen()
+        self.V = key_query_value_gen()
 
-        # self.A = Reduce('... seqlen1 heads dhead, ... seqlen2 heads dhead -> ... heads seqlen1 seqlen2')
-
-        self.D = nn.Sequential(
-            Rearrange("... heads dhead -> ... (heads dhead)", heads=heads, dhead=dhead),
-            layer_fun(),
+        combine_gen = lambda: misc.EinMix(
+            "... heads dhead -> ... dmodel",
+            weight_shape="heads dhead dmodel",
+            bias_shape="dmodel",
+            dmodel=dmodel,
+            heads=heads,
+            dhead=dhead,
         )
+        self.D = combine_gen()
 
     def forward(self, x):
         q = self.Q(x)
@@ -114,6 +113,7 @@ class Attention(nn.Module):
         prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
         output = self.D(prefinal)
         return output
+
 
 
 @ash.check("... d -> ... d")
@@ -181,3 +181,6 @@ def BERT(embedding_layer, encoder_tower, head):
         encoder_tower,
         head
     )
+att  = Attention(dmodel=512, heads=8, dhead=12)
+x = torch.randn(2, 3, 512)
+att(x).shape

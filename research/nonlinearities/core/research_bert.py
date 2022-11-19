@@ -1,11 +1,14 @@
 import numpy as np
 import torch
 import lizrd.core.nn as nn
+from lizrd.core import misc
 from lizrd.core.misc import EinMix
 
 from lizrd.core.bert import LowRank
 from lizrd.support import ash
 from lizrd.support.profile import TimerLayer
+
+from research.nonlinearities.core.misc import get_parameter_count
 
 
 @ash.check("... d -> ... d")
@@ -68,7 +71,7 @@ def FeedForwardMultineck(
     now, with the expansion rate being a = M/N, we get
         B = 4N^2/(a+1)NH = 4N/H(a+1)
     to sum up, the above choice of the bottleneck size B guarantees that the number of parameters is the same as
-    in a FeedForward layer of sizes d_in,d_out = N,4N
+    in a FeedForward  dense layer of sizes d_in,d_out = N,4N
     """
     assert (
         4 * dmodel % n_heads == 0
@@ -110,7 +113,7 @@ def FeedForwardMultineck(
 
     N = dmodel
     M = exp_rate * N
-    B = int(4 * N / n_heads * (exp_rate + 1))
+    B = int(4 * N / (n_heads * (exp_rate + 1)))
 
     multineck_1 = EinMix(
         "batch seqlen dmodel -> batch seqlen nheads dhead",
