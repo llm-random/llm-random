@@ -181,6 +181,3 @@ def BERT(embedding_layer, encoder_tower, head):
         encoder_tower,
         head
     )
-att  = Attention(dmodel=512, heads=8, dhead=12)
-x = torch.randn(2, 3, 512)
-att(x).shape
