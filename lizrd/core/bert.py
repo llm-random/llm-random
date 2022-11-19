@@ -19,7 +19,8 @@ def FeedForward(dmodel, dff):
         ),
     )
 
-@ash.check('... -> ... ')
+
+@ash.check("... -> ... ")
 class Residual(nn.Module):
     def __init__(self, layer):
         super(Residual, self).__init__()

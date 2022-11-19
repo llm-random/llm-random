@@ -39,38 +39,36 @@ class TestLinear(GeneralTestCase):
 class TestEinMix(GeneralTestCase):
     def test_no_ellipsis(self):
         batch, dinp, dout = 4, 32, 64
-        layer = misc.EinMix('b d -> b f',
-                            weight_shape='d f', bias_shape='f',
-                            d=dinp, f=dout)
+        layer = misc.EinMix(
+            "b d -> b f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
+        )
         input = torch.normal(0.0, 1.0, (batch, dinp))
         output = layer(input)
         self.assertShape(output, (batch, dout))
 
     def test_one_ellipsis(self):
         batch, dinp, dout = 4, 32, 64
-        layer = misc.EinMix('... d -> ... f',
-                            weight_shape='d f', bias_shape='f',
-                            d=dinp, f=dout)
+        layer = misc.EinMix(
+            "... d -> ... f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
+        )
         input = torch.normal(0.0, 1.0, (batch, dinp))
         output = layer(input)
         self.assertShape(output, (batch, dout))
 
     def test_two_ellipsis(self):
         batch, seqlen, dinp, dout = 4, 2, 32, 64
-        layer = misc.EinMix('... d -> ... f',
-                            weight_shape='d f', bias_shape='f',
-                            d=dinp, f=dout)
+        layer = misc.EinMix(
+            "... d -> ... f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
+        )
         input = torch.normal(0.0, 1.0, (batch, seqlen, dinp))
         output = layer(input)
         self.assertShape(output, (batch, seqlen, dout))
 
     def test_two_ellipsis(self):
         batch, seqlen, whatever, dinp, dout = 5, 7, 3, 32, 64
-        layer = misc.EinMix('... d -> ... f',
-                            weight_shape='d f', bias_shape='f',
-                            d=dinp, f=dout)
+        layer = misc.EinMix(
+            "... d -> ... f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
+        )
         input = torch.normal(0.0, 1.0, (batch, seqlen, whatever, dinp))
         output = layer(input)
         self.assertShape(output, (batch, seqlen, whatever, dout))
-
-

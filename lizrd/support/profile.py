@@ -86,7 +86,9 @@ def print_times(reset=True):
     for name in GLOBAL_NAMES:
         values = GLOBAL_TIMERS[name]
         depth = GLOBAL_DEPTHS[name]
-        print(f'{" "*depth + name:18}: {round(sum(values), 3)} +/- {round(np.std(values)*len(values)**0.5, 2)}')
-    print('\n\n\n')
+        print(
+            f'{" "*depth + name:18}: {round(sum(values), 3)} +/- {round(np.std(values)*len(values)**0.5, 2)}'
+        )
+    print("\n\n\n")
     if reset:
         reset_times()

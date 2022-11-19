@@ -51,11 +51,11 @@ VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 TASK = None  # ClearML task
 WRITER = None  # Tensorboard writer
 
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 FIXED = True
 
-CLEARMLDIR = 'jaszczur/init/test'
+CLEARMLDIR = "jaszczur/init/test"
 
 if FIXED:
     LEARNING_RATE = 0.001
@@ -65,45 +65,53 @@ else:
 LR_FROM_ARG = False
 
 for arg in sys.argv[1:]:
-    if arg.startswith('LEARNING_RATE='):
-        LEARNING_RATE = float(arg[len('LEARNING_RATE='):])
+    if arg.startswith("LEARNING_RATE="):
+        LEARNING_RATE = float(arg[len("LEARNING_RATE=") :])
         LR_FROM_ARG = True
-    elif arg == 'FIXED':
+    elif arg == "FIXED":
         FIXED = True
-    elif arg == 'STANDARD':
+    elif arg == "STANDARD":
         FIXED = False
-    elif arg.startswith('CLEARMLDIR='):
-        CLEARMLDIR = arg[len('CLEARMLDIR='):]
+    elif arg.startswith("CLEARMLDIR="):
+        CLEARMLDIR = arg[len("CLEARMLDIR=") :]
     else:
-        raise ValueError('Unknown argument: {}'.format(arg))
+        raise ValueError("Unknown argument: {}".format(arg))
 
 
-def get_model(variant='fixed'):
+def get_model(variant="fixed"):
     batch, seql, dm, heads, dff = BATCH_SIZE, CUTOFF, DM, HEADS, DFF
     vocab_size, max_length = VOCAB_SIZE, CUTOFF
     output_size = VOCAB_SIZE
     n_blocks = BLOCKS
 
-    TASK.connect_configuration(name='hyperparameters', configuration={
-        'batch': batch, 'seql': seql, 'dm': dm, 'heads': heads, 'dff': dff,
-        'vocab_size': vocab_size, 'max_length': max_length,
-        'output_size': output_size,
-        'n_blocks': n_blocks,
-        'learning_rate': LEARNING_RATE,
-        'mask_loss_weight': MASK_LOSS_WEIGHT,
-        'class_loss_weight': CLASS_LOSS_WEIGHT,
-    })
+    TASK.connect_configuration(
+        name="hyperparameters",
+        configuration={
+            "batch": batch,
+            "seql": seql,
+            "dm": dm,
+            "heads": heads,
+            "dff": dff,
+            "vocab_size": vocab_size,
+            "max_length": max_length,
+            "output_size": output_size,
+            "n_blocks": n_blocks,
+            "learning_rate": LEARNING_RATE,
+            "mask_loss_weight": MASK_LOSS_WEIGHT,
+            "class_loss_weight": CLASS_LOSS_WEIGHT,
+        },
+    )
 
-    if variant == 'fixed':
+    if variant == "fixed":
         model = initialization.FixedBERT(
             max_length, dm, vocab_size, dff, heads, n_blocks, output_size
         )
-    elif variant == 'standard':
+    elif variant == "standard":
         model = initialization.StandardBERT(
             max_length, dm, vocab_size, dff, heads, n_blocks, output_size
         )
     else:
-        raise ValueError('Unknown variant: {}'.format(variant))
+        raise ValueError("Unknown variant: {}".format(variant))
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)
@@ -125,7 +133,8 @@ def train_step(model, optimizer, pdataset, step=0):
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, VOCAB_SIZE),
         y_token_set.reshape(-1).long(),
-        reduction='none')
+        reduction="none",
+    )
     mask_loss *= y_mask_set.reshape(-1)  # only check masked words
     mask_loss = mask_loss.mean() / MASK_PERCENT
     scaled_mask_loss = mask_loss * MASK_LOSS_WEIGHT
@@ -139,8 +148,8 @@ def train_step(model, optimizer, pdataset, step=0):
     optimizer.step()
 
     if step and WRITER:
-        WRITER.add_scalar('loss/train_total', total_loss.item(), step)
-        WRITER.add_scalar('loss/train_mask', mask_loss.item(), step)
+        WRITER.add_scalar("loss/train_total", total_loss.item(), step)
+        WRITER.add_scalar("loss/train_mask", mask_loss.item(), step)
         # WRITER.add_scalar('loss/train_scaled_mask', scaled_mask_loss.item(), step)
         # WRITER.add_scalar('loss/train_class', class_loss.item(), step)
 
@@ -161,7 +170,8 @@ def eval_step(model, pdataset, step=0, sample=10):
             mask_loss = F.cross_entropy(
                 model_output.reshape(-1, VOCAB_SIZE),
                 y_token_set.reshape(-1).long(),
-                reduction='none')
+                reduction="none",
+            )
             mask_loss *= y_mask_set.reshape(-1)  # only check masked words
             mask_loss = mask_loss.mean() / MASK_PERCENT
             scaled_mask_loss = mask_loss * MASK_LOSS_WEIGHT
@@ -169,7 +179,7 @@ def eval_step(model, pdataset, step=0, sample=10):
         total_mask_loss /= sample
 
         if step and WRITER:
-            WRITER.add_scalar('loss/eval_mask', total_mask_loss, step)
+            WRITER.add_scalar("loss/eval_mask", total_mask_loss, step)
 
         return total_mask_loss
 
@@ -187,17 +197,16 @@ def get_processed_dataset():
 
 if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
-    modelpath = f'runs/wikibooktest/{timestamp}'
+    modelpath = f"runs/wikibooktest/{timestamp}"
 
     # densetext = 'dense' if DENSE else 'sparse'
-    varianttext = 'fixed' if FIXED else 'standard'
+    varianttext = "fixed" if FIXED else "standard"
     writer = SummaryWriter(log_dir=modelpath)
     metrics.METRIC_WRITER.tb_writer = writer
     realortest = "TEST" if TESTING else "REAL"
     lrmention = f" {LEARNING_RATE}" if LR_FROM_ARG else ""
-    task_name = f'{varianttext} {lrmention} init {realortest} {timestamp}'
-    task = Task.init(project_name=f'{CLEARMLDIR}',
-                     task_name=task_name)
+    task_name = f"{varianttext} {lrmention} init {realortest} {timestamp}"
+    task = Task.init(project_name=f"{CLEARMLDIR}", task_name=task_name)
     TASK = task
     WRITER = writer
 
@@ -211,26 +220,26 @@ if __name__ == "__main__":
     optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE)
     EVAL_STEP = 100
     last_eval_time = None
-    for step in range(10000000+1):
+    for step in range(10000000 + 1):
         start_train_time = time.time()
         train_step(model, optimizer, pdataset, step)
         end_train_time = time.time()
-        WRITER.add_scalar('time/train', end_train_time - start_train_time, step)
+        WRITER.add_scalar("time/train", end_train_time - start_train_time, step)
         if step % EVAL_STEP == 0:
             metrics.METRIC_WRITER.update_step(step)
             metrics.METRIC_WRITER.write_log()
             begin_eval_time = time.time()
-            eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP//2)
-            print(f'Eval loss:', eval_loss)
-            torch.save(model.state_dict(), f'{modelpath}/model.pt')
+            eval_loss = eval_step(model, pdataset, step, sample=EVAL_STEP // 2)
+            print(f"Eval loss:", eval_loss)
+            torch.save(model.state_dict(), f"{modelpath}/model.pt")
             end_eval_time = time.time()
-            WRITER.add_scalar('time/eval', end_eval_time - begin_eval_time, step)
+            WRITER.add_scalar("time/eval", end_eval_time - begin_eval_time, step)
             if last_eval_time:
                 eval_time = end_eval_time - begin_eval_time
                 since_last_eval = end_eval_time - last_eval_time
                 eval_time_percent = eval_time / since_last_eval
-                print(f'Eval time percent: {eval_time_percent}')
+                print(f"Eval time percent: {eval_time_percent}")
                 if WRITER:
-                    WRITER.add_scalar('time_percent/eval_time', eval_time_percent, step)
+                    WRITER.add_scalar("time_percent/eval_time", eval_time_percent, step)
             last_eval_time = end_eval_time
-        print(f'Step {step}')
+        print(f"Step {step}")

@@ -11,7 +11,8 @@ from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from lizrd.core import misc
 from research.reinitialization.core.pruner import BasePruner
-from lizrd.core.misc import are_state_dicts_the_same, generate_random_string
+from lizrd.core.misc import are_state_dicts_the_same
+
 
 
 def get_model(
@@ -55,6 +56,7 @@ def get_processed_dataset(
         swap_percent=0.0,
     )
     return wikibookdata.ProcessedDataset(raw_dataset, processor)
+
 
 @define
 class Trainer:
@@ -153,6 +155,7 @@ class Trainer:
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             print(f"Step {step}")
 
+
 @define
 class LTHTrainer:
     model: torch.nn.Module
@@ -186,12 +189,16 @@ class LTHTrainer:
         with torch.no_grad():
             masks = copy.deepcopy([layer.mask for layer in self.pruner.layers])
             model_state_dict = torch.load(self.initial_model_path)
-            assert not are_state_dicts_the_same(self.model.state_dict(), model_state_dict)
+            assert not are_state_dicts_the_same(
+                self.model.state_dict(), model_state_dict
+            )
             self.model.load_state_dict(model_state_dict)
             assert are_state_dicts_the_same(self.model.state_dict(), model_state_dict)
             for layer, mask in zip(self.pruner.layers, masks):
                 layer.mask = mask
-            assert not are_state_dicts_the_same(self.model.state_dict(), model_state_dict)
+            assert not are_state_dicts_the_same(
+                self.model.state_dict(), model_state_dict
+            )
 
     def _log_masks_percentage(self, step):
         zeros = 0
@@ -269,16 +276,16 @@ class LTHTrainer:
         self._save_model_params()
         parameters_left = 1.0
         total_step = 0
-        while parameters_left > self.target_params:
+        while True:
             optimizer = self.optimizer_creator(self.model)
             pdataset = self.pdataset_creator()
             self.writer.add_scalar("parameters_left", parameters_left, total_step)
             for step in range(self.n_steps_per_run):
-                self._train_step(
-                    optimizer, pdataset, total_step
-                )
+                self._train_step(optimizer, pdataset, total_step)
                 if step % self.n_steps_eval == 0:
-                    self._eval_step(pdataset, step=total_step, sample=self.n_steps_eval // 2)
+                    self._eval_step(
+                        pdataset, step=total_step, sample=self.n_steps_eval // 2
+                    )
                 self.writer.add_scalar("total_step", total_step, total_step)
                 print(f"Run step {step}; Total step {total_step}")
                 total_step += 1
@@ -286,5 +293,7 @@ class LTHTrainer:
             self._save_checkpoint(total_step)
             self._log_masks_percentage(total_step)
             self.pruner.step(parameters_left * self.pruning_rate)
-            parameters_left *= (1 - self.pruning_rate)
+            if parameters_left < self.target_params:
+                break
+            parameters_left *= 1 - self.pruning_rate
             self._reinitialize_model()
