@@ -10,8 +10,8 @@ from lizrd.core import bert
 from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from lizrd.core import misc
-from research.reinitialization.core.pruner import Pruner
-from lizrd.core.misc import are_state_dicts_the_same, generate_random_string
+from research.reinitialization.core.pruner import BasePruner
+from lizrd.core.misc import are_state_dicts_the_same
 
 
 def get_model(
@@ -66,6 +66,7 @@ class Trainer:
     modelpath: str
     scheduler: Optional[BaseScheduler] = None
     writer: Optional[SummaryWriter] = None
+    pruner: Optional[BasePruner] = None
 
     def _train_step(
         self,
@@ -102,6 +103,7 @@ class Trainer:
         if step and self.writer:
             self.writer.add_scalar("loss/train_total", total_loss.item(), step)
             self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+            self.pruner.log_recently_pruned_magnitude(step)
 
     def _eval_step(
         self,
@@ -137,19 +139,32 @@ class Trainer:
 
             return total_mask_loss
 
-    def train(self, n_steps: int, n_steps_eval: int):
+    def train(self, n_steps: int, n_steps_eval: int, n_steps_log_recycl_hist: int = 5000,
+              n_steps_log_magnitude: int = 5000, n_steps_hist_all: int = 5000,):
         for step in range(n_steps):
             self._train_step(
                 self.model, self.optimizer, self.pdataset, self.scheduler, step
             )
             self.writer.add_scalar("step", step, step)
+
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(
                     self.model, self.pdataset, step, sample=n_steps_eval // 2
                 )
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
+
+            if step % n_steps_log_recycl_hist == 0:
+                self.pruner.log_recycl_magnitude(step)
+
+            if step % n_steps_log_magnitude == 0:
+                self.pruner.log_magnitude(step)
+
+            if step % n_steps_hist_all == 0:
+                self.pruner.log_hist_all_weights(step)
+
             print(f"Step {step}")
+
 
 @define
 class LTHTrainer:
@@ -173,7 +188,7 @@ class LTHTrainer:
         self.initial_model_path = f"{self.modelpath}/init.pt"
         print(f'Saving initial model to "{self.initial_model_path}"')
         torch.save(self.model.state_dict(), self.initial_model_path)
-    
+
     def _save_checkpoint(self, step):
         model_path = f"{self.modelpath}/{step}.pt"
         print(f'Saving checkpoint@{step} to "{model_path}"')

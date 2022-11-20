@@ -9,7 +9,7 @@ from clearml import Task
 from lizrd.core import misc, bert
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
-from research.reinitialization.core.pruner import Pruner
+from research.reinitialization.core.pruner import Pruner, MagnitudeStatPruner
 from research.reinitialization.core.scheduler import DelayedConstScheduler
 from lizrd.train.train_utils import (
     get_model,
@@ -66,11 +66,7 @@ writer = SummaryWriter(log_dir=modelpath)
 
 # set pruner if needed
 if args.use_pruner and args.pruner_n_steps:
-    pruner = Pruner(
-        args.pruner_n_steps,
-        args.pruner_prob,
-        args.pruner_delay,
-    )
+    pruner = MagnitudeStatPruner(writer, task.get_logger())  # Pruner()
     scheduler = DelayedConstScheduler(
         pruner, args.pruner_n_steps, args.pruner_prob, args.pruner_delay
     )
@@ -90,6 +86,10 @@ elif args.ff_layer == "struct_magnitude_prune":
     ff_layer_fun = lambda: linears.StructMagnitudePruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
+        args.dm, args.dff, pruner
+    )
+elif args.ff_layer == "struct_magnitude_recycle":
+    ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
     )
 elif args.ff_layer == "masked_ff":
@@ -128,5 +128,6 @@ trainer = Trainer(
     modelpath=modelpath,
     scheduler=scheduler,
     writer=writer,
+    pruner=pruner,
 )
 trainer.train(args.n_steps, args.n_steps_eval)

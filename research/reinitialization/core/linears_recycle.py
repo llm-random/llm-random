@@ -132,7 +132,11 @@ class StructMagnitudeRecycleFF(nn.Module):
         self.lin1 = Linear(dmodel, dff)
         self.lin2 = Linear(dff, dmodel)
         self.dff = dff
-        pruner.register(self)
+        pruner.register(layer=self)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.recycle_counter = torch.zeros(self.dff).to(device)
+        self.neuron_magnitudes = torch.zeros(self.dff).to(device)
+        self.recently_pruned = torch.full((dff,), False).to(device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -155,6 +159,11 @@ class StructMagnitudeRecycleFF(nn.Module):
         n_to_prune = round(prob * n_els_weights)
         topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
         mask[topk.indices] = 0
+
+        # save statistics
+        self.recycle_counter += 1 - mask
+        self.neuron_magnitudes = weights
+        self.recently_pruned = (1 - mask).bool()
 
         # apply mask to lin1
         new_weights = kaiming_uniform_(
