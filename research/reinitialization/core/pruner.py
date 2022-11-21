@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 from attr import define
 import torch
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from clearml import Logger
 import plotly.express as px
@@ -12,7 +13,7 @@ class BasePruner(ABC):
     def __init__(self):
         self.layers = []
 
-    def register(self, layer: "RandomPruneLayer"):
+    def register(self, layer: nn.Module):
         self.layers.append(layer)
 
     @abstractmethod

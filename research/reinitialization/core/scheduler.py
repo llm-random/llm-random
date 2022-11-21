@@ -16,9 +16,7 @@ class DelayedConstScheduler(BaseScheduler):
     n_steps_prune: int
     prob: float
     delay: int = 0
-
-    def __attr_post_init__(self):
-        self.current_step = 0
+    current_step = 0
 
     def step(self):
         if (
@@ -38,9 +36,7 @@ class MagnitudeStatScheduler(BaseScheduler):
     n_steps_log_magnitude: int
     n_steps_hist_all: int
     delay: int = 0
-
-    def __attr_post_init__(self):
-        self.current_step = 0
+    current_step = 0
 
     def step(self):
         self.pruner.log_recently_pruned_magnitude(self.current_step)
