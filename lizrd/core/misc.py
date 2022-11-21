@@ -52,11 +52,13 @@ class EinMix(nn.Module):
     def __init__(self, signature, weight_shape=None, bias_shape=None, **kwargs):
         super(EinMix, self).__init__()
         self.change_anything = False
-        if '...' in signature:
+        if "..." in signature:
             self.change_anything = True
             self.og_signature = signature
-            signature = signature.replace('...', 'squeezed')
-        self.layer = OGEinMix(signature, weight_shape=weight_shape, bias_shape=bias_shape, **kwargs)
+            signature = signature.replace("...", "squeezed")
+        self.layer = OGEinMix(
+            signature, weight_shape=weight_shape, bias_shape=bias_shape, **kwargs
+        )
         if self.layer.bias is not None:
             self.layer.bias.data *= 0.0
 
@@ -64,12 +66,14 @@ class EinMix(nn.Module):
         if not self.change_anything:
             return self.layer(x)
         # else
-        beginning, end = self.og_signature.split('->')
+        beginning, end = self.og_signature.split("->")
         beginning = beginning.split()
         end = end.split()
-        assert beginning[0] == end[0] == '...'
+        assert beginning[0] == end[0] == "..."
         # TODO(jaszczur): fix this hack below, properly
-        contracted_dims = len(x.shape)-len(beginning)+1 + (1 if '(' in ''.join(beginning) else 0)
+        contracted_dims = (
+            len(x.shape) - len(beginning) + 1 + (1 if "(" in "".join(beginning) else 0)
+        )
         ellipsis_shape = list(x.shape[:contracted_dims])
         newx = torch.reshape(x, [-1] + list(x.shape[contracted_dims:]))
         output = self.layer(newx)
@@ -77,31 +81,39 @@ class EinMix(nn.Module):
         return newoutput
 
 
-@ash.check('... inp -> ... out')
+@ash.check("... inp -> ... out")
 def DenseEinMix(dinp, dout):
-    return EinMix('... dinp -> ... dout',
-                  weight_shape='dinp dout', bias_shape='dout',
-                  dinp=dinp, dout=dout)
-                  
+    return EinMix(
+        "... dinp -> ... dout",
+        weight_shape="dinp dout",
+        bias_shape="dout",
+        dinp=dinp,
+        dout=dout,
+    )
 
-@ash.check('... inp -> ... out')
+
+@ash.check("... inp -> ... out")
 class Linear(nn.Linear):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # This is to make sure values after the layer keep the variance
-        self.weight.data *= 3 ** 0.5
+        self.weight.data *= 3**0.5
         if self.bias is not None:
             self.bias.data *= 0.0
+
 
 def check_layer_funs(*layer_funs):
     for layer_fun in layer_funs:
         if isinstance(layer_fun, nn.Module):
-            raise TypeError('Expected layer function/lambda, got nn.Module: {}'
-                            .format(type(layer_fun)))
+            raise TypeError(
+                "Expected layer function/lambda, got nn.Module: {}".format(
+                    type(layer_fun)
+                )
+            )
 
 
-@ash.check('... -> ...')
+@ash.check("... -> ...")
 class StopGradient(nn.Module):
     def __init__(self):
         super(StopGradient, self).__init__()
@@ -115,7 +127,7 @@ def stop_gradient(x):
     return x.detach()
 
 
-@ash.check('... -> ...')
+@ash.check("... -> ...")
 class StopValuePassGradient(nn.Module):
     def __init__(self):
         super(StopValuePassGradient, self).__init__()
@@ -141,7 +153,7 @@ class Aggregate(nn.Module):
 
 
 def Sum(*layers):
-    return Aggregate((lambda x, y: x+y), *layers)
+    return Aggregate((lambda x, y: x + y), *layers)
 
 
 def GradientLike(value_layer, gradient_layer):
@@ -154,19 +166,21 @@ def GradientLike(value_layer, gradient_layer):
 def print_available_gpus():
     if torch.cuda.is_available():
         count = torch.cuda.device_count()
-        print('Found {} GPU(s)'.format(count))
+        print("Found {} GPU(s)".format(count))
         for i in range(count):
-            print('GPU {}: {}'.format(i, torch.cuda.get_device_name(i)))
+            print("GPU {}: {}".format(i, torch.cuda.get_device_name(i)))
+
 
 def generate_random_string(length: int) -> str:
     letters = string.ascii_lowercase
     return "".join(random.choice(letters) for i in range(length))
 
-def are_state_dicts_the_same(model_state_dict_1: dict, model_state_dict_2: dict) -> bool:
+
+def are_state_dicts_the_same(
+    model_state_dict_1: dict, model_state_dict_2: dict
+) -> bool:
     if len(model_state_dict_1) != len(model_state_dict_2):
-        print(
-            f"Length mismatch: {len(model_state_dict_1)}, {len(model_state_dict_2)}"
-        )
+        print(f"Length mismatch: {len(model_state_dict_1)}, {len(model_state_dict_2)}")
         return False
 
     # Replicate modules have "module" attached to their keys, so strip these off when comparing to local model.
@@ -196,4 +210,3 @@ def are_state_dicts_the_same(model_state_dict_1: dict, model_state_dict_2: dict)
             print(f"Tensor mismatch: {v_1} vs {v_2}")
             return False
     return True
-

@@ -1,25 +1,22 @@
 from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
+
 from attr import define
 import torch
-
 from torch.utils.tensorboard import SummaryWriter
 from clearml import Logger
 import plotly.express as px
 
-# to avoid cycle import while using hints
-if TYPE_CHECKING:
-    from research.reinitialization.core.linears import RandomPruneLayer
-
 
 class BasePruner(ABC):
-    layers = []
+    def __init__(self):
+        self.layers = []
 
     def register(self, layer: "RandomPruneLayer"):
         self.layers.append(layer)
 
     @abstractmethod
-    def prune(self):
+    def prune(self, *args, **kwargs):
         ...
 
 

@@ -26,8 +26,7 @@ def mask_by_score(
 
 
 def create_mask(size: torch.Size) -> torch.nn.parameter.Parameter:
-    mask = nn.parameter.Parameter(torch.empty(size), requires_grad=False)
-    mask.fill_(1)
+    mask = nn.parameter.Parameter(torch.ones(size), requires_grad=False)
     return mask
 
 
@@ -46,7 +45,7 @@ class PruneLinear(misc.Linear):
 
     def prune(self, prob: float):
         self.mask.data = mask_by_score(
-            self.mask, torch.rand_like(self.mask), int(self.mask.numel() * prob)
+            self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
         )
 
 
@@ -84,7 +83,7 @@ class StructPruneFF(nn.Module):
 
     def prune(self, prob: float):
         self.mask.data = mask_by_score(
-            self.mask, torch.rand_like(self.mask), int(self.mask.numel() * prob)
+            self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
         )
 
 
@@ -102,7 +101,7 @@ class MagnitudePruneLinear(misc.Linear):
 
     def prune(self, prob: float):
         self.mask.data = mask_by_score(
-            self.mask, self.weight, int(self.mask.numel() * prob)
+            self.mask, self.weight, round(self.mask.numel() * prob)
         )
 
 
@@ -144,8 +143,7 @@ class StructMagnitudePruneFF(nn.Module):
         scores = weights1 * weights2
         self.mask.data = mask_by_score(self.mask, scores, int(self.mask.numel() * prob))
 
-
-@ash.check("... d -> ... d")
+@ash.check('... d -> ... d')
 class MaskedFF(nn.Module):
     """Fully masked Feed-Forward layer"""
 
