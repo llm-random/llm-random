@@ -71,7 +71,7 @@ def FeedForwardMultineck(
     now, with the expansion rate being a = M/N, we get
         B = 4N^2/(a+1)NH = 4N/H(a+1)
     to sum up, the above choice of the bottleneck size B guarantees that the number of parameters is the same as
-    in a FeedForward  dense layer of sizes d_in,d_out = N,4N
+    in a dense FeedForward layer of sizes d_in,d_out = N,4N
     """
     assert (
         4 * dmodel % n_heads == 0
