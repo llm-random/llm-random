@@ -19,8 +19,7 @@ def FeedForward(dmodel, dff):
         ),
     )
 
-
-@ash.check("... -> ... ")
+@ash.check('... -> ... ')
 class Residual(nn.Module):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -68,7 +67,6 @@ def LowRank(dinput, doutput, dlowrank):
         misc.Linear(dinput, dlowrank, bias=False), misc.Linear(dlowrank, doutput)
     )
 
-
 @ash.check("... d -> ... d")
 class Attention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
@@ -82,12 +80,12 @@ class Attention(nn.Module):
         self.dmodel = dmodel
 
         key_query_value_gen = lambda: misc.EinMix(
-            "... dmodel -> ... heads dhead",
-            weight_shape="dmodel heads dhead",
-            bias_shape="heads dhead",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
+                "... dmodel -> ... heads dhead",
+                weight_shape="dmodel heads dhead",
+                bias_shape="heads dhead",
+                dmodel=dmodel,
+                heads=heads,
+                dhead=dhead,
         )
 
         self.Q = key_query_value_gen()
@@ -115,6 +113,7 @@ class Attention(nn.Module):
         prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
         output = self.D(prefinal)
         return output
+
 
 
 @ash.check("... d -> ... d")
@@ -177,4 +176,8 @@ def PredictionHead(embedding_dim, output_size):
 
 @ash.check("... -> ... out")
 def BERT(embedding_layer, encoder_tower, head):
-    return nn.Sequential(embedding_layer, encoder_tower, head)
+    return nn.Sequential(
+        embedding_layer,
+        encoder_tower,
+        head
+    )

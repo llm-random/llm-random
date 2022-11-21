@@ -24,8 +24,8 @@ class ResidualTest(GeneralTestCase):
         output1 = layer_ff(input)
         output2 = layer_residual(input)
         self.assertShape(output2, (batch, seql, dm))
-        self.assertTensorAlmostEqual(output1, output2-input)
-        self.assertTensorEqual(output1+input, output2)
+        self.assertTensorAlmostEqual(output1, output2 - input)
+        self.assertTensorEqual(output1 + input, output2)
 
 
 class AttentionTest(GeneralTestCase):
@@ -56,9 +56,10 @@ class EncoderTowerTest(GeneralTestCase):
         batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
         nblocks = 3
         model = bert.EncoderTower(
-            nblocks, dm,
+            nblocks,
+            dm,
             (lambda: bert.Attention(dm, heads)),
-            (lambda: bert.FeedForward(dm, dff))
+            (lambda: bert.FeedForward(dm, dff)),
         )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = model(input)
@@ -74,7 +75,7 @@ class BERTTest(GeneralTestCase):
 
         embedding_layer = bert.EmbeddingLayer(
             bert.PositionalEmbedding(max_length, dm),
-            bert.TokenEmbedding(vocab_size, dm)
+            bert.TokenEmbedding(vocab_size, dm),
         )
 
         encoder_tower = bert.EncoderTower(
@@ -95,5 +96,5 @@ class BERTTest(GeneralTestCase):
         self.assertShape(output, (batch, seql, output_size))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
