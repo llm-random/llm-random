@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from research.reinitialization.core.pruner import BasePruner
 from attr import define
@@ -16,6 +17,9 @@ class DelayedConstScheduler(BaseScheduler):
     n_steps_prune: int
     prob: float
     delay: int = 0
+    n_steps_log_recycle_hist: Optional[int] = None
+    n_steps_log_magnitude: Optional[int] = None
+    n_steps_hist_all: Optional[int] = None
     current_step = 0
 
     def step(self):
@@ -24,35 +28,23 @@ class DelayedConstScheduler(BaseScheduler):
             and self.current_step >= self.delay
         ):
             self.pruner.prune(self.prob)
-        self.current_step += 1
-
-
-@define
-class MagnitudeStatScheduler(BaseScheduler):
-    pruner: BasePruner
-    n_steps_prune: int
-    prob: float
-    n_steps_log_recycle_hist: int
-    n_steps_log_magnitude: int
-    n_steps_hist_all: int
-    delay: int = 0
-    current_step = 0
-
-    def step(self):
-        self.pruner.log_recently_pruned_magnitude(self.current_step)
 
         if (
-            self.current_step % self.n_steps_prune == 0
-            and self.current_step >= self.delay
+            self.n_steps_log_recycle_hist is not None
+            and self.current_step % self.n_steps_log_recycle_hist == 0
         ):
-            self.pruner.prune(self.prob)
-
-        if self.current_step % self.n_steps_log_recycle_hist == 0:
             self.pruner.log_recycle_magnitude(self.current_step)
 
-        if self.current_step % self.n_steps_log_magnitude == 0:
+        if (
+            self.n_steps_log_magnitude is not None
+            and self.current_step % self.n_steps_log_magnitude == 0
+        ):
             self.pruner.log_magnitude(self.current_step)
 
-        if self.current_step % self.n_steps_hist_all == 0:
+        if (
+            self.n_steps_hist_all is not None
+            and self.current_step % self.n_steps_hist_all == 0
+        ):
             self.pruner.log_hist_all_weights(self.current_step)
+
         self.current_step += 1

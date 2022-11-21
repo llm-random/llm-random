@@ -9,11 +9,8 @@ from clearml import Task
 from lizrd.core import misc, bert
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
-from research.reinitialization.core.pruner import Pruner, MagnitudeStatPruner
-from research.reinitialization.core.scheduler import (
-    DelayedConstScheduler,
-    MagnitudeStatScheduler,
-)
+from research.reinitialization.core.pruner import Pruner
+from research.reinitialization.core.scheduler import DelayedConstScheduler
 from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
@@ -48,10 +45,9 @@ parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
-parser.add_argument("--scheduler", type=str, default="delayed_const")
-parser.add_argument("--n_steps_log_recycle_hist", type=int, default=5000)
-parser.add_argument("--n_steps_log_magnitude", type=int, default=5000)
-parser.add_argument("--n_steps_hist_all", type=int, default=5000)
+parser.add_argument("--n_steps_log_recycle_hist", type=int, default=None)
+parser.add_argument("--n_steps_log_magnitude", type=int, default=None)
+parser.add_argument("--n_steps_hist_all", type=int, default=None)
 
 args = parser.parse_args()
 
@@ -74,25 +70,16 @@ writer = SummaryWriter(log_dir=modelpath)
 
 # set pruner if needed
 if args.use_pruner and args.pruner_n_steps:
-    if args.scheduler == "delayed_const":
-        pruner = Pruner()
-        scheduler = DelayedConstScheduler(
-            pruner=pruner,
-            n_steps_prune=args.pruner_n_steps,
-            prob=args.pruner_prob,
-            delay=args.pruner_delay,
-        )
-    elif args.scheduler == "magnitude_stat":
-        pruner = MagnitudeStatPruner(writer=writer, logger=task.get_logger())
-        scheduler = MagnitudeStatScheduler(
-            pruner=pruner,
-            n_steps_prune=args.pruner_n_steps,
-            prob=args.pruner_prob,
-            n_steps_log_recycle_hist=args.n_steps_log_recycle_hist,
-            n_steps_log_magnitude=args.n_steps_log_magnitude,
-            n_steps_hist_all=args.n_steps_hist_all,
-            delay=args.pruner_delay,
-        )
+    pruner = Pruner()
+    scheduler = DelayedConstScheduler(
+        pruner=pruner,
+        n_steps_prune=args.pruner_n_steps,
+        prob=args.pruner_prob,
+        delay=args.pruner_delay,
+        n_steps_log_recycle_hist=args.n_steps_log_recycle_hist,
+        n_steps_log_magnitude=args.n_steps_log_magnitude,
+        n_steps_hist_all=args.n_steps_hist_all,
+    )
 else:
     scheduler = None
 

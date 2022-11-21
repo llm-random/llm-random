@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from attr import define
 import torch
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
 from clearml import Logger
 import plotly.express as px
 
@@ -22,17 +21,6 @@ class BasePruner(ABC):
 
 
 class Pruner(BasePruner):
-    def prune(self, prob: float):
-        print("Pruning step")
-        for layer in self.layers:
-            layer.prune(prob)
-
-
-@define
-class MagnitudeStatPruner(BasePruner):
-    writer: SummaryWriter
-    logger: Logger
-
     def prune(self, prob: float):
         print("Pruning step")
         for layer in self.layers:
@@ -82,10 +70,11 @@ class MagnitudeStatPruner(BasePruner):
 
     def log_recently_pruned_magnitude(self, step: int):
         for i, layer in enumerate(self.layers):
-            self.writer.add_scalar(
+            Logger.current_logger().report_scalar(
                 f"mean_magn_of_recycled_layer_{i}",
-                layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
-                step,
+                f"Linear layer {i}",
+                iteration=step,
+                value=layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
             )
 
     def log_hist_all_weights(self, step: int):
