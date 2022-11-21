@@ -82,9 +82,16 @@ if __name__ == "__main__":
 
         trainer_params = []
         for k, v in param_set.items():
-            trainer_params.append(f"--{k}")
-            if v != "" and v is not None:
-                trainer_params.append(v)
+            if v in [True, False]:
+                if v:
+                    trainer_params.append(f"--{k}")
+                else:
+                    pass  # simply don't add it if v == False
+                continue
+            else:
+                trainer_params.append(f"--{k}")
+                if v != "" and v is not None:
+                    trainer_params.append(v)
 
         subprocess_args = [
             "sbatch",
