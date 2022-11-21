@@ -1,4 +1,5 @@
 import argparse
+from typing import List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -52,10 +53,15 @@ args = parser.parse_args()
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+def tags_to_name(tags: Optional[List[str]]) -> str:
+    return "_".join(tags) if tags else ""
+
+
 if args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
-        task_name=f"{args.name} {args.tags or ''} {datetime.datetime.now()}",
+        task_name=f"{args.name} {tags_to_name(args.tags)} {datetime.datetime.now()}",
     )
     task.connect(vars(args))
     if args.tags:
