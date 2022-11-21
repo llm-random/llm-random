@@ -70,6 +70,17 @@ class Trainer:
     modelpath: str
     scheduler: Optional[BaseScheduler] = None
     writer: Optional[SummaryWriter] = None
+    mixed_precision: bool = False
+    scaler: Optional[torch.cuda.amp.GradScaler] = None
+
+    def __attrs_post_init__(self):
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+
+    def optimize(self, loss):
+        self.optimizer.zero_grad()
+        self.scaler.scale(loss).backward()
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
 
     def _train_step(
         self,
@@ -88,20 +99,21 @@ class Trainer:
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
 
-        model_output = model(x_set)
-        mask_loss = F.cross_entropy(
-            model_output.reshape(-1, self.vocab_size),
-            y_token_set.reshape(-1).long(),
-            reduction="none",
-        )
-        mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-        mask_loss = mask_loss.mean() / self.mask_percent
-        scaled_mask_loss = mask_loss * self.mask_loss_weight
-        total_loss = scaled_mask_loss
+        with torch.autocast(
+            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        ):
+            model_output = model(x_set)
+            mask_loss = F.cross_entropy(
+                model_output.reshape(-1, self.vocab_size),
+                y_token_set.reshape(-1).long(),
+                reduction="none",
+            )
+            mask_loss *= y_mask_set.reshape(-1)  # only check masked words
+            mask_loss = mask_loss.mean() / self.mask_percent
+            scaled_mask_loss = mask_loss * self.mask_loss_weight
+            total_loss = scaled_mask_loss
 
-        optimizer.zero_grad()
-        total_loss.backward()
-        optimizer.step()
+        self.optimize(total_loss)
 
         if step and self.writer:
             self.writer.add_scalar("loss/train_total", total_loss.item(), step)
