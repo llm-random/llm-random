@@ -140,8 +140,7 @@ class Trainer:
 
             return total_mask_loss
 
-    def train(self, n_steps: int, n_steps_eval: int, n_steps_log_recycl_hist: int = 5000,
-              n_steps_log_magnitude: int = 5000, n_steps_hist_all: int = 5000,):
+    def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
             self._train_step(
                 self.model, self.optimizer, self.pdataset, self.scheduler, step
@@ -154,15 +153,6 @@ class Trainer:
                 )
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
-
-            if step % n_steps_log_recycl_hist == 0:
-                self.pruner.log_recycl_magnitude(step)
-
-            if step % n_steps_log_magnitude == 0:
-                self.pruner.log_magnitude(step)
-
-            if step % n_steps_hist_all == 0:
-                self.pruner.log_hist_all_weights(step)
 
             print(f"Step {step}")
 

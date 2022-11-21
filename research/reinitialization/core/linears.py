@@ -143,7 +143,8 @@ class StructMagnitudePruneFF(nn.Module):
         scores = weights1 * weights2
         self.mask.data = mask_by_score(self.mask, scores, int(self.mask.numel() * prob))
 
-@ash.check('... d -> ... d')
+
+@ash.check("... d -> ... d")
 class MaskedFF(nn.Module):
     """Fully masked Feed-Forward layer"""
 

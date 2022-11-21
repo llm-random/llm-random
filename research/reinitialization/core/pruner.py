@@ -58,7 +58,12 @@ class MagnitudeStatPruner(BasePruner):
             tensor = layer.recycle_counter.flatten().cpu()
             values = tensor.tolist()
             fig = px.histogram(values)
-            Logger.current_logger().report_plotly(title="Number of recycled neurons", series=f"Linear {i}", iteration=step, figure=fig)
+            Logger.current_logger().report_plotly(
+                title="Number of recycled neurons",
+                series=f"Linear {i}",
+                iteration=step,
+                figure=fig,
+            )
             self._log_tensor_stats(tensor, step, f"n_recycled_neurons_layer_{i}")
 
     def log_magnitude(self, step: int):
@@ -66,7 +71,12 @@ class MagnitudeStatPruner(BasePruner):
             tensor = layer.neuron_magnitudes.flatten().cpu()
             values = tensor.tolist()
             fig = px.histogram(values)
-            Logger.current_logger().report_plotly(title="Magnitude of all neurons", series=f"Linear {i}", iteration=step, figure=fig)
+            Logger.current_logger().report_plotly(
+                title="Magnitude of all neurons",
+                series=f"Linear {i}",
+                iteration=step,
+                figure=fig,
+            )
             self._log_tensor_stats(tensor, step, f"magnitude_layer_{i}")
 
     def log_recently_pruned_magnitude(self, step: int):
@@ -83,5 +93,10 @@ class MagnitudeStatPruner(BasePruner):
                 tensor = lin_layer.weight.data.flatten().cpu()
                 values = tensor.tolist()
                 fig = px.histogram(values)
-                Logger.current_logger().report_plotly(title="Values of all weights", series=f"Linear layer {2*i+j}", iteration=step, figure=fig)
+                Logger.current_logger().report_plotly(
+                    title="Values of all weights",
+                    series=f"Linear layer {2*i+j}",
+                    iteration=step,
+                    figure=fig,
+                )
                 self._log_tensor_stats(tensor, step, f"all_weights_lin_layer_{2*i+j}")
