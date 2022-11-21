@@ -10,14 +10,14 @@ class BaseScheduler(ABC):
         ...
 
 
+@define
 class DelayedConstScheduler(BaseScheduler):
-    def __init__(
-        self, pruner: BasePruner, n_steps_prune: int, prob: float, delay: int = 0
-    ):
-        self.pruner = pruner
-        self.n_steps_prune = n_steps_prune
-        self.prob = prob
-        self.delay = delay
+    pruner: BasePruner
+    n_steps_prune: int
+    prob: float
+    delay: int = 0
+
+    def __attr_post_init__(self):
         self.current_step = 0
 
     def step(self):
@@ -32,20 +32,24 @@ class DelayedConstScheduler(BaseScheduler):
 @define
 class MagnitudeStatScheduler(BaseScheduler):
     pruner: BasePruner
-    n_steps_log: int
+    n_steps_prune: int
+    prob: float
+    n_steps_log_recycl_hist: int
+    n_steps_log_magnitude: int
+    n_steps_hist_all: int
     delay: int = 0
-    n_steps_log_recycl_hist: int = 5000
-    n_steps_log_magnitude: int = 5000
-    n_steps_hist_all: int = 5000
+
+    def __attr_post_init__(self):
+        self.current_step = 0
 
     def step(self):
         self.pruner.log_recently_pruned_magnitude(self.current_step)
 
         if (
-            self.current_step % self.n_steps_log == 0
+            self.current_step % self.n_steps_prune == 0
             and self.current_step >= self.delay
         ):
-            self.pruner.log_magnitude(self.current_step)
+            self.pruner.prune(self.prob)
 
         if self.current_step % self.n_steps_log_recycl_hist == 0:
             self.pruner.log_recycl_magnitude(self.current_step)
