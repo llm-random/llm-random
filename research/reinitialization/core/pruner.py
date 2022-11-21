@@ -38,7 +38,7 @@ class MagnitudeStatPruner(BasePruner):
             layer.prune(prob)
 
     def _log_tensor_stats(self, tensor: torch.Tensor, step: int, title: str):
-        # Log statistics of a flat tensor (useful in case histogram doesn't work)
+        # Log statistics of a flat tensor (useful in case histogram doesn't work in ClearML)
         minimum = tensor.min().item()
         maximum = tensor.max().item()
         mean = tensor.mean().item()
