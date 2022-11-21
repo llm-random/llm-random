@@ -104,7 +104,6 @@ class Trainer:
         if step and self.writer:
             self.writer.add_scalar("loss/train_total", total_loss.item(), step)
             self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
-            self.pruner.log_recently_pruned_magnitude(step)
 
     def _eval_step(
         self,

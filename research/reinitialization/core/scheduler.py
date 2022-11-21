@@ -39,6 +39,8 @@ class MagnitudeStatScheduler(BaseScheduler):
     n_steps_hist_all: int = 5000
 
     def step(self):
+        self.pruner.log_recently_pruned_magnitude(self.current_step)
+
         if (
             self.current_step % self.n_steps_log == 0
             and self.current_step >= self.delay
@@ -46,11 +48,11 @@ class MagnitudeStatScheduler(BaseScheduler):
             self.pruner.log_magnitude(self.current_step)
 
         if self.current_step % self.n_steps_log_recycl_hist == 0:
-                self.pruner.log_recycl_magnitude(self.current_step)
+            self.pruner.log_recycl_magnitude(self.current_step)
 
         if self.current_step % self.n_steps_log_magnitude == 0:
-                self.pruner.log_magnitude(self.current_step)
+            self.pruner.log_magnitude(self.current_step)
 
         if self.current_step % self.n_steps_hist_all == 0:
-                self.pruner.log_hist_all_weights(self.current_step)
+            self.pruner.log_hist_all_weights(self.current_step)
         self.current_step += 1

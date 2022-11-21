@@ -129,6 +129,5 @@ trainer = Trainer(
     modelpath=modelpath,
     scheduler=scheduler,
     writer=writer,
-    pruner=pruner,
 )
 trainer.train(args.n_steps, args.n_steps_eval)
