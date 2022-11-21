@@ -55,7 +55,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
-        task_name=f"{args.name} {datetime.datetime.now()}",
+        task_name=f"{args.name} {args.tags} {datetime.datetime.now()}",
     )
     task.connect(vars(args))
     if args.tags:
