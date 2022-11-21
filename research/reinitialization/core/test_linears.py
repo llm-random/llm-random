@@ -37,9 +37,6 @@ class TestPruneLinear(GeneralTestCase):
 
 
 class PruneFFTest(GeneralTestCase):
-    def _test_with_pruner(self, layer, pruner, inp_tensor, prob: float):
-        N = 3
-
     def _test_with_pruner(
         self,
         layer: torch.nn.Module,

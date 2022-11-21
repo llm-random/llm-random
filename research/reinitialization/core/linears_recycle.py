@@ -132,7 +132,7 @@ class StructMagnitudeRecycleFF(nn.Module):
         self.lin1 = Linear(dmodel, dff)
         self.lin2 = Linear(dff, dmodel)
         self.dff = dff
-        pruner.register(layer=self)
+        pruner.register(self)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.neuron_magnitudes = torch.zeros(self.dff).to(device)

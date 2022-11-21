@@ -144,14 +144,12 @@ class Trainer:
                 self.model, self.optimizer, self.pdataset, self.scheduler, step
             )
             self.writer.add_scalar("step", step, step)
-
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(
                     self.model, self.pdataset, step, sample=n_steps_eval // 2
                 )
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
-
             print(f"Step {step}")
 
 
