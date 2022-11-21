@@ -49,7 +49,7 @@ parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--scheduler", type=str, default="delayed_const")
-parser.add_argument("--n_steps_log_recycl_hist", type=int, default=5000)
+parser.add_argument("--n_steps_log_recycle_hist", type=int, default=5000)
 parser.add_argument("--n_steps_log_magnitude", type=int, default=5000)
 parser.add_argument("--n_steps_hist_all", type=int, default=5000)
 
@@ -88,7 +88,7 @@ if args.use_pruner and args.pruner_n_steps:
             pruner=pruner,
             n_steps_prune=args.pruner_n_steps,
             prob=args.pruner_prob,
-            n_steps_log_recycl_hist=args.n_steps_log_recycl_hist,
+            n_steps_log_recycle_hist=args.n_steps_log_recycle_hist,
             n_steps_log_magnitude=args.n_steps_log_magnitude,
             n_steps_hist_all=args.n_steps_hist_all,
             delay=args.pruner_delay,

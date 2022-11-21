@@ -54,7 +54,7 @@ class MagnitudeStatPruner(BasePruner):
         self.writer.add_scalar(f"{title}_std", std, step)
         print(f"{title}_std: {std} step: {step}")
 
-    def log_recycl_magnitude(self, step: int):
+    def log_recycle_magnitude(self, step: int):
         for i, layer in enumerate(self.layers):
             tensor = layer.recycle_counter.flatten().cpu()
             values = tensor.tolist()
