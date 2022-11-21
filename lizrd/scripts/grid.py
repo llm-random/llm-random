@@ -9,6 +9,8 @@ from itertools import product
 import subprocess
 from typing import List, Tuple
 import os
+import sys
+import json
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -58,17 +60,23 @@ TRAINER = "research.reinitialization.train.reinit_train"
 # ^ - grid over that
 # * - apply function
 PARAMS = {
-    "project_name": f"{os.getenv('USER')}/project",
-    "name": "name1",
+    "project_name": f"{os.getenv('USER')}/mp",
+    "name": "mp",
     "ff_layer": "regular",
-    "^batch_size": [64, 32],
-    "^cutoff": [128, 64],
+    "batch_size": 128,
+    "cutoff": 128,
+    "^mixed_precision": [True, False],
     "tags": ["test"],
     "use_clearml": "",
     "pruner_n_steps": 100,
 }
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        grid_args = json.load(open(sys.argv[1]))
+        TRAINER = grid_args["trainer"]
+        PARAMS = grid_args["params"]
+
     grid = create_grid(PARAMS)
 
     user_input = input(f"Will run {len(grid)} experiments. [Y/n]")

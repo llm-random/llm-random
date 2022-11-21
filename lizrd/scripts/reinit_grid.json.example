@@ -1,0 +1,19 @@
+{
+    "trainer": "research.reinitialization.train.reinit_train",
+    "params": {
+        "project_name": "mpioro/mp",
+        "name": "mp",
+        "ff_layer": "regular",
+        "batch_size": 128,
+        "cutoff": 128,
+        "^mixed_precision": [
+            true,
+            false
+        ],
+        "tags": [
+            "test"
+        ],
+        "use_clearml": "",
+        "pruner_n_steps": 100
+    }
+}
