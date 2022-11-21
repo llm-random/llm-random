@@ -67,7 +67,6 @@ class Trainer:
     modelpath: str
     scheduler: Optional[BaseScheduler] = None
     writer: Optional[SummaryWriter] = None
-    pruner: Optional[BasePruner] = None
 
     def _train_step(
         self,
