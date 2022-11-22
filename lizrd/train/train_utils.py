@@ -14,10 +14,12 @@ from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
 
 
+
 def get_model(
     max_length: int,
     vocab_size: int,
     ff_layer_fun: Callable[[], torch.nn.Module],
+    attention_layer_fun: Callable[[], torch.nn.Module],
     dm: int,
     n_blocks: int,
     heads: int,
@@ -29,7 +31,7 @@ def get_model(
     encoder_tower = bert.EncoderTower(
         n_blocks,
         dm,
-        (lambda: bert.Attention(dm, heads)),
+        attention_layer_fun,
         ff_layer_fun,
     )
     head = bert.PredictionHead(dm, vocab_size)
@@ -38,6 +40,7 @@ def get_model(
     # sanity check to make sure it works
     input = torch.randint(0, vocab_size, (16, 10))
     model(input)
+    del input
 
     return model.to(device)
 
