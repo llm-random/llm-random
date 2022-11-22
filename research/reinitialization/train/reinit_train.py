@@ -23,6 +23,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
+parser.add_argument("--mixed_precision", action="store_true", default=True)
 
 parser.add_argument("--pruner_prob", type=float)
 parser.add_argument("--pruner_n_steps", type=int)
@@ -135,5 +136,6 @@ trainer = Trainer(
     modelpath=modelpath,
     scheduler=scheduler,
     writer=writer,
+    mixed_precision=args.mixed_precision,
 )
 trainer.train(args.n_steps, args.n_steps_eval)

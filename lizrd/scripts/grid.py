@@ -9,6 +9,9 @@ from itertools import product
 import subprocess
 from typing import List, Tuple
 import os
+import sys
+import json
+from time import sleep
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -58,17 +61,23 @@ TRAINER = "research.reinitialization.train.reinit_train"
 # ^ - grid over that
 # * - apply function
 PARAMS = {
-    "project_name": f"{os.getenv('USER')}/project",
-    "name": "name1",
+    "project_name": f"{os.getenv('USER')}/mp",
+    "name": "mp",
     "ff_layer": "regular",
-    "^batch_size": [64, 32],
-    "^cutoff": [128, 64],
+    "batch_size": 128,
+    "cutoff": 128,
+    "^mixed_precision": [True, False],
     "tags": ["test"],
-    "use_clearml": "",
+    "use_clearml": True,
     "pruner_n_steps": 100,
 }
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        grid_args = json.load(open(sys.argv[1]))
+        TRAINER = grid_args["trainer"]
+        PARAMS = grid_args["params"]
+
     grid = create_grid(PARAMS)
 
     user_input = input(f"Will run {len(grid)} experiments. [Y/n]")
@@ -82,7 +91,7 @@ if __name__ == "__main__":
 
         trainer_params = []
         for k, v in param_set.items():
-            if v in [True, False]:
+            if isinstance(v, bool):
                 if v:
                     trainer_params.append(f"--{k}")
                 else:
@@ -90,8 +99,7 @@ if __name__ == "__main__":
                 continue
             else:
                 trainer_params.append(f"--{k}")
-                if v != "" and v is not None:
-                    trainer_params.append(v)
+                trainer_params.append(v)
 
         subprocess_args = [
             "sbatch",
@@ -110,3 +118,4 @@ if __name__ == "__main__":
         subprocess.run(
             [str(s) for s in subprocess_args],
         )
+        sleep(1)
