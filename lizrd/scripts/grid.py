@@ -13,6 +13,7 @@ import sys
 import json
 from time import sleep
 
+
 def split_params(params: dict) -> Tuple[list, list, list]:
     functions = []
     grids = []
