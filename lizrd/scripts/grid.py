@@ -11,7 +11,7 @@ from typing import List, Tuple
 import os
 import sys
 import json
-
+from time import sleep
 
 def split_params(params: dict) -> Tuple[list, list, list]:
     functions = []
@@ -67,7 +67,7 @@ PARAMS = {
     "cutoff": 128,
     "^mixed_precision": [True, False],
     "tags": ["test"],
-    "use_clearml": "",
+    "use_clearml": True,
     "pruner_n_steps": 100,
 }
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
         trainer_params = []
         for k, v in param_set.items():
-            if v in [True, False]:
+            if isinstance(v, bool):
                 if v:
                     trainer_params.append(f"--{k}")
                 else:
@@ -98,8 +98,7 @@ if __name__ == "__main__":
                 continue
             else:
                 trainer_params.append(f"--{k}")
-                if v != "" and v is not None:
-                    trainer_params.append(v)
+                trainer_params.append(v)
 
         subprocess_args = [
             "sbatch",
@@ -118,3 +117,4 @@ if __name__ == "__main__":
         subprocess.run(
             [str(s) for s in subprocess_args],
         )
+        sleep(1)
