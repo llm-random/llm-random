@@ -117,6 +117,7 @@ model = get_model(
     n_blocks=args.n_blocks,
     heads=args.heads,
     device=DEVICE,
+    attention_layer_fun=lambda: bert.Attention(args.dm, args.heads),
 )
 
 # set optimizer

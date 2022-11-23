@@ -12,19 +12,36 @@ from research.reinitialization.core.scheduler import BaseScheduler
 from lizrd.core import misc
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
+from torch.utils.checkpoint import checkpoint_sequential, checkpoint
 
+
+def linearize(model):
+    children = []
+    if isinstance(model, torch.nn.Sequential):
+        for child in model.children():
+            children.extend(linearize(child))
+    elif hasattr(model, "linearize"):
+        for child in model.linearize():
+            children.extend(linearize(child))
+    else:
+        return [model]
+
+    return children
 
 
 def get_model(
     max_length: int,
     vocab_size: int,
     ff_layer_fun: Callable[[], torch.nn.Module],
-    attention_layer_fun: Callable[[], torch.nn.Module],
     dm: int,
     n_blocks: int,
     heads: int,
     device: torch.device,
+    attention_layer_fun: Optional[Callable[[], torch.nn.Module]] = None,
 ):
+    if attention_layer_fun is None:
+        attention_layer_fun = lambda: bert.Attention(dm, heads)
+
     embedding_layer = bert.EmbeddingLayer(
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
@@ -41,8 +58,8 @@ def get_model(
     input = torch.randint(0, vocab_size, (16, 10))
     model(input)
     del input
-
-    return model.to(device)
+    print(linearize(model))
+    return torch.nn.Sequential(*linearize(model)).to(device)
 
 
 def get_processed_dataset(
@@ -102,7 +119,9 @@ class Trainer:
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            model_output = model(x_set)
+            model_output = checkpoint(model, x_set, use_reentrant=False)  # 13w, 14nw
+            breakpoint()
+            # model_output = model(x_set)  # 13w, 14nw
             mask_loss = F.cross_entropy(
                 model_output.reshape(-1, self.vocab_size),
                 y_token_set.reshape(-1).long(),
@@ -233,7 +252,11 @@ class LTHTrainer:
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
 
-        model_output = self.model(x_set)
+        optim_chunks = len([*self.model.modules()])
+        breakpoint()
+        model_output = checkpoint_sequential(self.model, 100, x_set)
+        # model_output = self.model(x_set)
+
         mask_loss = F.cross_entropy(
             model_output.reshape(-1, self.vocab_size),
             y_token_set.reshape(-1).long(),

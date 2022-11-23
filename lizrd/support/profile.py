@@ -31,6 +31,9 @@ class TimerLayer(nn.Module):
                 result = self.layer(*args, **kwargs)
         return result
 
+    def linearize(self):
+        return [self.layer]
+
 
 class Timer(object):
     def __init__(self, name, disable_inner=False, disable=False):

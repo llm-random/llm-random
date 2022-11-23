@@ -61,6 +61,12 @@ class Check(nn.Module):
         self.after_layer(y, past)
         return y
 
+    def linearize(self):
+        if hasattr(self.layer, "linearize"):
+            return self.layer.linearize()
+        else:
+            return [self.layer]
+
 
 def check(signature, **kwargs_shape):
     def noop_decorator(class_or_fun):
