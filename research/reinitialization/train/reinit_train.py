@@ -12,7 +12,7 @@ from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
 from research.reinitialization.core.scheduler import DelayedConstScheduler
-from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer, linearize
+from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer
 
 
 parser = argparse.ArgumentParser()
@@ -111,8 +111,8 @@ model = get_model(
     ff_layer_fun=ff_layer_fun,
     dm=args.dm,
     n_blocks=args.n_blocks,
-    heads=args.heads,
     device=DEVICE,
+    attention_layer_fun=lambda: bert.Attention(args.dm, args.heads),
 )
 
 # set optimizer
