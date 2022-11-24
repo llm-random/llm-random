@@ -12,11 +12,7 @@ from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
 from research.reinitialization.core.scheduler import DelayedConstScheduler
-from lizrd.train.train_utils import (
-    get_model,
-    get_processed_dataset,
-    Trainer,
-)
+from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer, linearize
 
 
 parser = argparse.ArgumentParser()

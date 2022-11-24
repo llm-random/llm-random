@@ -1,7 +1,7 @@
 import subprocess
 
 pruner_n_steps = ""
-for learning_rate in [1e-5,2e-5,3e-5]:
+for learning_rate in [1e-5, 2e-5, 3e-5]:
     name = f"new_grid_script_lr_{learning_rate}"
     tags = f"TESTING baseline"
 

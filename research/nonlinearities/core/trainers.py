@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 from lizrd.datasets import wikibookdata
 
+
 @define
 class NonlinearityTrainer:
     model: torch.nn.Module
@@ -19,8 +20,13 @@ class NonlinearityTrainer:
     modelpath: str
     writer: Optional[SummaryWriter] = None
 
-    def _train_step(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer,
-                    pdataset: wikibookdata.ProcessedDataset, step=0):
+    def _train_step(
+        self,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        pdataset: wikibookdata.ProcessedDataset,
+        step=0,
+    ):
 
         model.train()
         processed_batch = pdataset.get_batch(self.batch_size)
@@ -49,11 +55,11 @@ class NonlinearityTrainer:
             self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
 
     def _eval_step(
-            self,
-            model: torch.nn.Module,
-            pdataset: wikibookdata.ProcessedDataset,
-            step: int = 0,
-            sample: int = 10,
+        self,
+        model: torch.nn.Module,
+        pdataset: wikibookdata.ProcessedDataset,
+        step: int = 0,
+        sample: int = 10,
     ):
         model.eval()
 
