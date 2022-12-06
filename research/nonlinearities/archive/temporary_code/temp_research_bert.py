@@ -1,3 +1,5 @@
+import torch
+
 import lizrd.core.nn as nn
 from lizrd.core.misc import EinMix
 from lizrd.support import ash
@@ -7,7 +9,6 @@ from lizrd.support import ash
 def FeedForwardMultineckFORCED(
     dmodel, dhead, n_heads, dff, parameter_sharing_mode: str = "none"
 ):
-
     assert (
         4 * dmodel % n_heads == 0
     ), f"4*dmodel = {4 * dmodel} should be divisible by n_heads={n_heads}"
@@ -82,3 +83,132 @@ def FeedForwardMultineckFORCED(
     return nn.Sequential(
         multineck_1, expand, nn.ReLU(inplace=True), contract, multineck_2
     )
+
+
+@ash.check("... d -> ... d")
+class FeedForwardMultibias(nn.Module):
+    def __init__(self, dmodel, dff, n_bias_copies):
+        super().__init__()
+        self.dmodel = dmodel
+        self.dff = dff
+        self.f1 = EinMix(
+            "batch seqlean dmodel -> batch seqlen dff n_biases",
+            weight_shape="dmodel dff",
+            bias_shape="n_biases dff",
+            dmodel=dmodel,
+            dff=dff,
+            n_biases=n_bias_copies,
+        )
+        self.f2 = nn.Linear(dff, dmodel)
+
+    def forward(self, x):
+        x = self.f1(x)
+        x = x.sum(dim=-1) / (self.n_bias_copies) ** (1 / 2)
+        x = self.f2(x)
+        return x
+
+
+@ash.check("... d -> ... d")
+class FeedForwardMultibias(nn.Module):
+    """
+    the simplest way to increase nonlinearities: initialise a few sets of biases and try all of them simultaneously, then average the results
+    """
+
+    def __init__(self, dmodel, dff, n_bias_copies):
+        super().__init__()
+        self.dmodel = dmodel
+        self.dff = dff
+        self.f1 = EinMix(
+            "batch seqlean dmodel -> batch seqlen dff n_biases",
+            weight_shape="dmodel dff",
+            bias_shape="n_biases dff",
+            dmodel=dmodel,
+            dff=dff,
+            n_biases=n_bias_copies,
+        )
+        self.f2 = nn.Linear(dff, dmodel)
+
+    def forward(self, x):
+        x = self.f1(x)
+        x = nn.ReLU(x)
+        x = x.sum(dim=-1) / (self.n_bias_copies) ** (1 / 2)
+        x = self.f2(x)
+        return x
+
+
+@ash.check("... d -> ... d")
+class FeedForwardMultibiasMax(nn.Module):
+    """
+    the simplest way to increase nonlinearities: initialise a few sets of biases and try all of them simultaneously, then average the results
+    """
+
+    def __init__(self, dmodel, dff, n_bias_copies):
+        super().__init__()
+        self.dmodel = dmodel
+        self.dff = dff
+        self.f1 = EinMix(
+            "batch seqlean dmodel -> batch seqlen dff n_biases",
+            weight_shape="dmodel dff",
+            bias_shape="n_biases dff",
+            dmodel=dmodel,
+            dff=dff,
+            n_biases=n_bias_copies,
+        )
+        self.f2 = nn.Linear(dff, dmodel)
+
+    def forward(self, x):
+        x = self.f1(x)
+        x = torch.max(x, dim=-1)
+        x = self.f2(x)
+        return x
+
+
+class MultineckShuffle(nn.Module):
+    def __init__(self, dmodel, dhead, n_heads, dff):
+        super().__init__()
+        self.dmodel = dmodel
+        self.dhead = dhead
+        self.n_heads = n_heads
+        self.dff = dff
+        self.split = EinMix(
+            "batch seqlen dmodel -> batch seqlen nheads dhead",
+            weight_shape="nheads dhead dmodel",
+            bias_shape="",
+            dmodel=dmodel,
+            nheads=n_heads,
+            dhead=dhead,
+        )
+        self.expand = EinMix(
+            "batch seqlen nheads dhead -> batch seqlen nheads dff",
+            weight_shape="nheads dhead dff",
+            bias_shape="nheads dff",
+            dff=dff,
+            nheads=n_heads,
+            dhead=dhead,
+        )
+        self.contract = EinMix(
+            "batch seqlen nheads dff -> batch seqlen nheads dhead",
+            weight_shape="nheads dff dhead",
+            bias_shape="nheads dhead",
+            dff=dff,
+            nheads=n_heads,
+            dhead=dhead,
+        )
+        self.aggregate = EinMix(
+            "batch seqlen nheads dhead -> batch seqlen dmodel",
+            weight_shape="nheads dhead dmodel",
+            bias_shape="dmodel",
+            dmodel=dmodel,
+            nheads=n_heads,
+            dhead=dhead,
+        )
+
+    def forward(self, x):
+        pre = nn.Sequential(self.split, self.expand, nn.ReLU(inplace=True))
+        post = nn.Sequential(self.contract, self.aggregate)
+        x = pre(x)
+        x = torch.permute(x, (0, 1, 3, 2)).resize(
+            (x.shape[0], x.shape[1], self.n_heads, -1)
+        )
+        x = post(x)
+        return x

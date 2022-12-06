@@ -4,6 +4,7 @@ import research.conditional
 import research.conditional.ffs
 from lizrd.core import bert
 from lizrd.support.test_utils import GeneralTestCase
+from research.old_core.bert import Attention
 
 
 class TestBatchedFeedForward(GeneralTestCase):
@@ -70,7 +71,7 @@ class BERTSparseTest(GeneralTestCase):
             n_blocks,
             dm,
             (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 4, 4, 4)),
-            (lambda: bert.Attention(dm, heads, layer_fun=factored_dense_fun)),
+            (lambda: Attention(dm, heads, layer_fun=factored_dense_fun)),
         )
 
         head = bert.PredictionHead(dm, output_size)
@@ -106,7 +107,7 @@ class BERTSparseGradientTest(GeneralTestCase):
             n_blocks,
             dm,
             (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 4, 4, 4)),
-            (lambda: bert.Attention(dm, heads, layer_fun=factored_dense_fun)),
+            (lambda: Attention(dm, heads, layer_fun=factored_dense_fun)),
         )
 
         head = bert.PredictionHead(dm, output_size)

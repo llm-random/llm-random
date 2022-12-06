@@ -14,7 +14,6 @@ from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
 
 
-
 def get_model(
     max_length: int,
     vocab_size: int,

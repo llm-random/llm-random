@@ -7,8 +7,8 @@ Remember to set TRAINER and PARAMS in the script or add an argument parser.
 import copy
 from itertools import product
 import subprocess
+from time import sleep
 from typing import List, Tuple
-import os
 import sys
 import json
 
@@ -55,20 +55,29 @@ def param_to_str(param) -> str:
         return str(param)
 
 
-TRAINER = "research.reinitialization.train.reinit_train"
+TRAINER = "research.nonlinearities.train.nonlinearities_train"
 
 # ^ - grid over that
 # * - apply function
+
 PARAMS = {
-    "project_name": f"{os.getenv('USER')}/mp",
-    "name": "mp",
-    "ff_layer": "regular",
-    "batch_size": 128,
+    # "deterministic": False,
+    "ff_mode": "vanilla",
+    "^dff": [128, 512, 1024, 2048],
+    # "^seed": [2137, 69, 420],
+    "^attention_thinning_coeff": [0.7, 0.3, 0.1, 0.03],
+    "name": "att_size_influence",
+    "use_clearml": True,
+    "batch_size": 64,
     "cutoff": 128,
-    "^mixed_precision": [True, False],
-    "tags": ["test"],
-    "use_clearml": "",
-    "pruner_n_steps": 100,
+    "dmodel": 256,
+    "dff": 1024,
+    "n_att_heads": 8,
+    "learning_rate": 8e-4,
+    "n_blocks": 4,
+    "mask_percent": 0.15,
+    "n_steps": 100001,
+    "project_name": "nonlinearities/common_setup_experiments/att_size_dff_incluence",
 }
 
 if __name__ == "__main__":
@@ -90,7 +99,7 @@ if __name__ == "__main__":
 
         trainer_params = []
         for k, v in param_set.items():
-            if v in [True, False]:
+            if type(v) == bool and v in [True, False]:
                 if v:
                     trainer_params.append(f"--{k}")
                 else:
@@ -105,16 +114,17 @@ if __name__ == "__main__":
             "sbatch",
             "--partition=common",
             "--qos=16gpu7d",
-            "--gres=gpu:titanv:1",
+            "--gres=gpu:1",
             f"--job-name={name}",
-            "--time=0-01:00:00",
+            "--time=3-00:00:00",
+            f"--output=/home/simontwice/sparsity/not_important2_{i}.txt",
             "lizrd/scripts/grid_entrypoint.sh",
             "python3",
             "-m",
             TRAINER,
             *trainer_params,
         ]
-
+        sleep(0.5)
         subprocess.run(
             [str(s) for s in subprocess_args],
         )
