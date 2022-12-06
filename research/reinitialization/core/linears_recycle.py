@@ -176,3 +176,96 @@ class StructMagnitudeRecycleFF(nn.Module):
         self.lin2.weight.data = misc.einsum(
             "f, m f -> m f", mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
+
+
+def initialize_following_distribution(tensor: torch.Tensor, mask: torch.Tensor) -> None:
+    new_weights = kaiming_uniform_(torch.empty_like(self.lin1.weight), a=math.sqrt(5))
+    new_weights *= 3**0.5
+
+    self.lin1.weight.data = misc.einsum(
+        "f, f m -> f m", mask, self.lin1.weight.data
+    ) + misc.einsum(
+        "f, f m -> f m", 1 - mask, new_weights
+    )  # type: ignore
+    self.lin1.bias.data = misc.einsum("f, f -> f", mask, self.lin1.bias.data)  # type: ignore
+
+
+class StructMagnitudeRecycleImmunityFF(nn.Module):
+    def __init__(
+        self,
+        dmodel: int,
+        dff: int,
+        pruner: Pruner,
+        immunity_start_value: int,
+        reinitialization: str,
+    ):
+        super().__init__()
+        self.lin1 = Linear(dmodel, dff)
+        self.lin2 = Linear(dff, dmodel)
+        self.dff = dff
+        self.immunity_start_value = immunity_start_value
+        self.immunity = nn.parameter.Parameter(
+            torch.full((dff,), immunity_start_value), requires_grad=False
+        )
+        self.reinitialization = reinitialization
+        pruner.register(self)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.lin1(x)
+        x = F.relu(x)
+        x = self.lin2(x)
+        return x
+
+    def decrement_immunity(self):
+        self.immunity = nn.parameter.Parameter(
+            torch.max(
+                torch.zeros_like(self.immunity, device=self.lin1.weight.device),
+                self.immunity - 1,
+            ),
+            requires_grad=False,
+        )
+
+    def reinitialize_layer(self, layer: nn.Linear, mask: torch.Tensor):
+        # apply mask to lin1
+
+        if self.reinitialization == "zero":
+            new_weights = torch.zeros_like(layer.weight)
+        else:
+            new_weights = kaiming_uniform_(
+                torch.empty_like(layer.weight), a=math.sqrt(5)
+            )
+            new_weights *= 3**0.5
+
+        layer.weight.data = misc.einsum(
+            "f, f m -> f m", mask, layer.weight.data
+        ) + misc.einsum(
+            "f, f m -> f m", 1 - mask, new_weights
+        )  # type: ignore
+        layer.bias.data = misc.einsum("f, f -> f", mask, layer.bias.data)  # type: ignore
+
+    def reinitialize(self, mask):
+        self.reinitialize_layer(self.lin1, mask)
+        self.reinitialize_layer(self.lin2, mask)
+
+    def prune(self, prob: float):
+        device = self.lin1.weight.device
+
+        # create mask
+        mask = torch.ones(self.dff).to(device)
+
+        # prepare mask
+        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        weights = weights1 * weights2
+        weights[self.immunity > 0] = float("inf")
+        n_els_weights = torch.numel(weights)
+        assert n_els_weights == self.dff
+        n_to_prune = round(prob * n_els_weights)
+        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
+        mask[topk.indices] = 0
+
+        self.immunity[topk.indices] = self.immunity_start_value
+
+        torch.mean(self.lin1.weight.data**2, dim=1)
+
+        self.reinitialize(mask)

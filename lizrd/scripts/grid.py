@@ -72,15 +72,22 @@ PARAMS = {
     "pruner_n_steps": 100,
 }
 
+TIME = "1-00:00:00"
+GRES = "gpu:titanv:1"
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
         TRAINER = grid_args["trainer"]
         PARAMS = grid_args["params"]
+        TIME = grid_args["time"]
+        GRES = grid_args["gres"]
 
     grid = create_grid(PARAMS)
 
-    user_input = input(f"Will run {len(grid)} experiments. [Y/n]")
+    user_input = input(
+        f"Will run {len(grid)} experiments. Sbatch settings: \n{TRAINER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+    )
     if user_input.lower() not in ("", "y", "Y"):
         print("Aborting")
         exit(1)
@@ -105,9 +112,9 @@ if __name__ == "__main__":
             "sbatch",
             "--partition=common",
             "--qos=16gpu7d",
-            "--gres=gpu:titanv:1",
+            f"--gres={GRES}",
             f"--job-name={name}",
-            "--time=0-01:00:00",
+            f"--time={TIME}",
             "lizrd/scripts/grid_entrypoint.sh",
             "python3",
             "-m",

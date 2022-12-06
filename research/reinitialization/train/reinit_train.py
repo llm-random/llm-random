@@ -43,6 +43,8 @@ parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
+parser.add_argument("--immunity", type=int, default=10)
+# parser.add_argument("--follow_distribution", action="store_true")
 
 args = parser.parse_args()
 
@@ -70,11 +72,7 @@ writer = SummaryWriter(log_dir=modelpath)
 
 # set pruner if needed
 if args.use_pruner and args.pruner_n_steps:
-    pruner = Pruner(
-        args.pruner_n_steps,
-        args.pruner_prob,
-        args.pruner_delay,
-    )
+    pruner = Pruner()
     scheduler = DelayedConstScheduler(
         pruner, args.pruner_n_steps, args.pruner_prob, args.pruner_delay
     )
@@ -95,6 +93,10 @@ elif args.ff_layer == "struct_magnitude_prune":
 elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
+    )
+elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
+    ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
+        args.dm, args.dff, pruner, args.immunity
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
