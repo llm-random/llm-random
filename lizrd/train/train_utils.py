@@ -46,14 +46,15 @@ def get_model(
 def get_processed_dataset(
     max_total_length: int, mask_percent: float, device: torch.device
 ):
-    raw_dataset = wikibookdata.WikiBookDataset()
-    processor = wikibookdata.SentencePairProcessor(
-        max_total_length=max_total_length,
-        device=device,
-        mask_percent=mask_percent,
-        swap_percent=0.0,
-    )
-    return wikibookdata.ProcessedDataset(raw_dataset, processor)
+    # raw_dataset = wikibookdata.WikiBookDataset()
+    # processor = wikibookdata.SentencePairProcessor(
+    #     max_total_length=max_total_length,
+    #     device=device,
+    #     mask_percent=mask_percent,
+    #     swap_percent=0.0,
+    # )
+    # return wikibookdata.ProcessedDataset(raw_dataset, processor)
+    return wikibookdata.get_memloader("./dataset", device=device)
 
 
 @define

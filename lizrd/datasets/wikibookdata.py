@@ -4,7 +4,10 @@ import torch
 from datasets import load_dataset
 from transformers import BertTokenizer
 import numpy as np
+from torch.utils.data import Dataset, DataLoader
 
+import os
+import pickle
 
 # dataset_book = load_dataset("bookcorpus")
 # dataset_wiki = load_dataset("wikipedia", "20220301.en")
@@ -242,3 +245,86 @@ class ProcessedDataset(object):
         batch = self.dataset.get_batch(batch_size)
         processed_batch = self.processor.process_batch(batch)
         return processed_batch
+
+
+class MemSet(Dataset):
+    def __init__(self, root_dir):
+        self.root_dir = root_dir
+
+    def __len__(self):
+        return len(os.listdir(self.root_dir))
+
+    def __getitem__(self, idx):
+        with open(f"{self.root_dir}/{idx}.pkl", "rb") as f:
+            return pickle.load(f)
+
+
+class MemLoader:
+    def __init__(self, dataloader, device):
+        self.dataloader = iter(dataloader)
+        self.device = device
+
+    def get_batch(self):
+        batch = next(self.dataloader)
+        for attr in [
+            "mask_mask",
+            "masked_tokens",
+            "special_token_mask",
+            "swapped",
+            "tokens",
+        ]:
+            setattr(batch, attr, getattr(batch, attr).to(self.device))
+        return batch
+
+
+def get_memloader(root_dir, batch_size=128, num_workers=8, device="cuda"):
+    def collate_fn(samples):
+        res = samples[0]
+        mask_masks = [sample.mask_mask for sample in samples]
+        masked_tokens = [sample.masked_tokens for sample in samples]
+        # sen1_tokens = [sample.sen1_tokens for sample in samples]
+        # sen2_tokens = [sample.sen2_tokens for sample in samples]
+        special_token_mask = [sample.special_token_mask for sample in samples]
+        swapped = [sample.swapped for sample in samples]
+        tokens = [sample.tokens for sample in samples]
+        res.mask_mask = torch.cat(mask_masks)
+        res.masked_tokens = torch.cat(masked_tokens)
+        # res.sen1_tokens = torch.cat(sen1_tokens)
+        # res.sen2_tokens = torch.cat(sen2_tokens)
+        res.special_token_mask = torch.cat(special_token_mask)
+        res.swapped = torch.tensor(swapped)
+        res.tokens = torch.cat(tokens)
+        return res
+
+    return MemLoader(
+        DataLoader(
+            MemSet(root_dir),
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            collate_fn=collate_fn,
+        ),
+        device=device,
+    )
+
+
+def save_dataset(dataset, folder_name, max_total_length=128, mask_percent=0.15):
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+    raw_dataset = WikiBookDataset()
+    processor = SentencePairProcessor(
+        max_total_length=max_total_length,
+        device="cpu",
+        mask_percent=mask_percent,
+        swap_percent=0.0,
+    )
+    pda = ProcessedDataset(raw_dataset, processor)
+    for i in range(1_000_000):
+        if i % 1000 == 0:
+            print(i)
+        batch = pda.get_batch(1)
+        pickle.dump(batch, open(os.path.join(folder_name, f"{i}.pkl"), "wb"))
+    # return wikibookdata.ProcessedDataset(raw_dataset, processor)
+
+    # with open(filename, "wb") as f:
+    #     pickle.dump(dataset, f)
