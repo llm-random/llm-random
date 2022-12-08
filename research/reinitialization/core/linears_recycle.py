@@ -197,7 +197,7 @@ class StructMagnitudeRecycleImmunityFF(nn.Module):
         dff: int,
         pruner: Pruner,
         immunity_start_value: int,
-        reinitialization: str,
+        reinit_dist: str = "init",
     ):
         super().__init__()
         self.lin1 = Linear(dmodel, dff)
@@ -207,7 +207,8 @@ class StructMagnitudeRecycleImmunityFF(nn.Module):
         self.immunity = nn.parameter.Parameter(
             torch.full((dff,), immunity_start_value), requires_grad=False
         )
-        self.reinitialization = reinitialization
+        assert reinit_dist in ["init", "zero", "follow_normal"]
+        self.reinit_dist = reinit_dist
         pruner.register(self)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -225,16 +226,24 @@ class StructMagnitudeRecycleImmunityFF(nn.Module):
             requires_grad=False,
         )
 
-    def reinitialize_layer(self, layer: nn.Linear, mask: torch.Tensor):
-        # apply mask to lin1
-
-        if self.reinitialization == "zero":
+    def get_new_weight(self, layer):
+        if self.reinit_dist == "zero":
             new_weights = torch.zeros_like(layer.weight)
-        else:
+        elif self.reinit_dist == "init":
             new_weights = kaiming_uniform_(
                 torch.empty_like(layer.weight), a=math.sqrt(5)
             )
             new_weights *= 3**0.5
+        elif self.reinit_dist == "follow_normal":
+            std = layer.weight.std().detach().cpu().item()
+            mean = layer.weight.mean().detach().cpu().item()
+            new_weights = torch.normal(mean, std, size=layer.weight.shape)
+        return new_weights
+
+    def reinitialize_layer1(self, mask: torch.Tensor):
+        layer = self.lin1
+
+        new_weights = self.get_new_weight(layer)
 
         layer.weight.data = misc.einsum(
             "f, f m -> f m", mask, layer.weight.data
@@ -243,9 +252,18 @@ class StructMagnitudeRecycleImmunityFF(nn.Module):
         )  # type: ignore
         layer.bias.data = misc.einsum("f, f -> f", mask, layer.bias.data)  # type: ignore
 
+    def reinitialize_layer2(self, mask: torch.Tensor):
+        layer = self.lin2
+
+        new_weights = self.get_new_weight(layer)
+
+        self.lin2.weight.data = misc.einsum(
+            "f, m f -> m f", mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
+
     def reinitialize(self, mask):
-        self.reinitialize_layer(self.lin1, mask)
-        self.reinitialize_layer(self.lin2, mask)
+        self.reinitialize_layer1(self.lin1, mask)
+        self.reinitialize_layer2(self.lin2, mask)
 
     def prune(self, prob: float):
         device = self.lin1.weight.device

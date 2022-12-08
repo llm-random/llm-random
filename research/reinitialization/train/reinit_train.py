@@ -14,7 +14,6 @@ from research.reinitialization.core.pruner import Pruner
 from research.reinitialization.core.scheduler import DelayedConstScheduler
 from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer
 
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--use_clearml", action="store_true")
@@ -44,7 +43,7 @@ parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--immunity", type=int, default=10)
-# parser.add_argument("--follow_distribution", action="store_true")
+parser.add_argument("--reinit_dist", type=str, default="init")
 
 args = parser.parse_args()
 
@@ -96,7 +95,7 @@ elif args.ff_layer == "unstruct_magnitude_recycle":
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
-        args.dm, args.dff, pruner, args.immunity
+        args.dm, args.dff, pruner, args.immunity, args.reinit_dist
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF

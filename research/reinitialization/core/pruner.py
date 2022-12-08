@@ -65,7 +65,6 @@ class Pruner(BasePruner):
 
     def histogram(self, step: int):
         self.histogram_neurons(step)
-        # self.histogram_weights(step)
 
     def prune(self, prob: float):
         print("Pruning step")
