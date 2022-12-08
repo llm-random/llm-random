@@ -162,7 +162,7 @@ class StructMagnitudeRecycleFF(nn.Module):
 
         # save statistics
         self.recycle_counter += 1 - mask
-        self.neuron_magnitudes = weights
+        self.neuron_magnitudes = self.lin1.weight.flatten()  # weights
         self.recently_pruned = (1 - mask).bool()
 
         # apply mask to lin1

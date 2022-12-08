@@ -32,6 +32,7 @@ class Pruner(BasePruner):
 class MagnitudeStatPruner(BasePruner):
     writer: SummaryWriter
     logger: Logger
+    layers = []
 
     def prune(self, prob: float):
         print("Pruning step")
