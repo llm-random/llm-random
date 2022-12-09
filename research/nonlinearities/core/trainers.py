@@ -19,8 +19,8 @@ class NonlinearityTrainer:
     mask_loss_weight: float
     modelpath: str
     save_model_checkpoints: str
-    writer: Optional[SummaryWriter] = None
     mixed_precision: bool = False
+    writer: Optional[SummaryWriter] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
 
     def __attrs_post_init__(self):

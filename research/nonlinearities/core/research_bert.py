@@ -55,7 +55,6 @@ def FeedForwardMultineck(
     :param exp_rate: exp_rate: M/N, where M is the size of the "expanded" layer (before ReLU)
     :param n_heads: number of independent bottlenecks, later aggregated
     :param parameter_sharing_mode: one of "none", "neck_and_ff", "input_and_neck"
-    #TODO: should input_and_neck even be implemented? It seems that we lose a lot of information by using 1 bottleneck for all heads
     An iteration on FeedForwardBottleneck, where there are multiple bottlenecks, EACH writes to the output stream independently, like multiheadattention
     Assumes that the number of parameters should be the same as for a FeedForward layer of the same input/output dimensions;
     with the bottleneck layer size being B and the number of heads H, and in/out being N and M respectively, the resulting equation is:

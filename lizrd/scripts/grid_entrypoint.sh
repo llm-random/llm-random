@@ -1,4 +1,4 @@
 #!/bin/sh
 
-source venv/bin/activate
+source ~/sparsity/venv/bin/activate
 $@

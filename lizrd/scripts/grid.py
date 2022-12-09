@@ -61,23 +61,20 @@ TRAINER = "research.nonlinearities.train.nonlinearities_train"
 # * - apply function
 
 PARAMS = {
-    # "deterministic": False,
     "ff_mode": "vanilla",
-    "^dff": [128, 512, 1024, 2048],
-    # "^seed": [2137, 69, 420],
-    "^attention_thinning_coeff": [0.7, 0.3, 0.1, 0.03],
-    "name": "att_size_influence",
+    "^learning_rate": [3e-3, 8e-4, 4e-4],
+    "name": "vanilla_baseline",
+    "attention_thinning_coeff": 0.2,
+    "dff": 1024,
     "use_clearml": True,
     "batch_size": 64,
     "cutoff": 128,
     "dmodel": 256,
-    "dff": 1024,
-    "n_att_heads": 8,
-    "learning_rate": 8e-4,
+    "n_att_heads": 4,
     "n_blocks": 4,
     "mask_percent": 0.15,
     "n_steps": 100001,
-    "project_name": "nonlinearities/common_setup_experiments/att_size_dff_incluence",
+    "project_name": "nonlinearities/baseline",
 }
 
 if __name__ == "__main__":
@@ -109,22 +106,22 @@ if __name__ == "__main__":
                 trainer_params.append(f"--{k}")
                 if v != "" and v is not None:
                     trainer_params.append(v)
-
         subprocess_args = [
             "sbatch",
             "--partition=common",
             "--qos=16gpu7d",
             "--gres=gpu:1",
+            "--begin=now+8hour",
             f"--job-name={name}",
             "--time=3-00:00:00",
-            f"--output=/home/simontwice/sparsity/not_important2_{i}.txt",
+            f"--output=/home/simontwice/sparsity/not_important{i}.txt",
             "lizrd/scripts/grid_entrypoint.sh",
             "python3",
             "-m",
             TRAINER,
             *trainer_params,
         ]
-        sleep(0.5)
+        sleep(60)
         subprocess.run(
             [str(s) for s in subprocess_args],
         )

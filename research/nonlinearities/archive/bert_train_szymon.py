@@ -83,7 +83,7 @@ FF_MODE_MAP = {
     "vanilla": (bert.FeedForward, (DM, DFF)),
     "bottleneck": (research_bert.FeedForwardBottleneck, (DM, EXP_RATE)),
     "multineck": (research_bert.FeedForwardMultineck, (DM, EXP_RATE, N_FF_HEADS)),
-    "choppedneck": (research_bert.FeedForwardChoppedneck, (DM, N_CHUNKS)),
+    # "choppedneck": (research_bert.FeedForwardChoppedneck, (DM, N_CHUNKS)),
 }
 assert FF_MODE is not None, f"FF_MODE must be specified"
 assert None not in FF_MODE_MAP[FF_MODE][1], f"FF args must be specified"
@@ -153,7 +153,7 @@ def train_step(model, optimizer, pdataset, step=0):
     processed_batch = pdataset.get_batch(BATCH_SIZE)
     assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
     x_set = processed_batch.masked_tokens
-    y_class_set = processed_batch.swapped
+    # y_class_set = processed_batch.swapped
     y_token_set = processed_batch.tokens
     y_mask_set = processed_batch.mask_mask
 

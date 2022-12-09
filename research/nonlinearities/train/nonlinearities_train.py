@@ -171,8 +171,7 @@ if args.use_clearml:
     task.connect(vars(args))
     task.connect(parameter_counts, "parameter_counts")
     if args.tags:
-        pass
-        # task.add_tags(args.tags)
+        task.add_tags(args.tags)
     if not args.deterministic:
         task.set_random_seed(int(time.time()))
     if args.seed:
