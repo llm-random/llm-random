@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
 
-from attr import define
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
@@ -28,10 +27,7 @@ class Pruner(BasePruner):
             layer.prune(prob)
 
 
-@define
 class MagnitudeStatPruner(BasePruner):
-    writer: SummaryWriter
-    logger: Logger
     layers = []
 
     def prune(self, prob: float):
@@ -46,13 +42,23 @@ class MagnitudeStatPruner(BasePruner):
         mean = tensor.mean().item()
         std = tensor.std().item()
         print(f"Logging tensor stats for {title}")
-        self.writer.add_scalar(f"{title}_min", minimum, step)
+        # self.writer.add_scalar(f"{title}_min", minimum, step)
+        Logger.current_logger().report_scalar(
+            f"{title}_min", f"{title}_min", step, minimum
+        )
         print(f"{title}_min: {minimum} step: {step}")
-        self.writer.add_scalar(f"{title}_max", maximum, step)
+        # self.writer.add_scalar(f"{title}_max", maximum, step)
+        Logger.current_logger().report_scalar(
+            f"{title}_min", f"{title}_min", step, maximum
+        )
         print(f"{title}_max: {maximum} step: {step}")
-        self.writer.add_scalar(f"{title}_mean", mean, step)
+        # self.writer.add_scalar(f"{title}_mean", mean, step)
+        Logger.current_logger().report_scalar(
+            f"{title}_min", f"{title}_min", step, mean
+        )
         print(f"{title}_mean: {mean} step: {step}")
-        self.writer.add_scalar(f"{title}_std", std, step)
+        # self.writer.add_scalar(f"{title}_std", std, step)
+        Logger.current_logger().report_scalar(f"{title}_min", f"{title}_min", step, std)
         print(f"{title}_std: {std} step: {step}")
 
     def log_recycle_magnitude(self, step: int):
@@ -83,10 +89,16 @@ class MagnitudeStatPruner(BasePruner):
 
     def log_recently_pruned_magnitude(self, step: int):
         for i, layer in enumerate(self.layers):
-            self.writer.add_scalar(
-                f"mean_magn_of_recycled_layer_{i}",
-                layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
+            # self.writer.add_scalar(
+            #     f"mean_magn_of_recycled_layer_{i}",
+            #     layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
+            #     step,
+            # )
+            Logger.current_logger().report_scalar(
+                "mean_magn_of_recycled_layer",
+                f"Layer {i}",
                 step,
+                layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
             )
 
     def log_hist_all_weights(self, step: int):
