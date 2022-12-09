@@ -1,5 +1,5 @@
 import random
-
+import re
 import torch
 from datasets import load_dataset
 from transformers import BertTokenizer
@@ -8,16 +8,6 @@ from torch.utils.data import Dataset, DataLoader
 
 import os
 import pickle
-
-# dataset_book = load_dataset("bookcorpus")
-# dataset_wiki = load_dataset("wikipedia", "20220301.en")
-#
-# tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
-#
-# print(tokenizer.encode("Hello, my name is John.", add_special_tokens=True))
-#
-#
-# print(dataset_wiki)
 
 
 class SentencePair(object):
@@ -47,6 +37,15 @@ class ProcessedExample(object):
         self.mask_mask = processor.get_mask_mask(self.special_token_mask)
         self.masked_tokens = processor.mask_tokens(self.tokens, self.mask_mask)
         self.swapped = sentence_pair.swapped
+
+
+class ProcessedExampleLean(object):
+    def __init__(self, sentence, processor):
+        self.tokens = processor.tokenize_text(sentence)
+        self.tokens = processor.pad_tokens(self.tokens)
+        special_token_mask = processor.special_token_mask(self.tokens)
+        self.mask_mask = processor.get_mask_mask(special_token_mask)
+        self.masked_tokens = processor.mask_tokens(self.tokens, self.mask_mask)
 
 
 class ProcessedBatch(object):
@@ -81,6 +80,27 @@ class ProcessedBatch(object):
         return matrix
 
 
+class ProcessedBatchLean(object):
+    def __init__(self, processed_examples, device):
+        self.device = device
+        self.tokens = self._make_tensor(
+            [example.tokens for example in processed_examples]
+        )
+        self.mask_mask = self._make_tensor(
+            [example.mask_mask for example in processed_examples]
+        )
+        self.masked_tokens = self._make_tensor(
+            [example.masked_tokens for example in processed_examples]
+        )
+
+        assert self.tokens.shape == self.masked_tokens.shape
+        assert self.tokens.shape == self.mask_mask.shape
+
+    def _make_tensor(self, list_of_token_lists):
+        matrix = np.array(list_of_token_lists)
+        return torch.from_numpy(matrix).to(self.device)
+
+
 class SentencePairProcessor(object):
     def __init__(
         self, max_total_length=128, mask_percent=0.15, swap_percent=0.5, device="cpu"
@@ -110,12 +130,21 @@ class SentencePairProcessor(object):
     def process(self, sentence_pair):
         return ProcessedExample(sentence_pair, self)
 
+    def process_lean(self, sentence):
+        return ProcessedExampleLean(sentence, self)
+
     def process_batch(self, sentence_pairs):
         for i in range(0, int(len(sentence_pairs) * self.swap_percent), 2):
             sentence_pairs[i].swap(sentence_pairs[i + 1])
         random.shuffle(sentence_pairs)
         return ProcessedBatch(
             [self.process(sentence_pair) for sentence_pair in sentence_pairs],
+            device=self.device,
+        )
+
+    def process_batch_lean(self, sentences):
+        return ProcessedBatchLean(
+            [self.process_lean(sentence) for sentence in sentences],
             device=self.device,
         )
 
@@ -182,8 +211,18 @@ class WikiBookDataset(object):
         example = self.examples_buffer.pop()
         return example
 
-    def get_batch(self, batch_size):
+    def get_example_lean(self):
+        if len(self.examples_buffer) <= self.buffer_refill_from:
+            self._refill_buffer_lean()
+        example = self.examples_buffer.pop()
+        return example
+
+    def get_batch_originl(self, batch_size):
         batch = [self.get_example() for _ in range(batch_size)]
+        return batch
+
+    def get_batch_lean(self, batch_size):
+        batch = [self.get_example_lean() for _ in range(batch_size)]
         return batch
 
     def _refill_buffer(self):
@@ -192,12 +231,18 @@ class WikiBookDataset(object):
             self._add_examples(self._get_random_document())
         random.shuffle(self.examples_buffer)
 
+    def _refill_buffer_lean(self):
+        while len(self.examples_buffer) <= self.buffer_refill_to:
+            self._add_examples_lean(self._get_random_document())
+        random.shuffle(self.examples_buffer)
+
     def _get_random_document(self):
         if random.random() < self.wikipedia_chance:
             document_text = self.dataset_wiki[
                 random.randint(0, len(self.dataset_wiki) - 1)
             ]["text"]
-            document_sentences = document_text.replace(".", "\n").split("\n")
+            dots_to_newlines = re.sub("\.\s", "\n", document_text)
+            document_sentences = re.sub(r"\n+", "\n", dots_to_newlines).split("\n")
             assert isinstance(document_sentences, list)
             assert isinstance(document_sentences[0], str)
         else:
@@ -233,6 +278,13 @@ class WikiBookDataset(object):
                     self.examples_buffer.append(pair)
                 good_sentences = []
 
+    def _add_examples_lean(self, param):
+        "This version simply filters out all sentences that are too short, then adds all remaining sentences to the buffer."
+        document_sentences = [
+            sentence for sentence in param if len(sentence) > self.min_sentence_length
+        ]
+        self.examples_buffer += document_sentences
+
 
 class ProcessedDataset(object):
     def __init__(self, dataset, processor):
@@ -242,8 +294,8 @@ class ProcessedDataset(object):
         self.processor = processor
 
     def get_batch(self, batch_size):
-        batch = self.dataset.get_batch(batch_size)
-        processed_batch = self.processor.process_batch(batch)
+        batch = self.dataset.get_batch_lean(batch_size)
+        processed_batch = self.processor.process_batch_lean(batch)
         return processed_batch
 
 
@@ -269,30 +321,20 @@ class MemLoader:
         for attr in [
             "mask_mask",
             "masked_tokens",
-            "special_token_mask",
-            "swapped",
             "tokens",
         ]:
             setattr(batch, attr, getattr(batch, attr).to(self.device))
         return batch
 
 
-def get_memloader(root_dir, batch_size=128, num_workers=8, device="cuda"):
+def get_memloader_lean(root_dir, batch_size=128, num_workers=8, device="cuda"):
     def collate_fn(samples):
         res = samples[0]
         mask_masks = [sample.mask_mask for sample in samples]
         masked_tokens = [sample.masked_tokens for sample in samples]
-        # sen1_tokens = [sample.sen1_tokens for sample in samples]
-        # sen2_tokens = [sample.sen2_tokens for sample in samples]
-        special_token_mask = [sample.special_token_mask for sample in samples]
-        swapped = [sample.swapped for sample in samples]
         tokens = [sample.tokens for sample in samples]
         res.mask_mask = torch.cat(mask_masks)
         res.masked_tokens = torch.cat(masked_tokens)
-        # res.sen1_tokens = torch.cat(sen1_tokens)
-        # res.sen2_tokens = torch.cat(sen2_tokens)
-        res.special_token_mask = torch.cat(special_token_mask)
-        res.swapped = torch.tensor(swapped)
         res.tokens = torch.cat(tokens)
         return res
 
@@ -324,7 +366,3 @@ def save_dataset(dataset, folder_name, max_total_length=128, mask_percent=0.15):
             print(i)
         batch = pda.get_batch(1)
         pickle.dump(batch, open(os.path.join(folder_name, f"{i}.pkl"), "wb"))
-    # return wikibookdata.ProcessedDataset(raw_dataset, processor)
-
-    # with open(filename, "wb") as f:
-    #     pickle.dump(dataset, f)
