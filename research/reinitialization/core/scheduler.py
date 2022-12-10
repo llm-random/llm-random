@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+import torch
+
 from research.reinitialization.core.pruner import BasePruner
 from attr import define
 
@@ -37,6 +39,7 @@ class MagnitudeStatScheduler(BaseScheduler):
     n_steps_hist_all: int
     delay: int = 0
     current_step = 0
+    init: str = "kaiming"
 
     def step(self):
         self.pruner.log_recently_pruned_magnitude(self.current_step)
@@ -46,6 +49,14 @@ class MagnitudeStatScheduler(BaseScheduler):
             and self.current_step >= self.delay
         ):
             self.pruner.prune(self.prob)
+
+        if (
+            self.init == "grad"
+            and self.current_step % self.n_steps_prune == 1
+            and self.current_step >= self.delay
+        ):
+            pass
+            # TODO: correct magnitude of recently pruned
 
         if self.current_step % self.n_steps_log_recycle_hist == 0:
             self.pruner.log_recycle_magnitude(self.current_step)

@@ -98,6 +98,7 @@ class Trainer:
 
         optimizer.zero_grad()
         total_loss.backward()
+        # TODO: check for scheduler
         optimizer.step()
 
         if step and self.writer:

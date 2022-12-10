@@ -30,10 +30,10 @@ class Pruner(BasePruner):
 class MagnitudeStatPruner(BasePruner):
     layers = []
 
-    def prune(self, prob: float):
+    def prune(self, prob: float, init: str = "kaiming"):
         print("Pruning step")
         for layer in self.layers:
-            layer.prune(prob)
+            layer.prune(prob, init)
 
     def _log_tensor_stats(self, tensor: torch.Tensor, step: int, title: str):
         # Log statistics of a flat tensor (useful in case histogram doesn't work in ClearML)

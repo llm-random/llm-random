@@ -144,27 +144,7 @@ class StructMagnitudeRecycleFF(nn.Module):
         x = self.lin2(x)
         return x
 
-    def prune(self, prob: float):
-        device = self.lin1.weight.device
-
-        # create mask
-        mask = torch.ones(self.dff).to(device)
-
-        # prepare mask
-        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
-        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
-        weights = weights1 * weights2
-        n_els_weights = torch.numel(weights)
-        assert n_els_weights == self.dff
-        n_to_prune = round(prob * n_els_weights)
-        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
-        mask[topk.indices] = 0
-
-        # save statistics
-        self.recycle_counter += 1 - mask
-        self.neuron_magnitudes = self.lin1.weight.flatten()  # weights
-        self.recently_pruned = (1 - mask).bool()
-
+    def _init_kaiming(self, mask: torch.Tensor):
         # apply mask to lin1
         new_weights = kaiming_uniform_(
             torch.empty_like(self.lin1.weight), a=math.sqrt(5)
@@ -185,3 +165,69 @@ class StructMagnitudeRecycleFF(nn.Module):
         self.lin2.weight.data = misc.einsum(
             "f, m f -> m f", mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
+
+    def _init_grad(self, mask: torch.Tensor):
+        # apply mask to lin1
+        new_weights = kaiming_uniform_(
+            torch.empty_like(self.lin1.weight), a=math.sqrt(5)
+        )
+        new_weights *= 3**0.5
+
+        self.lin1.weight.data = misc.einsum(
+            "f, f m -> f m", mask, self.lin1.weight.data
+        ) + misc.einsum("f, f m -> f m", 1 - mask, new_weights)
+        self.lin1.bias.data = misc.einsum("f, f -> f", mask, self.lin1.bias.data)
+
+        # apply mask to lin2
+        new_weights = torch.zeros_like(self.lin2.weight)
+
+        self.lin2.weight.data = misc.einsum(
+            "f, m f -> m f", mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
+
+    def _zero_grad_first_ff(self):
+        self.lin1.weight.data.grad[self.recently_pruned] = 0
+
+    def _increase_magn_second_ff(self):
+        # calculate magnitudes
+        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        magnitudes = weights1 * weights2
+
+        # find mean magnitude
+        mean_magn = torch.mean(magnitudes)
+
+        # calculate scaling coeffs
+        coeffs = mean_magn / magnitudes
+        coeffs[~self.recently_pruned] = 1
+
+        # apply scaling coeffs to lin2
+        self.lin2.weight.data = misc.einsum(
+            "f, m f -> m f", coeffs, self.lin2.weight.data
+        )
+
+    def prune(self, prob: float, init: str = "kaiming"):
+        device = self.lin1.weight.device
+
+        # create mask
+        mask = torch.ones(self.dff).to(device)
+
+        # prepare mask
+        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        weights = weights1 * weights2
+        n_els_weights = torch.numel(weights)
+        assert n_els_weights == self.dff
+        n_to_prune = round(prob * n_els_weights)
+        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
+        mask[topk.indices] = 0
+
+        # save statistics
+        self.recycle_counter += 1 - mask
+        self.neuron_magnitudes = weights.flatten()  # weights
+        self.recently_pruned = (1 - mask).bool()
+
+        if init == "kaiming":
+            self._init_kaiming(mask)
+        elif init == "grad":
+            self._init_grad(mask)
