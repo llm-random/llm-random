@@ -7,12 +7,10 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 
 from lizrd.core import bert
-from lizrd.datasets import wikibookdata, fast_wikibookdata
+from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
-from lizrd.core import misc
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
-from lizrd.datasets.wikibookdata import SentencePairProcessor
 
 
 def get_model(
@@ -50,24 +48,20 @@ def get_processed_dataset(
     mask_percent: float,
     device: torch.device,
     num_workers: int,
-):
-    # raw_dataset = wikibookdata.WikiBookDataset()
-    # processor = wikibookdata.SentencePairProcessor(
-    #     max_total_length=max_total_length,
-    #     device=device,
-    #     mask_percent=mask_percent,
-    #     swap_percent=0.0,
-    # )
-    # return wikibookdata.ProcessedDataset(raw_dataset, processor)
-    # return wikibookdata.get_memloader("./dataset", device=device)
-    return fast_wikibookdata.FastDataloader(
+    seed: int,
+) -> wikibookdata.ProcessedDatasetWrapper:
+    raw_dataset = wikibookdata.WikiBookDataset()
+    processor = wikibookdata.SentencePairProcessor(
+        max_total_length=max_total_length,
+        mask_percent=mask_percent,
+    )
+    dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
+    return wikibookdata.ProcessedDatasetWrapper(
+        pdataset=dataset,
+        device=device,
         batch_size=batch_size,
         num_workers=num_workers,
-        device=device,
-        seed=1,
-        processor=SentencePairProcessor(
-            max_total_length=max_total_length,
-        ),
+        seed=seed,
     )
 
 
@@ -75,7 +69,8 @@ def get_processed_dataset(
 class Trainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
-    pdataset: wikibookdata.ProcessedDataset
+    pdataset: wikibookdata.ProcessedDatasetWrapper
+    pdataset_eval: wikibookdata.ProcessedDatasetWrapper
     batch_size: int
     vocab_size: int
     mask_percent: float
@@ -99,7 +94,7 @@ class Trainer:
         self,
         model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
-        pdataset: wikibookdata.ProcessedDataset,
+        pdataset: wikibookdata.ProcessedDatasetWrapper,
         scheduler: Optional[BaseScheduler],
         step=0,
     ):
@@ -107,7 +102,7 @@ class Trainer:
             scheduler.step()
         model.train()
         processed_batch = pdataset.get_batch()
-        # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
@@ -135,7 +130,7 @@ class Trainer:
     def _eval_step(
         self,
         model: torch.nn.Module,
-        pdataset: wikibookdata.ProcessedDataset,
+        pdataset: wikibookdata.ProcessedDatasetWrapper,
         step: int = 0,
         sample: int = 10,
     ):
@@ -145,7 +140,7 @@ class Trainer:
             total_mask_loss = 0.0
             for _ in range(sample):
                 processed_batch = pdataset.get_batch()
-                # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+                assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask
@@ -173,9 +168,7 @@ class Trainer:
             )
             self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
-                eval_loss = self._eval_step(
-                    self.model, self.pdataset, step, sample=n_steps_eval // 2
-                )
+                eval_loss = self._eval_step(self.model, self.pdataset_eval, step)
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             print(f"Step {step}")

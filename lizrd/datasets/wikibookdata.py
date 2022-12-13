@@ -1,47 +1,13 @@
 import random
-import re
+
+import numpy as np
 import torch
 from datasets import load_dataset
+from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-import math
-from typing import List
-
-import os
-import pickle
-
-
-class SentencePair(object):
-    def __init__(self, sen1, sen2):
-        self.sen1 = sen1
-        self.sen2 = sen2
-        self.swapped = False
-
-    def swap(self, sentence_pair2):
-        self.sen2, sentence_pair2.sen2 = sentence_pair2.sen2, self.sen2
-        self.swapped = True
-        sentence_pair2.swapped = True
 
 
 class ProcessedExample(object):
-    def __init__(self, sentence_pair, processor):
-        self.sen1 = sentence_pair.sen1
-        self.sen2 = sentence_pair.sen2
-
-        self.sen1_tokens = processor.tokenize_text(sentence_pair.sen1)
-        self.sen2_tokens = processor.tokenize_text(sentence_pair.sen2)
-
-        self.tokens = processor.join_sentence_tokens(self.sen1_tokens, self.sen2_tokens)
-        self.tokens = processor.pad_tokens(self.tokens)
-
-        self.special_token_mask = processor.special_token_mask(self.tokens)
-        self.mask_mask = processor.get_mask_mask(self.special_token_mask)
-        self.masked_tokens = processor.mask_tokens(self.tokens, self.mask_mask)
-        self.swapped = sentence_pair.swapped
-
-
-class ProcessedExampleLean(object):
     def __init__(self, sentence, processor):
         self.tokens = processor.tokenize_text(sentence)
         self.tokens = processor.pad_tokens(self.tokens)
@@ -51,40 +17,7 @@ class ProcessedExampleLean(object):
 
 
 class ProcessedBatch(object):
-    def __init__(self, processed_examples, device):
-        self.device = device
-        self.sen1_tokens = [example.sen1_tokens for example in processed_examples]
-        self.sen2_tokens = [example.sen2_tokens for example in processed_examples]
-
-        self.tokens = self._make_tensor(
-            [example.tokens for example in processed_examples]
-        )
-        self.special_token_mask = self._make_tensor(
-            [example.special_token_mask for example in processed_examples]
-        )
-        self.mask_mask = self._make_tensor(
-            [example.mask_mask for example in processed_examples]
-        )
-        self.masked_tokens = self._make_tensor(
-            [example.masked_tokens for example in processed_examples]
-        )
-        self.swapped = self._make_tensor(
-            [example.swapped for example in processed_examples]
-        )
-        assert self.tokens.shape == self.masked_tokens.shape
-        assert self.tokens.shape == self.special_token_mask.shape
-        assert self.tokens.shape == self.mask_mask.shape
-        assert self.swapped.shape == (len(processed_examples),)
-
-    def _make_tensor(self, matrix):
-        matrix = np.array(matrix)
-        matrix = torch.from_numpy(matrix).to(self.device)
-        return matrix
-
-
-class ProcessedBatchLean(object):
-    def __init__(self, processed_examples, device):
-        self.device = device
+    def __init__(self, processed_examples):
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
         )
@@ -100,14 +33,17 @@ class ProcessedBatchLean(object):
 
     def _make_tensor(self, list_of_token_lists):
         matrix = np.array(list_of_token_lists)
-        return torch.from_numpy(matrix).to(self.device)
+        return torch.from_numpy(matrix)
+
+    def to_(self, device):
+        self.tokens = self.tokens.to(device)
+        self.masked_tokens = self.masked_tokens.to(device)
+        self.mask_mask = self.mask_mask.to(device)
+        return self
 
 
 class SentencePairProcessor(object):
-    def __init__(
-        self, max_total_length=128, mask_percent=0.15, swap_percent=0.5, device="cpu"
-    ):
-        self.device = device
+    def __init__(self, max_total_length=128, mask_percent=0.15, rng=None):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         self.max_total_length = max_total_length
         self.max_sentence_length = (max_total_length - 4) // 2
@@ -127,28 +63,12 @@ class SentencePairProcessor(object):
         ]
         self.special_token_ids = [self.cls_id, self.sep_id, self.pad_id, self.mask_id]
         self.mask_percent = mask_percent
-        self.swap_percent = swap_percent  # only for batches!
+        if rng is None:
+            rng = np.random.default_rng()
+        self.rng = rng
 
-    def process(self, sentence_pair):
-        return ProcessedExample(sentence_pair, self)
-
-    def process_lean(self, sentence):
-        return ProcessedExampleLean(sentence, self)
-
-    def process_batch(self, sentence_pairs):
-        for i in range(0, int(len(sentence_pairs) * self.swap_percent), 2):
-            sentence_pairs[i].swap(sentence_pairs[i + 1])
-        random.shuffle(sentence_pairs)
-        return ProcessedBatch(
-            [self.process(sentence_pair) for sentence_pair in sentence_pairs],
-            device=self.device,
-        )
-
-    def process_batch_lean(self, sentences):
-        return ProcessedBatchLean(
-            [self.process_lean(sentence) for sentence in sentences],
-            device=self.device,
-        )
+    def process(self, sentence):
+        return ProcessedExample(sentence, self)
 
     def tokenize_text(self, sentence_text):
         # note: tokenizer.encode _claims_ to be equivalent. This isn't true.
@@ -160,7 +80,7 @@ class SentencePairProcessor(object):
         return np.isin(sentence_tokens, self.special_token_ids)
 
     def get_mask_mask(self, special_token_mask):
-        mask_mask = np.random.binomial(1, self.mask_percent, len(special_token_mask))
+        mask_mask = self.rng.binomial(1, self.mask_percent, len(special_token_mask))
         mask_mask = mask_mask.astype(bool)
         mask_mask = np.where(special_token_mask, 0, mask_mask)
         return mask_mask
@@ -168,19 +88,6 @@ class SentencePairProcessor(object):
     def mask_tokens(self, sentence_tokens, mask_mask):
         sentence_tokens = np.where(mask_mask, self.mask_id, sentence_tokens)
         return sentence_tokens
-
-    def join_sentence_tokens(self, sentence_tokens1, sentence_tokens2):
-        if len(sentence_tokens1) > self.max_sentence_length:
-            sentence_tokens1 = sentence_tokens1[-self.max_sentence_length :]
-        if len(sentence_tokens2) > self.max_sentence_length:
-            sentence_tokens2 = sentence_tokens2[: self.max_sentence_length]
-        return (
-            [self.cls_id]
-            + sentence_tokens1
-            + [self.sep_id]
-            + sentence_tokens2
-            + [self.sep_id]
-        )
 
     def pad_tokens(self, sentence_tokens):
         if len(sentence_tokens) > self.max_total_length:
@@ -190,22 +97,25 @@ class SentencePairProcessor(object):
         )
 
 
-def process_wiki_text(document_text):
-    "splits document into a list of chunks of length 450"
-    chunks = [document_text[i : i + 450] for i in range(0, len(document_text), 450)]
+def process_wiki_text(document_text, chunk_length: int = 450):
+    "splits document into a list of chunks of specified length"
+    chunks = [
+        document_text[i : i + chunk_length]
+        for i in range(0, len(document_text), chunk_length)
+    ]
     return chunks
 
 
-def process_book_text(document_sentences):
+def process_book_text(document_sentences, chunk_length: int = 450):
     """
-    glue together sentences into chunks of length at least 450
+    glue together sentences into chunks of at least `chunk_length`
     :param document_sentences: list of strings, each string is a sentence
     :return: list of strings, each string is a chunk of length at least 450
     """
     chunks = []
     current_chunk = ""
     for sentence in document_sentences:
-        if len(current_chunk) + len(sentence) > 450:
+        if len(current_chunk) + len(sentence) > chunk_length:
             chunks.append(current_chunk)
             current_chunk = sentence
         else:
@@ -213,11 +123,12 @@ def process_book_text(document_sentences):
     return chunks
 
 
-class WikiBookDataset(object):
-    def __init__(self, evaluate: bool = False):
+class WikiBookDataset:
+    def __init__(self, rng=random):
         self.examples_buffer = []
         self.dataset_wiki = load_dataset("wikipedia", "20220301.en")["train"]
         self.dataset_book = load_dataset("bookcorpus")["train"]
+        self.rng = rng
 
         self.buffer_refill_to = 10000
         self.buffer_refill_from = 0
@@ -236,41 +147,25 @@ class WikiBookDataset(object):
         example = self.examples_buffer.pop()
         return example
 
-    def get_example_lean(self):
-        if len(self.examples_buffer) <= self.buffer_refill_from:
-            self._refill_buffer_lean()
-        example = self.examples_buffer.pop()
-        return example
-
-    def get_batch_originl(self, batch_size):
+    def get_batch(self, batch_size):
         batch = [self.get_example() for _ in range(batch_size)]
-        return batch
-
-    def get_batch_lean(self, batch_size):
-        batch = [self.get_example_lean() for _ in range(batch_size)]
         return batch
 
     def _refill_buffer(self):
         while len(self.examples_buffer) <= self.buffer_refill_to:
-            last_len = len(self.examples_buffer)
             self._add_examples(self._get_random_document())
-        random.shuffle(self.examples_buffer)
-
-    def _refill_buffer_lean(self):
-        while len(self.examples_buffer) <= self.buffer_refill_to:
-            self._add_examples_lean(self._get_random_document())
-        random.shuffle(self.examples_buffer)
+        self.rng.shuffle(self.examples_buffer)
 
     def _get_random_document(self):
-        if random.random() < self.wikipedia_chance:
+        if self.rng.random() < self.wikipedia_chance:
             document_text = self.dataset_wiki[
-                random.randint(0, len(self.dataset_wiki) - 1)
+                self.rng.randint(0, len(self.dataset_wiki) - 1)
             ]["text"]
             documents_sentences = process_wiki_text(document_text)
             assert isinstance(documents_sentences, list)
             assert isinstance(documents_sentences[0], str)
         else:
-            linebegin = random.randint(
+            linebegin = self.rng.randint(
                 0, len(self.dataset_wiki) - 1 - self.bookcorpus_lines
             )
             lineend = linebegin + self.bookcorpus_lines
@@ -280,29 +175,7 @@ class WikiBookDataset(object):
             assert isinstance(documents_sentences[0], str)
         return documents_sentences
 
-    def _add_examples(self, document_sentences):
-        emptysentencelength = 5
-        document_sentences.append(
-            "a" * emptysentencelength
-        )  # hack to ensure last sentences can be added
-        good_sentences = []
-        for sentence in document_sentences:
-            if len(sentence) > self.min_sentence_length:
-                good_sentences.append(sentence)
-            elif len(sentence.strip()) < emptysentencelength:
-                continue
-            else:
-                if len(good_sentences) % 2 == 1:
-                    if random.random() < 0.5:
-                        good_sentences.pop()
-                    else:
-                        good_sentences.pop(0)
-                for i in range(0, len(good_sentences), 2):
-                    pair = SentencePair(good_sentences[i], good_sentences[i + 1])
-                    self.examples_buffer.append(pair)
-                good_sentences = []
-
-    def _add_examples_lean(self, param):
+    def _add_examples(self, param):
         """This version simply filters out all sentences that are too short, then adds all remaining sentences to the buffer."""
 
         document_sentences = [
@@ -311,83 +184,70 @@ class WikiBookDataset(object):
         self.examples_buffer += document_sentences
 
 
-class ProcessedDataset(object):
+class ProcessedDataset:
     def __init__(self, dataset, processor):
         assert isinstance(dataset, WikiBookDataset)
         self.dataset = dataset
         assert isinstance(processor, SentencePairProcessor)
         self.processor = processor
 
-    def get_batch(self, batch_size):
-        batch = self.dataset.get_batch_lean(batch_size)
-        processed_batch = self.processor.process_batch_lean(batch)
-        return processed_batch
+    def get_example(self):
+        example = self.dataset.get_example()
+        processed_example = self.processor.process(example)
+        return processed_example
 
 
-class MemSet(Dataset):
-    def __init__(self, root_dir):
-        self.root_dir = root_dir
+class ParallelCompatibleDataset(IterableDataset):
+    def __init__(self, dataset: ProcessedDataset, batch_size: int, seed: int = 42):
+        super().__init__()
+        self.dataset = dataset
+        self.seed = seed
+        self.batch_size = batch_size
 
-    def __len__(self):
-        return len(os.listdir(self.root_dir))
+    def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:
+            seed = self.seed
+        else:
+            seed = self.seed + worker_info.id
+        self.rng = random.Random(seed)
+        self.np_rng = np.random.default_rng(seed)
+        self.dataset.dataset.rng = self.rng
+        self.dataset.processor.rng = self.np_rng
+        while True:
+            yield self.dataset.get_example()
 
-    def __getitem__(self, idx):
-        with open(f"{self.root_dir}/{idx}.pkl", "rb") as f:
-            return pickle.load(f)
 
+class ProcessedDatasetWrapper:
+    """
+    This class is a wrapper around a ProcessedDataset that provides a get_batch() method that returns a batch of processed examples.
+    Takes care of seeding the rng, collating the examples into a batch, and moving the batch to the correct device.
+    Allows multiple workers to be used.
+    To make `get_batch` return the same sequence of batches, keep the seed, batch_size and num_workers unchanged.
+    """
 
-class MemLoader:
-    def __init__(self, dataloader, device):
-        self.dataloader = iter(dataloader)
+    def _collate_fn(self, batch) -> ProcessedBatch:
+        return ProcessedBatch(batch)
+
+    def __init__(
+        self,
+        pdataset: ProcessedDataset,
+        device: torch.device,
+        batch_size: int,
+        num_workers: int = 8,
+        seed: int = 42,
+    ):
+        self.pdataset = pdataset
         self.device = device
+        self.dataloader = iter(
+            DataLoader(
+                ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed),
+                num_workers=num_workers,
+                batch_size=batch_size,
+                collate_fn=self._collate_fn,
+                shuffle=False,
+            )
+        )
 
-    def get_batch(self):
-        batch = next(self.dataloader)
-        for attr in [
-            "mask_mask",
-            "masked_tokens",
-            "tokens",
-        ]:
-            setattr(batch, attr, getattr(batch, attr).to(self.device))
-        return batch
-
-
-def get_memloader_lean(root_dir, batch_size=128, num_workers=8, device="cuda"):
-    def collate_fn(samples):
-        res = samples[0]
-        mask_masks = [sample.mask_mask for sample in samples]
-        masked_tokens = [sample.masked_tokens for sample in samples]
-        tokens = [sample.tokens for sample in samples]
-        res.mask_mask = torch.cat(mask_masks)
-        res.masked_tokens = torch.cat(masked_tokens)
-        res.tokens = torch.cat(tokens)
-        return res
-
-    return MemLoader(
-        DataLoader(
-            MemSet(root_dir),
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-            collate_fn=collate_fn,
-        ),
-        device=device,
-    )
-
-
-def save_dataset(dataset, folder_name, max_total_length=128, mask_percent=0.15):
-    if not os.path.exists(folder_name):
-        os.makedirs(folder_name)
-    raw_dataset = WikiBookDataset()
-    processor = SentencePairProcessor(
-        max_total_length=max_total_length,
-        device="cpu",
-        mask_percent=mask_percent,
-        swap_percent=0.0,
-    )
-    pda = ProcessedDataset(raw_dataset, processor)
-    for i in range(1_000_000):
-        if i % 1000 == 0:
-            print(i)
-        batch = pda.get_batch(1)
-        pickle.dump(batch, open(os.path.join(folder_name, f"{i}.pkl"), "wb"))
+    def get_batch(self) -> ProcessedBatch:
+        return next(self.dataloader).to_(self.device)

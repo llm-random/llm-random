@@ -28,6 +28,7 @@ parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
 parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
+parser.add_argument("--seed", type=int, default=42)
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -44,7 +45,7 @@ parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
-parser.add_argument("--num_workers", type=int, default=4)
+parser.add_argument("--num_workers", type=int, default=8)
 
 args = parser.parse_args()
 
@@ -103,17 +104,22 @@ elif args.ff_layer == "masked_ff":
 
 misc.print_available_gpus()
 pdataset = get_processed_dataset(
+    batch_size=args.batch_size,
     max_total_length=args.cutoff,
     mask_percent=args.mask_percent,
     device=DEVICE,
     num_workers=args.num_workers,
+    seed=args.seed,
 )
-pdataset = get_processed_dataset(
+eval_pdataset = get_processed_dataset(
+    batch_size=args.batch_size,
     max_total_length=args.cutoff,
     mask_percent=args.mask_percent,
     device=DEVICE,
-    num_workers=args.num_workers,
+    num_workers=1,
+    seed=args.seed + 1000,
 )
+
 model = get_model(
     max_length=args.cutoff,
     vocab_size=VOCAB_SIZE,
@@ -133,8 +139,8 @@ elif args.optimizer == "sgd":
 trainer = Trainer(
     model=model,
     optimizer=optimizer,
-    dataloader_train=pdataset,
-    dataloader_eval=pdataset,
+    pdataset=pdataset,
+    pdataset_eval=eval_pdataset,
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
