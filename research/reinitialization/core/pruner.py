@@ -3,9 +3,9 @@ from abc import ABC, abstractmethod
 
 import torch
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
 from clearml import Logger
 import plotly.express as px
+import matplotlib.pyplot as plt
 
 
 class BasePruner(ABC):
@@ -43,18 +43,20 @@ class MagnitudeStatPruner(BasePruner):
         std = tensor.std().item()
         print(f"Logging tensor stats for {title}")
         Logger.current_logger().report_scalar(
-            f"{title}_min", f"{title}_min", step, minimum
+            f"{title}_min", f"{title}_min", iteration=step, value=minimum
         )
         print(f"{title}_min: {minimum} step: {step}")
         Logger.current_logger().report_scalar(
-            f"{title}_min", f"{title}_min", step, maximum
+            f"{title}_min", f"{title}_min", iteration=step, value=maximum
         )
         print(f"{title}_max: {maximum} step: {step}")
         Logger.current_logger().report_scalar(
-            f"{title}_min", f"{title}_min", step, mean
+            f"{title}_min", f"{title}_min", iteration=step, value=mean
         )
         print(f"{title}_mean: {mean} step: {step}")
-        Logger.current_logger().report_scalar(f"{title}_min", f"{title}_min", step, std)
+        Logger.current_logger().report_scalar(
+            f"{title}_min", f"{title}_min", iteration=step, value=std
+        )
         print(f"{title}_std: {std} step: {step}")
 
     def log_recycle_magnitude(self, step: int):
@@ -88,9 +90,10 @@ class MagnitudeStatPruner(BasePruner):
             Logger.current_logger().report_scalar(
                 "mean_magn_of_recycled_layer",
                 f"Layer {i}",
-                step,
-                layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
+                iteration=step,
+                value=layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
             )
+            # self._log_tensor_stats(tensor, step, f"magnitude_layer_{i}")
 
     def log_hist_all_weights(self, step: int):
         for i, ff_layer in enumerate(self.layers):

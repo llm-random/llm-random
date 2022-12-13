@@ -184,9 +184,7 @@ class StructMagnitudeRecycleFF(nn.Module):
         self.lin2.weight.data = misc.einsum(
             "f, m f -> m f", mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
-
-    def zero_grad_first_ff(self):
-        self.lin1.weight.data.grad[self.recently_pruned] = 0
+        print("!!! INIT GRAD executed !!!")
 
     def increase_magn_second_ff(self):
         # calculate magnitudes
@@ -200,11 +198,14 @@ class StructMagnitudeRecycleFF(nn.Module):
         # calculate scaling coeffs
         coeffs = mean_magn / magnitudes
         coeffs[~self.recently_pruned] = 1
+        coeffs = torch.sqrt(coeffs)
 
-        # apply scaling coeffs to lin2
-        self.lin2.weight.data = misc.einsum(
-            "f, m f -> m f", coeffs, self.lin2.weight.data
-        )
+        print(f"?????***!!! Will scale by a maximum of {torch.max(coeffs)}")
+
+        # #apply scaling coeffs to lin2
+        # self.lin2.weight.data = misc.einsum(
+        #     "f, m f -> m f", coeffs, self.lin2.weight.data
+        # )
 
     def prune(self, prob: float, init: str = "kaiming"):
         device = self.lin1.weight.device

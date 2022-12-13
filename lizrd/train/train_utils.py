@@ -98,14 +98,7 @@ class Trainer:
 
         optimizer.zero_grad()
         total_loss.backward()
-
-        if scheduler:
-            scheduler.zero_grad_step()
-
         optimizer.step()
-
-        if scheduler:
-            scheduler.grad_correct_step()
 
         if step and self.writer:
             self.writer.add_scalar("loss/train_total", total_loss.item(), step)

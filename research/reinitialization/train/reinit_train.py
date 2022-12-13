@@ -52,6 +52,7 @@ parser.add_argument("--scheduler", type=str, default="delayed_const")
 parser.add_argument("--n_steps_log_recycle_hist", type=int, default=5000)
 parser.add_argument("--n_steps_log_magnitude", type=int, default=5000)
 parser.add_argument("--n_steps_hist_all", type=int, default=5000)
+parser.add_argument("--init", type=str, default="kaiming")
 
 args = parser.parse_args()
 
@@ -83,7 +84,7 @@ if args.use_pruner and args.pruner_n_steps:
             delay=args.pruner_delay,
         )
     elif args.scheduler == "magnitude_stat":
-        pruner = MagnitudeStatPruner(writer=writer, logger=task.get_logger())
+        pruner = MagnitudeStatPruner()
         scheduler = MagnitudeStatScheduler(
             pruner=pruner,
             n_steps_prune=args.pruner_n_steps,
@@ -92,6 +93,7 @@ if args.use_pruner and args.pruner_n_steps:
             n_steps_log_magnitude=args.n_steps_log_magnitude,
             n_steps_hist_all=args.n_steps_hist_all,
             delay=args.pruner_delay,
+            init=args.init,
         )
 else:
     scheduler = None
