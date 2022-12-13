@@ -185,10 +185,10 @@ class StructMagnitudeRecycleFF(nn.Module):
             "f, m f -> m f", mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
 
-    def _zero_grad_first_ff(self):
+    def zero_grad_first_ff(self):
         self.lin1.weight.data.grad[self.recently_pruned] = 0
 
-    def _increase_magn_second_ff(self):
+    def increase_magn_second_ff(self):
         # calculate magnitudes
         weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
         weights2 = misc.einsum("m f -> f", self.lin2.weight**2)

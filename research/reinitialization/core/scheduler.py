@@ -50,14 +50,6 @@ class MagnitudeStatScheduler(BaseScheduler):
         ):
             self.pruner.prune(self.prob)
 
-        if (
-            self.init == "grad"
-            and self.current_step % self.n_steps_prune == 1
-            and self.current_step >= self.delay
-        ):
-            pass
-            # TODO: correct magnitude of recently pruned
-
         if self.current_step % self.n_steps_log_recycle_hist == 0:
             self.pruner.log_recycle_magnitude(self.current_step)
 
@@ -67,3 +59,19 @@ class MagnitudeStatScheduler(BaseScheduler):
         if self.current_step % self.n_steps_hist_all == 0:
             self.pruner.log_hist_all_weights(self.current_step)
         self.current_step += 1
+
+    def zero_grad_step(self):
+        if (
+            self.init == "grad"
+            and self.current_step % self.n_steps_prune == 0
+            and self.current_step >= self.delay
+        ):
+            self.pruner.zero_grad()
+
+    def grad_correct_step(self):
+        if (
+            self.init == "grad"
+            and self.current_step % self.n_steps_prune == 0
+            and self.current_step >= self.delay
+        ):
+            self.pruner.grad_correct()

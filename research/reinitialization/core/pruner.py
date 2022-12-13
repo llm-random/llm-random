@@ -42,22 +42,18 @@ class MagnitudeStatPruner(BasePruner):
         mean = tensor.mean().item()
         std = tensor.std().item()
         print(f"Logging tensor stats for {title}")
-        # self.writer.add_scalar(f"{title}_min", minimum, step)
         Logger.current_logger().report_scalar(
             f"{title}_min", f"{title}_min", step, minimum
         )
         print(f"{title}_min: {minimum} step: {step}")
-        # self.writer.add_scalar(f"{title}_max", maximum, step)
         Logger.current_logger().report_scalar(
             f"{title}_min", f"{title}_min", step, maximum
         )
         print(f"{title}_max: {maximum} step: {step}")
-        # self.writer.add_scalar(f"{title}_mean", mean, step)
         Logger.current_logger().report_scalar(
             f"{title}_min", f"{title}_min", step, mean
         )
         print(f"{title}_mean: {mean} step: {step}")
-        # self.writer.add_scalar(f"{title}_std", std, step)
         Logger.current_logger().report_scalar(f"{title}_min", f"{title}_min", step, std)
         print(f"{title}_std: {std} step: {step}")
 
@@ -89,11 +85,6 @@ class MagnitudeStatPruner(BasePruner):
 
     def log_recently_pruned_magnitude(self, step: int):
         for i, layer in enumerate(self.layers):
-            # self.writer.add_scalar(
-            #     f"mean_magn_of_recycled_layer_{i}",
-            #     layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
-            #     step,
-            # )
             Logger.current_logger().report_scalar(
                 "mean_magn_of_recycled_layer",
                 f"Layer {i}",
@@ -114,3 +105,11 @@ class MagnitudeStatPruner(BasePruner):
                     figure=fig,
                 )
                 self._log_tensor_stats(tensor, step, f"all_weights_lin_layer_{2*i+j}")
+
+    def zero_grad(self):
+        for layer in self.layers:
+            layer.zero_grad_first_ff()
+
+    def grad_correct(self):
+        for layer in self.layers:
+            layer.increase_magn_second_ff()
