@@ -14,7 +14,6 @@ from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
 
 
-
 def get_model(
     max_length: int,
     vocab_size: int,
@@ -22,7 +21,6 @@ def get_model(
     attention_layer_fun: Callable[[], torch.nn.Module],
     dm: int,
     n_blocks: int,
-    heads: int,
     device: torch.device,
 ):
     embedding_layer = bert.EmbeddingLayer(
