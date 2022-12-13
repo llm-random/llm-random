@@ -188,6 +188,29 @@ class SentencePairProcessor(object):
         )
 
 
+def process_wiki_text(document_text):
+    "splits document into a list of chunks of length 450"
+    chunks = [document_text[i : i + 450] for i in range(0, len(document_text), 450)]
+    return chunks
+
+
+def process_book_text(document_sentences):
+    """
+    glue together sentences into chunks of length at least 450
+    :param document_sentences: list of strings, each string is a sentence
+    :return: list of strings, each string is a chunk of length at least 450
+    """
+    chunks = []
+    current_chunk = ""
+    for sentence in document_sentences:
+        if len(current_chunk) + len(sentence) > 450:
+            chunks.append(current_chunk)
+            current_chunk = sentence
+        else:
+            current_chunk += sentence
+    return chunks
+
+
 class WikiBookDataset(object):
     def __init__(self, evaluate: bool = False):
         self.examples_buffer = []
@@ -241,20 +264,19 @@ class WikiBookDataset(object):
             document_text = self.dataset_wiki[
                 random.randint(0, len(self.dataset_wiki) - 1)
             ]["text"]
-            dots_to_newlines = re.sub("\.\s", "\n", document_text)
-            document_sentences = re.sub(r"\n+", "\n", dots_to_newlines).split("\n")
-            assert isinstance(document_sentences, list)
-            assert isinstance(document_sentences[0], str)
+            documents_sentences = process_wiki_text(document_text)
+            assert isinstance(documents_sentences, list)
+            assert isinstance(documents_sentences[0], str)
         else:
             linebegin = random.randint(
                 0, len(self.dataset_wiki) - 1 - self.bookcorpus_lines
             )
             lineend = linebegin + self.bookcorpus_lines
-            document_sentences = self.dataset_book[linebegin:lineend]
-            document_sentences = [sentence for sentence in document_sentences]
-            assert isinstance(document_sentences, list)
-            assert isinstance(document_sentences[0], str)
-        return document_sentences
+            documents_sentences = self.dataset_book[linebegin:lineend]["text"]
+            documents_sentences = process_book_text(documents_sentences)
+            assert isinstance(documents_sentences, list)
+            assert isinstance(documents_sentences[0], str)
+        return documents_sentences
 
     def _add_examples(self, document_sentences):
         emptysentencelength = 5
