@@ -178,18 +178,6 @@ class StructMagnitudeRecycleFF(nn.Module):
         ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
 
 
-def initialize_following_distribution(tensor: torch.Tensor, mask: torch.Tensor) -> None:
-    new_weights = kaiming_uniform_(torch.empty_like(self.lin1.weight), a=math.sqrt(5))
-    new_weights *= 3**0.5
-
-    self.lin1.weight.data = misc.einsum(
-        "f, f m -> f m", mask, self.lin1.weight.data
-    ) + misc.einsum(
-        "f, f m -> f m", 1 - mask, new_weights
-    )  # type: ignore
-    self.lin1.bias.data = misc.einsum("f, f -> f", mask, self.lin1.bias.data)  # type: ignore
-
-
 class StructMagnitudeRecycleImmunityFF(nn.Module):
     def __init__(
         self,
