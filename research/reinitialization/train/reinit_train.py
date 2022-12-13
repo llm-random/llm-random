@@ -44,6 +44,7 @@ parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
+parser.add_argument("--num_workers", type=int, default=4)
 
 args = parser.parse_args()
 
@@ -105,6 +106,13 @@ pdataset = get_processed_dataset(
     max_total_length=args.cutoff,
     mask_percent=args.mask_percent,
     device=DEVICE,
+    num_workers=args.num_workers,
+)
+pdataset = get_processed_dataset(
+    max_total_length=args.cutoff,
+    mask_percent=args.mask_percent,
+    device=DEVICE,
+    num_workers=args.num_workers,
 )
 model = get_model(
     max_length=args.cutoff,
@@ -125,7 +133,8 @@ elif args.optimizer == "sgd":
 trainer = Trainer(
     model=model,
     optimizer=optimizer,
-    pdataset=pdataset,
+    dataloader_train=pdataset,
+    dataloader_eval=pdataset,
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,

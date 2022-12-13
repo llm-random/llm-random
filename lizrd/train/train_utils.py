@@ -7,11 +7,12 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 
 from lizrd.core import bert
-from lizrd.datasets import wikibookdata
+from lizrd.datasets import wikibookdata, fast_wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from lizrd.core import misc
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
+from lizrd.datasets.wikibookdata import SentencePairProcessor
 
 
 def get_model(
@@ -44,7 +45,11 @@ def get_model(
 
 
 def get_processed_dataset(
-    max_total_length: int, mask_percent: float, device: torch.device
+    batch_size: int,
+    max_total_length: int,
+    mask_percent: float,
+    device: torch.device,
+    num_workers: int,
 ):
     # raw_dataset = wikibookdata.WikiBookDataset()
     # processor = wikibookdata.SentencePairProcessor(
@@ -54,7 +59,16 @@ def get_processed_dataset(
     #     swap_percent=0.0,
     # )
     # return wikibookdata.ProcessedDataset(raw_dataset, processor)
-    return wikibookdata.get_memloader("./dataset", device=device)
+    # return wikibookdata.get_memloader("./dataset", device=device)
+    return fast_wikibookdata.FastDataloader(
+        batch_size=batch_size,
+        num_workers=num_workers,
+        device=device,
+        seed=1,
+        processor=SentencePairProcessor(
+            max_total_length=max_total_length,
+        ),
+    )
 
 
 @define
@@ -92,8 +106,8 @@ class Trainer:
         if scheduler:
             scheduler.step()
         model.train()
-        processed_batch = pdataset.get_batch(self.batch_size)
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        processed_batch = pdataset.get_batch()
+        # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
@@ -130,8 +144,8 @@ class Trainer:
         with torch.no_grad():
             total_mask_loss = 0.0
             for _ in range(sample):
-                processed_batch = pdataset.get_batch(self.batch_size)
-                assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+                processed_batch = pdataset.get_batch()
+                # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask
@@ -226,8 +240,8 @@ class LTHTrainer:
         step=0,
     ):
         self.model.train()
-        processed_batch = pdataset.get_batch(self.batch_size)
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        processed_batch = pdataset.get_batch()
+        # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
@@ -262,8 +276,8 @@ class LTHTrainer:
         with torch.no_grad():
             total_mask_loss = 0.0
             for _ in range(sample):
-                processed_batch = pdataset.get_batch(self.batch_size)
-                assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+                processed_batch = pdataset.get_batch()
+                # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask
