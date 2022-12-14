@@ -232,8 +232,8 @@ class WikiBookDataset:
 class ProcessedDataset:
     def __init__(self, dataset, processor):
         assert isinstance(dataset, WikiBookDataset)
+        self.dataset = dataset
         assert isinstance(processor, SentenceProcessor)
-        assert isinstance(processor, SentencePairProcessor)
         self.processor = processor
 
     def get_example(self):
@@ -290,8 +290,8 @@ class ProcessedDatasetWrapper:
                 num_workers=num_workers,
                 batch_size=batch_size,
                 collate_fn=self._collate_fn,
-                shuffle=False,
                 shuffle=False,  # WikiBookDataset already shuffles
+            )
         )
 
     def get_batch(self) -> ProcessedBatch:
