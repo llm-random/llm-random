@@ -5,6 +5,7 @@ import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer
+from attr import define
 
 
 class ProcessedExample(object):
@@ -42,8 +43,28 @@ class ProcessedBatch(object):
         return self
 
 
-class SentencePairProcessor(object):
-    def __init__(self, max_total_length=128, mask_percent=0.15, rng=None):
+@define
+class MaskingReplacementConfig:
+    replace_with_mask: float = 0.8
+    replace_with_random: float = 0.1
+    replace_with_original: float = 0.1
+
+    def __attrs_post_init__(self):
+        assert (
+            self.replace_with_mask
+            + self.replace_with_random
+            + self.replace_with_original
+        ) == 1.0
+
+
+class SentenceProcessor(object):
+    def __init__(
+        self,
+        max_total_length=128,
+        mask_percent=0.15,
+        mask_replace_config=None,
+        rng=None,
+    ):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         self.max_total_length = max_total_length
         self.max_sentence_length = (max_total_length - 4) // 2
@@ -63,6 +84,9 @@ class SentencePairProcessor(object):
         ]
         self.special_token_ids = [self.cls_id, self.sep_id, self.pad_id, self.mask_id]
         self.mask_percent = mask_percent
+        if mask_replace_config is None:
+            mask_replace_config = MaskingReplacementConfig()
+        self.mask_replace_config = mask_replace_config
         if rng is None:
             rng = np.random.default_rng()
         self.rng = rng
@@ -85,9 +109,30 @@ class SentencePairProcessor(object):
         mask_mask = np.where(special_token_mask, 0, mask_mask)
         return mask_mask
 
+    def get_valid_random_tokens(self, tokens_count):
+        # first 999 tokens are special tokens
+        special_tokens = 999
+        return (
+            self.rng.choice(self.tokenizer.vocab_size - special_tokens, tokens_count)
+            + special_tokens
+        )
+
     def mask_tokens(self, sentence_tokens, mask_mask):
-        sentence_tokens = np.where(mask_mask, self.mask_id, sentence_tokens)
-        return sentence_tokens
+        how_to_mask = self.rng.multinomial(
+            1,
+            [
+                self.mask_replace_config.replace_with_mask,
+                self.mask_replace_config.replace_with_random,
+                self.mask_replace_config.replace_with_original,
+            ],
+            size=len(sentence_tokens),
+        ).nonzero()[1]
+        token_replacement = (
+            (how_to_mask == 0) * self.mask_id
+            + (how_to_mask == 1) * self.get_valid_random_tokens(len(sentence_tokens))
+            + (how_to_mask == 2) * sentence_tokens
+        )
+        return np.where(mask_mask, token_replacement, sentence_tokens)
 
     def pad_tokens(self, sentence_tokens):
         if len(sentence_tokens) > self.max_total_length:
