@@ -187,7 +187,7 @@ class WikiBookDataset:
 class ProcessedDataset:
     def __init__(self, dataset, processor):
         assert isinstance(dataset, WikiBookDataset)
-        self.dataset = dataset
+        assert isinstance(processor, SentenceProcessor)
         assert isinstance(processor, SentencePairProcessor)
         self.processor = processor
 

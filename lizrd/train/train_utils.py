@@ -51,7 +51,7 @@ def get_processed_dataset(
     seed: int,
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset()
-    processor = wikibookdata.SentencePairProcessor(
+    processor = wikibookdata.SentenceProcessor(
         max_total_length=max_total_length,
         mask_percent=mask_percent,
     )
