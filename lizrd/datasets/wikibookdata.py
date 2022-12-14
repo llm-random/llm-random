@@ -291,7 +291,7 @@ class ProcessedDatasetWrapper:
                 batch_size=batch_size,
                 collate_fn=self._collate_fn,
                 shuffle=False,
-            )
+                shuffle=False,  # WikiBookDataset already shuffles
         )
 
     def get_batch(self) -> ProcessedBatch:
