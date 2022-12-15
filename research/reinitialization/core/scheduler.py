@@ -55,6 +55,7 @@ class MagnitudeStatScheduler(BaseScheduler):
             and self.current_step >= self.delay
             and self.current_step % self.n_steps_prune == 1
         ):
+            print("!!! GRAD CORRECT will be!!!")
             self.pruner.grad_correct()
 
         if self.current_step % self.n_steps_log_recycle_hist == 0:

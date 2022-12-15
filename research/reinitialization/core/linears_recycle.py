@@ -197,10 +197,22 @@ class StructMagnitudeRecycleFF(nn.Module):
 
         # calculate scaling coeffs
         coeffs = mean_magn / magnitudes
+        coeffs[magnitudes == 0] = 1
         coeffs[~self.recently_pruned] = 1
         coeffs = torch.sqrt(coeffs)
 
+        magn_pruned = magnitudes[self.recently_pruned]
+        magn_not_pruned = magnitudes[~self.recently_pruned]
+        print(
+            f"Percentage of zero magnitude that are recently pruned: {torch.sum(magn_pruned == 0)}"
+        )
+        print(
+            f"Percentage of zero magnitude that are not recently pruned: {torch.sum(magn_not_pruned == 0)}"
+        )
         print(f"!!! Will scale by a maximum of {torch.max(coeffs)}")
+        print(f"total number of neurons: {self.dff}")
+        print(f"number of inf entries: {torch.sum(torch.isinf(coeffs))}")
+        print(f"percent of inf entries: {torch.sum(torch.isinf(coeffs)) / self.dff}")
 
         # apply scaling coeffs to lin2
         self.lin2.weight.data = misc.einsum(
