@@ -110,7 +110,7 @@ class SentenceProcessor(object):
         return mask_mask
 
     def get_valid_random_tokens(self, tokens_count):
-        # first 999 tokens are special tokens
+        # first 999 tokens are special tokens when using transformers.BertTokenizer.from_pretrained("bert-base-uncased")
         special_tokens = 999
         return (
             self.rng.choice(self.tokenizer.vocab_size - special_tokens, tokens_count)
