@@ -200,12 +200,12 @@ class StructMagnitudeRecycleFF(nn.Module):
         coeffs[~self.recently_pruned] = 1
         coeffs = torch.sqrt(coeffs)
 
-        print(f"?????***!!! Will scale by a maximum of {torch.max(coeffs)}")
+        print(f"!!! Will scale by a maximum of {torch.max(coeffs)}")
 
-        # #apply scaling coeffs to lin2
-        # self.lin2.weight.data = misc.einsum(
-        #     "f, m f -> m f", coeffs, self.lin2.weight.data
-        # )
+        # apply scaling coeffs to lin2
+        self.lin2.weight.data = misc.einsum(
+            "f, m f -> m f", coeffs, self.lin2.weight.data
+        )
 
     def prune(self, prob: float, init: str = "kaiming"):
         device = self.lin1.weight.device
