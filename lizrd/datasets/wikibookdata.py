@@ -67,7 +67,6 @@ class SentenceProcessor(object):
     ):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         self.max_total_length = max_total_length
-        self.max_sentence_length = (max_total_length - 4) // 2
         self.mask_token = "[MASK]"
         self.sep_token = "[SEP]"
         self.cls_token = "[CLS]"
