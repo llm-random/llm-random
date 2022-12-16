@@ -1,5 +1,3 @@
-import torch
-
 import lizrd.core.nn as nn
 from lizrd.core.misc import EinMix
 from lizrd.support import ash

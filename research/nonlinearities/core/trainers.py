@@ -8,11 +8,18 @@ import torch.nn.functional as F
 from lizrd.datasets import wikibookdata
 
 
+def log_gradients_in_model(model, logger, step):
+    raise NotImplementedError
+    for tag, value in model.named_parameters():
+        if value.grad is not None:
+            logger.add_histogram(tag + "/grad", value.grad.cpu(), step)
+
+
 @define
 class NonlinearityTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
-    pdataset: wikibookdata.ProcessedDataset
+    pdataset: wikibookdata.ProcessedDatasetWrapper
     batch_size: int
     vocab_size: int
     mask_percent: float
@@ -62,6 +69,7 @@ class NonlinearityTrainer:
             total_loss = scaled_mask_loss
 
         self.optimize(total_loss)
+        log_gradients_in_model()
 
         if step and self.writer:
             self.writer.add_scalar("loss/train_total", total_loss.item(), step)

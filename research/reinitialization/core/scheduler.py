@@ -20,6 +20,7 @@ class DelayedConstScheduler(BaseScheduler):
         self.current_step = 0
 
     def step(self):
+        self.pruner.decrement_immunity()
         if (
             self.current_step % self.n_steps_prune == 0
             and self.current_step >= self.delay

@@ -7,10 +7,8 @@ Remember to set TRAINER and PARAMS in the script or add an argument parser.
 import copy
 from itertools import product
 import subprocess
-from time import sleep
 from typing import List, Tuple
-import sys
-import json
+import os
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -60,12 +58,15 @@ TRAINER = "research.nonlinearities.train.nonlinearities_train"
 # ^ - grid over that
 # * - apply function
 
+TIME = "1-00:00:00"
+DELAY = 0
+
 PARAMS = {
     "ff_mode": "vanilla",
-    "^learning_rate": [3e-3, 8e-4, 4e-4],
+    "^learning_rate": [8e-4],
     "name": "vanilla_baseline",
     "attention_thinning_coeff": 0.2,
-    "dff": 1024,
+    "^dff": [512, 768, 1024, 1536, 2048, 3072, 4096],
     "use_clearml": True,
     "batch_size": 64,
     "cutoff": 128,
@@ -74,18 +75,15 @@ PARAMS = {
     "n_blocks": 4,
     "mask_percent": 0.15,
     "n_steps": 100001,
-    "project_name": "nonlinearities/baseline",
+    "project_name": "nonlinearities/vanilla_dff_comparison",
 }
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        grid_args = json.load(open(sys.argv[1]))
-        TRAINER = grid_args["trainer"]
-        PARAMS = grid_args["params"]
-
     grid = create_grid(PARAMS)
 
-    user_input = input(f"Will run {len(grid)} experiments. [Y/n]")
+    user_input = input(
+        f"Will run {len(grid)} experiments. Sbatch settings: \n{TRAINER=} \n{TIME=} \n{DELAY=} \nContinue? [Y/n] "
+    )
     if user_input.lower() not in ("", "y", "Y"):
         print("Aborting")
         exit(1)
@@ -96,7 +94,7 @@ if __name__ == "__main__":
 
         trainer_params = []
         for k, v in param_set.items():
-            if type(v) == bool and v in [True, False]:
+            if isinstance(v, bool):
                 if v:
                     trainer_params.append(f"--{k}")
                 else:
@@ -104,24 +102,24 @@ if __name__ == "__main__":
                 continue
             else:
                 trainer_params.append(f"--{k}")
-                if v != "" and v is not None:
-                    trainer_params.append(v)
+                trainer_params.append(v)
+
         subprocess_args = [
             "sbatch",
             "--partition=common",
             "--qos=16gpu7d",
-            "--gres=gpu:1",
-            "--begin=now+8hour",
+            "--gres=gpu:titanv:1",
             f"--job-name={name}",
-            "--time=3-00:00:00",
+            f"--time={TIME}",
+            # f"--begin=now+{DELAY}hour",
             f"--output=/home/simontwice/sparsity/not_important{i}.txt",
-            "lizrd/scripts/grid_entrypoint.sh",
             "python3",
             "-m",
+            "lizrd/scripts/grid_entrypoint.sh",
             TRAINER,
             *trainer_params,
         ]
-        sleep(60)
+
         subprocess.run(
             [str(s) for s in subprocess_args],
         )

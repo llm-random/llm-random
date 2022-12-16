@@ -14,6 +14,17 @@ def heavy_test(test):
     return wrapper
 
 
+def skip_test(reason: str):
+    def decorator(test):
+        def wrapper(*args, **kwargs):
+            print(f"\nSkipping test {test.__qualname__}. Reason: {reason}.")
+            return
+
+        return wrapper
+
+    return decorator
+
+
 class GeneralTestCase(unittest.TestCase):
     def assertShape(self, tensor, shape):
         self.assertEqual(tuple(tensor.shape), tuple(shape))

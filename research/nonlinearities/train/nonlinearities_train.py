@@ -36,9 +36,8 @@ parser.add_argument("--inception_head_sizes", nargs="*", type=float)
 parser.add_argument("--attention_thinning_coeff", type=float, default=1.0)
 
 parser.add_argument("--use_clearml", action="store_true")
-parser.add_argument("--deterministic", action="store_true", default=True)
-parser.add_argument("--seed", type=int)
 parser.add_argument("--batch_size", type=int, default=32)
+parser.add_argument("--num_workers", type=int, default=8)
 parser.add_argument("--cutoff", type=int, default=128)
 parser.add_argument("--dmodel", type=int, default=512)
 parser.add_argument("--dff", type=int, default=2048)
@@ -46,16 +45,14 @@ parser.add_argument("--n_att_heads", type=int, default=8)
 parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--project_name", type=str, default="nonlinearities/initial_tests")
 
-parser.add_argument("--mixed_precision", action="store_true", default=True)
 parser.add_argument("--learning_rate", type=float, default=5e-5)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
-parser.add_argument("--mask_percent", type=float, default=0.2)
+parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--name", type=str, default="")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
-parser.add_argument("--save_model_checkpoints", type=bool, default=False)
 
 args = parser.parse_args()
 
@@ -126,6 +123,9 @@ dataset = get_processed_dataset(
     max_total_length=args.cutoff,
     mask_percent=args.mask_percent,
     device=DEVICE,
+    num_workers=args.num_workers,
+    batch_size=args.batch_size,
+    seed=42,
 )
 
 model = get_model(
@@ -135,7 +135,6 @@ model = get_model(
     attention_layer_fun=attention_layer_fun,
     dm=args.dmodel,
     n_blocks=args.n_blocks,
-    heads=args.n_att_heads,
     device=DEVICE,
 )
 optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)

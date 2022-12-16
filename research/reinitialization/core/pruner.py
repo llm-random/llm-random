@@ -1,5 +1,8 @@
 from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
+from clearml import Logger
+import plotly.express as px
+from lizrd.core import misc
 
 
 class BasePruner(ABC):
@@ -19,3 +22,8 @@ class Pruner(BasePruner):
         print("Pruning step")
         for layer in self.layers:
             layer.prune(prob)
+
+    def decrement_immunity(self):
+        for layer in self.layers:
+            if hasattr(layer, "decrement_immunity"):
+                layer.decrement_immunity()

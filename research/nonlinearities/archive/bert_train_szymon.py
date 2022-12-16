@@ -10,6 +10,7 @@ from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
 from lizrd.datasets import wikibookdata
+from lizrd.datasets.wikibookdata import ProcessedDatasetWrapper
 from lizrd.support import profile
 from research.nonlinearities.core import research_bert
 
@@ -77,7 +78,6 @@ else:
     HEADS = 8
     BATCH_SIZE = 32
     USE_CLEARML = True
-
 
 FF_MODE_MAP = {
     "vanilla": (bert.FeedForward, (DM, DFF)),
@@ -150,10 +150,9 @@ def get_model():
 
 def train_step(model, optimizer, pdataset, step=0):
     model.train()
-    processed_batch = pdataset.get_batch(BATCH_SIZE)
+    processed_batch = pdataset.get_batch()
     assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
     x_set = processed_batch.masked_tokens
-    # y_class_set = processed_batch.swapped
     y_token_set = processed_batch.tokens
     y_mask_set = processed_batch.mask_mask
 
@@ -185,10 +184,9 @@ def eval_step(model, pdataset, step=0, sample=10):
     with torch.no_grad():
         total_mask_loss = 0.0
         for sample_i in range(sample):
-            processed_batch = pdataset.get_batch(BATCH_SIZE)
+            processed_batch = pdataset.get_batch()
             assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
             x_set = processed_batch.masked_tokens
-            y_class_set = processed_batch.swapped
             y_token_set = processed_batch.tokens
             y_mask_set = processed_batch.mask_mask
             model_output = model(x_set)
@@ -210,14 +208,14 @@ def eval_step(model, pdataset, step=0, sample=10):
 
 
 def get_processed_dataset():
-    raw_dataset = wikibookdata.WikiBookDataset()
-    processor = wikibookdata.SentencePairProcessor(
+    processor = wikibookdata.SentenceProcessor(
         max_total_length=CUTOFF,
-        device=DEVICE,
-        mask_percent=MASK_PERCENT,
-        swap_percent=0.0,
     )
-    return wikibookdata.ProcessedDataset(raw_dataset, processor)
+    raw_dataset = wikibookdata.WikiBookDataset()
+    procesed_dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
+
+    dataloader = ProcessedDatasetWrapper(procesed_dataset, DEVICE, BATCH_SIZE)
+    return dataloader
 
 
 if __name__ == "__main__":
