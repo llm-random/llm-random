@@ -200,6 +200,7 @@ class StructMagnitudeRecycleFF(nn.Module):
         coeffs[magnitudes == 0] = 1
         coeffs[~self.recently_pruned] = 1
         coeffs = torch.sqrt(coeffs)
+        coeffs[torch.isnan(coeffs)] = 1
 
         magn_pruned = magnitudes[self.recently_pruned]
         magn_not_pruned = magnitudes[~self.recently_pruned]
