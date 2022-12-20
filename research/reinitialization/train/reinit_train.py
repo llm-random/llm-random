@@ -10,8 +10,11 @@ from clearml import Task
 from lizrd.core import misc, bert
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
-from research.reinitialization.core.pruner import Pruner
-from research.reinitialization.core.scheduler import DelayedConstScheduler
+from research.reinitialization.core.pruner import Pruner, RetrainPruner
+from research.reinitialization.core.scheduler import (
+    DelayedConstScheduler,
+    RetrainScheduler,
+)
 from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer
 
 
@@ -29,6 +32,7 @@ parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
 parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
+parser.add_argument("--pruner_type", type=str, default="regular")
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -69,15 +73,13 @@ modelpath = f"runs/wikibooktest/{timestamp}"
 writer = SummaryWriter(log_dir=modelpath)
 
 # set pruner if needed
-if args.use_pruner and args.pruner_n_steps:
-    pruner = Pruner(
-        args.pruner_n_steps,
-        args.pruner_prob,
-        args.pruner_delay,
-    )
+if args.use_pruner and args.pruner_n_steps and args.pruner_type == "regular":
+    pruner = Pruner()
     scheduler = DelayedConstScheduler(
         pruner, args.pruner_n_steps, args.pruner_prob, args.pruner_delay
     )
+elif args.pruner_type == "retrain":
+    pruner = RetrainPruner()
 else:
     scheduler = None
 
@@ -96,6 +98,8 @@ elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
     )
+elif args.ff_layer == "retrain_recycle":
+    ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 
@@ -120,6 +124,19 @@ if args.optimizer == "adam":
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+
+# set retrain scheduler if needed
+if args.pruner_type == "retrain":
+    scheduler = RetrainScheduler(
+        pruner,
+        args.pruner_n_steps,
+        args.pruner_prob,
+        args.pruner_delay,
+        model,
+        optimizer,
+        pdataset,
+        args.pruner_n_steps_retrain,
+    )
 
 trainer = Trainer(
     model=model,
