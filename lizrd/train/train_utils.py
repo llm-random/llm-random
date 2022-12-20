@@ -76,10 +76,11 @@ class Trainer:
     mask_percent: float
     mask_loss_weight: float
     modelpath: str
+    writer: SummaryWriter
     scheduler: Optional[BaseScheduler] = None
-    writer: Optional[SummaryWriter] = None
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
+    n_log_steps: int = 100
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -123,7 +124,7 @@ class Trainer:
 
         self.optimize(total_loss)
 
-        if step and self.writer:
+        if step and self.writer and (step % self.n_log_steps == 0):
             self.writer.add_scalar("loss/train_total", total_loss.item(), step)
             self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
 
@@ -156,8 +157,7 @@ class Trainer:
                 total_mask_loss += scaled_mask_loss.item()
             total_mask_loss /= sample
 
-            if step and self.writer:
-                self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
+            self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
 
             return total_mask_loss
 
@@ -166,7 +166,8 @@ class Trainer:
             self._train_step(
                 self.model, self.optimizer, self.pdataset, self.scheduler, step
             )
-            self.writer.add_scalar("step", step, step)
+            if step % self.n_log_steps == 0:
+                self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(self.model, self.pdataset_eval, step)
                 print(f"Eval loss:", eval_loss)
