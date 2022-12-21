@@ -30,6 +30,7 @@ parser.add_argument("--project_name", type=str)
 
 parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
+parser.add_argument("--pruner_n_steps_retrain", type=int, default=0)
 parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--pruner_type", type=str, default="regular")
@@ -49,6 +50,10 @@ parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 
 args = parser.parse_args()
+
+print("BEGINNING OF FILE")
+print("cuda available:")
+print(torch.cuda.is_available())
 
 # constants
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
@@ -109,6 +114,7 @@ pdataset = get_processed_dataset(
     mask_percent=args.mask_percent,
     device=DEVICE,
 )
+
 model = get_model(
     max_length=args.cutoff,
     vocab_size=VOCAB_SIZE,
@@ -135,6 +141,7 @@ if args.pruner_type == "retrain":
         model,
         optimizer,
         pdataset,
+        args.batch_size,
         args.pruner_n_steps_retrain,
     )
 
@@ -151,4 +158,5 @@ trainer = Trainer(
     writer=writer,
     mixed_precision=args.mixed_precision,
 )
+
 trainer.train(args.n_steps, args.n_steps_eval)

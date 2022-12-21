@@ -28,15 +28,20 @@ class RetrainPruner:
     def register(self, layer):
         self.layers.append(layer)
 
-    def unfreeze_new(self):
-        print("Unfreezing new")
+    def pre_retrain(self):
+        print("Pre retrain")
         for layer in self.layers:
-            layer.unfreeze_new_weights()
+            layer.pre_retrain()
 
-    def prepare_new(self):
+    def post_retrain(self):
+        print("Post retrain")
+        for layer in self.layers:
+            layer.post_retrain()
+
+    def prepare_new(self, prob: float):
         print("Preparing new step")
         for layer in self.layers:
-            layer.prepare_new_weights()
+            layer.prepare_new_weights(prob)
 
     def apply_new_weights(self):
         print("Applying new weights")

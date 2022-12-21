@@ -184,7 +184,10 @@ class RetrainRecycleFF(nn.Module):
         self.lin1 = Linear(dmodel, dff)
         self.lin2 = Linear(dff, dmodel)
         self.dff = dff
+        self.new_weights_1 = nn.Parameter(torch.empty_like(self.lin1.weight))
+        self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin1.weight))
         pruner.register(self)
+        self.mode = "regular"
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -208,19 +211,17 @@ class RetrainRecycleFF(nn.Module):
 
         return x
 
-    def forward(self, x: torch.Tensor, mode="regular") -> torch.Tensor:
-        if mode == "regular":
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.mode == "regular":
             return self._regular_forward(x)
-        elif mode == "new_neurons":
+        elif self.mode == "new_neurons":
             return self._new_neurons_forward(x)
 
     def prepare_new_weights(self, prob: float):
-        device = self.lin1.weight.device
-
-        # create mask
-        self.mask = torch.ones(self.dff).to(device)
-
         # prepare mask
+        self.mask = torch.ones(self.dff, requires_grad=False).to(
+            self.lin1.weight.device
+        )
         weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
         weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
         weights = weights1 * weights2
@@ -231,16 +232,16 @@ class RetrainRecycleFF(nn.Module):
         self.mask[topk.indices] = 0
 
         # prepare new weights for lin1
-        self.new_weights_1 = kaiming_uniform_(
-            torch.empty_like(self.lin1.weight), a=math.sqrt(5)
-        )
-        self.new_weights_1 *= 3**0.5
+        with torch.no_grad():
+            self.new_weights_1.normal_(
+                mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
+            )
 
         # prepare new weights for lin2
-        self.new_weights_2 = kaiming_uniform_(
-            torch.empty_like(self.lin2.weight), a=math.sqrt(5)
-        )
-        self.new_weights_2 *= 3**0.5
+        with torch.no_grad():
+            self.new_weights_1.normal_(
+                mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
+            )
 
     def apply_new_weights(self):
         self.lin1.weight.data = misc.einsum(
@@ -252,6 +253,10 @@ class RetrainRecycleFF(nn.Module):
             "f, m f -> m f", self.mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
 
-    def unfreeze_new_weights(self):
+    def pre_retrain(self):
         self.new_weights_1.requires_grad = True
         self.new_weights_2.requires_grad = True
+        self.mode = "new_neurons"
+
+    def post_retrain(self):
+        self.mode = "regular"

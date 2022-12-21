@@ -43,17 +43,21 @@ class RetrainScheduler(BaseScheduler):
     model: nn.Module
     optimizer: torch.optim.Optimizer
     pdataset: wikibookdata.ProcessedDataset
+    batch_size: int
     n_steps_retrain: int = 1000
-    current_step: int = 0
+
+    def __attrs_post_init__(self):
+        self.scaler = torch.cuda.amp.GradScaler(enabled=False)
+        self.current_step = 0
 
     def _retrain(self):
-        self.pruner.prepare_new()
+        self.pruner.prepare_new(self.prob)
 
         # freeze model
         self.model.requires_grad_(False)
 
         # unfreeze new
-        self.pruner.unfreeze_new()
+        self.pruner.pre_retrain()
 
         # retrain
         for _ in range(self.n_steps_retrain):
@@ -61,6 +65,7 @@ class RetrainScheduler(BaseScheduler):
 
         # unfreeze model
         self.model.requires_grad_(True)
+        self.pruner.post_retrain()
 
     def step(self):
         if (
@@ -84,9 +89,7 @@ class RetrainScheduler(BaseScheduler):
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
 
-        with torch.autocast(
-            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-        ):
+        with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
             model_output = self.model(x_set)
             mask_loss = F.cross_entropy(
                 model_output.reshape(-1, self.vocab_size),
@@ -98,4 +101,4 @@ class RetrainScheduler(BaseScheduler):
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
 
-        self._optimize(total_loss)
+        self._optimize(total_loss, self.optimizer)
