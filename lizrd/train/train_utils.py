@@ -81,6 +81,9 @@ class Trainer:
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     n_log_steps: int = 100
+    running_total_loss: float = 0.0
+    running_mask_loss: float = 0.0
+    running_loss_steps: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -90,6 +93,28 @@ class Trainer:
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
         self.scaler.update()
+
+    def update_loss_stats(self, total_loss, mask_loss):
+        self.running_total_loss += total_loss.item()
+        self.running_mask_loss += mask_loss.item()
+        self.running_loss_steps += 1
+
+    def reset_loss_stats(self):
+        self.running_total_loss = 0.0
+        self.running_mask_loss = 0.0
+        self.running_loss_steps = 0
+
+    def log_loss_stats(self, step):
+        self.writer.add_scalar(
+            "loss/train_total",
+            self.running_total_loss / self.running_loss_steps,
+            step,
+        )
+        self.writer.add_scalar(
+            "loss/train_mask",
+            self.running_mask_loss / self.running_loss_steps,
+            step,
+        )
 
     def _train_step(
         self,
@@ -123,10 +148,11 @@ class Trainer:
             total_loss = scaled_mask_loss
 
         self.optimize(total_loss)
+        self.update_loss_stats(total_loss, mask_loss)
 
         if step and self.writer and (step % self.n_log_steps == 0):
-            self.writer.add_scalar("loss/train_total", total_loss.item(), step)
-            self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+            self.log_loss_stats(step)
+            self.reset_loss_stats()
 
     def _eval_step(
         self,
