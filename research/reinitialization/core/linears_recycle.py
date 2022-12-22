@@ -185,7 +185,7 @@ class RetrainRecycleFF(nn.Module):
         self.lin2 = Linear(dff, dmodel)
         self.dff = dff
         self.new_weights_1 = nn.Parameter(torch.empty_like(self.lin1.weight))
-        self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin1.weight))
+        self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin2.weight))
         pruner.register(self)
         self.mode = "regular"
 
@@ -204,9 +204,11 @@ class RetrainRecycleFF(nn.Module):
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_1) + lin_bias_1
 
         # Appply FF2
+        assert self.lin2.weight.data.shape == self.new_weights_2.shape
         lin_weights_2 = misc.einsum(
             "f, m f -> m f", self.mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
+        assert self.lin2.weight.data.shape == lin_weights_2.shape
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_2) + self.lin2.bias.data
 
         return x
@@ -239,7 +241,7 @@ class RetrainRecycleFF(nn.Module):
 
         # prepare new weights for lin2
         with torch.no_grad():
-            self.new_weights_1.normal_(
+            self.new_weights_2.normal_(
                 mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
             )
 

@@ -44,6 +44,9 @@ class RetrainScheduler(BaseScheduler):
     optimizer: torch.optim.Optimizer
     pdataset: wikibookdata.ProcessedDataset
     batch_size: int
+    vocab_size: int
+    mask_percent: float
+    mask_loss_weight: float
     n_steps_retrain: int = 1000
 
     def __attrs_post_init__(self):
@@ -101,4 +104,4 @@ class RetrainScheduler(BaseScheduler):
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
 
-        self._optimize(total_loss, self.optimizer)
+        self._optimize(total_loss)

@@ -142,6 +142,9 @@ if args.pruner_type == "retrain":
         optimizer,
         pdataset,
         args.batch_size,
+        VOCAB_SIZE,
+        args.mask_percent,
+        args.mask_loss_weight,
         args.pruner_n_steps_retrain,
     )
 
