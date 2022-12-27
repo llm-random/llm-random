@@ -52,6 +52,7 @@ class RetrainScheduler(BaseScheduler):
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=False)
         self.current_step = 0
+        self.full_step = 0
 
     def _retrain(self):
         self.pruner.prepare_new(self.prob)
@@ -76,7 +77,11 @@ class RetrainScheduler(BaseScheduler):
             and self.current_step >= self.delay
         ):
             self._retrain()
+            self.current_step += 1
+            return
+
         self.current_step += 1
+        self.full_step += 1
 
     def _optimize(self, loss):
         self.optimizer.zero_grad()
@@ -85,6 +90,7 @@ class RetrainScheduler(BaseScheduler):
         self.scaler.update()
 
     def _train_step(self):
+        self.full_step += 1
         self.model.train()
         processed_batch = self.pdataset.get_batch(self.batch_size)
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
@@ -103,5 +109,10 @@ class RetrainScheduler(BaseScheduler):
             mask_loss = mask_loss.mean() / self.mask_percent
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
+
+        self.writer.add_scalar(
+            "full_loss/train_total", total_loss.item(), self.full_step
+        )
+        self.writer.add_scalar("full_loss/train_mask", mask_loss.item(), self.full_step)
 
         self._optimize(total_loss)

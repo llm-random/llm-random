@@ -116,6 +116,12 @@ class Trainer:
         if step and self.writer:
             self.writer.add_scalar("loss/train_total", total_loss.item(), step)
             self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+            self.writer.add_scalar(
+                "full_loss/train_total", total_loss.item(), self.scheduler.full_step
+            )
+            self.writer.add_scalar(
+                "full_loss/train_mask", mask_loss.item(), self.scheduler.full_step
+            )
 
     def _eval_step(
         self,
@@ -249,6 +255,8 @@ class LTHTrainer:
         if step and self.writer:
             self.writer.add_scalar("loss/train_total", total_loss.item(), step)
             self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+            self.writer.add_scalar("full_loss/train_total", total_loss.item(), step)
+            self.writer.add_scalar("full_loss/train_mask", mask_loss.item(), step)
 
     def _eval_step(
         self,
