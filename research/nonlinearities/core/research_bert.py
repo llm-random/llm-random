@@ -1,14 +1,11 @@
 import numpy as np
 import torch
 import lizrd.core.nn as nn
-from lizrd.core import misc
 from lizrd.core.misc import EinMix
 
 from lizrd.core.bert import LowRank
 from lizrd.support import ash
 from lizrd.support.profile import TimerLayer
-
-from research.nonlinearities.core.misc import get_parameter_count
 
 
 @ash.check("... d -> ... d")
@@ -178,8 +175,6 @@ class FeedForwardInceptionNeck(nn.Module):
         x = x / np.sqrt(self.n_heads)
         return x
 
-    pass
-
 
 @ash.check("... d -> ... d")
 def FeedForwardChoppedNeck(dmodel, n_chunks):
@@ -223,4 +218,3 @@ def FeedForwardChoppedNeck(dmodel, n_chunks):
             dff_chunk_size=ff_chunk_size,
         ),
     )
-    pass

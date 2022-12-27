@@ -8,17 +8,25 @@ exec 1>&2
 
 export SKIP_HEAVY_TESTS=1
 
+# Run unused imports and variables check
+if ! python3 -m autoflake -r . --exclude venv,archived_code -c --quiet
+then 
+    echo "Unused imports and variables check failed"
+    exit 1
+fi
+
+# Run formatting check
+if ! python3 -m black --check . 
+then 
+    echo "Black formatting check failed"
+    exit 1
+fi
+
 # Run tests
 if ! python3 -m unittest
 then
     echo "Tests failed"
     exit 1
-# Run formatting check
-elif ! python3 -m black --check . 
-then 
-    echo "Black formatting failed"
-    exit 1
-else
-    echo "Pre-commit passed"
-    exit 0
 fi
+
+echo "All checks passed"
