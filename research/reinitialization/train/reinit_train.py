@@ -135,6 +135,7 @@ elif args.optimizer == "sgd":
 if args.pruner_type == "retrain":
     scheduler = RetrainScheduler(
         pruner,
+        writer,
         args.pruner_n_steps,
         args.pruner_prob,
         args.pruner_delay,

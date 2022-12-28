@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from attr import define
+from torch.utils.tensorboard import SummaryWriter
 
 from research.reinitialization.core.pruner import BasePruner, RetrainPruner
 from lizrd.datasets import wikibookdata
@@ -37,6 +38,7 @@ class DelayedConstScheduler(BaseScheduler):
 @define
 class RetrainScheduler(BaseScheduler):
     pruner: RetrainPruner
+    writer: SummaryWriter
     n_steps_prune: int
     prob: float
     delay: int
