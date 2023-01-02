@@ -14,7 +14,6 @@ from research.reinitialization.core.pruner import Pruner
 from research.reinitialization.core.scheduler import DelayedConstScheduler
 from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer
 
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--use_clearml", action="store_true")
@@ -29,6 +28,9 @@ parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
 parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
+parser.add_argument("--ds_seed", type=int, default=42)
+parser.add_argument("--eval_ds_seed", type=int, default=1984)
+
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -43,6 +45,9 @@ parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
+parser.add_argument("--immunity", type=int, default=10)
+parser.add_argument("--reinit_dist", type=str, default="init")
+parser.add_argument("--num_workers", type=int, default=8)
 
 args = parser.parse_args()
 
@@ -70,11 +75,7 @@ writer = SummaryWriter(log_dir=modelpath)
 
 # set pruner if needed
 if args.use_pruner and args.pruner_n_steps:
-    pruner = Pruner(
-        args.pruner_n_steps,
-        args.pruner_prob,
-        args.pruner_delay,
-    )
+    pruner = Pruner()
     scheduler = DelayedConstScheduler(
         pruner, args.pruner_n_steps, args.pruner_prob, args.pruner_delay
     )
@@ -96,15 +97,31 @@ elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
     )
+elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
+    ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
+        args.dm, args.dff, pruner, args.immunity, args.reinit_dist
+    )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 
 misc.print_available_gpus()
 pdataset = get_processed_dataset(
+    batch_size=args.batch_size,
     max_total_length=args.cutoff,
     mask_percent=args.mask_percent,
     device=DEVICE,
+    num_workers=args.num_workers,
+    seed=args.ds_seed,
 )
+eval_pdataset = get_processed_dataset(
+    batch_size=args.batch_size,
+    max_total_length=args.cutoff,
+    mask_percent=args.mask_percent,
+    device=DEVICE,
+    num_workers=1,
+    seed=args.eval_ds_seed,
+)
+
 model = get_model(
     max_length=args.cutoff,
     vocab_size=VOCAB_SIZE,
@@ -125,6 +142,7 @@ trainer = Trainer(
     model=model,
     optimizer=optimizer,
     pdataset=pdataset,
+    pdataset_eval=eval_pdataset,
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,

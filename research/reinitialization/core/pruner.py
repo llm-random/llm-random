@@ -1,4 +1,3 @@
-from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 
@@ -19,3 +18,8 @@ class Pruner(BasePruner):
         print("Pruning step")
         for layer in self.layers:
             layer.prune(prob)
+
+    def decrement_immunity(self):
+        for layer in self.layers:
+            if hasattr(layer, "decrement_immunity"):
+                layer.decrement_immunity()
