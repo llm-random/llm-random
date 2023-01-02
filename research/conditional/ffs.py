@@ -444,8 +444,6 @@ class BatchSplitFF(nn.Module):
         # print(f'loss: {loss.item()}')
         # print(f'grad: {self.controller.grad.norm().item()}')
 
-        pass
-
     def forward(self, x):
         self.last_x = x.detach()
         # TODO: I want to, if model is in .train(), then also run all things

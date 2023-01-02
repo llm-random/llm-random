@@ -1,8 +1,4 @@
-from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
-from clearml import Logger
-import plotly.express as px
-from lizrd.core import misc
 
 
 class BasePruner(ABC):
