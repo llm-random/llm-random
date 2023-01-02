@@ -64,11 +64,11 @@ def tags_to_name(tags: Optional[List[str]]) -> str:
 
 def make_concise_datetime() -> str:
     now = datetime.datetime.now()
-    return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M")
+    return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
 
 
 timestamp = make_concise_datetime()
-unique_timestamp = f"{timestamp}_{secrets.token_urlsafe(1)}"
+unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
 
 if args.use_clearml:
     task = Task.init(
