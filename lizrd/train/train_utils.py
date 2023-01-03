@@ -66,6 +66,7 @@ class Trainer:
     mask_percent: float
     mask_loss_weight: float
     modelpath: str
+    pruner: BasePruner
     scheduler: Optional[BaseScheduler] = None
     writer: Optional[SummaryWriter] = None
     mixed_precision: bool = False
@@ -80,18 +81,16 @@ class Trainer:
         self.scaler.step(self.optimizer)
         self.scaler.update()
 
+    def _pruning_step(self, step):
+        if self.scheduler.time_to_prune(step):
+            self.pruner.prune(self.scheduler.prob)
+            self.scheduler.update_prune_step(step)
+
     def _train_step(
         self,
-        model: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        pdataset: wikibookdata.ProcessedDataset,
-        scheduler: Optional[BaseScheduler],
-        step=0,
     ):
-        if scheduler:
-            scheduler.step()
-        model.train()
-        processed_batch = pdataset.get_batch(self.batch_size)
+        self.model.train()
+        processed_batch = self.pdataset.get_batch(self.batch_size)
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
@@ -100,7 +99,7 @@ class Trainer:
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            model_output = model(x_set)
+            model_output = self.model(x_set)
             mask_loss = F.cross_entropy(
                 model_output.reshape(-1, self.vocab_size),
                 y_token_set.reshape(-1).long(),
@@ -113,34 +112,28 @@ class Trainer:
 
         self.optimize(total_loss)
 
-        if step and self.writer:
-            self.writer.add_scalar("loss/train_total", total_loss.item(), step)
-            self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
-            self.writer.add_scalar(
-                "full_loss/train_total", total_loss.item(), self.scheduler.full_step
-            )
-            self.writer.add_scalar(
-                "full_loss/train_mask", mask_loss.item(), self.scheduler.full_step
-            )
+        return total_loss.item(), mask_loss.item()
+
+    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
+        self.writer.add_scalar("loss/train_total", total_loss.item(), step)
+        self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
 
     def _eval_step(
         self,
-        model: torch.nn.Module,
-        pdataset: wikibookdata.ProcessedDataset,
-        step: int = 0,
-        sample: int = 10,
+        step,
+        sample,
     ):
-        model.eval()
+        self.model.eval()
 
         with torch.no_grad():
             total_mask_loss = 0.0
             for _ in range(sample):
-                processed_batch = pdataset.get_batch(self.batch_size)
+                processed_batch = self.pdataset.get_batch(self.batch_size)
                 assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask
-                model_output = model(x_set)
+                model_output = self.model(x_set)
                 mask_loss = F.cross_entropy(
                     model_output.reshape(-1, self.vocab_size),
                     y_token_set.reshape(-1).long(),
@@ -152,24 +145,58 @@ class Trainer:
                 total_mask_loss += scaled_mask_loss.item()
             total_mask_loss /= sample
 
-            if step and self.writer:
+            if self.writer:
                 self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
-
-            return total_mask_loss
+            print(f"Eval loss:", total_mask_loss)
+            torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
 
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
-            self._train_step(
+            self._pruning_step(step)
+            total_loss, mask_loss = self._train_step(
                 self.model, self.optimizer, self.pdataset, self.scheduler, step
             )
+            self._log_train_stats(total_loss, mask_loss, step)
             self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
-                eval_loss = self._eval_step(
-                    self.model, self.pdataset, step, sample=n_steps_eval // 2
-                )
-                print(f"Eval loss:", eval_loss)
-                torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
+                self._eval_step(step, n_steps_eval // 2)
             print(f"Step {step}")
+
+
+class RetrainTrainer(Trainer):
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        # total number of >>hidden<< retrain steps
+        self.retrain_count = 0
+
+    def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
+        # TODO
+        pass
+
+    def _pruning_step(self, step):
+        # TODO
+        pass
+
+    def _retrain(self, step):
+        self.pruner.prepare_new(self.scheduler.prob)
+
+        # freeze model
+        self.model.requires_grad_(False)
+
+        # unfreeze new
+        self.pruner.pre_retrain()
+
+        # clear optimizer memory
+
+        # retrain
+        for _ in range(self.n_steps_retrain):
+            total_loss, mask_loss = self._train_step()
+            self._log_retrain_stats(total_loss, mask_loss, step + self.retrain_count)
+
+        # unfreeze model
+        self.model.requires_grad_(True)
+        self.pruner.post_retrain()
 
 
 @define
