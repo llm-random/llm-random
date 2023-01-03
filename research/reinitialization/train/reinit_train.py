@@ -45,6 +45,7 @@ parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
+parser.add_argument("--n_steps_log", type=int, default=5_000)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
@@ -77,7 +78,11 @@ writer = SummaryWriter(log_dir=modelpath)
 if args.use_pruner and args.pruner_n_steps:
     pruner = Pruner()
     scheduler = DelayedConstScheduler(
-        pruner, args.pruner_n_steps, args.pruner_prob, args.pruner_delay
+        pruner=pruner,
+        n_steps_prune=args.pruner_n_steps,
+        prob=args.pruner_prob,
+        delay=args.pruner_delay,
+        n_steps_log=args.n_steps_log,
     )
 else:
     scheduler = None
