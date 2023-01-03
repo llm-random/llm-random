@@ -43,7 +43,7 @@ class DelayedConstScheduler(BaseScheduler):
 
     def log(self):
         if self.n_steps_log and (self.current_step % self.n_steps_log == 0):
-            self.pruner.log(step)
+            self.pruner.log(self.current_step)
 
     def increment_step(self):
         self.current_step += 1
