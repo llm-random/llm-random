@@ -76,32 +76,41 @@ class Trainer:
     mask_percent: float
     mask_loss_weight: float
     modelpath: str
+    writer: SummaryWriter
     scheduler: Optional[BaseScheduler] = None
-    writer: Optional[SummaryWriter] = None
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
+    step: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
 
+    def prune(self):
+        if self.scheduler is not None:
+            self.scheduler.prune()
+
+    def log(self):
+        if self.scheduler is not None:
+            self.scheduler.log()
+
     def optimize(self, loss):
         self.optimizer.zero_grad()
         self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+
+        # logging plots needs to be here to have access to gradients
+        self.log()
+
         self.scaler.step(self.optimizer)
         self.scaler.update()
 
     def _train_step(
         self,
-        model: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        pdataset: wikibookdata.ProcessedDatasetWrapper,
-        scheduler: Optional[BaseScheduler],
         step=0,
     ):
-        if scheduler:
-            scheduler.step()
-        model.train()
-        processed_batch = pdataset.get_batch()
+        self.model.train()
+        self.prune()
+        processed_batch = self.pdataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
@@ -110,7 +119,7 @@ class Trainer:
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            model_output = model(x_set)
+            model_output = self.model(x_set)
             mask_loss = F.cross_entropy(
                 model_output.reshape(-1, self.vocab_size),
                 y_token_set.reshape(-1).long(),
@@ -123,28 +132,25 @@ class Trainer:
 
         self.optimize(total_loss)
 
-        if step and self.writer:
-            self.writer.add_scalar("loss/train_total", total_loss.item(), step)
-            self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+        self.writer.add_scalar("loss/train_total", total_loss.item(), step)
+        self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
 
     def _eval_step(
         self,
-        model: torch.nn.Module,
-        pdataset: wikibookdata.ProcessedDatasetWrapper,
         step: int = 0,
         sample: int = 10,
     ):
-        model.eval()
+        self.model.eval()
 
         with torch.no_grad():
             total_mask_loss = 0.0
             for _ in range(sample):
-                processed_batch = pdataset.get_batch()
+                processed_batch = self.pdataset.get_batch()
                 assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask
-                model_output = model(x_set)
+                model_output = self.model(x_set)
                 mask_loss = F.cross_entropy(
                     model_output.reshape(-1, self.vocab_size),
                     y_token_set.reshape(-1).long(),
@@ -156,21 +162,20 @@ class Trainer:
                 total_mask_loss += scaled_mask_loss.item()
             total_mask_loss /= sample
 
-            if step and self.writer:
-                self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
+            self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
 
             return total_mask_loss
 
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
-            self._train_step(
-                self.model, self.optimizer, self.pdataset, self.scheduler, step
-            )
+            self._train_step(step)
             self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
-                eval_loss = self._eval_step(self.model, self.pdataset_eval, step)
+                eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
+            if self.scheduler is not None:
+                self.scheduler.increment_step()
             print(f"Step {step}")
 
 

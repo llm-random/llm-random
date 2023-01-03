@@ -14,6 +14,14 @@ class BasePruner(ABC):
 
 
 class Pruner(BasePruner):
+    scheduler = None
+
+    def log(self, step):
+        print("Logging step")
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer, "log"):
+                layer.log(f"Layer {i+1}", step)
+
     def prune(self, prob: float):
         print("Pruning step")
         for layer in self.layers:

@@ -103,6 +103,8 @@ elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
+elif args.ff_layer == "log_ff":
+    ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
 
 misc.print_available_gpus()
 pdataset = get_processed_dataset(

@@ -5,6 +5,9 @@ import torch.nn.functional as F
 from lizrd.core import misc
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
+import plotly_express as px
+from clearml import Logger
+import numpy as np
 
 
 def mask_by_score(
@@ -85,6 +88,283 @@ class StructPruneFF(nn.Module):
         self.mask.data = mask_by_score(
             self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
         )
+
+
+def prepare_for_logging(x):
+    return x.view(-1).detach().cpu().numpy()
+
+
+def prepare_subset_for_logging(xs, p):
+    xs = [prepare_for_logging(x) for x in xs]
+    random_indices = np.random.choice(len(xs[0]), int(len(xs[0]) * p), replace=False)
+    return [x[random_indices] for x in xs]
+
+
+@ash.check("... d -> ... d")
+class LogFF(nn.Module):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+        super().__init__()
+        self.lin1 = misc.Linear(dmodel, dff)
+        self.lin2 = misc.Linear(dff, dmodel)
+        self.initial_weight1 = torch.clone(self.lin1.weight).detach()
+        self.initial_weight2 = torch.clone(self.lin2.weight).detach()
+        self.initial_magnitudes = self.get_neurons_magnitudes()
+
+        pruner.register(self)
+        self.pruner = pruner
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.lin1(x)
+        x = F.relu(x)
+        x = self.lin2(x)
+        return x
+
+    def get_neurons_grads_magnitudes(self):
+        with torch.no_grad():
+            grads1 = misc.einsum("i o -> i", self.lin1.weight.grad**2)
+            grads2 = misc.einsum("o i -> i", self.lin2.weight.grad**2)
+            magnitudes = grads1 * grads2
+            return magnitudes
+
+    def get_neurons_magnitudes(self):
+        with torch.no_grad():
+            weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
+            weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
+            magnitudes = weights1 * weights2
+            return magnitudes
+
+    def log_weights(self, layer_name, step, p=0.01):
+        fig1 = px.histogram(prepare_subset_for_logging([self.lin1.weight], p)[0])
+        fig2 = px.histogram(prepare_subset_for_logging([self.lin2.weight], p)[0])
+        logger = Logger.current_logger()
+        logger.report_plotly(
+            title=f"{layer_name} weight",
+            series="lin1",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} weight",
+            series="lin2",
+            figure=fig2,
+            iteration=step,
+        )
+
+    def log_weights_grads(self, layer_name, step, p=0.01):
+        fig1 = px.histogram(prepare_subset_for_logging([self.lin1.weight.grad], p)[0])
+        fig2 = px.histogram(prepare_subset_for_logging([self.lin2.weight.grad], p)[0])
+        logger = Logger.current_logger()
+        logger.report_plotly(
+            title=f"{layer_name} weight grad",
+            series="lin1",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} weight grad",
+            series="lin2",
+            figure=fig2,
+            iteration=step,
+        )
+
+    def log_neurons_magnitudes(self, layer_name, step) -> None:
+        magnitudes = self.get_neurons_magnitudes()
+        fig = px.histogram(prepare_for_logging(magnitudes))
+        logger = Logger.current_logger()
+        logger.report_plotly(
+            title=f"{layer_name} neuron magnitude",
+            series="magnitude",
+            figure=fig,
+            iteration=step,
+        )
+
+    def log_movement_weights(self, layer_name, step, p=0.01) -> None:
+        movement1 = self.lin1.weight.cpu() - self.initial_weight1.cpu()
+        movement2 = self.lin2.weight.cpu() - self.initial_weight2.cpu()
+        mov1, mov2, w1, w2, in1, in2 = prepare_subset_for_logging(
+            [
+                movement1,
+                movement2,
+                self.lin1.weight,
+                self.lin2.weight,
+                self.initial_weight1,
+                self.initial_weight2,
+            ],
+            p,
+        )
+        fig1 = px.scatter(x=in1, y=mov1)
+        fig2 = px.scatter(x=in2, y=mov2)
+        fig3 = px.scatter(x=in1, y=w1)
+        fig4 = px.scatter(x=in2, y=w2)
+        logger = Logger.current_logger()
+        logger.report_plotly(
+            title=f"{layer_name} weight movement",
+            series="lin1 (x - initial weight, y - overall movement)",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} weight movement",
+            series="lin2 (x - initial weight, y - overall movement)",
+            figure=fig2,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} weight movement",
+            series="lin1 (x - initial weight, y - current weight)",
+            figure=fig3,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} weight movement",
+            series="lin2 (x - initial weight, y - current weight)",
+            figure=fig4,
+            iteration=step,
+        )
+
+    def log_movement_weights_grads(self, layer_name, step, p=0.01) -> None:
+        movement1 = self.lin1.weight.cpu() - self.initial_weight1.cpu()
+        movement2 = self.lin2.weight.cpu() - self.initial_weight2.cpu()
+        g1, g2, m1, m2 = prepare_subset_for_logging(
+            [self.lin1.weight.grad, self.lin2.weight.grad, movement1, movement2], p
+        )
+        fig1 = px.scatter(x=g1, y=m1)
+        fig2 = px.scatter(x=g2, y=m2)
+        logger = Logger.current_logger()
+        logger.report_plotly(
+            title=f"{layer_name} weight grad movement",
+            series="lin1 (x - current weight grad, y - overall movement)",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} weight grad movement",
+            series="lin2 (x - current weight grad, y - overall movement)",
+            figure=fig2,
+            iteration=step,
+        )
+
+    def log_magnitude_movement_neurons(self, layer_name, step) -> None:
+        logger = Logger.current_logger()
+        mags = self.get_neurons_magnitudes()
+        movement = mags.cpu() - self.initial_magnitudes.cpu()
+        fig1 = px.scatter(
+            x=prepare_for_logging(self.initial_magnitudes),
+            y=prepare_for_logging(movement),
+        )
+        fig2 = px.scatter(x=prepare_for_logging(mags), y=prepare_for_logging(movement))
+        fig3 = px.scatter(
+            x=prepare_for_logging(mags), y=prepare_for_logging(self.initial_magnitudes)
+        )
+        logger.report_plotly(
+            title=f"{layer_name} neuron magnitude movement",
+            series="x - initial magnitudes, y - movement of magnitude",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} neuron magnitude movement",
+            series="x - current magnitudes, y - movement of magnitude",
+            figure=fig2,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} neuron magnitude movement",
+            series="x - current magnitudes, y - initial magnitudes",
+            figure=fig3,
+            iteration=step,
+        )
+
+    def log_grad_magnitude_neurons(self, layer_name, step) -> None:
+        logger = Logger.current_logger()
+        mags = self.get_neurons_magnitudes()
+        grads = self.get_neurons_grads_magnitudes()
+        fig1 = px.scatter(
+            x=prepare_for_logging(self.initial_magnitudes), y=prepare_for_logging(grads)
+        )
+        fig2 = px.scatter(x=prepare_for_logging(mags), y=prepare_for_logging(grads))
+        fig3 = px.histogram(prepare_for_logging(grads))
+        logger.report_plotly(
+            title=f"{layer_name} neuron grad magnitude",
+            series="x - initial magnitude, y - grad",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} neuron grad magnitude",
+            series="x - current magnitude, y - grad",
+            figure=fig2,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} neuron grad magnitude",
+            series="current grad magnitudes",
+            figure=fig3,
+            iteration=step,
+        )
+
+    def log_grad_similar_to_dir(self, layer_name, step) -> None:
+        """Measures how often the direction of the gradient is similar to the direction the neuron it pointing towards"""
+        logger = Logger.current_logger()
+        grad_good_1 = ((self.lin1.weight * self.lin1.weight.grad) < 0) * 1.0
+        grad_good_2 = ((self.lin2.weight * self.lin2.weight.grad) < 0) * 1.0
+        grad_good_neuron = misc.einsum("i o -> i", grad_good_1) + misc.einsum(
+            "o i -> i", grad_good_2
+        )
+        mags = self.get_neurons_magnitudes()
+        fig1 = px.histogram(prepare_subset_for_logging([grad_good_1], 0.01)[0])
+        fig2 = px.histogram(prepare_subset_for_logging([grad_good_2], 0.01)[0])
+        fig3 = px.scatter(
+            x=prepare_for_logging(mags), y=prepare_for_logging(grad_good_neuron)
+        )
+        logger.report_plotly(
+            title=f"{layer_name} direction",
+            series="lin1 (sign of weight == -sign of grad)",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} direction",
+            series="lin2 (sign of weight == -sign of grad)",
+            figure=fig2,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} direction",
+            series="neuron x - magnitude, y - (sign of weight == -sign of grad)",
+            figure=fig3,
+            iteration=step,
+        )
+
+    def prune(self, *args, **kwargs):
+        pass
+
+    def log(self, layer_name, step):
+        logger = Logger.current_logger()
+        with torch.no_grad():
+            self.log_neurons_magnitudes(layer_name, step)
+            logger.flush(wait=True)
+
+            self.log_weights(layer_name, step)
+            logger.flush(wait=True)
+
+            self.log_movement_weights(layer_name, step)
+            logger.flush(wait=True)
+
+            self.log_magnitude_movement_neurons(layer_name, step)
+            logger.flush(wait=True)
+
+            self.log_grad_similar_to_dir(layer_name, step)
+            logger.flush(wait=True)
+
+            self.log_grad_magnitude_neurons(layer_name, step)
+            logger.flush(wait=True)
+
+            self.log_weights_grads(layer_name, step)
+            logger.flush(wait=True)
+
+            self.log_movement_weights_grads(layer_name, step)
+            logger.flush(wait=True)
 
 
 class MagnitudePruneLinear(misc.Linear):
