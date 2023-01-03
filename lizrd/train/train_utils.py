@@ -170,9 +170,13 @@ class RetrainTrainer(Trainer):
         # total number of >>hidden<< retrain steps
         self.retrain_count = 0
 
-    def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
+    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         # TODO
         pass
+
+    def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
+        self.writer.add_scalar("full_loss/train_total", total_loss, self.full_step)
+        self.writer.add_scalar("full_loss/train_mask", mask_loss.item(), self.full_step)
 
     def _pruning_step(self, step):
         # TODO
