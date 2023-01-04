@@ -24,30 +24,26 @@ class Pruner(BasePruner):
             if hasattr(layer, "decrement_immunity"):
                 layer.decrement_immunity()
 
-
-class RetrainPruner:
-    def __init__(self):
-        self.layers = []
-
-    def register(self, layer):
-        self.layers.append(layer)
-
     def pre_retrain(self):
         print("Pre retrain")
         for layer in self.layers:
-            layer.pre_retrain()
+            if hasattr(layer, "pre_retrain"):
+                layer.pre_retrain()
 
     def post_retrain(self):
         print("Post retrain")
         for layer in self.layers:
-            layer.post_retrain()
+            if hasattr(layer, "post_retrain"):
+                layer.post_retrain()
 
     def prepare_new(self, prob: float):
         print("Preparing new step")
         for layer in self.layers:
-            layer.prepare_new_weights(prob)
+            if hasattr(layer, "prepare_new"):
+                layer.prepare_new_weights(prob)
 
     def apply_new_weights(self):
         print("Applying new weights")
         for layer in self.layers:
-            layer.apply_new_weights()
+            if hasattr(layer, "apply_new_weights"):
+                layer.apply_new_weights()
