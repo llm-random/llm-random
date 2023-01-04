@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
 
-import torch.nn as nn
-import torch
 import torch.nn.functional as F
 from attr import define
-from torch.utils.tensorboard import SummaryWriter
 
-from research.reinitialization.core.pruner import BasePruner, RetrainPruner
+from research.reinitialization.core.pruner import BasePruner
 from lizrd.datasets import wikibookdata
 
 
