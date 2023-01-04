@@ -85,10 +85,10 @@ class Trainer:
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
 
-    def optimize(self, loss):
-        self.optimizer.zero_grad()
+    def optimize(self, loss, optimizer):
+        optimizer.zero_grad()
         self.scaler.scale(loss).backward()
-        self.scaler.step(self.optimizer)
+        self.scaler.step(optimizer)
         self.scaler.update()
 
     def _pruning_step(self, step):
@@ -98,6 +98,7 @@ class Trainer:
 
     def _train_step(
         self,
+        optimizer: torch.optim.Optimizer,
     ):
         self.model.train()
         processed_batch = self.pdataset.get_batch()
@@ -120,7 +121,7 @@ class Trainer:
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
 
-        self.optimize(total_loss)
+        self.optimize(total_loss, optimizer)
 
         return total_loss.item(), mask_loss.item()
 
@@ -163,7 +164,7 @@ class Trainer:
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
             self._pruning_step(step)
-            total_loss, mask_loss = self._train_step()
+            total_loss, mask_loss = self._train_step(self.optimizer)
             self._log_train_stats(total_loss, mask_loss, step)
             self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
@@ -209,13 +210,19 @@ class RetrainTrainer(Trainer):
         # unfreeze new
         self.pruner.pre_retrain()
 
-        # clear optimizer memory
-        # TODO
+        # create retrain optimizer (without old stats)
+        retrain_optim = torch.optim.Adam(
+            self.model.parameters(),
+            self.optimizer.param_groups[0]["lr"],
+            self.optimizer.param_groups[0]["betas"],
+            self.optimizer.param_groups[0]["eps"],
+            self.optimizer.param_groups[0]["weight_decay"],
+        )
 
         # retrain
         for _ in range(self.scheduler.n_steps_retrain):
             self.retrain_count += 1
-            total_loss, mask_loss = self._train_step()
+            total_loss, mask_loss = self._train_step(retrain_optim)
             self._log_retrain_stats(total_loss, mask_loss, step)
 
         # unfreeze model

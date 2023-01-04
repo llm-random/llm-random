@@ -39,7 +39,7 @@ class Pruner(BasePruner):
     def prepare_new(self, prob: float):
         print("Preparing new step")
         for layer in self.layers:
-            if hasattr(layer, "prepare_new"):
+            if hasattr(layer, "prepare_new_weights"):
                 layer.prepare_new_weights(prob)
 
     def apply_new_weights(self):
