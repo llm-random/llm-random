@@ -125,8 +125,8 @@ class Trainer:
         return total_loss.item(), mask_loss.item()
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
-        self.writer.add_scalar("loss/train_total", total_loss.item(), step)
-        self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+        self.writer.add_scalar("loss/train_total", total_loss, step)
+        self.writer.add_scalar("loss/train_mask", mask_loss, step)
 
     def _eval_step(
         self,
@@ -163,9 +163,7 @@ class Trainer:
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
             self._pruning_step(step)
-            total_loss, mask_loss = self._train_step(
-                self.model, self.optimizer, self.pdataset, self.scheduler, step
-            )
+            total_loss, mask_loss = self._train_step()
             self._log_train_stats(total_loss, mask_loss, step)
             self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
@@ -181,18 +179,26 @@ class RetrainTrainer(Trainer):
         self.retrain_count = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
-        self.writer.add_scalar("loss/train_total", total_loss.item(), step)
-        self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
-        self.writer.add_scalar("full_loss/train_total", total_loss, self.full_step)
-        self.writer.add_scalar("full_loss/train_mask", mask_loss.item(), self.full_step)
+        self.writer.add_scalar("loss/train_total", total_loss, step)
+        self.writer.add_scalar("loss/train_mask", mask_loss, step)
+        self.writer.add_scalar(
+            "full_loss/train_total", total_loss, step + self.retrain_count
+        )
+        self.writer.add_scalar(
+            "full_loss/train_mask", mask_loss, step + self.retrain_count
+        )
 
     def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
-        self.writer.add_scalar("full_loss/train_total", total_loss, self.full_step)
-        self.writer.add_scalar("full_loss/train_mask", mask_loss.item(), self.full_step)
+        self.writer.add_scalar(
+            "full_loss/train_total", total_loss, step + self.retrain_count
+        )
+        self.writer.add_scalar(
+            "full_loss/train_mask", mask_loss, step + self.retrain_count
+        )
 
     def _pruning_step(self, step):
         if self.scheduler.time_to_prune(step):
-            self._retrain()
+            self._retrain(step)
 
     def _retrain(self, step):
         self.pruner.prepare_new(self.scheduler.prob)
@@ -210,7 +216,7 @@ class RetrainTrainer(Trainer):
         for _ in range(self.scheduler.n_steps_retrain):
             self.retrain_count += 1
             total_loss, mask_loss = self._train_step()
-            self._log_retrain_stats(total_loss, mask_loss, step + self.retrain_count)
+            self._log_retrain_stats(total_loss, mask_loss, step)
 
         # unfreeze model
         self.model.requires_grad_(True)

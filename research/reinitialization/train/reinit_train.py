@@ -10,12 +10,16 @@ from clearml import Task
 from lizrd.core import misc, bert
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
-from research.reinitialization.core.pruner import Pruner, RetrainPruner
+from research.reinitialization.core.pruner import Pruner
 from research.reinitialization.core.scheduler import (
     DelayedConstScheduler,
-    RetrainScheduler,
 )
-from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer
+from lizrd.train.train_utils import (
+    get_model,
+    get_processed_dataset,
+    Trainer,
+    RetrainTrainer,
+)
 
 parser = argparse.ArgumentParser()
 
@@ -29,13 +33,12 @@ parser.add_argument("--project_name", type=str)
 
 parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
-parser.add_argument("--pruner_n_steps_retrain", type=int, default=0)
+parser.add_argument("--pruner_n_steps_retrain", type=int, default=None)
 parser.add_argument("--ff_layer", type=str, default="regular")
+parser.add_argument("--trainer_type", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
-parser.add_argument("--pruner_type", type=str, default="regular")
 parser.add_argument("--ds_seed", type=int, default=42)
 parser.add_argument("--eval_ds_seed", type=int, default=1984)
-
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -83,13 +86,15 @@ modelpath = f"runs/wikibooktest/{timestamp}"
 writer = SummaryWriter(log_dir=modelpath)
 
 # set pruner if needed
-if args.use_pruner and args.pruner_n_steps and args.pruner_type == "regular":
+if args.use_pruner and args.pruner_n_steps:
     pruner = Pruner()
     scheduler = DelayedConstScheduler(
-        pruner, args.pruner_n_steps, args.pruner_prob, args.pruner_delay
+        pruner,
+        args.pruner_n_steps,
+        args.pruner_prob,
+        args.pruner_delay,
+        args.pruner_n_steps_retrain,
     )
-elif args.pruner_type == "retrain":
-    pruner = RetrainPruner()
 else:
     scheduler = None
 
@@ -151,37 +156,37 @@ if args.optimizer == "adam":
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
-# set retrain scheduler if needed
-if args.pruner_type == "retrain":
-    scheduler = RetrainScheduler(
-        pruner,
-        writer,
-        args.pruner_n_steps,
-        args.pruner_prob,
-        args.pruner_delay,
-        model,
-        optimizer,
-        pdataset,
-        args.batch_size,
-        VOCAB_SIZE,
-        args.mask_percent,
-        args.mask_loss_weight,
-        args.pruner_n_steps_retrain,
+if args.trainer_type == "retrain":
+    trainer = RetrainTrainer(
+        model=model,
+        optimizer=optimizer,
+        pdataset=pdataset,
+        pdataset_eval=eval_pdataset,
+        batch_size=args.batch_size,
+        vocab_size=VOCAB_SIZE,
+        mask_percent=args.mask_percent,
+        mask_loss_weight=args.mask_loss_weight,
+        modelpath=modelpath,
+        pruner=pruner,
+        scheduler=scheduler,
+        writer=writer,
+        mixed_precision=args.mixed_precision,
     )
-
-trainer = Trainer(
-    model=model,
-    optimizer=optimizer,
-    pdataset=pdataset,
-    pdataset_eval=eval_pdataset,
-    batch_size=args.batch_size,
-    vocab_size=VOCAB_SIZE,
-    mask_percent=args.mask_percent,
-    mask_loss_weight=args.mask_loss_weight,
-    modelpath=modelpath,
-    scheduler=scheduler,
-    writer=writer,
-    mixed_precision=args.mixed_precision,
-)
+else:
+    trainer = Trainer(
+        model=model,
+        optimizer=optimizer,
+        pdataset=pdataset,
+        pdataset_eval=eval_pdataset,
+        batch_size=args.batch_size,
+        vocab_size=VOCAB_SIZE,
+        mask_percent=args.mask_percent,
+        mask_loss_weight=args.mask_loss_weight,
+        modelpath=modelpath,
+        pruner=pruner,
+        scheduler=scheduler,
+        writer=writer,
+        mixed_precision=args.mixed_precision,
+    )
 
 trainer.train(args.n_steps, args.n_steps_eval)
