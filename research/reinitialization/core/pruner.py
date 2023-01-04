@@ -1,9 +1,4 @@
-from typing import TYPE_CHECKING, Optional
 from abc import ABC, abstractmethod
-
-import torch
-from clearml import Logger
-import plotly.express as px
 
 
 class BasePruner(ABC):
@@ -23,6 +18,11 @@ class Pruner(BasePruner):
         print("Pruning step")
         for layer in self.layers:
             layer.prune(prob)
+
+    def decrement_immunity(self):
+        for layer in self.layers:
+            if hasattr(layer, "decrement_immunity"):
+                layer.decrement_immunity()
 
 
 class RetrainPruner:

@@ -117,7 +117,6 @@ def check_layer_funs(*layer_funs):
 class StopGradient(nn.Module):
     def __init__(self):
         super(StopGradient, self).__init__()
-        pass
 
     def forward(self, x):
         return stop_gradient(x)
