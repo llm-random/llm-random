@@ -171,16 +171,18 @@ class RetrainTrainer(Trainer):
         self.retrain_count = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
-        # TODO
-        pass
+        self.writer.add_scalar("loss/train_total", total_loss.item(), step)
+        self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+        self.writer.add_scalar("full_loss/train_total", total_loss, self.full_step)
+        self.writer.add_scalar("full_loss/train_mask", mask_loss.item(), self.full_step)
 
     def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
         self.writer.add_scalar("full_loss/train_total", total_loss, self.full_step)
         self.writer.add_scalar("full_loss/train_mask", mask_loss.item(), self.full_step)
 
     def _pruning_step(self, step):
-        # TODO
-        pass
+        if self.scheduler.time_to_prune(step):
+            self._retrain()
 
     def _retrain(self, step):
         self.pruner.prepare_new(self.scheduler.prob)
@@ -192,9 +194,11 @@ class RetrainTrainer(Trainer):
         self.pruner.pre_retrain()
 
         # clear optimizer memory
+        # TODO
 
         # retrain
-        for _ in range(self.n_steps_retrain):
+        for _ in range(self.scheduler.n_steps_retrain):
+            self.retrain_count += 1
             total_loss, mask_loss = self._train_step()
             self._log_retrain_stats(total_loss, mask_loss, step + self.retrain_count)
 
