@@ -277,6 +277,16 @@ class StructMagnitudeRecycleImmunityFF(nn.Module):
         self.reinitialize(mask)
 
 
+def prepare_for_logging(x):
+    return x.view(-1).detach().cpu().numpy()
+
+
+def prepare_subset_for_logging(xs, p):
+    xs = [prepare_for_logging(x) for x in xs]
+    random_indices = np.random.choice(len(xs[0]), int(len(xs[0]) * p), replace=False)
+    return [x[random_indices] for x in xs]
+
+
 class RetrainRecycleFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
