@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
 
-import torch
-
 from research.reinitialization.core.pruner import BasePruner
 from attr import define
 
