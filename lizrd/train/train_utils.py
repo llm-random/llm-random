@@ -173,11 +173,7 @@ class Trainer:
 
 
 class RetrainTrainer(Trainer):
-    def __attrs_post_init__(self):
-        super().__attrs_post_init__()
-
-        # total number of >>hidden<< retrain steps
-        self.retrain_count = 0
+    retrain_count: int = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         self.writer.add_scalar("loss/train_total", total_loss, step)
