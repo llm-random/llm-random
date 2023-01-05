@@ -9,6 +9,12 @@ from lizrd.core.misc import Linear
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
+from research.reinitialization.core.linears import LogFF
+
+
+class LogRecycleFF(LogFF):
+    def log(self):
+        super().log()
 
 
 class RandomUnstructRecycleFF(nn.Module):

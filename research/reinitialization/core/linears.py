@@ -87,6 +87,11 @@ class StructPruneFF(nn.Module):
         )
 
 
+class LogFF(nn.Module):
+    def log(self):
+        pass
+
+
 class MagnitudePruneLinear(misc.Linear):
     """Linear layer with magnitude pruning"""
 
