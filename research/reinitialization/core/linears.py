@@ -88,7 +88,7 @@ class StructPruneFF(nn.Module):
 
 
 class LogFF(nn.Module):
-    def log(self):
+    def log(self, layer_name: str, step: int):
         pass
 
 

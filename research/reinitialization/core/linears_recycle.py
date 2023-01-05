@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.init import kaiming_uniform_
+from clearml import Logger
 
 from lizrd.core.misc import Linear
 from lizrd.support import ash
@@ -13,8 +14,58 @@ from research.reinitialization.core.linears import LogFF
 
 
 class LogRecycleFF(LogFF):
-    def log(self):
-        super().log()
+    def log_recycle_magnitude(self, step: int):
+        for i, layer in enumerate(self.layers):
+            tensor = layer.recycle_counter.flatten().cpu()
+            values = tensor.tolist()
+            fig = px.histogram(values)
+            Logger.current_logger().report_plotly(
+                title="Number of recycled neurons",
+                series=f"Linear {i}",
+                iteration=step,
+                figure=fig,
+            )
+            self._log_tensor_stats(tensor, step, f"n_recycled_neurons_layer_{i}")
+
+    def log_magnitude(self, step: int):
+        for i, layer in enumerate(self.layers):
+            tensor = layer.neuron_magnitudes.flatten().cpu()
+            values = tensor.tolist()
+            fig = px.histogram(values)
+            Logger.current_logger().report_plotly(
+                title="Magnitude of all neurons",
+                series=f"Linear {i}",
+                iteration=step,
+                figure=fig,
+            )
+            self._log_tensor_stats(tensor, step, f"magnitude_layer_{i}")
+
+    def log_recently_pruned_magnitude(self, step: int):
+        for i, layer in enumerate(self.layers):
+            Logger.current_logger().report_scalar(
+                "mean_magn_of_recycled_layer",
+                f"Layer {i}",
+                iteration=step,
+                value=layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
+            )
+            # self._log_tensor_stats(tensor, step, f"magnitude_layer_{i}")
+
+    def log_hist_all_weights(self, step: int):
+        for i, ff_layer in enumerate(self.layers):
+            for j, lin_layer in enumerate([ff_layer.lin1, ff_layer.lin2]):
+                tensor = lin_layer.weight.data.flatten().cpu()
+                values = tensor.tolist()
+                fig = px.histogram(values)
+                Logger.current_logger().report_plotly(
+                    title="Values of all weights",
+                    series=f"Linear layer {2*i+j}",
+                    iteration=step,
+                    figure=fig,
+                )
+                self._log_tensor_stats(tensor, step, f"all_weights_lin_layer_{2*i+j}")
+
+    def log(self, layer_name: str, step: int):
+        super().log(layer_name, step)
 
 
 class RandomUnstructRecycleFF(nn.Module):
