@@ -369,6 +369,9 @@ class RetrainRecycleFF(nn.Module):
         lin_bias_1 = misc.einsum("f, f -> f", self.mask, self.lin1.bias.data)
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_1) + lin_bias_1
 
+        # relu
+        x = F.relu(x)
+
         # Appply FF2
         assert self.lin2.weight.data.shape == self.new_weights_2.shape
         lin_weights_2 = misc.einsum(
