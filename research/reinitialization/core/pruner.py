@@ -16,6 +16,12 @@ class BasePruner(ABC):
 class Pruner(BasePruner):
     scheduler = None
 
+    def after_backprop(self, step):
+        print("After backprop step")
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer, "after_backprop"):
+                layer.after_backprop(f"Layer {i+1}", step)
+
     def log(self, step):
         print("Logging step")
         for i, layer in enumerate(self.layers):

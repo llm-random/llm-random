@@ -1,3 +1,4 @@
+from matplotlib.pyplot import scatter
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -94,7 +95,7 @@ def prepare_for_logging(x):
     return x.view(-1).detach().cpu().numpy()
 
 
-def prepare_subset_for_logging(xs, p):
+def prepare_subset_for_logging(xs, p=0.01):
     xs = [prepare_for_logging(x) for x in xs]
     random_indices = np.random.choice(len(xs[0]), int(len(xs[0]) * p), replace=False)
     return [x[random_indices] for x in xs]
@@ -106,8 +107,22 @@ class LogFF(nn.Module):
         super().__init__()
         self.lin1 = misc.Linear(dmodel, dff)
         self.lin2 = misc.Linear(dff, dmodel)
-        self.initial_weight1 = torch.clone(self.lin1.weight).detach()
-        self.initial_weight2 = torch.clone(self.lin2.weight).detach()
+        # torch.clone(self.lin1.weight).detach()
+        # self.initial_weight1 = torch.clone(self.lin1.weight).detach()
+        # self.initial_weight2 = torch.clone(self.lin2.weight).detach()
+        self.reinforcement_count1 = nn.parameter.Parameter(
+            torch.zeros(
+                size=self.lin1.weight.shape, dtype=int, device=self.lin1.weight.device
+            ),
+            requires_grad=False,
+        )
+        self.reinforcement_count2 = nn.parameter.Parameter(
+            torch.zeros(
+                size=self.lin2.weight.shape, dtype=int, device=self.lin2.weight.device
+            ),
+            requires_grad=False,
+        )
+
         self.initial_magnitudes = self.get_neurons_magnitudes()
 
         pruner.register(self)
@@ -118,6 +133,56 @@ class LogFF(nn.Module):
         x = F.relu(x)
         x = self.lin2(x)
         return x
+
+    def log_reinforcement_ratio(self, layer_name, step, ratio1, ratio2):
+        logger = Logger.current_logger()
+        logger.report_scalar(
+            title=f"{layer_name} weight reinforcement ratio",
+            series="lin1",
+            value=ratio1,
+            iteration=step,
+        )
+        logger.report_scalar(
+            title=f"{layer_name} weight reinforcement ratio",
+            series="lin2",
+            value=ratio2,
+            iteration=step,
+        )
+
+    def log_reinforcement_count_plot(self, layer_name, step):
+        logger = Logger.current_logger()
+        w1, rc1, w2, rc2 = prepare_subset_for_logging(
+            [
+                self.lin1.weight,
+                self.reinforcement_count1,
+                self.lin2.weight,
+                self.reinforcement_count2,
+            ]
+        )
+        fig1 = px.histogram(prepare_subset_for_logging(rc1))
+        fig2 = px.histogram(prepare_subset_for_logging(rc2))
+        logger.report_plotly(
+            title=f"{layer_name} total reinforcement count",
+            series="lin1",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} total reinforcement count",
+            series="lin2",
+            figure=fig2,
+            iteration=step,
+        )
+
+    def after_backprop(self, layer_name, step):
+        with torch.no_grad():
+            diff1 = self.lin1.weight.grad * self.lin1.weight <= 0
+            diff1_ratio = diff1.sum().item() / diff1.numel()
+            self.reinforcement_count1 += diff1
+            diff2 = self.lin2.weight.grad * self.lin2.weight <= 0
+            diff2_ratio = diff2.sum().item() / diff2.numel()
+            self.reinforcement_count2 += diff2
+        self.log_reinforcement_ratio(layer_name, step, diff1_ratio, diff2_ratio)
 
     def get_neurons_grads_magnitudes(self):
         with torch.no_grad():
@@ -336,35 +401,85 @@ class LogFF(nn.Module):
             iteration=step,
         )
 
+    def log_grad_cosine_similarity(self, layer_name, step):
+        # x - weight, y - cosine similarity
+        # cosine similarity histogram
+        logger = Logger.current_logger()
+
+        neuron_weights = self.get_neurons_magnitudes()
+
+        norms_weights1 = torch.sqrt(misc.einsum("i o -> i", self.lin1.weight**2))
+        norms_grads1 = torch.sqrt(misc.einsum("i o -> i", self.lin1.weight.grad**2))
+        similarity1 = misc.einsum(
+            "i o -> i", self.lin1.weight * self.lin1.weight.grad
+        ) / (norms_grads1 * norms_weights1)
+
+        norms_weights2 = torch.sqrt(misc.einsum("o i -> i", self.lin2.weight**2))
+        norms_grads2 = torch.sqrt(misc.einsum("o i -> i", self.lin2.weight.grad**2))
+        similarity2 = misc.einsum(
+            "o i -> i", self.lin2.weight * self.lin2.weight.grad
+        ) / (norms_grads2 * norms_weights2)
+
+        fig1 = px.histogram(prepare_for_logging(similarity1))
+        fig2 = px.histogram(prepare_for_logging(similarity2))
+        fig3 = px.scatter(
+            x=prepare_for_logging(neuron_weights),
+            y=prepare_for_logging(similarity1 + similarity2),
+        )
+
+        logger.report_plotly(
+            title=f"{layer_name} cosine similarity",
+            series="lin1",
+            figure=fig1,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} cosine similarity",
+            series="lin2",
+            figure=fig2,
+            iteration=step,
+        )
+        logger.report_plotly(
+            title=f"{layer_name} cosine similarity",
+            series="neuron x - magnitude, y - cosine similarity (sum between lin1 and lin2)",
+            figure=fig3,
+            iteration=step,
+        )
+
     def prune(self, *args, **kwargs):
         pass
 
     def log(self, layer_name, step):
         logger = Logger.current_logger()
         with torch.no_grad():
-            self.log_neurons_magnitudes(layer_name, step)
-            logger.flush(wait=True)
+            if False:
+                self.log_neurons_magnitudes(layer_name, step)
+                logger.flush(wait=True)
 
-            self.log_weights(layer_name, step)
-            logger.flush(wait=True)
+                self.log_weights(layer_name, step)
+                logger.flush(wait=True)
 
-            self.log_movement_weights(layer_name, step)
-            logger.flush(wait=True)
+                self.log_movement_weights(layer_name, step)
+                logger.flush(wait=True)
 
-            self.log_magnitude_movement_neurons(layer_name, step)
-            logger.flush(wait=True)
+                self.log_magnitude_movement_neurons(layer_name, step)
+                logger.flush(wait=True)
 
-            self.log_grad_similar_to_dir(layer_name, step)
-            logger.flush(wait=True)
+                self.log_grad_similar_to_dir(layer_name, step)
+                logger.flush(wait=True)
 
-            self.log_grad_magnitude_neurons(layer_name, step)
-            logger.flush(wait=True)
+                self.log_grad_magnitude_neurons(layer_name, step)
+                logger.flush(wait=True)
 
-            self.log_weights_grads(layer_name, step)
-            logger.flush(wait=True)
+                self.log_weights_grads(layer_name, step)
+                logger.flush(wait=True)
 
-            self.log_movement_weights_grads(layer_name, step)
-            logger.flush(wait=True)
+                self.log_movement_weights_grads(layer_name, step)
+                logger.flush(wait=True)
+
+            self.log_reinforcement_count_plot(layer_name, step)
+
+            self.log_grad_cosine_similarity(layer_name, step)
 
 
 class MagnitudePruneLinear(misc.Linear):

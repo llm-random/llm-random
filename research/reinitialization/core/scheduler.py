@@ -9,7 +9,7 @@ class BaseScheduler(ABC):
         ...
 
     @abstractmethod
-    def log(self):
+    def after_backprop(self):
         ...
 
     @abstractmethod
@@ -41,7 +41,8 @@ class DelayedConstScheduler(BaseScheduler):
         ):
             self.pruner.prune(self.prob)
 
-    def log(self):
+    def after_backprop(self):
+        self.pruner.after_backprop(self.current_step)
         if self.n_steps_log and (self.current_step % self.n_steps_log == 0):
             self.pruner.log(self.current_step)
 

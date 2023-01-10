@@ -89,17 +89,16 @@ class Trainer:
         if self.scheduler is not None:
             self.scheduler.prune()
 
-    def log(self):
+    def after_backprop(self):
         if self.scheduler is not None:
-            self.scheduler.log()
+            self.scheduler.after_backprop()
 
     def optimize(self, loss):
         self.optimizer.zero_grad()
         self.scaler.scale(loss).backward()
         self.scaler.unscale_(self.optimizer)
 
-        # logging plots needs to be here to have access to gradients
-        self.log()
+        self.after_backprop()
 
         self.scaler.step(self.optimizer)
         self.scaler.update()
