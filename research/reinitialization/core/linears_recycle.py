@@ -22,47 +22,44 @@ class LogRecycleFF(LogFF):
         fig = px.histogram(values)
         Logger.current_logger().report_plotly(
             title="Number of recycled neurons",
-            series=f"Linear {i}",
+            series=layer_name,
             iteration=step,
             figure=fig,
         )
 
     def log_magnitude(self, layer_name, step: int):
-        for i, layer in enumerate(self.layers):
-            tensor = layer.neuron_magnitudes.flatten().cpu()
+            tensor = self.neuron_magnitudes.flatten().cpu()
             values = tensor.tolist()
             fig = px.histogram(values)
             Logger.current_logger().report_plotly(
                 title="Magnitude of all neurons",
-                series=f"Linear {i}",
+                series=layer_name,
                 iteration=step,
                 figure=fig,
             )
 
     def log_recently_pruned_magnitude(self, layer_name, step: int):
-        for i, layer in enumerate(self.layers):
             Logger.current_logger().report_scalar(
                 "mean_magn_of_recycled_layer",
-                f"Layer {i}",
+                layer_name,
                 iteration=step,
-                value=layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
+                value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
             )
 
     def log_hist_all_weights(self, layer_name, step: int):
-        for i, ff_layer in enumerate(self.layers):
-            for j, lin_layer in enumerate([ff_layer.lin1, ff_layer.lin2]):
+        for j, lin_layer in enumerate([self.lin1, self.lin2]):
                 tensor = lin_layer.weight.data.flatten().cpu()
                 values = tensor.tolist()
                 fig = px.histogram(values)
                 Logger.current_logger().report_plotly(
                     title="Values of all weights",
-                    series=f"{layer_name} {2*i+j}",
+                    series=f"{layer_name}: linear {j}",
                     iteration=step,
                     figure=fig,
                 )
 
     def log(self, layer_name: str, step: int):
-        # super().log(layer_name, step)
+        print('LOGGING 4')
         self.log_recycle_magnitude(layer_name, step)
         self.log_magnitude(layer_name, step)
         self.log_magnitude(layer_name, step)
@@ -355,6 +352,10 @@ class RetrainRecycleFF(LogRecycleFF):
         self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin2.weight))
         pruner.register(self)
         self.mode = "regular"
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.recycle_counter = torch.zeros(self.dff).to(device)
+        self.neuron_magnitudes = torch.zeros(self.dff).to(device)
+        self.recently_pruned = torch.full((dff,), False).to(device)
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -415,6 +416,11 @@ class RetrainRecycleFF(LogRecycleFF):
             self.new_weights_2.normal_(
                 mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
             )
+
+        # save statistics
+        self.recycle_counter += 1 - self.mask
+        self.neuron_magnitudes = weights.flatten()  # weights
+        self.recently_pruned = (1 - self.mask).bool()
 
     def apply_new_weights(self):
         self.lin1.weight.data = misc.einsum(

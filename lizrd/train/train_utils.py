@@ -170,8 +170,8 @@ class Trainer:
             self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
                 self._eval_step(step, n_steps_eval // 2)
-            # if step % self.log_n_steps == 0:
-            #     self.scheduler.pruner.log(step)
+            if self.log_n_steps and step % self.log_n_steps == 0:
+                self.scheduler.pruner.log(step)
             print(f"Step {step}")
 
 
