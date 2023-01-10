@@ -91,14 +91,21 @@ class StructPruneFF(nn.Module):
         )
 
 
-def prepare_for_logging(x):
-    return x.view(-1).detach().cpu().numpy()
+def prepare_tensor_for_logging(x, sample_size=2500):
+    if not isinstance(x, list):
+        x = [x]
+        was_list = False
+    else:
+        was_list = True
 
+    num_elems = x[0].numel()
+    x = [t.detach().view(-1).cpu().numpy() for t in x]
 
-def prepare_subset_for_logging(xs, p=0.01):
-    xs = [prepare_for_logging(x) for x in xs]
-    random_indices = np.random.choice(len(xs[0]), int(len(xs[0]) * p), replace=False)
-    return [x[random_indices] for x in xs]
+    if num_elems <= sample_size:
+        return x if was_list else x[0]
+
+    random_indices = np.random.choice(num_elems, sample_size, replace=False)
+    return [t[random_indices] for t in x]
 
 
 @ash.check("... d -> ... d")
@@ -198,9 +205,9 @@ class LogFF(nn.Module):
             magnitudes = weights1 * weights2
             return magnitudes
 
-    def log_weights(self, layer_name, step, p=0.01):
-        fig1 = px.histogram(prepare_subset_for_logging([self.lin1.weight], p)[0])
-        fig2 = px.histogram(prepare_subset_for_logging([self.lin2.weight], p)[0])
+    def log_weights(self, layer_name, step):
+        fig1 = px.histogram(prepare_tensor_for_logging(self.lin1.weight))
+        fig2 = px.histogram(prepare_tensor_for_logging(self.lin2.weight))
         logger = Logger.current_logger()
         logger.report_plotly(
             title=f"{layer_name} weight",
@@ -215,9 +222,9 @@ class LogFF(nn.Module):
             iteration=step,
         )
 
-    def log_weights_grads(self, layer_name, step, p=0.01):
-        fig1 = px.histogram(prepare_subset_for_logging([self.lin1.weight.grad], p)[0])
-        fig2 = px.histogram(prepare_subset_for_logging([self.lin2.weight.grad], p)[0])
+    def log_weights_grads(self, layer_name, step):
+        fig1 = px.histogram(prepare_tensor_for_logging(self.lin1.weight.grad))
+        fig2 = px.histogram(prepare_tensor_for_logging(self.lin2.weight.grad))
         logger = Logger.current_logger()
         logger.report_plotly(
             title=f"{layer_name} weight grad",
@@ -234,7 +241,7 @@ class LogFF(nn.Module):
 
     def log_neurons_magnitudes(self, layer_name, step) -> None:
         magnitudes = self.get_neurons_magnitudes()
-        fig = px.histogram(prepare_for_logging(magnitudes))
+        fig = px.histogram(prepare_tensor_for_logging(magnitudes))
         logger = Logger.current_logger()
         logger.report_plotly(
             title=f"{layer_name} neuron magnitude",
@@ -246,7 +253,7 @@ class LogFF(nn.Module):
     def log_movement_weights(self, layer_name, step, p=0.01) -> None:
         movement1 = self.lin1.weight.cpu() - self.initial_weight1.cpu()
         movement2 = self.lin2.weight.cpu() - self.initial_weight2.cpu()
-        mov1, mov2, w1, w2, in1, in2 = prepare_subset_for_logging(
+        mov1, mov2, w1, w2, in1, in2 = prepare_tensor_for_logging(
             [
                 movement1,
                 movement2,
@@ -254,8 +261,7 @@ class LogFF(nn.Module):
                 self.lin2.weight,
                 self.initial_weight1,
                 self.initial_weight2,
-            ],
-            p,
+            ]
         )
         fig1 = px.scatter(x=in1, y=mov1)
         fig2 = px.scatter(x=in2, y=mov2)
@@ -287,11 +293,11 @@ class LogFF(nn.Module):
             iteration=step,
         )
 
-    def log_movement_weights_grads(self, layer_name, step, p=0.01) -> None:
+    def log_movement_weights_grads(self, layer_name, step) -> None:
         movement1 = self.lin1.weight.cpu() - self.initial_weight1.cpu()
         movement2 = self.lin2.weight.cpu() - self.initial_weight2.cpu()
-        g1, g2, m1, m2 = prepare_subset_for_logging(
-            [self.lin1.weight.grad, self.lin2.weight.grad, movement1, movement2], p
+        g1, g2, m1, m2 = prepare_tensor_for_logging(
+            [self.lin1.weight.grad, self.lin2.weight.grad, movement1, movement2]
         )
         fig1 = px.scatter(x=g1, y=m1)
         fig2 = px.scatter(x=g2, y=m2)
@@ -313,14 +319,15 @@ class LogFF(nn.Module):
         logger = Logger.current_logger()
         mags = self.get_neurons_magnitudes()
         movement = mags.cpu() - self.initial_magnitudes.cpu()
+        mags, movement, initial_magnitudes = prepare_tensor_for_logging(
+            [mags, movement, self.initial_magnitudes]
+        )
         fig1 = px.scatter(
-            x=prepare_for_logging(self.initial_magnitudes),
-            y=prepare_for_logging(movement),
+            x=initial_magnitudes,
+            y=movement,
         )
-        fig2 = px.scatter(x=prepare_for_logging(mags), y=prepare_for_logging(movement))
-        fig3 = px.scatter(
-            x=prepare_for_logging(mags), y=prepare_for_logging(self.initial_magnitudes)
-        )
+        fig2 = px.scatter(x=mags, y=movement)
+        fig3 = px.scatter(x=mags, y=initial_magnitudes)
         logger.report_plotly(
             title=f"{layer_name} neuron magnitude movement",
             series="x - initial magnitudes, y - movement of magnitude",
@@ -344,11 +351,12 @@ class LogFF(nn.Module):
         logger = Logger.current_logger()
         mags = self.get_neurons_magnitudes()
         grads = self.get_neurons_grads_magnitudes()
-        fig1 = px.scatter(
-            x=prepare_for_logging(self.initial_magnitudes), y=prepare_for_logging(grads)
+        mags, grads, initial_magnitudes = prepare_tensor_for_logging(
+            [mags, grads, self.initial_magnitudes]
         )
-        fig2 = px.scatter(x=prepare_for_logging(mags), y=prepare_for_logging(grads))
-        fig3 = px.histogram(prepare_for_logging(grads))
+        fig1 = px.scatter(x=initial_magnitudes, y=grads)
+        fig2 = px.scatter(x=mags, y=grads)
+        fig3 = px.histogram(grads)
         logger.report_plotly(
             title=f"{layer_name} neuron grad magnitude",
             series="x - initial magnitude, y - grad",
@@ -377,11 +385,13 @@ class LogFF(nn.Module):
             "o i -> i", grad_good_2
         )
         mags = self.get_neurons_magnitudes()
-        fig1 = px.histogram(prepare_subset_for_logging([grad_good_1], 0.01)[0])
-        fig2 = px.histogram(prepare_subset_for_logging([grad_good_2], 0.01)[0])
-        fig3 = px.scatter(
-            x=prepare_for_logging(mags), y=prepare_for_logging(grad_good_neuron)
+        grad_good_1, grad_good_2 = prepare_tensor_for_logging(
+            [grad_good_1, grad_good_2]
         )
+        fig1 = px.histogram(grad_good_1)
+        fig2 = px.histogram(grad_good_2)
+        mags, grad_good_neuron = prepare_tensor_for_logging([mags, grad_good_neuron])
+        fig3 = px.scatter(x=mags, y=grad_good_neuron)
         logger.report_plotly(
             title=f"{layer_name} direction",
             series="lin1 (sign of weight == -sign of grad)",
@@ -420,11 +430,11 @@ class LogFF(nn.Module):
             "o i -> i", self.lin2.weight * self.lin2.weight.grad
         ) / (norms_grads2 * norms_weights2)
 
-        fig1 = px.histogram(prepare_for_logging(similarity1))
-        fig2 = px.histogram(prepare_for_logging(similarity2))
+        fig1 = px.histogram(prepare_tensor_for_logging(similarity1))
+        fig2 = px.histogram(prepare_tensor_for_logging(similarity2))
         fig3 = px.scatter(
-            x=prepare_for_logging(neuron_weights),
-            y=prepare_for_logging(similarity1 + similarity2),
+            x=prepare_tensor_for_logging(neuron_weights),
+            y=prepare_tensor_for_logging(similarity1 + similarity2),
         )
 
         logger.report_plotly(
