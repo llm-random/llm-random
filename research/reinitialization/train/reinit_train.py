@@ -28,6 +28,7 @@ parser.add_argument("--project_name", type=str)
 parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
 parser.add_argument("--ff_layer", type=str, default="regular")
+parser.add_argument("--bias", type=str, default="both")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--seed", type=int, default=42)
 
@@ -93,7 +94,7 @@ else:
 
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff)
+    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff, bias=args.bias)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "struct_prune":

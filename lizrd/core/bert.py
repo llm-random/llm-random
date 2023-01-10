@@ -1,5 +1,6 @@
 import torch
 import lizrd.core.nn as nn
+from typing import Literal
 
 from einops.layers.torch import Rearrange
 
@@ -9,13 +10,23 @@ from lizrd.support.profile import TimerLayer
 
 
 @ash.check("... d -> ... d")
-def FeedForward(dmodel, dff):
+def FeedForward(dmodel, dff, bias: Literal["both", "first", "second", "none"] = "both"):
+    if bias == "both":
+        bias_first = bias_second = True
+    elif bias == "first":
+        bias_first = True
+        bias_second = False
+    elif bias == "second":
+        bias_first = False
+        bias_second = True
+    else:
+        bias_first = bias_second = False
     return TimerLayer(
         "denseFF",
         nn.Sequential(
-            TimerLayer("Linear1", misc.Linear(dmodel, dff), off=True),
+            TimerLayer("Linear1", misc.Linear(dmodel, dff, bias=bias_first), off=True),
             nn.ReLU(inplace=True),
-            TimerLayer("Linear2", misc.Linear(dff, dmodel), off=True),
+            TimerLayer("Linear2", misc.Linear(dff, dmodel, bias=bias_second), off=True),
         ),
     )
 
