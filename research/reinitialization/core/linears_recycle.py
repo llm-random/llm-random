@@ -28,38 +28,38 @@ class LogRecycleFF(LogFF):
         )
 
     def log_magnitude(self, layer_name, step: int):
-            tensor = self.neuron_magnitudes.flatten().cpu()
+        tensor = self.neuron_magnitudes.flatten().cpu()
+        values = tensor.tolist()
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Magnitude of all neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_recently_pruned_magnitude(self, layer_name, step: int):
+        Logger.current_logger().report_scalar(
+            "mean_magn_of_recycled_layer",
+            layer_name,
+            iteration=step,
+            value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
+        )
+
+    def log_hist_all_weights(self, layer_name, step: int):
+        for j, lin_layer in enumerate([self.lin1, self.lin2]):
+            tensor = lin_layer.weight.data.flatten().cpu()
             values = tensor.tolist()
             fig = px.histogram(values)
             Logger.current_logger().report_plotly(
-                title="Magnitude of all neurons",
-                series=layer_name,
+                title="Values of all weights",
+                series=f"{layer_name}: linear {j}",
                 iteration=step,
                 figure=fig,
             )
 
-    def log_recently_pruned_magnitude(self, layer_name, step: int):
-            Logger.current_logger().report_scalar(
-                "mean_magn_of_recycled_layer",
-                layer_name,
-                iteration=step,
-                value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
-            )
-
-    def log_hist_all_weights(self, layer_name, step: int):
-        for j, lin_layer in enumerate([self.lin1, self.lin2]):
-                tensor = lin_layer.weight.data.flatten().cpu()
-                values = tensor.tolist()
-                fig = px.histogram(values)
-                Logger.current_logger().report_plotly(
-                    title="Values of all weights",
-                    series=f"{layer_name}: linear {j}",
-                    iteration=step,
-                    figure=fig,
-                )
-
     def log(self, layer_name: str, step: int):
-        print('LOGGING 4')
+        print("LOGGING 4")
         self.log_recycle_magnitude(layer_name, step)
         self.log_magnitude(layer_name, step)
         self.log_magnitude(layer_name, step)
