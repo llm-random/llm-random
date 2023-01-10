@@ -74,6 +74,7 @@ PARAMS = {
 
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
+DRY_RUN = False
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
@@ -82,6 +83,7 @@ if __name__ == "__main__":
         PARAMS = grid_args["params"]
         TIME = grid_args["time"]
         GRES = grid_args["gres"]
+        DRY_RUN = grid_args["dry_run"]
 
     grid = create_grid(PARAMS)
 
@@ -122,7 +124,10 @@ if __name__ == "__main__":
             *trainer_params,
         ]
 
-        subprocess.run(
-            [str(s) for s in subprocess_args],
-        )
-        sleep(1)
+        if not DRY_RUN:
+            subprocess.run(
+                [str(s) for s in subprocess_args],
+            )
+            sleep(1)
+        else:
+            print(" ".join([str(s) for s in subprocess_args]))
