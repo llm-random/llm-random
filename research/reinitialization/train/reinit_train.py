@@ -30,7 +30,9 @@ parser.add_argument("--pruner_delay", type=int, default=0)
 parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--bias", type=str, default="both")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
-parser.add_argument("--seed", type=int, default=42)
+parser.add_argument("--ds_seed", type=int, default=42)
+parser.add_argument("--eval_ds_seed", type=int, default=1984)
+
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -65,11 +67,11 @@ def tags_to_name(tags: Optional[List[str]]) -> str:
 
 def make_concise_datetime() -> str:
     now = datetime.datetime.now()
-    return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M")
+    return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
 
 
 timestamp = make_concise_datetime()
-unique_timestamp = f"{timestamp}_{secrets.token_urlsafe(1)}"
+unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
 
 if args.use_clearml:
     task = Task.init(
@@ -125,7 +127,7 @@ pdataset = get_processed_dataset(
     mask_percent=args.mask_percent,
     device=DEVICE,
     num_workers=args.num_workers,
-    seed=args.seed,
+    seed=args.ds_seed,
 )
 eval_pdataset = get_processed_dataset(
     batch_size=args.batch_size,
@@ -133,7 +135,7 @@ eval_pdataset = get_processed_dataset(
     mask_percent=args.mask_percent,
     device=DEVICE,
     num_workers=1,
-    seed=args.seed + 1000,
+    seed=args.eval_ds_seed,
 )
 
 model = get_model(
