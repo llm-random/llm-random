@@ -42,6 +42,9 @@ def shorten_arg(arg: str) -> str:
         "pruner_prob": "prp",
         "pruner_delay": "prd",
         "pruner_n_steps": "prns",
+        "magnitude_requires_grad": "mrg",
+        "small_grad": "sg",
+        "learning_rate": "lr",
     }
     return ARG_TO_ABBR.get(arg, arg)
 

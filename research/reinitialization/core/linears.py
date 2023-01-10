@@ -152,3 +152,59 @@ class MaskedFF(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.zeros_like(x)
+
+
+@ash.check("... d -> ... d")
+class SeparateDirectionMagnitudeFF(nn.Module):
+    def __init__(
+        self,
+        dmodel: int,
+        dff: int,
+        magnitude_requires_grad: bool = False,
+        small_grad: bool = False,
+        use_bias1: bool = False,
+        use_bias2: bool = True,
+    ):
+        super().__init__()
+        self.dir1 = misc.Linear(dmodel, dff, bias=use_bias1)
+        self.magnitude = nn.parameter.Parameter(
+            torch.ones(dff), requires_grad=magnitude_requires_grad
+        )
+        self.dir2 = misc.Linear(dff, dmodel, bias=use_bias2)
+        self.small_grad = small_grad
+
+    def normalize(self):
+        with torch.no_grad():
+            norms1 = torch.sqrt(misc.einsum("f m -> f", self.dir1.weight**2))
+            norms2 = torch.sqrt(misc.einsum("m f -> f", self.dir2.weight**2))
+            self.magnitude *= norms1 * norms2
+            self.dir1.weight /= torch.unsqueeze(norms1, 1)
+            self.dir2.weight /= torch.unsqueeze(norms2, 0)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.small_grad:
+            return self.small_grad_forward(x)
+        else:
+            return self.normal_grad_forward(x)
+
+    def normal_grad_forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.normalize()
+        x = self.dir1(x)
+        x = misc.einsum("... f, f -> ... f", x, self.magnitude)
+        x = F.relu(x)
+        x = self.dir2(x)
+        return x
+
+    def small_grad_forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.normalize()
+        x = self.dir1(x)
+
+        x = (
+            x
+            + (
+                misc.stop_grad(misc.einsum("... f, f -> ... f", x, self.magnitude)) - x
+            ).detach()
+        )
+        x = F.relu(x)
+        x = self.dir2(x)
+        return x

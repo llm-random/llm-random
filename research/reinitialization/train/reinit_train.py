@@ -48,6 +48,8 @@ parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
 parser.add_argument("--n_log_steps", type=int, default=100)
+parser.add_argument("--magnitude_requires_grad", action="store_true")
+parser.add_argument("--small_grad", action="store_true")
 
 args = parser.parse_args()
 
@@ -110,6 +112,10 @@ elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
+elif args.ff_layer == "separate_direction_magnitude_ff":
+    ff_layer_fun = lambda: linears.SeparateDirectionMagnitudeFF(
+        args.dm, args.dff, args.magnitude_requires_grad, args.small_grad
+    )
 
 misc.print_available_gpus()
 pdataset = get_processed_dataset(
