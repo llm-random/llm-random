@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.init import kaiming_uniform_
 from clearml import Logger
+import numpy as np
+import plotly.express as px
 
 from lizrd.core.misc import Linear
 from lizrd.support import ash
@@ -14,20 +16,18 @@ from research.reinitialization.core.linears import LogFF
 
 
 class LogRecycleFF(LogFF):
-    def log_recycle_magnitude(self, step: int):
-        for i, layer in enumerate(self.layers):
-            tensor = layer.recycle_counter.flatten().cpu()
-            values = tensor.tolist()
-            fig = px.histogram(values)
-            Logger.current_logger().report_plotly(
-                title="Number of recycled neurons",
-                series=f"Linear {i}",
-                iteration=step,
-                figure=fig,
-            )
-            self._log_tensor_stats(tensor, step, f"n_recycled_neurons_layer_{i}")
+    def log_recycle_magnitude(self, layer_name, step: int):
+        tensor = self.recycle_counter.flatten().cpu()
+        values = tensor.tolist()
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Number of recycled neurons",
+            series=f"Linear {i}",
+            iteration=step,
+            figure=fig,
+        )
 
-    def log_magnitude(self, step: int):
+    def log_magnitude(self, layer_name, step: int):
         for i, layer in enumerate(self.layers):
             tensor = layer.neuron_magnitudes.flatten().cpu()
             values = tensor.tolist()
@@ -38,9 +38,8 @@ class LogRecycleFF(LogFF):
                 iteration=step,
                 figure=fig,
             )
-            self._log_tensor_stats(tensor, step, f"magnitude_layer_{i}")
 
-    def log_recently_pruned_magnitude(self, step: int):
+    def log_recently_pruned_magnitude(self, layer_name, step: int):
         for i, layer in enumerate(self.layers):
             Logger.current_logger().report_scalar(
                 "mean_magn_of_recycled_layer",
@@ -48,9 +47,8 @@ class LogRecycleFF(LogFF):
                 iteration=step,
                 value=layer.neuron_magnitudes[layer.recently_pruned].mean().item(),
             )
-            # self._log_tensor_stats(tensor, step, f"magnitude_layer_{i}")
 
-    def log_hist_all_weights(self, step: int):
+    def log_hist_all_weights(self, layer_name, step: int):
         for i, ff_layer in enumerate(self.layers):
             for j, lin_layer in enumerate([ff_layer.lin1, ff_layer.lin2]):
                 tensor = lin_layer.weight.data.flatten().cpu()
@@ -58,14 +56,17 @@ class LogRecycleFF(LogFF):
                 fig = px.histogram(values)
                 Logger.current_logger().report_plotly(
                     title="Values of all weights",
-                    series=f"Linear layer {2*i+j}",
+                    series=f"{layer_name} {2*i+j}",
                     iteration=step,
                     figure=fig,
                 )
-                self._log_tensor_stats(tensor, step, f"all_weights_lin_layer_{2*i+j}")
 
     def log(self, layer_name: str, step: int):
-        super().log(layer_name, step)
+        # super().log(layer_name, step)
+        self.log_recycle_magnitude(layer_name, step)
+        self.log_magnitude(layer_name, step)
+        self.log_magnitude(layer_name, step)
+        self.log_hist_all_weights(layer_name, step)
 
 
 class RandomUnstructRecycleFF(nn.Module):
@@ -344,7 +345,7 @@ def prepare_subset_for_logging(xs, p):
     return [x[random_indices] for x in xs]
 
 
-class RetrainRecycleFF(nn.Module):
+class RetrainRecycleFF(LogRecycleFF):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
         self.lin1 = Linear(dmodel, dff)
@@ -368,6 +369,7 @@ class RetrainRecycleFF(nn.Module):
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
         lin_bias_1 = misc.einsum("f, f -> f", self.mask, self.lin1.bias.data)
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_1) + lin_bias_1
+        # TODO: add new biases
 
         # relu
         x = F.relu(x)

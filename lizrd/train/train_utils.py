@@ -81,6 +81,7 @@ class Trainer:
     writer: Optional[SummaryWriter] = None
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
+    log_n_steps: int = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -169,6 +170,8 @@ class Trainer:
             self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
                 self._eval_step(step, n_steps_eval // 2)
+            # if step % self.log_n_steps == 0:
+            #     self.scheduler.pruner.log(step)
             print(f"Step {step}")
 
 

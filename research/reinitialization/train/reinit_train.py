@@ -56,6 +56,7 @@ parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
+# parser.add_argument("--log_n_steps", type=int, default=None)
 
 args = parser.parse_args()
 
@@ -171,6 +172,7 @@ if args.trainer_type == "retrain":
         scheduler=scheduler,
         writer=writer,
         mixed_precision=args.mixed_precision,
+        # log_n_steps=args.log_n_steps,
     )
 else:
     trainer = Trainer(
