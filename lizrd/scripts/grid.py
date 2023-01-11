@@ -45,6 +45,8 @@ def shorten_arg(arg: str) -> str:
         "magnitude_requires_grad": "mrg",
         "small_grad": "sg",
         "learning_rate": "lr",
+        "optimizer": "opt",
+        "bias": "bs",
     }
     return ARG_TO_ABBR.get(arg, arg)
 
@@ -65,6 +67,14 @@ def shorten_val(val: str) -> str:
         "zero": "0",
         "init": "i",
         "follow_normal": "fn",
+        # optimizers
+        "adam": "a",
+        "sgd": "s",
+        # biases
+        "first": "1st",
+        "second": "2nd",
+        "both": "y",
+        "none": "n",
     }
     if isinstance(val, bool):
         return "T" if val else "F"
