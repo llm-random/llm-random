@@ -117,7 +117,7 @@ elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 elif args.ff_layer == "separate_direction_magnitude_ff":
     ff_layer_fun = lambda: linears.SeparateDirectionMagnitudeFF(
-        args.dm, args.dff, args.magnitude_requires_grad, args.small_grad
+        args.dm, args.dff, args.magnitude_requires_grad, args.small_grad, bias=args.bias
     )
 
 misc.print_available_gpus()

@@ -9,8 +9,8 @@ from lizrd.support import ash
 from lizrd.support.profile import TimerLayer
 
 
-@ash.check("... d -> ... d")
-def FeedForward(dmodel, dff, bias: Literal["both", "first", "second", "none"] = "both"):
+def decode_bias_string(bias):
+    assert bias in ["both", "first", "second", "none"]
     if bias == "both":
         bias_first = bias_second = True
     elif bias == "first":
@@ -21,6 +21,16 @@ def FeedForward(dmodel, dff, bias: Literal["both", "first", "second", "none"] = 
         bias_second = True
     else:
         bias_first = bias_second = False
+    return bias_first, bias_second
+
+
+@ash.check("... d -> ... d")
+def FeedForward(
+    dmodel,
+    dff,
+    bias: Literal["both", "first", "second", "none"] = "both",
+):
+    bias_first, bias_second = decode_bias_string(bias)
     return TimerLayer(
         "denseFF",
         nn.Sequential(

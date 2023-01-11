@@ -1,8 +1,10 @@
+from typing import Literal
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
+from lizrd.core.bert import decode_bias_string
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 
@@ -162,15 +164,15 @@ class SeparateDirectionMagnitudeFF(nn.Module):
         dff: int,
         magnitude_requires_grad: bool = False,
         small_grad: bool = False,
-        use_bias1: bool = False,
-        use_bias2: bool = True,
+        bias: Literal["both", "first", "second", "none"] = "none",
     ):
         super().__init__()
-        self.dir1 = misc.Linear(dmodel, dff, bias=use_bias1)
+        bias_first, bias_second = decode_bias_string(bias)
+        self.dir1 = misc.Linear(dmodel, dff, bias=bias_first)
         self.magnitude = nn.parameter.Parameter(
             torch.ones(dff), requires_grad=magnitude_requires_grad
         )
-        self.dir2 = misc.Linear(dff, dmodel, bias=use_bias2)
+        self.dir2 = misc.Linear(dff, dmodel, bias=bias_second)
         self.small_grad = small_grad
 
     def normalize(self):
