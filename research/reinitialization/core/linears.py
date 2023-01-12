@@ -105,7 +105,7 @@ def prepare_tensor_for_logging(x, sample_size=2500):
         return x if was_list else x[0]
 
     random_indices = np.random.choice(num_elems, sample_size, replace=False)
-    return [t[random_indices] for t in x]
+    return [t[random_indices] for t in x] if was_list else x[0][random_indices]
 
 
 @ash.check("... d -> ... d")
