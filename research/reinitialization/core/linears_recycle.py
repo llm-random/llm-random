@@ -21,7 +21,7 @@ class LogRecycleFF(LogFF):
         values = tensor.tolist()
         fig = px.histogram(values)
         Logger.current_logger().report_plotly(
-            title="Number of recycled neurons",
+            title="No. of times neurons have been recycled",
             series=layer_name,
             iteration=step,
             figure=fig,
@@ -46,24 +46,14 @@ class LogRecycleFF(LogFF):
             value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
         )
 
-    def log_hist_all_weights(self, layer_name, step: int):
-        for j, lin_layer in enumerate([self.lin1, self.lin2]):
-            tensor = lin_layer.weight.data.flatten().cpu()
-            values = tensor.tolist()
-            fig = px.histogram(values)
-            Logger.current_logger().report_plotly(
-                title="Values of all weights",
-                series=f"{layer_name}: linear {j}",
-                iteration=step,
-                figure=fig,
-            )
-
     def log(self, layer_name: str, step: int):
-        print("LOGGING 4")
+        Logger.current_logger().flush(wait=True)
         self.log_recycle_magnitude(layer_name, step)
+        Logger.current_logger().flush(wait=True)
         self.log_magnitude(layer_name, step)
-        self.log_magnitude(layer_name, step)
-        self.log_hist_all_weights(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_recently_pruned_magnitude(layer_name, step)
+        Logger.current_logger().flush(wait=True)
 
 
 class RandomUnstructRecycleFF(nn.Module):
@@ -439,125 +429,3 @@ class RetrainRecycleFF(LogRecycleFF):
 
     def post_retrain(self):
         self.mode = "regular"
-
-
-# ----------- COPY FROM HERE ------------
-class StructMagnitudeRecycleFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
-        super().__init__()
-        self.lin1 = Linear(dmodel, dff)
-        self.lin2 = Linear(dff, dmodel)
-        self.dff = dff
-        pruner.register(self)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.recycle_counter = torch.zeros(self.dff).to(device)
-        self.neuron_magnitudes = torch.zeros(self.dff).to(device)
-        self.recently_pruned = torch.full((dff,), False).to(device)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.lin1(x)
-        x = F.relu(x)
-        x = self.lin2(x)
-        return x
-
-    def _init_kaiming(self, mask: torch.Tensor):
-        # apply mask to lin1
-        new_weights = kaiming_uniform_(
-            torch.empty_like(self.lin1.weight), a=math.sqrt(5)
-        )
-        new_weights *= 3**0.5
-
-        self.lin1.weight.data = misc.einsum(
-            "f, f m -> f m", mask, self.lin1.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - mask, new_weights)
-        self.lin1.bias.data = misc.einsum("f, f -> f", mask, self.lin1.bias.data)
-
-        # apply mask to lin2
-        new_weights = kaiming_uniform_(
-            torch.empty_like(self.lin2.weight), a=math.sqrt(5)
-        )
-        new_weights *= 3**0.5
-
-        self.lin2.weight.data = misc.einsum(
-            "f, m f -> m f", mask, self.lin2.weight.data
-        ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
-
-    def _init_grad(self, mask: torch.Tensor):
-        # apply mask to lin1
-        new_weights = kaiming_uniform_(
-            torch.empty_like(self.lin1.weight), a=math.sqrt(5)
-        )
-        new_weights *= 3**0.5
-
-        self.lin1.weight.data = misc.einsum(
-            "f, f m -> f m", mask, self.lin1.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - mask, new_weights)
-        self.lin1.bias.data = misc.einsum("f, f -> f", mask, self.lin1.bias.data)
-
-        # apply mask to lin2
-        new_weights = torch.zeros_like(self.lin2.weight)
-
-        self.lin2.weight.data = misc.einsum(
-            "f, m f -> m f", mask, self.lin2.weight.data
-        ) + misc.einsum("f, m f -> m f", 1 - mask, new_weights)
-        print("!!! INIT GRAD executed !!!")
-
-    def increase_magn_second_ff(self):
-        # calculate magnitudes
-        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
-        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
-        magnitudes = weights1 * weights2
-
-        # find mean magnitude
-        mean_magn = torch.mean(magnitudes)
-
-        # calculate scaling coeffs
-        coeffs = mean_magn / magnitudes
-        coeffs[magnitudes == 0] = 1
-        coeffs[~self.recently_pruned] = 1
-        coeffs = torch.sqrt(coeffs)
-        coeffs[torch.isnan(coeffs)] = 1
-
-        magn_pruned = magnitudes[self.recently_pruned]
-        magn_not_pruned = magnitudes[~self.recently_pruned]
-        print(
-            f"Percentage of zero magnitude that are recently pruned: {torch.sum(magn_pruned == 0)}"
-        )
-        print(
-            f"Percentage of zero magnitude that are not recently pruned: {torch.sum(magn_not_pruned == 0)}"
-        )
-        print(f"!!! Will scale by a maximum of {torch.max(coeffs)}")
-        print(f"total number of neurons: {self.dff}")
-        print(f"number of inf entries: {torch.sum(torch.isinf(coeffs))}")
-        print(f"percent of inf entries: {torch.sum(torch.isinf(coeffs)) / self.dff}")
-
-        # apply scaling coeffs to lin2
-        self.lin2.weight.data = misc.einsum(
-            "f, m f -> m f", coeffs, self.lin2.weight.data
-        )
-
-    def prune(self, prob: float, init: str = "kaiming"):
-        device = self.lin1.weight.device
-
-        # create mask
-        mask = torch.ones(self.dff).to(device)
-
-        # prepare mask
-        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
-        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
-        weights = weights1 * weights2
-        n_els_weights = torch.numel(weights)
-        assert n_els_weights == self.dff
-        n_to_prune = round(prob * n_els_weights)
-        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
-        mask[topk.indices] = 0
-
-        # save statistics
-        self.recycle_counter += 1 - mask
-        self.neuron_magnitudes = weights.flatten()  # weights
-        self.recently_pruned = (1 - mask).bool()
-
-        if init == "kaiming":
-            self._init_kaiming(mask)
-        elif init == "grad":
-            self._init_grad(mask)

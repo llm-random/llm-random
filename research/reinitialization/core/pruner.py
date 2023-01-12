@@ -49,8 +49,6 @@ class Pruner(BasePruner):
                 layer.apply_new_weights()
 
     def log(self, step):
-        print("LOGGING 2")
         for i, layer in enumerate(self.layers):
             if hasattr(layer, "log"):
-                print("LOGGING 3")
                 layer.log(f"FF no. {i}", step)
