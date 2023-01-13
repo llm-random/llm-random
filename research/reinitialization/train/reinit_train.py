@@ -34,6 +34,8 @@ parser.add_argument("--project_name", type=str)
 parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
 parser.add_argument("--pruner_n_steps_retrain", type=int, default=None)
+parser.add_argument("--dont_reinit", action="store_true", default=False)
+parser.add_argument("--pruner_selection_criterion", type=str, default="magnitude")
 parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--trainer_type", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
@@ -115,7 +117,13 @@ elif args.ff_layer == "unstruct_magnitude_recycle":
         args.dm, args.dff, pruner
     )
 elif args.ff_layer == "retrain_recycle":
-    ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(
+        args.dm,
+        args.dff,
+        pruner,
+        should_reinitialize=(not args.dont_reinit),
+        selection_criterion=args.pruner_selection_criterion,
+    )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
         args.dm, args.dff, pruner, args.immunity, args.reinit_dist

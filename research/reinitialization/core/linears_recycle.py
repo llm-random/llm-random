@@ -12,7 +12,7 @@ from lizrd.core.misc import Linear
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
-from research.reinitialization.core.linears import LogFF
+from research.reinitialization.core.linears import LogFF, mask_by_score
 
 
 class LogRecycleFF(LogFF):
@@ -343,7 +343,14 @@ def prepare_subset_for_logging(xs, p):
 
 
 class RetrainRecycleFF(LogRecycleFF):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(
+        self,
+        dmodel: int,
+        dff: int,
+        pruner: Pruner,
+        should_reinitialize: bool,
+        selection_criterion: str = "magnitude",
+    ):
         super().__init__()
         self.lin1 = Linear(dmodel, dff)
         self.lin2 = Linear(dff, dmodel)
@@ -356,6 +363,9 @@ class RetrainRecycleFF(LogRecycleFF):
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.neuron_magnitudes = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
+        self.should_reinitialize = should_reinitialize
+        self.selection_criterion = selection_criterion
+        assert self.selection_criterion in ["magnitude", "random"]
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -396,26 +406,35 @@ class RetrainRecycleFF(LogRecycleFF):
         self.mask = torch.ones(self.dff, requires_grad=False).to(
             self.lin1.weight.device
         )
-        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
-        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
-        weights = weights1 * weights2
-        n_els_weights = torch.numel(weights)
-        assert n_els_weights == self.dff
-        n_to_prune = round(prob * n_els_weights)
-        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
-        self.mask[topk.indices] = 0
 
-        # prepare new weights for lin1
-        with torch.no_grad():
-            self.new_weights_1.normal_(
-                mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
-            )
+        if self.selection_criterion == "magnitude":
+            weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+            weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+            weights = weights1 * weights2
+        elif selection_criterion == "random":
+            weights = torch.rand(self.dff)
 
-        # prepare new weights for lin2
-        with torch.no_grad():
-            self.new_weights_2.normal_(
-                mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
-            )
+        self.mask = mask_by_score(
+            self.mask, weights, round(prob * torch.numel(weights))
+        )
+
+        if self.should_reinitialize:
+            # prepare new weights for lin1
+            with torch.no_grad():
+                self.new_weights_1.normal_(
+                    mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
+                )
+
+            # prepare new weights for lin2
+            with torch.no_grad():
+                self.new_weights_2.normal_(
+                    mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
+                )
+        else:
+            # prepare new weights for lin1
+            with torch.no_grad():
+                self.new_weights_1.copy_(self.lin1.weight.data)
+                self.new_weights_2.copy_(self.lin2.weight.data)
 
         # save statistics
         self.recycle_counter += 1 - self.mask
