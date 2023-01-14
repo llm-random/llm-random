@@ -8,7 +8,7 @@ from research.reinitialization.core.pruner import BasePruner
 
 class BaseScheduler(ABC):
     @abstractmethod
-    def time_to_prune(self, step: int) -> bool:
+    def is_time_to_prune(self, step: int) -> bool:
         ...
 
 
@@ -20,5 +20,5 @@ class DelayedConstScheduler(BaseScheduler):
     delay: int = 0
     n_steps_retrain: int = None
 
-    def time_to_prune(self, step: int) -> bool:
-        return step % self.n_steps_prune == 0 and step >= self.delay
+    def is_time_to_prune(self, step: int) -> bool:
+        return step >= self.delay and step % self.n_steps_prune == 0

@@ -93,9 +93,8 @@ class Trainer:
         self.scaler.update()
 
     def _pruning_step(self, step):
-        if self.scheduler.time_to_prune(step):
+        if self.scheduler.is_time_to_prune(step):
             self.pruner.prune(self.scheduler.prob)
-            self.scheduler.update_prune_step(step)
 
     def _train_step(
         self,
@@ -197,7 +196,7 @@ class RetrainTrainer(Trainer):
         )
 
     def _pruning_step(self, step):
-        if self.scheduler.time_to_prune(step):
+        if self.scheduler.is_time_to_prune(step):
             self._retrain(step)
 
     def _retrain(self, step):
