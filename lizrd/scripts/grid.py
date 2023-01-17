@@ -125,4 +125,4 @@ if __name__ == "__main__":
         subprocess.run(
             [str(s) for s in subprocess_args],
         )
-        sleep(1)
+        sleep(2)

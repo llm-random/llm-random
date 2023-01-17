@@ -9,7 +9,7 @@ from lizrd.core import misc
 from lizrd.core import bert
 from research.reinitialization.core import linears, linears_recycle
 from research.reinitialization.core.pruner import VariableProbabilityPruner
-from lizrd.train.train_utils import (
+from lizrd.train.train_utils_legacy import (
     get_model,
     get_processed_dataset,
     LTHTrainer,

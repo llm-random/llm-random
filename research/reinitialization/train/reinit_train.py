@@ -92,11 +92,11 @@ writer = SummaryWriter(log_dir=modelpath)
 if args.use_pruner and args.pruner_n_steps:
     pruner = Pruner()
     scheduler = DelayedConstScheduler(
-        pruner,
-        args.pruner_n_steps,
-        args.pruner_prob,
-        args.pruner_delay,
-        args.pruner_n_steps_retrain,
+        pruner=pruner,
+        n_steps_prune=args.pruner_n_steps,
+        prob=args.pruner_prob,
+        delay=args.pruner_delay,
+        n_steps_retrain=args.pruner_n_steps_retrain,
     )
 else:
     scheduler = None

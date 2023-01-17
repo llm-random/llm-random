@@ -401,7 +401,7 @@ class RetrainRecycleFF(LogRecycleFF):
             weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
             weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
             weights = weights1 * weights2
-        elif selection_criterion == "random":
+        elif self.selection_criterion == "random":
             weights = torch.rand(self.dff)
 
         self.mask = mask_by_score(
