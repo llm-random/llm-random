@@ -136,7 +136,7 @@ def log_to_clearml(
         )
     elif isinstance(figure.data[0], plotly.graph_objs._histogram.Histogram):
         mean = figure.data[0].x.mean()
-        std = figure.data[0].x.mean()
+        std = figure.data[0].x.std()
         logger.report_scalar(
             title=title, series=series + " mean", value=mean, iteration=iteration
         )
@@ -214,8 +214,8 @@ class LogFF(nn.Module):
                 self.reinforcement_count2,
             ]
         )
-        fig1 = px.histogram(prepare_tensor_for_logging(rc1))
-        fig2 = px.histogram(prepare_tensor_for_logging(rc2))
+        fig1 = px.histogram(prepare_tensor_for_logging(self.reinforcement_count1))
+        fig2 = px.histogram(prepare_tensor_for_logging(self.reinforcement_count2))
         log_to_clearml(
             figure=fig1,
             title=f"{layer_name} total reinforcement count",
