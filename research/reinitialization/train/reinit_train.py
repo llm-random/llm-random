@@ -46,6 +46,7 @@ parser.add_argument("--dm", type=int, default=256)
 parser.add_argument("--dff", type=int, default=1024)
 parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=4)
+parser.add_argument("--dhead", type=int, default=None)
 parser.add_argument("--optimizer", type=str, default="adam")
 parser.add_argument("--learning_rate", type=float, default=8e-4)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
@@ -148,7 +149,7 @@ model = get_model(
     dm=args.dm,
     n_blocks=args.n_blocks,
     device=DEVICE,
-    attention_layer_fun=lambda: bert.Attention(args.dm, args.heads),
+    attention_layer_fun=lambda: bert.Attention(args.dm, args.heads, dhead=args.dhead),
 )
 
 # set optimizer
