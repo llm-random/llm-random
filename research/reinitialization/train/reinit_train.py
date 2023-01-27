@@ -11,15 +11,14 @@ from lizrd.core import misc, bert
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
-from research.reinitialization.core.scheduler import (
-    DelayedConstScheduler,
-)
 from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
     Trainer,
     RetrainTrainer,
 )
+from research.reinitialization.core.scheduler import DelayedConstScheduler
+import secrets
 
 parser = argparse.ArgumentParser()
 
@@ -57,7 +56,8 @@ parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
-parser.add_argument("--log_n_steps", type=int, default=None)
+parser.add_argument("--n_log_plots_steps", type=int, default=None)
+parser.add_argument("--n_log_steps", type=int, default=100)
 
 args = parser.parse_args()
 
@@ -74,17 +74,24 @@ def tags_to_name(tags: Optional[List[str]]) -> str:
     return "_".join(tags) if tags else ""
 
 
+def make_concise_datetime() -> str:
+    now = datetime.datetime.now()
+    return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
+
+
+timestamp = make_concise_datetime()
+unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
+
 if args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
-        task_name=f"{args.name} {tags_to_name(args.tags)} {datetime.datetime.now()}",
+        task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
     )
     task.connect(vars(args))
     if args.tags:
         task.add_tags(args.tags)
 
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
-modelpath = f"runs/wikibooktest/{timestamp}"
+modelpath = f"runs/wikibooktest/{unique_timestamp}"
 writer = SummaryWriter(log_dir=modelpath)
 
 # set pruner if needed
@@ -170,10 +177,11 @@ if args.trainer_type == "retrain":
         mask_loss_weight=args.mask_loss_weight,
         modelpath=modelpath,
         pruner=pruner,
-        scheduler=scheduler,
         writer=writer,
+        scheduler=scheduler,
         mixed_precision=args.mixed_precision,
-        log_n_steps=args.log_n_steps,
+        n_log_plots_steps=args.n_log_plots_steps,
+        n_log_steps=args.n_log_steps
     )
 else:
     trainer = Trainer(
@@ -187,9 +195,10 @@ else:
         mask_loss_weight=args.mask_loss_weight,
         modelpath=modelpath,
         pruner=pruner,
-        scheduler=scheduler,
         writer=writer,
+        scheduler=scheduler,
         mixed_precision=args.mixed_precision,
+        n_log_steps=args.n_log_steps
     )
 
 trainer.train(args.n_steps, args.n_steps_eval)

@@ -317,8 +317,6 @@ class StructMagnitudeRecycleImmunityFF(nn.Module):
 
         self.immunity[topk.indices] = self.immunity_start_value
 
-        torch.mean(self.lin1.weight.data**2, dim=1)
-
         self.reinitialize(mask)
 
 
