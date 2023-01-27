@@ -11,8 +11,13 @@ from lizrd.core import misc, bert
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
+from lizrd.train.train_utils import (
+    get_model,
+    get_processed_dataset,
+    Trainer,
+    RetrainTrainer,
+)
 from research.reinitialization.core.scheduler import DelayedConstScheduler
-from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer
 import secrets
 
 parser = argparse.ArgumentParser()
@@ -27,11 +32,12 @@ parser.add_argument("--project_name", type=str)
 
 parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
+parser.add_argument("--pruner_n_steps_retrain", type=int, default=None)
 parser.add_argument("--ff_layer", type=str, default="regular")
+parser.add_argument("--trainer_type", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--ds_seed", type=int, default=42)
 parser.add_argument("--eval_ds_seed", type=int, default=1984)
-
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -39,6 +45,7 @@ parser.add_argument("--dm", type=int, default=256)
 parser.add_argument("--dff", type=int, default=1024)
 parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=4)
+parser.add_argument("--dhead", type=int, default=None)
 parser.add_argument("--optimizer", type=str, default="adam")
 parser.add_argument("--learning_rate", type=float, default=8e-4)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
@@ -49,9 +56,14 @@ parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
+parser.add_argument("--n_log_plots_steps", type=int, default=None)
 parser.add_argument("--n_log_steps", type=int, default=100)
 
 args = parser.parse_args()
+
+print("BEGINNING OF FILE")
+print("cuda available:")
+print(torch.cuda.is_available())
 
 # constants
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
@@ -86,7 +98,11 @@ writer = SummaryWriter(log_dir=modelpath)
 if args.use_pruner and args.pruner_n_steps:
     pruner = Pruner()
     scheduler = DelayedConstScheduler(
-        pruner, args.pruner_n_steps, args.pruner_prob, args.pruner_delay
+        pruner,
+        args.pruner_n_steps,
+        args.pruner_prob,
+        args.pruner_delay,
+        args.pruner_n_steps_retrain,
     )
 else:
     scheduler = None
@@ -106,6 +122,8 @@ elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
     )
+elif args.ff_layer == "retrain_recycle":
+    ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
         args.dm, args.dff, pruner, args.immunity, args.reinit_dist
@@ -138,7 +156,7 @@ model = get_model(
     dm=args.dm,
     n_blocks=args.n_blocks,
     device=DEVICE,
-    attention_layer_fun=lambda: bert.Attention(args.dm, args.heads),
+    attention_layer_fun=lambda: bert.Attention(args.dm, args.heads, dhead=args.dhead),
 )
 
 # set optimizer
@@ -147,19 +165,40 @@ if args.optimizer == "adam":
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
-trainer = Trainer(
-    model=model,
-    optimizer=optimizer,
-    pdataset=pdataset,
-    pdataset_eval=eval_pdataset,
-    batch_size=args.batch_size,
-    vocab_size=VOCAB_SIZE,
-    mask_percent=args.mask_percent,
-    mask_loss_weight=args.mask_loss_weight,
-    modelpath=modelpath,
-    scheduler=scheduler,
-    writer=writer,
-    mixed_precision=args.mixed_precision,
-    n_log_steps=args.n_log_steps,
-)
+if args.trainer_type == "retrain":
+    trainer = RetrainTrainer(
+        model=model,
+        optimizer=optimizer,
+        pdataset=pdataset,
+        pdataset_eval=eval_pdataset,
+        batch_size=args.batch_size,
+        vocab_size=VOCAB_SIZE,
+        mask_percent=args.mask_percent,
+        mask_loss_weight=args.mask_loss_weight,
+        modelpath=modelpath,
+        pruner=pruner,
+        writer=writer,
+        scheduler=scheduler,
+        mixed_precision=args.mixed_precision,
+        n_log_plots_steps=args.n_log_plots_steps,
+        n_log_steps=args.n_log_steps
+    )
+else:
+    trainer = Trainer(
+        model=model,
+        optimizer=optimizer,
+        pdataset=pdataset,
+        pdataset_eval=eval_pdataset,
+        batch_size=args.batch_size,
+        vocab_size=VOCAB_SIZE,
+        mask_percent=args.mask_percent,
+        mask_loss_weight=args.mask_loss_weight,
+        modelpath=modelpath,
+        pruner=pruner,
+        writer=writer,
+        scheduler=scheduler,
+        mixed_precision=args.mixed_precision,
+        n_log_steps=args.n_log_steps
+    )
+
 trainer.train(args.n_steps, args.n_steps_eval)

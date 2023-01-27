@@ -76,10 +76,12 @@ class Trainer:
     mask_percent: float
     mask_loss_weight: float
     modelpath: str
+    pruner: BasePruner
     writer: SummaryWriter
     scheduler: Optional[BaseScheduler] = None
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
+    n_log_plots_steps: int = None
     n_log_steps: int = 100
     running_total_loss: float = 0.0
     running_mask_loss: float = 0.0
@@ -88,11 +90,15 @@ class Trainer:
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
 
-    def optimize(self, loss):
-        self.optimizer.zero_grad()
+    def optimize(self, loss, optimizer):
+        optimizer.zero_grad()
         self.scaler.scale(loss).backward()
-        self.scaler.step(self.optimizer)
+        self.scaler.step(optimizer)
         self.scaler.update()
+
+    def _pruning_step(self, step):
+        if self.scheduler.is_time_to_prune(step):
+            self.pruner.prune(self.scheduler.prob)
 
     def update_loss_stats(self, total_loss, mask_loss):
         self.running_total_loss += total_loss.item()
@@ -118,16 +124,10 @@ class Trainer:
 
     def _train_step(
         self,
-        model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
-        pdataset: wikibookdata.ProcessedDatasetWrapper,
-        scheduler: Optional[BaseScheduler],
-        step=0,
     ):
-        if scheduler:
-            scheduler.step()
-        model.train()
-        processed_batch = pdataset.get_batch()
+        self.model.train()
+        processed_batch = self.pdataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
@@ -136,7 +136,7 @@ class Trainer:
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            model_output = model(x_set)
+            model_output = self.model(x_set)
             mask_loss = F.cross_entropy(
                 model_output.reshape(-1, self.vocab_size),
                 y_token_set.reshape(-1).long(),
@@ -147,31 +147,32 @@ class Trainer:
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
 
-        self.optimize(total_loss)
+        self.optimize(total_loss, optimizer)
         self.update_loss_stats(total_loss, mask_loss)
 
+        return total_loss.item(), mask_loss.item()
+
+    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         if step and self.writer and (step % self.n_log_steps == 0):
             self.log_loss_stats(step)
             self.reset_loss_stats()
 
     def _eval_step(
         self,
-        model: torch.nn.Module,
-        pdataset: wikibookdata.ProcessedDatasetWrapper,
-        step: int = 0,
-        sample: int = 10,
+        step,
+        sample,
     ):
-        model.eval()
+        self.model.eval()
 
         with torch.no_grad():
             total_mask_loss = 0.0
             for _ in range(sample):
-                processed_batch = pdataset.get_batch()
+                processed_batch = self.pdataset_eval.get_batch()
                 assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask
-                model_output = model(x_set)
+                model_output = self.model(x_set)
                 mask_loss = F.cross_entropy(
                     model_output.reshape(-1, self.vocab_size),
                     y_token_set.reshape(-1).long(),
@@ -189,16 +190,72 @@ class Trainer:
 
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
-            self._train_step(
-                self.model, self.optimizer, self.pdataset, self.scheduler, step
-            )
+            self._pruning_step(step)
+            total_loss, mask_loss = self._train_step(self.optimizer)
+            self._log_train_stats(total_loss, mask_loss, step) # check if it's the time and log stats
             if step % self.n_log_steps == 0:
                 self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(self.model, self.pdataset_eval, step)
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
+            if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
+                self.scheduler.pruner.log(step)
             print(f"Step {step}")
+
+
+class RetrainTrainer(Trainer):
+    retrain_count: int = 0
+
+    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
+        self.writer.add_scalar("loss/train_total", total_loss, step)
+        self.writer.add_scalar("loss/train_mask", mask_loss, step)
+        self.writer.add_scalar(
+            "full_loss/train_total", total_loss, step + self.retrain_count
+        )
+        self.writer.add_scalar(
+            "full_loss/train_mask", mask_loss, step + self.retrain_count
+        )
+
+    def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
+        self.writer.add_scalar(
+            "full_loss/train_total", total_loss, step + self.retrain_count
+        )
+        self.writer.add_scalar(
+            "full_loss/train_mask", mask_loss, step + self.retrain_count
+        )
+
+    def _pruning_step(self, step):
+        if self.scheduler.is_time_to_prune(step):
+            self._retrain(step)
+
+    def _retrain(self, step):
+        self.pruner.prepare_new(self.scheduler.prob)
+
+        # freeze model
+        self.model.requires_grad_(False)
+
+        # unfreeze new
+        self.pruner.pre_retrain()
+
+        # create retrain optimizer (without old stats)
+        retrain_optim = torch.optim.Adam(
+            self.model.parameters(),
+            self.optimizer.param_groups[0]["lr"],
+            self.optimizer.param_groups[0]["betas"],
+            self.optimizer.param_groups[0]["eps"],
+            self.optimizer.param_groups[0]["weight_decay"],
+        )
+
+        # retrain
+        for _ in range(self.scheduler.n_steps_retrain):
+            self.retrain_count += 1
+            total_loss, mask_loss = self._train_step(retrain_optim)
+            self._log_retrain_stats(total_loss, mask_loss, step)
+
+        # unfreeze model
+        self.model.requires_grad_(True)
+        self.pruner.post_retrain()
 
 
 @define
