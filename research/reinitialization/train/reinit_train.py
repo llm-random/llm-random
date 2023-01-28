@@ -105,6 +105,7 @@ if args.use_pruner and args.pruner_n_steps:
         args.pruner_n_steps_retrain,
     )
 else:
+    pruner = None
     scheduler = None
 
 # set ff layer
@@ -181,7 +182,7 @@ if args.trainer_type == "retrain":
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
         n_log_plots_steps=args.n_log_plots_steps,
-        n_log_steps=args.n_log_steps
+        n_log_steps=args.n_log_steps,
     )
 else:
     trainer = Trainer(
@@ -198,7 +199,7 @@ else:
         writer=writer,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
-        n_log_steps=args.n_log_steps
+        n_log_steps=args.n_log_steps,
     )
 
 trainer.train(args.n_steps, args.n_steps_eval)

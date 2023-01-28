@@ -97,7 +97,7 @@ class Trainer:
         self.scaler.update()
 
     def _pruning_step(self, step):
-        if self.scheduler.is_time_to_prune(step):
+        if self.scheduler and self.scheduler.is_time_to_prune(step):
             self.pruner.prune(self.scheduler.prob)
 
     def update_loss_stats(self, total_loss, mask_loss):
@@ -192,7 +192,9 @@ class Trainer:
         for step in range(n_steps):
             self._pruning_step(step)
             total_loss, mask_loss = self._train_step(self.optimizer)
-            self._log_train_stats(total_loss, mask_loss, step) # check if it's the time and log stats
+            self._log_train_stats(
+                total_loss, mask_loss, step
+            )  # check if it's the time and log stats
             if step % self.n_log_steps == 0:
                 self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
