@@ -159,8 +159,8 @@ class Trainer:
 
     def _eval_step(
         self,
-        step,
-        sample,
+        step: int,
+        sample: int = 10,
     ):
         self.model.eval()
 
@@ -198,7 +198,7 @@ class Trainer:
             if step % self.n_log_steps == 0:
                 self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
-                eval_loss = self._eval_step(self.model, self.pdataset_eval, step)
+                eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
