@@ -123,6 +123,10 @@ elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
     )
+elif args.ff_layer == "struct_magnitude_recycle":
+    ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleFF(
+        args.dm, args.dff, pruner
+    )
 elif args.ff_layer == "retrain_recycle":
     ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
