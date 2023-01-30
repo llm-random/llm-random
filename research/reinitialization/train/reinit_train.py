@@ -59,6 +59,7 @@ parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
 parser.add_argument("--n_log_plots_steps", type=int, default=None)
 parser.add_argument("--n_log_steps", type=int, default=100)
+parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 
 args = parser.parse_args()
 
@@ -213,6 +214,7 @@ if args.trainer_type == "retrain":
         n_log_plots_steps=args.n_log_plots_steps,
         n_log_steps=args.n_log_steps,
         pdataset_retrain=pdataset_retrain,
+        retrain_warmup_steps=args.retrain_warmup_steps,
     )
 else:
     trainer = Trainer(
