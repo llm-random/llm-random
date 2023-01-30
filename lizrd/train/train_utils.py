@@ -207,8 +207,8 @@ class Trainer:
 
 @define
 class RetrainTrainer(Trainer):
-    pdataset_retrain: wikibookdata.ProcessedDataset = None
-    retrain_warmup_steps: int = None
+    pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
+    retrain_warmup_steps: Optional[int] = None
     retrain_count: int = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):

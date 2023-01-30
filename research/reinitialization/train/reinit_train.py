@@ -194,7 +194,7 @@ if args.trainer_type == "retrain":
         max_total_length=args.cutoff,
         mask_percent=args.mask_percent,
         device=DEVICE,
-        num_workers=1,
+        num_workers=args.num_workers,
         seed=args.retrain_ds_seed,
     )
     trainer = RetrainTrainer(
