@@ -257,8 +257,6 @@ class RetrainTrainer(Trainer):
             for _ in range(self.statistics_reset_steps):
                 self._train_step(self.optimizer)
 
-        self.optimizer.param_groups[0]["lr"] = original_lr
-
         # unfreeze model
         self.model.requires_grad_(True)
         self.pruner.post_retrain()
