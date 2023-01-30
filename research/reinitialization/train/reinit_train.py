@@ -26,8 +26,8 @@ parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
 parser.add_argument("--mixed_precision", action="store_true", default=True)
 
-parser.add_argument("--pruner_prob", type=float)
-parser.add_argument("--pruner_n_steps", type=int)
+parser.add_argument("--pruner_prob", type=float, default=None)
+parser.add_argument("--pruner_n_steps", type=int, default=None)
 parser.add_argument("--project_name", type=str)
 
 parser.add_argument("--name", type=str, default="")
@@ -62,16 +62,18 @@ parser.add_argument("--n_log_steps", type=int, default=100)
 args = parser.parse_args()
 
 # basic validation of args
-if args.use_pruner and (not args.pruner_n_steps or not args.pruner_prob):
+if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
     raise ValueError(
         "use_pruner set but pruner_n_steps or pruner_prob or pruner_delay not set"
     )
-if args.trainer_type == "retrain" and not args.pruner_n_steps_retrain:
+if args.trainer_type == "retrain" and args.pruner_n_steps_retrain is None:
     raise ValueError("trainer_type is retrain but pruner_n_steps_retrain not set")
 if args.trainer_type == "retrain" and not args.use_pruner:
     raise ValueError("trainer_type is retrain but use_pruner not set")
 if not args.use_pruner and (
-    args.pruner_n_steps or args.pruner_prob or args.pruner_delay > 0
+    args.pruner_n_steps is not None
+    or args.pruner_prob is not None
+    or args.pruner_delay > 0
 ):
     raise ValueError(
         "use_pruner not set but pruner_n_steps or pruner_prob or pruner_delay set"
