@@ -38,6 +38,7 @@ parser.add_argument("--trainer_type", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--ds_seed", type=int, default=42)
 parser.add_argument("--eval_ds_seed", type=int, default=1984)
+parser.add_argument("--retrain_ds_seed", type=int, default=1998)
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -189,6 +190,14 @@ elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
 if args.trainer_type == "retrain":
+    pdataset_retrain = get_processed_dataset(
+        batch_size=args.batch_size,
+        max_total_length=args.cutoff,
+        mask_percent=args.mask_percent,
+        device=DEVICE,
+        num_workers=1,
+        seed=args.retrain_ds_seed,
+    )
     trainer = RetrainTrainer(
         model=model,
         optimizer=optimizer,
@@ -205,6 +214,7 @@ if args.trainer_type == "retrain":
         mixed_precision=args.mixed_precision,
         n_log_plots_steps=args.n_log_plots_steps,
         n_log_steps=args.n_log_steps,
+        pdataset_retrain=pdataset_retrain,
     )
 else:
     trainer = Trainer(

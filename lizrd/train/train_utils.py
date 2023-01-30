@@ -123,11 +123,10 @@ class Trainer:
         )
 
     def _train_step(
-        self,
-        optimizer: torch.optim.Optimizer,
+        self, optimizer: torch.optim.Optimizer, dataset: wikibookdata.ProcessedDataset
     ):
         self.model.train()
-        processed_batch = self.pdataset.get_batch()
+        processed_batch = dataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
@@ -191,7 +190,7 @@ class Trainer:
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
             self._pruning_step(step)
-            total_loss, mask_loss = self._train_step(self.optimizer)
+            total_loss, mask_loss = self._train_step(self.optimizer, self.pdataset)
             self._log_train_stats(
                 total_loss, mask_loss, step
             )  # check if it's the time and log stats
@@ -208,6 +207,7 @@ class Trainer:
 
 class RetrainTrainer(Trainer):
     retrain_count: int = 0
+    pdataset_retrain: wikibookdata.ProcessedDataset = None
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         self.writer.add_scalar("loss/train_total", total_loss, step)
@@ -252,7 +252,9 @@ class RetrainTrainer(Trainer):
         # retrain
         for _ in range(self.scheduler.n_steps_retrain):
             self.retrain_count += 1
-            total_loss, mask_loss = self._train_step(retrain_optim)
+            total_loss, mask_loss = self._train_step(
+                retrain_optim, self.pdataset_retrain
+            )
             self._log_retrain_stats(total_loss, mask_loss, step)
 
         # unfreeze model
