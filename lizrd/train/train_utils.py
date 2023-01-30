@@ -208,6 +208,7 @@ class Trainer:
 @define
 class RetrainTrainer(Trainer):
     pdataset_retrain: wikibookdata.ProcessedDataset = None
+    retrain_warmup_steps: int = None
     retrain_count: int = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
@@ -249,9 +250,16 @@ class RetrainTrainer(Trainer):
             self.optimizer.param_groups[0]["eps"],
             self.optimizer.param_groups[0]["weight_decay"],
         )
+        target_lr = self.optimizer.param_groups[0]["lr"]
+        if not self.retrain_warmup_steps:
+            self.retrain_warmup_steps = int(self.scheduler.n_steps_retrain / 2)
 
         # retrain
-        for _ in range(self.scheduler.n_steps_retrain):
+        for i in range(self.scheduler.n_steps_retrain):
+            # lr warmup
+            lr_coeff = min(1.0, i / self.retrain_warmup_steps)
+            retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr
+
             self.retrain_count += 1
             total_loss, mask_loss = self._train_step(
                 retrain_optim, self.pdataset_retrain
