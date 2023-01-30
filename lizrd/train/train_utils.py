@@ -205,9 +205,10 @@ class Trainer:
             print(f"Step {step}")
 
 
+@define
 class RetrainTrainer(Trainer):
-    retrain_count: int = 0
     pdataset_retrain: wikibookdata.ProcessedDataset = None
+    retrain_count: int = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         self.writer.add_scalar("loss/train_total", total_loss, step)
