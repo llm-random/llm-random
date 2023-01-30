@@ -173,8 +173,26 @@ class Trainer:
             print(f"Step {step}")
 
 
+class SetLRTemporarily:
+    def __init__(self, optimizer, lr):
+        self.optimizer = optimizer
+        self.lr = lr
+
+    def __enter__(self):
+        self.original_lrs = []
+        for param_group in self.optimizer.param_groups:
+            self.original_lrs.append(param_group["lr"])
+            param_group["lr"] = self.lr
+
+    def __exit__(self, *args):
+        for param_group, lr in zip(self.optimizer.param_groups, self.original_lrs):
+            param_group["lr"] = lr
+
+
+@define
 class RetrainTrainer(Trainer):
     retrain_count: int = 0
+    statistics_reset_steps: int = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         self.writer.add_scalar("loss/train_total", total_loss, step)
@@ -216,11 +234,30 @@ class RetrainTrainer(Trainer):
             self.optimizer.param_groups[0]["weight_decay"],
         )
 
+        # gather statistics for new optimizer
+        with SetLRTemporarily(retrain_optim, 0.0):
+            for _ in range(self.statistics_reset_steps):
+                self._train_step(retrain_optim)
+
+        # retrain_optim.param_groups[0]["lr"] = 0.0
+        # for _ in range(self.statistics_reset_steps):
+        #     self._train_step(retrain_optim)
+        retrain_optim.param_groups[0]["lr"] = self.optimizer.param_groups[0]["lr"]
+
         # retrain
         for _ in range(self.scheduler.n_steps_retrain):
             self.retrain_count += 1
             total_loss, mask_loss = self._train_step(retrain_optim)
             self._log_retrain_stats(total_loss, mask_loss, step)
+
+        # gather statistics for original optimizer
+        # original_lr = self.optimizer.param_groups[0]["lr"]
+        # self.optimizer.param_groups[0]["lr"] = 0.0
+        with SetLRTemporarily(self.optimizer, 0.0):
+            for _ in range(self.statistics_reset_steps):
+                self._train_step(self.optimizer)
+
+        self.optimizer.param_groups[0]["lr"] = original_lr
 
         # unfreeze model
         self.model.requires_grad_(True)

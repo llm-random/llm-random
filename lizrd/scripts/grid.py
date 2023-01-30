@@ -74,14 +74,26 @@ PARAMS = {
 
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
+RUNNER = "slurm"
+DRY_RUN = False
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
-        TRAINER = grid_args["trainer"]
-        PARAMS = grid_args["params"]
-        TIME = grid_args["time"]
-        GRES = grid_args["gres"]
+        TRAINER = grid_args.get("trainer", TRAINER)
+        PARAMS = grid_args.get("params", PARAMS)
+        TIME = grid_args.get("time", TIME)
+        GRES = grid_args.get("gres", GRES)
+        RUNNER = grid_args.get("runner", RUNNER)
+        DRY_RUN = grid_args.get("dry_run", DRY_RUN)
+        assert RUNNER in ("slurm", "local")
+
+    def run(args):
+        args = [str(s) for s in args]
+        if DRY_RUN:
+            print(" ".join(args))
+        else:
+            subprocess.run(args)
 
     grid = create_grid(PARAMS)
 
@@ -107,22 +119,29 @@ if __name__ == "__main__":
             else:
                 trainer_params.append(f"--{k}")
                 trainer_params.append(v)
-
-        subprocess_args = [
-            "sbatch",
-            "--partition=common",
-            "--qos=16gpu7d",
-            f"--gres={GRES}",
-            f"--job-name={name}",
-            f"--time={TIME}",
-            "lizrd/scripts/grid_entrypoint.sh",
-            "python3",
-            "-m",
-            TRAINER,
-            *trainer_params,
-        ]
-
-        subprocess.run(
-            [str(s) for s in subprocess_args],
-        )
-        sleep(2)
+        if RUNNER == "slurm":
+            subprocess_args = [
+                "sbatch",
+                "--partition=common",
+                "--qos=16gpu7d",
+                f"--gres={GRES}",
+                f"--job-name={name}",
+                f"--time={TIME}",
+                "lizrd/scripts/grid_entrypoint.sh",
+                "python3",
+                "-m",
+                TRAINER,
+                *trainer_params,
+            ]
+            run(subprocess_args)
+            sleep(2)
+        elif RUNNER == "local":
+            subprocess_args = [
+                "lizrd/scripts/grid_entrypoint.sh",
+                "python3",
+                "-m",
+                TRAINER,
+                *trainer_params,
+            ]
+            run(subprocess_args)
+            sleep(2)
