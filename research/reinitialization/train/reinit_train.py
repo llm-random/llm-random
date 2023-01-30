@@ -62,9 +62,7 @@ parser.add_argument("--n_log_steps", type=int, default=100)
 args = parser.parse_args()
 
 # basic validation of args
-if args.use_pruner and (
-    not args.pruner_n_steps or not args.pruner_prob or not args.pruner.delay
-):
+if args.use_pruner and (not args.pruner_n_steps or not args.pruner_prob):
     raise ValueError(
         "use_pruner set but pruner_n_steps or pruner_prob or pruner_delay not set"
     )
@@ -73,7 +71,7 @@ if args.trainer_type == "retrain" and not args.pruner_n_steps_retrain:
 if args.trainer_type == "retrain" and not args.use_pruner:
     raise ValueError("trainer_type is retrain but use_pruner not set")
 if not args.use_pruner and (
-    args.pruner_n_steps or args.pruner_prob or args.pruner.delay
+    args.pruner_n_steps or args.pruner_prob or args.pruner_delay > 0
 ):
     raise ValueError(
         "use_pruner not set but pruner_n_steps or pruner_prob or pruner_delay set"
