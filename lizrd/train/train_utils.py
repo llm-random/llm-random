@@ -201,7 +201,7 @@ class Trainer:
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
-                self.scheduler.pruner.log(step)
+                self.scheduler.pruner.log_plots(step)
             print(f"Step {step}")
 
 
@@ -220,6 +220,7 @@ class RetrainTrainer(Trainer):
         self.writer.add_scalar(
             "full_loss/train_mask", mask_loss, step + self.retrain_count
         )
+        self.scheduler.pruner.log_scalars(step + self.retrain_count)
 
     def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
         self.writer.add_scalar(
@@ -228,6 +229,7 @@ class RetrainTrainer(Trainer):
         self.writer.add_scalar(
             "full_loss/train_mask", mask_loss, step + self.retrain_count
         )
+        self.scheduler.pruner.log_scalars(step + self.retrain_count)
 
     def _pruning_step(self, step):
         if self.scheduler.is_time_to_prune(step):

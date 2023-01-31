@@ -46,11 +46,25 @@ class LogRecycleFF(LogFF):
             value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
         )
 
-    def log(self, layer_name: str, step: int):
+    def log_activations(self, layer_name: str, step: int):
+        tensor = self.current_activations.cpu()
+        values = tensor.tolist()
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Activations of all neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_plots(self, layer_name: str, step: int):
         Logger.current_logger().flush(wait=True)
         self.log_recycle_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
         self.log_magnitude(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+
+    def log_scalars(self, layer_name: str, step: int):
         Logger.current_logger().flush(wait=True)
         self.log_recently_pruned_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
@@ -333,8 +347,8 @@ def prepare_subset_for_logging(xs, p):
 class RetrainRecycleFF(LogRecycleFF):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
-        self.lin1 = Linear(dmodel, dff)
-        self.lin2 = Linear(dff, dmodel)
+        self.lin1 = Linear(dmodel, dff, bias=False)
+        self.lin2 = Linear(dff, dmodel, bias=False)
         self.dff = dff
         self.new_weights_1 = nn.Parameter(torch.empty_like(self.lin1.weight))
         self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin2.weight))
@@ -348,6 +362,7 @@ class RetrainRecycleFF(LogRecycleFF):
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
         x = F.relu(x)
+        self.current_activations = x.flatten()
         x = self.lin2(x)
         return x
 
@@ -362,6 +377,7 @@ class RetrainRecycleFF(LogRecycleFF):
 
         # relu
         x = F.relu(x)
+        self.current_activations = x.flatten()
 
         # Appply FF2
         assert self.lin2.weight.data.shape == self.new_weights_2.shape
