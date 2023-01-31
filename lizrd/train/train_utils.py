@@ -257,6 +257,7 @@ class RetrainTrainer(Trainer):
             for _ in range(self.statistics_reset_steps):
                 self._train_step(self.optimizer)
 
+        self.pruner.apply_new_weights()
         # unfreeze model
         self.model.requires_grad_(True)
         self.pruner.post_retrain()
