@@ -94,7 +94,7 @@ class RandomStructRecycleFF(nn.Module):
 
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
-        self.lin1 = Linear(dmodel, dff)  #
+        self.lin1 = Linear(dmodel, dff)
         self.lin2 = Linear(dff, dmodel)
         self.dff = dff
         pruner.register(self)
