@@ -97,7 +97,7 @@ class Trainer:
         self.scaler.update()
 
     def _pruning_step(self, step):
-        if self.scheduler.is_time_to_prune(step):
+        if self.scheduler and self.scheduler.is_time_to_prune(step):
             self.pruner.prune(self.scheduler.prob)
 
     def update_loss_stats(self, total_loss, mask_loss):
@@ -123,11 +123,10 @@ class Trainer:
         )
 
     def _train_step(
-        self,
-        optimizer: torch.optim.Optimizer,
+        self, optimizer: torch.optim.Optimizer, dataset: wikibookdata.ProcessedDataset
     ):
         self.model.train()
-        processed_batch = self.pdataset.get_batch()
+        processed_batch = dataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
@@ -159,8 +158,8 @@ class Trainer:
 
     def _eval_step(
         self,
-        step,
-        sample,
+        step: int,
+        sample: int = 10,
     ):
         self.model.eval()
 
@@ -191,12 +190,14 @@ class Trainer:
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
             self._pruning_step(step)
-            total_loss, mask_loss = self._train_step(self.optimizer)
-            self._log_train_stats(total_loss, mask_loss, step) # check if it's the time and log stats
+            total_loss, mask_loss = self._train_step(self.optimizer, self.pdataset)
+            self._log_train_stats(
+                total_loss, mask_loss, step
+            )  # check if it's the time and log stats
             if step % self.n_log_steps == 0:
                 self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
-                eval_loss = self._eval_step(self.model, self.pdataset_eval, step)
+                eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
@@ -204,7 +205,10 @@ class Trainer:
             print(f"Step {step}")
 
 
+@define
 class RetrainTrainer(Trainer):
+    pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
+    retrain_warmup_steps: Optional[int] = None
     retrain_count: int = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
@@ -246,11 +250,20 @@ class RetrainTrainer(Trainer):
             self.optimizer.param_groups[0]["eps"],
             self.optimizer.param_groups[0]["weight_decay"],
         )
+        target_lr = self.optimizer.param_groups[0]["lr"]
+        if not self.retrain_warmup_steps:
+            self.retrain_warmup_steps = int(self.scheduler.n_steps_retrain / 2)
 
         # retrain
-        for _ in range(self.scheduler.n_steps_retrain):
+        for i in range(self.scheduler.n_steps_retrain):
+            # lr warmup
+            lr_coeff = min(1.0, i / self.retrain_warmup_steps)
+            retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr
+
             self.retrain_count += 1
-            total_loss, mask_loss = self._train_step(retrain_optim)
+            total_loss, mask_loss = self._train_step(
+                retrain_optim, self.pdataset_retrain
+            )
             self._log_retrain_stats(total_loss, mask_loss, step)
 
         # unfreeze model

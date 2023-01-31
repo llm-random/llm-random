@@ -26,8 +26,8 @@ parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
 parser.add_argument("--mixed_precision", action="store_true", default=True)
 
-parser.add_argument("--pruner_prob", type=float)
-parser.add_argument("--pruner_n_steps", type=int)
+parser.add_argument("--pruner_prob", type=float, default=None)
+parser.add_argument("--pruner_n_steps", type=int, default=None)
 parser.add_argument("--project_name", type=str)
 
 parser.add_argument("--name", type=str, default="")
@@ -38,6 +38,7 @@ parser.add_argument("--trainer_type", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--ds_seed", type=int, default=42)
 parser.add_argument("--eval_ds_seed", type=int, default=1984)
+parser.add_argument("--retrain_ds_seed", type=int, default=1998)
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -58,8 +59,27 @@ parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
 parser.add_argument("--n_log_plots_steps", type=int, default=None)
 parser.add_argument("--n_log_steps", type=int, default=100)
+parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 
 args = parser.parse_args()
+
+# basic validation of args
+if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
+    raise ValueError(
+        "use_pruner set but pruner_n_steps or pruner_prob or pruner_delay not set"
+    )
+if args.trainer_type == "retrain" and args.pruner_n_steps_retrain is None:
+    raise ValueError("trainer_type is retrain but pruner_n_steps_retrain not set")
+if args.trainer_type == "retrain" and not args.use_pruner:
+    raise ValueError("trainer_type is retrain but use_pruner not set")
+if not args.use_pruner and (
+    args.pruner_n_steps is not None
+    or args.pruner_prob is not None
+    or args.pruner_delay > 0
+):
+    raise ValueError(
+        "use_pruner not set but pruner_n_steps or pruner_prob or pruner_delay set"
+    )
 
 print("BEGINNING OF FILE")
 print("cuda available:")
@@ -105,6 +125,7 @@ if args.use_pruner and args.pruner_n_steps:
         args.pruner_n_steps_retrain,
     )
 else:
+    pruner = None
     scheduler = None
 
 # set ff layer
@@ -120,6 +141,10 @@ elif args.ff_layer == "struct_magnitude_prune":
     ff_layer_fun = lambda: linears.StructMagnitudePruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
+        args.dm, args.dff, pruner
+    )
+elif args.ff_layer == "struct_magnitude_recycle":
+    ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleFF(
         args.dm, args.dff, pruner
     )
 elif args.ff_layer == "retrain_recycle":
@@ -166,6 +191,14 @@ elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
 if args.trainer_type == "retrain":
+    pdataset_retrain = get_processed_dataset(
+        batch_size=args.batch_size,
+        max_total_length=args.cutoff,
+        mask_percent=args.mask_percent,
+        device=DEVICE,
+        num_workers=args.num_workers,
+        seed=args.retrain_ds_seed,
+    )
     trainer = RetrainTrainer(
         model=model,
         optimizer=optimizer,
@@ -181,7 +214,9 @@ if args.trainer_type == "retrain":
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
         n_log_plots_steps=args.n_log_plots_steps,
-        n_log_steps=args.n_log_steps
+        n_log_steps=args.n_log_steps,
+        pdataset_retrain=pdataset_retrain,
+        retrain_warmup_steps=args.retrain_warmup_steps,
     )
 else:
     trainer = Trainer(
@@ -198,7 +233,7 @@ else:
         writer=writer,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
-        n_log_steps=args.n_log_steps
+        n_log_steps=args.n_log_steps,
     )
 
 trainer.train(args.n_steps, args.n_steps_eval)
