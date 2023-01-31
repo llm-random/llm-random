@@ -63,6 +63,8 @@ class LogRecycleFF(LogFF):
         Logger.current_logger().flush(wait=True)
         self.log_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
+        self.log_activations(layer_name, step)
+        Logger.current_logger().flush(wait=True)
 
     def log_scalars(self, layer_name: str, step: int):
         Logger.current_logger().flush(wait=True)
