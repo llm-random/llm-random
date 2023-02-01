@@ -360,6 +360,7 @@ class RetrainRecycleFF(LogRecycleFF):
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.neuron_magnitudes = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
+        self.current_activations = torch.zeros(dff).to(device)
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
