@@ -2,11 +2,9 @@ import argparse
 from typing import List, Optional
 
 import torch
-import torch.nn.functional as F
 import datetime
 from torch.utils.tensorboard import SummaryWriter
 from clearml import Task
-import os
 
 from lizrd.core import misc, bert
 from research.reinitialization.core import linears
@@ -64,40 +62,7 @@ parser.add_argument("--n_log_plots_steps", type=int, default=None)
 parser.add_argument("--n_log_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 
-
 args = parser.parse_args()
-
-
-if args.testing_regular:
-    args.project_name = f"{os.getenv('USER')}/testing"
-    args.ff_layer = "regular"
-    args.cutoff = 32
-    args.dm = 2
-    args.dff = 4
-    args.n_blocks = 2
-    args.heads = 2
-    args.tags = ["testing_regular"]
-    args.n_steps = 100
-    args.use_pruner = False
-    args.batch_size = 4
-elif args.testing_recycle:
-    args.project_name = f"{os.getenv('USER')}/testing"
-    args.ff_layer = "retrain_recycle"
-    args.cutoff = 32
-    args.n_steps = 100
-    args.use_clearml = True
-    args.tags = ["testing_recycle"]
-    args.use_pruner = True
-    args.pruner_n_steps = 10
-    args.pruner_prob = 0.1
-    args.pruner_delay = 6
-    args.pruner_n_steps_retrain = 10
-    args.trainer_type = "retrain"
-    args.n_log_plots_steps = 40
-    args.n_steps_eval = 10
-    args.n_log_steps = 10
-    args.batch_size = 4
-
 
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):

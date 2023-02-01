@@ -373,9 +373,7 @@ class RetrainRecycleFF(LogRecycleFF):
         lin_weights_1 = misc.einsum(
             "f, f m -> f m", self.mask, self.lin1.weight.data
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
-        lin_bias_1 = misc.einsum("f, f -> f", self.mask, self.lin1.bias.data)
-        x = misc.einsum("... i, o i -> ... o", x, lin_weights_1) + lin_bias_1
-        # TODO: add new biases
+        x = misc.einsum("... i, o i -> ... o", x, lin_weights_1)
 
         # relu
         x = F.relu(x)
@@ -387,7 +385,7 @@ class RetrainRecycleFF(LogRecycleFF):
             "f, m f -> m f", self.mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
         assert self.lin2.weight.data.shape == lin_weights_2.shape
-        x = misc.einsum("... i, o i -> ... o", x, lin_weights_2) + self.lin2.bias.data
+        x = misc.einsum("... i, o i -> ... o", x, lin_weights_2)
 
         return x
 
@@ -432,7 +430,6 @@ class RetrainRecycleFF(LogRecycleFF):
         self.lin1.weight.data = misc.einsum(
             "f, f m -> f m", self.mask, self.lin1.weight.data
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
-        self.lin1.bias.data = misc.einsum("f, f -> f", self.mask, self.lin1.bias.data)
 
         self.lin2.weight.data = misc.einsum(
             "f, m f -> m f", self.mask, self.lin2.weight.data
