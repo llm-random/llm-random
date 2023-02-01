@@ -223,22 +223,23 @@ class RetrainTrainer(Trainer):
     retrain_count: int = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
-        self.writer.add_scalar("loss/train_total", total_loss, step)
-        self.writer.add_scalar("loss/train_mask", mask_loss, step)
-        self.writer.add_scalar(
-            "full_loss/train_total", total_loss, step + self.retrain_count
-        )
-        self.writer.add_scalar(
-            "full_loss/train_mask", mask_loss, step + self.retrain_count
-        )
-        self.scheduler.pruner.log_scalars(step + self.retrain_count)
-        print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
-        self.writer.add_scalar(
-            "full_steps/lr",
-            self.optimizer.param_groups[0]["lr"],
-            step + self.retrain_count,
-        )
-        self.writer.add_scalar("is_retraining", 0, step + self.retrain_count)
+        if step and self.writer and (step % self.n_log_steps == 0):
+            self.writer.add_scalar("loss/train_total", total_loss, step)
+            self.writer.add_scalar("loss/train_mask", mask_loss, step)
+            self.writer.add_scalar(
+                "full_loss/train_total", total_loss, step + self.retrain_count
+            )
+            self.writer.add_scalar(
+                "full_loss/train_mask", mask_loss, step + self.retrain_count
+            )
+            self.scheduler.pruner.log_scalars(step + self.retrain_count)
+            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+            self.writer.add_scalar(
+                "full_steps/lr",
+                self.optimizer.param_groups[0]["lr"],
+                step + self.retrain_count,
+            )
+            self.writer.add_scalar("is_retraining", 0, step + self.retrain_count)
 
     def _log_retrain_stats(
         self,
@@ -247,18 +248,22 @@ class RetrainTrainer(Trainer):
         step: int,
         optimizer: torch.optim.Optimizer,
     ):
-        self.writer.add_scalar(
-            "full_loss/train_total", total_loss, step + self.retrain_count
-        )
-        self.writer.add_scalar(
-            "full_loss/train_mask", mask_loss, step + self.retrain_count
-        )
-        self.scheduler.pruner.log_scalars(step + self.retrain_count)
-        print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
-        self.writer.add_scalar(
-            "full_steps/lr", optimizer.param_groups[0]["lr"], step + self.retrain_count
-        )
-        self.writer.add_scalar("is_retraining", 1, step + self.retrain_count)
+        retrain_log_n_steps = self.n_log_steps // 20
+        if step and self.writer and (self.retrain_count % retrain_log_n_steps == 0):
+            self.writer.add_scalar(
+                "full_loss/train_total", total_loss, step + self.retrain_count
+            )
+            self.writer.add_scalar(
+                "full_loss/train_mask", mask_loss, step + self.retrain_count
+            )
+            self.scheduler.pruner.log_scalars(step + self.retrain_count)
+            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+            self.writer.add_scalar(
+                "full_steps/lr",
+                optimizer.param_groups[0]["lr"],
+                step + self.retrain_count,
+            )
+            self.writer.add_scalar("is_retraining", 1, step + self.retrain_count)
 
     def _pruning_step(self, step):
         if self.scheduler.is_time_to_prune(step):
