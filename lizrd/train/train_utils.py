@@ -11,7 +11,7 @@ from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
-from clearml import Logger
+import math
 
 
 def get_model(
@@ -248,7 +248,7 @@ class RetrainTrainer(Trainer):
         step: int,
         optimizer: torch.optim.Optimizer,
     ):
-        retrain_log_n_steps = self.n_log_steps // 20
+        retrain_log_n_steps = math.ceil(self.n_log_steps / 20)
         if step and self.writer and (self.retrain_count % retrain_log_n_steps == 0):
             self.writer.add_scalar(
                 "full_loss/train_total", total_loss, step + self.retrain_count
