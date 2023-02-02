@@ -200,6 +200,10 @@ class Trainer:
                 for param_group in self.optimizer.param_groups:
                     param_group["lr"] = lr
 
+            # tell the model to save activation stats if necessary:
+            if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
+                self.scheduler.pruner.set_saving_stats()
+
             self._pruning_step(step)
             total_loss, mask_loss = self._train_step(self.optimizer, self.pdataset)
             self._log_train_stats(

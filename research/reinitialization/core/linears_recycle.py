@@ -50,7 +50,27 @@ class LogRecycleFF(LogFF):
         values = self.current_activations
         fig = px.histogram(values)
         Logger.current_logger().report_plotly(
-            title="Activations of all neurons",
+            title="Average activations of all neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_activation_ratios(self, layer_name: str, step: int):
+        values = self.activate_ratio
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Average ratio of activation per neuron",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_activations_sampled(self, layer_name: str, step: int):
+        values = self.some_activations
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Activations of sampled neurons",
             series=layer_name,
             iteration=step,
             figure=fig,
@@ -59,6 +79,10 @@ class LogRecycleFF(LogFF):
     def log_plots(self, layer_name: str, step: int):
         Logger.current_logger().flush(wait=True)
         self.log_activations(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_activation_ratios(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_activations_sampled(layer_name, step)
         Logger.current_logger().flush(wait=True)
         self.log_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
@@ -339,9 +363,14 @@ def prepare_for_logging(x):
     return x.view(-1).detach().cpu().numpy()
 
 
-def prepare_subset_for_logging(xs, p):
+def prepare_subset_for_logging(xs, p=None, size=None):
     xs = [prepare_for_logging(x) for x in xs]
-    random_indices = np.random.choice(len(xs[0]), int(len(xs[0]) * p), replace=False)
+    if size is not None:
+        random_indices = np.random.choice(len(xs[0]), size, replace=False)
+    else:
+        random_indices = np.random.choice(
+            len(xs[0]), int(len(xs[0]) * p), replace=False
+        )
     return [x[random_indices] for x in xs]
 
 
@@ -359,16 +388,15 @@ class RetrainRecycleFF(LogRecycleFF):
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.neuron_magnitudes = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
-        self.current_activations = [0] * dff
+        self.current_activations = self.activate_ratio = np.zeros(dff)
+        self.save_stats = False
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
         x = F.relu(x)
-        self.current_activations = x.flatten().tolist()
-        # globalna średnia -> ile procent neuronów się aktywuje
-        # histogram -> średnio jak często się aktywuje dany neuron
-        # wysamplować trochę aktywacji i wylogować histogram i/lub średnią
-        breakpoint()
+
+        # save activation stats
+        self._save_activation_stats(x)
 
         x = self.lin2(x)
         return x
@@ -382,7 +410,9 @@ class RetrainRecycleFF(LogRecycleFF):
 
         # relu
         x = F.relu(x)
-        # self.current_activations = x.flatten().tolist()
+
+        # save activation stats
+        self._save_activation_stats(x)
 
         # Appply FF2
         assert self.lin2.weight.data.shape == self.new_weights_2.shape
@@ -393,6 +423,16 @@ class RetrainRecycleFF(LogRecycleFF):
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_2)
 
         return x
+
+    def _save_activation_stats(self, x: torch.Tensor):
+        if self.save_stats:
+            self.current_activations = x.sum(dim=[0, 1]).detach().cpu().numpy()
+            self.activate_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
+            x_flattened = x.flatten().detach().cpu().numpy()
+            random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
+            self.some_activations = x_flattened[random_indices]
+            # dodać to z samplowaniem
+            self.save_stats = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.mode == "regular":

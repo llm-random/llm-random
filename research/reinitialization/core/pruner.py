@@ -57,3 +57,8 @@ class Pruner(BasePruner):
         for i, layer in enumerate(self.layers):
             if hasattr(layer, "log_scalars"):
                 layer.log_scalars(f"FF no. {i}", step)
+
+    def set_saving_stats(self):
+        for layer in self.layers:
+            if hasattr(layer, "save_stats"):
+                layer.save_stats = True
