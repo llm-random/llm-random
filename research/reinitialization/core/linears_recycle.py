@@ -47,8 +47,7 @@ class LogRecycleFF(LogFF):
         )
 
     def log_activations(self, layer_name: str, step: int):
-        tensor = self.current_activations.cpu()
-        values = tensor.tolist()
+        values = self.current_activations
         fig = px.histogram(values)
         Logger.current_logger().report_plotly(
             title="Activations of all neurons",
@@ -59,11 +58,11 @@ class LogRecycleFF(LogFF):
 
     def log_plots(self, layer_name: str, step: int):
         Logger.current_logger().flush(wait=True)
-        self.log_recycle_magnitude(layer_name, step)
+        self.log_activations(layer_name, step)
         Logger.current_logger().flush(wait=True)
         self.log_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
-        self.log_activations(layer_name, step)
+        self.log_recycle_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
 
     def log_scalars(self, layer_name: str, step: int):
@@ -360,12 +359,17 @@ class RetrainRecycleFF(LogRecycleFF):
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.neuron_magnitudes = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
-        self.current_activations = torch.zeros(dff).to(device)
+        self.current_activations = [0] * dff
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
         x = F.relu(x)
-        self.current_activations = x.flatten()
+        self.current_activations = x.flatten().tolist()
+        # globalna średnia -> ile procent neuronów się aktywuje
+        # histogram -> średnio jak często się aktywuje dany neuron
+        # wysamplować trochę aktywacji i wylogować histogram i/lub średnią
+        breakpoint()
+
         x = self.lin2(x)
         return x
 
@@ -378,7 +382,7 @@ class RetrainRecycleFF(LogRecycleFF):
 
         # relu
         x = F.relu(x)
-        self.current_activations = x.flatten()
+        # self.current_activations = x.flatten().tolist()
 
         # Appply FF2
         assert self.lin2.weight.data.shape == self.new_weights_2.shape
