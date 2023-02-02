@@ -253,11 +253,12 @@ class RetrainTrainer(Trainer):
         # gather statistics for original optimizer
         # original_lr = self.optimizer.param_groups[0]["lr"]
         # self.optimizer.param_groups[0]["lr"] = 0.0
+        self.pruner.apply_new_weights()
+
         with SetLRTemporarily(self.optimizer, 0.0):
             for _ in range(self.statistics_reset_steps):
                 self._train_step(self.optimizer)
 
-        self.pruner.apply_new_weights()
         # unfreeze model
         self.model.requires_grad_(True)
         self.pruner.post_retrain()
