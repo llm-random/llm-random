@@ -12,6 +12,9 @@ def experiment_code_versioning(remote_url, branch_name):
     remote_present = False
     lines = check_remote_output.split("\n")
     for line in lines:
+        line = line.strip()
+        if line == "":
+            continue
         nickname, url, _ = re.split("[\t ]", line)
         if url == remote_url:
             remote_name = nickname
