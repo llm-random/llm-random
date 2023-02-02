@@ -2,7 +2,7 @@ import re
 import subprocess
 
 
-def experiment_code_versioning(remote_url, branch_name):
+def experiment_code_versioning(branch_name,remote_url="https://github.com/Simontwice/sparsity.git",):
     remote_url = remote_url.strip()
     # Check if remote_url is already among remote repos
     check_remote = subprocess.run(
@@ -44,8 +44,3 @@ def experiment_code_versioning(remote_url, branch_name):
         subprocess.run(
             ["git", "push", "origin", branch_name], capture_output=True, text=True
         )
-
-
-experiment_code_versioning(
-    "  https://github.com/Simontwice/sparsity.git  ", "code_image_cemetery"
-)
