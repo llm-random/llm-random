@@ -9,7 +9,6 @@ import numpy as np
 import plotly.express as px
 
 from lizrd.core.misc import Linear
-from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
 from research.reinitialization.core.linears import LogFF
