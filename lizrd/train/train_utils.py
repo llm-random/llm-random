@@ -241,7 +241,7 @@ class RetrainTrainer(Trainer):
     pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
     retrain_warmup_steps: Optional[int] = None
     retrain_count: int = 0
-    statistics_reset_steps: int = 1000
+    statistics_reset_steps: int = None
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         if step and self.writer and (step % self.n_log_steps == 0):
@@ -319,6 +319,8 @@ class RetrainTrainer(Trainer):
 
         # reset optimizer stats
         print("Resetting optimizer stats...")
+        if self.statistics_reset_steps is None:
+            self.statistics_reset_steps = self.retrain_count
         with SetLRTemporarily(self.optimizer, 0.0):
             for _ in range(self.statistics_reset_steps):
                 self._train_step(retrain_optim, self.pdataset_retrain)
