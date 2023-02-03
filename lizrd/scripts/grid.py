@@ -131,7 +131,7 @@ PARAMS = {
     "^mixed_precision": [True, False],
     "tags": ["test"],
     "use_clearml": True,
-    "pruner_n_steps": 100,  #
+    "pruner_n_steps": 100,
 }
 
 TIME = "1-00:00:00"
