@@ -7,7 +7,6 @@ from lizrd.support import ash
 def FeedForwardMultineckFORCED(
     dmodel, dhead, n_heads, dff, parameter_sharing_mode: str = "none"
 ):
-
     assert (
         4 * dmodel % n_heads == 0
     ), f"4*dmodel = {4 * dmodel} should be divisible by n_heads={n_heads}"

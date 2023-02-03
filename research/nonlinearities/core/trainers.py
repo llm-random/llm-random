@@ -27,7 +27,6 @@ class NonlinearityTrainer:
         pdataset: wikibookdata.ProcessedDataset,
         step=0,
     ):
-
         model.train()
         processed_batch = pdataset.get_batch(self.batch_size)
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
