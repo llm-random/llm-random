@@ -77,7 +77,7 @@ if args.testing_regular:
     args.tags = ["testing_regular"]
     args.n_steps = 100
     args.use_pruner = False
-    args.batch_size = 4
+    args.batch_size = 2
 elif args.testing_recycle:
     args.project_name = f"{os.getenv('USER')}/testing"
     args.use_clearml = True
@@ -95,7 +95,7 @@ elif args.testing_recycle:
     args.n_log_plots_steps = 40
     args.n_steps_eval = 10
     args.n_log_steps = 10
-    args.batch_size = 8
+    args.batch_size = 2
 
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
