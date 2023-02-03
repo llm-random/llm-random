@@ -220,11 +220,28 @@ class Trainer:
             print(f"Step {step}")
 
 
+class SetLRTemporarily:
+    def __init__(self, optimizer, lr):
+        self.optimizer = optimizer
+        self.lr = lr
+
+    def __enter__(self):
+        self.original_lrs = []
+        for param_group in self.optimizer.param_groups:
+            self.original_lrs.append(param_group["lr"])
+            param_group["lr"] = self.lr
+
+    def __exit__(self, *args):
+        for param_group, lr in zip(self.optimizer.param_groups, self.original_lrs):
+            param_group["lr"] = lr
+
+
 @define
 class RetrainTrainer(Trainer):
     pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
     retrain_warmup_steps: Optional[int] = None
     retrain_count: int = 0
+    statistics_reset_steps: int = 1000
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         if step and self.writer and (step % self.n_log_steps == 0):
@@ -299,6 +316,13 @@ class RetrainTrainer(Trainer):
         target_lr = self.optimizer.param_groups[0]["lr"]
         if not self.retrain_warmup_steps:
             self.retrain_warmup_steps = int(self.scheduler.n_steps_retrain / 2)
+
+        # reset optimizer stats
+        print("Resetting optimizer stats...")
+        with SetLRTemporarily(self.optimizer, 0.0):
+            for _ in range(self.statistics_reset_steps):
+                self._train_step(retrain_optim, self.pdataset_retrain)
+        print("Optimizer stats reset.")
 
         # retrain
         for i in range(self.scheduler.n_steps_retrain):
