@@ -307,7 +307,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
         model.to(CUDA)
         inputs = [x.to(CUDA) for x in inputs]
 
-    with (NoopEnter() if DO_BACKWARD else torch.no_grad()):
+    with NoopEnter() if DO_BACKWARD else torch.no_grad():
         for input in inputs[:warmup]:
             output = model(input)
             loss = torch.sum(output)

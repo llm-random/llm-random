@@ -193,17 +193,17 @@ def are_state_dicts_the_same(
             k[len("module") + 1 :]: v for k, v in model_state_dict_2.items()
         }
 
-    for ((k_1, v_1), (k_2, v_2)) in zip(
+    for (k_1, v_1), (k_2, v_2) in zip(
         model_state_dict_1.items(), model_state_dict_2.items()
     ):
         if k_1 != k_2:
             print(f"Key mismatch: {k_1} vs {k_2}")
             return False
-        # convert both to the same CUDA device
-        if str(v_1.device) != "cuda:0":
-            v_1 = v_1.to("cuda:0" if torch.cuda.is_available() else "cpu")
-        if str(v_2.device) != "cuda:0":
-            v_2 = v_2.to("cuda:0" if torch.cuda.is_available() else "cpu")
+    # convert both to the same CUDA device
+    if str(v_1.device) != "cuda:0":
+        v_1 = v_1.to("cuda:0" if torch.cuda.is_available() else "cpu")
+    if str(v_2.device) != "cuda:0":
+        v_2 = v_2.to("cuda:0" if torch.cuda.is_available() else "cpu")
 
         if not torch.allclose(v_1, v_2):
             print(f"Tensor mismatch: {v_1} vs {v_2}")

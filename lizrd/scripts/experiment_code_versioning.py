@@ -2,9 +2,14 @@ import re
 import subprocess
 
 
-def experiment_code_versioning(branch_name,remote_url="https://github.com/Simontwice/sparsity.git",):
+def experiment_code_versioning(
+    branch_name,
+    remote_url="https://github.com/Simontwice/sparsity.git",
+):
     # Record the current branch
-    current_branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True)
+    current_branch = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True
+    )
     current_branch_output = current_branch.stdout.strip()
 
     remote_url = remote_url.strip()
@@ -50,5 +55,6 @@ def experiment_code_versioning(branch_name,remote_url="https://github.com/Simont
         )
 
     # Switch back to the original branch
-    subprocess.run(["git", "checkout", current_branch_output], capture_output=True, text=True)
-
+    subprocess.run(
+        ["git", "checkout", current_branch_output], capture_output=True, text=True
+    )
