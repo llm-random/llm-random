@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 
+import torch.nn.functional as F
+from attr import define
+
 from research.reinitialization.core.pruner import BasePruner
 
 
@@ -16,7 +19,11 @@ class BaseScheduler(ABC):
     def increment_step(self):
         ...
 
+    def is_time_to_prune(self, step: int) -> bool:
+        ...
 
+
+@define
 class DelayedConstScheduler(BaseScheduler):
     def __init__(
         self,
@@ -24,14 +31,14 @@ class DelayedConstScheduler(BaseScheduler):
         n_steps_prune: int,
         prob: float,
         delay: int = 0,
-        n_steps_log: int = 5000,
+        n_steps_retrain: int = None,
     ):
         self.pruner = pruner
         self.n_steps_prune = n_steps_prune
-        self.n_steps_log = n_steps_log
         self.prob = prob
         self.delay = delay
         self.current_step = 0
+        self.n_steps_retrain = n_steps_retrain
 
     def prune(self):
         self.pruner.decrement_immunity()
@@ -43,8 +50,9 @@ class DelayedConstScheduler(BaseScheduler):
 
     def after_backprop(self):
         self.pruner.after_backprop(self.current_step)
-        if self.n_steps_log and (self.current_step % self.n_steps_log == 0):
-            self.pruner.log(self.current_step)
 
     def increment_step(self):
         self.current_step += 1
+
+    def is_time_to_prune(self, step: int) -> bool:
+        return step >= self.delay and step % self.n_steps_prune == 0

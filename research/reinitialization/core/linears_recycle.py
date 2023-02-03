@@ -4,11 +4,56 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.init import kaiming_uniform_
+from clearml import Logger
+import numpy as np
+import plotly.express as px
 
 from lizrd.core.misc import Linear
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
+from research.reinitialization.core.linears import LogFF
+
+
+class LogRecycleFF(nn.Module):
+    def log_recycle_magnitude(self, layer_name, step: int):
+        tensor = self.recycle_counter.flatten().cpu()
+        values = tensor.tolist()
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="No. of times neurons have been recycled",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_magnitude(self, layer_name, step: int):
+        tensor = self.neuron_magnitudes.flatten().cpu()
+        values = tensor.tolist()
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Magnitude of all neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_recently_pruned_magnitude(self, layer_name, step: int):
+        Logger.current_logger().report_scalar(
+            "mean_magn_of_recycled_layer",
+            layer_name,
+            iteration=step,
+            value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
+        )
+
+    def log(self, layer_name: str, step: int):
+        Logger.current_logger().flush(wait=True)
+        self.log_recycle_magnitude(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_magnitude(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_recently_pruned_magnitude(layer_name, step)
+        Logger.current_logger().flush(wait=True)
 
 
 class RandomUnstructRecycleFF(nn.Module):
@@ -272,6 +317,113 @@ class StructMagnitudeRecycleImmunityFF(nn.Module):
 
         self.immunity[topk.indices] = self.immunity_start_value
 
-        torch.mean(self.lin1.weight.data**2, dim=1)
-
         self.reinitialize(mask)
+
+
+def prepare_for_logging(x):
+    return x.view(-1).detach().cpu().numpy()
+
+
+def prepare_subset_for_logging(xs, p):
+    xs = [prepare_for_logging(x) for x in xs]
+    random_indices = np.random.choice(len(xs[0]), int(len(xs[0]) * p), replace=False)
+    return [x[random_indices] for x in xs]
+
+
+class RetrainRecycleFF(LogRecycleFF):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+        super().__init__()
+        self.lin1 = Linear(dmodel, dff)
+        self.lin2 = Linear(dff, dmodel)
+        self.dff = dff
+        self.new_weights_1 = nn.Parameter(torch.empty_like(self.lin1.weight))
+        self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin2.weight))
+        pruner.register(self)
+        self.mode = "regular"
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.recycle_counter = torch.zeros(self.dff).to(device)
+        self.neuron_magnitudes = torch.zeros(self.dff).to(device)
+        self.recently_pruned = torch.full((dff,), False).to(device)
+
+    def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.lin1(x)
+        x = F.relu(x)
+        x = self.lin2(x)
+        return x
+
+    def _new_neurons_forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Apply FF1
+        lin_weights_1 = misc.einsum(
+            "f, f m -> f m", self.mask, self.lin1.weight.data
+        ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
+        lin_bias_1 = misc.einsum("f, f -> f", self.mask, self.lin1.bias.data)
+        x = misc.einsum("... i, o i -> ... o", x, lin_weights_1) + lin_bias_1
+        # TODO: add new biases
+
+        # relu
+        x = F.relu(x)
+
+        # Appply FF2
+        assert self.lin2.weight.data.shape == self.new_weights_2.shape
+        lin_weights_2 = misc.einsum(
+            "f, m f -> m f", self.mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
+        assert self.lin2.weight.data.shape == lin_weights_2.shape
+        x = misc.einsum("... i, o i -> ... o", x, lin_weights_2) + self.lin2.bias.data
+
+        return x
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.mode == "regular":
+            return self._regular_forward(x)
+        elif self.mode == "new_neurons":
+            return self._new_neurons_forward(x)
+
+    def prepare_new_weights(self, prob: float):
+        # prepare mask
+        self.mask = torch.ones(self.dff, requires_grad=False).to(
+            self.lin1.weight.device
+        )
+        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        weights = weights1 * weights2
+        n_els_weights = torch.numel(weights)
+        assert n_els_weights == self.dff
+        n_to_prune = round(prob * n_els_weights)
+        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
+        self.mask[topk.indices] = 0
+
+        # prepare new weights for lin1
+        with torch.no_grad():
+            self.new_weights_1.normal_(
+                mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
+            )
+
+        # prepare new weights for lin2
+        with torch.no_grad():
+            self.new_weights_2.normal_(
+                mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
+            )
+
+        # save statistics
+        self.recycle_counter += 1 - self.mask
+        self.neuron_magnitudes = weights.flatten()  # weights
+        self.recently_pruned = (1 - self.mask).bool()
+
+    def apply_new_weights(self):
+        self.lin1.weight.data = misc.einsum(
+            "f, f m -> f m", self.mask, self.lin1.weight.data
+        ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
+        self.lin1.bias.data = misc.einsum("f, f -> f", self.mask, self.lin1.bias.data)
+
+        self.lin2.weight.data = misc.einsum(
+            "f, m f -> m f", self.mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
+
+    def pre_retrain(self):
+        self.new_weights_1.requires_grad = True
+        self.new_weights_2.requires_grad = True
+        self.mode = "new_neurons"
+
+    def post_retrain(self):
+        self.mode = "regular"

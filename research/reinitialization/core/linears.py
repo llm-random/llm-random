@@ -1,4 +1,3 @@
-from matplotlib.pyplot import scatter
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,6 +8,7 @@ from research.reinitialization.core.pruner import Pruner
 import plotly_express as px
 from clearml import Logger
 import numpy as np
+import plotly
 
 
 def mask_by_score(
@@ -110,9 +110,6 @@ def prepare_tensor_for_logging(x, sample_size=2500):
     return [t[random_indices] for t in x] if was_list else x[0][random_indices]
 
 
-import plotly
-
-
 def log_to_clearml(
     figure: plotly.graph_objs._figure.Figure, title: str, series: str, iteration: int
 ):
@@ -166,17 +163,11 @@ class LogFF(nn.Module):
         self.lin2 = misc.Linear(dff, dmodel)
         self.initial_weight1 = torch.clone(self.lin1.weight).detach()
         self.initial_weight2 = torch.clone(self.lin2.weight).detach()
-        self.reinforcement_count1 = nn.parameter.Parameter(
-            torch.zeros(
-                size=self.lin1.weight.shape, dtype=int, device=self.lin1.weight.device
-            ),
-            requires_grad=False,
+        self.register_buffer(
+            "reinforcement_count1", torch.zeros(size=self.lin1.weight.shape, dtype=int)
         )
-        self.reinforcement_count2 = nn.parameter.Parameter(
-            torch.zeros(
-                size=self.lin2.weight.shape, dtype=int, device=self.lin2.weight.device
-            ),
-            requires_grad=False,
+        self.register_buffer(
+            "reinforcement_count2", torch.zeros(size=self.lin2.weight.shape, dtype=int)
         )
 
         self.initial_magnitudes = self.get_neurons_magnitudes()

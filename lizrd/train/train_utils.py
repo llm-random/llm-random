@@ -76,11 +76,17 @@ class Trainer:
     mask_percent: float
     mask_loss_weight: float
     modelpath: str
+    pruner: BasePruner
     writer: SummaryWriter
     scheduler: Optional[BaseScheduler] = None
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     step: int = 0
+    n_log_plots_steps: int = None
+    log_acc_steps: int = 100
+    running_total_loss: float = 0.0
+    running_mask_loss: float = 0.0
+    running_loss_steps: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -93,23 +99,47 @@ class Trainer:
         if self.scheduler is not None:
             self.scheduler.after_backprop()
 
-    def optimize(self, loss):
-        self.optimizer.zero_grad()
+    def optimize(self, loss, optimizer):
+        optimizer.zero_grad()
         self.scaler.scale(loss).backward()
-        self.scaler.unscale_(self.optimizer)
+        self.scaler.unscale_(optimizer)
 
         self.after_backprop()
 
-        self.scaler.step(self.optimizer)
+        self.scaler.step(optimizer)
         self.scaler.update()
 
+    def _pruning_step(self, step):
+        if self.scheduler and self.scheduler.is_time_to_prune(step):
+            self.pruner.prune(self.scheduler.prob)
+
+    def update_loss_stats(self, total_loss, mask_loss):
+        self.running_total_loss += total_loss.item()
+        self.running_mask_loss += mask_loss.item()
+        self.running_loss_steps += 1
+
+    def reset_loss_stats(self):
+        self.running_total_loss = 0.0
+        self.running_mask_loss = 0.0
+        self.running_loss_steps = 0
+
+    def log_loss_stats(self, step):
+        self.writer.add_scalar(
+            "loss/train_total",
+            self.running_total_loss / self.running_loss_steps,
+            step,
+        )
+        self.writer.add_scalar(
+            "loss/train_mask",
+            self.running_mask_loss / self.running_loss_steps,
+            step,
+        )
+
     def _train_step(
-        self,
-        step=0,
+        self, optimizer: torch.optim.Optimizer, dataset: wikibookdata.ProcessedDataset
     ):
         self.model.train()
-        self.prune()
-        processed_batch = self.pdataset.get_batch()
+        processed_batch = dataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
@@ -129,14 +159,19 @@ class Trainer:
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
 
-        self.optimize(total_loss)
+        self.optimize(total_loss, optimizer)
+        self.update_loss_stats(total_loss, mask_loss)
 
-        self.writer.add_scalar("loss/train_total", total_loss.item(), step)
-        self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+        return total_loss.item(), mask_loss.item()
+
+    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
+        if step and self.writer and (step % self.log_acc_steps == 0):
+            self.log_loss_stats(step)
+            self.reset_loss_stats()
 
     def _eval_step(
         self,
-        step: int = 0,
+        step: int,
         sample: int = 10,
     ):
         self.model.eval()
@@ -144,7 +179,7 @@ class Trainer:
         with torch.no_grad():
             total_mask_loss = 0.0
             for _ in range(sample):
-                processed_batch = self.pdataset.get_batch()
+                processed_batch = self.pdataset_eval.get_batch()
                 assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
@@ -167,15 +202,86 @@ class Trainer:
 
     def train(self, n_steps: int, n_steps_eval: int):
         for step in range(n_steps):
-            self._train_step(step)
-            self.writer.add_scalar("step", step, step)
+            self._pruning_step(step)
+            total_loss, mask_loss = self._train_step(self.optimizer, self.pdataset)
+            self._log_train_stats(
+                total_loss, mask_loss, step
+            )  # check if it's the time and log stats
+            if step % self.log_acc_steps == 0:
+                self.writer.add_scalar("step", step, step)
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
-            if self.scheduler is not None:
-                self.scheduler.increment_step()
+            if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
+                self.scheduler.pruner.log(step)
             print(f"Step {step}")
+
+
+@define
+class RetrainTrainer(Trainer):
+    pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
+    retrain_warmup_steps: Optional[int] = None
+    retrain_count: int = 0
+
+    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
+        self.writer.add_scalar("loss/train_total", total_loss, step)
+        self.writer.add_scalar("loss/train_mask", mask_loss, step)
+        self.writer.add_scalar(
+            "full_loss/train_total", total_loss, step + self.retrain_count
+        )
+        self.writer.add_scalar(
+            "full_loss/train_mask", mask_loss, step + self.retrain_count
+        )
+
+    def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
+        self.writer.add_scalar(
+            "full_loss/train_total", total_loss, step + self.retrain_count
+        )
+        self.writer.add_scalar(
+            "full_loss/train_mask", mask_loss, step + self.retrain_count
+        )
+
+    def _pruning_step(self, step):
+        if self.scheduler.is_time_to_prune(step):
+            self._retrain(step)
+
+    def _retrain(self, step):
+        self.pruner.prepare_new(self.scheduler.prob)
+
+        # freeze model
+        self.model.requires_grad_(False)
+
+        # unfreeze new
+        self.pruner.pre_retrain()
+
+        # create retrain optimizer (without old stats)
+        retrain_optim = torch.optim.Adam(
+            self.model.parameters(),
+            self.optimizer.param_groups[0]["lr"],
+            self.optimizer.param_groups[0]["betas"],
+            self.optimizer.param_groups[0]["eps"],
+            self.optimizer.param_groups[0]["weight_decay"],
+        )
+        target_lr = self.optimizer.param_groups[0]["lr"]
+        if not self.retrain_warmup_steps:
+            self.retrain_warmup_steps = int(self.scheduler.n_steps_retrain / 2)
+
+        # retrain
+        for i in range(self.scheduler.n_steps_retrain):
+            # lr warmup
+            lr_coeff = min(1.0, i / self.retrain_warmup_steps)
+            retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr
+
+            self.retrain_count += 1
+            total_loss, mask_loss = self._train_step(
+                retrain_optim, self.pdataset_retrain
+            )
+            self._log_retrain_stats(total_loss, mask_loss, step)
+
+        # unfreeze model
+        self.model.requires_grad_(True)
+        self.pruner.post_retrain()
 
 
 @define

@@ -28,6 +28,68 @@ def split_params(params: dict) -> Tuple[list, list, list]:
     return grids, functions, normals
 
 
+def shorten_arg(arg: str) -> str:
+    ARG_TO_ABBR = {
+        "reinit_dist": "rd",
+        "ff_layer": "ff",
+        "mask_loss_weight": "mlw",
+        "class_loss_weight": "clw",
+        "mask_percent": "mp",
+        "n_steps": "ns",
+        "n_steps_eval": "nse",
+        "immunity": "im",
+        "pruner": "pr",
+        "pruner_prob": "prp",
+        "pruner_delay": "prd",
+        "pruner_n_steps": "prns",
+    }
+    return ARG_TO_ABBR.get(arg, arg)
+
+
+def shorten_val(val: str) -> str:
+    VAL_TO_ABBR = {
+        # ff layers
+        "regular": "r",
+        "unstruct_prune": "up",
+        "struct_prune": "sp",
+        "unstruct_magnitude_prune": "ump",
+        "struct_magnitude_prune": "smp",
+        "unstruct_magnitude_recycle": "umr",
+        "struct_magnitude_recycle_with_immunity": "smri",
+        "masked_ff": "mf",
+        "separate_direction_magnitude_ff": "sdmf",
+        # reinit dist
+        "zero": "0",
+        "init": "i",
+        "follow_normal": "fn",
+    }
+    if isinstance(val, bool):
+        return "T" if val else "F"
+    if isinstance(val, str):
+        return VAL_TO_ABBR.get(val, val)
+    if isinstance(val, int):
+        if val % 1_000_000 == 0:
+            return f"{val // 1_000_000}M"
+        if val % 1_000 == 0:
+            return f"{val // 1_000}k"
+        return str(val)
+
+    return str(val)
+
+
+def make_tags(arg, val) -> str:
+    return f"{shorten_arg(arg)}={shorten_val(val)}"
+
+
+# parse time to minutes
+def timestr_to_minutes(time: str) -> int:
+    if "-" in time:
+        days, hours, minutes, seconds = time.split("-")[1].split(":")
+    else:
+        days, hours, minutes, seconds = 0, *time.split(":")
+    return int(days) * 24 * 60 + int(hours) * 60 + int(minutes)
+
+
 def create_grid(params: dict) -> List[dict]:
     grids, functions, normals = split_params(params)
     base_params = {k: v for k, v in normals}
@@ -37,7 +99,7 @@ def create_grid(params: dict) -> List[dict]:
     for value in grids_values:
         out_dict = copy.deepcopy(base_params)
         grid_dict = dict(zip(grids_keys, value))
-        tags = [f"{k}={str(v)}" for k, v in grid_dict.items()]
+        tags = [make_tags(k, v) for k, v in grid_dict.items()]
         if out_dict.get("tags") is None:
             out_dict["tags"] = []
         out_dict["tags"].extend(tags)
@@ -86,9 +148,12 @@ if __name__ == "__main__":
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
 
     grid = create_grid(PARAMS)
+    no_experiments = len(grid)
+    minutes_per_exp = timestr_to_minutes(TIME)
 
     user_input = input(
-        f"Will run {len(grid)} experiments. Sbatch settings: \n{TRAINER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+        f"Will run {no_experiments} experiments, using up {no_experiments * minutes_per_exp} minutes."
+        f"\nSbatch settings: \n{TRAINER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
     )
     if user_input.lower() not in ("", "y", "Y"):
         print("Aborting")
