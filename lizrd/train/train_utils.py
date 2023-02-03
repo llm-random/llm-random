@@ -225,7 +225,6 @@ class RetrainTrainer(Trainer):
     pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
     retrain_warmup_steps: Optional[int] = None
     retrain_count: int = 0
-    
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         if step and self.writer and (step % self.n_log_steps == 0):
