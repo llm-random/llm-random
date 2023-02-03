@@ -11,6 +11,7 @@ from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
+import math
 
 
 def get_model(
@@ -188,7 +189,21 @@ class Trainer:
             return total_mask_loss
 
     def train(self, n_steps: int, n_steps_eval: int):
+        # params for lr warmup
+        target_lr = self.optimizer.param_groups[0]["lr"]
+        warmup_steps = int(0.01 * n_steps)
+
         for step in range(n_steps):
+            # lr warmup in the beginning
+            if step <= warmup_steps:
+                lr = target_lr * step / warmup_steps
+                for param_group in self.optimizer.param_groups:
+                    param_group["lr"] = lr
+
+            # tell the model to save activation stats if necessary:
+            if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
+                self.scheduler.pruner.set_saving_stats()
+
             self._pruning_step(step)
             total_loss, mask_loss = self._train_step(self.optimizer, self.pdataset)
             self._log_train_stats(
@@ -201,7 +216,7 @@ class Trainer:
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
-                self.scheduler.pruner.log(step)
+                self.scheduler.pruner.log_plots(step)
             print(f"Step {step}")
 
 
@@ -212,28 +227,59 @@ class RetrainTrainer(Trainer):
     retrain_count: int = 0
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
-        self.writer.add_scalar("loss/train_total", total_loss, step)
-        self.writer.add_scalar("loss/train_mask", mask_loss, step)
-        self.writer.add_scalar(
-            "full_loss/train_total", total_loss, step + self.retrain_count
-        )
-        self.writer.add_scalar(
-            "full_loss/train_mask", mask_loss, step + self.retrain_count
-        )
+        if step and self.writer and (step % self.n_log_steps == 0):
+            self.writer.add_scalar("loss/train_total", total_loss, step)
+            self.writer.add_scalar("loss/train_mask", mask_loss, step)
+            self.writer.add_scalar(
+                "full_loss/train_total", total_loss, step + self.retrain_count
+            )
+            self.writer.add_scalar(
+                "full_loss/train_mask", mask_loss, step + self.retrain_count
+            )
+            self.scheduler.pruner.log_scalars(step + self.retrain_count)
+            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+            self.writer.add_scalar(
+                "full_steps/lr",
+                self.optimizer.param_groups[0]["lr"],
+                step + self.retrain_count,
+            )
+            self.writer.add_scalar("is_retraining", 0, step + self.retrain_count)
 
-    def _log_retrain_stats(self, total_loss: float, mask_loss: float, step: int):
-        self.writer.add_scalar(
-            "full_loss/train_total", total_loss, step + self.retrain_count
-        )
-        self.writer.add_scalar(
-            "full_loss/train_mask", mask_loss, step + self.retrain_count
-        )
+    def _log_retrain_stats(
+        self,
+        total_loss: float,
+        mask_loss: float,
+        step: int,
+        optimizer: torch.optim.Optimizer,
+    ):
+        retrain_log_n_steps = math.ceil(self.n_log_steps / 20)
+        if step and self.writer and (self.retrain_count % retrain_log_n_steps == 0):
+            self.writer.add_scalar(
+                "full_loss/train_total", total_loss, step + self.retrain_count
+            )
+            self.writer.add_scalar(
+                "full_loss/train_mask", mask_loss, step + self.retrain_count
+            )
+            self.scheduler.pruner.log_scalars(step + self.retrain_count)
+            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+            self.writer.add_scalar(
+                "full_steps/lr",
+                optimizer.param_groups[0]["lr"],
+                step + self.retrain_count,
+            )
+            self.writer.add_scalar("is_retraining", 1, step + self.retrain_count)
 
     def _pruning_step(self, step):
         if self.scheduler.is_time_to_prune(step):
             self._retrain(step)
 
     def _retrain(self, step):
+        loss_before_recycle = self._eval_step(step)
+        self.writer.add_scalar(
+            "loss/eval_just_before_recycle", loss_before_recycle, step
+        )
+        print(f"Eval loss before recycle:", loss_before_recycle)
+
         self.pruner.prepare_new(self.scheduler.prob)
 
         # freeze model
@@ -256,6 +302,12 @@ class RetrainTrainer(Trainer):
 
         # retrain
         for i in range(self.scheduler.n_steps_retrain):
+            if i < 5:
+                loss_after_recycle = self._eval_step(step)
+                self.writer.add_scalar(
+                    "loss/eval_just_after_recycle", loss_after_recycle, step
+                )
+                print(f"Eval loss after recycle:", loss_after_recycle)
             # lr warmup
             lr_coeff = min(1.0, i / self.retrain_warmup_steps)
             retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr
@@ -264,10 +316,12 @@ class RetrainTrainer(Trainer):
             total_loss, mask_loss = self._train_step(
                 retrain_optim, self.pdataset_retrain
             )
-            self._log_retrain_stats(total_loss, mask_loss, step)
+            self._log_retrain_stats(total_loss, mask_loss, step, retrain_optim)
 
         # unfreeze model
         self.model.requires_grad_(True)
+
+        self.pruner.apply_new_weights()
         self.pruner.post_retrain()
 
 

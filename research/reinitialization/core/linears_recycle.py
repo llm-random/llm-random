@@ -46,11 +46,50 @@ class LogRecycleFF(LogFF):
             value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
         )
 
-    def log(self, layer_name: str, step: int):
+    def log_activations(self, layer_name: str, step: int):
+        values = self.current_activations
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Average activations of all neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_activation_ratios(self, layer_name: str, step: int):
+        values = self.activate_ratio
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Average ratio of activation per neuron",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_activations_sampled(self, layer_name: str, step: int):
+        values = self.some_activations
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Activations of sampled neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_plots(self, layer_name: str, step: int):
+        Logger.current_logger().flush(wait=True)
+        self.log_activations(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_activation_ratios(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_activations_sampled(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
         self.log_recycle_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
-        self.log_magnitude(layer_name, step)
+
+    def log_scalars(self, layer_name: str, step: int):
         Logger.current_logger().flush(wait=True)
         self.log_recently_pruned_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
@@ -324,17 +363,22 @@ def prepare_for_logging(x):
     return x.view(-1).detach().cpu().numpy()
 
 
-def prepare_subset_for_logging(xs, p):
+def prepare_subset_for_logging(xs, p=None, size=None):
     xs = [prepare_for_logging(x) for x in xs]
-    random_indices = np.random.choice(len(xs[0]), int(len(xs[0]) * p), replace=False)
+    if size is not None:
+        random_indices = np.random.choice(len(xs[0]), size, replace=False)
+    else:
+        random_indices = np.random.choice(
+            len(xs[0]), int(len(xs[0]) * p), replace=False
+        )
     return [x[random_indices] for x in xs]
 
 
 class RetrainRecycleFF(LogRecycleFF):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
-        self.lin1 = Linear(dmodel, dff)
-        self.lin2 = Linear(dff, dmodel)
+        self.lin1 = Linear(dmodel, dff, bias=False)
+        self.lin2 = Linear(dff, dmodel, bias=False)
         self.dff = dff
         self.new_weights_1 = nn.Parameter(torch.empty_like(self.lin1.weight))
         self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin2.weight))
@@ -344,10 +388,16 @@ class RetrainRecycleFF(LogRecycleFF):
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.neuron_magnitudes = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
+        self.current_activations = self.activate_ratio = np.zeros(dff)
+        self.save_stats = False
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
         x = F.relu(x)
+
+        # save activation stats
+        self._save_activation_stats(x)
+
         x = self.lin2(x)
         return x
 
@@ -356,12 +406,13 @@ class RetrainRecycleFF(LogRecycleFF):
         lin_weights_1 = misc.einsum(
             "f, f m -> f m", self.mask, self.lin1.weight.data
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
-        lin_bias_1 = misc.einsum("f, f -> f", self.mask, self.lin1.bias.data)
-        x = misc.einsum("... i, o i -> ... o", x, lin_weights_1) + lin_bias_1
-        # TODO: add new biases
+        x = misc.einsum("... i, o i -> ... o", x, lin_weights_1)
 
         # relu
         x = F.relu(x)
+
+        # save activation stats
+        self._save_activation_stats(x)
 
         # Appply FF2
         assert self.lin2.weight.data.shape == self.new_weights_2.shape
@@ -369,9 +420,19 @@ class RetrainRecycleFF(LogRecycleFF):
             "f, m f -> m f", self.mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
         assert self.lin2.weight.data.shape == lin_weights_2.shape
-        x = misc.einsum("... i, o i -> ... o", x, lin_weights_2) + self.lin2.bias.data
+        x = misc.einsum("... i, o i -> ... o", x, lin_weights_2)
 
         return x
+
+    def _save_activation_stats(self, x: torch.Tensor):
+        if self.save_stats:
+            self.current_activations = x.sum(dim=[0, 1]).detach().cpu().numpy()
+            self.activate_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
+            x_flattened = x.flatten().detach().cpu().numpy()
+            random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
+            self.some_activations = x_flattened[random_indices]
+            # dodać to z samplowaniem
+            self.save_stats = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.mode == "regular":
@@ -414,7 +475,6 @@ class RetrainRecycleFF(LogRecycleFF):
         self.lin1.weight.data = misc.einsum(
             "f, f m -> f m", self.mask, self.lin1.weight.data
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
-        self.lin1.bias.data = misc.einsum("f, f -> f", self.mask, self.lin1.bias.data)
 
         self.lin2.weight.data = misc.einsum(
             "f, m f -> m f", self.mask, self.lin2.weight.data

@@ -2,7 +2,6 @@ import argparse
 from typing import List, Optional
 
 import torch
-import torch.nn.functional as F
 import datetime
 from torch.utils.tensorboard import SummaryWriter
 from clearml import Task
@@ -19,9 +18,12 @@ from lizrd.train.train_utils import (
 )
 from research.reinitialization.core.scheduler import DelayedConstScheduler
 import secrets
+import os
 
 parser = argparse.ArgumentParser()
 
+parser.add_argument("--testing_regular", action="store_true")
+parser.add_argument("--testing_recycle", action="store_true")
 parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
 parser.add_argument("--mixed_precision", action="store_true", default=True)
@@ -45,8 +47,8 @@ parser.add_argument("--cutoff", type=int, default=128)
 parser.add_argument("--dm", type=int, default=256)
 parser.add_argument("--dff", type=int, default=1024)
 parser.add_argument("--n_blocks", type=int, default=4)
-parser.add_argument("--heads", type=int, default=4)
-parser.add_argument("--dhead", type=int, default=None)
+parser.add_argument("--heads", type=int, default=2)
+parser.add_argument("--dhead", type=int, default=32)
 parser.add_argument("--optimizer", type=str, default="adam")
 parser.add_argument("--learning_rate", type=float, default=8e-4)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
@@ -62,6 +64,38 @@ parser.add_argument("--n_log_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 
 args = parser.parse_args()
+
+# useful predefined configs for debugging locally
+if args.testing_regular:
+    args.project_name = f"{os.getenv('USER')}/testing"
+    args.ff_layer = "regular"
+    args.cutoff = 32
+    args.dm = 2
+    args.dff = 4
+    args.n_blocks = 2
+    args.heads = 2
+    args.tags = ["testing_regular"]
+    args.n_steps = 100
+    args.use_pruner = False
+    args.batch_size = 4
+elif args.testing_recycle:
+    args.project_name = f"{os.getenv('USER')}/testing"
+    args.use_clearml = True
+    args.ff_layer = "retrain_recycle"
+    args.cutoff = 32
+    args.n_steps = 100
+    args.use_clearml = True
+    args.tags = ["testing_recycle"]
+    args.use_pruner = True
+    args.pruner_n_steps = 10
+    args.pruner_prob = 0.1
+    args.pruner_delay = 6
+    args.pruner_n_steps_retrain = 10
+    args.trainer_type = "retrain"
+    args.n_log_plots_steps = 40
+    args.n_steps_eval = 10
+    args.n_log_steps = 10
+    args.batch_size = 8
 
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):

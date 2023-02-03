@@ -48,7 +48,17 @@ class Pruner(BasePruner):
             if hasattr(layer, "apply_new_weights"):
                 layer.apply_new_weights()
 
-    def log(self, step):
+    def log_plots(self, step):
         for i, layer in enumerate(self.layers):
-            if hasattr(layer, "log"):
-                layer.log(f"FF no. {i}", step)
+            if hasattr(layer, "log_plots"):
+                layer.log_plots(f"FF no. {i}", step)
+
+    def log_scalars(self, step):
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer, "log_scalars"):
+                layer.log_scalars(f"FF no. {i}", step)
+
+    def set_saving_stats(self):
+        for layer in self.layers:
+            if hasattr(layer, "save_stats"):
+                layer.save_stats = True
