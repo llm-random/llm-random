@@ -278,6 +278,7 @@ class RetrainTrainer(Trainer):
         self.writer.add_scalar(
             "loss/eval_just_before_recycle", loss_before_recycle, step
         )
+        print(f"Eval loss before recycle:", loss_before_recycle)
 
         self.pruner.prepare_new(self.scheduler.prob)
 
@@ -306,6 +307,7 @@ class RetrainTrainer(Trainer):
                 self.writer.add_scalar(
                     "loss/eval_just_after_recycle", loss_after_recycle, step
                 )
+                print(f"Eval loss after recycle:", loss_after_recycle)
             # lr warmup
             lr_coeff = min(1.0, i / self.retrain_warmup_steps)
             retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr

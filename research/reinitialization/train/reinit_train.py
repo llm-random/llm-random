@@ -65,6 +65,7 @@ parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 
 args = parser.parse_args()
 
+# useful predefined configs for debugging locally
 if args.testing_regular:
     args.project_name = f"{os.getenv('USER')}/testing"
     args.ff_layer = "regular"
