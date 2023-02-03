@@ -161,6 +161,7 @@ class Trainer:
         self,
         step: int,
         sample: int = 10,
+        log_values: bool = True,
     ):
         self.model.eval()
 
@@ -184,7 +185,8 @@ class Trainer:
                 total_mask_loss += scaled_mask_loss.item()
             total_mask_loss /= sample
 
-            self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
+            if log_values:
+                self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
 
             return total_mask_loss
 
@@ -329,9 +331,9 @@ class RetrainTrainer(Trainer):
         # retrain
         for i in range(self.scheduler.n_steps_retrain):
             if i < 5:
-                loss_after_recycle = self._eval_step(step)
+                loss_after_recycle = self._eval_step(step, log_values=False)
                 self.writer.add_scalar(
-                    "loss/eval_just_after_recycle", loss_after_recycle, step
+                    "loss/eval_just_after_recycle", loss_after_recycle, step + i
                 )
                 print(f"Eval loss after recycle:", loss_after_recycle)
             # lr warmup
