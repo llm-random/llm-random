@@ -188,6 +188,9 @@ class Trainer:
 
             return total_mask_loss
 
+    def check_neuron_diff(self, step: int):
+        pass
+
     def train(self, n_steps: int, n_steps_eval: int):
         # params for lr warmup
         target_lr = self.optimizer.param_groups[0]["lr"]

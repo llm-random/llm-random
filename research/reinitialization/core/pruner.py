@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+import torch
+
 
 class BasePruner(ABC):
     def __init__(self):
@@ -62,3 +64,10 @@ class Pruner(BasePruner):
         for layer in self.layers:
             if hasattr(layer, "save_stats"):
                 layer.save_stats = True
+
+    def enable_neuron_diff(self, ff_layer_num: int, idx: torch.Tensor):
+        self.layers[ff_layer_num].enable_neuron_diff(idx)
+
+    def disable_neuron_diff(self):
+        for layer in self.layers:
+            layer.disable_neuron_diff()

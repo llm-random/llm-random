@@ -390,6 +390,7 @@ class RetrainRecycleFF(LogRecycleFF):
         self.recently_pruned = torch.full((dff,), False).to(device)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         self.save_stats = False
+        self.neuron_diff_mask = torch.ones(self.dff).to(device)
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -424,6 +425,24 @@ class RetrainRecycleFF(LogRecycleFF):
 
         return x
 
+    def _neuron_diff_forward(self, x: torch.Tensor):
+        # Apply FF1
+        lin_weights_1 = misc.einsum(
+            "f, f m -> f m", self.neuron_diff_mask, self.lin1.weight.data
+        )
+        x = misc.einsum("... i, o i -> ... o", x, lin_weights_1)
+
+        # relu
+        x = F.relu(x)
+
+        # Appply FF2
+        lin_weights_2 = misc.einsum(
+            "f, m f -> m f", self.neuron_diff_mask, self.lin2.weight.data
+        )
+        x = misc.einsum("... i, o i -> ... o", x, lin_weights_2)
+
+        return x
+
     def _save_activation_stats(self, x: torch.Tensor):
         if self.save_stats:
             self.current_activations = x.sum(dim=[0, 1]).detach().cpu().numpy()
@@ -439,6 +458,15 @@ class RetrainRecycleFF(LogRecycleFF):
             return self._regular_forward(x)
         elif self.mode == "new_neurons":
             return self._new_neurons_forward(x)
+        elif self.mode == "neuron_diff":
+            return self._neuron_diff_forward(x)
+
+    def enable_neuron_diff(self, idx: torch.Tensor):
+        self.mode = "neuron_diff"
+        self.neuron_diff_mask[idx] = 0
+
+    def disable_neuron_diff(self):
+        self.mode = "regular"
 
     def prepare_new_weights(self, prob: float):
         # prepare mask
