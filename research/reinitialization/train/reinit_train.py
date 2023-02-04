@@ -58,7 +58,8 @@ parser.add_argument("--n_steps_log", type=int, default=5_000)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
-parser.add_argument("--n_log_plots_steps", type=int, default=None)
+parser.add_argument("--n_log_light_steps", type=int, default=100)
+parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
 parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 
@@ -119,7 +120,6 @@ writer = SummaryWriter(log_dir=modelpath)
 if args.use_pruner and args.pruner_n_steps:
     pruner = Pruner()
     scheduler = DelayedConstScheduler(
-        pruner=pruner,
         n_steps_prune=args.pruner_n_steps,
         prob=args.pruner_prob,
         delay=args.pruner_delay,
@@ -243,7 +243,8 @@ elif args.trainer_type == "regular":
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
         log_acc_steps=args.log_acc_steps,
-        n_log_plots_steps=args.n_log_plots_steps,
+        n_log_light_steps=args.n_log_light_steps,
+        n_log_heavy_steps=args.n_log_heavy_steps,
     )
 else:
     raise ValueError(f"trainer_type {args.trainer_type} not recognized")

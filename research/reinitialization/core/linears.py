@@ -8,7 +8,7 @@ from research.reinitialization.core.pruner import Pruner
 import plotly_express as px
 from clearml import Logger
 import numpy as np
-import plotly
+from lizrd.support.logging import log_plot_to_clearml
 
 
 def mask_by_score(
@@ -110,51 +110,6 @@ def prepare_tensor_for_logging(x, sample_size=2500):
     return [t[random_indices] for t in x] if was_list else x[0][random_indices]
 
 
-def log_to_clearml(
-    figure: plotly.graph_objs._figure.Figure, title: str, series: str, iteration: int
-):
-    """Utility function for loggin to plotly. Creates plots and scalars from plotly figures."""
-    logger = Logger.current_logger()
-    if isinstance(figure.data[0], plotly.graph_objs._scatter.Scatter):
-        x = figure.data[0].x
-        y = figure.data[0].y
-        pearson_correlation = np.corrcoef(x, y)[0, 1]
-        logger.report_scalar(
-            title=title,
-            series=series + " pearson correlation",
-            value=pearson_correlation,
-            iteration=iteration,
-        )
-        logger.report_plotly(
-            title=title,
-            series=series,
-            figure=figure,
-            iteration=iteration,
-        )
-    elif isinstance(figure.data[0], plotly.graph_objs._histogram.Histogram):
-        mean = figure.data[0].x.mean()
-        std = figure.data[0].x.std()
-        logger.report_scalar(
-            title=title, series=series + " mean", value=mean, iteration=iteration
-        )
-        logger.report_scalar(
-            title=title, series=series + " std", value=std, iteration=iteration
-        )
-        logger.report_plotly(
-            title=title,
-            series=series,
-            figure=figure,
-            iteration=iteration,
-        )
-    else:
-        logger.report_plotly(
-            title=title,
-            series=series,
-            figure=figure,
-            iteration=iteration,
-        )
-
-
 @ash.check("... d -> ... d")
 class LogFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
@@ -207,13 +162,13 @@ class LogFF(nn.Module):
         )
         fig1 = px.histogram(prepare_tensor_for_logging(self.reinforcement_count1))
         fig2 = px.histogram(prepare_tensor_for_logging(self.reinforcement_count2))
-        log_to_clearml(
+        log_plot_to_clearml(
             figure=fig1,
             title=f"{layer_name} total reinforcement count",
             series="lin1",
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             figure=fig2,
             title=f"{layer_name} total reinforcement count",
             series="lin2",
@@ -247,13 +202,13 @@ class LogFF(nn.Module):
     def log_weights(self, layer_name, step):
         fig1 = px.histogram(prepare_tensor_for_logging(self.lin1.weight))
         fig2 = px.histogram(prepare_tensor_for_logging(self.lin2.weight))
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight",
             series="lin1",
             figure=fig1,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight",
             series="lin2",
             figure=fig2,
@@ -263,13 +218,13 @@ class LogFF(nn.Module):
     def log_weights_grads(self, layer_name, step):
         fig1 = px.histogram(prepare_tensor_for_logging(self.lin1.weight.grad))
         fig2 = px.histogram(prepare_tensor_for_logging(self.lin2.weight.grad))
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight grad",
             series="lin1",
             figure=fig1,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight grad",
             series="lin2",
             figure=fig2,
@@ -279,7 +234,7 @@ class LogFF(nn.Module):
     def log_neurons_magnitudes(self, layer_name, step) -> None:
         magnitudes = self.get_neurons_magnitudes()
         fig = px.histogram(prepare_tensor_for_logging(magnitudes))
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} neuron magnitude",
             series="magnitude",
             figure=fig,
@@ -303,25 +258,25 @@ class LogFF(nn.Module):
         fig2 = px.scatter(x=in2, y=mov2)
         fig3 = px.scatter(x=in1, y=w1)
         fig4 = px.scatter(x=in2, y=w2)
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight movement",
             series="lin1 (x - initial weight, y - overall movement)",
             figure=fig1,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight movement",
             series="lin2 (x - initial weight, y - overall movement)",
             figure=fig2,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight movement",
             series="lin1 (x - initial weight, y - current weight)",
             figure=fig3,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight movement",
             series="lin2 (x - initial weight, y - current weight)",
             figure=fig4,
@@ -336,13 +291,13 @@ class LogFF(nn.Module):
         )
         fig1 = px.scatter(x=g1, y=m1)
         fig2 = px.scatter(x=g2, y=m2)
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight grad movement",
             series="lin1 (x - current weight grad, y - overall movement)",
             figure=fig1,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} weight grad movement",
             series="lin2 (x - current weight grad, y - overall movement)",
             figure=fig2,
@@ -361,19 +316,19 @@ class LogFF(nn.Module):
         )
         fig2 = px.scatter(x=mags, y=movement)
         fig3 = px.scatter(x=mags, y=initial_magnitudes)
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} neuron magnitude movement",
             series="x - initial magnitudes, y - movement of magnitude",
             figure=fig1,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} neuron magnitude movement",
             series="x - current magnitudes, y - movement of magnitude",
             figure=fig2,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} neuron magnitude movement",
             series="x - current magnitudes, y - initial magnitudes",
             figure=fig3,
@@ -389,19 +344,19 @@ class LogFF(nn.Module):
         fig1 = px.scatter(x=initial_magnitudes, y=grads)
         fig2 = px.scatter(x=mags, y=grads)
         fig3 = px.histogram(grads)
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} neuron grad magnitude",
             series="x - initial magnitude, y - grad",
             figure=fig1,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} neuron grad magnitude",
             series="x - current magnitude, y - grad",
             figure=fig2,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} neuron grad magnitude",
             series="current grad magnitudes",
             figure=fig3,
@@ -423,19 +378,19 @@ class LogFF(nn.Module):
         fig2 = px.histogram(grad_good_2)
         mags, grad_good_neuron = prepare_tensor_for_logging([mags, grad_good_neuron])
         fig3 = px.scatter(x=mags, y=grad_good_neuron)
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} direction",
             series="lin1 (sign of weight == -sign of grad)",
             figure=fig1,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} direction",
             series="lin2 (sign of weight == -sign of grad)",
             figure=fig2,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} direction",
             series="neuron x - magnitude, y - (sign of weight == -sign of grad)",
             figure=fig3,
@@ -467,19 +422,19 @@ class LogFF(nn.Module):
             y=prepare_tensor_for_logging(similarity1 + similarity2),
         )
 
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} cosine similarity",
             series="lin1",
             figure=fig1,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} cosine similarity",
             series="lin2",
             figure=fig2,
             iteration=step,
         )
-        log_to_clearml(
+        log_plot_to_clearml(
             title=f"{layer_name} cosine similarity",
             series="neuron x - magnitude, y - cosine similarity (sum between lin1 and lin2)",
             figure=fig3,
@@ -489,7 +444,7 @@ class LogFF(nn.Module):
     def prune(self, *args, **kwargs):
         pass
 
-    def log(self, layer_name, step):
+    def log_heavy(self, layer_name, step):
         logger = Logger.current_logger()
 
         def flush():

@@ -22,11 +22,17 @@ class Pruner(BasePruner):
             if hasattr(layer, "after_backprop"):
                 layer.after_backprop(f"Layer {i+1}", step)
 
-    def log(self, step):
-        print("Logging step")
+    def log_light(self, step):
+        print("Light logging step")
         for i, layer in enumerate(self.layers):
-            if hasattr(layer, "log"):
-                layer.log(f"Layer {i+1}", step)
+            if hasattr(layer, "log_light"):
+                layer.log_light(f"Layer {i+1}", step)
+
+    def log_heavy(self, step):
+        print("Heavy logging step")
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer, "log_heavy"):
+                layer.log_heavy(f"Layer {i+1}", step)
 
     def prune(self, prob: float):
         print("Pruning step")
@@ -61,8 +67,3 @@ class Pruner(BasePruner):
         for layer in self.layers:
             if hasattr(layer, "apply_new_weights"):
                 layer.apply_new_weights()
-
-    def log(self, step):
-        for i, layer in enumerate(self.layers):
-            if hasattr(layer, "log"):
-                layer.log(f"FF no. {i}", step)
