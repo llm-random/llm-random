@@ -65,10 +65,10 @@ class Pruner(BasePruner):
             if hasattr(layer, "save_stats"):
                 layer.save_stats = True
 
-    def prepare_neuron_diff_idx(self):
+    def prepare_neuron_diff_idx(self, n_samples, sample_size):
         for layer in self.layers:
             if hasattr(layer, "prepare_neuron_diff_idx"):
-                layer.prepare_neuron_diff_idx()
+                layer.prepare_neuron_diff_idx(n_samples, sample_size)
 
     def enable_neuron_diff(self, ff_layer_num: int, iter: int):
         self.layers[ff_layer_num].enable_neuron_diff(iter)

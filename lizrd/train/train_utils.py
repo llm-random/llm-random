@@ -235,7 +235,9 @@ class Trainer:
         warmup_steps = int(0.01 * n_steps)
 
         if self.neuron_diff_dataset is not None:
-            self.scheduler.pruner.prepare_neuron_diff_idx()
+            self.scheduler.pruner.prepare_neuron_diff_idx(
+                self.neuron_diff_n_samples, self.neuron_diff_sample_size
+            )
 
         for step in range(n_steps):
             # lr warmup in the beginning
@@ -251,7 +253,7 @@ class Trainer:
             # log neuron difference stats if necessary:
             if (
                 self.neuron_diff_dataset is not None
-                and step % self.neuron_diff_n_steps == 0
+                and step % self.neuron_diff_steps == 0
             ):
                 self.check_neuron_diff(step)
 

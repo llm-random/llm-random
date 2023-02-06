@@ -66,6 +66,7 @@ parser.add_argument("--log_neuron_diff", action="store_true")
 parser.add_argument("--log_neuron_diff_steps", type=int, default=1000)
 parser.add_argument("--log_neuron_diff_sample_size", type=int, default=1)
 parser.add_argument("--log_neuron_diff_n_samples", type=int, default=100)
+parser.add_argument("--neuron_diff_ds_seed", type=int, default=511)
 
 args = parser.parse_args()
 
@@ -269,9 +270,9 @@ if args.trainer_type == "retrain":
         pdataset_retrain=pdataset_retrain,
         retrain_warmup_steps=args.retrain_warmup_steps,
         neuron_diff_dataset=pdataset_neuron_diff,
-        neuron_diff_steps=args.neuron_diff_steps,
-        neuron_diff_sample_size=args.neuron_diff_sample_size,
-        neuron_diff_n_samples=args.neuron_diff_n_samples,
+        neuron_diff_steps=args.log_neuron_diff_steps,
+        neuron_diff_sample_size=args.log_neuron_diff_sample_size,
+        neuron_diff_n_samples=args.log_neuron_diff_n_samples,
     )
 else:
     trainer = Trainer(
