@@ -12,6 +12,8 @@ from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
 import math
+import plotly.express as px
+from clearml import Logger
 
 
 def get_model(
@@ -161,6 +163,21 @@ class Trainer:
             self.log_loss_stats(step)
             self.reset_loss_stats()
 
+    def _compute_loss(self, batch: wikibookdata.ProcessedBatch):
+        x_set = batch.masked_tokens
+        y_token_set = batch.tokens
+        y_mask_set = batch.mask_mask
+        model_output = self.model(x_set)
+        mask_loss = F.cross_entropy(
+            model_output.reshape(-1, self.vocab_size),
+            y_token_set.reshape(-1).long(),
+            reduction="none",
+        )
+        mask_loss *= y_mask_set.reshape(-1)
+        mask_loss = mask_loss.mean() / self.mask_percent
+        scaled_mask_loss = mask_loss * self.mask_loss_weight
+        return scaled_mask_loss
+
     def _eval_step(
         self,
         step: int,
@@ -173,18 +190,8 @@ class Trainer:
             for _ in range(sample):
                 processed_batch = self.pdataset_eval.get_batch()
                 assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-                x_set = processed_batch.masked_tokens
-                y_token_set = processed_batch.tokens
-                y_mask_set = processed_batch.mask_mask
-                model_output = self.model(x_set)
-                mask_loss = F.cross_entropy(
-                    model_output.reshape(-1, self.vocab_size),
-                    y_token_set.reshape(-1).long(),
-                    reduction="none",
-                )
-                mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-                mask_loss = mask_loss.mean() / self.mask_percent
-                scaled_mask_loss = mask_loss * self.mask_loss_weight
+
+                scaled_mask_loss = self._compute_loss(processed_batch)
                 total_mask_loss += scaled_mask_loss.item()
             total_mask_loss /= sample
 
@@ -193,7 +200,34 @@ class Trainer:
             return total_mask_loss
 
     def check_neuron_diff(self, step: int):
-        pass
+        print("Beginning of check_neuron_diff...")
+        with torch.no_grad():
+            processed_batch = self.neuron_diff_dataset.get_batch()
+            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+
+            baseline = self._compute_loss(processed_batch).detach().cpu().item()
+
+            for i in range(len(self.scheduler.pruner.layers)):
+                results = []
+
+                for j in range(self.neuron_diff_n_samples):
+                    self.scheduler.pruner.enable_neuron_diff(ff_layer_num=i, iter=j)
+                    total_mask_loss = (
+                        self._compute_loss(processed_batch).detach().cpu().item()
+                    )
+                    results.append(baseline - total_mask_loss)
+
+                self.scheduler.pruner.disable_neuron_diff()
+
+                fig = px.histogram(results)
+                Logger.current_logger().report_plotly(
+                    title="Neuron quality difference",
+                    series=f"Layer {i}",
+                    iteration=step,
+                    figure=fig,
+                )
+
+        print("Neuron diff logged.")
 
     def train(self, n_steps: int, n_steps_eval: int):
         # params for lr warmup
@@ -213,6 +247,13 @@ class Trainer:
             # tell the model to save activation stats if necessary:
             if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
                 self.scheduler.pruner.set_saving_stats()
+
+            # log neuron difference stats if necessary:
+            if (
+                self.neuron_diff_dataset is not None
+                and step % self.neuron_diff_n_steps == 0
+            ):
+                self.check_neuron_diff(step)
 
             self._pruning_step(step)
             total_loss, mask_loss = self._train_step(self.optimizer, self.pdataset)
