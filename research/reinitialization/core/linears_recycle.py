@@ -433,7 +433,9 @@ class RetrainRecycleFF(LogRecycleFF):
         x = F.relu(x)
 
         # mask some neurons
-        x[self.neuron_diff_current_idx] = 0
+        mask = torch.ones(self.dff).to(x.device)
+        mask[self.neuron_diff_current_idx] = 0
+        x = misc.einsum("... i, i -> ... i", x, mask)
 
         # Appply FF2
         x = misc.einsum("... i, o i -> ... o", x, self.lin2.weight)

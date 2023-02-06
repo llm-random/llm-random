@@ -220,12 +220,14 @@ class Trainer:
                 self.scheduler.pruner.disable_neuron_diff()
 
                 fig = px.histogram(results)
+                Logger.current_logger().flush(wait=True)
                 Logger.current_logger().report_plotly(
                     title="Neuron quality difference",
                     series=f"Layer {i}",
                     iteration=step,
                     figure=fig,
                 )
+                Logger.current_logger().flush(wait=True)
 
         print("Neuron diff logged.")
 
