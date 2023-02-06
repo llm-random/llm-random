@@ -101,6 +101,7 @@ def prepare_tensor_for_logging(x, sample_size=2500):
         was_list = True
 
     num_elems = x[0].numel()
+    assert all(t.numel() == num_elems for t in x)
     x = [t.detach().view(-1).cpu().numpy() for t in x]
 
     if num_elems <= sample_size:
