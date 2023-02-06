@@ -87,6 +87,10 @@ class Trainer:
     running_total_loss: float = 0.0
     running_mask_loss: float = 0.0
     running_loss_steps: int = 0
+    neuron_diff_dataset: wikibookdata.ProcessedDatasetWrapper = None
+    neuron_diff_steps: int = 1000
+    neuron_diff_sample_size: int = 1
+    neuron_diff_n_samples: int = 100
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -195,6 +199,9 @@ class Trainer:
         # params for lr warmup
         target_lr = self.optimizer.param_groups[0]["lr"]
         warmup_steps = int(0.01 * n_steps)
+
+        if self.neuron_diff_dataset is not None:
+            self.scheduler.pruner.prepare_neuron_diff_idx()
 
         for step in range(n_steps):
             # lr warmup in the beginning

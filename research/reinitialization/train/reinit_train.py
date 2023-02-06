@@ -62,6 +62,10 @@ parser.add_argument("--num_workers", type=int, default=8)
 parser.add_argument("--n_log_plots_steps", type=int, default=None)
 parser.add_argument("--n_log_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
+parser.add_argument("--log_neuron_diff", action="store_true")
+parser.add_argument("--log_neuron_diff_steps", type=int, default=1000)
+parser.add_argument("--log_neuron_diff_sample_size", type=int, default=1)
+parser.add_argument("--log_neuron_diff_n_samples", type=int, default=100)
 
 args = parser.parse_args()
 
@@ -224,6 +228,19 @@ if args.optimizer == "adam":
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
+# dataset for neuron diff
+if args.log_neuron_diff:
+    pdataset_neuron_diff = get_processed_dataset(
+        batch_size=args.batch_size,
+        max_total_length=args.cutoff,
+        mask_percent=args.mask_percent,
+        device=DEVICE,
+        num_workers=args.num_workers,
+        seed=args.neuron_diff_ds_seed,
+    )
+else:
+    pdataset_neuron_diff = None
+
 if args.trainer_type == "retrain":
     pdataset_retrain = get_processed_dataset(
         batch_size=args.batch_size,
@@ -251,6 +268,10 @@ if args.trainer_type == "retrain":
         n_log_steps=args.n_log_steps,
         pdataset_retrain=pdataset_retrain,
         retrain_warmup_steps=args.retrain_warmup_steps,
+        neuron_diff_dataset=pdataset_neuron_diff,
+        neuron_diff_steps=args.neuron_diff_steps,
+        neuron_diff_sample_size=args.neuron_diff_sample_size,
+        neuron_diff_n_samples=args.neuron_diff_n_samples,
     )
 else:
     trainer = Trainer(
@@ -268,6 +289,10 @@ else:
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
         n_log_steps=args.n_log_steps,
+        neuron_diff_dataset=pdataset_neuron_diff,
+        neuron_diff_steps=args.neuron_diff_steps,
+        neuron_diff_sample_size=args.neuron_diff_sample_size,
+        neuron_diff_n_samples=args.neuron_diff_n_samples,
     )
 
 trainer.train(args.n_steps, args.n_steps_eval)

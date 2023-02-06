@@ -427,19 +427,16 @@ class RetrainRecycleFF(LogRecycleFF):
 
     def _neuron_diff_forward(self, x: torch.Tensor):
         # Apply FF1
-        lin_weights_1 = misc.einsum(
-            "f, f m -> f m", self.neuron_diff_mask, self.lin1.weight.data
-        )
-        x = misc.einsum("... i, o i -> ... o", x, lin_weights_1)
+        x = misc.einsum("... i, o i -> ... o", x, self.lin1.weight)
 
         # relu
         x = F.relu(x)
 
+        # mask some neurons
+        x[self.neuron_diff_current_idx] = 0
+
         # Appply FF2
-        lin_weights_2 = misc.einsum(
-            "f, m f -> m f", self.neuron_diff_mask, self.lin2.weight.data
-        )
-        x = misc.einsum("... i, o i -> ... o", x, lin_weights_2)
+        x = misc.einsum("... i, o i -> ... o", x, self.lin2.weight)
 
         return x
 
@@ -461,9 +458,14 @@ class RetrainRecycleFF(LogRecycleFF):
         elif self.mode == "neuron_diff":
             return self._neuron_diff_forward(x)
 
-    def enable_neuron_diff(self, idx: torch.Tensor):
+    def prepare_neuron_diff_idx(self, n_samples, sample_size):
+        assert n_samples * sample_size <= self.dff
+        idx = torch.randperm(self.dff)[: n_samples * sample_size]
+        self.neuron_diff_idx = idx.reshape(n_samples, sample_size)
+
+    def enable_neuron_diff(self, iteration: int):
         self.mode = "neuron_diff"
-        self.neuron_diff_mask[idx] = 0
+        self.neuron_diff_current_idx = self.neuron_diff_idx[iteration]
 
     def disable_neuron_diff(self):
         self.mode = "regular"

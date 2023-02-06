@@ -65,8 +65,13 @@ class Pruner(BasePruner):
             if hasattr(layer, "save_stats"):
                 layer.save_stats = True
 
-    def enable_neuron_diff(self, ff_layer_num: int, idx: torch.Tensor):
-        self.layers[ff_layer_num].enable_neuron_diff(idx)
+    def prepare_neuron_diff_idx(self):
+        for layer in self.layers:
+            if hasattr(layer, "prepare_neuron_diff_idx"):
+                layer.prepare_neuron_diff_idx()
+
+    def enable_neuron_diff(self, ff_layer_num: int, iter: int):
+        self.layers[ff_layer_num].enable_neuron_diff(iter)
 
     def disable_neuron_diff(self):
         for layer in self.layers:
