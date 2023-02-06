@@ -14,6 +14,7 @@ from lizrd.core.misc import are_state_dicts_the_same
 import math
 import plotly.express as px
 from clearml import Logger
+import numpy as np
 
 
 def get_model(
@@ -93,6 +94,7 @@ class Trainer:
     neuron_diff_steps: int = 1000
     neuron_diff_sample_size: int = 1
     neuron_diff_n_samples: int = 100
+    neuron_diff_n_batches: int = 10
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -202,21 +204,23 @@ class Trainer:
     def check_neuron_diff(self, step: int):
         print("Beginning of check_neuron_diff...")
         with torch.no_grad():
-            processed_batch = self.neuron_diff_dataset.get_batch()
-            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-
-            baseline = self._compute_loss(processed_batch).detach().cpu().item()
-
             for i in range(len(self.scheduler.pruner.layers)):
-                results = []
+                results = np.zeros(self.neuron_diff_n_samples)
 
-                for j in range(self.neuron_diff_n_samples):
-                    self.scheduler.pruner.enable_neuron_diff(ff_layer_num=i, iter=j)
-                    total_mask_loss = (
-                        self._compute_loss(processed_batch).detach().cpu().item()
-                    )
-                    results.append(baseline - total_mask_loss)
+                for _ in range(self.neuron_diff_n_batches):
+                    processed_batch = self.neuron_diff_dataset.get_batch()
+                    assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
 
+                    baseline = self._compute_loss(processed_batch).detach().cpu().item()
+
+                    for j in range(self.neuron_diff_n_samples):
+                        self.scheduler.pruner.enable_neuron_diff(ff_layer_num=i, iter=j)
+                        total_mask_loss = (
+                            self._compute_loss(processed_batch).detach().cpu().item()
+                        )
+                        results[j] += baseline - total_mask_loss
+
+                results /= self.neuron_diff_n_batches
                 self.scheduler.pruner.disable_neuron_diff()
 
                 fig = px.histogram(results)

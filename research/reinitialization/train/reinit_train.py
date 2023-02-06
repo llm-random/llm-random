@@ -67,11 +67,35 @@ parser.add_argument("--log_neuron_diff_steps", type=int, default=1000)
 parser.add_argument("--log_neuron_diff_sample_size", type=int, default=1)
 parser.add_argument("--log_neuron_diff_n_samples", type=int, default=100)
 parser.add_argument("--neuron_diff_ds_seed", type=int, default=511)
+parser.add_argument("--neuron_diff_batches", type=int, default=10)
+parser.add_argument("--testing_diff", action="store_true")
 
 args = parser.parse_args()
 
 # useful predefined configs for debugging locally
-if args.testing_regular:
+if args.testing_diff:
+    args.project_name = f"{os.getenv('USER')}/testing"
+    args.name="jk"
+    args.log_neuron_diff = True
+    args.log_neuron_diff_steps = 10
+    args.log_neuron_diff_sample_size = 1
+    args.log_neuron_diff_n_samples = 10
+    args.ff_layer = "retrain_recycle"
+    args.batch_size = 4
+    args.cutoff = 32
+    args.mixed_precision = True
+    args.tags = ["testing_neuron_diff"]
+    args.use_clearml = True
+    args.use_pruner = True
+    args.pruner_n_steps = 2000
+    args.pruner_prob = 0.
+    args.pruner_delay = 6000
+    args.pruner_n_steps_retrain = 0
+    args.n_log_plots_steps = 20
+    args.trainer_type = "retrain"
+    args.n_steps = 100
+    args.n_log_steps = 5
+elif args.testing_regular:
     args.project_name = f"{os.getenv('USER')}/testing"
     args.ff_layer = "regular"
     args.cutoff = 32
@@ -273,6 +297,7 @@ if args.trainer_type == "retrain":
         neuron_diff_steps=args.log_neuron_diff_steps,
         neuron_diff_sample_size=args.log_neuron_diff_sample_size,
         neuron_diff_n_samples=args.log_neuron_diff_n_samples,
+        neuron_diff_n_batches=args.neuron_diff_batches,
     )
 else:
     trainer = Trainer(
