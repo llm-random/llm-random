@@ -193,7 +193,7 @@ def are_state_dicts_the_same(
             k[len("module") + 1 :]: v for k, v in model_state_dict_2.items()
         }
 
-    for ((k_1, v_1), (k_2, v_2)) in zip(
+    for (k_1, v_1), (k_2, v_2) in zip(
         model_state_dict_1.items(), model_state_dict_2.items()
     ):
         if k_1 != k_2:
