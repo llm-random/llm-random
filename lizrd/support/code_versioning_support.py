@@ -5,13 +5,14 @@ import os
 
 
 def version_code(
-        branch_name, newdir_name, remote_url="https://github.com/Simontwice/sparsity.git"
+        branch_name, newdir_name, remote_url="git@github.com:Simontwice/sparsity.git"
 ):
     """Copies the current code to a new directory, and pushes the code to a remote repo.
     NOTE: it is assumed that this function is called from inside the project.
     Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
     If not met, the user needs to set up ssh keys."""
 
+    original_dir = os.getcwd()
     # Find git root directory
     root_dir = find_git_root()
     newdir_path = os.path.dirname(root_dir) + "/" + newdir_name
@@ -36,6 +37,7 @@ def version_code(
     # Push the code to the remote repo
     push_code_to_url(branch_name, remote_url)
 
+    os.chdir(original_dir)
 
 def push_code_to_url(
     branch_name,
@@ -60,30 +62,32 @@ def push_code_to_url(
             break
     if remote_present:
         # Create a new branch
-        subprocess.run(
+        o1 = subprocess.run(
             ["git", "checkout", "-b", branch_name], capture_output=True, text=True
         )
         # Push the current code to the repo
-        subprocess.run(
+        o2 = subprocess.run(
             ["git", "push", remote_name, branch_name], capture_output=True, text=True
         )
+        o3 = ""
     else:
         # Add the repo as a remote
-        subprocess.run(
+        o1 = subprocess.run(
             ["git", "remote", "add", "code_image_cemetery", remote_url],
             capture_output=True,
             text=True,
         )
         # Create a new branch
-        subprocess.run(
+        o2 = subprocess.run(
             ["git", "checkout", "-b", branch_name], capture_output=True, text=True
         )
         # Push the current code to the repo
-        subprocess.run(
+        o3 = subprocess.run(
             ["git", "push", "code_image_cemetery", branch_name],
             capture_output=True,
             text=True,
         )
+        o4 = ""
 
 
 def find_git_root():

@@ -15,6 +15,7 @@ import json
 from time import sleep
 
 from lizrd.scripts.experiment_code_versioning import experiment_code_versioning
+from lizrd.support.code_versioning_support import version_code
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -137,7 +138,7 @@ PARAMS = {
     "pruner_n_steps": 100,
 }
 
-TIME = "1-00:00:00"
+TIME = "00:00:00"
 GRES = "gpu:titanv:1"
 
 if __name__ == "__main__":
@@ -154,7 +155,8 @@ if __name__ == "__main__":
 
     name = next(iter(grid))["name"]
     name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-    experiment_code_versioning(name_for_branch)
+    print(f"Creating branch {name_for_branch}")
+    version_code(name_for_branch, name_for_branch)
 
     user_input = input(
         f"Will run {no_experiments} experiments, using up {no_experiments * minutes_per_exp} minutes."
