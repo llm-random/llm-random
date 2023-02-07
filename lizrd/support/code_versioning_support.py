@@ -15,7 +15,7 @@ def version_code(
     original_dir = os.getcwd()
     # Find git root directory
     root_dir = find_git_root()
-    newdir_path = os.path.dirname(root_dir) + "/" + newdir_name
+    newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetary/{newdir_name}"
 
     # Set up ignore patterns
     with open(os.path.join(root_dir, ".versioningignore")) as f:
