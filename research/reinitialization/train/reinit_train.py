@@ -84,7 +84,7 @@ elif args.testing_recycle:
     args.use_clearml = True
     args.ff_layer = "retrain_recycle"
     args.cutoff = 32
-    args.n_steps = 100
+    args.n_steps = 50
     args.use_clearml = True
     args.tags = ["testing_recycle"]
     args.use_pruner = True
@@ -93,9 +93,9 @@ elif args.testing_recycle:
     args.pruner_delay = 6
     args.pruner_n_steps_retrain = 10
     args.trainer_type = "retrain"
-    args.n_log_plots_steps = 40
+    args.n_log_plots_steps = 400
     args.n_steps_eval = 10
-    args.n_log_steps = 10
+    args.n_log_steps = 100
     args.batch_size = 2
 
 # basic validation of args

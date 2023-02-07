@@ -197,7 +197,7 @@ class Trainer:
 
         for step in range(n_steps):
             # lr warmup in the beginning
-            if step <= warmup_steps:
+            if step <= warmup_steps and warmup_steps > 0:
                 lr = target_lr * step / warmup_steps
                 for param_group in self.optimizer.param_groups:
                     param_group["lr"] = lr
@@ -220,7 +220,7 @@ class Trainer:
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
-                torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
+                # torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             if (
                 self.n_log_plots_steps
                 and step > 0
