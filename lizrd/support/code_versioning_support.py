@@ -39,6 +39,7 @@ def version_code(
 
     os.chdir(original_dir)
 
+
 def push_code_to_url(
     branch_name,
     remote_url,

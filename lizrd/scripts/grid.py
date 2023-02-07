@@ -128,7 +128,7 @@ TRAINER = "research.reinitialization.train.reinit_train"
 # * - apply function
 PARAMS = {
     "project_name": f"{os.getenv('USER')}/mp",
-    "name": "mp",
+    "name": "sa",
     "ff_layer": "regular",
     "batch_size": 128,
     "cutoff": 128,
