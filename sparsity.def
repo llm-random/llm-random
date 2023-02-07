@@ -1,0 +1,39 @@
+Bootstrap: docker
+From: nvidia/cuda:11.7.0-runtime-ubuntu22.04
+
+%files
+
+    requirements.txt
+
+%post
+
+    cat requirements.txt
+
+    # run dpkg (behind other tools like apt-get) without interactive dialogue
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    apt-get -y update
+
+    apt-get -y install git virtualenv python3-pip
+    # ffmpeg 
+    # virtualenv libopenmpi-dev openmpi-bin openmpi-common python3-pip libcairo2 libcairo2-dev g++ wget curl
+
+    # upgrade system pip, see: https://stackoverflow.com/a/49836753/7983111
+
+    python3 -m pip install -U pip
+
+    # install mrunner
+
+    # python3 -m pip install git+https://gitlab.com/awarelab/mrunner.git
+
+    # general
+    # python3 -m pip install cloudpickle gin-config gym neptune-client numpy pylint pylint_quotes pytest gym_pycolab tblib joblib
+
+    # install essentials
+
+    # python3 -m pip install attrs ipdb tqdm mpi4py psutil
+
+    python3 -m pip install -r requirements.txt
+
+    python3 -m pip install --upgrade --force-reinstall datasets==2.9.0

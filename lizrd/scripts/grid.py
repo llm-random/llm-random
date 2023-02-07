@@ -13,8 +13,27 @@ import os
 import sys
 import json
 from time import sleep
+import platform
+from enum import Enum
+import os
 
 from lizrd.scripts.experiment_code_versioning import experiment_code_versioning
+
+
+class Runner(Enum):
+    ENTROPY = 1
+    ATHENA = 2
+    LOCAL = 3
+
+
+def get_runner() -> Runner:
+    node = platform.uname().node
+    if node == "asusgpu0":
+        return Runner.ENTROPY
+    elif "athena" in node:
+        return Runner.ATHENA
+    else:
+        return Runner.LOCAL
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -140,8 +159,16 @@ PARAMS = {
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
 DRY_RUN = False
+# SINGULARITY_IMAGE = "/net/pr2/projects/plgrid/plggllmeffi/images/2.02.2023_sparsity.sif"
+SINGULARITY_IMAGE = (
+    # "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.07_17:52:04.sif"
+    "/net/people/plgrid/plgmaciejpioro/sparsity_2023.02.07_17_52_04.sif"
+)
+CODE_PATH = os.getcwd()
 
 if __name__ == "__main__":
+    runner = get_runner()
+
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
         TRAINER = grid_args.get("trainer", TRAINER)
@@ -149,21 +176,28 @@ if __name__ == "__main__":
         TIME = grid_args.get("time", TIME)
         GRES = grid_args.get("gres", GRES)
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
+        SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
 
     grid = create_grid(PARAMS)
     no_experiments = len(grid)
     minutes_per_exp = timestr_to_minutes(TIME)
 
-    name = next(iter(grid))["name"]
-    name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-    experiment_code_versioning(name_for_branch)
+    if len(grid) > 1 and runner == Runner.LOCAL and not DRY_RUN:
+        print(
+            f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
+        )
+        exit(1)
+
+    # name = next(iter(grid))["name"]
+    # name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+    # experiment_code_versioning(name_for_branch)
 
     user_input = input(
         f"Will run {no_experiments} experiments, using up {no_experiments * minutes_per_exp} minutes."
         f"\nSbatch settings: \n{TRAINER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
     )
     if user_input.lower() not in ("", "y", "Y"):
-        print("Aborting")
+        print("Aborting...")
         exit(1)
 
     for i, param_set in enumerate(grid):
@@ -181,20 +215,48 @@ if __name__ == "__main__":
             else:
                 trainer_params.append(f"--{k}")
                 trainer_params.append(v)
-
-        subprocess_args = [
-            "sbatch",
-            "--partition=common",
-            "--qos=16gpu7d",
-            f"--gres={GRES}",
-            f"--job-name={name}",
-            f"--time={TIME}",
-            "lizrd/scripts/grid_entrypoint.sh",
-            "python3",
-            "-m",
-            TRAINER,
-            *trainer_params,
-        ]
+        if runner == Runner.ENTROPY:
+            subprocess_args = [
+                "sbatch",
+                "--partition=common",
+                "--qos=16gpu7d",
+                f"--gres={GRES}",
+                f"--job-name={name}",
+                f"--time={TIME}",
+                "lizrd/scripts/grid_entrypoint.sh",
+                "python3",
+                "-m",
+                TRAINER,
+                *trainer_params,
+            ]
+        elif runner == Runner.ATHENA:
+            subprocess_args = [
+                "sbatch",
+                "--partition=plgrid-gpu-a100",
+                "-G1",
+                f"--job-name={name}",
+                f"--time={TIME}",
+                "lizrd/scripts/grid_entrypoint.sh",
+                "singularity",
+                "exec",
+                "--bind=/net:/net",
+                "--env HF_DATASETS_CACHE=/net/pr2/projects/plgrid/plggllmeffi/.cache",
+                f"-B={CODE_PATH}:/sparsity",
+                "--nv",
+                SINGULARITY_IMAGE,
+                "python3",
+                "-m",
+                TRAINER,
+                *trainer_params,
+            ]
+        elif runner == Runner.LOCAL:
+            subprocess_args = [
+                "lizrd/scripts/grid_entrypoint.sh",
+                "python3",
+                "-m",
+                TRAINER,
+                *trainer_params,
+            ]
 
         if not DRY_RUN:
             subprocess.run(
