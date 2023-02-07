@@ -203,7 +203,11 @@ class Trainer:
                     param_group["lr"] = lr
 
             # tell the model to save activation stats if necessary:
-            if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
+            if (
+                self.n_log_plots_steps
+                and step > 0
+                and step % self.n_log_plots_steps == 0
+            ):
                 self.scheduler.pruner.set_saving_stats()
 
             self._pruning_step(step)
@@ -217,7 +221,11 @@ class Trainer:
                 eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
-            if self.n_log_plots_steps and step % self.n_log_plots_steps == 0:
+            if (
+                self.n_log_plots_steps
+                and step > 0
+                and step % self.n_log_plots_steps == 0
+            ):
                 self.scheduler.pruner.log_plots(step)
             print(f"Step {step}")
 

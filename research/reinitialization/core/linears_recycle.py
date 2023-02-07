@@ -374,7 +374,9 @@ def prepare_subset_for_logging(xs, p=None, size=None):
 
 
 class RetrainRecycleFF(LogRecycleFF):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(
+        self, dmodel: int, dff: int, pruner: Pruner, reinit_weights: bool = True
+    ):
         super().__init__()
         self.lin1 = Linear(dmodel, dff, bias=False)
         self.lin2 = Linear(dff, dmodel, bias=False)
@@ -389,6 +391,7 @@ class RetrainRecycleFF(LogRecycleFF):
         self.recently_pruned = torch.full((dff,), False).to(device)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         self.save_stats = False
+        self.reinit_weights = reinit_weights
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -455,15 +458,21 @@ class RetrainRecycleFF(LogRecycleFF):
 
         # prepare new weights for lin1
         with torch.no_grad():
-            self.new_weights_1.normal_(
-                mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
-            )
+            if self.reinit_weights:
+                self.new_weights_1.normal_(
+                    mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
+                )
+            else:
+                self.new_weights_1 = self.lin1.weight
 
         # prepare new weights for lin2
         with torch.no_grad():
-            self.new_weights_2.normal_(
-                mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
-            )
+            if self.reinit_weights:
+                self.new_weights_2.normal_(
+                    mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
+                )
+            else:
+                self.new_weights_2 = self.lin2.weight
 
         # save statistics
         self.recycle_counter += 1 - self.mask

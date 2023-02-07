@@ -62,6 +62,7 @@ parser.add_argument("--num_workers", type=int, default=8)
 parser.add_argument("--n_log_plots_steps", type=int, default=None)
 parser.add_argument("--n_log_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
+parser.add_agrument("--no_weight_reinitialization", action="store_true")
 
 args = parser.parse_args()
 
@@ -179,7 +180,7 @@ elif args.ff_layer == "unstruct_magnitude_recycle":
     )
 elif args.ff_layer == "struct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleFF(
-        args.dm, args.dff, pruner
+        args.dm, args.dff, pruner, not args.no_weight_reinitialization
     )
 elif args.ff_layer == "retrain_recycle":
     ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(args.dm, args.dff, pruner)
