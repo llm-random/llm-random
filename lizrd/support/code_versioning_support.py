@@ -5,7 +5,7 @@ import os
 
 
 def version_code(
-        branch_name, newdir_name, remote_url="git@github.com:Simontwice/sparsity.git"
+    branch_name, newdir_name, remote_url="git@github.com:Simontwice/sparsity.git"
 ):
     """Copies the current code to a new directory, and pushes the code to a remote repo.
     NOTE: it is assumed that this function is called from inside the project.
