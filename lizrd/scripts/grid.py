@@ -5,6 +5,7 @@ Remember to set TRAINER and PARAMS in the script or add an argument parser.
 """
 
 import copy
+import datetime
 from itertools import product
 import subprocess
 from typing import List, Tuple
@@ -12,6 +13,8 @@ import os
 import sys
 import json
 from time import sleep
+
+from lizrd.scripts.experiment_code_versioning import experiment_code_versioning
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -150,6 +153,10 @@ if __name__ == "__main__":
     grid = create_grid(PARAMS)
     no_experiments = len(grid)
     minutes_per_exp = timestr_to_minutes(TIME)
+
+    name = next(iter(grid))["name"]
+    name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+    experiment_code_versioning(name_for_branch)
 
     user_input = input(
         f"Will run {no_experiments} experiments, using up {no_experiments * minutes_per_exp} minutes."

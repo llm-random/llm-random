@@ -67,3 +67,8 @@ class Pruner(BasePruner):
         for layer in self.layers:
             if hasattr(layer, "apply_new_weights"):
                 layer.apply_new_weights()
+
+    def set_saving_stats(self):
+        for layer in self.layers:
+            if hasattr(layer, "save_stats"):
+                layer.save_stats = True
