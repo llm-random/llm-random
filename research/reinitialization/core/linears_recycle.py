@@ -89,9 +89,7 @@ class LogRecycleFF(LogFF):
         Logger.current_logger().flush(wait=True)
 
     def log_scalars(self, layer_name: str, step: int):
-        Logger.current_logger().flush(wait=True)
         self.log_recently_pruned_magnitude(layer_name, step)
-        Logger.current_logger().flush(wait=True)
 
 
 class RandomUnstructRecycleFF(nn.Module):
