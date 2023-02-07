@@ -220,7 +220,7 @@ class Trainer:
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
-                # torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
+                torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             if (
                 self.n_log_plots_steps
                 and step > 0
