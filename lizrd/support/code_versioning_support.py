@@ -4,11 +4,17 @@ import shutil
 import os
 
 
-def code_version_for_slurm(
-    newdir_path, branch_name, remote_url="https://github.com/Simontwice/sparsity.git"
+def version_code(
+        branch_name, newdir_name, remote_url="https://github.com/Simontwice/sparsity.git"
 ):
+    """Copies the current code to a new directory, and pushes the code to a remote repo.
+    NOTE: it is assumed that this function is called from inside the project.
+    Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
+    If not met, the user needs to set up ssh keys."""
+
     # Find git root directory
     root_dir = find_git_root()
+    newdir_path = os.path.dirname(root_dir) + "/" + newdir_name
 
     # Set up ignore patterns
     with open(os.path.join(root_dir, ".versioningignore")) as f:
