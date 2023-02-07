@@ -427,7 +427,7 @@ class RetrainRecycleFF(LogRecycleFF):
 
     def _neuron_diff_forward(self, x: torch.Tensor):
         # Apply FF1
-        x = misc.einsum("... i, o i -> ... o", x, self.lin1.weight)
+        x = self.lin1(x)
 
         # relu
         x = F.relu(x)
@@ -438,7 +438,7 @@ class RetrainRecycleFF(LogRecycleFF):
         x = misc.einsum("... i, i -> ... i", x, mask)
 
         # Appply FF2
-        x = misc.einsum("... i, o i -> ... o", x, self.lin2.weight)
+        x = self.lin2(x)
 
         return x
 

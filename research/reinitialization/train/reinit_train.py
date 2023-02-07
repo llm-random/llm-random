@@ -75,7 +75,7 @@ args = parser.parse_args()
 # useful predefined configs for debugging locally
 if args.testing_diff:
     args.project_name = f"{os.getenv('USER')}/testing"
-    args.name="jk"
+    args.name = "jk"
     args.log_neuron_diff = True
     args.log_neuron_diff_steps = 10
     args.log_neuron_diff_sample_size = 1
@@ -88,7 +88,7 @@ if args.testing_diff:
     args.use_clearml = True
     args.use_pruner = True
     args.pruner_n_steps = 2000
-    args.pruner_prob = 0.
+    args.pruner_prob = 0.0
     args.pruner_delay = 6000
     args.pruner_n_steps_retrain = 0
     args.n_log_plots_steps = 20
