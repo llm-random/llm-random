@@ -1,4 +1,3 @@
-#%%
 import math
 
 import torch
@@ -510,6 +509,3 @@ class RetrainRecycleFF(LogRecycleFF):
 
     def post_retrain(self):
         self.mode = "regular"
-
-
-# %%

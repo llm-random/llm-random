@@ -231,12 +231,19 @@ class Trainer:
 
 
 class SetLRTemporarily:
+    """
+    Context manager to temporarily set the learning rate of an optimizer (like in lr warmup).
+    Use as follows:
+    with SetLRTemporarily(optimizer, lr):
+        # do something
+    """
+
     def __init__(self, optimizer, lr):
         self.optimizer = optimizer
         self.lr = lr
+        self.original_lrs = []
 
     def __enter__(self):
-        self.original_lrs = []
         for param_group in self.optimizer.param_groups:
             self.original_lrs.append(param_group["lr"])
             param_group["lr"] = self.lr
