@@ -395,6 +395,7 @@ class RetrainRecycleFF(LogRecycleFF):
         self.current_activations = self.activate_ratio = np.zeros(dff)
         self.save_stats = False
         self.reinit_weights = reinit_weights
+        self.random_indexes = random_indexes
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
