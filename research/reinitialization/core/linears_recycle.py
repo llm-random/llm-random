@@ -1,3 +1,4 @@
+#%%
 import math
 
 import torch
@@ -373,7 +374,12 @@ def prepare_subset_for_logging(xs, p=None, size=None):
 
 class RetrainRecycleFF(LogRecycleFF):
     def __init__(
-        self, dmodel: int, dff: int, pruner: Pruner, reinit_weights: bool = True
+        self,
+        dmodel: int,
+        dff: int,
+        pruner: Pruner,
+        reinit_weights: bool = True,
+        random_indexes: bool = False,
     ):
         super().__init__()
         self.lin1 = Linear(dmodel, dff, bias=False)
@@ -385,7 +391,6 @@ class RetrainRecycleFF(LogRecycleFF):
         self.mode = "regular"
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.recycle_counter = torch.zeros(self.dff).to(device)
-        self.neuron_magnitudes = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         self.save_stats = False
@@ -434,6 +439,13 @@ class RetrainRecycleFF(LogRecycleFF):
             # dodać to z samplowaniem
             self.save_stats = False
 
+    @property
+    def neuron_magnitudes(self):
+        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        weights = weights1 * weights2
+        return weights.flatten()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.mode == "regular":
             return self._regular_forward(x)
@@ -448,11 +460,16 @@ class RetrainRecycleFF(LogRecycleFF):
         weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
         weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
         weights = weights1 * weights2
+
         n_els_weights = torch.numel(weights)
         assert n_els_weights == self.dff
+
         n_to_prune = round(prob * n_els_weights)
-        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
-        self.mask[topk.indices] = 0
+        if self.random_indexes:
+            self.mask[torch.randperm(self.dff)[: round(prob * self.dff)]] = 0
+        else:
+            topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
+            self.mask[topk.indices] = 0
 
         # prepare new weights for lin1
         with torch.no_grad():
@@ -473,8 +490,7 @@ class RetrainRecycleFF(LogRecycleFF):
                 self.new_weights_2 = self.lin2.weight
 
         # save statistics
-        self.recycle_counter += 1 - self.mask
-        self.neuron_magnitudes = weights.flatten()  # weights
+        self.recycle_counter += 1 - self.mask  # weights
         self.recently_pruned = (1 - self.mask).bool()
 
     def apply_new_weights(self):
@@ -493,3 +509,6 @@ class RetrainRecycleFF(LogRecycleFF):
 
     def post_retrain(self):
         self.mode = "regular"
+
+
+# %%
