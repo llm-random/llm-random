@@ -1,8 +1,8 @@
 # torch==1.10.1  # previously: 1.10.2+cu113 ; but it doesn't work on entropy (and 1.10.2 has problems with torchvision)
 # torchvision==0.11.2
 
-torch==1.11.0  # entropy version
-torchvision==0.12.0  # entropy version
+torch==1.13.0
+torchvision
 protobuf==3.20.*
 numpy==1.22.1
 matplotlib==3.5.1
@@ -10,8 +10,8 @@ opt_einsum
 line_profiler
 einops==0.4.0
 tensorflow==2.8.0
-clearml==1.3.2 # test comment
-datasets
+clearml==1.3.2
+datasets==2.9.0
 transformers
 clearml-agent
 apache-beam
