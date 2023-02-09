@@ -12,7 +12,6 @@ def version_code(
     Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
     If not met, the user needs to set up ssh keys."""
 
-    original_dir = os.getcwd()
     # Find git root directory
     root_dir = find_git_root()
     newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetary/{newdir_name}"
@@ -36,8 +35,6 @@ def version_code(
 
     # Push the code to the remote repo
     push_code_to_url(branch_name, remote_url)
-
-    os.chdir(original_dir)
 
 
 def push_code_to_url(
