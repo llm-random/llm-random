@@ -1,0 +1,14 @@
+Bootstrap: localimage
+From: sparsity-base.sif
+
+%files
+
+    requirements.txt
+
+%post
+
+    cat requirements.txt
+
+    python3 -m pip install -r requirements.txt
+
+    python3 -m pip install --upgrade --force-reinstall datasets==2.9.0

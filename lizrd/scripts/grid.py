@@ -140,6 +140,15 @@ def param_to_str(param) -> str:
         return str(param)
 
 
+def get_grid_entrypoint(runner: Runner) -> str:
+    if runner in [Runner.ENTROPY, Runner.LOCAL]:
+        return "lizrd/scripts/grid_entrypoint.sh"
+    elif runner == Runner.ATHENA:
+        return "lizrd/scripts/grid_entrypoint_athena.sh"
+    else:
+        raise ValueError(f"Unknown runner: {runner}")
+
+
 TRAINER = "research.reinitialization.train.reinit_train"
 
 # ^ - grid over that
@@ -159,10 +168,8 @@ PARAMS = {
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
 DRY_RUN = False
-# SINGULARITY_IMAGE = "/net/pr2/projects/plgrid/plggllmeffi/images/2.02.2023_sparsity.sif"
 SINGULARITY_IMAGE = (
-    # "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.07_17:52:04.sif"
-    "/net/people/plgrid/plgmaciejpioro/sparsity_2023.02.07_17_52_04.sif"
+    "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.08_16.26.52.sif"
 )
 CODE_PATH = os.getcwd()
 
@@ -188,9 +195,9 @@ if __name__ == "__main__":
         )
         exit(1)
 
-    # name = next(iter(grid))["name"]
-    # name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-    # experiment_code_versioning(name_for_branch)
+    name = next(iter(grid))["name"]
+    name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+    experiment_code_versioning(name_for_branch)
 
     user_input = input(
         f"Will run {no_experiments} experiments, using up {no_experiments * minutes_per_exp} minutes."
@@ -223,7 +230,7 @@ if __name__ == "__main__":
                 f"--gres={GRES}",
                 f"--job-name={name}",
                 f"--time={TIME}",
-                "lizrd/scripts/grid_entrypoint.sh",
+                get_grid_entrypoint(runner),
                 "python3",
                 "-m",
                 TRAINER,
@@ -236,7 +243,7 @@ if __name__ == "__main__":
                 "-G1",
                 f"--job-name={name}",
                 f"--time={TIME}",
-                "lizrd/scripts/grid_entrypoint.sh",
+                get_grid_entrypoint(runner),
                 "singularity",
                 "exec",
                 "--bind=/net:/net",
@@ -251,12 +258,14 @@ if __name__ == "__main__":
             ]
         elif runner == Runner.LOCAL:
             subprocess_args = [
-                "lizrd/scripts/grid_entrypoint.sh",
+                get_grid_entrypoint(runner),
                 "python3",
                 "-m",
                 TRAINER,
                 *trainer_params,
             ]
+        else:
+            raise ValueError(f"Unknown runner: {runner}")
 
         if not DRY_RUN:
             subprocess.run(
