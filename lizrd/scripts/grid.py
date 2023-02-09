@@ -14,7 +14,6 @@ import sys
 import json
 from time import sleep
 
-from lizrd.scripts.experiment_code_versioning import experiment_code_versioning
 from lizrd.support.code_versioning_support import version_code
 
 
@@ -128,7 +127,7 @@ TRAINER = "research.reinitialization.train.reinit_train"
 # * - apply function
 PARAMS = {
     "project_name": f"{os.getenv('USER')}/mp",
-    "name": "sa",
+    "name": "mp",
     "ff_layer": "regular",
     "batch_size": 128,
     "cutoff": 128,
@@ -138,7 +137,7 @@ PARAMS = {
     "pruner_n_steps": 100,
 }
 
-TIME = "00:00:00"
+TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
 
 if __name__ == "__main__":

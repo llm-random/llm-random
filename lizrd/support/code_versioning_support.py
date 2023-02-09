@@ -12,10 +12,9 @@ def version_code(
     Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
     If not met, the user needs to set up ssh keys."""
 
-    original_dir = os.getcwd()
     # Find git root directory
     root_dir = find_git_root()
-    newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetary/{newdir_name}"
+    newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
 
     # Set up ignore patterns
     with open(os.path.join(root_dir, ".versioningignore")) as f:
@@ -37,14 +36,13 @@ def version_code(
     # Push the code to the remote repo
     push_code_to_url(branch_name, remote_url)
 
-    os.chdir(original_dir)
-
 
 def push_code_to_url(
     branch_name,
     remote_url,
 ):
     remote_url = remote_url.strip()
+
     # Check if remote_url is already among remote repos
     check_remote = subprocess.run(
         ["git", "remote", "-v"], capture_output=True, text=True
@@ -52,6 +50,7 @@ def push_code_to_url(
     check_remote_output = check_remote.stdout
     remote_present = False
     lines = check_remote_output.split("\n")
+    remote_name = "code_image_cemetery"
     for line in lines:
         line = line.strip()
         if line == "":
@@ -61,34 +60,22 @@ def push_code_to_url(
             remote_name = nickname
             remote_present = True
             break
-    if remote_present:
-        # Create a new branch
-        o1 = subprocess.run(
-            ["git", "checkout", "-b", branch_name], capture_output=True, text=True
-        )
-        # Push the current code to the repo
-        o2 = subprocess.run(
-            ["git", "push", remote_name, branch_name], capture_output=True, text=True
-        )
-        o3 = ""
-    else:
+
+    if not remote_present:
         # Add the repo as a remote
-        o1 = subprocess.run(
+        subprocess.run(
             ["git", "remote", "add", "code_image_cemetery", remote_url],
             capture_output=True,
             text=True,
         )
-        # Create a new branch
-        o2 = subprocess.run(
-            ["git", "checkout", "-b", branch_name], capture_output=True, text=True
-        )
-        # Push the current code to the repo
-        o3 = subprocess.run(
-            ["git", "push", "code_image_cemetery", branch_name],
-            capture_output=True,
-            text=True,
-        )
-        o4 = ""
+    # Create a new branch
+    subprocess.run(
+        ["git", "checkout", "-b", branch_name], capture_output=True, text=True
+    )
+    # Push the current code to the remote repo
+    subprocess.run(
+        ["git", "push", remote_name, branch_name], capture_output=True, text=True
+    )
 
 
 def find_git_root():
