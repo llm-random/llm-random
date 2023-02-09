@@ -10,89 +10,10 @@ import plotly.express as px
 
 from lizrd.core.misc import Linear
 from lizrd.support import ash
+from lizrd.support.logging import log_plot_to_clearml
 from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
 from research.reinitialization.core.linears import LogFF
-
-
-class LogRecycleFF(LogFF):
-    def log_recycle_magnitude(self, layer_name, step: int):
-        tensor = self.recycle_counter.flatten().cpu()
-        values = tensor.tolist()
-        fig = px.histogram(values)
-        Logger.current_logger().report_plotly(
-            title="No. of times neurons have been recycled",
-            series=layer_name,
-            iteration=step,
-            figure=fig,
-        )
-
-    def log_magnitude(self, layer_name, step: int):
-        tensor = self.neuron_magnitudes.flatten().cpu()
-        values = tensor.tolist()
-        fig = px.histogram(values)
-        Logger.current_logger().report_plotly(
-            title="Magnitude of all neurons",
-            series=layer_name,
-            iteration=step,
-            figure=fig,
-        )
-
-    def log_recently_pruned_magnitude(self, layer_name, step: int):
-        Logger.current_logger().report_scalar(
-            "mean_magn_of_recycled_layer",
-            layer_name,
-            iteration=step,
-            value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
-        )
-
-    def log_activations(self, layer_name: str, step: int):
-        values = self.current_activations
-        fig = px.histogram(values)
-        Logger.current_logger().report_plotly(
-            title="Average activations of all neurons",
-            series=layer_name,
-            iteration=step,
-            figure=fig,
-        )
-
-    def log_activation_ratios(self, layer_name: str, step: int):
-        values = self.activate_ratio
-        fig = px.histogram(values)
-        Logger.current_logger().report_plotly(
-            title="Average ratio of activation per neuron",
-            series=layer_name,
-            iteration=step,
-            figure=fig,
-        )
-
-    def log_activations_sampled(self, layer_name: str, step: int):
-        values = self.some_activations
-        fig = px.histogram(values)
-        Logger.current_logger().report_plotly(
-            title="Activations of sampled neurons",
-            series=layer_name,
-            iteration=step,
-            figure=fig,
-        )
-
-    def log_plots(self, layer_name: str, step: int):
-        Logger.current_logger().flush(wait=True)
-        self.log_activations(layer_name, step)
-        Logger.current_logger().flush(wait=True)
-        self.log_activation_ratios(layer_name, step)
-        Logger.current_logger().flush(wait=True)
-        self.log_activations_sampled(layer_name, step)
-        Logger.current_logger().flush(wait=True)
-        self.log_magnitude(layer_name, step)
-        Logger.current_logger().flush(wait=True)
-        self.log_recycle_magnitude(layer_name, step)
-        Logger.current_logger().flush(wait=True)
-
-    def log_scalars(self, layer_name: str, step: int):
-        Logger.current_logger().flush(wait=True)
-        self.log_recently_pruned_magnitude(layer_name, step)
-        Logger.current_logger().flush(wait=True)
 
 
 class RandomUnstructRecycleFF(nn.Module):
@@ -374,7 +295,7 @@ def prepare_subset_for_logging(xs, p=None, size=None):
     return [x[random_indices] for x in xs]
 
 
-class RetrainRecycleFF(LogRecycleFF):
+class RetrainRecycleFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
         self.lin1 = Linear(dmodel, dff, bias=False)
@@ -487,3 +408,43 @@ class RetrainRecycleFF(LogRecycleFF):
 
     def post_retrain(self):
         self.mode = "regular"
+
+    def log_recycle_magnitude(self, layer_name, step: int):
+        tensor = self.recycle_counter.flatten().cpu()
+        values = tensor.tolist()
+        fig = px.histogram(values)
+        log_plot_to_clearml(
+            title="No. of times neurons have been recycled",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_magnitude(self, layer_name, step: int):
+        tensor = self.neuron_magnitudes.flatten().cpu()
+        values = tensor.tolist()
+        fig = px.histogram(values)
+        log_plot_to_clearml(
+            title="Magnitude of all neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_recently_pruned_magnitude(self, layer_name, step: int):
+        Logger.current_logger().report_scalar(
+            "mean_magn_of_recycled_layer",
+            layer_name,
+            iteration=step,
+            value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
+        )
+
+    def log_heavy(self, layer_name: str, step: int):
+        Logger.current_logger().flush(wait=True)
+        self.log_recycle_magnitude(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_magnitude(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+
+    def log_light(self, layer_name: str, step: int):
+        self.log_recently_pruned_magnitude(layer_name, step)

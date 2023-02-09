@@ -17,3 +17,4 @@ clearml-agent
 apache-beam
 black
 autoflake
+plotly-express
