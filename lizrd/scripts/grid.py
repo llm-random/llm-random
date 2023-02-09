@@ -139,14 +139,16 @@ PARAMS = {
 
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
+DRY_RUN = False
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
-        TRAINER = grid_args["trainer"]
-        PARAMS = grid_args["params"]
-        TIME = grid_args["time"]
-        GRES = grid_args["gres"]
+        TRAINER = grid_args.get("trainer", TRAINER)
+        PARAMS = grid_args.get("params", PARAMS)
+        TIME = grid_args.get("time", TIME)
+        GRES = grid_args.get("gres", GRES)
+        DRY_RUN = grid_args.get("dry_run", DRY_RUN)
 
     grid = create_grid(PARAMS)
     no_experiments = len(grid)
@@ -193,8 +195,11 @@ if __name__ == "__main__":
             TRAINER,
             *trainer_params,
         ]
-        # print(" ".join((str(s) for s in subprocess_args)))
-        subprocess.run(
-            [str(s) for s in subprocess_args],
-        )
-        sleep(1)
+
+        if not DRY_RUN:
+            subprocess.run(
+                [str(s) for s in subprocess_args],
+            )
+            sleep(1)
+        else:
+            print(" ".join([str(s) for s in subprocess_args]))
