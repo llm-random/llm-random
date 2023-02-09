@@ -169,7 +169,7 @@ TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
 DRY_RUN = False
 SINGULARITY_IMAGE = (
-    "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.08_16.26.52.sif"
+    "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.09_09.25.42.sif"
 )
 CODE_PATH = os.getcwd()
 
