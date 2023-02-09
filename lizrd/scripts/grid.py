@@ -190,10 +190,9 @@ if __name__ == "__main__":
     minutes_per_exp = timestr_to_minutes(TIME)
 
     if len(grid) > 1 and runner == Runner.LOCAL and not DRY_RUN:
-        print(
+        raise ValueError(
             f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
         )
-        exit(1)
 
     name = next(iter(grid))["name"]
     name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
