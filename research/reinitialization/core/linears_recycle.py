@@ -474,7 +474,7 @@ class RetrainRecycleFF(LogRecycleFF):
         # prepare new weights for lin1
         with torch.no_grad():
             if self.retrain_without_reinit:
-                self.new_weights_1 = self.lin1.weight.clone()
+                self.new_weights_1 = nn.Parameter(self.lin1.weight.clone())
             else:
                 self.new_weights_1.normal_(
                     mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
@@ -482,12 +482,12 @@ class RetrainRecycleFF(LogRecycleFF):
 
         # prepare new weights for lin2
         with torch.no_grad():
-            if self.reinit_weights:
+            if self.retrain_without_reinit:
+                self.new_weights_2 = nn.Parameter(self.lin2.weight.clone())
+            else:
                 self.new_weights_2.normal_(
                     mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
                 )
-            else:
-                self.new_weights_2 = self.lin2.weight
 
         # save statistics
         self.recycle_counter += 1 - self.mask  # weights
