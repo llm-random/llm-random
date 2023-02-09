@@ -11,7 +11,6 @@ from lizrd.datasets import wikibookdata
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
-import math
 
 
 def get_model(
