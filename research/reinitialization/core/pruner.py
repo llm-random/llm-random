@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
 
-import torch
-
 
 class BasePruner(ABC):
     def __init__(self):

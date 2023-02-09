@@ -1,8 +1,6 @@
 import torch
 import lizrd.core.nn as nn
 
-from einops.layers.torch import Rearrange
-
 from lizrd.core import misc
 from lizrd.support import ash
 from lizrd.support.profile import TimerLayer
