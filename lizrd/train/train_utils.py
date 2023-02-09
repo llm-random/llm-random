@@ -273,8 +273,8 @@ class RetrainTrainer(Trainer):
         step: int,
         optimizer: torch.optim.Optimizer,
     ):
-        full_step = step + self.retrain_count
-        if full_step and self.writer:
+        full_step = self.full_step(step)
+        if self.full_step and self.writer:
             self.writer.add_scalar(
                 "full_loss/train_total", total_loss, step + self.retrain_count
             )

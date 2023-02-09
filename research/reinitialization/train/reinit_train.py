@@ -95,7 +95,7 @@ elif args.testing_recycle:
     args.pruner_n_steps_retrain = 10
     args.trainer_type = "retrain"
     args.n_log_heavy_steps = 40
-    args.n_log_heavy_steps = 10
+    args.n_log_light_steps = 10
     args.n_steps_eval = 10
     args.batch_size = 8
 
