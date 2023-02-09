@@ -62,7 +62,7 @@ parser.add_argument("--num_workers", type=int, default=8)
 parser.add_argument("--n_log_plots_steps", type=int, default=None)
 parser.add_argument("--n_log_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
-parser.add_argument("--no_weight_reinitialization", action="store_true")
+parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 
 args = parser.parse_args()
@@ -188,7 +188,7 @@ elif args.ff_layer == "retrain_recycle":
         args.dm,
         args.dff,
         pruner,
-        not args.no_weight_reinitialization,
+        args.retrain_without_reinit,
         args.random_indexes,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":

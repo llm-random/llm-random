@@ -377,7 +377,7 @@ class RetrainRecycleFF(LogRecycleFF):
         dmodel: int,
         dff: int,
         pruner: Pruner,
-        reinit_weights: bool = True,
+        retrain_without_reinit: bool = False,
         random_indexes: bool = False,
     ):
         super().__init__()
@@ -393,7 +393,7 @@ class RetrainRecycleFF(LogRecycleFF):
         self.recently_pruned = torch.full((dff,), False).to(device)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         self.save_stats = False
-        self.reinit_weights = reinit_weights
+        self.retrain_without_reinit = retrain_without_reinit
         self.random_indexes = random_indexes
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -473,12 +473,12 @@ class RetrainRecycleFF(LogRecycleFF):
 
         # prepare new weights for lin1
         with torch.no_grad():
-            if self.reinit_weights:
+            if self.retrain_without_reinit:
+                self.new_weights_1 = self.lin1.weight.clone()
+            else:
                 self.new_weights_1.normal_(
                     mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
                 )
-            else:
-                self.new_weights_1 = self.lin1.weight
 
         # prepare new weights for lin2
         with torch.no_grad():
