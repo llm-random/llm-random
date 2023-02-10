@@ -409,7 +409,7 @@ class RetrainRecycleFF(LogRecycleFF):
     def _new_neurons_forward(self, x: torch.Tensor) -> torch.Tensor:
         # Apply FF1
         lin_weights_1 = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.detach()
+            "f, f m -> f m", self.mask, self.lin1.weight.detach().clone()
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_1)
         # dodać tu dużo assertów
@@ -423,7 +423,7 @@ class RetrainRecycleFF(LogRecycleFF):
         # Appply FF2
         assert self.lin2.weight.data.shape == self.new_weights_2.shape
         lin_weights_2 = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.detach()
+            "f, m f -> m f", self.mask, self.lin2.weight.detach().clone()
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
         assert self.lin2.weight.data.shape == lin_weights_2.shape
         assert self.mask.requires_grad == False
