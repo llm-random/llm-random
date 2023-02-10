@@ -1,6 +1,33 @@
 import copy
 from itertools import product
 from typing import List, Tuple
+from enum import Enum
+import platform
+
+
+class Runner(Enum):
+    ENTROPY = 1
+    ATHENA = 2
+    LOCAL = 3
+
+
+def get_runner() -> Runner:
+    node = platform.uname().node
+    if node == "asusgpu0":
+        return Runner.ENTROPY
+    elif "athena" in node:
+        return Runner.ATHENA
+    else:
+        return Runner.LOCAL
+
+
+def get_grid_entrypoint(runner: Runner) -> str:
+    if runner in [Runner.ENTROPY, Runner.LOCAL]:
+        return "lizrd/scripts/grid_entrypoint.sh"
+    elif runner == Runner.ATHENA:
+        return "lizrd/scripts/grid_entrypoint_athena.sh"
+    else:
+        raise ValueError(f"Unknown runner: {runner}")
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -82,6 +109,8 @@ def timestr_to_minutes(time: str) -> int:
         elif sum(c == ":" for c in time_part) == 2:
             hours, minutes, seconds = time_part.split(":")
             return int(hours), int(minutes), int(seconds)
+        else:
+            raise ValueError(f"Invalid time format: {time_part}")
 
     def parse_time_part_with_days(time_part: str) -> Tuple[int, int, int]:
         if sum(c == ":" for c in time_part) == 0:
@@ -92,6 +121,8 @@ def timestr_to_minutes(time: str) -> int:
         elif sum(c == ":" for c in time_part) == 2:
             hours, minutes, seconds = time_part.split(":")
             return int(hours), int(minutes), int(seconds)
+        else:
+            raise ValueError(f"Invalid time format: {time_part}")
 
     if "-" in time:
         days_part, time_part = time.split("-")
