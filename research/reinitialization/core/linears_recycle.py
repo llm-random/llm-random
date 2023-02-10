@@ -409,9 +409,10 @@ class RetrainRecycleFF(LogRecycleFF):
     def _new_neurons_forward(self, x: torch.Tensor) -> torch.Tensor:
         # Apply FF1
         lin_weights_1 = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.data
+            "f, f m -> f m", self.mask, self.lin1.weight
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_1)
+        # dodać tu dużo assertów
 
         # relu
         x = F.relu(x)
@@ -422,9 +423,12 @@ class RetrainRecycleFF(LogRecycleFF):
         # Appply FF2
         assert self.lin2.weight.data.shape == self.new_weights_2.shape
         lin_weights_2 = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.data
+            "f, m f -> m f", self.mask, self.lin2.weight
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
         assert self.lin2.weight.data.shape == lin_weights_2.shape
+        assert self.mask.requires_grad == False
+        assert self.new_weights_2.requires_grad == True
+        assert self.lin2.weight.requires_grad == False
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_2)
 
         return x
@@ -474,7 +478,7 @@ class RetrainRecycleFF(LogRecycleFF):
         # prepare new weights for lin1
         with torch.no_grad():
             if self.retrain_without_reinit:
-                self.new_weights_1 = nn.Parameter(self.lin1.weight.clone())
+                self.new_weights_1.data = self.lin1.weight.clone()
             else:
                 self.new_weights_1.normal_(
                     mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
@@ -483,7 +487,7 @@ class RetrainRecycleFF(LogRecycleFF):
         # prepare new weights for lin2
         with torch.no_grad():
             if self.retrain_without_reinit:
-                self.new_weights_2 = nn.Parameter(self.lin2.weight.clone())
+                self.new_weights_2.data = self.lin2.weight.clone()
             else:
                 self.new_weights_2.normal_(
                     mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
