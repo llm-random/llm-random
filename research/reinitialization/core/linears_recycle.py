@@ -506,7 +506,9 @@ class RetrainRecycleFF(LogRecycleFF):
 
         self.lin2.weight.data = misc.einsum(
             "f, m f -> m f", self.mask, self.lin2.weight.detach().clone()
-        ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
+        ) + misc.einsum(
+            "f, m f -> m f", 1 - self.mask, self.new_weights_2.detach().clone()
+        )
 
     def pre_retrain(self):
         self.new_weights_1.requires_grad = True
