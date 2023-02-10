@@ -8,3 +8,6 @@ ENV/
 env.bak/
 venv.bak/
 runs/
+*.sif
+runs
+runs/s
