@@ -379,6 +379,7 @@ class RetrainRecycleFF(LogRecycleFF):
         pruner: Pruner,
         retrain_without_reinit: bool = False,
         random_indexes: bool = False,
+        highest_magnitudes: bool = False,
     ):
         super().__init__()
         self.lin1 = Linear(dmodel, dff, bias=False)
@@ -395,6 +396,7 @@ class RetrainRecycleFF(LogRecycleFF):
         self.save_stats = False
         self.retrain_without_reinit = retrain_without_reinit
         self.random_indexes = random_indexes
+        self.highest_magnitudes = highest_magnitudes
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -471,6 +473,9 @@ class RetrainRecycleFF(LogRecycleFF):
         n_to_prune = round(prob * n_els_weights)
         if self.random_indexes:
             self.mask[torch.randperm(self.dff)[: round(prob * self.dff)]] = 0
+        elif self.highest_magnitudes:
+            topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=True)
+            self.mask[topk.indices] = 0
         else:
             topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
             self.mask[topk.indices] = 0

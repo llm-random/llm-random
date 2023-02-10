@@ -64,6 +64,7 @@ parser.add_argument("--n_log_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
+parser.add_argument("--highest_magnitudes", action="store_true")
 
 args = parser.parse_args()
 
@@ -190,6 +191,7 @@ elif args.ff_layer == "retrain_recycle":
         pruner,
         args.retrain_without_reinit,
         args.random_indexes,
+        args.highest_magnitudes,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
