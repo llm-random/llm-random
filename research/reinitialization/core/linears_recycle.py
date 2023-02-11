@@ -441,8 +441,19 @@ class RetrainRecycleFF(LogRecycleFF):
 
     @property
     def neuron_magnitudes(self):
-        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
-        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        if self.mode == "regular":
+            weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+            weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        elif self.mode == "new_neurons":
+            lin_weights_1 = misc.einsum(
+                "f, f m -> f m", self.mask, self.lin1.weight.data
+            ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
+            weights1 = misc.einsum("f m -> f", lin_weights_1**2)
+            lin_weights_2 = misc.einsum(
+                "f, m f -> m f", self.mask, self.lin2.weight.data
+            ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
+            weights2 = misc.einsum("m f -> f", lin_weights_2)
+
         weights = weights1 * weights2
         return weights.flatten()
 
