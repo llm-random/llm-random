@@ -56,11 +56,13 @@ parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
+parser.add_argument("--n_steps_log", type=int, default=5_000)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
-parser.add_argument("--n_log_plots_steps", type=int, default=None)
-parser.add_argument("--n_log_steps", type=int, default=100)
+parser.add_argument("--n_log_light_steps", type=int, default=100)
+parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
+parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
@@ -94,10 +96,10 @@ elif args.testing_recycle:
     args.pruner_delay = 6
     args.pruner_n_steps_retrain = 10
     args.trainer_type = "retrain"
-    args.n_log_plots_steps = 400
+    args.n_log_heavy_steps = 40
+    args.n_log_light_steps = 10
     args.n_steps_eval = 10
-    args.n_log_steps = 100
-    args.batch_size = 2
+    args.batch_size = 8
 
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
@@ -154,16 +156,17 @@ writer = SummaryWriter(log_dir=modelpath)
 if args.use_pruner and args.pruner_n_steps:
     pruner = Pruner()
     scheduler = DelayedConstScheduler(
-        pruner,
-        args.pruner_n_steps,
-        args.pruner_prob,
-        args.pruner_delay,
-        args.pruner_n_steps_retrain,
+        n_steps_prune=args.pruner_n_steps,
+        prob=args.pruner_prob,
+        delay=args.pruner_delay,
+        n_steps_retrain=args.pruner_n_steps_retrain,
     )
 else:
     pruner = None
     scheduler = None
 
+print(pruner)
+print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
     ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff)
@@ -185,11 +188,11 @@ elif args.ff_layer == "struct_magnitude_recycle":
     )
 elif args.ff_layer == "retrain_recycle":
     ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(
-        args.dm,
-        args.dff,
-        pruner,
-        args.retrain_without_reinit,
-        args.random_indexes,
+        dmodel=args.dm,
+        dff=args.dff,
+        pruner=pruner,
+        retrain_without_reinit=args.retrain_without_reinit,
+        random_indexes=args.random_indexes,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
@@ -197,6 +200,10 @@ elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
+elif args.ff_layer == "log_ff":
+    ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+else:
+    raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 
 misc.print_available_gpus()
 pdataset = get_processed_dataset(
@@ -255,12 +262,13 @@ if args.trainer_type == "retrain":
         writer=writer,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
-        n_log_plots_steps=args.n_log_plots_steps,
-        n_log_steps=args.n_log_steps,
+        n_log_light_steps=args.n_log_light_steps,
+        n_log_heavy_steps=args.n_log_heavy_steps,
+        log_acc_steps=args.log_acc_steps,
         pdataset_retrain=pdataset_retrain,
         retrain_warmup_steps=args.retrain_warmup_steps,
     )
-else:
+elif args.trainer_type == "regular":
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
@@ -275,7 +283,11 @@ else:
         writer=writer,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
-        n_log_steps=args.n_log_steps,
+        log_acc_steps=args.log_acc_steps,
+        n_log_light_steps=args.n_log_light_steps,
+        n_log_heavy_steps=args.n_log_heavy_steps,
     )
+else:
+    raise ValueError(f"trainer_type {args.trainer_type} not recognized")
 
 trainer.train(args.n_steps, args.n_steps_eval)
