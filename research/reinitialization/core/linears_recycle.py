@@ -466,6 +466,36 @@ class RetrainRecycleFF(nn.Module):
             figure=fig,
         )
 
+    def log_activations(self, layer_name: str, step: int):
+        values = self.current_activations
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Average activations of all neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_activation_ratios(self, layer_name: str, step: int):
+        values = self.activate_ratio
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Average ratio of activation per neuron",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_activations_sampled(self, layer_name: str, step: int):
+        values = self.some_activations
+        fig = px.histogram(values)
+        Logger.current_logger().report_plotly(
+            title="Activations of sampled neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
     def log_recently_pruned_magnitude(self, layer_name, step: int):
         Logger.current_logger().report_scalar(
             "mean_magn_of_recycled_layer",
@@ -475,6 +505,12 @@ class RetrainRecycleFF(nn.Module):
         )
 
     def log_heavy(self, layer_name: str, step: int):
+        Logger.current_logger().flush(wait=True)
+        self.log_activations(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_activation_ratios(layer_name, step)
+        Logger.current_logger().flush(wait=True)
+        self.log_activations_sampled(layer_name, step)
         Logger.current_logger().flush(wait=True)
         self.log_recycle_magnitude(layer_name, step)
         Logger.current_logger().flush(wait=True)
