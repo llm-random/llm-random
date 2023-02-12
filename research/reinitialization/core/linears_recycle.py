@@ -464,9 +464,9 @@ class RetrainRecycleFF(LogRecycleFF):
         idx = torch.randperm(self.dff)[: n_samples * sample_size]
         self.neuron_diff_idx = idx.reshape(n_samples, sample_size)
 
-    def enable_neuron_diff(self, iteration: int):
+    def enable_neuron_diff(self, sample_number: int):
         self.mode = "neuron_diff"
-        self.neuron_diff_current_idx = self.neuron_diff_idx[iteration]
+        self.neuron_diff_current_idx = self.neuron_diff_idx[sample_number]
 
     def disable_neuron_diff(self):
         self.mode = "regular"

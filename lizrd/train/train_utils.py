@@ -202,6 +202,15 @@ class Trainer:
             return total_mask_loss
 
     def check_neuron_diff(self, step: int):
+        """
+        Check the neuron diff for each layer:
+            1. For each batch, compute the loss for the batch
+            2. For each sample, mask neurons from the sample
+            3. Compute the loss for the batch with the chosen neurons masked
+            4. Compute the difference between the two losses
+            5. Log histogram of the results
+            6. Repeat 2-5 for all layers
+        """
         print("Beginning of check_neuron_diff...")
         with torch.no_grad():
             for i in range(len(self.scheduler.pruner.layers)):
@@ -214,7 +223,9 @@ class Trainer:
                     baseline = self._compute_loss(processed_batch).detach().cpu().item()
 
                     for j in range(self.neuron_diff_n_samples):
-                        self.scheduler.pruner.enable_neuron_diff(ff_layer_num=i, iter=j)
+                        self.scheduler.pruner.enable_neuron_diff(
+                            ff_layer_num=i, sample_number=j
+                        )
                         total_mask_loss = (
                             self._compute_loss(processed_batch).detach().cpu().item()
                         )
@@ -242,7 +253,8 @@ class Trainer:
 
         if self.neuron_diff_dataset is not None:
             self.scheduler.pruner.prepare_neuron_diff_idx(
-                self.neuron_diff_n_samples, self.neuron_diff_sample_size
+                n_samples=self.neuron_diff_n_samples,
+                sample_size=self.neuron_diff_sample_size,
             )
 
         for step in range(n_steps):
