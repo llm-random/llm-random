@@ -13,7 +13,6 @@ from lizrd.support import ash
 from lizrd.support.logging import log_plot_to_clearml
 from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
-from research.reinitialization.core.linears import LogFF
 
 
 class RandomUnstructRecycleFF(nn.Module):
