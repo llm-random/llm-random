@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from lizrd.core import misc
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
-import plotly_express as px
+import plotly.express as px
 from clearml import Logger
 import numpy as np
 from lizrd.support.logging import log_plot_to_clearml
