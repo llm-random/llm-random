@@ -359,7 +359,6 @@ class RetrainRecycleFF(nn.Module):
             x_flattened = x.flatten().detach().cpu().numpy()
             random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
             self.some_activations = x_flattened[random_indices]
-            # dodać to z samplowaniem
             self.save_stats = False
 
     @property

@@ -164,6 +164,8 @@ class Trainer:
         return total_loss.item(), mask_loss.item()
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
+        if self.n_log_light_steps and step % self.n_log_light_steps == 0:
+            self.pruner.log_light(step)
         if step and self.writer and (step % self.log_acc_steps == 0):
             self.log_loss_stats(step)
             self.reset_loss_stats()
@@ -214,7 +216,7 @@ class Trainer:
                     param_group["lr"] = lr
 
             # tell the model to save activation stats if necessary:
-            if self.n_log_light_steps and step % self.n_log_light_steps == 0:
+            if self.n_log_heavy_steps and step % self.n_log_heavy_steps == 0:
                 self.pruner.set_saving_stats()
 
             self._pruning_step(step)
@@ -230,9 +232,11 @@ class Trainer:
                 eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
                 torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
-            if self.n_log_light_steps and step % self.n_log_light_steps == 0:
-                self.pruner.log_light(step)
-            if self.n_log_heavy_steps and step % self.n_log_heavy_steps == 0:
+            if (
+                self.n_log_heavy_steps
+                and step > 0
+                and step % self.n_log_heavy_steps == 0
+            ):
                 print(f"Running heavy log at step {step}")
                 self.pruner.log_heavy(step)
             print(f"Step {step}")
@@ -369,11 +373,11 @@ class RetrainTrainer(Trainer):
             lr_coeff = min(1.0, i / self.retrain_warmup_steps)
             retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr
 
-            self.retrain_count += 1
             total_loss, mask_loss = self._train_step(
                 retrain_optim, self.pdataset_retrain, step=self.full_step(step)
             )
             self._log_retrain_stats(total_loss, mask_loss, step, retrain_optim)
+            self.retrain_count += 1
 
         # unfreeze model
         self.model.requires_grad_(True)
