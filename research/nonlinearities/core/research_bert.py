@@ -1,11 +1,12 @@
+from collections import OrderedDict
+
 import numpy as np
 import torch
-import lizrd.core.nn as nn
-from lizrd.core.misc import EinMix
 
+import lizrd.core.nn as nn
 from lizrd.core.bert import LowRank
+from lizrd.core.misc import EinMix
 from lizrd.support import ash
-from lizrd.support.profile import TimerLayer
 
 
 @ash.check("... d -> ... d")
@@ -36,14 +37,16 @@ def FeedForwardBottleneck(dmodel, exp_rate, bottleneck_chop_ratio=None):
     else:
         B = int(B)
     M = exp_rate * N
-    return TimerLayer(
-        "BottleneckFF",
-        nn.Sequential(
-            LowRank(N, M, B),
-            nn.ReLU(inplace=True),
-            LowRank(M, N, B),
-        ),
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_lowrank1", LowRank(N, M, B)),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_lowrank2", LowRank(M, N, B)),
+            ]
+        )
     )
+    return block
 
 
 @ash.check("... d -> ... d")
@@ -55,7 +58,6 @@ def FeedForwardMultineck(
     :param exp_rate: exp_rate: M/N, where M is the size of the "expanded" layer (before ReLU)
     :param n_heads: number of independent bottlenecks, later aggregated
     :param parameter_sharing_mode: one of "none", "neck_and_ff", "input_and_neck"
-    #TODO: should input_and_neck even be implemented? It seems that we lose a lot of information by using 1 bottleneck for all heads
     An iteration on FeedForwardBottleneck, where there are multiple bottlenecks, EACH writes to the output stream independently, like multiheadattention
     Assumes that the number of parameters should be the same as for a FeedForward layer of the same input/output dimensions;
     with the bottleneck layer size being B and the number of heads H, and in/out being N and M respectively, the resulting equation is:
@@ -145,9 +147,19 @@ def FeedForwardMultineck(
         dhead=B,
     )
 
-    return nn.Sequential(
-        multineck_1, expand, nn.ReLU(inplace=True), contract, multineck_2
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_multineck_1", multineck_1),
+                ("logging_expand", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_contract", contract),
+                ("logging_multineck_2", multineck_2),
+            ]
+        )
     )
+
+    return block
 
 
 @ash.check("... d -> ... d")
@@ -218,3 +230,109 @@ def FeedForwardChoppedNeck(dmodel, n_chunks):
             dff_chunk_size=ff_chunk_size,
         ),
     )
+
+
+@ash.check("... d -> ... d")
+def FeedForwardChoppedNeckFORCED(dmodel, n_chunks):
+    """
+    init params: dmodel, n_chunks
+    Divides both the input vector and the ff layer into n_heads chunks, and restricts the dense layer to operate
+    on each chunk pair independently, disallowing inter-pair communication.
+    An abvious drawback of this approach is that the different dimensions of the chunks are not able to communicate with each other in the FF layer.
+    An iteration on this idea should address that restriction.
+    :param dmodel: dimension of the model
+    :param n_chunks: number of chunks to divide the input vector into
+    To calculate the ff_layer size, as in ForwardBottleneck, we formulate the following equation:
+        n_chunks * (N/n_chunks * M/n_chunks) = N*4N
+    solving for M, we get
+        M = 4*N*n_chunks
+    In short, chopping the input vector into n_chunks chunks results in the ff layer being 4 n_chunks times larger
+    Hence every chunk in the ff layer is of the size 4*dmodel
+    """
+    assert (
+        dmodel % n_chunks == 0
+    ), f"dmodel={dmodel} should be divisible by n_chunks={n_chunks}"
+    chunk_size = dmodel // n_chunks
+    ff_chunk_size = 4 * dmodel // n_chunks
+
+    return nn.Sequential(
+        EinMix(
+            "batch seqlen (n_chunks chunk_size)-> batch seqlen n_chunks dff_chunk_size",
+            weight_shape="n_chunks chunk_size dff_chunk_size",
+            bias_shape="(n_chunks dff_chunk_size)",
+            n_chunks=n_chunks,
+            chunk_size=chunk_size,
+            dff_chunk_size=ff_chunk_size,
+        ),
+        nn.ReLU(inplace=True),
+        EinMix(
+            "batch seqlen n_chunks dff_chunk_size-> batch seqlen (n_chunks chunk_size)",
+            weight_shape="n_chunks dff_chunk_size chunk_size",
+            bias_shape="(n_chunks chunk_size)",
+            n_chunks=n_chunks,
+            chunk_size=chunk_size,
+            dff_chunk_size=ff_chunk_size,
+        ),
+    )
+
+
+@ash.check("... d -> ... d")
+def FeedForwardMultilinear(dmodel, dff, nheads):
+    expand = EinMix(
+        "batch seqlen dmodel -> batch seqlen nheads dff",
+        weight_shape="dmodel dff nheads",
+        bias_shape="nheads dff",
+        dmodel=dmodel,
+        nheads=nheads,
+        dff=dff,
+    )
+
+    contract = EinMix(
+        "batch seqlen nheads dff -> batch seqlen dmodel",
+        weight_shape="nheads dff dmodel",
+        bias_shape="dmodel",
+        dmodel=dmodel,
+        nheads=nheads,
+        dff=dff,
+    )
+
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_relu", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_post_relu", contract),
+            ]
+        )
+    )
+    return block
+
+
+@ash.check("... d -> ... d")
+def LinearEinmix(dmodel, dff):
+    expand = EinMix(
+        "batch seqlen dmodel -> batch seqlen dff",
+        weight_shape="dmodel dff",
+        bias_shape="dff",
+        dmodel=dmodel,
+        dff=dff,
+    )
+
+    contract = EinMix(
+        "batch seqlen dff -> batch seqlen dmodel",
+        weight_shape="dff dmodel",
+        bias_shape="dmodel",
+        dmodel=dmodel,
+        dff=dff,
+    )
+
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_relu", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_post_relu", contract),
+            ]
+        )
+    )
+    return block

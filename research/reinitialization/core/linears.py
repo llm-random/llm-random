@@ -1,14 +1,14 @@
+import numpy as np
+import plotly_express as px
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from clearml import Logger
 
 from lizrd.core import misc
 from lizrd.support import ash
-from research.reinitialization.core.pruner import Pruner
-import plotly_express as px
-from clearml import Logger
-import numpy as np
 from lizrd.support.logging import log_plot_to_clearml
+from research.reinitialization.core.pruner import Pruner
 
 
 def mask_by_score(
@@ -93,7 +93,8 @@ class StructPruneFF(nn.Module):
 
 def prepare_tensor_for_logging(x, sample_size=2500):
     """Prepare tensor or tensors for logging by sampling it to a maximum of `sample_size` elements.
-    Default sample size = 2500 is selected because (experimentally) this works with ClearML plotting"""
+    Default sample size = 2500 is selected because (experimentally) this works with ClearML plotting
+    """
     if not isinstance(x, list):
         x = [x]
         was_list = False
