@@ -17,7 +17,8 @@ from research.nonlinearities.train.utils import (
 class NonlinearityTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
-    dataloader: wikibookdata.ProcessedDatasetWrapper
+    train_dataloader: wikibookdata.ProcessedDatasetWrapper
+    eval_dataloader: wikibookdata.ProcessedDatasetWrapper
     batch_size: int
     vocab_size: int
     mask_percent: float
@@ -28,7 +29,7 @@ class NonlinearityTrainer:
     writer: Optional[SummaryWriter] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     distribution_logging: bool = False
-    logging_frequency: int = 2
+    logging_frequency: int = 1000000000
     hook_handles: Optional[list] = None
     saved_activations: Optional[Dict[str, torch.Tensor]] = None
 
@@ -48,7 +49,7 @@ class NonlinearityTrainer:
     ):
         print(f"log frequency: {self.logging_frequency}")
         self.model.train()
-        processed_batch = self.dataloader.get_batch()
+        processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
@@ -82,7 +83,7 @@ class NonlinearityTrainer:
         with torch.no_grad():
             total_mask_loss = 0.0
             for _ in range(sample):
-                processed_batch = self.dataloader.get_batch()
+                processed_batch = self.eval_dataloader.get_batch()
                 assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens

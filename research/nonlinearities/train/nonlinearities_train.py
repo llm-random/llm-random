@@ -73,13 +73,23 @@ ff_layer_fun = get_ff_layer(args)
 attention_layer_fun = get_attention_layer(args)
 
 misc.print_available_gpus()
-dataset = get_processed_dataset(
+
+train_dataloader = get_processed_dataset(
     max_total_length=args.cutoff,
     mask_percent=args.mask_percent,
     device=DEVICE,
     num_workers=args.num_workers,
     batch_size=args.batch_size,
     seed=args.seed,
+)
+
+eval_dataloader = get_processed_dataset(
+    max_total_length=args.cutoff,
+    mask_percent=args.mask_percent,
+    device=DEVICE,
+    num_workers=args.num_workers,
+    batch_size=args.batch_size,
+    seed=args.seed + 1,
 )
 
 model = get_model(
@@ -96,7 +106,8 @@ optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 trainer = NonlinearityTrainer(
     model=model,
     optimizer=optimizer,
-    dataloader=dataset,
+    train_dataloader=train_dataloader,
+    eval_dataloader=eval_dataloader,
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
