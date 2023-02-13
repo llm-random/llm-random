@@ -2,11 +2,15 @@ import collections
 from functools import partial
 from typing import Tuple, DefaultDict, List, Any
 
+import plotly_express as px
 import torch
+from clearml import Logger
 
 from lizrd.core import nn
 from lizrd.core.misc import EinMix
 from lizrd.support.ash import Check
+from lizrd.support.logging import log_plot_to_clearml
+from research.reinitialization.core.linears import prepare_tensor_for_logging
 
 
 def get_parameter_count(model):
@@ -59,3 +63,23 @@ def save_activations(
     pass. Mutates specified dict objects with each fwd pass.
     """
     activations[name] = out.detach().cpu()
+
+
+def log_tensor(tensor, name, series, step):
+    fig = px.histogram(prepare_tensor_for_logging(tensor, exact_sample_size=False))
+    log_plot_to_clearml(
+        figure=fig,
+        title=name,
+        series=series,
+        iteration=step,
+    )
+
+
+def log_scalar(value, name, series, step):
+    logger = Logger.current_logger()
+    logger.report_scalar(
+        title=name,
+        series=series,
+        value=value,
+        iteration=step,
+    )

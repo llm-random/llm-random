@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import plotly_express as px
 import torch
@@ -91,7 +93,7 @@ class StructPruneFF(nn.Module):
         )
 
 
-def prepare_tensor_for_logging(x, sample_size=2500):
+def prepare_tensor_for_logging(x, sample_size=2500, exact_sample_size=True):
     """Prepare tensor or tensors for logging by sampling it to a maximum of `sample_size` elements.
     Default sample size = 2500 is selected because (experimentally) this works with ClearML plotting
     """
@@ -108,7 +110,10 @@ def prepare_tensor_for_logging(x, sample_size=2500):
     if num_elems <= sample_size:
         return x if was_list else x[0]
 
-    random_indices = np.random.choice(num_elems, sample_size, replace=False)
+    if exact_sample_size:
+        random_indices = np.random.choice(num_elems, sample_size, replace=False)
+    else:
+        random_indices = random.sample(range(num_elems), sample_size)
     return [t[random_indices] for t in x] if was_list else x[0][random_indices]
 
 
