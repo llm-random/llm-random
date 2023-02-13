@@ -113,6 +113,7 @@ if __name__ == "__main__":
                 "sbatch",
                 "--partition=plgrid-gpu-a100",
                 "-G1",
+                "--cpus-per-gpu=8",
                 f"--job-name={name}",
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),
