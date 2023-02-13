@@ -66,7 +66,7 @@ def save_activations(
 
 
 def log_tensor(tensor, name, series, step):
-    fig = px.histogram(prepare_tensor_for_logging(tensor, exact_sample_size=False))
+    fig = px.histogram(prepare_tensor_for_logging(tensor, without_replacement=False))
     log_plot_to_clearml(
         figure=fig,
         title=name,
