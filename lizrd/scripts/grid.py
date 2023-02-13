@@ -41,7 +41,7 @@ TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
 DRY_RUN = False
 SINGULARITY_IMAGE = (
-    "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.09_09.25.42.sif"
+    "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
 )
 CODE_PATH = os.getcwd()
 
@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),
                 "singularity",
-                "exec",
+                "run",
                 "--bind=/net:/net",
                 "--env HF_DATASETS_CACHE=/net/pr2/projects/plgrid/plggllmeffi/.cache",
                 f"-B={CODE_PATH}:/sparsity",

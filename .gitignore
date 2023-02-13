@@ -145,3 +145,4 @@ slurm*
 research/reinitialization/scripts/jk_scripts
 *.pkl
 *.sif
+.neptune
