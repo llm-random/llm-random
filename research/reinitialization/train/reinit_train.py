@@ -66,6 +66,8 @@ parser.add_argument("--n_log_light_steps", type=int, default=100)
 parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
 parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
+parser.add_argument("--retrain_without_reinit", action="store_true")
+parser.add_argument("--random_indexes", action="store_true")
 
 args = parser.parse_args()
 
@@ -81,13 +83,13 @@ if args.testing_regular:
     args.tags = ["testing_regular"]
     args.n_steps = 100
     args.use_pruner = False
-    args.batch_size = 4
+    args.batch_size = 2
 elif args.testing_recycle:
     args.project_name = f"{os.getenv('USER')}/testing"
     args.use_clearml = True
     args.ff_layer = "retrain_recycle"
     args.cutoff = 32
-    args.n_steps = 100
+    args.n_steps = 50
     args.use_clearml = True
     args.tags = ["testing_recycle"]
     args.use_pruner = True
@@ -192,7 +194,11 @@ elif args.ff_layer == "struct_magnitude_recycle":
     )
 elif args.ff_layer == "retrain_recycle":
     ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(
-        dmodel=args.dm, dff=args.dff, pruner=pruner
+        dmodel=args.dm,
+        dff=args.dff,
+        pruner=pruner,
+        retrain_without_reinit=args.retrain_without_reinit,
+        random_indexes=args.random_indexes,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
