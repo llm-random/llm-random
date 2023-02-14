@@ -143,13 +143,14 @@ timestamp = make_concise_datetime()
 unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
 
 if args.use_neptune:
-    logger = NeptuneLogger(
-        neptune.init_run(
-            project="pmtest/llm-efficiency",
-            tags=args.tags,
-            name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-        )
+    run = neptune.init_run(
+        project="pmtest/llm-efficiency",
+        tags=args.tags,
+        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
     )
+    run["args"] = vars(args)
+    run["working_directory"] = os.getcwd()
+    logger = NeptuneLogger(run)
 elif args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
