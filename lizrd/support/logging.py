@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 
 from lizrd.core.misc import generate_random_string
 import numpy as np
+import os
 
 _CURRENT_LOGGER = None
 
@@ -85,6 +86,13 @@ class ClearMLLogger(AbstractLogger):
 
 
 class NeptuneLogger(AbstractLogger):
+    _TMP_PLOTS_DIR: str = "./tmp_plots"
+
+    def __init__(self, logger):
+        super().__init__(logger)
+        self.random_id = generate_random_string(8)
+        os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
+
     def _make_path(
         self, title: str, series: Optional[str] = None, iteration: Optional[int] = None
     ):
@@ -96,7 +104,7 @@ class NeptuneLogger(AbstractLogger):
         return "/".join(parts)
 
     def _upload_with_tmp_file(self, path, obj, extension="html"):
-        tmp_file = f"/tmp/{generate_random_string(8)}.{extension}"
+        tmp_file = f"{self._TMP_PLOTS_DIR}/{generate_random_string(16)}.{extension}"
         with open(tmp_file, "w") as f:
             f.write(obj)
         self.instance_logger[path].upload(tmp_file)

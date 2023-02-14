@@ -78,7 +78,6 @@ class Trainer:
     mask_loss_weight: float
     modelpath: str
     pruner: BasePruner
-    # writer: SummaryWriter
     logger: AbstractLogger
     scheduler: Optional[BaseScheduler] = None
     mixed_precision: bool = False

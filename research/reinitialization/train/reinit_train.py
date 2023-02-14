@@ -144,7 +144,11 @@ unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
 
 if args.use_neptune:
     logger = NeptuneLogger(
-        neptune.init_run(project="pmtest/llm-efficiency", tags=args.tags)
+        neptune.init_run(
+            project="pmtest/llm-efficiency",
+            tags=args.tags,
+            name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+        )
     )
 elif args.use_clearml:
     task = Task.init(
@@ -156,7 +160,8 @@ elif args.use_clearml:
         task.add_tags(args.tags)
     logger = ClearMLLogger(task)
 
-modelpath = f"runs/wikibooktest/{unique_timestamp}"
+modelpath = f"models/{unique_timestamp}"
+os.makedirs(modelpath, exist_ok=True)
 
 # set pruner if needed
 if args.use_pruner and args.pruner_n_steps:
