@@ -21,20 +21,19 @@ from lizrd.scripts.grid_utils import (
 from lizrd.support.code_versioning_support import version_code
 
 
-TRAINER = "research.reinitialization.train.reinit_train"
+TRAINER = "research.nonlinearities.train.nonlinearities_train"
 
 # ^ - grid over that
 # * - apply function
 PARAMS = {
     "project_name": f"{os.getenv('USER')}/mp",
-    "name": "mp",
-    "ff_layer": "regular",
-    "batch_size": 128,
+    "name": "ff_pp_baseline",
+    "ff_mode": "vanilla",
+    "batch_size": 512,
     "cutoff": 128,
-    "^mixed_precision": [True, False],
-    "tags": ["test"],
-    "use_clearml": True,
-    "pruner_n_steps": 100,
+    "^mixed_precision": [True],
+    "tags": ["basline", "ff_pp"],
+    "use_clearml": False,
 }
 
 TIME = "1-00:00:00"
@@ -114,6 +113,7 @@ if __name__ == "__main__":
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 f"--job-name={name}",
+                # "-A plgplggllmeffi-gpu-a100"
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),
                 "singularity",

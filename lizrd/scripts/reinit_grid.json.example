@@ -1,5 +1,6 @@
 {
     "trainer": "research.reinitialization.train.reinit_train",
+    "gres": 1,
     "params": {
         "project_name": "mpioro/mp",
         "name": "mp",

@@ -116,6 +116,8 @@ def get_ff_layer(args):
             args.dmodel,
             args.dff,
         )
+    elif mode == "stacked_ff":
+        pass
     else:
         raise NotImplementedError(f"ff_mode={mode} is not implemented")
 
