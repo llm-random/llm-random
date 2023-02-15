@@ -1,32 +1,34 @@
 import argparse
+import datetime
+import os
+import secrets
 from typing import List, Optional
 
+import neptune.new as neptune
 import torch
-import datetime
-from torch.utils.tensorboard import SummaryWriter
 from clearml import Task
 
 from lizrd.core import misc, bert
-from research.reinitialization.core import linears
-from research.reinitialization.core import linears_recycle
-from research.reinitialization.core.pruner import Pruner
+from lizrd.support.logging import ClearMLLogger, NeptuneLogger
 from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
     Trainer,
     RetrainTrainer,
 )
+from research.reinitialization.core import linears
+from research.reinitialization.core import linears_recycle
+from research.reinitialization.core.pruner import Pruner
 from research.reinitialization.core.scheduler import DelayedConstScheduler
-import secrets
-import os
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--testing_regular", action="store_true")
 parser.add_argument("--testing_recycle", action="store_true")
+parser.add_argument("--use_neptune", action="store_true")
 parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
-parser.add_argument("--mixed_precision", action="store_true", default=True)
+parser.add_argument("--mixed_precision", action="store_true")
 
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
@@ -64,6 +66,8 @@ parser.add_argument("--n_log_light_steps", type=int, default=100)
 parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
 parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
+parser.add_argument("--retrain_without_reinit", action="store_true")
+parser.add_argument("--random_indexes", action="store_true")
 
 args = parser.parse_args()
 
@@ -79,13 +83,13 @@ if args.testing_regular:
     args.tags = ["testing_regular"]
     args.n_steps = 100
     args.use_pruner = False
-    args.batch_size = 4
+    args.batch_size = 2
 elif args.testing_recycle:
     args.project_name = f"{os.getenv('USER')}/testing"
     args.use_clearml = True
     args.ff_layer = "retrain_recycle"
     args.cutoff = 32
-    args.n_steps = 100
+    args.n_steps = 50
     args.use_clearml = True
     args.tags = ["testing_recycle"]
     args.use_pruner = True
@@ -138,7 +142,16 @@ def make_concise_datetime() -> str:
 timestamp = make_concise_datetime()
 unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
 
-if args.use_clearml:
+if args.use_neptune:
+    run = neptune.init_run(
+        project="pmtest/llm-efficiency",
+        tags=args.tags,
+        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    run["args"] = vars(args)
+    run["working_directory"] = os.getcwd()
+    logger = NeptuneLogger(run)
+elif args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
         task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
@@ -146,9 +159,10 @@ if args.use_clearml:
     task.connect(vars(args))
     if args.tags:
         task.add_tags(args.tags)
+    logger = ClearMLLogger(task)
 
-modelpath = f"runs/wikibooktest/{unique_timestamp}"
-writer = SummaryWriter(log_dir=modelpath)
+modelpath = f"models/{unique_timestamp}"
+os.makedirs(modelpath, exist_ok=True)
 
 # set pruner if needed
 if args.use_pruner and args.pruner_n_steps:
@@ -186,7 +200,11 @@ elif args.ff_layer == "struct_magnitude_recycle":
     )
 elif args.ff_layer == "retrain_recycle":
     ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(
-        dmodel=args.dm, dff=args.dff, pruner=pruner
+        dmodel=args.dm,
+        dff=args.dff,
+        pruner=pruner,
+        retrain_without_reinit=args.retrain_without_reinit,
+        random_indexes=args.random_indexes,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
@@ -253,7 +271,7 @@ if args.trainer_type == "retrain":
         mask_loss_weight=args.mask_loss_weight,
         modelpath=modelpath,
         pruner=pruner,
-        writer=writer,
+        logger=logger,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
         n_log_light_steps=args.n_log_light_steps,
@@ -274,7 +292,7 @@ elif args.trainer_type == "regular":
         mask_loss_weight=args.mask_loss_weight,
         modelpath=modelpath,
         pruner=pruner,
-        writer=writer,
+        logger=logger,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
         log_acc_steps=args.log_acc_steps,

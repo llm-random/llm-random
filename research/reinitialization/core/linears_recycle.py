@@ -1,19 +1,19 @@
 import math
 
+import numpy as np
+import plotly.express as px
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.init import kaiming_uniform_
-from clearml import Logger
-import numpy as np
-import plotly.express as px
 
-from lizrd.core.misc import Linear
-from lizrd.support import ash
-from lizrd.support.logging import log_plot_to_clearml
-from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
-from research.reinitialization.core.linears import LogFF
+from lizrd.core.misc import Linear
+from lizrd.support.logging import (
+    get_current_logger,
+    log_plot as log_plot,
+)
+from research.reinitialization.core.pruner import Pruner
 
 
 class RandomUnstructRecycleFF(nn.Module):
@@ -296,7 +296,14 @@ def prepare_subset_for_logging(xs, p=None, size=None):
 
 
 class RetrainRecycleFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(
+        self,
+        dmodel: int,
+        dff: int,
+        pruner: Pruner,
+        retrain_without_reinit: bool = False,
+        random_indexes: bool = False,
+    ):
         super().__init__()
         self.lin1 = Linear(dmodel, dff, bias=False)
         self.lin2 = Linear(dff, dmodel, bias=False)
@@ -307,10 +314,11 @@ class RetrainRecycleFF(nn.Module):
         self.mode = "regular"
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.recycle_counter = torch.zeros(self.dff).to(device)
-        self.neuron_magnitudes = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         self.save_stats = False
+        self.retrain_without_reinit = retrain_without_reinit
+        self.random_indexes = random_indexes
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -352,8 +360,25 @@ class RetrainRecycleFF(nn.Module):
             x_flattened = x.flatten().detach().cpu().numpy()
             random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
             self.some_activations = x_flattened[random_indices]
-            # dodać to z samplowaniem
             self.save_stats = False
+
+    @property
+    def neuron_magnitudes(self):
+        if self.mode == "regular":
+            weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+            weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        elif self.mode == "new_neurons":
+            lin_weights_1 = misc.einsum(
+                "f, f m -> f m", self.mask, self.lin1.weight.data
+            ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
+            weights1 = misc.einsum("f m -> f", lin_weights_1**2)
+            lin_weights_2 = misc.einsum(
+                "f, m f -> m f", self.mask, self.lin2.weight.data
+            ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
+            weights2 = misc.einsum("m f -> f", lin_weights_2)
+
+        weights = weights1 * weights2
+        return weights.flatten()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.mode == "regular":
@@ -369,27 +394,37 @@ class RetrainRecycleFF(nn.Module):
         weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
         weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
         weights = weights1 * weights2
+
         n_els_weights = torch.numel(weights)
         assert n_els_weights == self.dff
+
         n_to_prune = round(prob * n_els_weights)
-        topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
-        self.mask[topk.indices] = 0
+        if self.random_indexes:
+            self.mask[torch.randperm(self.dff)[: round(prob * self.dff)]] = 0
+        else:
+            topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
+            self.mask[topk.indices] = 0
 
         # prepare new weights for lin1
         with torch.no_grad():
-            self.new_weights_1.normal_(
-                mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
-            )
+            if self.retrain_without_reinit:
+                self.new_weights_1 = nn.Parameter(self.lin1.weight.clone())
+            else:
+                self.new_weights_1.normal_(
+                    mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
+                )
 
         # prepare new weights for lin2
         with torch.no_grad():
-            self.new_weights_2.normal_(
-                mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
-            )
+            if self.retrain_without_reinit:
+                self.new_weights_2 = nn.Parameter(self.lin2.weight.clone())
+            else:
+                self.new_weights_2.normal_(
+                    mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
+                )
 
         # save statistics
-        self.recycle_counter += 1 - self.mask
-        self.neuron_magnitudes = weights.flatten()  # weights
+        self.recycle_counter += 1 - self.mask  # weights
         self.recently_pruned = (1 - self.mask).bool()
 
     def apply_new_weights(self):
@@ -413,7 +448,7 @@ class RetrainRecycleFF(nn.Module):
         tensor = self.recycle_counter.flatten().cpu()
         values = tensor.tolist()
         fig = px.histogram(values)
-        log_plot_to_clearml(
+        log_plot(
             title="No. of times neurons have been recycled",
             series=layer_name,
             iteration=step,
@@ -424,27 +459,65 @@ class RetrainRecycleFF(nn.Module):
         tensor = self.neuron_magnitudes.flatten().cpu()
         values = tensor.tolist()
         fig = px.histogram(values)
-        log_plot_to_clearml(
+        log_plot(
             title="Magnitude of all neurons",
             series=layer_name,
             iteration=step,
             figure=fig,
         )
 
-    def log_recently_pruned_magnitude(self, layer_name, step: int):
-        Logger.current_logger().report_scalar(
-            "mean_magn_of_recycled_layer",
-            layer_name,
+    def log_activations(self, layer_name: str, step: int):
+        values = self.current_activations
+        fig = px.histogram(values)
+        get_current_logger().report_plotly(
+            title="Average activations of all neurons",
+            series=layer_name,
             iteration=step,
-            value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
+            figure=fig,
         )
 
+    def log_activation_ratios(self, layer_name: str, step: int):
+        values = self.activate_ratio
+        fig = px.histogram(values)
+        get_current_logger().report_plotly(
+            title="Average ratio of activation per neuron",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_activations_sampled(self, layer_name: str, step: int):
+        values = self.some_activations
+        fig = px.histogram(values)
+        get_current_logger().report_plotly(
+            title="Activations of sampled neurons",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_recently_pruned_magnitude(self, layer_name, step: int):
+        val = self.neuron_magnitudes[self.recently_pruned].mean().item()
+        if not math.isnan(val) and not math.isinf(val):
+            get_current_logger().report_scalar(
+                title="mean_magn_of_recycled_layer",
+                series=layer_name,
+                iteration=step,
+                value=val,
+            )
+
     def log_heavy(self, layer_name: str, step: int):
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
+        self.log_activations(layer_name, step)
+        get_current_logger().flush_if_necessary()
+        self.log_activation_ratios(layer_name, step)
+        get_current_logger().flush_if_necessary()
+        self.log_activations_sampled(layer_name, step)
+        get_current_logger().flush_if_necessary()
         self.log_recycle_magnitude(layer_name, step)
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
         self.log_magnitude(layer_name, step)
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
 
     def log_light(self, layer_name: str, step: int):
         self.log_recently_pruned_magnitude(layer_name, step)
