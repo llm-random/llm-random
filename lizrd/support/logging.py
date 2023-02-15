@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from lizrd.core.misc import generate_random_string
 import numpy as np
 import os
+import math
 
 _CURRENT_LOGGER = None
 
@@ -50,7 +51,7 @@ class AbstractLogger(ABC):
         iteration: int,
     ):
 
-        if isinstance(figure.data[0], plotly.graph_objs.Scatter):
+        if isinstance(figure.data[0], plotly.graph_objs.Scattergl):
             x = figure.data[0].x
             y = figure.data[0].y
             pearson_correlation = np.corrcoef(x, y)[0, 1]
@@ -68,16 +69,20 @@ class AbstractLogger(ABC):
             mean = figure.data[0].x.mean()
             std = figure.data[0].x.std()
             if series is not None:
-                series_mean = f"{series} (pearson correlation)"
+                series_mean = f"{series} (mean)"
                 series_std = f"{series} (std)"
             else:
-                series_mean = "pearson correlation"
+                series_mean = "mean"
                 series_std = "std"
             self.report_scalar(
                 title=title, series=series_mean, value=mean, iteration=iteration
             )
             self.report_scalar(
                 title=title, series=series_std, value=std, iteration=iteration
+            )
+        else:
+            print(
+                f"Could not log scalars for plotly figure of type {type(figure.data[0])}"
             )
 
 
@@ -117,6 +122,10 @@ class NeptuneLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
+        path = self._make_path(title, series, iteration)
+        assert (not math.isnan(value)) and (
+            not math.isinf(value)
+        ), f"Trying to log {path} as {value}. Neptune doesn't allow logging NaN or Inf."
         self.instance_logger[self._make_path(title, series)].append(
             value=value, step=iteration
         )
