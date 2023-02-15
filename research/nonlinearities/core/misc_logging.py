@@ -4,12 +4,11 @@ from typing import Tuple, DefaultDict, List, Any
 
 import plotly_express as px
 import torch
-from clearml import Logger
 
 from lizrd.core import nn
 from lizrd.core.misc import EinMix
 from lizrd.support.ash import Check
-from lizrd.support.logging import log_plot_to_clearml
+from lizrd.support.logging import get_current_logger
 from research.reinitialization.core.linears import prepare_tensor_for_logging
 
 
@@ -66,8 +65,9 @@ def save_activations(
 
 
 def log_tensor(tensor, name, series, step):
-    fig = px.histogram(prepare_tensor_for_logging(tensor, without_replacement=False))
-    log_plot_to_clearml(
+    logger = get_current_logger()
+    fig = px.histogram(prepare_tensor_for_logging(tensor, with_replacement=False))
+    logger.report_plotly(
         figure=fig,
         title=name,
         series=series,
@@ -75,8 +75,8 @@ def log_tensor(tensor, name, series, step):
     )
 
 
-def log_scalar(value, name, series, step):
-    logger = Logger.current_logger()
+def log_scalar(*, value, name, series, step):
+    logger = get_current_logger()
     logger.report_scalar(
         title=name,
         series=series,

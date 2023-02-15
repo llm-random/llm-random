@@ -1,19 +1,27 @@
 import argparse
 import datetime
+import os
+import secrets
 import time
 
+import neptune.new as neptune
 import torch
 from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 
 from lizrd.core import misc
+from lizrd.support.logging import NeptuneLogger
 from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
 )
 from research.nonlinearities.core import misc_logging
 from research.nonlinearities.core.trainers import NonlinearityTrainer
-from research.nonlinearities.train.utils import get_ff_layer, get_attention_layer
+from research.nonlinearities.train.utils import (
+    get_ff_layer,
+    get_attention_layer,
+    make_concise_datetime,
+)
 
 
 def tags_to_name(tags) -> str:
@@ -36,6 +44,7 @@ parser.add_argument("--attention_mode", type=str, default="vanilla")
 parser.add_argument("--attention_thinning_coeff", type=float, default=1.0)
 
 parser.add_argument("--use_clearml", action="store_true")
+parser.add_argument("--use_neptune", action="store_true")
 parser.add_argument("--batch_size", type=int, default=32)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--cutoff", type=int, default=128)
@@ -59,10 +68,6 @@ parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--save_model_checkpoints", type=bool, default=False)
 parser.add_argument("--deterministic", type=bool, default=True)
 parser.add_argument("--seed", type=int, default=42)
-parser.add_argument(
-    "--versioning_branch", type=str, default="not supplied, something is wrong"
-)
-
 args = parser.parse_args()
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
@@ -125,9 +130,6 @@ trainer = NonlinearityTrainer(
 
 dummy_ff_layer = ff_layer_fun()
 single_ff_layer_parameter_count = misc_logging.get_parameter_count(dummy_ff_layer)
-# single_ff_layer_mean, single_ff_layer_std = misc_logging.get_mean_and_std(
-#     dummy_ff_layer
-# )
 model_parameter_count = misc_logging.get_parameter_count(model)
 del dummy_ff_layer
 
@@ -135,11 +137,6 @@ parameter_counts = {
     "single_ff_layer_parameter_count": single_ff_layer_parameter_count,
     "model_parameter_count": model_parameter_count,
 }
-
-# initialization_statistics = {
-#     "single_ff_layer_mean": single_ff_layer_mean,
-#     "single_ff_layer_std": single_ff_layer_std,
-# }
 
 
 if args.use_clearml:
@@ -149,12 +146,28 @@ if args.use_clearml:
     )
     task.connect(vars(args))
     task.connect(parameter_counts, "parameter_counts")
-    # task.connect(initialization_statistics, "initialization_statistics")
     if args.tags:
         task.add_tags(args.tags)
     if not args.deterministic:
         task.set_random_seed(int(time.time()))
     if args.seed:
         task.set_random_seed(args.seed)
+
+timestamp = make_concise_datetime()
+unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
+
+if args.use_neptune:
+    run = neptune.init_run(
+        project="pmtest/llm-efficiency",
+        tags=args.tags,
+        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    run["args"] = vars(args)
+    run["working_directory"] = os.getcwd()
+    run["git_branch"] = os.getcwd().split("/")[-1]
+    logger = NeptuneLogger(run)
+
+modelpath = f"models/{unique_timestamp}"
+os.makedirs(modelpath, exist_ok=True)
 
 trainer.train(args.n_steps, args.n_steps_eval)

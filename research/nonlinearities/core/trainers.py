@@ -77,8 +77,18 @@ class NonlinearityTrainer:
         self.detach_logging_hooks(step)
 
         if step and self.writer:
-            self.writer.add_scalar("loss/train_total", total_loss.item(), step)
-            self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+            log_scalar(
+                name="loss/train_total",
+                value=total_loss.item(),
+                step=step,
+                series="train",
+            )
+            log_scalar(
+                name="loss/train_mask",
+                value=mask_loss.item(),
+                step=step,
+                series="train",
+            )
 
     def _eval_step(self, step, sample):
         self.model.eval()
@@ -103,7 +113,12 @@ class NonlinearityTrainer:
             total_mask_loss /= sample
 
             if step and self.writer:
-                self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
+                log_scalar(
+                    name="loss/eval_mask",
+                    value=total_mask_loss,
+                    step=step,
+                    series="eval",
+                )
 
             return total_mask_loss
 
@@ -114,7 +129,7 @@ class NonlinearityTrainer:
     ):
         for step in range(n_steps):
             self._train_step(step)
-            self.writer.add_scalar("step", step, step)
+            log_scalar(name="step", value=step, series="", step=step)
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(step, sample=n_steps_eval // 2)
                 print(f"Eval loss:", eval_loss)
@@ -148,26 +163,63 @@ class NonlinearityTrainer:
                 tensor_clean, nan_frequency = process_and_remove_nan(tensor)
                 log_tensor(tensor_clean, f"{name} weight", series, step)
                 log_scalar(
-                    tensor_clean.mean().item(), f"{name} weight mean", series, step
+                    value=tensor_clean.mean().item(),
+                    name=f"{name} weight mean",
+                    series=series,
+                    step=step,
                 )
                 log_scalar(
-                    tensor_clean.std().item(), f"{name} weight std", series, step
+                    value=tensor_clean.std().item(),
+                    name=f"{name} weight std",
+                    series=series,
+                    step=step,
                 )
-                log_scalar(nan_frequency, f"{name} weight is_nan", series, step)
+                log_scalar(
+                    value=nan_frequency,
+                    name=f"{name} weight is_nan",
+                    series=series,
+                    step=step,
+                )
                 if tensor.grad is not None:
                     grad_clean, nan_frequency = process_and_remove_nan(tensor.grad)
                     log_tensor(grad_clean, f"{name} grad", series, step)
                     log_scalar(
-                        grad_clean.mean().item(), f"{tag} grad mean", series, step
+                        value=grad_clean.mean().item(),
+                        name=f"{tag} grad mean",
+                        series=series,
+                        step=step,
                     )
-                    log_scalar(grad_clean.std().item(), f"{tag} grad std", series, step)
-                    log_scalar(nan_frequency, f"{tag} grad is_nan", series, step)
+                    log_scalar(
+                        value=grad_clean.std().item(),
+                        name=f"{tag} grad std",
+                        series=series,
+                        step=step,
+                    )
+                    log_scalar(
+                        value=nan_frequency,
+                        name=f"{tag} grad is_nan",
+                        series=series,
+                        step=step,
+                    )
         for name, tensor in self.saved_activations.items():
             series, name = clean_name_for_logging(name)
             tensor_data, nan_frequency = process_and_remove_nan(tensor)
             log_tensor(tensor_data, f"{name} activation", series, step)
             log_scalar(
-                tensor_data.mean().item(), f"{name} activation mean", series, step
+                value=tensor_data.mean().item(),
+                name=f"{name} activation mean",
+                series=series,
+                step=step,
             )
-            log_scalar(tensor_data.std().item(), f"{name} activation std", series, step)
-            log_scalar(nan_frequency, f"{name} activation is_nan", series, step)
+            log_scalar(
+                value=tensor_data.std().item(),
+                name=f"{name} activation std",
+                series=series,
+                step=step,
+            )
+            log_scalar(
+                value=nan_frequency,
+                name=f"{name} activation is_nan",
+                series=series,
+                step=step,
+            )

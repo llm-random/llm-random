@@ -34,7 +34,7 @@ PARAMS = {
     "project_name": f"nonlinearities/mixed_precision_distribution_logging_tests",
     "name": "boi",
     "tags": ["test"],
-    "use_clearml": True,
+    "use_neptune": True,
 }
 
 TIME = "1-00:00:00"

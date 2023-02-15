@@ -1,3 +1,4 @@
+import datetime
 import re
 
 import torch
@@ -42,6 +43,11 @@ def get_attention_layer(args):
     else:
         attention_layer_fun = lambda: bert.Attention(args.dmodel, args.n_att_heads)
     return attention_layer_fun
+
+
+def make_concise_datetime() -> str:
+    now = datetime.datetime.now()
+    return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
 
 
 def get_ff_layer(args):
