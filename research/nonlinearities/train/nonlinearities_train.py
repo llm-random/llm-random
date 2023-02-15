@@ -43,9 +43,9 @@ parser.add_argument("--dmodel", type=int, default=256)
 parser.add_argument("--dff", type=int, default=1024)
 parser.add_argument("--n_att_heads", type=int, default=4)
 parser.add_argument("--n_blocks", type=int, default=4)
-parser.add_argument("--mixed_precision", type=bool, default=True)
-parser.add_argument("--log_distributions", action="store_true")
-parser.add_argument("--logging_frequency", type=int, default=2)
+parser.add_argument("--mixed_precision", action="store_true", default=False)
+parser.add_argument("--log_distributions", action="store_true", default=False)
+parser.add_argument("--logging_frequency", type=int, default=1000000)
 parser.add_argument("--project_name", type=str, default="nonlinearities/initial_tests")
 
 parser.add_argument("--learning_rate", type=float, default=5e-5)
@@ -59,6 +59,9 @@ parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--save_model_checkpoints", type=bool, default=False)
 parser.add_argument("--deterministic", type=bool, default=True)
 parser.add_argument("--seed", type=int, default=42)
+parser.add_argument(
+    "--versioning_branch", type=str, default="not supplied, something is wrong"
+)
 
 args = parser.parse_args()
 

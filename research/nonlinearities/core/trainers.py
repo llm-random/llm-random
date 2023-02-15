@@ -9,6 +9,7 @@ from lizrd.datasets import wikibookdata
 from research.nonlinearities.core.misc_logging import (
     register_activation_hooks,
     log_tensor,
+    log_scalar,
 )
 from research.nonlinearities.train.utils import (
     clean_name_for_logging,
@@ -44,7 +45,6 @@ class NonlinearityTrainer:
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
         self.scaler.update()
-        self.scaler.unscale_(self.optimizer)
 
     def _train_step(
         self,
@@ -147,31 +147,27 @@ class NonlinearityTrainer:
                 tag = f"{series}/{name}"
                 tensor_clean, nan_frequency = process_and_remove_nan(tensor)
                 log_tensor(tensor_clean, f"{name} weight", series, step)
-                self.writer.add_scalar(
-                    f"{tag} weight mean", tensor_clean.mean().item(), step
+                log_scalar(
+                    tensor_clean.mean().item(), f"{name} weight mean", series, step
                 )
-                self.writer.add_scalar(
-                    f"{tag} weight std", tensor_clean.std().item(), step
+                log_scalar(
+                    tensor_clean.std().item(), f"{name} weight std", series, step
                 )
-                self.writer.add_scalar(f"{tag} weight is_nan", nan_frequency, step)
+                log_scalar(nan_frequency, f"{name} weight is_nan", series, step)
                 if tensor.grad is not None:
                     grad_clean, nan_frequency = process_and_remove_nan(tensor.grad)
-                    log_tensor(grad_clean, f"{tag} grad", series, step)
-                    self.writer.add_scalar(
-                        f"{tag} grad mean", grad_clean.mean().item(), step
+                    log_tensor(grad_clean, f"{name} grad", series, step)
+                    log_scalar(
+                        grad_clean.mean().item(), f"{tag} grad mean", series, step
                     )
-                    self.writer.add_scalar(
-                        f"{tag} grad std", grad_clean.std().item(), step
-                    )
-                    self.writer.add_scalar(f"{tag} grad is_nan", nan_frequency, step)
+                    log_scalar(grad_clean.std().item(), f"{tag} grad std", series, step)
+                    log_scalar(nan_frequency, f"{tag} grad is_nan", series, step)
         for name, tensor in self.saved_activations.items():
             series, name = clean_name_for_logging(name)
             tensor_data, nan_frequency = process_and_remove_nan(tensor)
             log_tensor(tensor_data, f"{name} activation", series, step)
-            self.writer.add_scalar(
-                f"{name} activation mean", tensor_data.mean().item(), step
+            log_scalar(
+                tensor_data.mean().item(), f"{name} activation mean", series, step
             )
-            self.writer.add_scalar(
-                f"{name} activation std", tensor_data.std().item(), step
-            )
-            self.writer.add_scalar(f"{name} activation is_nan", nan_frequency, step)
+            log_scalar(tensor_data.std().item(), f"{name} activation std", series, step)
+            log_scalar(nan_frequency, f"{name} activation is_nan", series, step)

@@ -5,11 +5,12 @@ Remember to set TRAINER and PARAMS in the script or add an argument parser.
 """
 
 import datetime
-import subprocess
-import os
-import sys
 import json
+import os
+import subprocess
+import sys
 from time import sleep
+
 from lizrd.scripts.grid_utils import (
     create_grid,
     timestr_to_minutes,
@@ -17,28 +18,27 @@ from lizrd.scripts.grid_utils import (
     Runner,
     get_grid_entrypoint,
 )
-
 from lizrd.support.code_versioning_support import version_code
 
-
-TRAINER = "research.reinitialization.train.reinit_train"
+TRAINER = "research.nonlinearities.train.nonlinearities_train"
 
 # ^ - grid over that
 # * - apply function
 PARAMS = {
-    "project_name": f"{os.getenv('USER')}/mp",
-    "name": "mp",
-    "ff_layer": "regular",
-    "batch_size": 128,
-    "cutoff": 128,
+    "ff_mode": "vanilla",
+    "learning_rate": 4e-4,
+    "batch_size": 16,
     "^mixed_precision": [True, False],
+    "^log_distributions": [False, True],
+    "logging_frequency": 1000,
+    "project_name": f"nonlinearities/mixed_precision_distribution_logging_tests",
+    "name": "boi",
     "tags": ["test"],
     "use_clearml": True,
-    "pruner_n_steps": 100,
 }
 
 TIME = "1-00:00:00"
-GRES = "gpu:titanv:1"
+GRES = "gpu:1"
 DRY_RUN = False
 SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.09_09.25.42.sif"
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
 
-        trainer_params = []
+        trainer_params = []  # ["--versioning_branch", name_for_branch]
         for k, v in param_set.items():
             if isinstance(v, bool):
                 if v:
@@ -102,6 +102,8 @@ if __name__ == "__main__":
                 f"--gres={GRES}",
                 f"--job-name={name}",
                 f"--time={TIME}",
+                f"--output=/home/simontwice/sparsity/sa.txt",
+                f"--error=error.txt",
                 get_grid_entrypoint(runner),
                 "python3",
                 "-m",
@@ -143,6 +145,6 @@ if __name__ == "__main__":
             subprocess.run(
                 [str(s) for s in subprocess_args],
             )
-            sleep(1)
+            sleep(10)
         else:
             print(" ".join([str(s) for s in subprocess_args]))
