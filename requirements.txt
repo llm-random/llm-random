@@ -18,3 +18,4 @@ apache-beam
 black
 autoflake
 plotly-express
+neptune-client

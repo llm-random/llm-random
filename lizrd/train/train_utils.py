@@ -8,6 +8,7 @@ import torch.nn.functional as F
 
 from lizrd.core import bert
 from lizrd.datasets import wikibookdata
+from lizrd.support.logging import AbstractLogger
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
@@ -77,7 +78,7 @@ class Trainer:
     mask_loss_weight: float
     modelpath: str
     pruner: BasePruner
-    writer: SummaryWriter
+    logger: AbstractLogger
     scheduler: Optional[BaseScheduler] = None
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -120,15 +121,17 @@ class Trainer:
         self.running_loss_steps = 0
 
     def log_loss_stats(self, step):
-        self.writer.add_scalar(
-            "loss/train_total",
-            self.running_total_loss / self.running_loss_steps,
-            step,
+        self.logger.report_scalar(
+            title="loss",
+            series="train_total",
+            value=self.running_total_loss / self.running_loss_steps,
+            iteration=step,
         )
-        self.writer.add_scalar(
-            "loss/train_mask",
-            self.running_mask_loss / self.running_loss_steps,
-            step,
+        self.logger.report_scalar(
+            title="loss",
+            series="train_mask",
+            value=self.running_mask_loss / self.running_loss_steps,
+            iteration=step,
         )
 
     def _train_step(
@@ -166,7 +169,7 @@ class Trainer:
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         if self.n_log_light_steps and step % self.n_log_light_steps == 0:
             self.pruner.log_light(step)
-        if step and self.writer and (step % self.log_acc_steps == 0):
+        if step and (step % self.log_acc_steps == 0):
             self.log_loss_stats(step)
             self.reset_loss_stats()
 
@@ -199,7 +202,12 @@ class Trainer:
             total_mask_loss /= sample
 
             if log_values:
-                self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
+                self.logger.report_scalar(
+                    title="loss",
+                    series="eval_mask",
+                    value=total_mask_loss,
+                    iteration=step,
+                )
 
             return total_mask_loss
 
@@ -227,7 +235,7 @@ class Trainer:
                 total_loss, mask_loss, step
             )  # check if it's the time and log stats
             if step % self.log_acc_steps == 0:
-                self.writer.add_scalar("step", step, step)
+                self.logger.report_scalar(title="step", value=step, iteration=step)
             if step % n_steps_eval == 0:
                 eval_loss = self._eval_step(step)
                 print(f"Eval loss:", eval_loss)
@@ -277,24 +285,40 @@ class RetrainTrainer(Trainer):
 
     def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
         full_step = step + self.retrain_count
-        if full_step and self.writer:
-            self.writer.add_scalar("loss/train_total", total_loss, step)
-            self.writer.add_scalar("loss/train_mask", mask_loss, step)
-            self.writer.add_scalar(
-                "full_loss/train_total", total_loss, step + self.retrain_count
+        if full_step:
+            self.logger.report_scalar(
+                title="loss/train_total",
+                value=total_loss,
+                iteration=step,
             )
-            self.writer.add_scalar(
-                "full_loss/train_mask", mask_loss, step + self.retrain_count
+            self.logger.report_scalar(
+                title="loss/train_mask",
+                value=mask_loss,
+                iteration=step,
+            )
+            self.logger.report_scalar(
+                title="full_loss/train_total",
+                value=total_loss,
+                iteration=full_step,
+            )
+            self.logger.report_scalar(
+                title="full_loss/train_mask",
+                value=mask_loss,
+                iteration=full_step,
             )
             print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
-            self.writer.add_scalar(
-                "full_steps/lr",
-                self.optimizer.param_groups[0]["lr"],
-                step + self.retrain_count,
+            self.logger.report_scalar(
+                title="full_steps/lr",
+                value=self.optimizer.param_groups[0]["lr"],
+                iteration=full_step,
             )
-            self.writer.add_scalar("is_retraining", 0, step + self.retrain_count)
+            self.logger.report_scalar(
+                title="is_retraining",
+                value=0,
+                iteration=full_step,
+            )
             if full_step % self.n_log_light_steps == 0:
-                self.pruner.log_light(step + self.retrain_count)
+                self.pruner.log_light(full_step)
 
     def _log_retrain_stats(
         self,
@@ -304,22 +328,30 @@ class RetrainTrainer(Trainer):
         optimizer: torch.optim.Optimizer,
     ):
         full_step = self.full_step(step)
-        if self.full_step and self.writer:
-            self.writer.add_scalar(
-                "full_loss/train_total", total_loss, step + self.retrain_count
+        if self.full_step:
+            self.logger.report_scalar(
+                title="full_loss/train_total",
+                value=total_loss,
+                iteration=full_step,
             )
-            self.writer.add_scalar(
-                "full_loss/train_mask", mask_loss, step + self.retrain_count
+            self.logger.report_scalar(
+                title="full_loss/train_mask",
+                value=mask_loss,
+                iteration=full_step,
             )
             print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
-            self.writer.add_scalar(
-                "full_steps/lr",
-                optimizer.param_groups[0]["lr"],
-                step + self.retrain_count,
+            self.logger.report_scalar(
+                title="full_steps/lr",
+                value=optimizer.param_groups[0]["lr"],
+                iteration=full_step,
             )
-            self.writer.add_scalar("is_retraining", 1, step + self.retrain_count)
+            self.logger.report_scalar(
+                title="is_retraining",
+                value=1,
+                iteration=full_step,
+            )
             if full_step % self.n_log_light_steps == 0:
-                self.pruner.log_light(step + self.retrain_count)
+                self.pruner.log_light(full_step)
 
     def _pruning_step(self, step):
         if self.scheduler.is_time_to_prune(step):
@@ -327,8 +359,10 @@ class RetrainTrainer(Trainer):
 
     def _retrain(self, step):
         loss_before_recycle = self._eval_step(step)
-        self.writer.add_scalar(
-            "loss/eval_just_before_recycle", loss_before_recycle, step
+        self.logger.report_scalar(
+            title="loss/eval_just_before_recycle",
+            value=loss_before_recycle,
+            iteration=step,
         )
         print(f"Eval loss before recycle:", loss_before_recycle)
 
@@ -365,8 +399,10 @@ class RetrainTrainer(Trainer):
         for i in range(self.scheduler.n_steps_retrain):
             if i < 5:
                 loss_after_recycle = self._eval_step(step, log_values=False)
-                self.writer.add_scalar(
-                    "loss/eval_just_after_recycle", loss_after_recycle, step + i
+                self.logger.report_scalar(
+                    title="loss/eval_just_after_recycle",
+                    value=loss_after_recycle,
+                    iteration=step + i,
                 )
                 print(f"Eval loss after recycle:", loss_after_recycle)
             # lr warmup

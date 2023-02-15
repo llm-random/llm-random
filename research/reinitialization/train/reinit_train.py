@@ -3,7 +3,6 @@ from typing import List, Optional
 
 import torch
 import datetime
-from torch.utils.tensorboard import SummaryWriter
 from clearml import Task
 
 from lizrd.core import misc, bert
@@ -19,14 +18,17 @@ from lizrd.train.train_utils import (
 from research.reinitialization.core.scheduler import DelayedConstScheduler
 import secrets
 import os
+import neptune.new as neptune
+from lizrd.support.logging import ClearMLLogger, NeptuneLogger
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--testing_regular", action="store_true")
 parser.add_argument("--testing_recycle", action="store_true")
+parser.add_argument("--use_neptune", action="store_true")
 parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
-parser.add_argument("--mixed_precision", action="store_true", default=True)
+parser.add_argument("--mixed_precision", action="store_true")
 
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
@@ -140,7 +142,16 @@ def make_concise_datetime() -> str:
 timestamp = make_concise_datetime()
 unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
 
-if args.use_clearml:
+if args.use_neptune:
+    run = neptune.init_run(
+        project="pmtest/llm-efficiency",
+        tags=args.tags,
+        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    run["args"] = vars(args)
+    run["working_directory"] = os.getcwd()
+    logger = NeptuneLogger(run)
+elif args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
         task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
@@ -148,9 +159,10 @@ if args.use_clearml:
     task.connect(vars(args))
     if args.tags:
         task.add_tags(args.tags)
+    logger = ClearMLLogger(task)
 
-modelpath = f"runs/wikibooktest/{unique_timestamp}"
-writer = SummaryWriter(log_dir=modelpath)
+modelpath = f"models/{unique_timestamp}"
+os.makedirs(modelpath, exist_ok=True)
 
 # set pruner if needed
 if args.use_pruner and args.pruner_n_steps:
@@ -259,7 +271,7 @@ if args.trainer_type == "retrain":
         mask_loss_weight=args.mask_loss_weight,
         modelpath=modelpath,
         pruner=pruner,
-        writer=writer,
+        logger=logger,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
         n_log_light_steps=args.n_log_light_steps,
@@ -280,7 +292,7 @@ elif args.trainer_type == "regular":
         mask_loss_weight=args.mask_loss_weight,
         modelpath=modelpath,
         pruner=pruner,
-        writer=writer,
+        logger=logger,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
         log_acc_steps=args.log_acc_steps,
