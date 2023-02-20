@@ -481,7 +481,7 @@ class RetrainRecycleFF(nn.Module):
     def log_activations(self, layer_name: str, step: int):
         values = self.current_activations
         fig = px.histogram(values)
-        Logger.current_logger().report_plotly(
+        log_plot_to_clearml(
             title="Average activations of all neurons",
             series=layer_name,
             iteration=step,
@@ -491,7 +491,7 @@ class RetrainRecycleFF(nn.Module):
     def log_activation_ratios(self, layer_name: str, step: int):
         values = self.activate_ratio
         fig = px.histogram(values)
-        Logger.current_logger().report_plotly(
+        log_plot_to_clearml(
             title="Average ratio of activation per neuron",
             series=layer_name,
             iteration=step,
@@ -501,7 +501,7 @@ class RetrainRecycleFF(nn.Module):
     def log_activations_sampled(self, layer_name: str, step: int):
         values = self.some_activations
         fig = px.histogram(values)
-        Logger.current_logger().report_plotly(
+        log_plot_to_clearml(
             title="Activations of sampled neurons",
             series=layer_name,
             iteration=step,
