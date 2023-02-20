@@ -20,25 +20,24 @@ from lizrd.scripts.grid_utils import (
 )
 from lizrd.support.code_versioning_support import version_code
 
-TRAINER = "research.nonlinearities.train.nonlinearities_train"
+TRAINER = "research.reinitialization.train.reinit_train"
 
 # ^ - grid over that
 # * - apply function
 PARAMS = {
-    "ff_mode": "vanilla",
-    "learning_rate": 4e-4,
-    "batch_size": 16,
+    "project_name": f"{os.getenv('USER')}/mp",
+    "name": "mp",
+    "ff_layer": "regular",
+    "batch_size": 128,
+    "cutoff": 128,
     "^mixed_precision": [True, False],
-    "^log_distributions": [False, True],
-    "logging_frequency": 1000,
-    "project_name": f"nonlinearities/mixed_precision_distribution_logging_tests",
-    "name": "boi",
     "tags": ["test"],
-    "use_neptune": True,
+    "use_clearml": True,
+    "pruner_n_steps": 100,
 }
 
 TIME = "1-00:00:00"
-GRES = "gpu:1"
+GRES = "gpu:titanv:1"
 DRY_RUN = False
 SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
@@ -83,7 +82,7 @@ if __name__ == "__main__":
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
 
-        trainer_params = []  # ["--versioning_branch", name_for_branch]
+        trainer_params = []
         for k, v in param_set.items():
             if isinstance(v, bool):
                 if v:
@@ -102,8 +101,6 @@ if __name__ == "__main__":
                 f"--gres={GRES}",
                 f"--job-name={name}",
                 f"--time={TIME}",
-                f"--output=/home/simontwice/sparsity/sa.txt",
-                f"--error=error.txt",
                 get_grid_entrypoint(runner),
                 "python3",
                 "-m",
