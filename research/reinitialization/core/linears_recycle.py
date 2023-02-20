@@ -333,11 +333,15 @@ class RetrainRecycleFF(nn.Module):
 
     def _new_neurons_forward(self, x: torch.Tensor) -> torch.Tensor:
         # Apply FF1
+        assert self.lin1.weight.data.shape == self.new_weights_1.shape
         lin_weights_1 = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.detach().clone()
+            "f, f m -> f m", self.mask, self.lin1.weight.detach()
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.new_weights_1)
         x = misc.einsum("... i, o i -> ... o", x, lin_weights_1)
-        # dodać tu dużo assertów
+        assert self.lin1.weight.data.shape == lin_weights_1.shape
+        assert self.mask.requires_grad == False
+        assert self.new_weights_1.requires_grad == True
+        assert self.lin1.weight.requires_grad == False
 
         # relu
         x = F.relu(x)
@@ -348,7 +352,7 @@ class RetrainRecycleFF(nn.Module):
         # Appply FF2
         assert self.lin2.weight.data.shape == self.new_weights_2.shape
         lin_weights_2 = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.detach().clone()
+            "f, m f -> m f", self.mask, self.lin2.weight.detach()
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2)
         assert self.lin2.weight.data.shape == lin_weights_2.shape
         assert self.mask.requires_grad == False
@@ -436,17 +440,16 @@ class RetrainRecycleFF(nn.Module):
         self.recently_pruned = (1 - self.mask).bool()
 
     def apply_new_weights(self):
-        self.lin1.weight.data = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.detach().clone()
-        ) + misc.einsum(
-            "f, f m -> f m", 1 - self.mask, self.new_weights_1.detach().clone()
-        )  # czy te operacje są różniczkowane?
+        with torch.no_grad():
+            self.lin1.weight.data = misc.einsum(
+                "f, f m -> f m", self.mask, self.lin1.weight.detach()
+            ) + misc.einsum(
+                "f, f m -> f m", 1 - self.mask, self.new_weights_1.detach()
+            )  # czy te operacje są różniczkowane?
 
-        self.lin2.weight.data = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.detach().clone()
-        ) + misc.einsum(
-            "f, m f -> m f", 1 - self.mask, self.new_weights_2.detach().clone()
-        )
+            self.lin2.weight.data = misc.einsum(
+                "f, m f -> m f", self.mask, self.lin2.weight.detach()
+            ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.new_weights_2.detach())
 
     def pre_retrain(self):
         self.new_weights_1.requires_grad = True
