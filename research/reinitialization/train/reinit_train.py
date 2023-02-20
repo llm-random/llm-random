@@ -67,6 +67,7 @@ parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
+parser.add_argument("--weight_decay", type=float, default=0.0)
 
 args = parser.parse_args()
 
@@ -237,7 +238,9 @@ model = get_model(
 
 # set optimizer
 if args.optimizer == "adam":
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
