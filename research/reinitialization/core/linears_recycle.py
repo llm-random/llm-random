@@ -4,15 +4,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.init import kaiming_uniform_
-from clearml import Logger
 import numpy as np
 import plotly.express as px
 
 from lizrd.core.misc import Linear
-from lizrd.support import ash
-from lizrd.support.logging import log_plot_to_clearml
+
+from lizrd.support.logging import (
+    get_current_logger,
+    log_plot as log_plot,
+)
 from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
+import math
 
 
 class RandomUnstructRecycleFF(nn.Module):
@@ -463,7 +466,7 @@ class RetrainRecycleFF(nn.Module):
         tensor = self.recycle_counter.flatten().cpu()
         values = tensor.tolist()
         fig = px.histogram(values)
-        log_plot_to_clearml(
+        log_plot(
             title="No. of times neurons have been recycled",
             series=layer_name,
             iteration=step,
@@ -474,7 +477,7 @@ class RetrainRecycleFF(nn.Module):
         tensor = self.neuron_magnitudes.flatten().cpu()
         values = tensor.tolist()
         fig = px.histogram(values)
-        log_plot_to_clearml(
+        log_plot(
             title="Magnitude of all neurons",
             series=layer_name,
             iteration=step,
@@ -484,7 +487,7 @@ class RetrainRecycleFF(nn.Module):
     def log_activations(self, layer_name: str, step: int):
         values = self.current_activations
         fig = px.histogram(values)
-        log_plot_to_clearml(
+        get_current_logger().report_plotly(
             title="Average activations of all neurons",
             series=layer_name,
             iteration=step,
@@ -494,7 +497,7 @@ class RetrainRecycleFF(nn.Module):
     def log_activation_ratios(self, layer_name: str, step: int):
         values = self.activate_ratio
         fig = px.histogram(values)
-        log_plot_to_clearml(
+        get_current_logger().report_plotly(
             title="Average ratio of activation per neuron",
             series=layer_name,
             iteration=step,
@@ -504,7 +507,7 @@ class RetrainRecycleFF(nn.Module):
     def log_activations_sampled(self, layer_name: str, step: int):
         values = self.some_activations
         fig = px.histogram(values)
-        log_plot_to_clearml(
+        get_current_logger().report_plotly(
             title="Activations of sampled neurons",
             series=layer_name,
             iteration=step,
@@ -512,25 +515,27 @@ class RetrainRecycleFF(nn.Module):
         )
 
     def log_recently_pruned_magnitude(self, layer_name, step: int):
-        Logger.current_logger().report_scalar(
-            "mean_magn_of_recycled_layer",
-            layer_name,
-            iteration=step,
-            value=self.neuron_magnitudes[self.recently_pruned].mean().item(),
-        )
+        val = self.neuron_magnitudes[self.recently_pruned].mean().item()
+        if not math.isnan(val) and not math.isinf(val):
+            get_current_logger().report_scalar(
+                title="mean_magn_of_recycled_layer",
+                series=layer_name,
+                iteration=step,
+                value=val,
+            )
 
     def log_heavy(self, layer_name: str, step: int):
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
         self.log_activations(layer_name, step)
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
         self.log_activation_ratios(layer_name, step)
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
         self.log_activations_sampled(layer_name, step)
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
         self.log_recycle_magnitude(layer_name, step)
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
         self.log_magnitude(layer_name, step)
-        Logger.current_logger().flush(wait=True)
+        get_current_logger().flush_if_necessary()
 
     def log_light(self, layer_name: str, step: int):
         self.log_recently_pruned_magnitude(layer_name, step)
