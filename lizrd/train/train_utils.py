@@ -346,7 +346,6 @@ class RetrainTrainer(Trainer):
             self.optimizer.param_groups[0]["lr"],
             self.optimizer.param_groups[0]["betas"],
             self.optimizer.param_groups[0]["eps"],
-            self.optimizer.param_groups[0]["weight_decay"],
         )
         target_lr = self.optimizer.param_groups[0]["lr"]
         if not self.retrain_warmup_steps:
