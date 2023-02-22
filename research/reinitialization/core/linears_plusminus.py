@@ -10,7 +10,7 @@ class PlusMinusFF(nn.Module):
     def __init__(self, dmodel: int, dff: int):
         super().__init__()
         self.lin1 = misc.Linear(dmodel, dff, bias=False)
-        self.lin2 = misc.Linear(2 * dff, dmodel)
+        self.lin2 = misc.Linear(2 * dff, dmodel, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         plus_x = self.lin1(x)
