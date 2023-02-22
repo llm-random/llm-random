@@ -398,11 +398,11 @@ class RetrainTrainer(Trainer):
         for i in range(self.scheduler.n_steps_retrain):
             if i < 5:
                 loss_after_recycle = self._eval_step(step, log_values=False)
-                self.logger.report_scalar(
-                    title="loss/eval_just_after_recycle",
-                    value=loss_after_recycle,
-                    iteration=step + i,
-                )
+                # self.logger.report_scalar(
+                #     title="loss/eval_just_after_recycle",
+                #     value=loss_after_recycle,
+                #     iteration=step + i,
+                # )
                 print(f"Eval loss after recycle:", loss_after_recycle)
             # lr warmup
             lr_coeff = min(1.0, i / self.retrain_warmup_steps)
