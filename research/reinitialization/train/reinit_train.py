@@ -6,7 +6,7 @@ import datetime
 from clearml import Task
 
 from lizrd.core import misc, bert
-from research.reinitialization.core import linears
+from research.reinitialization.core import linears, linears_plusminus
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
 from lizrd.train.train_utils import (
@@ -214,6 +214,8 @@ elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+elif args.ff_layer == "plusminus_ff":
+    ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dm, args.dff)
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 
