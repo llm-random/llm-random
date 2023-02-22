@@ -50,7 +50,6 @@ class AbstractLogger(ABC):
         series: Optional[str],
         iteration: int,
     ):
-
         if isinstance(figure.data[0], plotly.graph_objs.Scattergl):
             x = figure.data[0].x
             y = figure.data[0].y
