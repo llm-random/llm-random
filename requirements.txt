@@ -15,7 +15,7 @@ datasets==2.9.0
 transformers
 clearml-agent
 apache-beam
-black
+black==23.1.0
 autoflake
 plotly-express
 neptune-client
