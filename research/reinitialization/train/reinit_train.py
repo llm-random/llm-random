@@ -6,7 +6,7 @@ import datetime
 from clearml import Task
 
 from lizrd.core import misc, bert
-from research.reinitialization.core import linears
+from research.reinitialization.core import linears, linears_loss
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
 from lizrd.train.train_utils import (
@@ -68,6 +68,9 @@ parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
+
+parser.add_argument("--inverse_wd_coeff", type=float, required=False)
+parser.add_argument("--inverse_wd_regtype", type=str, required=False)
 
 args = parser.parse_args()
 
@@ -214,6 +217,14 @@ elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+elif args.ff_layer == "inverse_wd":
+    ff_layer_fun = lambda: linears_loss.InverseWeightDecayFF(
+        args.dm,
+        args.dff,
+        reg_type=args.inverse_wd_regtype,
+        reg_coeff=args.inverse_wd_coeff,
+        pruner=pruner,
+    )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 

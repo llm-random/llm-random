@@ -161,6 +161,16 @@ class Trainer:
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
 
+            auxiliary_loss = self.pruner.get_auxiliary_loss()
+            self.logger.report_scalar(
+                title="loss",
+                series="auxiliary",
+                value=auxiliary_loss.item(),
+                iteration=step,
+            )
+
+            total_loss += auxiliary_loss
+
         self.optimize(loss=total_loss, optimizer=optimizer, step=step)
         self.update_loss_stats(total_loss, mask_loss)
 
