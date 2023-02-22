@@ -523,6 +523,21 @@ class RetrainRecycleFF(nn.Module):
                 iteration=step,
                 value=val,
             )
+        else:
+            print("mean_magn_of_recycled_layer is nan or inf")
+
+    def log_scatter_magnitude_activation(self, layer_name: str, step: int):
+        fig = px.scatter(
+            x=self.neuron_magnitudes.flatten().cpu().tolist(),
+            y=self.activate_ratio.flatten().tolist(),
+        )
+        fig.update_layout(xaxis_title="Magnitude", yaxis_title="Activation ratio")
+        get_current_logger().report_plotly(
+            title="Magnitude vs activation",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
 
     def log_heavy(self, layer_name: str, step: int):
         get_current_logger().flush_if_necessary()
@@ -535,6 +550,8 @@ class RetrainRecycleFF(nn.Module):
         self.log_recycle_magnitude(layer_name, step)
         get_current_logger().flush_if_necessary()
         self.log_magnitude(layer_name, step)
+        get_current_logger().flush_if_necessary()
+        self.log_scatter_magnitude_activation(layer_name, step)
         get_current_logger().flush_if_necessary()
 
     def log_light(self, layer_name: str, step: int):
