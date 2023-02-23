@@ -93,7 +93,8 @@ class StructPruneFF(nn.Module):
 
 def prepare_tensor_for_logging(x, sample_size=2500):
     """Prepare tensor or tensors for logging by sampling it to a maximum of `sample_size` elements.
-    Default sample size = 2500 is selected because (experimentally) this works with ClearML plotting"""
+    Default sample size = 2500 is selected because (experimentally) this works with ClearML plotting
+    """
     if not isinstance(x, list):
         x = [x]
         was_list = False

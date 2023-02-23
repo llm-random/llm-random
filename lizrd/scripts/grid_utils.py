@@ -5,29 +5,29 @@ from enum import Enum
 import platform
 
 
-class Runner(Enum):
+class MachineBackend(Enum):
     ENTROPY = 1
     ATHENA = 2
     LOCAL = 3
 
 
-def get_runner() -> Runner:
+def get_machine_backend() -> MachineBackend:
     node = platform.uname().node
     if node == "asusgpu0":
-        return Runner.ENTROPY
+        return MachineBackend.ENTROPY
     elif "athena" in node:
-        return Runner.ATHENA
+        return MachineBackend.ATHENA
     else:
-        return Runner.LOCAL
+        return MachineBackend.LOCAL
 
 
-def get_grid_entrypoint(runner: Runner) -> str:
-    if runner in [Runner.ENTROPY, Runner.LOCAL]:
+def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
+    if machine_backend in [MachineBackend.ENTROPY, MachineBackend.LOCAL]:
         return "lizrd/scripts/grid_entrypoint.sh"
-    elif runner == Runner.ATHENA:
+    elif machine_backend == MachineBackend.ATHENA:
         return "lizrd/scripts/grid_entrypoint_athena.sh"
     else:
-        raise ValueError(f"Unknown runner: {runner}")
+        raise ValueError(f"Unknown machine backend: {machine_backend}")
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
