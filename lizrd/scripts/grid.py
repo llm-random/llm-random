@@ -1,7 +1,7 @@
 """
 Script to grid search in recycle layers. Run this script from the root of the project:
 $ python3 research/reinitialization/scripts/grid.py
-Remember to set TRAINER and PARAMS in the script or add an argument parser.
+Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
 import datetime
@@ -13,15 +13,15 @@ from time import sleep
 from lizrd.scripts.grid_utils import (
     create_grid,
     timestr_to_minutes,
-    get_runner,
-    Runner,
+    get_machine_backend,
+    MachineBackend,
     get_grid_entrypoint,
 )
 
 from lizrd.support.code_versioning_support import version_code
 
 
-TRAINER = "research.reinitialization.train.reinit_train"
+RUNNER = "research.reinitialization.train.reinit_train"
 
 # ^ - grid over that
 # * - apply function
@@ -46,11 +46,11 @@ SINGULARITY_IMAGE = (
 CODE_PATH = os.getcwd()
 
 if __name__ == "__main__":
-    runner = get_runner()
+    runner = get_machine_backend()
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
-        TRAINER = grid_args.get("trainer", TRAINER)
+        RUNNER = grid_args.get("runner", RUNNER)
         PARAMS = grid_args.get("params", PARAMS)
         TIME = grid_args.get("time", TIME)
         GRES = grid_args.get("gres", GRES)
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     no_experiments = len(grid)
     minutes_per_exp = timestr_to_minutes(TIME)
 
-    if len(grid) > 1 and runner == Runner.LOCAL and not DRY_RUN:
+    if len(grid) > 1 and runner == MachineBackend.LOCAL and not DRY_RUN:
         raise ValueError(
             f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
         )
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     user_input = input(
         f"Will run {no_experiments} experiments, using up {no_experiments * minutes_per_exp} minutes."
-        f"\nSbatch settings: \n{TRAINER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+        f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
     )
     if user_input.lower() not in ("", "y", "Y"):
         print("Aborting...")
@@ -83,18 +83,18 @@ if __name__ == "__main__":
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
 
-        trainer_params = []
+        runner_params = []
         for k, v in param_set.items():
             if isinstance(v, bool):
                 if v:
-                    trainer_params.append(f"--{k}")
+                    runner_params.append(f"--{k}")
                 else:
                     pass  # simply don't add it if v == False
                 continue
             else:
-                trainer_params.append(f"--{k}")
-                trainer_params.append(v)
-        if runner == Runner.ENTROPY:
+                runner_params.append(f"--{k}")
+                runner_params.append(v)
+        if runner == MachineBackend.ENTROPY:
             subprocess_args = [
                 "sbatch",
                 "--partition=common",
@@ -105,10 +105,10 @@ if __name__ == "__main__":
                 get_grid_entrypoint(runner),
                 "python3",
                 "-m",
-                TRAINER,
-                *trainer_params,
+                RUNNER,
+                *runner_params,
             ]
-        elif runner == Runner.ATHENA:
+        elif runner == MachineBackend.ATHENA:
             subprocess_args = [
                 "sbatch",
                 "--partition=plgrid-gpu-a100",
@@ -126,16 +126,16 @@ if __name__ == "__main__":
                 SINGULARITY_IMAGE,
                 "python3",
                 "-m",
-                TRAINER,
-                *trainer_params,
+                RUNNER,
+                *runner_params,
             ]
-        elif runner == Runner.LOCAL:
+        elif runner == MachineBackend.LOCAL:
             subprocess_args = [
                 get_grid_entrypoint(runner),
                 "python3",
                 "-m",
-                TRAINER,
-                *trainer_params,
+                RUNNER,
+                *runner_params,
             ]
         else:
             raise ValueError(f"Unknown runner: {runner}")
