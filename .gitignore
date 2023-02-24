@@ -143,3 +143,4 @@ slurm*
 # temporary scripts
 research/reinitialization/scripts/jk_scripts
 *.pkl
+jk_train/
