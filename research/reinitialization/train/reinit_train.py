@@ -68,8 +68,8 @@ parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
+parser.add_argument("--auxiliary_loss_weight", type=float, required=False)
 
-parser.add_argument("--inverse_wd_coeff", type=float, required=False)
 parser.add_argument("--inverse_wd_regtype", type=str, required=False)
 
 args = parser.parse_args()
@@ -262,6 +262,26 @@ if args.optimizer == "adam":
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
+base_trainer_params = dict(
+    model=model,
+    optimizer=optimizer,
+    pdataset=pdataset,
+    pdataset_eval=eval_pdataset,
+    batch_size=args.batch_size,
+    vocab_size=VOCAB_SIZE,
+    mask_percent=args.mask_percent,
+    mask_loss_weight=args.mask_loss_weight,
+    modelpath=modelpath,
+    pruner=pruner,
+    logger=logger,
+    scheduler=scheduler,
+    mixed_precision=args.mixed_precision,
+    n_log_light_steps=args.n_log_light_steps,
+    n_log_heavy_steps=args.n_log_heavy_steps,
+    log_acc_steps=args.log_acc_steps,
+    auxiliary_loss_weight=args.auxiliary_loss_weight,
+)
+
 if args.trainer_type == "retrain":
     pdataset_retrain = get_processed_dataset(
         batch_size=args.batch_size,
@@ -272,44 +292,12 @@ if args.trainer_type == "retrain":
         seed=args.retrain_ds_seed,
     )
     trainer = RetrainTrainer(
-        model=model,
-        optimizer=optimizer,
-        pdataset=pdataset,
-        pdataset_eval=eval_pdataset,
-        batch_size=args.batch_size,
-        vocab_size=VOCAB_SIZE,
-        mask_percent=args.mask_percent,
-        mask_loss_weight=args.mask_loss_weight,
-        modelpath=modelpath,
-        pruner=pruner,
-        logger=logger,
-        scheduler=scheduler,
-        mixed_precision=args.mixed_precision,
-        n_log_light_steps=args.n_log_light_steps,
-        n_log_heavy_steps=args.n_log_heavy_steps,
-        log_acc_steps=args.log_acc_steps,
+        **base_trainer_params,
         pdataset_retrain=pdataset_retrain,
         retrain_warmup_steps=args.retrain_warmup_steps,
     )
 elif args.trainer_type == "regular":
-    trainer = Trainer(
-        model=model,
-        optimizer=optimizer,
-        pdataset=pdataset,
-        pdataset_eval=eval_pdataset,
-        batch_size=args.batch_size,
-        vocab_size=VOCAB_SIZE,
-        mask_percent=args.mask_percent,
-        mask_loss_weight=args.mask_loss_weight,
-        modelpath=modelpath,
-        pruner=pruner,
-        logger=logger,
-        scheduler=scheduler,
-        mixed_precision=args.mixed_precision,
-        log_acc_steps=args.log_acc_steps,
-        n_log_light_steps=args.n_log_light_steps,
-        n_log_heavy_steps=args.n_log_heavy_steps,
-    )
+    trainer = Trainer(**base_trainer_params)
 else:
     raise ValueError(f"trainer_type {args.trainer_type} not recognized")
 

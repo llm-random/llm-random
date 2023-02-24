@@ -89,6 +89,7 @@ class Trainer:
     running_total_loss: float = 0.0
     running_mask_loss: float = 0.0
     running_loss_steps: int = 0
+    auxiliary_loss_weight: float = 0.0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -164,7 +165,14 @@ class Trainer:
             auxiliary_loss = self.pruner.get_auxiliary_loss()
             self.logger.report_scalar(
                 title="loss",
-                series="auxiliary",
+                series="auxiliary (before scaling)",
+                value=auxiliary_loss.item(),
+                iteration=step,
+            )
+            auxiliary_loss *= self.auxiliary_loss_weight
+            self.logger.report_scalar(
+                title="loss",
+                series="auxiliary (after scaling)",
                 value=auxiliary_loss.item(),
                 iteration=step,
             )

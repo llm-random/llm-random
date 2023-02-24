@@ -11,7 +11,6 @@ class InverseWeightDecayFF(nn.Module):
         dmodel: int,
         dff: int,
         reg_type: str,
-        reg_coeff: float,
         pruner: Pruner,
     ):
         super().__init__()
@@ -19,7 +18,6 @@ class InverseWeightDecayFF(nn.Module):
         self.lin2 = misc.Linear(dff, dmodel)
         self.reg_type = reg_type
         assert reg_type in ["l1", "l2"]
-        self.reg_coeff = reg_coeff
 
         pruner.register(self)
 
@@ -44,4 +42,5 @@ class InverseWeightDecayFF(nn.Module):
             loss = ((magnitudes < mean) * abs(magnitudes - mean)).sum()
         elif self.reg_type == "l2":
             loss = ((magnitudes < mean) * (magnitudes - mean) ** 2).sum()
-        return loss * self.reg_coeff
+
+        return loss
