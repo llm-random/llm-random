@@ -29,8 +29,8 @@ class InverseWeightDecayFF(nn.Module):
 
     @property
     def neuron_magnitudes(self) -> torch.Tensor:
-        weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
-        weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+        weights1 = torch.sqrt(misc.einsum("f m -> f", self.lin1.weight**2))
+        weights2 = torch.sqrt(misc.einsum("m f -> f", self.lin2.weight**2))
 
         weights = weights1 * weights2
         return weights.flatten()
