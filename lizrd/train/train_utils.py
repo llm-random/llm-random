@@ -93,7 +93,6 @@ class Trainer:
     running_mask_loss: float = 0.0
     running_loss_steps: int = 0
     neuron_diff_dataset: wikibookdata.ProcessedDatasetWrapper = None
-    neuron_diff_steps: int = 1000
     neuron_diff_sample_size: int = 1
     neuron_diff_n_samples: int = 100
     neuron_diff_n_batches: int = 10
@@ -311,14 +310,7 @@ class Trainer:
             # log neuron difference stats if necessary:
             if (
                 self.neuron_diff_dataset is not None
-                and step % self.neuron_diff_steps == 0
-            ):
-                self.check_neuron_diff(step)
-
-            # log neuron difference stats if necessary:
-            if (
-                self.neuron_diff_dataset is not None
-                and step % self.neuron_diff_steps == 0
+                and step % self.n_log_heavy_steps == 0
             ):
                 self.check_neuron_diff(step)
 
