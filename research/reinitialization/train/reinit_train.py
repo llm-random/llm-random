@@ -3,7 +3,6 @@ from typing import List, Optional
 
 import torch
 import datetime
-from torch.utils.tensorboard import SummaryWriter
 from clearml import Task
 
 from lizrd.core import misc, bert
@@ -19,14 +18,17 @@ from lizrd.train.train_utils import (
 from research.reinitialization.core.scheduler import DelayedConstScheduler
 import secrets
 import os
+import neptune.new as neptune
+from lizrd.support.logging import ClearMLLogger, NeptuneLogger
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--testing_regular", action="store_true")
 parser.add_argument("--testing_recycle", action="store_true")
+parser.add_argument("--use_neptune", action="store_true")
 parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
-parser.add_argument("--mixed_precision", action="store_true", default=True)
+parser.add_argument("--mixed_precision", action="store_true")
 
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
@@ -50,17 +52,19 @@ parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=2)
 parser.add_argument("--dhead", type=int, default=32)
 parser.add_argument("--optimizer", type=str, default="adam")
-parser.add_argument("--learning_rate", type=float, default=8e-4)
+parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
+parser.add_argument("--n_steps_log", type=int, default=5_000)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
-parser.add_argument("--n_log_plots_steps", type=int, default=None)
-parser.add_argument("--n_log_steps", type=int, default=100)
+parser.add_argument("--n_log_light_steps", type=int, default=100)
+parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
+parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 parser.add_argument("--log_neuron_diff", action="store_true")
 parser.add_argument("--log_neuron_diff_steps", type=int, default=1000)
@@ -69,6 +73,10 @@ parser.add_argument("--log_neuron_diff_n_samples", type=int, default=100)
 parser.add_argument("--neuron_diff_ds_seed", type=int, default=511)
 parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--testing_diff", action="store_true")
+parser.add_argument("--retrain_without_reinit", action="store_true")
+parser.add_argument("--random_indexes", action="store_true")
+parser.add_argument("--highest_magnitudes", action="store_true")
+parser.add_argument("--weight_decay", type=float, default=0.0)
 
 args = parser.parse_args()
 
@@ -106,13 +114,13 @@ elif args.testing_regular:
     args.tags = ["testing_regular"]
     args.n_steps = 100
     args.use_pruner = False
-    args.batch_size = 4
+    args.batch_size = 2
 elif args.testing_recycle:
     args.project_name = f"{os.getenv('USER')}/testing"
     args.use_clearml = True
     args.ff_layer = "retrain_recycle"
     args.cutoff = 32
-    args.n_steps = 100
+    args.n_steps = 50
     args.use_clearml = True
     args.tags = ["testing_recycle"]
     args.use_pruner = True
@@ -121,9 +129,9 @@ elif args.testing_recycle:
     args.pruner_delay = 6
     args.pruner_n_steps_retrain = 10
     args.trainer_type = "retrain"
-    args.n_log_plots_steps = 40
+    args.n_log_heavy_steps = 40
+    args.n_log_light_steps = 10
     args.n_steps_eval = 10
-    args.n_log_steps = 10
     args.batch_size = 8
 
 # basic validation of args
@@ -165,7 +173,16 @@ def make_concise_datetime() -> str:
 timestamp = make_concise_datetime()
 unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
 
-if args.use_clearml:
+if args.use_neptune:
+    run = neptune.init_run(
+        project="pmtest/llm-efficiency",
+        tags=args.tags,
+        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    run["args"] = vars(args)
+    run["working_directory"] = os.getcwd()
+    logger = NeptuneLogger(run)
+elif args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
         task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
@@ -173,24 +190,26 @@ if args.use_clearml:
     task.connect(vars(args))
     if args.tags:
         task.add_tags(args.tags)
+    logger = ClearMLLogger(task)
 
-modelpath = f"runs/wikibooktest/{unique_timestamp}"
-writer = SummaryWriter(log_dir=modelpath)
+modelpath = f"models/{unique_timestamp}"
+os.makedirs(modelpath, exist_ok=True)
 
 # set pruner if needed
 if args.use_pruner and args.pruner_n_steps:
     pruner = Pruner()
     scheduler = DelayedConstScheduler(
-        pruner,
-        args.pruner_n_steps,
-        args.pruner_prob,
-        args.pruner_delay,
-        args.pruner_n_steps_retrain,
+        n_steps_prune=args.pruner_n_steps,
+        prob=args.pruner_prob,
+        delay=args.pruner_delay,
+        n_steps_retrain=args.pruner_n_steps_retrain,
     )
 else:
     pruner = None
     scheduler = None
 
+print(pruner)
+print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
     ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff)
@@ -211,13 +230,24 @@ elif args.ff_layer == "struct_magnitude_recycle":
         args.dm, args.dff, pruner
     )
 elif args.ff_layer == "retrain_recycle":
-    ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(
+        dmodel=args.dm,
+        dff=args.dff,
+        pruner=pruner,
+        retrain_without_reinit=args.retrain_without_reinit,
+        random_indexes=args.random_indexes,
+        highest_magnitudes=args.highest_magnitudes,
+    )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
         args.dm, args.dff, pruner, args.immunity, args.reinit_dist
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
+elif args.ff_layer == "log_ff":
+    ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+else:
+    raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 
 misc.print_available_gpus()
 pdataset = get_processed_dataset(
@@ -249,7 +279,9 @@ model = get_model(
 
 # set optimizer
 if args.optimizer == "adam":
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
@@ -286,11 +318,12 @@ if args.trainer_type == "retrain":
         mask_loss_weight=args.mask_loss_weight,
         modelpath=modelpath,
         pruner=pruner,
-        writer=writer,
+        logger=logger,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
-        n_log_plots_steps=args.n_log_plots_steps,
-        n_log_steps=args.n_log_steps,
+        n_log_light_steps=args.n_log_light_steps,
+        n_log_heavy_steps=args.n_log_heavy_steps,
+        log_acc_steps=args.log_acc_steps,
         pdataset_retrain=pdataset_retrain,
         retrain_warmup_steps=args.retrain_warmup_steps,
         neuron_diff_dataset=pdataset_neuron_diff,
@@ -299,7 +332,7 @@ if args.trainer_type == "retrain":
         neuron_diff_n_samples=args.log_neuron_diff_n_samples,
         neuron_diff_n_batches=args.neuron_diff_batches,
     )
-else:
+elif args.trainer_type == "regular":
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
@@ -311,14 +344,18 @@ else:
         mask_loss_weight=args.mask_loss_weight,
         modelpath=modelpath,
         pruner=pruner,
-        writer=writer,
+        logger=logger,
         scheduler=scheduler,
         mixed_precision=args.mixed_precision,
-        n_log_steps=args.n_log_steps,
+        log_acc_steps=args.log_acc_steps,
+        n_log_light_steps=args.n_log_light_steps,
+        n_log_heavy_steps=args.n_log_heavy_steps,
         neuron_diff_dataset=pdataset_neuron_diff,
         neuron_diff_steps=args.neuron_diff_steps,
         neuron_diff_sample_size=args.neuron_diff_sample_size,
         neuron_diff_n_samples=args.neuron_diff_n_samples,
     )
+else:
+    raise ValueError(f"trainer_type {args.trainer_type} not recognized")
 
 trainer.train(args.n_steps, args.n_steps_eval)

@@ -1,0 +1,12 @@
+Bootstrap: docker
+From: nvidia/cuda:11.7.0-runtime-ubuntu22.04
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    apt-get -y update
+    apt-get -y upgrade
+
+    apt-get -y install git virtualenv python3-pip
+
+    python3 -m pip install -U pip
