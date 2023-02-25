@@ -235,7 +235,7 @@ class Trainer:
         """
         print("Beginning of check_neuron_diff...")
         with torch.no_grad():
-            for i in range(len(self.scheduler.pruner.layers)):
+            for i in range(len(self.pruner.layers)):
                 results = np.zeros(self.neuron_diff_n_samples)
 
                 for _ in range(self.neuron_diff_n_batches):
@@ -245,17 +245,15 @@ class Trainer:
                     baseline = self._compute_loss(processed_batch).detach().cpu().item()
 
                     for j in range(self.neuron_diff_n_samples):
-                        self.scheduler.pruner.enable_neuron_diff(
-                            ff_layer_num=i, sample_number=j
-                        )
+                        self.pruner.enable_neuron_diff(ff_layer_num=i, sample_number=j)
                         total_mask_loss = (
                             self._compute_loss(processed_batch).detach().cpu().item()
                         )
-                        results[j] += baseline - total_mask_loss
+                        results[j] += total_mask_loss - baseline
 
                 results /= self.neuron_diff_n_batches
                 results = results.tolist()
-                self.scheduler.pruner.disable_neuron_diff()
+                self.pruner.disable_neuron_diff()
 
                 # log neuron diffs
                 fig = px.histogram(results)
@@ -267,7 +265,7 @@ class Trainer:
                 )
 
                 # log scatter of neuron diff/activation
-                activations = self.pruner.get_activate_ratio(i).tolist()
+                activations = self.pruner.get_activate_ratios(i).tolist()
                 if len(activations) == len(results):
                     fig = px.scatter(
                         x=results,
@@ -291,7 +289,7 @@ class Trainer:
         warmup_steps = int(0.01 * n_steps)
 
         if self.neuron_diff_dataset is not None:
-            self.scheduler.pruner.prepare_neuron_diff_idx(
+            self.pruner.prepare_neuron_diff_idx(
                 n_samples=self.neuron_diff_n_samples,
                 sample_size=self.neuron_diff_sample_size,
             )
