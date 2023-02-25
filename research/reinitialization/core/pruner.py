@@ -85,3 +85,8 @@ class Pruner(BasePruner):
         for layer in self.layers:
             if hasattr(layer, "disable_neuron_diff"):
                 layer.disable_neuron_diff()
+
+    def get_activate_ratios(self, layer_num: int):
+        if not hasattr(self.layers[layer_num], "activate_ratio"):
+            raise ValueError("Property activate ratio not present")
+        return self.layers[layer_num].activate_ratio

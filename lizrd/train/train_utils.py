@@ -5,6 +5,8 @@ from attr import define
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
+import numpy as np
+import plotly.express as px
 
 from lizrd.core import bert
 from lizrd.datasets import wikibookdata
@@ -12,6 +14,7 @@ from lizrd.support.logging import AbstractLogger
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
+from lizrd.support.logging import get_current_logger
 
 
 def get_model(
@@ -252,17 +255,34 @@ class Trainer:
                         results[j] += baseline - total_mask_loss
 
                 results /= self.neuron_diff_n_batches
+                results = results.tolist()
                 self.scheduler.pruner.disable_neuron_diff()
 
+                # log neuron diffs
                 fig = px.histogram(results)
-                Logger.current_logger().flush(wait=True)
-                Logger.current_logger().report_plotly(
+                get_current_logger().report_plotly(
                     title="Neuron quality difference",
                     series=f"Layer {i}",
                     iteration=step,
                     figure=fig,
                 )
-                Logger.current_logger().flush(wait=True)
+
+                # log scatter of neuron diff/activation
+                activations = self.pruner.get_activate_ratio(i).tolist()
+                if len(activations) == len(results):
+                    fig = px.scatter(
+                        x=results,
+                        y=activations,
+                    )
+                    fig.update_layout(
+                        xaxis_title="Quality", yaxis_title="Activation ratio"
+                    )
+                    get_current_logger().report_plotly(
+                        title="Quality vs activation",
+                        series=f"Layer {i+1}",
+                        iteration=step,
+                        figure=fig,
+                    )
 
         print("Neuron diff logged.")
 
