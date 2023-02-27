@@ -39,7 +39,7 @@ PARAMS = {
 
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
-DRY_RUN = False
+DRY_RUN = True
 SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
 )

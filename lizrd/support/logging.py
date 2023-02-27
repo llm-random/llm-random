@@ -85,45 +85,55 @@ class AbstractLogger(ABC):
                 f"Could not log scalars for plotly figure of type {type(figure.data[0])}"
             )
 
+    @staticmethod
+    def get_log_x_scale_metric(value: float, iteration: int):
+        return {
+            "value": value,
+            "iteration": math.log(max(iteration, 1)),
+        }
+
+    def get_metric_with_flop_scale(self, value: float, iteration: int):
+        assert (
+            self.auxiliary_params["model_size"] is not None
+        ), "if using x_compute_scale, you must provide model_size"
+        assert (
+            self.auxiliary_params["batch_size"] is not None
+        ), "if using x_compute_scale, you must provide batch_size"
+
+        return {
+            "value": value,
+            "iteration": iteration
+            * self.auxiliary_params["model_size"]
+            * self.auxiliary_params["batch_size"],
+        }
+
     def get_auxiliary_metrics(self, title: str, value: float, iteration: int):
+        if self.auxiliary_params is None or self.auxiliary_params == {}:
+            return {}
+
+        metric_x_flop = None
         auxiliary_metrics = {}
-        if self.auxiliary_params is None:
-            return auxiliary_metrics
+
+        if "x_flop" in self.auxiliary_params and self.auxiliary_params["x_flop"]:
+            metric_x_flop = self.get_metric_with_flop_scale(value, iteration)
+            auxiliary_metrics[f"{title}_(x_flop)"] = metric_x_flop
 
         if (
-            "x_flops_scale" in self.auxiliary_params
-            and self.auxiliary_params["x_flops_scale"]
+            "x_logarithmic" in self.auxiliary_params
+            and self.auxiliary_params["x_logarithmic"]
         ):
-            assert (
-                self.auxiliary_params["model_size"] is not None
-            ), "if using x_compute_scale, you must provide model_size"
-            assert (
-                self.auxiliary_params["batch_size"] is not None
-            ), "if using x_compute_scale, you must provide batch_size"
-            auxiliary_metrics[f"{title}_flops"] = {
-                "value": value,
-                "iteration": iteration
-                * self.auxiliary_params["model_size"]
-                * self.auxiliary_params["batch_size"],
-            }
+            if metric_x_flop is not None:
+                metric_x_flop_logarithmic = self.get_log_x_scale_metric(
+                    metric_x_flop["value"], metric_x_flop["iteration"]
+                )
+                auxiliary_metrics[
+                    f"{title}_(x_flop_logarithmic)"
+                ] = metric_x_flop_logarithmic
 
-        if (
-            "x_log_scale" in self.auxiliary_params
-            and self.auxiliary_params["x_log_scale"]
-        ):
+            metric_logarithmic = self.get_log_x_scale_metric(value, iteration)
+            auxiliary_metrics[f"{title}_(x_logarithmic)"] = metric_logarithmic
 
-            def new_metric_with_log_scale(metric):
-                return {
-                    "value": metric["value"],
-                    "iteration": math.log(metric["iteration"]),
-                }
-
-            for metric in auxiliary_metrics:
-                auxiliary_metrics[f"{metric}_log"] = new_metric_with_log_scale(metric)
-            auxiliary_metrics[f"{title}_log"] = new_metric_with_log_scale(
-                {"value": value, "iteration": iteration}
-            )
-            return auxiliary_metrics
+        return auxiliary_metrics
 
 
 class ClearMLLogger(AbstractLogger):
@@ -133,8 +143,8 @@ class ClearMLLogger(AbstractLogger):
 class NeptuneLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
-    def __init__(self, logger):
-        super().__init__(logger)
+    def __init__(self, logger, auxiliary_params=None):
+        super().__init__(logger, auxiliary_params)
         self.random_id = generate_random_string(8)
         os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
 
