@@ -10,7 +10,7 @@ from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 
 from lizrd.core import misc
-from lizrd.support.logging import NeptuneLogger
+from lizrd.support.logging import NeptuneLogger, ClearMLLogger
 from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
@@ -41,7 +41,7 @@ parser.add_argument("--dmodel", type=int, default=256)
 parser.add_argument("--dff", type=int, default=1024)
 parser.add_argument("--n_att_heads", type=int, default=4)
 parser.add_argument("--n_blocks", type=int, default=4)
-parser.add_argument("--mixed_precision", action="store_true", default=False)
+parser.add_argument("--mixed_precision", action="store_true", default=True)
 parser.add_argument("--log_distributions", action="store_true", default=False)
 parser.add_argument("--logging_frequency", type=int, default=1000)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
@@ -149,6 +149,7 @@ if args.use_clearml:
         task.set_random_seed(int(time.time()))
     if args.seed:
         task.set_random_seed(args.seed)
+    logger = ClearMLLogger(task)
 
 timestamp = make_concise_datetime()
 unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
@@ -166,5 +167,4 @@ if args.use_neptune:
 
 modelpath = f"models/{unique_timestamp}"
 os.makedirs(modelpath, exist_ok=True)
-
 trainer.train(args.n_steps)
