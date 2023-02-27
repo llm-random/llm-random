@@ -42,6 +42,15 @@ def register_activation_hooks(
         dict of lists containing activations of specified layers in
         ``layers_to_save``.
     """
+
+    def _save_activations(
+        activations: DefaultDict, name: str, module: nn.Module, inp, out: torch.Tensor
+    ) -> None:
+        """PyTorch Forward hook to save outputs at each forward
+        pass. Mutates specified dict objects with each fwd pass.
+        """
+        activations[name] = out.detach().cpu()
+
     activations_dict = collections.defaultdict(list)
 
     handles = []
@@ -52,15 +61,6 @@ def register_activation_hooks(
             )
             handles.append(handle)
     return activations_dict, handles
-
-
-def _save_activations(
-    activations: DefaultDict, name: str, module: nn.Module, inp, out: torch.Tensor
-) -> None:
-    """PyTorch Forward hook to save outputs at each forward
-    pass. Mutates specified dict objects with each fwd pass.
-    """
-    activations[name] = out.detach().cpu()
 
 
 def prepare_tensor_for_logging(
