@@ -22,7 +22,6 @@ class NonlinearityTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: wikibookdata.ProcessedDatasetWrapper
-    eval_dataloader: wikibookdata.ProcessedDatasetWrapper
     batch_size: int
     vocab_size: int
     mask_percent: float
@@ -81,41 +80,6 @@ class NonlinearityTrainer:
                 step=step,
                 series="train",
             )
-
-    def _eval_step(self, step, sample):
-        """
-        deprecated
-        """
-        self.model.eval()
-        with torch.no_grad():
-            total_mask_loss = 0.0
-            for _ in range(sample):
-                processed_batch = self.eval_dataloader.get_batch()
-                assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-                x_set = processed_batch.masked_tokens
-                y_token_set = processed_batch.tokens
-                y_mask_set = processed_batch.mask_mask
-                model_output = self.model(x_set)
-                mask_loss = F.cross_entropy(
-                    model_output.reshape(-1, self.vocab_size),
-                    y_token_set.reshape(-1).long(),
-                    reduction="none",
-                )
-                mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-                mask_loss = mask_loss.mean() / self.mask_percent
-                scaled_mask_loss = mask_loss * self.mask_loss_weight
-                total_mask_loss += scaled_mask_loss.item()
-            total_mask_loss /= sample
-
-            if step and self.writer:
-                log_scalar(
-                    name="loss/eval_mask",
-                    value=total_mask_loss,
-                    step=step,
-                    series="eval",
-                )
-
-            return total_mask_loss
 
     def train(self, n_steps: int):
         for step in range(n_steps):

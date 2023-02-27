@@ -98,15 +98,6 @@ train_dataloader = get_processed_dataset(
     seed=args.seed,
 )
 
-eval_dataloader = get_processed_dataset(
-    max_total_length=args.cutoff,
-    mask_percent=args.mask_percent,
-    device=DEVICE,
-    num_workers=args.num_workers,
-    batch_size=args.batch_size,
-    seed=args.seed + 1,
-)
-
 model = get_model(
     max_length=args.cutoff,
     vocab_size=VOCAB_SIZE,
@@ -122,7 +113,6 @@ trainer = NonlinearityTrainer(
     model=model,
     optimizer=optimizer,
     train_dataloader=train_dataloader,
-    eval_dataloader=eval_dataloader,
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
