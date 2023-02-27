@@ -5,7 +5,7 @@ import torch
 
 import lizrd.core.nn as nn
 from lizrd.core.bert import LowRank
-from lizrd.core.misc import EinMix
+from lizrd.core.misc import EinMix, Linear
 from lizrd.support import ash
 
 
@@ -43,6 +43,28 @@ def FeedForwardBottleneck(dmodel, exp_rate, bottleneck_chop_ratio=None):
                 ("logging_lowrank1", LowRank(N, M, B)),
                 ("relu", nn.ReLU(inplace=True)),
                 ("logging_lowrank2", LowRank(M, N, B)),
+            ]
+        )
+    )
+    return block
+
+
+@ash.check("... d -> ... d")
+def FeedForwardBottleneckFORCED(dmodel, dff, bottleneck_size):
+    """
+    Similar to FeedForwardBottleneck, but the bottleneck size is forced to be bottleneck_size
+    """
+    N = dmodel
+    B = bottleneck_size
+    M = dff
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_bottleneck1", Linear(N, B)),
+                ("logging_bottleneck2", Linear(B, M)),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_bottleneck3", Linear(M, B)),
+                ("logging_bottleneck4", Linear(B, N)),
             ]
         )
     )
@@ -230,109 +252,3 @@ def FeedForwardChoppedNeck(dmodel, n_chunks):
             dff_chunk_size=ff_chunk_size,
         ),
     )
-
-
-@ash.check("... d -> ... d")
-def FeedForwardChoppedNeckFORCED(dmodel, n_chunks):
-    """
-    init params: dmodel, n_chunks
-    Divides both the input vector and the ff layer into n_heads chunks, and restricts the dense layer to operate
-    on each chunk pair independently, disallowing inter-pair communication.
-    An abvious drawback of this approach is that the different dimensions of the chunks are not able to communicate with each other in the FF layer.
-    An iteration on this idea should address that restriction.
-    :param dmodel: dimension of the model
-    :param n_chunks: number of chunks to divide the input vector into
-    To calculate the ff_layer size, as in ForwardBottleneck, we formulate the following equation:
-        n_chunks * (N/n_chunks * M/n_chunks) = N*4N
-    solving for M, we get
-        M = 4*N*n_chunks
-    In short, chopping the input vector into n_chunks chunks results in the ff layer being 4 n_chunks times larger
-    Hence every chunk in the ff layer is of the size 4*dmodel
-    """
-    assert (
-        dmodel % n_chunks == 0
-    ), f"dmodel={dmodel} should be divisible by n_chunks={n_chunks}"
-    chunk_size = dmodel // n_chunks
-    ff_chunk_size = 4 * dmodel // n_chunks
-
-    return nn.Sequential(
-        EinMix(
-            "batch seqlen (n_chunks chunk_size)-> batch seqlen n_chunks dff_chunk_size",
-            weight_shape="n_chunks chunk_size dff_chunk_size",
-            bias_shape="(n_chunks dff_chunk_size)",
-            n_chunks=n_chunks,
-            chunk_size=chunk_size,
-            dff_chunk_size=ff_chunk_size,
-        ),
-        nn.ReLU(inplace=True),
-        EinMix(
-            "batch seqlen n_chunks dff_chunk_size-> batch seqlen (n_chunks chunk_size)",
-            weight_shape="n_chunks dff_chunk_size chunk_size",
-            bias_shape="(n_chunks chunk_size)",
-            n_chunks=n_chunks,
-            chunk_size=chunk_size,
-            dff_chunk_size=ff_chunk_size,
-        ),
-    )
-
-
-@ash.check("... d -> ... d")
-def FeedForwardMultilinear(dmodel, dff, nheads):
-    expand = EinMix(
-        "batch seqlen dmodel -> batch seqlen nheads dff",
-        weight_shape="dmodel dff nheads",
-        bias_shape="nheads dff",
-        dmodel=dmodel,
-        nheads=nheads,
-        dff=dff,
-    )
-
-    contract = EinMix(
-        "batch seqlen nheads dff -> batch seqlen dmodel",
-        weight_shape="nheads dff dmodel",
-        bias_shape="dmodel",
-        dmodel=dmodel,
-        nheads=nheads,
-        dff=dff,
-    )
-
-    block = nn.Sequential(
-        OrderedDict(
-            [
-                ("logging_pre_relu", expand),
-                ("relu", nn.ReLU(inplace=True)),
-                ("logging_post_relu", contract),
-            ]
-        )
-    )
-    return block
-
-
-@ash.check("... d -> ... d")
-def LinearEinmix(dmodel, dff):
-    expand = EinMix(
-        "batch seqlen dmodel -> batch seqlen dff",
-        weight_shape="dmodel dff",
-        bias_shape="dff",
-        dmodel=dmodel,
-        dff=dff,
-    )
-
-    contract = EinMix(
-        "batch seqlen dff -> batch seqlen dmodel",
-        weight_shape="dff dmodel",
-        bias_shape="dmodel",
-        dmodel=dmodel,
-        dff=dff,
-    )
-
-    block = nn.Sequential(
-        OrderedDict(
-            [
-                ("logging_pre_relu", expand),
-                ("relu", nn.ReLU(inplace=True)),
-                ("logging_post_relu", contract),
-            ]
-        )
-    )
-    return block

@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 from lizrd.datasets import wikibookdata
 from research.nonlinearities.core.misc_logging import (
     register_activation_hooks,
-    log_tensor,
+    log_tensor_distribution,
     log_scalar,
 )
 from research.nonlinearities.train.utils import (
@@ -69,28 +69,23 @@ class NonlinearityTrainer:
             )
             mask_loss *= y_mask_set.reshape(-1)  # only check masked words
             mask_loss = mask_loss.mean() / self.mask_percent
-            scaled_mask_loss = mask_loss * self.mask_loss_weight
-            total_loss = scaled_mask_loss
 
-        self.optimize(total_loss)
+        self.optimize(mask_loss)
         self.log_distributions(step)
         self.detach_logging_hooks(step)
 
         if step and self.writer:
             log_scalar(
-                name="loss/train_total",
-                value=total_loss.item(),
-                step=step,
-                series="train",
-            )
-            log_scalar(
-                name="loss/train_mask",
+                name="loss/train",
                 value=mask_loss.item(),
                 step=step,
                 series="train",
             )
 
     def _eval_step(self, step, sample):
+        """
+        deprecated
+        """
         self.model.eval()
         with torch.no_grad():
             total_mask_loss = 0.0
@@ -122,19 +117,10 @@ class NonlinearityTrainer:
 
             return total_mask_loss
 
-    def train(
-        self,
-        n_steps: int,
-        n_steps_eval: int,
-    ):
+    def train(self, n_steps: int):
         for step in range(n_steps):
             self._train_step(step)
             log_scalar(name="step", value=step, series="", step=step)
-            if step % n_steps_eval == 0:
-                eval_loss = self._eval_step(step, sample=n_steps_eval // 2)
-                print(f"Eval loss:", eval_loss)
-                if self.save_model_checkpoints:
-                    torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
             if step % 500 == 0:
                 print(f"Step {step}")
 
@@ -159,67 +145,40 @@ class NonlinearityTrainer:
         for tag, tensor in self.model.named_parameters():
             if "logging" in tag:
                 series, name = clean_name_for_logging(tag)
-                tag = f"{series}/{name}"
                 tensor_clean, nan_frequency = process_and_remove_nan(tensor)
-                log_tensor(tensor_clean, f"{name} weight", series, step)
-                log_scalar(
-                    value=tensor_clean.mean().item(),
-                    name=f"{name} weight mean",
-                    series=series,
-                    step=step,
-                )
-                log_scalar(
-                    value=tensor_clean.std().item(),
-                    name=f"{name} weight std",
-                    series=series,
-                    step=step,
+                log_tensor_distribution(
+                    tensor=tensor_clean, name=f"{name} weight", series=series, step=step
                 )
                 log_scalar(
                     value=nan_frequency,
-                    name=f"{name} weight is_nan",
+                    name=f"is_nan {name} weight",
                     series=series,
                     step=step,
                 )
                 if tensor.grad is not None:
                     grad_clean, nan_frequency = process_and_remove_nan(tensor.grad)
-                    log_tensor(grad_clean, f"{name} grad", series, step)
-                    log_scalar(
-                        value=grad_clean.mean().item(),
-                        name=f"{tag} grad mean",
-                        series=series,
-                        step=step,
-                    )
-                    log_scalar(
-                        value=grad_clean.std().item(),
-                        name=f"{tag} grad std",
-                        series=series,
-                        step=step,
+                    log_tensor_distribution(
+                        tensor=grad_clean, name=f"{name} grad", series=series, step=step
                     )
                     log_scalar(
                         value=nan_frequency,
-                        name=f"{tag} grad is_nan",
+                        name=f"is_nan {name} grad",
                         series=series,
                         step=step,
                     )
         for name, tensor in self.saved_activations.items():
             series, name = clean_name_for_logging(name)
-            tensor_data, nan_frequency = process_and_remove_nan(tensor)
-            log_tensor(tensor_data, f"{name} activation", series, step)
-            log_scalar(
-                value=tensor_data.mean().item(),
-                name=f"{name} activation mean",
+            activations_clean, nan_frequency = process_and_remove_nan(tensor)
+            log_tensor_distribution(
+                tensor=activations_clean,
+                name=f"{name} activation",
                 series=series,
                 step=step,
             )
-            log_scalar(
-                value=tensor_data.std().item(),
-                name=f"{name} activation std",
-                series=series,
-                step=step,
-            )
+
             log_scalar(
                 value=nan_frequency,
-                name=f"{name} activation is_nan",
+                name=f"is_nan {name} activation ",
                 series=series,
                 step=step,
             )

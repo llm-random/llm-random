@@ -167,23 +167,11 @@ def MultineckShuffle(dmodel, dhead, n_heads, dff):
 @ash.check("... d -> ... d")
 def FeedForwardBottleneckFORCED(dmodel, dbottle, dff):
     """
-    :param dmodel: dimension of the model
-    :param exp_rate: M/N, where N is the dimension of the model and M is the number of neurons in the middle layer (before ReLU)
-    :param bottleneck_chop_ratio: only relevant for FeedForwardInceptionNeck, carries out all the logic described next,
-            and then divides the size of the bottleneck layer by the bottleneck_chop_ratio
-
-    assumes that the number of parameters should be the same as for a FeedForward layer of the same input/output dimensions;
-    with the bottleneck layer size being B, and in/out being N and M respectively, the resulting equation is:
-        B(N+M) = NM
-
-    we mainly want to compare ourselves with the original hyperparameters, so let's assume, that the M on th RHS is M = 4N
-        B(N+M) = 4N^2
-        B = 4N^2 / (N+M)
-
-    now, with the expansion rate being a = M/N, we get
-        B = 4N^2/(a+1)N = 4N/(a+1)
-    to sum up, the above choice of the bottleneck size B guarantees that the number of parameters is the same as
-    in a FeedForward layer of sizes d_in,d_out = N,4N
+    Modification of a standard feed-forward transformer layer done by replacing each dense layer with two consecutive dense layers with no activation between them
+    :param dmodel:
+    :param dbottle:
+    :param dff:
+    :return:
     """
     block = nn.Sequential(
         OrderedDict(
@@ -256,3 +244,115 @@ def RescaledMultineckFeedForward(dmodel, dhead, n_heads, dff, aggregate_per_head
     )
 
     return nn.Sequential(multineck_1, expand, nn.ReLU(inplace=True), rescale, aggregate)
+
+
+@ash.check("... d -> ... d")
+def FeedForwardChoppedNeckFORCED(dmodel, n_chunks):
+    """
+    init params: dmodel, n_chunks
+    Divides both the input vector and the ff layer into n_heads chunks, and restricts the dense layer to operate
+    on each chunk pair independently, disallowing inter-pair communication.
+    An abvious drawback of this approach is that the different dimensions of the chunks are not able to communicate with each other in the FF layer.
+    An iteration on this idea should address that restriction.
+    :param dmodel: dimension of the model
+    :param n_chunks: number of chunks to divide the input vector into
+    To calculate the ff_layer size, as in ForwardBottleneck, we formulate the following equation:
+        n_chunks * (N/n_chunks * M/n_chunks) = N*4N
+    solving for M, we get
+        M = 4*N*n_chunks
+    In short, chopping the input vector into n_chunks chunks results in the ff layer being 4 n_chunks times larger
+    Hence every chunk in the ff layer is of the size 4*dmodel
+    """
+    assert (
+        dmodel % n_chunks == 0
+    ), f"dmodel={dmodel} should be divisible by n_chunks={n_chunks}"
+    chunk_size = dmodel // n_chunks
+    ff_chunk_size = 4 * dmodel // n_chunks
+
+    return nn.Sequential(
+        EinMix(
+            "batch seqlen (n_chunks chunk_size)-> batch seqlen n_chunks dff_chunk_size",
+            weight_shape="n_chunks chunk_size dff_chunk_size",
+            bias_shape="(n_chunks dff_chunk_size)",
+            n_chunks=n_chunks,
+            chunk_size=chunk_size,
+            dff_chunk_size=ff_chunk_size,
+        ),
+        nn.ReLU(inplace=True),
+        EinMix(
+            "batch seqlen n_chunks dff_chunk_size-> batch seqlen (n_chunks chunk_size)",
+            weight_shape="n_chunks dff_chunk_size chunk_size",
+            bias_shape="(n_chunks chunk_size)",
+            n_chunks=n_chunks,
+            chunk_size=chunk_size,
+            dff_chunk_size=ff_chunk_size,
+        ),
+    )
+
+
+@ash.check("... d -> ... d")
+def FeedForwardMultilinear(dmodel, dff, nheads):
+    """
+    Sanity check for the EinMix layer, used to compare normal nn.Linear with EinMix
+    """
+    expand = EinMix(
+        "batch seqlen dmodel -> batch seqlen nheads dff",
+        weight_shape="dmodel dff nheads",
+        bias_shape="nheads dff",
+        dmodel=dmodel,
+        nheads=nheads,
+        dff=dff,
+    )
+
+    contract = EinMix(
+        "batch seqlen nheads dff -> batch seqlen dmodel",
+        weight_shape="nheads dff dmodel",
+        bias_shape="dmodel",
+        dmodel=dmodel,
+        nheads=nheads,
+        dff=dff,
+    )
+
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_relu", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_post_relu", contract),
+            ]
+        )
+    )
+    return block
+
+
+@ash.check("... d -> ... d")
+def LinearEinmix(dmodel, dff):
+    """
+    Sanity check for the EinMix layer, used to compare normal nn.Linear with EinMix
+    """
+    expand = EinMix(
+        "batch seqlen dmodel -> batch seqlen dff",
+        weight_shape="dmodel dff",
+        bias_shape="dff",
+        dmodel=dmodel,
+        dff=dff,
+    )
+
+    contract = EinMix(
+        "batch seqlen dff -> batch seqlen dmodel",
+        weight_shape="dff dmodel",
+        bias_shape="dmodel",
+        dmodel=dmodel,
+        dff=dff,
+    )
+
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_relu", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_post_relu", contract),
+            ]
+        )
+    )
+    return block

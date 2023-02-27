@@ -9,6 +9,9 @@ from research.nonlinearities.temporary_code import temp_research_bert
 from research.nonlinearities.temporary_code.temp_research_bert import (
     FeedForwardMultineckFORCED,
     FeedForwardBottleneckFORCED,
+    LinearEinmix,
+    FeedForwardMultilinear,
+    FeedForwardChoppedNeckFORCED,
 )
 
 
@@ -16,8 +19,8 @@ def process_and_remove_nan(tensor):
     tensor = tensor.detach().cpu()
     mask = torch.isnan(tensor) | torch.isinf(tensor) | torch.isinf(-tensor)
     nan_freq = mask.sum().item() / mask.numel()
-    tensor = tensor[~mask]
-    return tensor, nan_freq
+    tensor_clean = tensor[~mask]
+    return tensor_clean, nan_freq
 
 
 def clean_name_for_logging(tag):
@@ -55,14 +58,20 @@ def get_ff_layer(args):
     if mode == "vanilla":
         ff_layer_type, ff_args = bert.FeedForward, (args.dmodel, args.dff)
     elif mode == "vanilla_einmix":
-        ff_layer_type, ff_args = research_bert.LinearEinmix, (args.dmodel, args.dff)
+        ff_layer_type, ff_args = LinearEinmix, (args.dmodel, args.dff)
     elif mode == "bottleneck":
         ff_layer_type, ff_args = research_bert.FeedForwardBottleneck, (
             args.dmodel,
             args.exp_rate,
         )
+    elif mode == "bottleneck_forced":
+        ff_layer_type, ff_args = FeedForwardBottleneckFORCED, (
+            args.dmodel,
+            args.dff,
+            args.bottleneck_size,
+        )
     elif mode == "multilinear":
-        ff_layer_type, ff_args = research_bert.FeedForwardMultilinear, (
+        ff_layer_type, ff_args = FeedForwardMultilinear, (
             args.dmodel,
             args.dff,
             args.n_ff_heads,
@@ -92,7 +101,7 @@ def get_ff_layer(args):
             args.n_chunks,
         )
     elif mode == "choppedneck_forced":
-        ff_layer_type, ff_args = research_bert.FeedForwardChoppedNeckFORCED, (
+        ff_layer_type, ff_args = FeedForwardChoppedNeckFORCED, (
             args.dmodel,
             args.n_chunks,
         )
