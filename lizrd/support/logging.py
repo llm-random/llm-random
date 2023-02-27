@@ -50,7 +50,10 @@ class AbstractLogger(ABC):
         series: Optional[str],
         iteration: int,
     ):
-        if isinstance(figure.data[0], plotly.graph_objs.Scattergl):
+
+        if isinstance(figure.data[0], plotly.graph_objs.Scattergl) or isinstance(
+            figure.data[0], plotly.graph_objs._scatter.Scatter
+        ):
             x = figure.data[0].x
             y = figure.data[0].y
             pearson_correlation = np.corrcoef(x, y)[0, 1]

@@ -144,6 +144,9 @@ slurm*
 # temporary scripts
 research/reinitialization/scripts/jk_scripts
 
+# jsons of jk
+jk_train/
+
 *.pkl
 *.sif
 .neptune
