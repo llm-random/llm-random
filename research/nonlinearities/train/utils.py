@@ -26,6 +26,7 @@ def process_and_remove_nan(tensor):
 def clean_name_for_logging(tag):
     block_name = re.findall("block_[0-9]+", tag)[0].replace("_", " ")
     layer_name = tag.split("logging_")[-1].split(".")[0].replace("_", " ")
+    layer_name += " weight" if "weight" in tag else " bias"
     return block_name, layer_name
 
 
