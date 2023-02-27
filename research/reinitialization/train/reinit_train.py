@@ -52,7 +52,7 @@ parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=2)
 parser.add_argument("--dhead", type=int, default=32)
 parser.add_argument("--optimizer", type=str, default="adam")
-parser.add_argument("--learning_rate", type=float, default=8e-4)
+parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
@@ -68,6 +68,8 @@ parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
+parser.add_argument("--highest_magnitudes", action="store_true")
+parser.add_argument("--weight_decay", type=float, default=0.0)
 
 args = parser.parse_args()
 
@@ -205,6 +207,7 @@ elif args.ff_layer == "retrain_recycle":
         pruner=pruner,
         retrain_without_reinit=args.retrain_without_reinit,
         random_indexes=args.random_indexes,
+        highest_magnitudes=args.highest_magnitudes,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
@@ -247,7 +250,9 @@ model = get_model(
 
 # set optimizer
 if args.optimizer == "adam":
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 
