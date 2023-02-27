@@ -253,7 +253,7 @@ class Trainer:
                         results[j] += total_mask_loss - baseline
                         activate_ratios[
                             j
-                        ] = self.pruner.get_activate_ratios_of_masked_neurons()
+                        ] = self.pruner.get_activate_ratios_of_masked_neurons(i)
 
                 results /= self.neuron_diff_n_batches
                 activate_ratios /= self.neuron_diff_n_batches
