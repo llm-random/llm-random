@@ -237,6 +237,7 @@ class Trainer:
         with torch.no_grad():
             for i in range(len(self.pruner.layers)):
                 results = np.zeros(self.neuron_diff_n_samples)
+                activate_ratios = np.zeros(self.neuron_diff_n_samples)
 
                 for _ in range(self.neuron_diff_n_batches):
                     processed_batch = self.neuron_diff_dataset.get_batch()
@@ -250,9 +251,14 @@ class Trainer:
                             self._compute_loss(processed_batch).detach().cpu().item()
                         )
                         results[j] += total_mask_loss - baseline
+                        activate_ratios[
+                            j
+                        ] = self.pruner.get_activate_ratios_of_masked_neurons()
 
                 results /= self.neuron_diff_n_batches
+                activate_ratios /= self.neuron_diff_n_batches
                 results = results.tolist()
+                activate_ratios = activate_ratios.tolist()
                 self.pruner.disable_neuron_diff()
 
                 # log neuron diffs
@@ -265,11 +271,10 @@ class Trainer:
                 )
 
                 # log scatter of neuron diff/activation
-                activations = self.pruner.get_activate_ratios(i).tolist()
-                if len(activations) == len(results):
+                if self.neuron_diff_sample_size == 1:
                     fig = px.scatter(
                         x=results,
-                        y=activations,
+                        y=activate_ratios,
                     )
                     fig.update_layout(
                         xaxis_title="Quality", yaxis_title="Activation ratio"
