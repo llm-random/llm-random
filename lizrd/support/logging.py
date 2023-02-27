@@ -16,10 +16,11 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
-    def __init__(self, logger):
+    def __init__(self, logger, auxiliary_params=None):
         global _CURRENT_LOGGER
         self.instance_logger = logger
         _CURRENT_LOGGER = self
+        self.auxiliary_params = auxiliary_params
 
     @abstractmethod
     def flush_if_necessary(self):
@@ -84,6 +85,46 @@ class AbstractLogger(ABC):
                 f"Could not log scalars for plotly figure of type {type(figure.data[0])}"
             )
 
+    def get_auxiliary_metrics(self, title: str, value: float, iteration: int):
+        auxiliary_metrics = {}
+        if self.auxiliary_params is None:
+            return auxiliary_metrics
+
+        if (
+            "x_flops_scale" in self.auxiliary_params
+            and self.auxiliary_params["x_flops_scale"]
+        ):
+            assert (
+                self.auxiliary_params["model_size"] is not None
+            ), "if using x_compute_scale, you must provide model_size"
+            assert (
+                self.auxiliary_params["batch_size"] is not None
+            ), "if using x_compute_scale, you must provide batch_size"
+            auxiliary_metrics[f"{title}_flops"] = {
+                "value": value,
+                "iteration": iteration
+                * self.auxiliary_params["model_size"]
+                * self.auxiliary_params["batch_size"],
+            }
+
+        if (
+            "x_log_scale" in self.auxiliary_params
+            and self.auxiliary_params["x_log_scale"]
+        ):
+
+            def new_metric_with_log_scale(metric):
+                return {
+                    "value": metric["value"],
+                    "iteration": math.log(metric["iteration"]),
+                }
+
+            for metric in auxiliary_metrics:
+                auxiliary_metrics[f"{metric}_log"] = new_metric_with_log_scale(metric)
+            auxiliary_metrics[f"{title}_log"] = new_metric_with_log_scale(
+                {"value": value, "iteration": iteration}
+            )
+            return auxiliary_metrics
+
 
 class ClearMLLogger(AbstractLogger):
     pass
@@ -128,6 +169,11 @@ class NeptuneLogger(AbstractLogger):
         self.instance_logger[self._make_path(title, series)].append(
             value=value, step=iteration
         )
+        auxiliary_metrics = self.get_auxiliary_metrics(title, value, iteration)
+        for metric_name, metric in auxiliary_metrics.items():
+            self.instance_logger[self._make_path(metric_name, series)].append(
+                value=metric["value"], step=metric["iteration"]
+            )
 
     def report_plotly(
         self,

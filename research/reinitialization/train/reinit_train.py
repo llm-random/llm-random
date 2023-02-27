@@ -29,6 +29,9 @@ parser.add_argument("--use_neptune", action="store_true")
 parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
 parser.add_argument("--mixed_precision", action="store_true")
+parser.add_argument("--x_flops_scale", action="store_true")
+parser.add_argument("--x_log_scale", action="store_true")
+
 
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
