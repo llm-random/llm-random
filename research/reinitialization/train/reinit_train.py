@@ -32,7 +32,6 @@ parser.add_argument("--mixed_precision", action="store_true")
 parser.add_argument("--x_flop", action="store_true")
 parser.add_argument("--x_logarithmic", action="store_true")
 
-
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
 parser.add_argument("--project_name", type=str)
@@ -47,10 +46,10 @@ parser.add_argument("--ds_seed", type=int, default=42)
 parser.add_argument("--eval_ds_seed", type=int, default=1984)
 parser.add_argument("--retrain_ds_seed", type=int, default=1998)
 
-parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--batch_size", type=str, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
 parser.add_argument("--dm", type=int, default=256)
-parser.add_argument("--dff", type=int, default=1024)
+parser.add_argument("--dff", type=str, default=1024)
 parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=2)
 parser.add_argument("--dhead", type=int, default=32)
@@ -73,6 +72,23 @@ parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 
 args = parser.parse_args()
+
+if args.dff == "auto":
+    args.dff = args.dm * 4
+else:
+    args.dff = int(args.dff)
+
+ATHENA_MEMORY_CONST = 2 * 10**6
+
+
+def athena_batch_size_heuristic() -> int:
+    return int(ATHENA_MEMORY_CONST / (args.dm * args.n_blocks * 12 + 30000))
+
+
+if args.batch_size == "auto_athena":
+    args.batch_size = athena_batch_size_heuristic()
+else:
+    args.batch_size = int(args.batch_size)
 
 # useful predefined configs for debugging locally
 if args.testing_regular:
@@ -242,6 +258,7 @@ if args.use_neptune:
     )
     run["args"] = vars(args)
     run["working_directory"] = os.getcwd()
+    run["model_n_params_(non_emb)"] = model_n_params
 
     auxiliary_params = {}
     if args.x_flop:
@@ -251,6 +268,7 @@ if args.use_neptune:
     if args.x_logarithmic:
         auxiliary_params["x_logarithmic"] = True
     logger = NeptuneLogger(run, auxiliary_params)
+
 elif args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
