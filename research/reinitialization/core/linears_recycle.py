@@ -318,8 +318,9 @@ class RetrainRecycleFF(nn.Module):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
-        self.current_activations = self.activate_ratio = np.zeros(dff)
+        self.current_activations = self.activation_ratio = np.zeros(dff)
         self.save_stats = False
+        self.neuron_diff_mask = torch.ones(self.dff).to(device)
         self.retrain_without_reinit = retrain_without_reinit
         self.random_indexes = random_indexes
         self.highest_magnitudes = highest_magnitudes
@@ -365,10 +366,24 @@ class RetrainRecycleFF(nn.Module):
 
         return x
 
+    def _neuron_diff_forward(self, x: torch.Tensor):
+        x = self.lin1(x)
+
+        x = F.relu(x)
+
+        # mask some neurons
+        mask = torch.ones(self.dff).to(x.device)
+        mask[self.neuron_diff_current_idx] = 0
+        x = misc.einsum("... i, i -> ... i", x, mask)
+
+        x = self.lin2(x)
+
+        return x
+
     def _save_activation_stats(self, x: torch.Tensor):
         if self.save_stats:
             self.current_activations = x.sum(dim=[0, 1]).detach().cpu().numpy()
-            self.activate_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
+            self.activation_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
             x_flattened = x.flatten().detach().cpu().numpy()
             random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
             self.some_activations = x_flattened[random_indices]
@@ -397,6 +412,23 @@ class RetrainRecycleFF(nn.Module):
             return self._regular_forward(x)
         elif self.mode == "new_neurons":
             return self._new_neurons_forward(x)
+        elif self.mode == "neuron_diff":
+            return self._neuron_diff_forward(x)
+
+    def prepare_neuron_diff_idx(self, n_samples, sample_size):
+        assert n_samples * sample_size <= self.dff
+        idx = torch.randperm(self.dff)[: n_samples * sample_size]
+        self.neuron_diff_idx = idx.reshape(n_samples, sample_size)
+
+    def enable_neuron_diff(self, sample_number: int):
+        self.mode = "neuron_diff"
+        self.neuron_diff_current_idx = self.neuron_diff_idx[sample_number]
+
+    def activation_ratios_of_masked_neurons(self):
+        return self.activation_ratio[self.neuron_diff_current_idx]
+
+    def disable_neuron_diff(self):
+        self.mode = "regular"
 
     def prepare_new_weights(self, prob: float):
         # prepare mask
@@ -495,7 +527,7 @@ class RetrainRecycleFF(nn.Module):
         )
 
     def log_activation_ratios(self, layer_name: str, step: int):
-        values = self.activate_ratio.tolist()
+        values = self.activation_ratio.tolist()
         fig = px.histogram(values)
         get_current_logger().report_plotly(
             title="Average ratio of activation per neuron",
@@ -529,7 +561,7 @@ class RetrainRecycleFF(nn.Module):
     def log_scatter_magnitude_activation(self, layer_name: str, step: int):
         fig = px.scatter(
             x=self.neuron_magnitudes.flatten().cpu().tolist(),
-            y=self.activate_ratio.flatten().tolist(),
+            y=self.activation_ratio.flatten().tolist(),
         )
         fig.update_layout(xaxis_title="Magnitude", yaxis_title="Activation ratio")
         get_current_logger().report_plotly(
