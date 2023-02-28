@@ -44,7 +44,6 @@ parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--mixed_precision", type=bool, default=False)
 parser.add_argument("--log_distributions", type=bool, default=False)
 parser.add_argument("--logging_frequency", type=int, default=1000)
-parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--seed", type=int, default=42)
@@ -118,7 +117,6 @@ trainer = NonlinearityTrainer(
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
-    mask_loss_weight=args.mask_loss_weight,
     modelpath=modelpath,
     writer=writer,
     mixed_precision=args.mixed_precision,

@@ -25,7 +25,6 @@ class NonlinearityTrainer:
     batch_size: int
     vocab_size: int
     mask_percent: float
-    mask_loss_weight: float
     modelpath: str
     save_model_checkpoints: str
     mixed_precision: bool = False
