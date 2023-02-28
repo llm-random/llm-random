@@ -388,7 +388,9 @@ class RetrainRecycleFF(nn.Module):
             self.current_activations = x.sum(dim=[0, 1]).detach().cpu().numpy()
             self.activate_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
             x_flattened = x.flatten().detach().cpu().numpy()
-            random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
+            random_indices = np.random.choice(
+                x_flattened.shape[0], min(x_flattened.shape[0], 1024), replace=False
+            )
             self.some_activations = x_flattened[random_indices]
             self.save_stats = False
 
