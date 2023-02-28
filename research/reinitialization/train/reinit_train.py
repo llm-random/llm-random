@@ -230,7 +230,9 @@ model = get_model(
 )
 
 model_n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-model_n_params -= 2 * VOCAB_SIZE * args.dm + args.cutoff * args.dm
+embedding_params = 2 * VOCAB_SIZE * args.dm
+last_layer_params = args.cutoff * args.dm
+model_n_params -= embedding_params + last_layer_params
 
 if args.use_neptune:
     run = neptune.init_run(
