@@ -63,6 +63,9 @@ def register_activation_hooks(
     return activations_dict, handles
 
 
+# TODO: move the following to logging in the future
+
+
 def prepare_tensor_for_logging(
     x: torch.Tensor, sample_size=2500, with_replacement=False
 ):
@@ -80,7 +83,6 @@ def prepare_tensor_for_logging(
     return ret_val
 
 
-# TODO: move the following to logging in the future
 def log_tensor_distribution(*, tensor, name, series, step):
     logger = get_current_logger()
     fig = px.histogram(prepare_tensor_for_logging(tensor, with_replacement=False))
