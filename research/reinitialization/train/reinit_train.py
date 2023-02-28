@@ -21,6 +21,8 @@ import os
 import neptune.new as neptune
 from lizrd.support.logging import ClearMLLogger, NeptuneLogger
 
+VOCAB_SIZE = 30522  # BertTokenizer uses this many words
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--testing_regular", action="store_true")
@@ -78,12 +80,14 @@ if args.dff == "auto":
 else:
     args.dff = int(args.dff)
 
-ATHENA_MEMORY_CONST = 2 * 10**6
-LOCAL_MEMORY_CONST = 2 * 10**5
+ATHENA_MEMORY_CONST = 1.65e9
+LOCAL_MEMORY_CONST = 1e7
 
 
 def batch_size_heuristic(memory_const: int) -> int:
-    return int(memory_const / (args.dm * args.n_blocks * 12 + VOCAB_SIZE))
+    return max(
+        1, int(memory_const / (args.dm * args.dm * args.n_blocks * 12 + VOCAB_SIZE))
+    )
 
 
 if args.batch_size == "auto_athena":
@@ -148,7 +152,6 @@ print("cuda available:")
 print(torch.cuda.is_available())
 
 # constants
-VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
