@@ -83,7 +83,7 @@ LOCAL_MEMORY_CONST = 2 * 10**5
 
 
 def batch_size_heuristic(memory_const: int) -> int:
-    return int(memory_const / (args.dm * args.n_blocks * 12 + 30000))
+    return int(memory_const / (args.dm * args.n_blocks * 12 + VOCAB_SIZE))
 
 
 if args.batch_size == "auto_athena":
