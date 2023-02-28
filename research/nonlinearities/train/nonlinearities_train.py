@@ -60,6 +60,8 @@ parser.add_argument("--tags", nargs="*", type=str, default=None)
 # experimental/legacy parameters
 
 parser.add_argument("--exp_rate", type=int, default=4)
+parser.add_argument("--bottleneck_size", type=int, default=4)
+
 parser.add_argument("--n_ff_heads", type=int, default=8)
 parser.add_argument("--d_ff_head", type=int, default=256)
 parser.add_argument("--n_chunks", type=int, default=4)

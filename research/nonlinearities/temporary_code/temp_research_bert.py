@@ -86,7 +86,15 @@ def FeedForwardMultineckFORCED(
     )
 
     return nn.Sequential(
-        multineck_1, expand, nn.ReLU(inplace=True), contract, multineck_2
+        OrderedDict(
+            [
+                ("logging_pre_expand", multineck_1),
+                ("logging_expand", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_contract", contract),
+                ("logging_post_contract", multineck_2),
+            ]
+        )
     )
 
 
