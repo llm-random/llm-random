@@ -5,11 +5,12 @@ Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
 import datetime
-import subprocess
-import os
-import sys
 import json
+import os
+import subprocess
+import sys
 from time import sleep
+
 from lizrd.scripts.grid_utils import (
     create_grid,
     timestr_to_minutes,
@@ -17,11 +18,11 @@ from lizrd.scripts.grid_utils import (
     MachineBackend,
     get_grid_entrypoint,
 )
-
 from lizrd.support.code_versioning_support import version_code
 
 
 RUNNER = "research.reinitialization.train.reinit_train"
+
 
 # ^ - grid over that
 # * - apply function
@@ -144,6 +145,6 @@ if __name__ == "__main__":
             subprocess.run(
                 [str(s) for s in subprocess_args],
             )
-            sleep(1)
+            sleep(10)
         else:
             print(" ".join([str(s) for s in subprocess_args]))
