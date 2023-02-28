@@ -79,14 +79,17 @@ else:
     args.dff = int(args.dff)
 
 ATHENA_MEMORY_CONST = 2 * 10**6
+LOCAL_MEMORY_CONST = 2 * 10**5
 
 
-def athena_batch_size_heuristic() -> int:
-    return int(ATHENA_MEMORY_CONST / (args.dm * args.n_blocks * 12 + 30000))
+def batch_size_heuristic(memory_const: int) -> int:
+    return int(memory_const / (args.dm * args.n_blocks * 12 + 30000))
 
 
 if args.batch_size == "auto_athena":
-    args.batch_size = athena_batch_size_heuristic()
+    args.batch_size = batch_size_heuristic(ATHENA_MEMORY_CONST)
+elif args.batch_size == "auto_local":
+    args.batch_size = batch_size_heuristic(LOCAL_MEMORY_CONST)
 else:
     args.batch_size = int(args.batch_size)
 
