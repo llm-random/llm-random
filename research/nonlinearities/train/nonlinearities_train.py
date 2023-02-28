@@ -1,32 +1,19 @@
 import argparse
 import datetime
-import os
-import secrets
-import time
-
-import neptune.new as neptune
 import torch
-from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 
 from lizrd.core import misc
-from lizrd.support.logging import NeptuneLogger, ClearMLLogger
+from lizrd.support.logging import get_logger
 from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
 )
-from research.nonlinearities.core import misc_logging
 from research.nonlinearities.core.trainers import NonlinearityTrainer
 from research.nonlinearities.train.utils import (
     get_ff_layer,
     get_attention_layer,
-    make_concise_datetime,
 )
-
-
-def tags_to_name(tags) -> str:
-    return "_".join(tags) if tags else ""
-
 
 parser = argparse.ArgumentParser()
 
@@ -127,46 +114,5 @@ trainer = NonlinearityTrainer(
     logging_frequency=args.logging_frequency,
 )
 
-dummy_ff_layer = ff_layer_fun()
-single_ff_layer_parameter_count = misc_logging.get_parameter_count(dummy_ff_layer)
-model_parameter_count = misc_logging.get_parameter_count(model)
-del dummy_ff_layer
-
-parameter_counts = {
-    "single_ff_layer_parameter_count": single_ff_layer_parameter_count,
-    "model_parameter_count": model_parameter_count,
-}
-
-
-if args.use_clearml:
-    task = Task.init(
-        project_name=args.project_name,
-        task_name=f"{args.name}_{tags_to_name(args.tags)}",
-    )
-    task.connect(vars(args))
-    task.connect(parameter_counts, "parameter_counts")
-    if args.tags:
-        task.add_tags(args.tags)
-    if not args.deterministic:
-        task.set_random_seed(int(time.time()))
-    if args.seed:
-        task.set_random_seed(args.seed)
-    logger = ClearMLLogger(task)
-
-timestamp = make_concise_datetime()
-unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
-
-if args.use_neptune:
-    run = neptune.init_run(
-        project="pmtest/llm-efficiency",
-        tags=args.tags,
-        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-    )
-    run["args"] = vars(args)
-    run["working_directory"] = os.getcwd()
-    run["git_branch"] = os.getcwd().split("/")[-1]
-    logger = NeptuneLogger(run)
-
-modelpath = f"models/{unique_timestamp}"
-os.makedirs(modelpath, exist_ok=True)
+logger = get_logger(args, model, VOCAB_SIZE)
 trainer.train(args.n_steps)
