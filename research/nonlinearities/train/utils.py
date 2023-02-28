@@ -132,6 +132,19 @@ def get_ff_layer(args):
             args.dmodel,
             args.dff,
         )
+    elif mode == "overparametrized_res":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.OverparametrisedFeedForwardResidual, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_norm":
+        ff_layer_type, ff_args = temp_research_bert.OverparametrisedFeedForwardNormed, (
+            args.dmodel,
+            args.dff,
+        )
     else:
         raise NotImplementedError(f"ff_mode={mode} is not implemented")
 
