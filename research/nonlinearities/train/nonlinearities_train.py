@@ -62,6 +62,8 @@ parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--save_model_checkpoints", type=bool, default=False)
 parser.add_argument("--deterministic", type=bool, default=True)
+parser.add_argument("--x_flop", action="store_true")
+parser.add_argument("--x_logarithmic", action="store_true")
 
 
 args = parser.parse_args()
