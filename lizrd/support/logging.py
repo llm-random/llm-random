@@ -1,12 +1,12 @@
+import math
+import os
+from abc import ABC, abstractmethod
 from typing import Optional
+
+import numpy as np
 import plotly
 
-from abc import ABC, abstractmethod
-
 from lizrd.core.misc import generate_random_string
-import numpy as np
-import os
-import math
 
 _CURRENT_LOGGER = None
 

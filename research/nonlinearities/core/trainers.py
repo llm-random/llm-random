@@ -1,100 +1,148 @@
-from typing import Optional
+from typing import Optional, Dict
 
-from attr import define
 import torch
-from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
+from attr import define
+from torch.utils.tensorboard import SummaryWriter
 
 from lizrd.datasets import wikibookdata
+from research.nonlinearities.core.misc_logging import (
+    register_activation_hooks,
+    log_tensor_distribution,
+    log_scalar,
+)
+from research.nonlinearities.train.utils import (
+    clean_name_for_logging,
+    process_and_remove_nan,
+)
 
 
 @define
 class NonlinearityTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
-    pdataset: wikibookdata.ProcessedDataset
+    train_dataloader: wikibookdata.ProcessedDatasetWrapper
     batch_size: int
     vocab_size: int
     mask_percent: float
     mask_loss_weight: float
     modelpath: str
+    save_model_checkpoints: str
+    mixed_precision: bool = False
     writer: Optional[SummaryWriter] = None
+    scaler: Optional[torch.cuda.amp.GradScaler] = None
+    distribution_logging: bool = False
+    logging_frequency: int = 1000000000
+    hook_handles: Optional[list] = None
+    saved_activations: Optional[Dict[str, torch.Tensor]] = None
+
+    def __attrs_post_init__(self):
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+
+    def optimize(self, loss):
+        self.optimizer.zero_grad()
+        self.scaler.scale(loss).backward()
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
 
     def _train_step(
         self,
-        model: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        pdataset: wikibookdata.ProcessedDataset,
-        step=0,
+        step,
     ):
-        model.train()
-        processed_batch = pdataset.get_batch(self.batch_size)
+        self.model.train()
+        processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
 
-        model_output = model(x_set)
-        mask_loss = F.cross_entropy(
-            model_output.reshape(-1, self.vocab_size),
-            y_token_set.reshape(-1).long(),
-            reduction="none",
-        )
-        mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-        mask_loss = mask_loss.mean() / self.mask_percent
-        scaled_mask_loss = mask_loss * self.mask_loss_weight
-        total_loss = scaled_mask_loss
+        self.attach_logging_hooks(step)
+        with torch.autocast(
+            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        ):
+            model_output = self.model(x_set)
+            mask_loss = F.cross_entropy(
+                model_output.reshape(-1, self.vocab_size),
+                y_token_set.reshape(-1).long(),
+                reduction="none",
+            )
+            mask_loss *= y_mask_set.reshape(-1)  # only check masked words
+            mask_loss = mask_loss.mean() / self.mask_percent
 
-        optimizer.zero_grad()
-        total_loss.backward()
-        optimizer.step()
+        self.optimize(mask_loss)
+        self.log_distributions(step)
+        self.detach_logging_hooks(step)
 
         if step and self.writer:
-            self.writer.add_scalar("loss/train_total", total_loss.item(), step)
-            self.writer.add_scalar("loss/train_mask", mask_loss.item(), step)
+            log_scalar(
+                name="loss/train",
+                value=mask_loss.item(),
+                step=step,
+                series="train",
+            )
 
-    def _eval_step(
-        self,
-        model: torch.nn.Module,
-        pdataset: wikibookdata.ProcessedDataset,
-        step: int = 0,
-        sample: int = 10,
-    ):
-        model.eval()
-
-        with torch.no_grad():
-            total_mask_loss = 0.0
-            for _ in range(sample):
-                processed_batch = pdataset.get_batch(self.batch_size)
-                assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-                x_set = processed_batch.masked_tokens
-                y_token_set = processed_batch.tokens
-                y_mask_set = processed_batch.mask_mask
-                model_output = model(x_set)
-                mask_loss = F.cross_entropy(
-                    model_output.reshape(-1, self.vocab_size),
-                    y_token_set.reshape(-1).long(),
-                    reduction="none",
-                )
-                mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-                mask_loss = mask_loss.mean() / self.mask_percent
-                scaled_mask_loss = mask_loss * self.mask_loss_weight
-                total_mask_loss += scaled_mask_loss.item()
-            total_mask_loss /= sample
-
-            if step and self.writer:
-                self.writer.add_scalar("loss/eval_mask", total_mask_loss, step)
-
-            return total_mask_loss
-
-    def train(self, n_steps: int, n_steps_eval: int):
+    def train(self, n_steps: int):
         for step in range(n_steps):
-            self._train_step(self.model, self.optimizer, self.pdataset, step)
-            self.writer.add_scalar("step", step, step)
-            if step % n_steps_eval == 0:
-                eval_loss = self._eval_step(
-                    self.model, self.pdataset, step, sample=n_steps_eval // 2
+            self._train_step(step)
+            log_scalar(name="step", value=step, series="", step=step)
+            if step % 500 == 0:
+                print(f"Step {step}")
+
+    def attach_logging_hooks(self, step):
+        if step % self.logging_frequency == 0:
+            self.saved_activations, self.hook_handles = register_activation_hooks(
+                self.model
+            )
+            assert not all(len(m._forward_hooks) == 0 for m in self.model.modules())
+
+    def detach_logging_hooks(self, step):
+        if step % self.logging_frequency == 0:
+            for hook in self.hook_handles:
+                hook.remove()
+            assert all(len(m._forward_hooks) == 0 for m in self.model.modules())
+            self.hook_handles = []
+            self.saved_activations = {}
+
+    def log_distributions(self, step):
+        if step % self.logging_frequency != 0 or not self.distribution_logging:
+            return
+        for tag, tensor in self.model.named_parameters():
+            if "logging" in tag:
+                series, name = clean_name_for_logging(tag)
+                tensor_clean, nan_frequency = process_and_remove_nan(tensor)
+                log_tensor_distribution(
+                    tensor=tensor_clean, name=f"{name} weight", series=series, step=step
                 )
-                print(f"Eval loss:", eval_loss)
-                torch.save(self.model.state_dict(), f"{self.modelpath}/model.pt")
-            print(f"Step {step}")
+                log_scalar(
+                    value=nan_frequency,
+                    name=f"is_nan {name} weight",
+                    series=series,
+                    step=step,
+                )
+                if tensor.grad is not None:
+                    grad_clean, nan_frequency = process_and_remove_nan(tensor.grad)
+                    log_tensor_distribution(
+                        tensor=grad_clean, name=f"{name} grad", series=series, step=step
+                    )
+                    log_scalar(
+                        value=nan_frequency,
+                        name=f"is_nan {name} grad",
+                        series=series,
+                        step=step,
+                    )
+        for name, tensor in self.saved_activations.items():
+            series, name = clean_name_for_logging(name)
+            activations_clean, nan_frequency = process_and_remove_nan(tensor)
+            log_tensor_distribution(
+                tensor=activations_clean,
+                name=f"{name} activation",
+                series=series,
+                step=step,
+            )
+
+            log_scalar(
+                value=nan_frequency,
+                name=f"is_nan {name} activation ",
+                series=series,
+                step=step,
+            )

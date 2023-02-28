@@ -1,17 +1,17 @@
 import copy
 from typing import Callable, Optional
 
-from attr import define
 import torch
-from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
+from attr import define
+from torch.utils.tensorboard import SummaryWriter
 
 from lizrd.core import bert
+from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
-from lizrd.core.misc import are_state_dicts_the_same
+from research.reinitialization.core.scheduler import BaseScheduler
 
 
 def get_model(
