@@ -86,13 +86,13 @@ class Trainer:
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     step: int = 0
-    n_log_light_steps: int = None
-    n_log_heavy_steps: int = None
+    n_log_light_steps: Optional[int] = None
+    n_log_heavy_steps: Optional[int] = None
     log_acc_steps: int = 100
     running_total_loss: float = 0.0
     running_mask_loss: float = 0.0
     running_loss_steps: int = 0
-    neuron_diff_dataset: wikibookdata.ProcessedDatasetWrapper = None
+    neuron_diff_dataset: Optional[wikibookdata.ProcessedDatasetWrapper] = None
     neuron_diff_sample_size: int = 1
     neuron_diff_n_samples: int = 100
     neuron_diff_n_batches: int = 10
