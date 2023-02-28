@@ -90,3 +90,8 @@ class Pruner(BasePruner):
         if not hasattr(self.layers[layer_num], "activate_ratios_of_masked_neurons"):
             raise ValueError("Property activate ratio not present")
         return self.layers[layer_num].activate_ratios_of_masked_neurons()
+
+    def get_magnitudes_of_masked_neurons(self, layer_num: int):
+        if not hasattr(self.layers[layer_num], "neuron_magnitudes_of_masked_neurons"):
+            raise ValueError("Property magnitudes not present")
+        return self.layers[layer_num].neuron_magnitudes_of_masked_neurons()

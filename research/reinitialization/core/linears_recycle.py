@@ -430,6 +430,9 @@ class RetrainRecycleFF(nn.Module):
     def activate_ratios_of_masked_neurons(self):
         return self.activate_ratio[self.neuron_diff_current_idx]
 
+    def neuron_magnitudes_of_masked_neurons(self):
+        return self.neuron_magnitudes[self.neuron_diff_current_idx]
+
     def disable_neuron_diff(self):
         self.mode = "regular"
 
