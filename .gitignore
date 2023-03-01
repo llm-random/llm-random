@@ -148,3 +148,6 @@ research/reinitialization/scripts/jk_scripts
 *.sif
 .neptune
 *.pt
+
+# jsons of jk
+jk_train/

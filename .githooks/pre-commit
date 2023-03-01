@@ -9,7 +9,7 @@ exec 1>&2
 export SKIP_HEAVY_TESTS=1
 
 # Run unused imports and variables check
-if ! python3 -m autoflake -r . --exclude venv,archived_code -c --quiet
+if ! python3 -m autoflake --remove-all-unused-imports -r . --exclude venv,archived_code -c --quiet
 then 
     echo "Unused imports and variables check failed"
     exit 1

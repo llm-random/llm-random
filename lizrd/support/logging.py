@@ -1,12 +1,12 @@
+import math
+import os
+from abc import ABC, abstractmethod
 from typing import Optional
+
+import numpy as np
 import plotly
 
-from abc import ABC, abstractmethod
-
 from lizrd.core.misc import generate_random_string
-import numpy as np
-import os
-import math
 
 _CURRENT_LOGGER = None
 
@@ -21,9 +21,10 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
-    def __init__(self, logger):
-        set_current_logger(self)
+    def __init__(self, logger, auxiliary_params=None):
         self.instance_logger = logger
+        self.auxiliary_params = auxiliary_params
+        set_current_logger(self)
 
     @abstractmethod
     def flush_if_necessary(self):
@@ -55,6 +56,9 @@ class AbstractLogger(ABC):
         iteration: int,
     ):
         if isinstance(figure.data[0], plotly.graph_objs.Scattergl):
+        if isinstance(figure.data[0], plotly.graph_objs.Scattergl) or isinstance(
+            figure.data[0], plotly.graph_objs._scatter.Scatter
+        ):
             x = figure.data[0].x
             y = figure.data[0].y
             pearson_correlation = np.corrcoef(x, y)[0, 1]
@@ -88,6 +92,56 @@ class AbstractLogger(ABC):
                 f"Could not log scalars for plotly figure of type {type(figure.data[0])}"
             )
 
+    @staticmethod
+    def get_log_x_scale_metric(value: float, iteration: int):
+        return {
+            "value": value,
+            "iteration": math.log(max(iteration, 1)),
+        }
+
+    def get_metric_with_flop_scale(self, value: float, iteration: int):
+        assert (
+            self.auxiliary_params["model_size"] is not None
+        ), "if using x_compute_scale, you must provide model_size"
+        assert (
+            self.auxiliary_params["batch_size"] is not None
+        ), "if using x_compute_scale, you must provide batch_size"
+
+        return {
+            "value": value,
+            "iteration": iteration
+            * self.auxiliary_params["model_size"]
+            * self.auxiliary_params["batch_size"],
+        }
+
+    def get_auxiliary_metrics(self, title: str, value: float, iteration: int):
+        if self.auxiliary_params is None or self.auxiliary_params == {}:
+            return {}
+
+        metric_x_flop = None
+        auxiliary_metrics = {}
+
+        if "x_flop" in self.auxiliary_params and self.auxiliary_params["x_flop"]:
+            metric_x_flop = self.get_metric_with_flop_scale(value, iteration)
+            auxiliary_metrics[f"{title}_(x_flop)"] = metric_x_flop
+
+        if (
+            "x_logarithmic" in self.auxiliary_params
+            and self.auxiliary_params["x_logarithmic"]
+        ):
+            if metric_x_flop is not None:
+                metric_x_flop_logarithmic = self.get_log_x_scale_metric(
+                    metric_x_flop["value"], metric_x_flop["iteration"]
+                )
+                auxiliary_metrics[
+                    f"{title}_(x_flop_logarithmic)"
+                ] = metric_x_flop_logarithmic
+
+            metric_logarithmic = self.get_log_x_scale_metric(value, iteration)
+            auxiliary_metrics[f"{title}_(x_logarithmic)"] = metric_logarithmic
+
+        return auxiliary_metrics
+
 
 class ClearMLLogger(AbstractLogger):
     pass
@@ -96,8 +150,8 @@ class ClearMLLogger(AbstractLogger):
 class NeptuneLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
-    def __init__(self, logger):
-        super().__init__(logger)
+    def __init__(self, logger, auxiliary_params=None):
+        super().__init__(logger, auxiliary_params)
         self.random_id = generate_random_string(8)
         os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
 
@@ -132,6 +186,11 @@ class NeptuneLogger(AbstractLogger):
         self.instance_logger[self._make_path(title, series)].append(
             value=value, step=iteration
         )
+        auxiliary_metrics = self.get_auxiliary_metrics(title, value, iteration)
+        for metric_name, metric in auxiliary_metrics.items():
+            self.instance_logger[self._make_path(metric_name, series)].append(
+                value=metric["value"], step=metric["iteration"]
+            )
 
     def report_plotly(
         self,

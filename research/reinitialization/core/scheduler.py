@@ -1,9 +1,6 @@
 from abc import ABC, abstractmethod
 
-import torch.nn.functional as F
 from attr import define
-
-from research.reinitialization.core.pruner import BasePruner
 
 
 class BaseScheduler(ABC):

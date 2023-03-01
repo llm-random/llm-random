@@ -29,6 +29,9 @@ parser.add_argument("--use_neptune", action="store_true")
 parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
 parser.add_argument("--mixed_precision", action="store_true")
+parser.add_argument("--x_flop", action="store_true")
+parser.add_argument("--x_logarithmic", action="store_true")
+
 
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
@@ -52,7 +55,7 @@ parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=2)
 parser.add_argument("--dhead", type=int, default=32)
 parser.add_argument("--optimizer", type=str, default="adam")
-parser.add_argument("--learning_rate", type=float, default=8e-4)
+parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
@@ -66,50 +69,23 @@ parser.add_argument("--n_log_light_steps", type=int, default=100)
 parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
 parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
+parser.add_argument("--log_neuron_diff", action="store_true")
+parser.add_argument("--log_neuron_diff_sample_size", type=int, default=1)
+parser.add_argument("--log_neuron_diff_n_samples", type=int, default=100)
+parser.add_argument("--neuron_diff_ds_seed", type=int, default=511)
+parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
+parser.add_argument("--highest_magnitudes", action="store_true")
 parser.add_argument("--auxiliary_loss_weight", type=float, required=False)
 
 parser.add_argument("--iwd_reg_pow", type=float, required=False)
 parser.add_argument("--iwd_midpoint_type", type=str, required=False)
 parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
 
-parser.add_argument("--weight_decay", type=float, required=False, default=0.0)
-
+parser.add_argument("--weight_decay", type=float, default=0.0)
 
 args = parser.parse_args()
-
-# useful predefined configs for debugging locally
-if args.testing_regular:
-    args.project_name = f"{os.getenv('USER')}/testing"
-    args.ff_layer = "regular"
-    args.cutoff = 32
-    args.dm = 2
-    args.dff = 4
-    args.n_blocks = 2
-    args.heads = 2
-    args.tags = ["testing_regular"]
-    args.n_steps = 100
-    args.use_pruner = False
-    args.batch_size = 2
-elif args.testing_recycle:
-    args.project_name = f"{os.getenv('USER')}/testing"
-    args.use_clearml = True
-    args.ff_layer = "retrain_recycle"
-    args.cutoff = 32
-    args.n_steps = 50
-    args.use_clearml = True
-    args.tags = ["testing_recycle"]
-    args.use_pruner = True
-    args.pruner_n_steps = 10
-    args.pruner_prob = 0.1
-    args.pruner_delay = 6
-    args.pruner_n_steps_retrain = 10
-    args.trainer_type = "retrain"
-    args.n_log_heavy_steps = 40
-    args.n_log_light_steps = 10
-    args.n_steps_eval = 10
-    args.batch_size = 8
 
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
@@ -149,25 +125,6 @@ def make_concise_datetime() -> str:
 
 timestamp = make_concise_datetime()
 unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
-
-if args.use_neptune:
-    run = neptune.init_run(
-        project="pmtest/llm-efficiency",
-        tags=args.tags,
-        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-    )
-    run["args"] = vars(args)
-    run["working_directory"] = os.getcwd()
-    logger = NeptuneLogger(run)
-elif args.use_clearml:
-    task = Task.init(
-        project_name=args.project_name,
-        task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-    )
-    task.connect(vars(args))
-    if args.tags:
-        task.add_tags(args.tags)
-    logger = ClearMLLogger(task)
 
 modelpath = f"models/{unique_timestamp}"
 os.makedirs(modelpath, exist_ok=True)
@@ -213,6 +170,7 @@ elif args.ff_layer == "retrain_recycle":
         pruner=pruner,
         retrain_without_reinit=args.retrain_without_reinit,
         random_indexes=args.random_indexes,
+        highest_magnitudes=args.highest_magnitudes,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
@@ -262,15 +220,64 @@ model = get_model(
     attention_layer_fun=lambda: bert.Attention(args.dm, args.heads, dhead=args.dhead),
 )
 
+model_n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+embedding_params = 2 * VOCAB_SIZE * args.dm
+last_layer_params = args.cutoff * args.dm
+model_n_params -= embedding_params + last_layer_params
+
+if args.use_neptune:
+    run = neptune.init_run(
+        project="pmtest/llm-efficiency",
+        tags=args.tags,
+        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    run["args"] = vars(args)
+    run["working_directory"] = os.getcwd()
+
+    auxiliary_params = {}
+    if args.x_flop:
+        auxiliary_params["x_flop"] = True
+        auxiliary_params["batch_size"] = args.batch_size
+        auxiliary_params["model_size"] = model_n_params
+    if args.x_logarithmic:
+        auxiliary_params["x_logarithmic"] = True
+    logger = NeptuneLogger(run, auxiliary_params)
+elif args.use_clearml:
+    task = Task.init(
+        project_name=args.project_name,
+        task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    task.connect(vars(args))
+    if args.tags:
+        task.add_tags(args.tags)
+    logger = ClearMLLogger(task)
+
 # set optimizer
 if args.optimizer == "adam":
     optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
+elif args.optimizer == "adamw":
+    optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
+
+# dataset for neuron diff
+if args.log_neuron_diff:
+    pdataset_neuron_diff = get_processed_dataset(
+        batch_size=args.batch_size,
+        max_total_length=args.cutoff,
+        mask_percent=args.mask_percent,
+        device=DEVICE,
+        num_workers=args.num_workers,
+        seed=args.neuron_diff_ds_seed,
+    )
+else:
+    pdataset_neuron_diff = None
 
 base_trainer_params = dict(
     model=model,
@@ -290,6 +297,10 @@ base_trainer_params = dict(
     n_log_heavy_steps=args.n_log_heavy_steps,
     log_acc_steps=args.log_acc_steps,
     auxiliary_loss_weight=args.auxiliary_loss_weight,
+    neuron_diff_dataset=pdataset_neuron_diff,
+    neuron_diff_sample_size=args.log_neuron_diff_sample_size,
+    neuron_diff_n_samples=args.log_neuron_diff_n_samples,
+    neuron_diff_n_batches=args.neuron_diff_batches,
 )
 
 if args.trainer_type == "retrain":

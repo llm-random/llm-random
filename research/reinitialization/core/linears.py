@@ -6,7 +6,6 @@ from lizrd.core import misc
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 import plotly_express as px
-import plotly.express as px
 import numpy as np
 from lizrd.support.logging import get_current_logger, log_plot
 

@@ -1,6 +1,5 @@
 import torch
 
-from lizrd.core import misc
 from lizrd.support.test_utils import GeneralTestCase
 from research.nonlinearities.core.research_bert import (
     FeedForwardBottleneck,
