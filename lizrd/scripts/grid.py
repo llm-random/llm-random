@@ -71,8 +71,9 @@ if __name__ == "__main__":
     print(f"Creating branch {name_for_branch}")
     version_code(name_for_branch, name_for_branch)
 
+    total_minutes = no_experiments * minutes_per_exp
     user_input = input(
-        f"Will run {no_experiments} experiments, using up {no_experiments * minutes_per_exp} minutes."
+        f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
         f"\nSbatch settings: \n{TRAINER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
     )
     if user_input.lower() not in ("", "y", "Y"):
