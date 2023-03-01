@@ -70,7 +70,12 @@ parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--auxiliary_loss_weight", type=float, required=False)
 
-parser.add_argument("--inverse_wd_regtype", type=str, required=False)
+parser.add_argument("--iwd_reg_pow", type=float, required=False)
+parser.add_argument("--iwd_midpoint_type", type=str, required=False)
+parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
+
+parser.add_argument("--weight_decay", type=float, required=False, default=0.0)
+
 
 args = parser.parse_args()
 
@@ -219,11 +224,12 @@ elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "inverse_wd":
     ff_layer_fun = lambda: linears_loss.InverseWeightDecayFF(
-        args.dm,
-        args.dff,
-        reg_type=args.inverse_wd_regtype,
-        reg_coeff=args.inverse_wd_coeff,
+        dmodel=args.dm,
+        dff=args.dff,
         pruner=pruner,
+        only_smaller_neurons=args.iwd_only_smaller_neurons,
+        reg_pow=args.iwd_reg_pow,
+        midpoint_type=args.iwd_midpoint_type,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
@@ -258,9 +264,13 @@ model = get_model(
 
 # set optimizer
 if args.optimizer == "adam":
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 elif args.optimizer == "sgd":
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.SGD(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 
 base_trainer_params = dict(
     model=model,
