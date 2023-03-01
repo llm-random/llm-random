@@ -34,11 +34,7 @@ class BaseLossFF(nn.Module):
 
     @property
     def neuron_magnitudes(self) -> torch.Tensor:
-        weights1 = torch.sqrt(misc.einsum("f m -> f", self.lin1.weight**2))
-        weights2 = torch.sqrt(misc.einsum("m f -> f", self.lin2.weight**2))
-
-        weights = weights1 * weights2
-        return weights.flatten()
+        return misc.get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
 
     def log_magnitude(self, layer_name, step: int):
         tensor = (self.neuron_magnitudes**2).flatten().cpu()
@@ -121,18 +117,18 @@ class InverseWeightDecayFF(BaseLossFF):
         magnitudes = self.neuron_magnitudes
 
         if self.midpoint_type == "median":
-            mean = magnitudes.median().detach()
+            midpoint = magnitudes.median().detach()
         elif self.midpoint_type == "mean":
-            mean = magnitudes.mean().detach()
+            midpoint = magnitudes.mean().detach()
         else:
             raise ValueError(f"Unknown average type: {self.midpoint_type}")
 
         which_neurons = (
-            (magnitudes < mean)
+            (magnitudes < midpoint)
             if self.only_smaller_neurons
             else torch.ones_like(magnitudes)
         )
-        penalty = torch.abs(magnitudes - mean) ** self.reg_pow
+        penalty = torch.abs(magnitudes - midpoint) ** self.reg_pow
 
         loss = (which_neurons * penalty).sum()
         return loss
