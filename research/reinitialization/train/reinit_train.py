@@ -29,6 +29,9 @@ parser.add_argument("--use_neptune", action="store_true")
 parser.add_argument("--use_clearml", action="store_true")
 parser.add_argument("--use_pruner", action="store_true")
 parser.add_argument("--mixed_precision", action="store_true")
+parser.add_argument("--x_flop", action="store_true")
+parser.add_argument("--x_logarithmic", action="store_true")
+
 
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
@@ -71,7 +74,6 @@ parser.add_argument("--log_neuron_diff_sample_size", type=int, default=1)
 parser.add_argument("--log_neuron_diff_n_samples", type=int, default=100)
 parser.add_argument("--neuron_diff_ds_seed", type=int, default=511)
 parser.add_argument("--neuron_diff_batches", type=int, default=10)
-parser.add_argument("--testing_diff", action="store_true")
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
@@ -117,25 +119,6 @@ def make_concise_datetime() -> str:
 
 timestamp = make_concise_datetime()
 unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
-
-if args.use_neptune:
-    run = neptune.init_run(
-        project="pmtest/llm-efficiency",
-        tags=args.tags,
-        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-    )
-    run["args"] = vars(args)
-    run["working_directory"] = os.getcwd()
-    logger = NeptuneLogger(run)
-elif args.use_clearml:
-    task = Task.init(
-        project_name=args.project_name,
-        task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-    )
-    task.connect(vars(args))
-    if args.tags:
-        task.add_tags(args.tags)
-    logger = ClearMLLogger(task)
 
 modelpath = f"models/{unique_timestamp}"
 os.makedirs(modelpath, exist_ok=True)
@@ -221,6 +204,38 @@ model = get_model(
     device=DEVICE,
     attention_layer_fun=lambda: bert.Attention(args.dm, args.heads, dhead=args.dhead),
 )
+
+model_n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+embedding_params = 2 * VOCAB_SIZE * args.dm
+last_layer_params = args.cutoff * args.dm
+model_n_params -= embedding_params + last_layer_params
+
+if args.use_neptune:
+    run = neptune.init_run(
+        project="pmtest/llm-efficiency",
+        tags=args.tags,
+        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    run["args"] = vars(args)
+    run["working_directory"] = os.getcwd()
+
+    auxiliary_params = {}
+    if args.x_flop:
+        auxiliary_params["x_flop"] = True
+        auxiliary_params["batch_size"] = args.batch_size
+        auxiliary_params["model_size"] = model_n_params
+    if args.x_logarithmic:
+        auxiliary_params["x_logarithmic"] = True
+    logger = NeptuneLogger(run, auxiliary_params)
+elif args.use_clearml:
+    task = Task.init(
+        project_name=args.project_name,
+        task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    task.connect(vars(args))
+    if args.tags:
+        task.add_tags(args.tags)
+    logger = ClearMLLogger(task)
 
 # set optimizer
 if args.optimizer == "adam":

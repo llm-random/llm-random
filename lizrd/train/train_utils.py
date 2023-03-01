@@ -1,16 +1,19 @@
 import copy
 from typing import Callable, Optional
 
-from attr import define
 import torch
+import torch.nn.functional as F
+from attr import define
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 import numpy as np
 import plotly.express as px
 
 from lizrd.core import bert
+from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
@@ -86,13 +89,13 @@ class Trainer:
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     step: int = 0
-    n_log_light_steps: int = None
-    n_log_heavy_steps: int = None
+    n_log_light_steps: Optional[int] = None
+    n_log_heavy_steps: Optional[int] = None
     log_acc_steps: int = 100
     running_total_loss: float = 0.0
     running_mask_loss: float = 0.0
     running_loss_steps: int = 0
-    neuron_diff_dataset: wikibookdata.ProcessedDatasetWrapper = None
+    neuron_diff_dataset: Optional[wikibookdata.ProcessedDatasetWrapper] = None
     neuron_diff_sample_size: int = 1
     neuron_diff_n_samples: int = 100
     neuron_diff_n_batches: int = 10

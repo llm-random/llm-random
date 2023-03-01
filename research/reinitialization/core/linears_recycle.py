@@ -367,10 +367,8 @@ class RetrainRecycleFF(nn.Module):
         return x
 
     def _neuron_diff_forward(self, x: torch.Tensor):
-        # Apply FF1
         x = self.lin1(x)
 
-        # relu
         x = F.relu(x)
 
         # mask some neurons
@@ -378,7 +376,6 @@ class RetrainRecycleFF(nn.Module):
         mask[self.neuron_diff_current_idx] = 0
         x = misc.einsum("... i, i -> ... i", x, mask)
 
-        # Appply FF2
         x = self.lin2(x)
 
         return x
