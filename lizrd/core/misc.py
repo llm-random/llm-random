@@ -95,6 +95,8 @@ def DenseEinMix(dinp, dout):
 @ash.check("... inp -> ... out")
 class Linear(nn.Linear):
     def __init__(self, *args, **kwargs):
+        if "bias" not in kwargs:
+            kwargs["bias"] = False
         super().__init__(*args, **kwargs)
 
         # This is to make sure values after the layer keep the variance
