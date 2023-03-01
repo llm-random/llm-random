@@ -6,7 +6,7 @@ import datetime
 from clearml import Task
 
 from lizrd.core import misc, bert
-from research.reinitialization.core import linears
+from research.reinitialization.core import linears, linears_loss
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
 from lizrd.train.train_utils import (
@@ -80,6 +80,12 @@ parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
+parser.add_argument("--auxiliary_loss_weight", default=0.0, type=float, required=False)
+
+parser.add_argument("--iwd_reg_pow", type=float, required=False)
+parser.add_argument("--iwd_midpoint_type", type=str, required=False)
+parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
+
 parser.add_argument("--weight_decay", type=float, default=0.0)
 
 args = parser.parse_args()
@@ -185,6 +191,15 @@ elif args.ff_layer == "separate_direction_magnitude_ff":
     )
 elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+elif args.ff_layer == "inverse_wd":
+    ff_layer_fun = lambda: linears_loss.InverseWeightDecayFF(
+        dmodel=args.dm,
+        dff=args.dff,
+        pruner=pruner,
+        only_smaller_neurons=args.iwd_only_smaller_neurons,
+        reg_pow=args.iwd_reg_pow,
+        midpoint_type=args.iwd_midpoint_type,
+    )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 
@@ -258,7 +273,9 @@ elif args.optimizer == "adamw":
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
 elif args.optimizer == "sgd":
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.SGD(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 
 # dataset for neuron diff
 if args.log_neuron_diff:
@@ -273,6 +290,30 @@ if args.log_neuron_diff:
 else:
     pdataset_neuron_diff = None
 
+base_trainer_params = dict(
+    model=model,
+    optimizer=optimizer,
+    pdataset=pdataset,
+    pdataset_eval=eval_pdataset,
+    batch_size=args.batch_size,
+    vocab_size=VOCAB_SIZE,
+    mask_percent=args.mask_percent,
+    mask_loss_weight=args.mask_loss_weight,
+    modelpath=modelpath,
+    pruner=pruner,
+    logger=logger,
+    scheduler=scheduler,
+    mixed_precision=args.mixed_precision,
+    n_log_light_steps=args.n_log_light_steps,
+    n_log_heavy_steps=args.n_log_heavy_steps,
+    log_acc_steps=args.log_acc_steps,
+    auxiliary_loss_weight=args.auxiliary_loss_weight,
+    neuron_diff_dataset=pdataset_neuron_diff,
+    neuron_diff_sample_size=args.log_neuron_diff_sample_size,
+    neuron_diff_n_samples=args.log_neuron_diff_n_samples,
+    neuron_diff_n_batches=args.neuron_diff_batches,
+)
+
 if args.trainer_type == "retrain":
     pdataset_retrain = get_processed_dataset(
         batch_size=args.batch_size,
@@ -283,51 +324,12 @@ if args.trainer_type == "retrain":
         seed=args.retrain_ds_seed,
     )
     trainer = RetrainTrainer(
-        model=model,
-        optimizer=optimizer,
-        pdataset=pdataset,
-        pdataset_eval=eval_pdataset,
-        batch_size=args.batch_size,
-        vocab_size=VOCAB_SIZE,
-        mask_percent=args.mask_percent,
-        mask_loss_weight=args.mask_loss_weight,
-        modelpath=modelpath,
-        pruner=pruner,
-        logger=logger,
-        scheduler=scheduler,
-        mixed_precision=args.mixed_precision,
-        n_log_light_steps=args.n_log_light_steps,
-        n_log_heavy_steps=args.n_log_heavy_steps,
-        log_acc_steps=args.log_acc_steps,
+        **base_trainer_params,
         pdataset_retrain=pdataset_retrain,
         retrain_warmup_steps=args.retrain_warmup_steps,
-        neuron_diff_dataset=pdataset_neuron_diff,
-        neuron_diff_sample_size=args.log_neuron_diff_sample_size,
-        neuron_diff_n_samples=args.log_neuron_diff_n_samples,
-        neuron_diff_n_batches=args.neuron_diff_batches,
     )
 elif args.trainer_type == "regular":
-    trainer = Trainer(
-        model=model,
-        optimizer=optimizer,
-        pdataset=pdataset,
-        pdataset_eval=eval_pdataset,
-        batch_size=args.batch_size,
-        vocab_size=VOCAB_SIZE,
-        mask_percent=args.mask_percent,
-        mask_loss_weight=args.mask_loss_weight,
-        modelpath=modelpath,
-        pruner=pruner,
-        logger=logger,
-        scheduler=scheduler,
-        mixed_precision=args.mixed_precision,
-        log_acc_steps=args.log_acc_steps,
-        n_log_light_steps=args.n_log_light_steps,
-        n_log_heavy_steps=args.n_log_heavy_steps,
-        neuron_diff_dataset=pdataset_neuron_diff,
-        neuron_diff_sample_size=args.log_neuron_diff_sample_size,
-        neuron_diff_n_samples=args.log_neuron_diff_n_samples,
-    )
+    trainer = Trainer(**base_trainer_params)
 else:
     raise ValueError(f"trainer_type {args.trainer_type} not recognized")
 

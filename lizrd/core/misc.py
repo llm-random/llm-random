@@ -95,6 +95,8 @@ def DenseEinMix(dinp, dout):
 @ash.check("... inp -> ... out")
 class Linear(nn.Linear):
     def __init__(self, *args, **kwargs):
+        if "bias" not in kwargs:
+            kwargs["bias"] = False
         super().__init__(*args, **kwargs)
 
         # This is to make sure values after the layer keep the variance
@@ -209,3 +211,12 @@ def are_state_dicts_the_same(
             print(f"Tensor mismatch: {v_1} vs {v_2}")
             return False
     return True
+
+
+def get_neuron_magnitudes(
+    lin1_weight: torch.Tensor, lin2_weight: torch.Tensor
+) -> torch.Tensor:
+    weights1 = torch.sqrt(einsum("f m -> f", lin1_weight**2))
+    weights2 = torch.sqrt(einsum("m f -> f", lin2_weight**2))
+
+    return (weights1 * weights2).flatten()
