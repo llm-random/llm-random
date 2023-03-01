@@ -1,5 +1,5 @@
 {
-    "trainer": "research.reinitialization.train.reinit_train",
+    "runner": "research.reinitialization.train.reinit_train",
     "params": {
         "project_name": "mpioro/mp",
         "name": "mp",
