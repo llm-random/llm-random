@@ -14,7 +14,12 @@ def version_code(
 
     # Find git root directory
     root_dir = find_git_root()
-    newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
+    if "sparsity_code_cemetery" in root_dir:
+        newdir_path = f"{os.path.dirname(root_dir)}/{newdir_name}"
+    else:
+        newdir_path = (
+            f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
+        )
 
     # Set up ignore patterns
     with open(os.path.join(root_dir, ".versioningignore")) as f:
