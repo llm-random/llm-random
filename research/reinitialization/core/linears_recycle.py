@@ -318,7 +318,7 @@ class RetrainRecycleFF(nn.Module):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
-        self.current_activations = self.activate_ratio = np.zeros(dff)
+        self.current_activations = self.activation_ratio = np.zeros(dff)
         self.save_stats = False
         self.neuron_diff_mask = torch.ones(self.dff).to(device)
         self.retrain_without_reinit = retrain_without_reinit
@@ -386,7 +386,7 @@ class RetrainRecycleFF(nn.Module):
     def _save_activation_stats(self, x: torch.Tensor):
         if self.save_stats:
             self.current_activations = x.sum(dim=[0, 1]).detach().cpu().numpy()
-            self.activate_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
+            self.activation_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
             x_flattened = x.flatten().detach().cpu().numpy()
             random_indices = np.random.choice(
                 x_flattened.shape[0], min(x_flattened.shape[0], 1024), replace=False
@@ -429,8 +429,8 @@ class RetrainRecycleFF(nn.Module):
         self.mode = "neuron_diff"
         self.neuron_diff_current_idx = self.neuron_diff_idx[sample_number]
 
-    def activate_ratios_of_masked_neurons(self):
-        return self.activate_ratio[self.neuron_diff_current_idx]
+    def activation_ratios_of_masked_neurons(self):
+        return self.activation_ratio[self.neuron_diff_current_idx]
 
     def neuron_magnitudes_of_masked_neurons(self):
         return self.neuron_magnitudes[self.neuron_diff_current_idx]
@@ -535,7 +535,7 @@ class RetrainRecycleFF(nn.Module):
         )
 
     def log_activation_ratios(self, layer_name: str, step: int):
-        values = self.activate_ratio.tolist()
+        values = self.activation_ratio.tolist()
         fig = px.histogram(values)
         get_current_logger().report_plotly(
             title="Average ratio of activation per neuron",
@@ -569,7 +569,7 @@ class RetrainRecycleFF(nn.Module):
     def log_scatter_magnitude_activation(self, layer_name: str, step: int):
         fig = px.scatter(
             x=self.neuron_magnitudes.flatten().cpu().tolist(),
-            y=self.activate_ratio.flatten().tolist(),
+            y=self.activation_ratio.flatten().tolist(),
         )
         fig.update_layout(xaxis_title="Magnitude", yaxis_title="Activation ratio")
         get_current_logger().report_plotly(

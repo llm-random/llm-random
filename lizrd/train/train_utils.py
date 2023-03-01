@@ -237,7 +237,7 @@ class Trainer:
         with torch.no_grad():
             for i in range(len(self.pruner.layers)):
                 results = np.zeros(self.neuron_diff_n_samples)
-                activate_ratios = np.zeros(self.neuron_diff_n_samples)
+                activation_ratios = np.zeros(self.neuron_diff_n_samples)
                 magnitudes = np.zeros(self.neuron_diff_n_samples)
 
                 for _ in range(self.neuron_diff_n_batches):
@@ -252,21 +252,30 @@ class Trainer:
                             self._compute_loss(processed_batch).detach().cpu().item()
                         )
                         results[j] += total_mask_loss - baseline
-                        activate_ratios[
+                        activation_ratios[
                             j
-                        ] = self.pruner.get_activate_ratios_of_masked_neurons(i)
+                        ] = self.pruner.get_activation_ratios_of_masked_neurons(i)
                         magnitudes[j] = self.pruner.get_magnitudes_of_masked_neurons(i)
 
                 results /= self.neuron_diff_n_batches
-                activate_ratios /= self.neuron_diff_n_batches
+                activation_ratios /= self.neuron_diff_n_batches
                 magnitudes /= self.neuron_diff_n_batches
+                mean = results.mean()
                 results = results.tolist()
-                activate_ratios = activate_ratios.tolist()
+                activation_ratios = activation_ratios.tolist()
                 magnitudes = magnitudes.tolist()
                 self.pruner.disable_neuron_diff()
 
                 # log neuron diffs
                 fig = px.histogram(results)
+                fig.add_vline(
+                    x=mean,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text="mean",
+                    annotation=dict(font_size=20),
+                    annotation_position="top right",
+                )
                 get_current_logger().report_plotly(
                     title="Neuron quality (higher is better)",
                     series=f"Layer {i+1}",
@@ -278,7 +287,7 @@ class Trainer:
                 if self.neuron_diff_sample_size == 1:
                     fig = px.scatter(
                         x=results,
-                        y=activate_ratios,
+                        y=activation_ratios,
                     )
                     fig.update_layout(
                         xaxis_title="Quality (Higher is better)",
