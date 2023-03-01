@@ -134,10 +134,10 @@ class UnstructMagnitudeRecycleFF(nn.Module):
 
 
 class StructMagnitudeRecycleFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner, bias: bool = False):
         super().__init__()
-        self.lin1 = Linear(dmodel, dff)
-        self.lin2 = Linear(dff, dmodel)
+        self.lin1 = Linear(dmodel, dff, bias=bias)
+        self.lin2 = Linear(dff, dmodel, bias=bias)
         self.dff = dff
         pruner.register(self)
 
