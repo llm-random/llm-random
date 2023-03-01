@@ -6,6 +6,7 @@ import datetime
 from clearml import Task
 
 from lizrd.core import misc, bert
+from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
 from research.reinitialization.core import linears
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
@@ -49,9 +50,10 @@ parser.add_argument("--eval_ds_seed", type=int, default=1984)
 parser.add_argument("--retrain_ds_seed", type=int, default=1998)
 
 parser.add_argument("--batch_size", type=str, default=64)
+parser.add_argument("--batch_size_buffer", type=float, default=None)
 parser.add_argument("--cutoff", type=int, default=128)
 parser.add_argument("--dm", type=int, default=256)
-parser.add_argument("--dff", type=str, default=1024)
+parser.add_argument("--dff", type=str, default="auto")
 parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=2)
 parser.add_argument("--dhead", type=int, default=32)
@@ -80,20 +82,23 @@ if args.dff == "auto":
 else:
     args.dff = int(args.dff)
 
-ATHENA_MEMORY_CONST = 1.65e9
-LOCAL_MEMORY_CONST = 1e7
+ATHENA_MEMORY_CONST = 2.192e7
+ENTROPY_MEMORY_CONST = 5.48e6
+LOCAL_MEMORY_CONST = 5e5
 
 
-def batch_size_heuristic(memory_const: int) -> int:
+def batch_size_heuristic(memory_const: float) -> int:
+    buffer = args.batch_size_buffer or 1
     return max(
-        1, int(memory_const / (args.dm * args.dm * args.n_blocks * 12 + VOCAB_SIZE))
+        1, int(memory_const / (args.dm * args.n_blocks * 12 + VOCAB_SIZE)) * buffer
     )
 
 
-if args.batch_size == "auto_athena":
-    args.batch_size = batch_size_heuristic(ATHENA_MEMORY_CONST)
-elif args.batch_size == "auto_local":
-    args.batch_size = batch_size_heuristic(LOCAL_MEMORY_CONST)
+if args.batch_size == "auto":
+    if get_machine_backend() == MachineBackend.ENTROPY:
+        args.batch_size = batch_size_heuristic(ATHENA_MEMORY_CONST)
+    elif get_machine_backend() == MachineBackend.ENTROPY:
+        args.batch_size = batch_size_heuristic(ENTROPY_MEMORY_CONST)
 else:
     args.batch_size = int(args.batch_size)
 
