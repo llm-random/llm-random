@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import torch
 
 
 class BasePruner(ABC):
@@ -72,6 +73,16 @@ class Pruner(BasePruner):
         for layer in self.layers:
             if hasattr(layer, "save_stats"):
                 layer.save_stats = True
+
+    def get_auxiliary_loss(self) -> torch.Tensor:
+        aux_loss = torch.tensor(0, dtype=float)
+        for layer in self.layers:
+            if hasattr(layer, "get_auxiliary_loss"):
+                layer_aux_loss = layer.get_auxiliary_loss()
+                if layer_aux_loss.device != aux_loss.device:
+                    aux_loss = aux_loss.to(layer_aux_loss.device)
+                aux_loss += layer_aux_loss
+        return aux_loss
 
     def prepare_neuron_diff_idx(self, n_samples, sample_size):
         for layer in self.layers:

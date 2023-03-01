@@ -54,10 +54,10 @@ class PruneLinear(misc.Linear):
 
 @ash.check("... d -> ... d")
 class UnstructPruneFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner, bias: bool = False):
         super().__init__()
-        self.lin1 = PruneLinear(dmodel, dff)
-        self.lin2 = PruneLinear(dff, dmodel)
+        self.lin1 = PruneLinear(dmodel, dff, bias=bias)
+        self.lin2 = PruneLinear(dff, dmodel, bias=bias)
         pruner.register(self.lin1)
         pruner.register(self.lin2)
 
@@ -501,10 +501,10 @@ class MagnitudePruneLinear(misc.Linear):
 
 @ash.check("... d -> ... d")
 class UnstructMagnitudePruneFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner, bias: bool = False):
         super().__init__()
-        self.lin1 = MagnitudePruneLinear(dmodel, dff)
-        self.lin2 = MagnitudePruneLinear(dff, dmodel)
+        self.lin1 = MagnitudePruneLinear(dmodel, dff, bias=bias)
+        self.lin2 = MagnitudePruneLinear(dff, dmodel, bias=bias)
         pruner.register(self.lin1)
         pruner.register(self.lin2)
 

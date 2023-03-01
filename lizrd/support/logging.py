@@ -11,16 +11,20 @@ from lizrd.core.misc import generate_random_string
 _CURRENT_LOGGER = None
 
 
+def set_current_logger(logger: "AbstractLogger"):
+    global _CURRENT_LOGGER
+    _CURRENT_LOGGER = logger
+
+
 def get_current_logger() -> Optional["AbstractLogger"]:
     return _CURRENT_LOGGER
 
 
 class AbstractLogger(ABC):
     def __init__(self, logger, auxiliary_params=None):
-        global _CURRENT_LOGGER
         self.instance_logger = logger
-        _CURRENT_LOGGER = self
         self.auxiliary_params = auxiliary_params
+        set_current_logger(self)
 
     @abstractmethod
     def flush_if_necessary(self):
