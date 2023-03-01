@@ -41,6 +41,7 @@ parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
 parser.add_argument("--pruner_n_steps_retrain", type=int, default=None)
 parser.add_argument("--ff_layer", type=str, default="regular")
+parser.add_argument("--bias", type=str, default="none")
 parser.add_argument("--trainer_type", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--ds_seed", type=int, default=42)
@@ -65,6 +66,8 @@ parser.add_argument("--n_steps_log", type=int, default=5_000)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
+parser.add_argument("--sep_dir_mag_magnitude_requires_grad", action="store_true")
+parser.add_argument("--sep_dir_mag_small_grad", action="store_true")
 parser.add_argument("--n_log_light_steps", type=int, default=100)
 parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
 parser.add_argument("--log_acc_steps", type=int, default=100)
@@ -77,7 +80,7 @@ parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
-parser.add_argument("--auxiliary_loss_weight", type=float, required=False)
+parser.add_argument("--auxiliary_loss_weight", default=0.0, type=float, required=False)
 
 parser.add_argument("--iwd_reg_pow", type=float, required=False)
 parser.add_argument("--iwd_midpoint_type", type=str, required=False)
@@ -146,7 +149,7 @@ print(pruner)
 print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff)
+    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff, bias=args.bias)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "struct_prune":
@@ -178,6 +181,14 @@ elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
+elif args.ff_layer == "separate_direction_magnitude_ff":
+    ff_layer_fun = lambda: linears.SeparateDirectionMagnitudeFF(
+        args.dm,
+        args.dff,
+        magnitude_requires_grad=args.sep_dir_mag_magnitude_requires_grad,
+        small_grad=args.sep_dir_mag_small_grad,
+        bias=args.bias,
+    )
 elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "inverse_wd":

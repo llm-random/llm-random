@@ -593,7 +593,6 @@ class LTHTrainer:
     ):
         self.model.train()
         processed_batch = pdataset.get_batch()
-        # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
@@ -629,7 +628,6 @@ class LTHTrainer:
             total_mask_loss = 0.0
             for _ in range(sample):
                 processed_batch = pdataset.get_batch()
-                # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask
