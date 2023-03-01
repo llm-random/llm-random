@@ -106,6 +106,8 @@ if args.batch_size == "auto":
         args.batch_size = batch_size_heuristic(ATHENA_MEMORY_CONST)
     elif get_machine_backend() == MachineBackend.ENTROPY:
         args.batch_size = batch_size_heuristic(ENTROPY_MEMORY_CONST)
+    else:
+        args.batch_size = batch_size_heuristic(LOCAL_MEMORY_CONST)
 else:
     args.batch_size = int(args.batch_size)
 
