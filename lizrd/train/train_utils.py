@@ -1,17 +1,23 @@
 import copy
 from typing import Callable, Optional
 
-from attr import define
 import torch
+import torch.nn.functional as F
+from attr import define
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
+import numpy as np
+import plotly.express as px
 
 from lizrd.core import bert
+from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
+from lizrd.support.logging import get_current_logger
 
 
 def get_model(
@@ -83,15 +89,21 @@ class Trainer:
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     step: int = 0
-    n_log_light_steps: int = None
-    n_log_heavy_steps: int = None
+    n_log_light_steps: Optional[int] = None
+    n_log_heavy_steps: Optional[int] = None
     log_acc_steps: int = 100
     running_total_loss: float = 0.0
     running_mask_loss: float = 0.0
     running_loss_steps: int = 0
+    auxiliary_loss_weight: float = 0.0
+    neuron_diff_dataset: Optional[wikibookdata.ProcessedDatasetWrapper] = None
+    neuron_diff_sample_size: int = 1
+    neuron_diff_n_samples: int = 100
+    neuron_diff_n_batches: int = 10
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        self.reset_loss_stats()
 
     def after_backprop(self, step: int):
         self.pruner.after_backprop(step)
@@ -161,6 +173,23 @@ class Trainer:
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
 
+            auxiliary_loss = self.pruner.get_auxiliary_loss()
+            self.logger.report_scalar(
+                title="loss",
+                series="auxiliary (before scaling)",
+                value=auxiliary_loss.item(),
+                iteration=step,
+            )
+            auxiliary_loss *= self.auxiliary_loss_weight
+            self.logger.report_scalar(
+                title="loss",
+                series="auxiliary (after scaling)",
+                value=auxiliary_loss.item(),
+                iteration=step,
+            )
+
+            total_loss += auxiliary_loss
+
         self.optimize(loss=total_loss, optimizer=optimizer, step=step)
         self.update_loss_stats(total_loss, mask_loss)
 
@@ -172,6 +201,21 @@ class Trainer:
         if step and (step % self.log_acc_steps == 0):
             self.log_loss_stats(step)
             self.reset_loss_stats()
+
+    def _compute_loss(self, batch: wikibookdata.ProcessedBatch):
+        x_set = batch.masked_tokens
+        y_token_set = batch.tokens
+        y_mask_set = batch.mask_mask
+        model_output = self.model(x_set)
+        mask_loss = F.cross_entropy(
+            model_output.reshape(-1, self.vocab_size),
+            y_token_set.reshape(-1).long(),
+            reduction="none",
+        )
+        mask_loss *= y_mask_set.reshape(-1)
+        mask_loss = mask_loss.mean() / self.mask_percent
+        scaled_mask_loss = mask_loss * self.mask_loss_weight
+        return scaled_mask_loss
 
     def _eval_step(
         self,
@@ -186,18 +230,8 @@ class Trainer:
             for _ in range(sample):
                 processed_batch = self.pdataset_eval.get_batch()
                 assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-                x_set = processed_batch.masked_tokens
-                y_token_set = processed_batch.tokens
-                y_mask_set = processed_batch.mask_mask
-                model_output = self.model(x_set)
-                mask_loss = F.cross_entropy(
-                    model_output.reshape(-1, self.vocab_size),
-                    y_token_set.reshape(-1).long(),
-                    reduction="none",
-                )
-                mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-                mask_loss = mask_loss.mean() / self.mask_percent
-                scaled_mask_loss = mask_loss * self.mask_loss_weight
+
+                scaled_mask_loss = self._compute_loss(processed_batch)
                 total_mask_loss += scaled_mask_loss.item()
             total_mask_loss /= sample
 
@@ -211,10 +245,81 @@ class Trainer:
 
             return total_mask_loss
 
+    def check_neuron_diff(self, step: int):
+        """
+        Check the neuron diff for each layer:
+            1. For each batch, compute the loss for the batch
+            2. For each sample, mask neurons from the sample
+            3. Compute the loss for the batch with the chosen neurons masked
+            4. Compute the difference between the two losses
+            5. Log histogram of the results
+            6. Repeat 2-5 for all layers
+        """
+        print("Beginning of check_neuron_diff...")
+        with torch.no_grad():
+            for i in range(len(self.pruner.layers)):
+                results = np.zeros(self.neuron_diff_n_samples)
+                activation_ratios = np.zeros(self.neuron_diff_n_samples)
+
+                for _ in range(self.neuron_diff_n_batches):
+                    processed_batch = self.neuron_diff_dataset.get_batch()
+                    assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+
+                    baseline = self._compute_loss(processed_batch).detach().cpu().item()
+
+                    for j in range(self.neuron_diff_n_samples):
+                        self.pruner.enable_neuron_diff(ff_layer_num=i, sample_number=j)
+                        total_mask_loss = (
+                            self._compute_loss(processed_batch).detach().cpu().item()
+                        )
+                        results[j] += total_mask_loss - baseline
+                        activation_ratios[
+                            j
+                        ] = self.pruner.get_activation_ratios_of_masked_neurons(i)
+
+                results /= self.neuron_diff_n_batches
+                activation_ratios /= self.neuron_diff_n_batches
+                results = results.tolist()
+                activation_ratios = activation_ratios.tolist()
+                self.pruner.disable_neuron_diff()
+
+                # log neuron diffs
+                fig = px.histogram(results)
+                get_current_logger().report_plotly(
+                    title="Neuron quality difference",
+                    series=f"Layer {i}",
+                    iteration=step,
+                    figure=fig,
+                )
+
+                # log scatter of neuron diff/activation
+                if self.neuron_diff_sample_size == 1:
+                    fig = px.scatter(
+                        x=results,
+                        y=activation_ratios,
+                    )
+                    fig.update_layout(
+                        xaxis_title="Quality", yaxis_title="Activation ratio"
+                    )
+                    get_current_logger().report_plotly(
+                        title="Quality vs activation",
+                        series=f"Layer {i+1}",
+                        iteration=step,
+                        figure=fig,
+                    )
+
+        print("Neuron diff logged.")
+
     def train(self, n_steps: int, n_steps_eval: int):
         # params for lr warmup
         target_lr = self.optimizer.param_groups[0]["lr"]
         warmup_steps = int(0.01 * n_steps)
+
+        if self.neuron_diff_dataset is not None:
+            self.pruner.prepare_neuron_diff_idx(
+                n_samples=self.neuron_diff_n_samples,
+                sample_size=self.neuron_diff_sample_size,
+            )
 
         for step in range(n_steps):
             # lr warmup in the beginning
@@ -226,6 +331,13 @@ class Trainer:
             # tell the model to save activation stats if necessary:
             if self.n_log_heavy_steps and step % self.n_log_heavy_steps == 0:
                 self.pruner.set_saving_stats()
+
+            # log neuron difference stats if necessary:
+            if (
+                self.neuron_diff_dataset is not None
+                and step % self.n_log_heavy_steps == 0
+            ):
+                self.check_neuron_diff(step)
 
             self._pruning_step(step)
             total_loss, mask_loss = self._train_step(
@@ -380,7 +492,6 @@ class RetrainTrainer(Trainer):
             self.optimizer.param_groups[0]["lr"],
             self.optimizer.param_groups[0]["betas"],
             self.optimizer.param_groups[0]["eps"],
-            self.optimizer.param_groups[0]["weight_decay"],
         )
         target_lr = self.optimizer.param_groups[0]["lr"]
         if not self.retrain_warmup_steps:
@@ -399,11 +510,11 @@ class RetrainTrainer(Trainer):
         for i in range(self.scheduler.n_steps_retrain):
             if i < 5:
                 loss_after_recycle = self._eval_step(step, log_values=False)
-                self.logger.report_scalar(
-                    title="loss/eval_just_after_recycle",
-                    value=loss_after_recycle,
-                    iteration=step + i,
-                )
+                # self.logger.report_scalar(
+                #     title="loss/eval_just_after_recycle",
+                #     value=loss_after_recycle,
+                #     iteration=step + i,
+                # )
                 print(f"Eval loss after recycle:", loss_after_recycle)
             # lr warmup
             lr_coeff = min(1.0, i / self.retrain_warmup_steps)
@@ -482,7 +593,6 @@ class LTHTrainer:
     ):
         self.model.train()
         processed_batch = pdataset.get_batch()
-        # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
@@ -518,7 +628,6 @@ class LTHTrainer:
             total_mask_loss = 0.0
             for _ in range(sample):
                 processed_batch = pdataset.get_batch()
-                # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask

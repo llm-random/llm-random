@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import torch
 
 
 class BasePruner(ABC):
@@ -72,3 +73,31 @@ class Pruner(BasePruner):
         for layer in self.layers:
             if hasattr(layer, "save_stats"):
                 layer.save_stats = True
+
+    def get_auxiliary_loss(self) -> torch.Tensor:
+        aux_loss = torch.tensor(0, dtype=float)
+        for layer in self.layers:
+            if hasattr(layer, "get_auxiliary_loss"):
+                layer_aux_loss = layer.get_auxiliary_loss()
+                if layer_aux_loss.device != aux_loss.device:
+                    aux_loss = aux_loss.to(layer_aux_loss.device)
+                aux_loss += layer_aux_loss
+        return aux_loss
+
+    def prepare_neuron_diff_idx(self, n_samples, sample_size):
+        for layer in self.layers:
+            if hasattr(layer, "prepare_neuron_diff_idx"):
+                layer.prepare_neuron_diff_idx(n_samples, sample_size)
+
+    def enable_neuron_diff(self, ff_layer_num: int, sample_number: int):
+        self.layers[ff_layer_num].enable_neuron_diff(sample_number)
+
+    def disable_neuron_diff(self):
+        for layer in self.layers:
+            if hasattr(layer, "disable_neuron_diff"):
+                layer.disable_neuron_diff()
+
+    def get_activation_ratios_of_masked_neurons(self, layer_num: int):
+        if not hasattr(self.layers[layer_num], "activation_ratios_of_masked_neurons"):
+            raise ValueError("Property activate ratio not present")
+        return self.layers[layer_num].activation_ratios_of_masked_neurons()
