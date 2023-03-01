@@ -58,7 +58,7 @@ parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=2)
 parser.add_argument("--dhead", type=int, default=32)
 parser.add_argument("--optimizer", type=str, default="adam")
-parser.add_argument("--learning_rate", type=float, default=8e-4)
+parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
@@ -72,8 +72,15 @@ parser.add_argument("--n_log_light_steps", type=int, default=100)
 parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
 parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
+parser.add_argument("--log_neuron_diff", action="store_true")
+parser.add_argument("--log_neuron_diff_sample_size", type=int, default=1)
+parser.add_argument("--log_neuron_diff_n_samples", type=int, default=100)
+parser.add_argument("--neuron_diff_ds_seed", type=int, default=511)
+parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
+parser.add_argument("--highest_magnitudes", action="store_true")
+parser.add_argument("--weight_decay", type=float, default=0.0)
 
 args = parser.parse_args()
 
@@ -101,38 +108,6 @@ if args.batch_size == "auto":
         args.batch_size = batch_size_heuristic(ENTROPY_MEMORY_CONST)
 else:
     args.batch_size = int(args.batch_size)
-
-# useful predefined configs for debugging locally
-if args.testing_regular:
-    args.project_name = f"{os.getenv('USER')}/testing"
-    args.ff_layer = "regular"
-    args.cutoff = 32
-    args.dm = 2
-    args.dff = 4
-    args.n_blocks = 2
-    args.heads = 2
-    args.tags = ["testing_regular"]
-    args.n_steps = 100
-    args.use_pruner = False
-    args.batch_size = 2
-elif args.testing_recycle:
-    args.project_name = f"{os.getenv('USER')}/testing"
-    args.use_clearml = True
-    args.ff_layer = "retrain_recycle"
-    args.cutoff = 32
-    args.n_steps = 50
-    args.use_clearml = True
-    args.tags = ["testing_recycle"]
-    args.use_pruner = True
-    args.pruner_n_steps = 10
-    args.pruner_prob = 0.1
-    args.pruner_delay = 6
-    args.pruner_n_steps_retrain = 10
-    args.trainer_type = "retrain"
-    args.n_log_heavy_steps = 40
-    args.n_log_light_steps = 10
-    args.n_steps_eval = 10
-    args.batch_size = 8
 
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
@@ -216,6 +191,7 @@ elif args.ff_layer == "retrain_recycle":
         pruner=pruner,
         retrain_without_reinit=args.retrain_without_reinit,
         random_indexes=args.random_indexes,
+        highest_magnitudes=args.highest_magnitudes,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
@@ -269,7 +245,6 @@ if args.use_neptune:
     )
     run["args"] = vars(args)
     run["working_directory"] = os.getcwd()
-    run["model_n_params_(non_emb)"] = model_n_params
 
     auxiliary_params = {}
     if args.x_flop:
@@ -279,7 +254,6 @@ if args.use_neptune:
     if args.x_logarithmic:
         auxiliary_params["x_logarithmic"] = True
     logger = NeptuneLogger(run, auxiliary_params)
-
 elif args.use_clearml:
     task = Task.init(
         project_name=args.project_name,
@@ -292,9 +266,28 @@ elif args.use_clearml:
 
 # set optimizer
 if args.optimizer == "adam":
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
+elif args.optimizer == "adamw":
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 elif args.optimizer == "sgd":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+
+# dataset for neuron diff
+if args.log_neuron_diff:
+    pdataset_neuron_diff = get_processed_dataset(
+        batch_size=args.batch_size,
+        max_total_length=args.cutoff,
+        mask_percent=args.mask_percent,
+        device=DEVICE,
+        num_workers=args.num_workers,
+        seed=args.neuron_diff_ds_seed,
+    )
+else:
+    pdataset_neuron_diff = None
 
 if args.trainer_type == "retrain":
     pdataset_retrain = get_processed_dataset(
@@ -324,6 +317,10 @@ if args.trainer_type == "retrain":
         log_acc_steps=args.log_acc_steps,
         pdataset_retrain=pdataset_retrain,
         retrain_warmup_steps=args.retrain_warmup_steps,
+        neuron_diff_dataset=pdataset_neuron_diff,
+        neuron_diff_sample_size=args.log_neuron_diff_sample_size,
+        neuron_diff_n_samples=args.log_neuron_diff_n_samples,
+        neuron_diff_n_batches=args.neuron_diff_batches,
     )
 elif args.trainer_type == "regular":
     trainer = Trainer(
@@ -343,6 +340,9 @@ elif args.trainer_type == "regular":
         log_acc_steps=args.log_acc_steps,
         n_log_light_steps=args.n_log_light_steps,
         n_log_heavy_steps=args.n_log_heavy_steps,
+        neuron_diff_dataset=pdataset_neuron_diff,
+        neuron_diff_sample_size=args.neuron_diff_sample_size,
+        neuron_diff_n_samples=args.neuron_diff_n_samples,
     )
 else:
     raise ValueError(f"trainer_type {args.trainer_type} not recognized")

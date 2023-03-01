@@ -1,11 +1,12 @@
+from collections import OrderedDict
+
 import numpy as np
 import torch
-import lizrd.core.nn as nn
-from lizrd.core.misc import EinMix
 
+import lizrd.core.nn as nn
 from lizrd.core.bert import LowRank
+from lizrd.core.misc import EinMix, Linear
 from lizrd.support import ash
-from lizrd.support.profile import TimerLayer
 
 
 @ash.check("... d -> ... d")
@@ -36,14 +37,38 @@ def FeedForwardBottleneck(dmodel, exp_rate, bottleneck_chop_ratio=None):
     else:
         B = int(B)
     M = exp_rate * N
-    return TimerLayer(
-        "BottleneckFF",
-        nn.Sequential(
-            LowRank(N, M, B),
-            nn.ReLU(inplace=True),
-            LowRank(M, N, B),
-        ),
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_lowrank1", LowRank(N, M, B)),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_lowrank2", LowRank(M, N, B)),
+            ]
+        )
     )
+    return block
+
+
+@ash.check("... d -> ... d")
+def FeedForwardBottleneckFORCED(dmodel, dff, bottleneck_size):
+    """
+    Similar to FeedForwardBottleneck, but the bottleneck size is forced to be bottleneck_size
+    """
+    N = dmodel
+    B = bottleneck_size
+    M = dff
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_bottleneck1", Linear(N, B)),
+                ("logging_bottleneck2", Linear(B, M)),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_bottleneck3", Linear(M, B)),
+                ("logging_bottleneck4", Linear(B, N)),
+            ]
+        )
+    )
+    return block
 
 
 @ash.check("... d -> ... d")
@@ -55,7 +80,6 @@ def FeedForwardMultineck(
     :param exp_rate: exp_rate: M/N, where M is the size of the "expanded" layer (before ReLU)
     :param n_heads: number of independent bottlenecks, later aggregated
     :param parameter_sharing_mode: one of "none", "neck_and_ff", "input_and_neck"
-    #TODO: should input_and_neck even be implemented? It seems that we lose a lot of information by using 1 bottleneck for all heads
     An iteration on FeedForwardBottleneck, where there are multiple bottlenecks, EACH writes to the output stream independently, like multiheadattention
     Assumes that the number of parameters should be the same as for a FeedForward layer of the same input/output dimensions;
     with the bottleneck layer size being B and the number of heads H, and in/out being N and M respectively, the resulting equation is:
@@ -145,9 +169,19 @@ def FeedForwardMultineck(
         dhead=B,
     )
 
-    return nn.Sequential(
-        multineck_1, expand, nn.ReLU(inplace=True), contract, multineck_2
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_multineck_1", multineck_1),
+                ("logging_expand", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_contract", contract),
+                ("logging_multineck_2", multineck_2),
+            ]
+        )
     )
+
+    return block
 
 
 @ash.check("... d -> ... d")

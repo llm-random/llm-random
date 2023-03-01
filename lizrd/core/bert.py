@@ -1,22 +1,22 @@
+from collections import OrderedDict
+
 import torch
+
 import lizrd.core.nn as nn
-
-from einops.layers.torch import Rearrange
-
 from lizrd.core import misc
 from lizrd.support import ash
-from lizrd.support.profile import TimerLayer
 
 
 @ash.check("... d -> ... d")
 def FeedForward(dmodel, dff):
-    return TimerLayer(
-        "denseFF",
-        nn.Sequential(
-            TimerLayer("Linear1", misc.Linear(dmodel, dff), off=True),
-            nn.ReLU(inplace=True),
-            TimerLayer("Linear2", misc.Linear(dff, dmodel), off=True),
-        ),
+    return nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_ff_pre_relu", misc.Linear(dmodel, dff)),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_ff_post_relu", misc.Linear(dff, dmodel)),
+            ]
+        )
     )
 
 
@@ -142,8 +142,9 @@ def EncoderTower(n_blocks, dmodel, *layer_funs):
     encoder_blocks = []
     for i_block in range(n_blocks):
         layers = [layer_fun() for layer_fun in layer_funs]
-        encoder_blocks.append(EncoderBlock(dmodel, *layers))
-    return nn.Sequential(*encoder_blocks)
+        name_and_block = (f"block_{i_block}", EncoderBlock(dmodel, *layers))
+        encoder_blocks.append(name_and_block)
+    return nn.Sequential(OrderedDict(encoder_blocks))
 
 
 @ash.check("... -> ... d")
