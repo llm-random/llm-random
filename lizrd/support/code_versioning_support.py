@@ -75,6 +75,10 @@ def push_code_to_url(
         ["git", "checkout", "-b", branch_name], capture_output=True, text=True
     )
 
+    if create_process.returncode != 0:
+        print(create_process.stderr)
+        raise Exception("Error: New branch checkout was not successful")
+
     # Push the current code to the remote repo
     push_process = subprocess.run(
         ["git", "push", remote_name, branch_name], capture_output=True, text=True
