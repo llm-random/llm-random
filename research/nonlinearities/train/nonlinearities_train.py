@@ -107,11 +107,7 @@ trainer = NonlinearityTrainer(
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
-    mask_loss_weight=args.mask_loss_weight,
-    modelpath=modelpath,
-    writer=writer,
     mixed_precision=args.mixed_precision,
-    save_model_checkpoints=args.save_model_checkpoints,
     distribution_logging=args.log_distributions,
     logging_frequency=args.logging_frequency,
 )
