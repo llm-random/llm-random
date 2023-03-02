@@ -1,12 +1,15 @@
 import math
 import os
+import secrets
 from abc import ABC, abstractmethod
 from typing import Optional
-
+import neptune.new as neptune
+from clearml import Task
 import numpy as np
 import plotly
 
 from lizrd.core.misc import generate_random_string
+from lizrd.support.misc import make_concise_datetime, tags_to_name, count_parameters
 
 _CURRENT_LOGGER = None
 
@@ -21,9 +24,10 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
-    def __init__(self, logger, auxiliary_params=None):
+
+    def __init__(self, logger, model, args, VOCAB_SIZE):
         self.instance_logger = logger
-        self.auxiliary_params = auxiliary_params
+        self.auxiliary_params = self.get_auxiliary_params(model, args, VOCAB_SIZE)
         set_current_logger(self)
 
     @abstractmethod
@@ -46,6 +50,17 @@ class AbstractLogger(ABC):
         iteration,
     ):
         raise NotImplementedError()
+
+    def get_auxiliary_params(self, model, args, VOCAB_SIZE):
+        parameter_count = count_parameters(model, args, VOCAB_SIZE)
+        auxiliary_params = {}
+        if args.x_flop:
+            auxiliary_params["x_flop"] = True
+            auxiliary_params["batch_size"] = args.batch_size
+            auxiliary_params["model_size"] = parameter_count
+        if args.x_logarithmic:
+            auxiliary_params["x_logarithmic"] = True
+        return auxiliary_params
 
     def potentially_log_plotly_figure_scalars(
         self,
@@ -149,8 +164,8 @@ class ClearMLLogger(AbstractLogger):
 class NeptuneLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
-    def __init__(self, logger, auxiliary_params=None):
-        super().__init__(logger, auxiliary_params)
+    def __init__(self, logger, model, args, VOCAB_SIZE):
+        super().__init__(logger, model, args, VOCAB_SIZE)
         self.random_id = generate_random_string(8)
         os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
 
@@ -219,3 +234,35 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
     logger = get_current_logger()
     assert logger is not None
     logger.report_plotly(figure=figure, title=title, series=series, iteration=iteration)
+
+
+def get_logger(args, model, VOCAB_SIZE):
+    timestamp = make_concise_datetime()
+    unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
+    if args.use_neptune:
+        run = neptune.init_run(
+            project="pmtest/llm-efficiency",
+            tags=args.tags,
+            name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+        )
+        run["args"] = vars(args)
+        run["working_directory"] = os.getcwd()
+        run["git_branch"] = os.getcwd().split("/")[-1]
+        logger = NeptuneLogger(run, model, args, VOCAB_SIZE)
+        return logger
+
+    elif args.use_clearml:
+        task = Task.init(
+            project_name=args.project_name,
+            task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+        )
+        task.connect(vars(args))
+        if args.tags:
+            task.add_tags(args.tags)
+        logger = ClearMLLogger(task, args, model, VOCAB_SIZE)
+        return logger
+    else:
+        print(
+            "No logger specified! either args.use_neptune or args.use_clearml must be True"
+        )
+        raise NotImplementedError
