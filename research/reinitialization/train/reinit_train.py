@@ -4,7 +4,7 @@ import secrets
 import torch
 
 from lizrd.core import misc, bert
-from research.reinitialization.core import linears
+from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
 from lizrd.train.train_utils import (
@@ -40,6 +40,7 @@ parser.add_argument("--name", type=str, default="")
 parser.add_argument("--pruner_delay", type=int, default=0)
 parser.add_argument("--pruner_n_steps_retrain", type=int, default=None)
 parser.add_argument("--ff_layer", type=str, default="regular")
+parser.add_argument("--bias", type=str, default="none")
 parser.add_argument("--trainer_type", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--ds_seed", type=int, default=42)
@@ -64,48 +65,29 @@ parser.add_argument("--n_steps_log", type=int, default=5_000)
 parser.add_argument("--immunity", type=int, default=10)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
+parser.add_argument("--sep_dir_mag_magnitude_requires_grad", action="store_true")
+parser.add_argument("--sep_dir_mag_small_grad", action="store_true")
 parser.add_argument("--n_log_light_steps", type=int, default=100)
 parser.add_argument("--n_log_heavy_steps", type=int, default=5000)
 parser.add_argument("--log_acc_steps", type=int, default=100)
 parser.add_argument("--retrain_warmup_steps", type=int, default=None)
+parser.add_argument("--log_neuron_diff", action="store_true")
+parser.add_argument("--log_neuron_diff_sample_size", type=int, default=1)
+parser.add_argument("--log_neuron_diff_n_samples", type=int, default=100)
+parser.add_argument("--neuron_diff_ds_seed", type=int, default=511)
+parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
+parser.add_argument("--auxiliary_loss_weight", default=0.0, type=float, required=False)
+
+parser.add_argument("--iwd_reg_pow", type=float, required=False)
+parser.add_argument("--iwd_midpoint_type", type=str, required=False)
+parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
+
 parser.add_argument("--weight_decay", type=float, default=0.0)
 
 args = parser.parse_args()
-
-# useful predefined configs for debugging locally
-if args.testing_regular:
-    args.project_name = f"{os.getenv('USER')}/testing"
-    args.ff_layer = "regular"
-    args.cutoff = 32
-    args.dmodel = 2
-    args.dff = 4
-    args.n_blocks = 2
-    args.heads = 2
-    args.tags = ["testing_regular"]
-    args.n_steps = 100
-    args.use_pruner = False
-    args.batch_size = 2
-elif args.testing_recycle:
-    args.project_name = f"{os.getenv('USER')}/testing"
-    args.use_clearml = True
-    args.ff_layer = "retrain_recycle"
-    args.cutoff = 32
-    args.n_steps = 50
-    args.use_clearml = True
-    args.tags = ["testing_recycle"]
-    args.use_pruner = True
-    args.pruner_n_steps = 10
-    args.pruner_prob = 0.1
-    args.pruner_delay = 6
-    args.pruner_n_steps_retrain = 10
-    args.trainer_type = "retrain"
-    args.n_log_heavy_steps = 40
-    args.n_log_light_steps = 10
-    args.n_steps_eval = 10
-    args.batch_size = 8
 
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
@@ -154,7 +136,7 @@ print(pruner)
 print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dmodel, args.dff)
+    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff, bias=args.bias)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "struct_prune":
@@ -188,8 +170,28 @@ elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
+elif args.ff_layer == "separate_direction_magnitude_ff":
+    ff_layer_fun = lambda: linears.SeparateDirectionMagnitudeFF(
+        args.dm,
+        args.dff,
+        magnitude_requires_grad=args.sep_dir_mag_magnitude_requires_grad,
+        small_grad=args.sep_dir_mag_small_grad,
+        bias=args.bias,
+    )
 elif args.ff_layer == "log_ff":
-    ff_layer_fun = lambda: linears.LogFF(args.dmodel, args.dff, pruner)
+
+    ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+elif args.ff_layer == "plusminus_ff":
+    ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dm, args.dff)
+elif args.ff_layer == "inverse_wd":
+    ff_layer_fun = lambda: linears_loss.InverseWeightDecayFF(
+        dmodel=args.dm,
+        dff=args.dff,
+        pruner=pruner,
+        only_smaller_neurons=args.iwd_only_smaller_neurons,
+        reg_pow=args.iwd_reg_pow,
+        midpoint_type=args.iwd_midpoint_type,
+    )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 
@@ -230,8 +232,51 @@ if args.optimizer == "adam":
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
+elif args.optimizer == "adamw":
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 elif args.optimizer == "sgd":
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.SGD(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
+
+# dataset for neuron diff
+if args.log_neuron_diff:
+    pdataset_neuron_diff = get_processed_dataset(
+        batch_size=args.batch_size,
+        max_total_length=args.cutoff,
+        mask_percent=args.mask_percent,
+        device=DEVICE,
+        num_workers=args.num_workers,
+        seed=args.neuron_diff_ds_seed,
+    )
+else:
+    pdataset_neuron_diff = None
+
+base_trainer_params = dict(
+    model=model,
+    optimizer=optimizer,
+    pdataset=pdataset,
+    pdataset_eval=eval_pdataset,
+    batch_size=args.batch_size,
+    vocab_size=VOCAB_SIZE,
+    mask_percent=args.mask_percent,
+    mask_loss_weight=args.mask_loss_weight,
+    modelpath=modelpath,
+    pruner=pruner,
+    logger=logger,
+    scheduler=scheduler,
+    mixed_precision=args.mixed_precision,
+    n_log_light_steps=args.n_log_light_steps,
+    n_log_heavy_steps=args.n_log_heavy_steps,
+    log_acc_steps=args.log_acc_steps,
+    auxiliary_loss_weight=args.auxiliary_loss_weight,
+    neuron_diff_dataset=pdataset_neuron_diff,
+    neuron_diff_sample_size=args.log_neuron_diff_sample_size,
+    neuron_diff_n_samples=args.log_neuron_diff_n_samples,
+    neuron_diff_n_batches=args.neuron_diff_batches,
+)
 
 if args.trainer_type == "retrain":
     pdataset_retrain = get_processed_dataset(
@@ -243,44 +288,12 @@ if args.trainer_type == "retrain":
         seed=args.retrain_ds_seed,
     )
     trainer = RetrainTrainer(
-        model=model,
-        optimizer=optimizer,
-        pdataset=pdataset,
-        pdataset_eval=eval_pdataset,
-        batch_size=args.batch_size,
-        vocab_size=VOCAB_SIZE,
-        mask_percent=args.mask_percent,
-        mask_loss_weight=args.mask_loss_weight,
-        modelpath=modelpath,
-        pruner=pruner,
-        logger=logger,
-        scheduler=scheduler,
-        mixed_precision=args.mixed_precision,
-        n_log_light_steps=args.n_log_light_steps,
-        n_log_heavy_steps=args.n_log_heavy_steps,
-        log_acc_steps=args.log_acc_steps,
+        **base_trainer_params,
         pdataset_retrain=pdataset_retrain,
         retrain_warmup_steps=args.retrain_warmup_steps,
     )
 elif args.trainer_type == "regular":
-    trainer = Trainer(
-        model=model,
-        optimizer=optimizer,
-        pdataset=pdataset,
-        pdataset_eval=eval_pdataset,
-        batch_size=args.batch_size,
-        vocab_size=VOCAB_SIZE,
-        mask_percent=args.mask_percent,
-        mask_loss_weight=args.mask_loss_weight,
-        modelpath=modelpath,
-        pruner=pruner,
-        logger=logger,
-        scheduler=scheduler,
-        mixed_precision=args.mixed_precision,
-        log_acc_steps=args.log_acc_steps,
-        n_log_light_steps=args.n_log_light_steps,
-        n_log_heavy_steps=args.n_log_heavy_steps,
-    )
+    trainer = Trainer(**base_trainer_params)
 else:
     raise ValueError(f"trainer_type {args.trainer_type} not recognized")
 

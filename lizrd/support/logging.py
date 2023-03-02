@@ -14,16 +14,21 @@ from lizrd.support.misc import make_concise_datetime, tags_to_name, count_parame
 _CURRENT_LOGGER = None
 
 
+def set_current_logger(logger: "AbstractLogger"):
+    global _CURRENT_LOGGER
+    _CURRENT_LOGGER = logger
+
+
 def get_current_logger() -> Optional["AbstractLogger"]:
     return _CURRENT_LOGGER
 
 
 class AbstractLogger(ABC):
+
     def __init__(self, logger, model, args, VOCAB_SIZE):
-        global _CURRENT_LOGGER
         self.instance_logger = logger
-        _CURRENT_LOGGER = self
-        self.auxiliary_params = self.set_auxiliary_params(model, args, VOCAB_SIZE)
+        self.auxiliary_params = self.get_auxiliary_params(model, args, VOCAB_SIZE)
+        set_current_logger(self)
 
     @abstractmethod
     def flush_if_necessary(self):
@@ -46,7 +51,7 @@ class AbstractLogger(ABC):
     ):
         raise NotImplementedError()
 
-    def set_auxiliary_params(self, model, args, VOCAB_SIZE):
+    def get_auxiliary_params(self, model, args, VOCAB_SIZE):
         parameter_count = count_parameters(model, args, VOCAB_SIZE)
         auxiliary_params = {}
         if args.x_flop:

@@ -3,18 +3,44 @@ from collections import OrderedDict
 import torch
 
 import lizrd.core.nn as nn
+from typing import Literal
+
 from lizrd.core import misc
 from lizrd.support import ash
 
 
+def decode_bias_string(bias):
+    assert bias in ["both", "first", "second", "none"]
+    if bias == "both":
+        bias_first = bias_second = True
+    elif bias == "first":
+        bias_first = True
+        bias_second = False
+    elif bias == "second":
+        bias_first = False
+        bias_second = True
+    else:
+        bias_first = bias_second = False
+    return bias_first, bias_second
+
+
 @ash.check("... d -> ... d")
-def FeedForward(dmodel, dff):
+def FeedForward(
+    dmodel,
+    dff,
+    bias: Literal["both", "first", "second", "none"] = "both",
+):
+    bias_first, bias_second = decode_bias_string(bias)
+
     return nn.Sequential(
         OrderedDict(
             [
-                ("logging_ff_pre_relu", misc.Linear(dmodel, dff)),
+                ("logging_ff_pre_relu", misc.Linear(dmodel, dff, bias=bias_first)),
                 ("relu", nn.ReLU(inplace=True)),
-                ("logging_ff_post_relu", misc.Linear(dff, dmodel)),
+                (
+                    "logging_ff_post_relu",
+                    misc.Linear(dff, dmodel, bias=bias_second),
+                ),
             ]
         )
     )
