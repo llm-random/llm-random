@@ -36,7 +36,7 @@ def version_code(
     # Push the code to the remote repo
     push_code_to_url(branch_name, remote_url)
 
-    print(f"Code pushed to {remote_url} under branch {branch_name}")
+    print(f"Code pushed successfully to {remote_url} under branch {branch_name}")
 
 
 def push_code_to_url(
