@@ -214,12 +214,13 @@ class NeptuneLogger(AbstractLogger):
         series: Optional[str] = None,
     ):
         path = self._make_path(title, series, iteration)
+        directory, filename = path.rsplit("/", 1)
         # log json
         json = figure.to_json()
-        self._upload_with_tmp_file(f"{path}_json", json, "json")
+        self._upload_with_tmp_file(f"{directory}/json_{filename}", json, "json")
         # log html
         html = figure.to_html(include_plotlyjs="cdn")
-        self._upload_with_tmp_file(f"{path}_plot", html, "html")
+        self._upload_with_tmp_file(f"{directory}/plot_{filename}", html, "html")
         # log associated_scalars
         self.potentially_log_plotly_figure_scalars(
             figure=figure, title=title, series=series, iteration=iteration
