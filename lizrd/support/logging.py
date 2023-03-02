@@ -243,7 +243,7 @@ def get_logger(args, model, VOCAB_SIZE):
         run["args"] = vars(args)
         run["working_directory"] = os.getcwd()
         run["git_branch"] = os.getcwd().split("/")[-1]
-        logger = NeptuneLogger(run, args, model, VOCAB_SIZE)
+        logger = NeptuneLogger(run, model, args, VOCAB_SIZE)
         return logger
 
     elif args.use_clearml:

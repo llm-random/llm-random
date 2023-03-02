@@ -48,7 +48,7 @@ parser.add_argument("--retrain_ds_seed", type=int, default=1998)
 
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--cutoff", type=int, default=128)
-parser.add_argument("--dm", type=int, default=256)
+parser.add_argument("--dmodel", type=int, default=256)
 parser.add_argument("--dff", type=int, default=1024)
 parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=2)
@@ -80,7 +80,7 @@ if args.testing_regular:
     args.project_name = f"{os.getenv('USER')}/testing"
     args.ff_layer = "regular"
     args.cutoff = 32
-    args.dm = 2
+    args.dmodel = 2
     args.dff = 4
     args.n_blocks = 2
     args.heads = 2
@@ -154,26 +154,28 @@ print(pruner)
 print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff)
+    ff_layer_fun = lambda: bert.FeedForward(args.dmodel, args.dff)
 elif args.ff_layer == "unstruct_prune":
-    ff_layer_fun = lambda: linears.UnstructPruneFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.UnstructPruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "struct_prune":
-    ff_layer_fun = lambda: linears.StructPruneFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.StructPruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "unstruct_magnitude_prune":
-    ff_layer_fun = lambda: linears.UnstructMagnitudePruneFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.UnstructMagnitudePruneFF(
+        args.dmodel, args.dff, pruner
+    )
 elif args.ff_layer == "struct_magnitude_prune":
-    ff_layer_fun = lambda: linears.StructMagnitudePruneFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.StructMagnitudePruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
-        args.dm, args.dff, pruner
+        args.dmodel, args.dff, pruner
     )
 elif args.ff_layer == "struct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleFF(
-        args.dm, args.dff, pruner
+        args.dmodel, args.dff, pruner
     )
 elif args.ff_layer == "retrain_recycle":
     ff_layer_fun = lambda: linears_recycle.RetrainRecycleFF(
-        dmodel=args.dm,
+        dmodel=args.dmodel,
         dff=args.dff,
         pruner=pruner,
         retrain_without_reinit=args.retrain_without_reinit,
@@ -182,12 +184,12 @@ elif args.ff_layer == "retrain_recycle":
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(
-        args.dm, args.dff, pruner, args.immunity, args.reinit_dist
+        args.dmodel, args.dff, pruner, args.immunity, args.reinit_dist
     )
 elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 elif args.ff_layer == "log_ff":
-    ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.LogFF(args.dmodel, args.dff, pruner)
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 
@@ -213,10 +215,12 @@ model = get_model(
     max_length=args.cutoff,
     vocab_size=VOCAB_SIZE,
     ff_layer_fun=ff_layer_fun,
-    dm=args.dm,
+    dm=args.dmodel,
     n_blocks=args.n_blocks,
     device=DEVICE,
-    attention_layer_fun=lambda: bert.Attention(args.dm, args.heads, dhead=args.dhead),
+    attention_layer_fun=lambda: bert.Attention(
+        args.dmodel, args.heads, dhead=args.dhead
+    ),
 )
 
 logger = get_logger(args, model, VOCAB_SIZE)
