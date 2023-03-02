@@ -36,6 +36,8 @@ def version_code(
     # Push the code to the remote repo
     push_code_to_url(branch_name, remote_url)
 
+    print(f"Code pushed to {remote_url} under branch {branch_name}")
+
 
 def push_code_to_url(
     branch_name,
@@ -69,13 +71,19 @@ def push_code_to_url(
             text=True,
         )
     # Create a new branch
-    subprocess.run(
+    create_process = subprocess.run(
         ["git", "checkout", "-b", branch_name], capture_output=True, text=True
     )
+
     # Push the current code to the remote repo
-    subprocess.run(
+    push_process = subprocess.run(
         ["git", "push", remote_name, branch_name], capture_output=True, text=True
     )
+
+    # Check if the push was successful
+    if push_process.returncode != 0:
+        print(push_process.stderr)
+        raise Exception("Error: Push was not successful")
 
 
 def find_git_root():
