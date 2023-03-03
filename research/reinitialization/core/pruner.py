@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
+from collections import defaultdict
 import torch
+
+from lizrd.core.misc import get_default_device
 
 
 class BasePruner(ABC):
@@ -74,14 +77,13 @@ class Pruner(BasePruner):
             if hasattr(layer, "save_stats"):
                 layer.save_stats = True
 
-    def get_auxiliary_loss(self) -> torch.Tensor:
-        aux_loss = torch.tensor(0, dtype=float)
+    def get_auxiliary_loss(self):
+        aux_loss = defaultdict(lambda: torch.tensor(0.0, device=get_default_device()))
         for layer in self.layers:
             if hasattr(layer, "get_auxiliary_loss"):
                 layer_aux_loss = layer.get_auxiliary_loss()
-                if layer_aux_loss.device != aux_loss.device:
-                    aux_loss = aux_loss.to(layer_aux_loss.device)
-                aux_loss += layer_aux_loss
+                for key, value in layer_aux_loss.items():
+                    aux_loss[key] += value
         return aux_loss
 
     def prepare_neuron_diff_idx(self, n_samples, sample_size):

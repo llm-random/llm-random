@@ -59,6 +59,8 @@ parser.add_argument("--optimizer", type=str, default="adam")
 parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
+parser.add_argument("--midpoint_loss_weight", type=float, default=0.0)
+parser.add_argument("--decay_loss_weight", type=float, default=0.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
@@ -82,9 +84,11 @@ parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
 parser.add_argument("--auxiliary_loss_weight", default=0.0, type=float, required=False)
 
-parser.add_argument("--iwd_reg_pow", type=float, required=False)
-parser.add_argument("--iwd_midpoint_type", type=str, required=False)
-parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
+parser.add_argument("--mpl_reg_pow", type=float, required=False)
+parser.add_argument("--mpl_midpoint_type", type=str, default="mean")
+parser.add_argument("--mpl_transform_type", type=str, default="linear")
+parser.add_argument("--mpl_only_smaller_neurons", action="store_true")
+
 
 parser.add_argument("--weight_decay", type=float, default=0.0)
 
@@ -114,7 +118,7 @@ print(torch.cuda.is_available())
 
 # constants
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = misc.get_default_device()
 
 
 def tags_to_name(tags: Optional[List[str]]) -> str:
@@ -191,14 +195,15 @@ elif args.ff_layer == "separate_direction_magnitude_ff":
     )
 elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
-elif args.ff_layer == "inverse_wd":
-    ff_layer_fun = lambda: linears_loss.InverseWeightDecayFF(
+elif args.ff_layer == "loss_ff":
+    ff_layer_fun = lambda: linears_loss.BaseLossFF(
         dmodel=args.dm,
         dff=args.dff,
+        only_smaller_neurons=args.mpl_only_smaller_neurons,
+        reg_pow=args.mpl_reg_pow,
+        midpoint_type=args.mpl_midpoint_type,
+        transform_type=args.mpl_transform_type,
         pruner=pruner,
-        only_smaller_neurons=args.iwd_only_smaller_neurons,
-        reg_pow=args.iwd_reg_pow,
-        midpoint_type=args.iwd_midpoint_type,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
@@ -298,7 +303,6 @@ base_trainer_params = dict(
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
-    mask_loss_weight=args.mask_loss_weight,
     modelpath=modelpath,
     pruner=pruner,
     logger=logger,
@@ -307,11 +311,15 @@ base_trainer_params = dict(
     n_log_light_steps=args.n_log_light_steps,
     n_log_heavy_steps=args.n_log_heavy_steps,
     log_acc_steps=args.log_acc_steps,
-    auxiliary_loss_weight=args.auxiliary_loss_weight,
     neuron_diff_dataset=pdataset_neuron_diff,
     neuron_diff_sample_size=args.log_neuron_diff_sample_size,
     neuron_diff_n_samples=args.log_neuron_diff_n_samples,
     neuron_diff_n_batches=args.neuron_diff_batches,
+    losses_weights={
+        "mask": args.mask_loss_weight,
+        "midpoint": args.midpoint_loss_weight,
+        "decay": args.decay_loss_weight,
+    },
 )
 
 if args.trainer_type == "retrain":
