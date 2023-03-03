@@ -5,7 +5,6 @@ import torch
 
 from lizrd.core import misc, bert
 from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
-from lizrd.train.bert_train import VOCAB_SIZE
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
@@ -21,6 +20,8 @@ from lizrd.support.logging import (
     get_logger,
     make_concise_datetime,
 )
+
+VOCAB_SIZE = 30522
 
 parser = argparse.ArgumentParser()
 
