@@ -175,6 +175,7 @@ class Trainer:
             total_loss = scaled_mask_loss
 
             auxiliary_loss = self.pruner.get_auxiliary_loss()
+
             if log_auxiliary_loss:
                 self.logger.report_scalar(
                     title="loss",
@@ -182,7 +183,10 @@ class Trainer:
                     value=auxiliary_loss.item(),
                     iteration=step,
                 )
-                auxiliary_loss *= self.auxiliary_loss_weight
+
+            auxiliary_loss *= self.auxiliary_loss_weight
+
+            if log_auxiliary_loss:
                 self.logger.report_scalar(
                     title="loss",
                     series="auxiliary (after scaling)",
