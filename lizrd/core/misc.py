@@ -220,3 +220,46 @@ def get_neuron_magnitudes(
     weights2 = torch.sqrt(einsum("m f -> f", lin2_weight**2))
 
     return (weights1 * weights2).flatten()
+
+
+def get_matrix_magnitudes(
+    lin1_weight: torch.Tensor, lin2_weight: torch.Tensor
+) -> torch.Tensor:
+    """
+    Returns the magnitude of the matrix formed by the concatenation of the two weight matrices.
+    """
+    weights1 = torch.sqrt(einsum("f m -> f", lin1_weight**2))
+    weights2 = torch.sqrt(einsum("m f -> f", lin2_weight**2))
+
+    return (weights1 * weights2).flatten()
+
+    # return concatenation
+    return torch.cat((weights1**2, weights2**2), dim=0).flatten()
+
+
+def get_mixed_neuron_magnitudes(
+    lin1_weight: torch.Tensor, lin2_weight: torch.Tensor
+) -> torch.Tensor:
+    """
+    Returns magnitudes of "nerons" formed by random combinations of rows/cols
+    """
+    weights1 = torch.sqrt(einsum("f m -> f", lin1_weight**2))
+    weights2 = torch.sqrt(einsum("m f -> f", lin2_weight**2))
+
+    weights1 = weights1.flatten()
+    weights2 = weights2.flatten()
+    weights1 = weights1[torch.randperm(weights1.shape[0])]
+
+    return weights1 * weights2
+
+
+def get_dmodel_magnitudes(
+    lin1_weight: torch.Tensor, lin2_weight: torch.Tensor
+) -> torch.Tensor:
+    """
+    Aggregate by dmodel instead of dff
+    """
+    weights1 = torch.sqrt(einsum("f m -> m", lin1_weight**2))
+    weights2 = torch.sqrt(einsum("m f -> m", lin2_weight**2))
+
+    return (weights1 * weights2).flatten()

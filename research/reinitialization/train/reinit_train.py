@@ -84,6 +84,7 @@ parser.add_argument("--auxiliary_loss_weight", default=0.0, type=float, required
 parser.add_argument("--iwd_reg_pow", type=float, required=False)
 parser.add_argument("--iwd_midpoint_type", type=str, required=False)
 parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
+parser.add_argument("--iwd_aggregation_type", type=str, required=False)
 
 parser.add_argument("--weight_decay", type=float, default=0.0)
 
@@ -106,6 +107,8 @@ if not args.use_pruner and (
     raise ValueError(
         "use_pruner not set but pruner_n_steps or pruner_prob or pruner_delay set"
     )
+if args.ff_layer == "iwd_baseline" and args.iwd_aggregation_type is None:
+    raise ValueError("ff_layer is iwd_baseline but iwd_aggregation_type not set")
 
 print("BEGINNING OF FILE")
 print("cuda available:")
@@ -136,7 +139,7 @@ print(pruner)
 print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff, bias=args.bias)
+    ff_layer_fun = lambda: bert.FeedForward(args.dmodel, args.dff, bias=args.bias)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "struct_prune":
@@ -172,24 +175,34 @@ elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 elif args.ff_layer == "separate_direction_magnitude_ff":
     ff_layer_fun = lambda: linears.SeparateDirectionMagnitudeFF(
-        args.dm,
+        args.dmodel,
         args.dff,
         magnitude_requires_grad=args.sep_dir_mag_magnitude_requires_grad,
         small_grad=args.sep_dir_mag_small_grad,
         bias=args.bias,
     )
 elif args.ff_layer == "log_ff":
-    ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.LogFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "plusminus_ff":
-    ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dm, args.dff)
+    ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dmodel, args.dff)
 elif args.ff_layer == "inverse_wd":
     ff_layer_fun = lambda: linears_loss.InverseWeightDecayFF(
-        dmodel=args.dm,
+        dmodel=args.dmodel,
         dff=args.dff,
         pruner=pruner,
         only_smaller_neurons=args.iwd_only_smaller_neurons,
         reg_pow=args.iwd_reg_pow,
         midpoint_type=args.iwd_midpoint_type,
+    )
+elif args.ff_layer == "iwd_baseline":
+    ff_layer_fun = lambda: linears_loss.IWDBaselineFF(
+        dmodel=args.dmodel,
+        dff=args.dff,
+        pruner=pruner,
+        only_smaller_neurons=args.iwd_only_smaller_neurons,
+        reg_pow=args.iwd_reg_pow,
+        midpoint_type=args.iwd_midpoint_type,
+        aggregation_type=args.iwd_aggregation_type,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
