@@ -383,15 +383,17 @@ class RetrainRecycleFF(nn.Module):
             self.current_activations = x.sum(dim=[0, 1]).detach().cpu().numpy()
             self.activation_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
             x_flattened = x.flatten().detach().cpu().numpy()
-            random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
+            random_indices = np.random.choice(
+                x_flattened.shape[0], min(x_flattened.shape[0], 1024), replace=False
+            )
             self.some_activations = x_flattened[random_indices]
             self.save_stats = False
 
     @property
     def neuron_magnitudes(self):
-        if self.mode == "regular":
-            weights1 = self.lin1.weight
-            weights2 = self.lin2.weight
+        if self.mode == "regular" or self.mode == "neuron_diff":
+            weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
+            weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
         elif self.mode == "new_neurons":
             weights1 = misc.einsum(
                 "f, f m -> f m", self.mask, self.lin1.weight.data
@@ -421,6 +423,9 @@ class RetrainRecycleFF(nn.Module):
 
     def activation_ratios_of_masked_neurons(self):
         return self.activation_ratio[self.neuron_diff_current_idx]
+
+    def neuron_magnitudes_of_masked_neurons(self):
+        return self.neuron_magnitudes[self.neuron_diff_current_idx]
 
     def disable_neuron_diff(self):
         self.mode = "regular"

@@ -260,6 +260,7 @@ class Trainer:
             for i in range(len(self.pruner.layers)):
                 results = np.zeros(self.neuron_diff_n_samples)
                 activation_ratios = np.zeros(self.neuron_diff_n_samples)
+                magnitudes = np.zeros(self.neuron_diff_n_samples)
 
                 for _ in range(self.neuron_diff_n_batches):
                     processed_batch = self.neuron_diff_dataset.get_batch()
@@ -276,18 +277,30 @@ class Trainer:
                         activation_ratios[
                             j
                         ] = self.pruner.get_activation_ratios_of_masked_neurons(i)
+                        magnitudes[j] = self.pruner.get_magnitudes_of_masked_neurons(i)
 
                 results /= self.neuron_diff_n_batches
                 activation_ratios /= self.neuron_diff_n_batches
+                magnitudes /= self.neuron_diff_n_batches
+                mean = results.mean()
                 results = results.tolist()
                 activation_ratios = activation_ratios.tolist()
+                magnitudes = magnitudes.tolist()
                 self.pruner.disable_neuron_diff()
 
                 # log neuron diffs
                 fig = px.histogram(results)
+                fig.add_vline(
+                    x=mean,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text="mean",
+                    annotation=dict(font_size=20),
+                    annotation_position="top right",
+                )
                 get_current_logger().report_plotly(
-                    title="Neuron quality difference",
-                    series=f"Layer {i}",
+                    title="Neuron quality (higher is better)",
+                    series=f"Layer {i+1}",
                     iteration=step,
                     figure=fig,
                 )
@@ -299,10 +312,28 @@ class Trainer:
                         y=activation_ratios,
                     )
                     fig.update_layout(
-                        xaxis_title="Quality", yaxis_title="Activation ratio"
+                        xaxis_title="Quality (Higher is better)",
+                        yaxis_title="Activation ratio",
                     )
                     get_current_logger().report_plotly(
                         title="Quality vs activation",
+                        series=f"Layer {i+1}",
+                        iteration=step,
+                        figure=fig,
+                    )
+
+                # Log scatter of neurn diff/magnitudes
+                if self.neuron_diff_sample_size == 1:
+                    fig = px.scatter(
+                        x=results,
+                        y=magnitudes,
+                    )
+                    fig.update_layout(
+                        xaxis_title="Quality (higher is better)",
+                        yaxis_title="Magnitude",
+                    )
+                    get_current_logger().report_plotly(
+                        title="Quality vs magnitude",
                         series=f"Layer {i+1}",
                         iteration=step,
                         figure=fig,
