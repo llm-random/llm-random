@@ -6,13 +6,6 @@ import torch
 from lizrd.core import bert
 from research.nonlinearities.core import research_bert
 from research.nonlinearities.temporary_code import temp_research_bert
-from research.nonlinearities.temporary_code.temp_research_bert import (
-    FeedForwardMultineckFORCED,
-    FeedForwardBottleneckFORCED,
-    LinearEinmix,
-    FeedForwardMultilinear,
-    FeedForwardChoppedNeckFORCED,
-)
 
 
 def process_and_remove_nan(tensor):
@@ -59,26 +52,29 @@ def get_ff_layer(args):
     if mode == "vanilla":
         ff_layer_type, ff_args = bert.FeedForward, (args.dmodel, args.dff)
     elif mode == "vanilla_einmix":
-        ff_layer_type, ff_args = LinearEinmix, (args.dmodel, args.dff)
+        ff_layer_type, ff_args = temp_research_bert.LinearEinmix, (
+            args.dmodel,
+            args.dff,
+        )
     elif mode == "bottleneck":
         ff_layer_type, ff_args = research_bert.FeedForwardBottleneck, (
             args.dmodel,
             args.exp_rate,
         )
     elif mode == "bottleneck_forced":
-        ff_layer_type, ff_args = FeedForwardBottleneckFORCED, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardBottleneckFORCED, (
             args.dmodel,
             args.dff,
             args.bottleneck_size,
         )
     elif mode == "multilinear":
-        ff_layer_type, ff_args = FeedForwardMultilinear, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardMultilinear, (
             args.dmodel,
             args.dff,
             args.n_ff_heads,
         )
     elif mode == "bottleneckFORCED":
-        ff_layer_type, ff_args = FeedForwardBottleneckFORCED, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardBottleneckFORCED, (
             args.dmodel,
             args.dbottle,
             args.dff,
@@ -102,12 +98,12 @@ def get_ff_layer(args):
             args.n_chunks,
         )
     elif mode == "choppedneck_forced":
-        ff_layer_type, ff_args = FeedForwardChoppedNeckFORCED, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardChoppedNeckFORCED, (
             args.dmodel,
             args.n_chunks,
         )
     elif mode == "multineck_forced":
-        ff_layer_type, ff_args = FeedForwardMultineckFORCED, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardMultineckFORCED, (
             args.dmodel,
             args.d_ff_head,
             args.n_ff_heads,
@@ -129,6 +125,27 @@ def get_ff_layer(args):
         )
     elif mode == "overparametrized":
         ff_layer_type, ff_args = temp_research_bert.OverparametrisedFeedForward, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_normed":
+        ff_layer_type, ff_args = temp_research_bert.OverparametrisedFeedForwardNormed, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_residual":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.OverparametrisedFeedForwardResidual, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_residual_normed":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.OverparametrisedFeedForwardResidualNormed, (
             args.dmodel,
             args.dff,
         )

@@ -24,7 +24,6 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
-
     def __init__(self, logger, model, args, VOCAB_SIZE):
         self.instance_logger = logger
         self.auxiliary_params = self.get_auxiliary_params(model, args, VOCAB_SIZE)
