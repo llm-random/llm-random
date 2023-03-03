@@ -56,8 +56,8 @@ class EncoderTowerTest(GeneralTestCase):
         batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
         nblocks = 3
         layer_dict = {
-            "feedforward": lambda: bert.FeedForward(dm, dff),
             "attention": lambda: bert.Attention(dm, heads),
+            "feedforward": lambda: bert.FeedForward(dm, dff),
         }
         model = bert.EncoderTower(nblocks, dm, layer_dict)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
@@ -77,8 +77,8 @@ class BERTTest(GeneralTestCase):
             bert.TokenEmbedding(vocab_size, dm),
         )
         layer_dict = {
-            "feedforward": lambda: bert.FeedForward(dm, dff),
             "attention": lambda: bert.Attention(dm, heads),
+            "feedforward": lambda: bert.FeedForward(dm, dff),
         }
         encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict)
 
