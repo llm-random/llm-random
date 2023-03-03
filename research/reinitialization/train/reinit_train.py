@@ -5,6 +5,7 @@ import torch
 
 from lizrd.core import misc, bert
 from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
+from lizrd.train.bert_train import VOCAB_SIZE
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
@@ -20,8 +21,6 @@ from lizrd.support.logging import (
     get_logger,
     make_concise_datetime,
 )
-
-VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 
 parser = argparse.ArgumentParser()
 
@@ -99,7 +98,7 @@ else:
 
 ATHENA_MEMORY_CONST = 2.192e7
 ENTROPY_MEMORY_CONST = 5.48e6
-LOCAL_MEMORY_CONST = 5e5
+LOCAL_MEMORY_CONST = 4e5
 
 
 def batch_size_heuristic(memory_const: float) -> int:
@@ -165,7 +164,7 @@ print(pruner)
 print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff, bias=args.bias)
+    ff_layer_fun = lambda: bert.FeedForward(args.dmodel, args.dff, bias=args.bias)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "struct_prune":

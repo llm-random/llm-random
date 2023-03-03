@@ -251,8 +251,8 @@ def get_logger(args, model, VOCAB_SIZE, aux_params=None):
         auxiliary_params = {}
 
         model_n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        embedding_params = 2 * VOCAB_SIZE * args.dm
-        last_layer_params = args.cutoff * args.dm
+        embedding_params = 2 * VOCAB_SIZE * args.dmodel
+        last_layer_params = args.cutoff * args.dmodel
         model_n_params -= embedding_params + last_layer_params
 
         if args.x_flop:
@@ -261,8 +261,6 @@ def get_logger(args, model, VOCAB_SIZE, aux_params=None):
             auxiliary_params["model_size"] = model_n_params
         if args.x_logarithmic:
             auxiliary_params["x_logarithmic"] = True
-        logger = NeptuneLogger(run, auxiliary_params)
-
         logger = NeptuneLogger(run, model, args, VOCAB_SIZE)
         return logger
 
