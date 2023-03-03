@@ -4,6 +4,7 @@ import secrets
 import torch
 
 from lizrd.core import misc, bert
+from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
@@ -20,6 +21,8 @@ from lizrd.support.logging import (
     make_concise_datetime,
 )
 
+VOCAB_SIZE = 30522
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--testing_regular", action="store_true")
@@ -30,7 +33,6 @@ parser.add_argument("--use_pruner", action="store_true")
 parser.add_argument("--mixed_precision", action="store_true")
 parser.add_argument("--x_flop", action="store_true")
 parser.add_argument("--x_logarithmic", action="store_true")
-
 
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
@@ -47,10 +49,11 @@ parser.add_argument("--ds_seed", type=int, default=42)
 parser.add_argument("--eval_ds_seed", type=int, default=1984)
 parser.add_argument("--retrain_ds_seed", type=int, default=1998)
 
-parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--batch_size", type=str, default=64)
+parser.add_argument("--batch_size_buffer", type=float, default=None)
 parser.add_argument("--cutoff", type=int, default=128)
 parser.add_argument("--dmodel", type=int, default=256)
-parser.add_argument("--dff", type=int, default=1024)
+parser.add_argument("--dff", type=str, default="auto")
 parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--heads", type=int, default=2)
 parser.add_argument("--dhead", type=int, default=32)
@@ -89,6 +92,33 @@ parser.add_argument("--weight_decay", type=float, default=0.0)
 
 args = parser.parse_args()
 
+if args.dff == "auto":
+    args.dff = args.dmodel * 4
+else:
+    args.dff = int(args.dff)
+
+ATHENA_MEMORY_CONST = 2.192e7
+ENTROPY_MEMORY_CONST = 5.48e6
+LOCAL_MEMORY_CONST = 4e5
+
+
+def batch_size_heuristic(memory_const: float) -> int:
+    buffer = args.batch_size_buffer or 1
+    return max(
+        1, int(memory_const / (args.dmodel * args.n_blocks * 12 + VOCAB_SIZE)) * buffer
+    )
+
+
+if args.batch_size == "auto":
+    if get_machine_backend() == MachineBackend.ENTROPY:
+        args.batch_size = batch_size_heuristic(ATHENA_MEMORY_CONST)
+    elif get_machine_backend() == MachineBackend.ENTROPY:
+        args.batch_size = batch_size_heuristic(ENTROPY_MEMORY_CONST)
+    else:
+        args.batch_size = batch_size_heuristic(LOCAL_MEMORY_CONST)
+else:
+    args.batch_size = int(args.batch_size)
+
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
     raise ValueError(
@@ -112,7 +142,6 @@ print("cuda available:")
 print(torch.cuda.is_available())
 
 # constants
-VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 unique_timestamp = f"{make_concise_datetime()}{secrets.token_urlsafe(1)}"
@@ -136,7 +165,7 @@ print(pruner)
 print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff, bias=args.bias)
+    ff_layer_fun = lambda: bert.FeedForward(args.dmodel, args.dff, bias=args.bias)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "struct_prune":
