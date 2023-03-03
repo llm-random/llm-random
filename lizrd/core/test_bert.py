@@ -55,12 +55,11 @@ class EncoderTowerTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
         nblocks = 3
-        model = bert.EncoderTower(
-            nblocks,
-            dm,
-            (lambda: bert.Attention(dm, heads)),
-            (lambda: bert.FeedForward(dm, dff)),
-        )
+        layer_dict = {
+            "feedforward": lambda: bert.FeedForward(dm, dff),
+            "attention": lambda: bert.Attention(dm, heads),
+        }
+        model = bert.EncoderTower(nblocks, dm, layer_dict)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = model(input)
         self.assertShape(out, (batch, seql, dm))
@@ -77,13 +76,11 @@ class BERTTest(GeneralTestCase):
             bert.PositionalEmbedding(max_length, dm),
             bert.TokenEmbedding(vocab_size, dm),
         )
-
-        encoder_tower = bert.EncoderTower(
-            n_blocks,
-            dm,
-            (lambda: bert.FeedForward(dm, dff)),
-            (lambda: bert.Attention(dm, heads)),
-        )
+        layer_dict = {
+            "feedforward": lambda: bert.FeedForward(dm, dff),
+            "attention": lambda: bert.Attention(dm, heads),
+        }
+        encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict)
 
         head = bert.PredictionHead(dm, output_size)
 
