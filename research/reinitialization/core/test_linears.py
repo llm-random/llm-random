@@ -20,7 +20,7 @@ class TestPruneLinear(GeneralTestCase):
             linears.PruneLinear(*shape, dtype=dtype, device=device)
 
     def test_basic(self):
-        layer = linears.PruneLinear(2, 5)
+        layer = linears.PruneLinear(2, 5, bias=True)
         b = layer.bias.data
         t = torch.rand((10, 2))
 
@@ -82,7 +82,7 @@ class TestUnstructPruneFF(PruneFFTest):
     def test_with_pruner(self):
         P = 0.1
         pruner = Pruner()
-        layer = linears.UnstructPruneFF(1000, 100, pruner)
+        layer = linears.UnstructPruneFF(1000, 100, pruner, bias=True)
         t = torch.rand((20, 1000))
         self._test_with_pruner(layer, pruner, t, P)
 
@@ -127,7 +127,7 @@ class TestUnstructMagnitudePruneFF(TestUnstructPruneFF):
         P = 0.1
         N = 3
         pruner = Pruner()
-        layer = linears.UnstructMagnitudePruneFF(1000, 100, pruner)
+        layer = linears.UnstructMagnitudePruneFF(1000, 100, pruner, bias=True)
         inp_tensor = torch.rand((20, 1000))
 
         for _ in range(N):

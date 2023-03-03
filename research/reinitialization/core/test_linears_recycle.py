@@ -74,7 +74,7 @@ class TestStructMagnitudeRecycleFF(RecycleFFTest):
         P = 0.2
 
         pruner = Pruner()
-        layer = linears_recycle.StructMagnitudeRecycleFF(100, 1000, pruner)
+        layer = linears_recycle.StructMagnitudeRecycleFF(100, 1000, pruner, bias=True)
         weights_before_1 = layer.lin1.weight.data
         weights_before_2 = layer.lin2.weight.data
 
@@ -96,7 +96,7 @@ class TestStructMagnitudeRecycleFF(RecycleFFTest):
     def test_magnitude(self):
         P = 0.1
         pruner = Pruner()
-        layer = linears_recycle.StructMagnitudeRecycleFF(100, 10, pruner)
+        layer = linears_recycle.StructMagnitudeRecycleFF(100, 10, pruner, bias=True)
 
         layer.lin1.weight.data[7, :] *= 0
         layer.lin2.weight.data[:, 7] *= 0

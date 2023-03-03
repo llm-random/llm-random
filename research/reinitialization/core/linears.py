@@ -1,8 +1,10 @@
+from typing import Literal
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
+from lizrd.core.bert import decode_bias_string
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 import plotly_express as px
@@ -54,10 +56,10 @@ class PruneLinear(misc.Linear):
 
 @ash.check("... d -> ... d")
 class UnstructPruneFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner, bias: bool = False):
         super().__init__()
-        self.lin1 = PruneLinear(dmodel, dff)
-        self.lin2 = PruneLinear(dff, dmodel)
+        self.lin1 = PruneLinear(dmodel, dff, bias=bias)
+        self.lin2 = PruneLinear(dff, dmodel, bias=bias)
         pruner.register(self.lin1)
         pruner.register(self.lin2)
 
@@ -501,10 +503,10 @@ class MagnitudePruneLinear(misc.Linear):
 
 @ash.check("... d -> ... d")
 class UnstructMagnitudePruneFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner, bias: bool = False):
         super().__init__()
-        self.lin1 = MagnitudePruneLinear(dmodel, dff)
-        self.lin2 = MagnitudePruneLinear(dff, dmodel)
+        self.lin1 = MagnitudePruneLinear(dmodel, dff, bias=bias)
+        self.lin2 = MagnitudePruneLinear(dff, dmodel, bias=bias)
         pruner.register(self.lin1)
         pruner.register(self.lin2)
 
@@ -546,3 +548,59 @@ class MaskedFF(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.zeros_like(x)
+
+
+@ash.check("... d -> ... d")
+class SeparateDirectionMagnitudeFF(nn.Module):
+    def __init__(
+        self,
+        dmodel: int,
+        dff: int,
+        magnitude_requires_grad: bool = False,
+        small_grad: bool = False,
+        bias: Literal["both", "first", "second", "none"] = "none",
+    ):
+        super().__init__()
+        bias_first, bias_second = decode_bias_string(bias)
+        self.dir1 = misc.Linear(dmodel, dff, bias=bias_first)
+        self.magnitude = nn.parameter.Parameter(
+            torch.ones(dff), requires_grad=magnitude_requires_grad
+        )
+        self.dir2 = misc.Linear(dff, dmodel, bias=bias_second)
+        self.small_grad = small_grad
+
+    def normalize(self):
+        with torch.no_grad():
+            norms1 = torch.sqrt(misc.einsum("f m -> f", self.dir1.weight**2))
+            norms2 = torch.sqrt(misc.einsum("m f -> f", self.dir2.weight**2))
+            self.magnitude *= norms1 * norms2
+            self.dir1.weight /= torch.unsqueeze(norms1, 1)
+            self.dir2.weight /= torch.unsqueeze(norms2, 0)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.small_grad:
+            return self.small_grad_forward(x)
+        else:
+            return self.normal_grad_forward(x)
+
+    def normal_grad_forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.normalize()
+        x = self.dir1(x)
+        x = misc.einsum("... f, f -> ... f", x, self.magnitude)
+        x = F.relu(x)
+        x = self.dir2(x)
+        return x
+
+    def small_grad_forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.normalize()
+        x = self.dir1(x)
+
+        x = (
+            x
+            + (
+                misc.einsum("... f, f -> ... f", x, self.magnitude).detach() - x
+            ).detach()
+        )
+        x = F.relu(x)
+        x = self.dir2(x)
+        return x

@@ -95,6 +95,7 @@ class Trainer:
     running_total_loss: float = 0.0
     running_mask_loss: float = 0.0
     running_loss_steps: int = 0
+    auxiliary_loss_weight: float = 0.0
     neuron_diff_dataset: Optional[wikibookdata.ProcessedDatasetWrapper] = None
     neuron_diff_sample_size: int = 1
     neuron_diff_n_samples: int = 100
@@ -102,6 +103,7 @@ class Trainer:
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        self.reset_loss_stats()
 
     def after_backprop(self, step: int):
         self.pruner.after_backprop(step)
@@ -170,6 +172,23 @@ class Trainer:
             mask_loss = mask_loss.mean() / self.mask_percent
             scaled_mask_loss = mask_loss * self.mask_loss_weight
             total_loss = scaled_mask_loss
+
+            auxiliary_loss = self.pruner.get_auxiliary_loss()
+            self.logger.report_scalar(
+                title="loss",
+                series="auxiliary (before scaling)",
+                value=auxiliary_loss.item(),
+                iteration=step,
+            )
+            auxiliary_loss *= self.auxiliary_loss_weight
+            self.logger.report_scalar(
+                title="loss",
+                series="auxiliary (after scaling)",
+                value=auxiliary_loss.item(),
+                iteration=step,
+            )
+
+            total_loss += auxiliary_loss
 
         self.optimize(loss=total_loss, optimizer=optimizer, step=step)
         self.update_loss_stats(total_loss, mask_loss)
@@ -574,7 +593,6 @@ class LTHTrainer:
     ):
         self.model.train()
         processed_batch = pdataset.get_batch()
-        # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
@@ -610,7 +628,6 @@ class LTHTrainer:
             total_mask_loss = 0.0
             for _ in range(sample):
                 processed_batch = pdataset.get_batch()
-                # assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
                 x_set = processed_batch.masked_tokens
                 y_token_set = processed_batch.tokens
                 y_mask_set = processed_batch.mask_mask
