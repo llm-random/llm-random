@@ -73,13 +73,14 @@ if __name__ == "__main__":
     version_code(name_for_branch, name_for_branch)
 
     total_minutes = no_experiments * minutes_per_exp
-    user_input = input(
-        f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-        f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
-    )
-    if user_input.lower() not in ("", "y", "Y"):
-        print("Aborting...")
-        exit(1)
+    if not runner == MachineBackend.LOCAL:
+        user_input = input(
+            f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
+            f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+        )
+        if user_input.lower() not in ("", "y", "Y"):
+            print("Aborting...")
+            exit(1)
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
