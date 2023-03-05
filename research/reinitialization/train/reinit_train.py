@@ -85,6 +85,7 @@ parser.add_argument("--iwd_reg_pow", type=float, required=False)
 parser.add_argument("--iwd_midpoint_type", type=str, required=False)
 parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
 parser.add_argument("--iwd_aggregation_type", type=str, required=False)
+parser.add_argument("--iwd_scale", type=str, required=False, default="regular")
 
 parser.add_argument("--weight_decay", type=float, default=0.0)
 
@@ -193,6 +194,7 @@ elif args.ff_layer == "inverse_wd":
         only_smaller_neurons=args.iwd_only_smaller_neurons,
         reg_pow=args.iwd_reg_pow,
         midpoint_type=args.iwd_midpoint_type,
+        scale=args.iwd_scale,
     )
 elif args.ff_layer == "iwd_baseline":
     ff_layer_fun = lambda: linears_loss.IWDBaselineFF(

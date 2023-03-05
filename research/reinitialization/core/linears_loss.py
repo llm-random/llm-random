@@ -108,6 +108,7 @@ class InverseWeightDecayFF(BaseLossFF):
         only_smaller_neurons: bool,
         midpoint_type: str,
         pruner: Pruner,
+        scale: str = "regular",
     ):
         super().__init__(
             dmodel=dmodel,
@@ -119,9 +120,13 @@ class InverseWeightDecayFF(BaseLossFF):
         self.only_smaller_neurons = only_smaller_neurons
         assert midpoint_type in ["mean", "median"]
         self.midpoint_type = midpoint_type
+        self.scale = scale
 
     def get_auxiliary_loss(self) -> torch.Tensor:
         magnitudes = self.neuron_magnitudes
+
+        if self.scale == "log":
+            magnitudes = torch.log(magnitudes + 1e-6)
 
         if self.midpoint_type == "median":
             midpoint = magnitudes.median().detach()
