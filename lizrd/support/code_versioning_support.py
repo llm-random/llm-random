@@ -69,6 +69,9 @@ def push_code_to_url(
             ["git", "remote", "add", "code_image_cemetery", remote_url]
         )
 
+    # Pull (this is a fix for >fatal: you are on a branch yet to be born)
+    run_subprocess_verbose(["git", "pull"])
+
     # Create a new branch
     run_subprocess_verbose(["git", "checkout", "-b", branch_name])
 
@@ -76,7 +79,9 @@ def push_code_to_url(
     run_subprocess_verbose(["git", "add", "."])
 
     # Commit the changes
-    run_subprocess_verbose(["git", "commit", "-m", "Committing local changes"])
+    run_subprocess_verbose(
+        ["git", "commit", "--no-verify", "-m", "Committing local changes"]
+    )
 
     # Push the current code to the remote repo
     run_subprocess_verbose(["git", "push", remote_name, branch_name])
@@ -90,8 +95,8 @@ def run_subprocess_verbose(argument_list):
     )
 
     if prc.returncode != 0:
-        print(prc.stderr)
-        raise Exception("Error: Git add was not successful")
+        print(f"Error: {prc.stderr}")
+        raise Exception("Error: Git operation was not successful")
 
 
 def find_git_root():
