@@ -65,43 +65,33 @@ def push_code_to_url(
 
     if not remote_present:
         # Add the repo as a remote
-        subprocess.run(
-            ["git", "remote", "add", "code_image_cemetery", remote_url],
-            capture_output=True,
-            text=True,
+        run_subprocess_verbose(
+            ["git", "remote", "add", "code_image_cemetery", remote_url]
         )
-    # Create a new branch
-    create_process = subprocess.run(
-        ["git", "checkout", "-b", branch_name], capture_output=True, text=True
-    )
 
-    if create_process.returncode != 0:
-        print(create_process.stderr)
-        raise Exception("Error: New branch checkout was not successful")
+    # Create a new branch
+    run_subprocess_verbose(["git", "checkout", "-b", branch_name])
 
     # Stage the changes
-    subprocess.run(
-        ["git", "add", "."],
-        capture_output=True,
-        text=True,
-    )
+    run_subprocess_verbose(["git", "add", "."])
 
     # Commit the changes
-    subprocess.run(
-        ["git", "commit", "-m", "Committing local changes"],
+    run_subprocess_verbose(["git", "commit", "-m", "Committing local changes"])
+
+    # Push the current code to the remote repo
+    run_subprocess_verbose(["git", "push", remote_name, branch_name])
+
+
+def run_subprocess_verbose(argument_list):
+    prc = subprocess.run(
+        argument_list,
         capture_output=True,
         text=True,
     )
 
-    # Push the current code to the remote repo
-    push_process = subprocess.run(
-        ["git", "push", remote_name, branch_name], capture_output=True, text=True
-    )
-
-    # Check if the push was successful
-    if push_process.returncode != 0:
-        print(push_process.stderr)
-        raise Exception("Error: Push was not successful")
+    if prc.returncode != 0:
+        print(prc.stderr)
+        raise Exception("Error: Git add was not successful")
 
 
 def find_git_root():
