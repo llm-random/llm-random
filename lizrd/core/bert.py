@@ -167,7 +167,7 @@ def EncoderBlock(dmodel, layers):
 
 @ash.check("... d -> ... d")
 def EncoderTower(n_blocks, dmodel, layer_dict):
-    misc.check_layer_funs(layer_dict)
+    misc.check_layer_funs(*layer_dict.values())
     encoder_blocks = []
     for i_block in range(n_blocks):
         layers_info = [(name, layer_fun()) for name, layer_fun in layer_dict.items()]
