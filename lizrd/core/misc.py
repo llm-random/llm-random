@@ -231,8 +231,6 @@ def get_matrix_magnitudes(
     weights1 = torch.sqrt(einsum("f m -> f", lin1_weight**2))
     weights2 = torch.sqrt(einsum("m f -> f", lin2_weight**2))
 
-    return (weights1 * weights2).flatten()
-
     # return concatenation
     return torch.cat((weights1**2, weights2**2), dim=0).flatten()
 
