@@ -179,7 +179,6 @@ elif args.ff_layer == "separate_direction_magnitude_ff":
         bias=args.bias,
     )
 elif args.ff_layer == "log_ff":
-
     ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "plusminus_ff":
     ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dm, args.dff)

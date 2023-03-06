@@ -79,6 +79,20 @@ def push_code_to_url(
         print(create_process.stderr)
         raise Exception("Error: New branch checkout was not successful")
 
+    # Stage the changes
+    subprocess.run(
+        ["git", "add", "."],
+        capture_output=True,
+        text=True,
+    )
+
+    # Commit the changes
+    subprocess.run(
+        ["git", "commit", "-m", "Committing local changes"],
+        capture_output=True,
+        text=True,
+    )
+
     # Push the current code to the remote repo
     push_process = subprocess.run(
         ["git", "push", remote_name, branch_name], capture_output=True, text=True
