@@ -151,6 +151,7 @@ class Trainer:
         optimizer: torch.optim.Optimizer,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
+        log_auxiliary_loss: bool = True,
     ):
         self.model.train()
         processed_batch = dataset.get_batch()
@@ -174,19 +175,24 @@ class Trainer:
             total_loss = scaled_mask_loss
 
             auxiliary_loss = self.pruner.get_auxiliary_loss()
-            self.logger.report_scalar(
-                title="loss",
-                series="auxiliary (before scaling)",
-                value=auxiliary_loss.item(),
-                iteration=step,
-            )
+
+            if log_auxiliary_loss:
+                self.logger.report_scalar(
+                    title="loss",
+                    series="auxiliary (before scaling)",
+                    value=auxiliary_loss.item(),
+                    iteration=step,
+                )
+
             auxiliary_loss *= self.auxiliary_loss_weight
-            self.logger.report_scalar(
-                title="loss",
-                series="auxiliary (after scaling)",
-                value=auxiliary_loss.item(),
-                iteration=step,
-            )
+
+            if log_auxiliary_loss:
+                self.logger.report_scalar(
+                    title="loss",
+                    series="auxiliary (after scaling)",
+                    value=auxiliary_loss.item(),
+                    iteration=step,
+                )
 
             total_loss += auxiliary_loss
 
@@ -534,7 +540,9 @@ class RetrainTrainer(Trainer):
             self.statistics_reset_steps = self.retrain_count
         with SetLRTemporarily(self.optimizer, 0.0):
             for _ in range(self.statistics_reset_steps):
-                self._train_step(retrain_optim, self.pdataset_retrain)
+                self._train_step(
+                    retrain_optim, self.pdataset_retrain, log_auxiliary_loss=False
+                )
         print("Optimizer stats reset.")
 
         # retrain
@@ -552,7 +560,10 @@ class RetrainTrainer(Trainer):
             retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr
 
             total_loss, mask_loss = self._train_step(
-                retrain_optim, self.pdataset_retrain, step=self.full_step(step)
+                retrain_optim,
+                self.pdataset_retrain,
+                step=self.full_step(step),
+                log_auxiliary_loss=False,
             )
             self._log_retrain_stats(total_loss, mask_loss, step, retrain_optim)
             self.retrain_count += 1

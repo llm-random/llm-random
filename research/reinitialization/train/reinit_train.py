@@ -89,6 +89,7 @@ parser.add_argument("--iwd_midpoint_type", type=str, required=False)
 parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
 
 parser.add_argument("--weight_decay", type=float, default=0.0)
+parser.add_argument("--model_load_path", type=str, default=None)
 
 args = parser.parse_args()
 
@@ -252,6 +253,10 @@ model = get_model(
         args.dmodel, args.heads, dhead=args.dhead
     ),
 )
+if args.model_load_path:
+    print(f"Loading model from {args.model_load_path}")
+    print("Make sure that parameters of the saved model are the same as current")
+    model.load_state_dict(torch.load(args.model_load_path))
 
 logger = get_logger(args, model, VOCAB_SIZE)
 
