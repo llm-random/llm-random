@@ -61,8 +61,8 @@ if __name__ == "__main__":
         assert INTERACTIVE_DEBUG in [
             "True",
             "False",
-        ], "Do not put troll code in here, this goes through eval()"
-        INTERACTIVE_DEBUG = eval(grid_args.get("debug", INTERACTIVE_DEBUG))
+        ]
+        INTERACTIVE_DEBUG = True if INTERACTIVE_DEBUG == "True" else False
 
     grid = create_grid(PARAMS)
     no_experiments = len(grid)
