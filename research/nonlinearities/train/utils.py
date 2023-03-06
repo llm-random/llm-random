@@ -6,13 +6,22 @@ import torch
 from lizrd.core import bert
 from research.nonlinearities.core import research_bert
 from research.nonlinearities.temporary_code import temp_research_bert
-from research.nonlinearities.temporary_code.temp_research_bert import (
-    FeedForwardMultineckFORCED,
-    FeedForwardBottleneckFORCED,
-    LinearEinmix,
-    FeedForwardMultilinear,
-    FeedForwardChoppedNeckFORCED,
-)
+
+
+def divide_model_parameters(model, args):
+    "Iterates over named modules of the model, and gathers them into two groups: for modules whose name includes \
+    'forward' returns them separately with args.learning_rate_ff, while the rest uses the deafult args.learning_rate"
+    params_non_ff = []
+    params_ff = []
+    for name, param in model.named_parameters():
+        if "forward" in name:
+            params_ff.append(param)
+        else:
+            params_non_ff.append(param)
+    return [
+        {"params": params_non_ff},
+        {"params": params_ff, "lr": args.learning_rate_ff},
+    ]
 
 
 def process_and_remove_nan(tensor):
@@ -59,26 +68,29 @@ def get_ff_layer(args):
     if mode == "vanilla":
         ff_layer_type, ff_args = bert.FeedForward, (args.dmodel, args.dff)
     elif mode == "vanilla_einmix":
-        ff_layer_type, ff_args = LinearEinmix, (args.dmodel, args.dff)
+        ff_layer_type, ff_args = temp_research_bert.LinearEinmix, (
+            args.dmodel,
+            args.dff,
+        )
     elif mode == "bottleneck":
         ff_layer_type, ff_args = research_bert.FeedForwardBottleneck, (
             args.dmodel,
             args.exp_rate,
         )
     elif mode == "bottleneck_forced":
-        ff_layer_type, ff_args = FeedForwardBottleneckFORCED, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardBottleneckFORCED, (
             args.dmodel,
             args.dff,
             args.bottleneck_size,
         )
     elif mode == "multilinear":
-        ff_layer_type, ff_args = FeedForwardMultilinear, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardMultilinear, (
             args.dmodel,
             args.dff,
             args.n_ff_heads,
         )
     elif mode == "bottleneckFORCED":
-        ff_layer_type, ff_args = FeedForwardBottleneckFORCED, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardBottleneckFORCED, (
             args.dmodel,
             args.dbottle,
             args.dff,
@@ -102,12 +114,12 @@ def get_ff_layer(args):
             args.n_chunks,
         )
     elif mode == "choppedneck_forced":
-        ff_layer_type, ff_args = FeedForwardChoppedNeckFORCED, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardChoppedNeckFORCED, (
             args.dmodel,
             args.n_chunks,
         )
     elif mode == "multineck_forced":
-        ff_layer_type, ff_args = FeedForwardMultineckFORCED, (
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardMultineckFORCED, (
             args.dmodel,
             args.d_ff_head,
             args.n_ff_heads,
@@ -129,6 +141,43 @@ def get_ff_layer(args):
         )
     elif mode == "overparametrized":
         ff_layer_type, ff_args = temp_research_bert.OverparametrisedFeedForward, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_normed":
+        ff_layer_type, ff_args = temp_research_bert.OverparametrisedFeedForwardNormed, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_extra_normed":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.OverparametrisedFeedForwardNormedExtranorm, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_residual":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.OverparametrisedFeedForwardResidual, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_residual_normed":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.OverparametrisedFeedForwardResidualNormed, (
+            args.dmodel,
+            args.dff,
+        )
+    elif mode == "overparametrized_residual_extra_normed":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.OverparametrisedFeedForwardResidualNormedExtranorm, (
             args.dmodel,
             args.dff,
         )
