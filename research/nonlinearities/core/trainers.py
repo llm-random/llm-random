@@ -57,26 +57,15 @@ class NonlinearityTrainer:
         y_mask_set = processed_batch.mask_mask
 
         self.attach_logging_hooks(step)
-        with torch.autocast(
-            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-        ):
-            model_output = self.model(x_set)
-            mask_loss = F.cross_entropy(
-                model_output.reshape(-1, self.vocab_size),
-                y_token_set.reshape(-1).long(),
-                reduction="none",
-            )
-            mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-            mask_loss = mask_loss.mean() / self.mask_percent
-
-        self.optimize(mask_loss)
+        loss = self.calculate_loss(x_set, y_token_set, y_mask_set)
+        self.optimize(loss)
         self.log_distributions(step)
         self.detach_logging_hooks(step)
 
         if step and self.writer:
             log_scalar(
                 name="loss/train",
-                value=mask_loss.item(),
+                value=loss.item(),
                 step=step,
                 series="train",
             )
@@ -87,6 +76,24 @@ class NonlinearityTrainer:
             log_scalar(name="step", value=step, series="", step=step)
             if step % 500 == 0:
                 print(f"Step {step}")
+
+    def calculate_loss(self, x_set, y_token_set, y_mask_set):
+        if self.mixed_precision:
+            with torch.autocast(
+                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+            ):
+                model_output = self.model(x_set)
+        else:
+            model_output = self.model(x_set)
+
+        mask_loss = F.cross_entropy(
+            model_output.reshape(-1, self.vocab_size),
+            y_token_set.reshape(-1).long(),
+            reduction="none",
+        )
+        mask_loss *= y_mask_set.reshape(-1)
+        loss = mask_loss.mean() / self.mask_percent
+        return loss
 
     def attach_logging_hooks(self, step):
         if step % self.logging_frequency == 0:
