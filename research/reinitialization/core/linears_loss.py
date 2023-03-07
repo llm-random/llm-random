@@ -109,7 +109,7 @@ class BaseLossFF(nn.Module):
         magnitudes = self.neuron_magnitudes
 
         if self.transform_type == "log":
-            magnitudes = torch.log(magnitudes)
+            magnitudes = torch.log(magnitudes + 1e-6)
 
         if self.midpoint_type == "median":
             midpoint = magnitudes.median().detach()
