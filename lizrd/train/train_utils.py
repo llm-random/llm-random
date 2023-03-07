@@ -107,6 +107,7 @@ class Trainer:
     neuron_diff_sample_size: int = 1
     neuron_diff_n_samples: int = 100
     neuron_diff_n_batches: int = 10
+    lr_warmup_steps: int = 10_000
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -315,7 +316,10 @@ class Trainer:
     def train(self, n_steps: int, n_steps_eval: int):
         # params for lr warmup
         target_lr = self.optimizer.param_groups[0]["lr"]
-        warmup_steps = int(0.01 * n_steps)
+        if self.lr_warmup_steps > n_steps:
+            print(
+                f"Warning: lr_warmup_steps ({self.lr_warmup_steps}) is larger than n_steps ({n_steps})."
+            )
 
         if self.neuron_diff_dataset is not None:
             self.pruner.prepare_neuron_diff_idx(
@@ -325,8 +329,8 @@ class Trainer:
 
         for step in range(n_steps):
             # lr warmup in the beginning
-            if step <= warmup_steps and warmup_steps > 0:
-                lr = target_lr * step / warmup_steps
+            if step <= self.lr_warmup_steps and self.lr_warmup_steps > 0:
+                lr = target_lr * step / self.lr_warmup_steps
                 for param_group in self.optimizer.param_groups:
                     param_group["lr"] = lr
 
