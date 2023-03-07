@@ -3,7 +3,6 @@ from typing import Optional, Dict
 import torch
 import torch.nn.functional as F
 from attr import define
-from torch.utils.tensorboard import SummaryWriter
 
 from lizrd.datasets import wikibookdata
 from research.nonlinearities.core.misc_logging import (
@@ -25,14 +24,10 @@ class NonlinearityTrainer:
     batch_size: int
     vocab_size: int
     mask_percent: float
-    mask_loss_weight: float
-    modelpath: str
-    save_model_checkpoints: str
+    logging_frequency: int
     mixed_precision: bool = False
-    writer: Optional[SummaryWriter] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     distribution_logging: bool = False
-    logging_frequency: int = 1000000000
     hook_handles: Optional[list] = None
     saved_activations: Optional[Dict[str, torch.Tensor]] = None
 
@@ -57,26 +52,15 @@ class NonlinearityTrainer:
         y_mask_set = processed_batch.mask_mask
 
         self.attach_logging_hooks(step)
-        with torch.autocast(
-            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-        ):
-            model_output = self.model(x_set)
-            mask_loss = F.cross_entropy(
-                model_output.reshape(-1, self.vocab_size),
-                y_token_set.reshape(-1).long(),
-                reduction="none",
-            )
-            mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-            mask_loss = mask_loss.mean() / self.mask_percent
-
-        self.optimize(mask_loss)
+        loss = self.calculate_loss(x_set, y_token_set, y_mask_set)
+        self.optimize(loss)
         self.log_distributions(step)
         self.detach_logging_hooks(step)
 
-        if step and self.writer:
+        if step:
             log_scalar(
                 name="loss/train",
-                value=mask_loss.item(),
+                value=loss.item(),
                 step=step,
                 series="train",
             )
@@ -84,9 +68,26 @@ class NonlinearityTrainer:
     def train(self, n_steps: int):
         for step in range(n_steps):
             self._train_step(step)
-            log_scalar(name="step", value=step, series="", step=step)
             if step % 500 == 0:
                 print(f"Step {step}")
+
+    def calculate_loss(self, x_set, y_token_set, y_mask_set):
+        if self.mixed_precision:
+            with torch.autocast(
+                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+            ):
+                model_output = self.model(x_set)
+        else:
+            model_output = self.model(x_set)
+
+        mask_loss = F.cross_entropy(
+            model_output.reshape(-1, self.vocab_size),
+            y_token_set.reshape(-1).long(),
+            reduction="none",
+        )
+        mask_loss *= y_mask_set.reshape(-1)
+        loss = mask_loss.mean() / self.mask_percent
+        return loss
 
     def attach_logging_hooks(self, step):
         if step % self.logging_frequency == 0:
@@ -113,22 +114,10 @@ class NonlinearityTrainer:
                 log_tensor_distribution(
                     tensor=tensor_clean, name=f"{name} weight", series=series, step=step
                 )
-                log_scalar(
-                    value=nan_frequency,
-                    name=f"is_nan {name} weight",
-                    series=series,
-                    step=step,
-                )
                 if tensor.grad is not None:
                     grad_clean, nan_frequency = process_and_remove_nan(tensor.grad)
                     log_tensor_distribution(
                         tensor=grad_clean, name=f"{name} grad", series=series, step=step
-                    )
-                    log_scalar(
-                        value=nan_frequency,
-                        name=f"is_nan {name} grad",
-                        series=series,
-                        step=step,
                     )
         for name, tensor in self.saved_activations.items():
             series, name = clean_name_for_logging(name)
@@ -136,13 +125,6 @@ class NonlinearityTrainer:
             log_tensor_distribution(
                 tensor=activations_clean,
                 name=f"{name} activation",
-                series=series,
-                step=step,
-            )
-
-            log_scalar(
-                value=nan_frequency,
-                name=f"is_nan {name} activation ",
                 series=series,
                 step=step,
             )

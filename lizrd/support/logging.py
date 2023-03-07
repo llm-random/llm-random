@@ -1,12 +1,15 @@
 import math
 import os
+import secrets
 from abc import ABC, abstractmethod
 from typing import Optional
-
+import neptune.new as neptune
+from clearml import Task
 import numpy as np
 import plotly
 
 from lizrd.core.misc import generate_random_string
+from lizrd.support.misc import make_concise_datetime, tags_to_name, count_parameters
 
 _CURRENT_LOGGER = None
 
@@ -21,9 +24,9 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
-    def __init__(self, logger, auxiliary_params=None):
+    def __init__(self, logger, model, args, VOCAB_SIZE):
         self.instance_logger = logger
-        self.auxiliary_params = auxiliary_params
+        self.args = args
         set_current_logger(self)
 
     @abstractmethod
@@ -99,35 +102,23 @@ class AbstractLogger(ABC):
         }
 
     def get_metric_with_flop_scale(self, value: float, iteration: int):
-        assert (
-            self.auxiliary_params["model_size"] is not None
-        ), "if using x_compute_scale, you must provide model_size"
-        assert (
-            self.auxiliary_params["batch_size"] is not None
-        ), "if using x_compute_scale, you must provide batch_size"
-
         return {
             "value": value,
-            "iteration": iteration
-            * self.auxiliary_params["model_size"]
-            * self.auxiliary_params["batch_size"],
+            "iteration": iteration * self.args.model_n_params * self.args.batch_size,
         }
 
     def get_auxiliary_metrics(self, title: str, value: float, iteration: int):
-        if self.auxiliary_params is None or self.auxiliary_params == {}:
+        if not self.args.x_flop and not self.args.log_x_scale:
             return {}
 
         metric_x_flop = None
         auxiliary_metrics = {}
 
-        if "x_flop" in self.auxiliary_params and self.auxiliary_params["x_flop"]:
+        if self.args.x_flop:
             metric_x_flop = self.get_metric_with_flop_scale(value, iteration)
             auxiliary_metrics[f"{title}_(x_flop)"] = metric_x_flop
 
-        if (
-            "x_logarithmic" in self.auxiliary_params
-            and self.auxiliary_params["x_logarithmic"]
-        ):
+        if self.args.x_logarithmic:
             if metric_x_flop is not None:
                 metric_x_flop_logarithmic = self.get_log_x_scale_metric(
                     metric_x_flop["value"], metric_x_flop["iteration"]
@@ -149,8 +140,8 @@ class ClearMLLogger(AbstractLogger):
 class NeptuneLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
-    def __init__(self, logger, auxiliary_params=None):
-        super().__init__(logger, auxiliary_params)
+    def __init__(self, logger, model, args, VOCAB_SIZE):
+        super().__init__(logger, model, args, VOCAB_SIZE)
         self.random_id = generate_random_string(8)
         os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
 
@@ -200,12 +191,13 @@ class NeptuneLogger(AbstractLogger):
         series: Optional[str] = None,
     ):
         path = self._make_path(title, series, iteration)
+        directory, filename = path.rsplit("/", 1)
         # log json
         json = figure.to_json()
-        self._upload_with_tmp_file(f"{path}_json", json, "json")
+        self._upload_with_tmp_file(f"{directory}/json_{filename}", json, "json")
         # log html
         html = figure.to_html(include_plotlyjs="cdn")
-        self._upload_with_tmp_file(f"{path}_plot", html, "html")
+        self._upload_with_tmp_file(f"{directory}/plot_{filename}", html, "html")
         # log associated_scalars
         self.potentially_log_plotly_figure_scalars(
             figure=figure, title=title, series=series, iteration=iteration
@@ -219,3 +211,36 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
     logger = get_current_logger()
     assert logger is not None
     logger.report_plotly(figure=figure, title=title, series=series, iteration=iteration)
+
+
+def get_logger(args, model, VOCAB_SIZE):
+    timestamp = make_concise_datetime()
+    unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
+    if args.use_neptune:
+        run = neptune.init_run(
+            project="pmtest/llm-efficiency",
+            tags=args.tags,
+            name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+        )
+        run["args"] = vars(args)
+        run["working_directory"] = os.getcwd()
+        run["git_branch"] = os.getcwd().split("/")[-1]
+
+        args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
+        return NeptuneLogger(run, model, args, VOCAB_SIZE)
+
+    elif args.use_clearml:
+        task = Task.init(
+            project_name=args.project_name,
+            task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+        )
+        task.connect(vars(args))
+        if args.tags:
+            task.add_tags(args.tags)
+        logger = ClearMLLogger(task, args, model, VOCAB_SIZE)
+        return logger
+    else:
+        print(
+            "No logger specified! either args.use_neptune or args.use_clearml must be True"
+        )
+        raise NotImplementedError

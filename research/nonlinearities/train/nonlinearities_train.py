@@ -1,32 +1,17 @@
 import argparse
-import datetime
-import os
-import secrets
-import time
-
-import neptune.new as neptune
 import torch
-from clearml import Task
-from torch.utils.tensorboard import SummaryWriter
 
 from lizrd.core import misc
-from lizrd.support.logging import NeptuneLogger, ClearMLLogger
+from lizrd.support.logging import get_logger
 from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
 )
-from research.nonlinearities.core import misc_logging
 from research.nonlinearities.core.trainers import NonlinearityTrainer
 from research.nonlinearities.train.utils import (
     get_ff_layer,
     get_attention_layer,
-    make_concise_datetime,
 )
-
-
-def tags_to_name(tags) -> str:
-    return "_".join(tags) if tags else ""
-
 
 parser = argparse.ArgumentParser()
 
@@ -75,20 +60,14 @@ parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--save_model_checkpoints", type=bool, default=False)
 parser.add_argument("--deterministic", type=bool, default=True)
+parser.add_argument("--x_flop", action="store_true")
+parser.add_argument("--x_logarithmic", action="store_true")
 
 
 args = parser.parse_args()
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
-modelpath = f"runs/wikibooktest/{timestamp}"
-writer = SummaryWriter(log_dir=modelpath)
-
-ff_layer_fun = get_ff_layer(args)
-attention_layer_fun = get_attention_layer(args)
-
 misc.print_available_gpus()
 
 train_dataloader = get_processed_dataset(
@@ -99,6 +78,9 @@ train_dataloader = get_processed_dataset(
     batch_size=args.batch_size,
     seed=args.seed,
 )
+
+ff_layer_fun = get_ff_layer(args)
+attention_layer_fun = get_attention_layer(args)
 
 model = get_model(
     max_length=args.cutoff,
@@ -118,55 +100,10 @@ trainer = NonlinearityTrainer(
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
-    mask_loss_weight=args.mask_loss_weight,
-    modelpath=modelpath,
-    writer=writer,
     mixed_precision=args.mixed_precision,
-    save_model_checkpoints=args.save_model_checkpoints,
     distribution_logging=args.log_distributions,
     logging_frequency=args.logging_frequency,
 )
 
-dummy_ff_layer = ff_layer_fun()
-single_ff_layer_parameter_count = misc_logging.get_parameter_count(dummy_ff_layer)
-model_parameter_count = misc_logging.get_parameter_count(model)
-del dummy_ff_layer
-
-parameter_counts = {
-    "single_ff_layer_parameter_count": single_ff_layer_parameter_count,
-    "model_parameter_count": model_parameter_count,
-}
-
-
-if args.use_clearml:
-    task = Task.init(
-        project_name=args.project_name,
-        task_name=f"{args.name}_{tags_to_name(args.tags)}",
-    )
-    task.connect(vars(args))
-    task.connect(parameter_counts, "parameter_counts")
-    if args.tags:
-        task.add_tags(args.tags)
-    if not args.deterministic:
-        task.set_random_seed(int(time.time()))
-    if args.seed:
-        task.set_random_seed(args.seed)
-    logger = ClearMLLogger(task)
-
-timestamp = make_concise_datetime()
-unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
-
-if args.use_neptune:
-    run = neptune.init_run(
-        project="pmtest/llm-efficiency",
-        tags=args.tags,
-        name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-    )
-    run["args"] = vars(args)
-    run["working_directory"] = os.getcwd()
-    run["git_branch"] = os.getcwd().split("/")[-1]
-    logger = NeptuneLogger(run)
-
-modelpath = f"models/{unique_timestamp}"
-os.makedirs(modelpath, exist_ok=True)
+logger = get_logger(args, model, VOCAB_SIZE)
 trainer.train(args.n_steps)
