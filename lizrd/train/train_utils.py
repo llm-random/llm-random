@@ -14,23 +14,17 @@ from lizrd.core import bert
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from lizrd.support.loss import (
+    LossDict,
+    RunningLossDict,
+    LossWeightDict,
+    update_losses_dict,
+)
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.support.logging import get_current_logger
-
-
-LossDict = dict[str, torch.Tensor]
-RunningLossDict = dict[str, float]
-LossWeightDict = dict[str, float]
-
-
-def update_losses_dict(current_losses: LossDict, new_losses: LossDict) -> LossDict:
-    overlapping_keys = current_losses.keys() & new_losses.keys()
-    if len(overlapping_keys) > 0:
-        raise ValueError(f"Keys overlap: {overlapping_keys}")
-    return {**current_losses, **new_losses}
 
 
 def get_model(
