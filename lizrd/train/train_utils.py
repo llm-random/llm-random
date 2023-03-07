@@ -161,6 +161,7 @@ class Trainer:
                 value=scaled_loss / self.running_loss_steps,
                 iteration=step,
             )
+            total_loss += scaled_loss
         self.logger.report_scalar(
             title="loss",
             series=f"total loss (after scaling)",
