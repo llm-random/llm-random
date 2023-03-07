@@ -215,8 +215,6 @@ class Trainer:
         scaled_losses = self.scale_losses(losses)
         self.optimize(loss=sum(scaled_losses.values()), optimizer=optimizer, step=step)
 
-        return
-
     def _log_train_stats(self, step: int):
         if self.n_log_light_steps and step % self.n_log_light_steps == 0:
             self.pruner.log_light(step)
