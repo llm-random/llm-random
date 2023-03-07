@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from lizrd.core import misc
-from lizrd.train.train_utils import LossDict
+from lizrd.support.loss import LossDict
 from research.reinitialization.core.pruner import Pruner
 import numpy as np
 from lizrd.support.logging import (
