@@ -13,6 +13,7 @@ from time import sleep
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    multiply_grid,
     timestr_to_minutes,
     get_machine_backend,
     MachineBackend,
@@ -45,7 +46,8 @@ SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
 )
 CODE_PATH = os.getcwd()
-INTERACTIVE_DEBUG = "False"
+INTERACTIVE_DEBUG = False
+RUNS_MULTIPLIER = 1
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -58,13 +60,11 @@ if __name__ == "__main__":
         GRES = grid_args.get("gres", GRES)
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
-        assert INTERACTIVE_DEBUG in [
-            "True",
-            "False",
-        ]
-        INTERACTIVE_DEBUG = True if INTERACTIVE_DEBUG == "True" else False
+        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
+        INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
 
     grid = create_grid(PARAMS)
+    grid = multiply_grid(grid, RUNS_MULTIPLIER)
     no_experiments = len(grid)
     minutes_per_exp = timestr_to_minutes(TIME)
 
@@ -128,7 +128,8 @@ if __name__ == "__main__":
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 "--cpus-per-gpu=8",
-                "--A=plgplggllmeffi-gpu-a100" f"--job-name={name}",
+                "--A=plgplggllmeffi-gpu-a100",
+                f"--job-name={name}",
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),
                 "singularity",

@@ -84,7 +84,6 @@ parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
-parser.add_argument("--auxiliary_loss_weight", default=0.0, type=float, required=False)
 
 parser.add_argument("--mpl_reg_pow", type=float, required=False)
 parser.add_argument("--mpl_midpoint_type", type=str, default="mean")
