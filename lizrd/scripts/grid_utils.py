@@ -94,6 +94,8 @@ def shorten_val(val: str) -> str:
 
 
 def make_tags(arg, val) -> str:
+    if isinstance(val, list):
+        val = "_".join([shorten_val(v) for v in val])
     return f"{shorten_arg(arg)}={shorten_val(val)}"
 
 

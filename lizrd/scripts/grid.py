@@ -106,6 +106,8 @@ if __name__ == "__main__":
                 continue
             else:
                 runner_params.append(f"--{k}")
+                if isinstance(v, list):
+                    v = " ".join([str(s) for s in v])
                 runner_params.append(v)
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
