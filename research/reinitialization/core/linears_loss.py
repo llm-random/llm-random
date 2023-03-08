@@ -127,7 +127,11 @@ class InverseWeightDecayFF(BaseLossFF):
 
         if self.scale == "log":
             magnitudes = torch.log(magnitudes + 1e-6)
-
+        elif self.scale == "regular":
+            pass
+        else:
+            raise ValueError(f"Unknown scale: {self.scale}")
+        
         if self.midpoint_type == "median":
             midpoint = magnitudes.median().detach()
         elif self.midpoint_type == "mean":
@@ -171,7 +175,9 @@ class IWDBaselineFF(BaseLossFF):
 
     def get_auxiliary_loss(self) -> torch.Tensor:
         if self.aggregation_type == "concat":
-            magnitudes = misc.get_matrix_magnitudes(self.lin1.weight, self.lin2.weight)
+            magnitudes = misc.get_split_neuron_magnitudes(
+                self.lin1.weight, self.lin2.weight
+            )
         elif self.aggregation_type == "mixed":
             magnitudes = misc.get_mixed_neuron_magnitudes(
                 self.lin1.weight, self.lin2.weight

@@ -222,7 +222,7 @@ def get_neuron_magnitudes(
     return (weights1 * weights2).flatten()
 
 
-def get_matrix_magnitudes(
+def get_split_neuron_magnitudes(
     lin1_weight: torch.Tensor, lin2_weight: torch.Tensor
 ) -> torch.Tensor:
     """
@@ -243,11 +243,10 @@ def get_mixed_neuron_magnitudes(
     """
     weights1 = torch.sqrt(einsum("f m -> f", lin1_weight**2))
     weights2 = torch.sqrt(einsum("m f -> f", lin2_weight**2))
-
+    
     weights1 = weights1.flatten()
     weights2 = weights2.flatten()
-    weights1 = weights1[torch.randperm(weights1.shape[0])]
-
+    weights1 = weights1.flip(0)
     return weights1 * weights2
 
 
