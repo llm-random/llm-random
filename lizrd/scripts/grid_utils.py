@@ -166,7 +166,8 @@ def multiply_grid(param_sets: List[dict], runs_count: int) -> List[dict]:
     for param_set in param_sets:
         for i in range(runs_count):
             out_dict = copy.deepcopy(param_set)
-            out_dict["tags"].append(f"run={i}")
+            out_dict["tags"].append(f"run={i+1}")
+            out_dict["tags"].append(f"num_runs={runs_count}")
             out_params_sets.append(out_dict)
     return out_params_sets
 
