@@ -392,8 +392,8 @@ class RetrainRecycleFF(nn.Module):
     @property
     def neuron_magnitudes(self):
         if self.mode == "regular" or self.mode == "neuron_diff":
-            weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
-            weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+            weights1 = self.lin1.weight
+            weights2 = self.lin2.weight
         elif self.mode == "new_neurons":
             weights1 = misc.einsum(
                 "f, f m -> f m", self.mask, self.lin1.weight.data

@@ -13,6 +13,7 @@ from time import sleep
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    multiply_grid,
     timestr_to_minutes,
     get_machine_backend,
     MachineBackend,
@@ -46,6 +47,7 @@ SINGULARITY_IMAGE = (
 )
 CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
+RUNS_MULTIPLIER = 1
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -58,9 +60,11 @@ if __name__ == "__main__":
         GRES = grid_args.get("gres", GRES)
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
+        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
         INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
 
     grid = create_grid(PARAMS)
+    grid = multiply_grid(grid, RUNS_MULTIPLIER)
     no_experiments = len(grid)
     minutes_per_exp = timestr_to_minutes(TIME)
 
