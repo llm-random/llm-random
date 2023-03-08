@@ -156,6 +156,21 @@ def create_grid(params: dict) -> List[dict]:
     return out_params
 
 
+def multiply_grid(param_sets: List[dict], runs_count: int) -> List[dict]:
+    assert runs_count > 0
+
+    if runs_count == 1:
+        return param_sets
+
+    out_params_sets = []
+    for param_set in param_sets:
+        for i in range(runs_count):
+            out_dict = copy.deepcopy(param_set)
+            out_dict["tags"].append(f"run={i}")
+            out_params_sets.append(out_dict)
+    return out_params_sets
+
+
 def param_to_str(param) -> str:
     if isinstance(param, str):
         return " ".join(param)

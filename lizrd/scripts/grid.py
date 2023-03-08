@@ -13,6 +13,7 @@ from time import sleep
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    multiply_grid,
     timestr_to_minutes,
     get_machine_backend,
     MachineBackend,
@@ -45,7 +46,8 @@ SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
 )
 CODE_PATH = os.getcwd()
-INTERACTIVE_DEBUG = "False"
+INTERACTIVE_DEBUG = False
+RUNS_MULTIPLIER = 1
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -63,8 +65,10 @@ if __name__ == "__main__":
             "False",
         ]
         INTERACTIVE_DEBUG = True if INTERACTIVE_DEBUG == "True" else False
+        RUNS_MULTIPLIER = grid_args.get("grid_multipl", RUNS_MULTIPLIER)
 
     grid = create_grid(PARAMS)
+    grid = multiply_grid(grid, RUNS_MULTIPLIER)
     no_experiments = len(grid)
     minutes_per_exp = timestr_to_minutes(TIME)
 

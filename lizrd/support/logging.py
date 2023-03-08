@@ -1,3 +1,4 @@
+from argparse import Namespace
 import math
 import os
 import secrets
@@ -24,9 +25,9 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
-    def __init__(self, logger, model, args, VOCAB_SIZE):
+    def __init__(self, logger, args: Namespace):
         self.instance_logger = logger
-        self.args = args
+        self.args = vars(args)
         set_current_logger(self)
 
     @abstractmethod
@@ -104,21 +105,23 @@ class AbstractLogger(ABC):
     def get_metric_with_flop_scale(self, value: float, iteration: int):
         return {
             "value": value,
-            "iteration": iteration * self.args.model_n_params * self.args.batch_size,
+            "iteration": iteration
+            * self.args["model_n_params"]
+            * self.args["batch_size"],
         }
 
     def get_auxiliary_metrics(self, title: str, value: float, iteration: int):
-        if not self.args.x_flop and not self.args.log_x_scale:
+        if not self.args.get("x_flop") and not self.args.get("log_x_scale"):
             return {}
 
         metric_x_flop = None
         auxiliary_metrics = {}
 
-        if self.args.x_flop:
+        if self.args.get("x_flop"):
             metric_x_flop = self.get_metric_with_flop_scale(value, iteration)
             auxiliary_metrics[f"{title}_(x_flop)"] = metric_x_flop
 
-        if self.args.x_logarithmic:
+        if self.args.get("x_logarithmic"):
             if metric_x_flop is not None:
                 metric_x_flop_logarithmic = self.get_log_x_scale_metric(
                     metric_x_flop["value"], metric_x_flop["iteration"]
@@ -140,8 +143,8 @@ class ClearMLLogger(AbstractLogger):
 class NeptuneLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
-    def __init__(self, logger, model, args, VOCAB_SIZE):
-        super().__init__(logger, model, args, VOCAB_SIZE)
+    def __init__(self, logger, args: Namespace):
+        super().__init__(logger, args)
         self.random_id = generate_random_string(8)
         os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
 
@@ -227,7 +230,7 @@ def get_logger(args, model, VOCAB_SIZE):
         run["git_branch"] = os.getcwd().split("/")[-1]
 
         args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
-        return NeptuneLogger(run, model, args, VOCAB_SIZE)
+        return NeptuneLogger(run, args)
 
     elif args.use_clearml:
         task = Task.init(
