@@ -128,7 +128,7 @@ if __name__ == "__main__":
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 "--cpus-per-gpu=8",
-                "--A=plgplggllmeffi-gpu-a100",
+                "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),
