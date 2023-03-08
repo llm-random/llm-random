@@ -80,6 +80,7 @@ modelpath = f"runs/wikibooktest/{timestamp}"
 writer = SummaryWriter(log_dir=modelpath)
 
 args.d_ff_head, args.n_ff_heads = args.n_ff_heads_and_d_ff_head_size
+args.dff = args.d_ff_head * args.exp_rate
 ff_layer_fun = get_ff_layer(args)
 attention_layer_fun = get_attention_layer(args)
 

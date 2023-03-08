@@ -166,6 +166,13 @@ def get_ff_layer(args):
             args.dmodel,
             args.dff,
         )
+    elif mode == "multineck_normed":
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardMultineckNormed, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.dff,
+        )
 
     else:
         raise NotImplementedError(f"ff_mode={mode} is not implemented")

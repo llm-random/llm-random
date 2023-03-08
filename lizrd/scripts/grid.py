@@ -17,6 +17,7 @@ from lizrd.scripts.grid_utils import (
     get_machine_backend,
     MachineBackend,
     get_grid_entrypoint,
+    unpack_params,
 )
 from lizrd.support.code_versioning_support import version_code
 
@@ -40,11 +41,13 @@ PARAMS = {
 
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
-DRY_RUN = True
+DRY_RUN = False
 SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
 )
 CODE_PATH = os.getcwd()
+INTERACTIVE_DEBUG = False
+
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -86,18 +89,19 @@ if __name__ == "__main__":
         param_set["tags"] = " ".join(param_set["tags"])
 
         runner_params = []
-        for k, v in param_set.items():
-            if isinstance(v, bool):
-                if v:
-                    runner_params.append(f"--{k}")
+        for k_packed, v_packed in param_set.items():
+            for k, v in zip(*unpack_params(k_packed, v_packed)):
+                if isinstance(v, bool):
+                    if v:
+                        runner_params.append(f"--{k}")
+                    else:
+                        pass  # simply don't add it if v == False
+                    continue
                 else:
-                    pass  # simply don't add it if v == False
-                continue
-            else:
-                runner_params.append(f"--{k}")
-                if isinstance(v, list):
-                    v = " ".join([str(s) for s in v])
-                runner_params.append(v)
+                    runner_params.append(f"--{k}")
+                    if isinstance(v, list):
+                        v = " ".join([str(s) for s in v])
+                    runner_params.append(v)
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
                 "sbatch",

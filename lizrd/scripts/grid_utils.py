@@ -35,10 +35,12 @@ def split_params(params: dict) -> Tuple[list, list, list]:
     grids = []
     normals = []
     for k, v in params.items():
-        if k[0] == "^":
+        if k[0] in ["^"]:
             grids.append((k[1:], v))
         elif k[0] == "*":
             functions.append((k[1:], v))
+        elif "," in k:
+            grids.append((k, v))
         else:
             normals.append((k, v))
     return grids, functions, normals
@@ -156,6 +158,13 @@ def create_grid(params: dict) -> List[dict]:
         out_params.append(out_dict)
 
     return out_params
+
+
+def unpack_params(k, v):
+    if "," in k:
+        k = k.split(",")
+        return k, v
+    return [k], [v]
 
 
 def param_to_str(param) -> str:
