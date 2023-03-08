@@ -45,7 +45,7 @@ SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
 )
 CODE_PATH = os.getcwd()
-INTERACTIVE_DEBUG = False
+INTERACTIVE_DEBUG = "False"
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -128,7 +128,7 @@ if __name__ == "__main__":
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 "--cpus-per-gpu=8",
-                f"--job-name={name}",
+                "--A=plgplggllmeffi-gpu-a100" f"--job-name={name}",
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),
                 "singularity",
