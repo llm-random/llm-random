@@ -60,12 +60,8 @@ if __name__ == "__main__":
         GRES = grid_args.get("gres", GRES)
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
-        assert INTERACTIVE_DEBUG in [
-            "True",
-            "False",
-        ]
-        INTERACTIVE_DEBUG = True if INTERACTIVE_DEBUG == "True" else False
-        RUNS_MULTIPLIER = grid_args.get("grid_multipl", RUNS_MULTIPLIER)
+        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
+        INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
 
     grid = create_grid(PARAMS)
     grid = multiply_grid(grid, RUNS_MULTIPLIER)
