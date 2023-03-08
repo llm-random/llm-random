@@ -131,7 +131,7 @@ class InverseWeightDecayFF(BaseLossFF):
             pass
         else:
             raise ValueError(f"Unknown scale: {self.scale}")
-        
+
         if self.midpoint_type == "median":
             midpoint = magnitudes.median().detach()
         elif self.midpoint_type == "mean":

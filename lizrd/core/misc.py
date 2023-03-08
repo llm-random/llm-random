@@ -243,7 +243,7 @@ def get_mixed_neuron_magnitudes(
     """
     weights1 = torch.sqrt(einsum("f m -> f", lin1_weight**2))
     weights2 = torch.sqrt(einsum("m f -> f", lin2_weight**2))
-    
+
     weights1 = weights1.flatten()
     weights2 = weights2.flatten()
     weights1 = weights1.flip(0)
