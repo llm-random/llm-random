@@ -105,8 +105,8 @@ class Linear(nn.Linear):
             self.bias.data *= 0.0
 
 
-def check_layer_funs(layer_funs):
-    for name, layer_fun in layer_funs.items():
+def check_layer_funs(*layer_funs):
+    for layer_fun in layer_funs:
         if isinstance(layer_fun, nn.Module):
             raise TypeError(
                 "Expected layer function/lambda, got nn.Module: {}".format(

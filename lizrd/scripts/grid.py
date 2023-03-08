@@ -40,7 +40,7 @@ PARAMS = {
 
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
-DRY_RUN = False
+DRY_RUN = True
 SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
 )
@@ -95,6 +95,8 @@ if __name__ == "__main__":
                 continue
             else:
                 runner_params.append(f"--{k}")
+                if isinstance(v, list):
+                    v = " ".join([str(s) for s in v])
                 runner_params.append(v)
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [

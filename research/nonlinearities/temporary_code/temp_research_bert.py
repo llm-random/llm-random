@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 import lizrd.core.nn as nn
-from lizrd.core.bert import LowRank
+from lizrd.core.bert import LowRank, Residual
 from lizrd.core.misc import EinMix
 from lizrd.support import ash
 from research.nonlinearities.temporary_code.helper_layers import (
@@ -214,6 +214,70 @@ def OverparametrisedFeedForward(dmodel, dff):
     return block
 
 
+def OverparametrisedFeedForwardResidual(dmodel, dff):
+    """
+    Modification of a standard feed-forward transformer layer done by replacing each dense layer with two consecutive dense layers with no activation between them
+    :param dmodel: dimension of the model
+    :param dff: dimension of the feedforward layer
+    """
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_ff1", nn.Linear(dmodel, dff)),
+                ("logging_ff2", Residual(nn.Linear(dff, dff))),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_ff3", Residual(nn.Linear(dff, dff))),
+                ("logging_ff4", nn.Linear(dff, dmodel)),
+            ]
+        )
+    )
+    return block
+
+
+def OverparametrisedFeedForwardNormed(dmodel, dff):
+    """
+    Modification of a standard feed-forward transformer layer done by replacing each dense layer with two consecutive dense layers with no activation between them
+    :param dmodel: dimension of the model
+    :param dff: dimension of the feedforward layer
+    """
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_ff1", nn.Linear(dmodel, dff)),
+                ("norm1", nn.LayerNorm(dff)),
+                ("logging_ff2", nn.Linear(dff, dff)),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_ff3", nn.Linear(dff, dff)),
+                ("norm2", nn.LayerNorm(dff)),
+                ("logging_ff4", nn.Linear(dff, dmodel)),
+            ]
+        )
+    )
+    return block
+
+
+def OverparametrisedFeedForwardResidualNormed(dmodel, dff):
+    """
+    Modification of a standard feed-forward transformer layer done by replacing each dense layer with two consecutive dense layers with no activation between them
+    :param dmodel: dimension of the model
+    :param dff: dimension of the feedforward layer
+    """
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_ff1", nn.Linear(dmodel, dff)),
+                ("norm1", nn.LayerNorm(dff)),
+                ("logging_ff2", Residual(nn.Linear(dff, dff))),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_ff3", Residual(nn.Linear(dff, dff))),
+                ("norm2", nn.LayerNorm(dff)),
+                ("logging_ff4", nn.Linear(dff, dmodel)),
+            ]
+        )
+    )
+    return block
+
+
 def RescaledMultineckFeedForward(dmodel, dhead, n_heads, dff, aggregate_per_head=False):
     """
     Like MultineckFeedForward, but with a rescaling layer (one parameter per head) before the expansion layer
@@ -364,3 +428,76 @@ def LinearEinmix(dmodel, dff):
         )
     )
     return block
+
+
+@ash.check("... d -> ... d")
+def FeedForwardMultineckNormed(
+    dmodel,
+    dhead,
+    n_heads,
+    dff,
+):
+    assert dff % n_heads == 0, f"dff={dff} should be divisible by n_heads={n_heads}"
+
+    weight_shapes = {
+        "multineck_1": "nheads dmodel dhead",
+        "expand": "nheads dhead dff",
+        "contract": "nheads dff dhead",
+        "multineck_2": "nheads dhead dmodel",
+    }
+
+    bias_shapes = {
+        "multineck_1": "nheads dhead",
+        "expand": "nheads dff",
+        "contract": "nheads dhead",
+        "multineck_2": "dmodel",
+    }
+
+    assert None not in [weight_shapes, bias_shapes]
+
+    multineck_1 = EinMix(
+        "batch seqlen dmodel -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["multineck_1"],
+        bias_shape=bias_shapes["multineck_1"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    expand = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen (nheads dff)",
+        weight_shape=weight_shapes["expand"],
+        bias_shape=bias_shapes["expand"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    contract = EinMix(
+        "batch seqlen (nheads dff) -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["contract"],
+        bias_shape=bias_shapes["contract"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    multineck_2 = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen dmodel",
+        weight_shape=weight_shapes["multineck_2"],
+        bias_shape=bias_shapes["multineck_2"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+
+    return nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_expand", multineck_1),
+                ("norm", nn.LayerNorm(n_heads * dhead)),
+                ("logging_expand", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_contract", contract),
+                ("norm", nn.LayerNorm(n_heads * dhead)),
+                ("logging_post_contract", multineck_2),
+            ]
+        )
+    )

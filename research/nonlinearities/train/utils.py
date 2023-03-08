@@ -149,14 +149,7 @@ def get_ff_layer(args):
             args.dmodel,
             args.dff,
         )
-    elif mode == "overparametrized_extra_normed":
-        (
-            ff_layer_type,
-            ff_args,
-        ) = temp_research_bert.OverparametrisedFeedForwardNormedExtranorm, (
-            args.dmodel,
-            args.dff,
-        )
+
     elif mode == "overparametrized_residual":
         (
             ff_layer_type,
@@ -173,14 +166,7 @@ def get_ff_layer(args):
             args.dmodel,
             args.dff,
         )
-    elif mode == "overparametrized_residual_extra_normed":
-        (
-            ff_layer_type,
-            ff_args,
-        ) = temp_research_bert.OverparametrisedFeedForwardResidualNormedExtranorm, (
-            args.dmodel,
-            args.dff,
-        )
+
     else:
         raise NotImplementedError(f"ff_mode={mode} is not implemented")
 
