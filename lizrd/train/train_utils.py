@@ -116,14 +116,32 @@ class Trainer:
     def after_backprop(self, step: int):
         self.pruner.after_backprop(step)
 
-    def optimize(self, loss, optimizer, step):
-        optimizer.zero_grad()
-        self.scaler.scale(loss).backward()
-        self.scaler.unscale_(optimizer)
+    def optimize(self, losses: LossDict, step: int):
+        # create losses for each optimizer
+        REGULAR_LOSSES = ["mask"]
+        SGD_LOSSES = ["midpoint", "decay"]
+
+        regular_loss = sum(losses.get(k, 0.0) for k in REGULAR_LOSSES)
+        sgd_loss = sum(losses.get(k, 0.0) for k in SGD_LOSSES)
+
+        # mpl optimizer step
+        self.sgd_optimizer.zero_grad()
+
+        self.scaler.scale(sgd_loss).backward()
+        self.scaler.unscale_(self.sgd_optimizer)
+
+        self.scaler.step(self.sgd_optimizer)
+        self.scaler.update()
+
+        # regular optimizer step
+        self.optimizer.zero_grad()
+
+        self.scaler.scale(regular_loss).backward()
+        self.scaler.unscale_(self.optimizer)
 
         self.after_backprop(step)
 
-        self.scaler.step(optimizer)
+        self.scaler.step(self.optimizer)
         self.scaler.update()
 
     def _pruning_step(self, step):
@@ -188,10 +206,8 @@ class Trainer:
 
     def _train_step(
         self,
-        optimizer: torch.optim.Optimizer,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
-        log_auxiliary_loss: bool = True,
     ):
         losses = {}
         self.model.train()
@@ -209,7 +225,7 @@ class Trainer:
 
         self.update_loss_stats(losses)
         scaled_losses = self.scale_losses(losses)
-        self.optimize(loss=sum(scaled_losses.values()), optimizer=optimizer, step=step)
+        self.optimize(scaled_losses, step=step)
 
     def _log_train_stats(self, step: int):
         if self.n_log_light_steps and step % self.n_log_light_steps == 0:
@@ -359,6 +375,11 @@ class Trainer:
                 sample_size=self.neuron_diff_sample_size,
             )
 
+        # create mpl optimizer
+        self.sgd_optimizer = torch.optim.SGD(
+            self.model.parameters(), self.optimizer.param_groups[0]["lr"]
+        )
+
         for step in range(n_steps):
             # lr warmup in the beginning
             if step <= self.lr_warmup_steps and self.lr_warmup_steps > 0:
@@ -378,7 +399,7 @@ class Trainer:
                 self.check_neuron_diff(step)
 
             self._pruning_step(step)
-            self._train_step(optimizer=self.optimizer, dataset=self.pdataset, step=step)
+            self._train_step(dataset=self.pdataset, step=step)
             self._log_train_stats(step)  # check if it's the time and log stats
             if step % self.log_acc_steps == 0:
                 self.logger.report_scalar(title="step", value=step, iteration=step)
@@ -421,6 +442,7 @@ class SetLRTemporarily:
 
 @define
 class RetrainTrainer(Trainer):
+    # TODO: totally split from Trainer
     pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
     retrain_warmup_steps: Optional[int] = None
     retrain_count: int = 0
