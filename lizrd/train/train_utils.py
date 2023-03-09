@@ -241,6 +241,7 @@ class Trainer:
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
+        self.model.train()
         self._task_train_step(dataset, step)
         self._model_train_step(step)
 
