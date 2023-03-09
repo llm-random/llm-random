@@ -203,6 +203,7 @@ class Trainer:
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
+        self.model.train()
         processed_batch = dataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
@@ -225,6 +226,7 @@ class Trainer:
         )
 
     def _model_train_step(self, step: int):
+        self.model.train()
         losses = self.pruner.get_auxiliary_loss()
         self.update_loss_stats(losses)
         scaled_losses = self.scale_losses(losses)
@@ -241,7 +243,6 @@ class Trainer:
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
-        self.model.train()
         self._task_train_step(dataset, step)
         self._model_train_step(step)
 
