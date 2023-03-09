@@ -18,7 +18,6 @@ from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
     LossWeightDict,
-    update_losses_dict,
 )
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
@@ -111,44 +110,34 @@ class Trainer:
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
-        self.reset_loss_stats()
 
-        # create mpl optimizer
         self.sgd_optimizer = torch.optim.SGD(
-            self.model.parameters(), self.optimizer.param_groups[0]["lr"]
+            params=self.model.parameters(), lr=self.optimizer.param_groups[0]["lr"]
         )
+        self.sgd_scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+
+        self.reset_loss_stats()
 
     def after_backprop(self, step: int):
         self.pruner.after_backprop(step)
 
-    def optimize(self, losses: LossDict, step: int):
-        # create losses for each optimizer
-        REGULAR_LOSSES = ["mask"]
-        SGD_LOSSES = ["midpoint", "decay"]
+    def optimize(
+        self,
+        optimizer: torch.optim.Optimizer,
+        scaler: torch.cuda.amp.grad_scaler.GradScaler,
+        loss: torch.Tensor,
+        step: int,
+        run_after_backprop: bool,
+    ):
+        optimizer.zero_grad()
 
-        regular_loss = sum(losses.get(k, 0.0) for k in REGULAR_LOSSES)
-        sgd_loss = sum(losses.get(k, 0.0) for k in SGD_LOSSES)
+        scaler.scale(loss).backward()
+        scaler.unscale_(optimizer)
+        if run_after_backprop:
+            self.after_backprop(step)
 
-        # mpl optimizer step
-        # TODO: add here losses["mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
-        self.sgd_optimizer.zero_grad()
-
-        self.scaler.scale(sgd_loss).backward()
-        self.scaler.unscale_(self.sgd_optimizer)
-
-        self.scaler.step(self.sgd_optimizer)
-        self.scaler.update()
-
-        # regular optimizer step
-        self.optimizer.zero_grad()
-
-        self.scaler.scale(regular_loss).backward()
-        self.scaler.unscale_(self.optimizer)
-
-        self.after_backprop(step)
-
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        scaler.step(optimizer)
+        scaler.update()
 
     def _pruning_step(self, step):
         if self.scheduler and self.scheduler.is_time_to_prune(step):
@@ -157,7 +146,6 @@ class Trainer:
     def update_loss_stats(self, losses: LossDict):
         for k, v in losses.items():
             self.running_losses[k] += v.item()
-        self.running_loss_steps += 1
 
     def reset_loss_stats(self):
         for k in self.running_losses.keys():
@@ -210,13 +198,11 @@ class Trainer:
         mask_loss = mask_loss.mean() / self.mask_percent
         return mask_loss
 
-    def _train_step(
+    def _task_train_step(
         self,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
-        losses = {}
-        self.model.train()
         processed_batch = dataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         x_set = processed_batch.masked_tokens
@@ -226,11 +212,37 @@ class Trainer:
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            losses = update_losses_dict(losses, self.pruner.get_auxiliary_loss())
+            losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
 
         self.update_loss_stats(losses)
         scaled_losses = self.scale_losses(losses)
-        self.optimize(scaled_losses, step=step)
+        self.optimize(
+            optimizer=self.optimizer,
+            scaler=self.scaler,
+            loss=sum(scaled_losses.values()),
+            step=step,
+            run_after_backprop=True,
+        )
+
+    def _model_train_step(self, step: int):
+        losses = self.pruner.get_auxiliary_loss()
+        self.update_loss_stats(losses)
+        scaled_losses = self.scale_losses(losses)
+        self.optimize(
+            optimizer=self.sgd_optimizer,
+            scaler=self.sgd_scaler,
+            loss=sum(scaled_losses.values()),
+            step=step,
+            run_after_backprop=False,
+        )
+
+    def _train_step(
+        self,
+        dataset: wikibookdata.ProcessedDataset,
+        step: int,
+    ):
+        self._task_train_step(dataset, step)
+        self._model_train_step(step)
 
     def _log_train_stats(self, step: int):
         if self.n_log_light_steps and step % self.n_log_light_steps == 0:
@@ -406,7 +418,8 @@ class Trainer:
 
             self._pruning_step(step)
             self._train_step(dataset=self.pdataset, step=step)
-            self._log_train_stats(step)  # check if it's the time and log stats
+            self.running_loss_steps += 1
+            self._log_train_stats(step)
             if step % self.log_acc_steps == 0:
                 self.logger.report_scalar(title="step", value=step, iteration=step)
             if step % n_steps_eval == 0:

@@ -3,6 +3,8 @@ import subprocess
 import shutil
 import os
 
+from lizrd.support.misc import generate_random_string
+
 
 def version_code(
     branch_name, newdir_name, remote_url="git@github.com:Simontwice/sparsity.git"
@@ -16,6 +18,8 @@ def version_code(
     root_dir = find_git_root()
     newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
 
+    random_string = generate_random_string(10)
+
     # Set up ignore patterns
     with open(os.path.join(root_dir, ".versioningignore")) as f:
         gitignore_patterns = f.read().splitlines()
@@ -25,17 +29,35 @@ def version_code(
             if pattern != "" and pattern[0] != "#"
         ]
         gitignore_patterns = [p.strip() for p in gitignore_patterns]
-    gitignore_patterns = shutil.ignore_patterns(*gitignore_patterns)
+
+    tmp_dir = f"/tmp/{random_string}"
+    tmp_git_dir = f"{tmp_dir}/.git"
+
+    subprocess.run(
+        ["mkdir", "-p", tmp_dir],
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["cp", "-r", f".git", tmp_dir],
+        capture_output=True,
+        text=True,
+    )
+
+    gitignore_patterns = shutil.ignore_patterns(*gitignore_patterns, ".git")
 
     # Copy the project root directory to a new directory, ignoring files described in .gitignore
     shutil.copytree(root_dir, newdir_path, ignore=gitignore_patterns)
 
-    # Change to the new directory
     os.chdir(newdir_path)
+
+    subprocess.run(["ln", "-s", tmp_git_dir, ".git"], capture_output=True, text=True)
 
     # Push the code to the remote repo
     push_code_to_url(branch_name, remote_url)
 
+    subprocess.run(["rm", "-rf", tmp_dir], capture_output=True, text=True)
+    subprocess.run(["rm", ".git"], capture_output=True, text=True)
     print(f"Code pushed successfully to {remote_url} under branch {branch_name}")
 
 
