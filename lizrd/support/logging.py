@@ -9,8 +9,12 @@ from clearml import Task
 import numpy as np
 import plotly
 
-from lizrd.core.misc import generate_random_string
-from lizrd.support.misc import make_concise_datetime, tags_to_name, count_parameters
+from lizrd.support.misc import (
+    make_concise_datetime,
+    tags_to_name,
+    count_parameters,
+    generate_random_string,
+)
 
 _CURRENT_LOGGER = None
 
