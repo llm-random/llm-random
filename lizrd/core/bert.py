@@ -144,32 +144,36 @@ class Attention(nn.Module):
 
 
 @ash.check("... d -> ... d")
-def ResidualBlock(dmodel, layer):
+def ResidualBlock(dmodel, layer, name):
     return Residual(
         nn.Sequential(
-            nn.LayerNorm(dmodel),
-            layer,
-            # nn.LayerNorm(dmodel),
+            OrderedDict(
+                [
+                    ("pre_norm", nn.LayerNorm(dmodel)),
+                    (f"{name}", layer),
+                ]
+            )
         )
     )
 
 
 @ash.check("... d -> ... d")
-def EncoderBlock(dmodel, *layers):
+def EncoderBlock(dmodel, layers):
     residual_layers = []
-    for layer in layers:
-        residual_layers.append(ResidualBlock(dmodel, layer))
+    for name, layer in layers:
+        residual_layers.append(ResidualBlock(dmodel, layer, name))
     return nn.Sequential(*residual_layers)
 
 
 @ash.check("... d -> ... d")
-def EncoderTower(n_blocks, dmodel, *layer_funs):
-    misc.check_layer_funs(*layer_funs)
+def EncoderTower(n_blocks, dmodel, layer_dict):
+    misc.check_layer_funs(*layer_dict.values())
     encoder_blocks = []
     for i_block in range(n_blocks):
-        layers = [layer_fun() for layer_fun in layer_funs]
-        name_and_block = (f"block_{i_block}", EncoderBlock(dmodel, *layers))
+        layers_info = [(name, layer_fun()) for name, layer_fun in layer_dict.items()]
+        name_and_block = (f"block_{i_block}", EncoderBlock(dmodel, layers_info))
         encoder_blocks.append(name_and_block)
+
     return nn.Sequential(OrderedDict(encoder_blocks))
 
 
@@ -204,4 +208,12 @@ def PredictionHead(embedding_dim, output_size):
 
 @ash.check("... -> ... out")
 def BERT(embedding_layer, encoder_tower, head):
-    return nn.Sequential(embedding_layer, encoder_tower, head)
+    return nn.Sequential(
+        OrderedDict(
+            [
+                ("embedding_layer", embedding_layer),
+                ("encoder", encoder_tower),
+                ("prediction_head", head),
+            ]
+        )
+    )
