@@ -101,7 +101,7 @@ if args.dff == "auto":
 else:
     args.dff = int(args.dff)
 
-ATHENA_MEMORY_CONST = 2.192e7
+ATHENA_MEMORY_CONST = 21386706.2
 ENTROPY_MEMORY_CONST = 5.48e6
 LOCAL_MEMORY_CONST = 4e5
 
@@ -109,7 +109,9 @@ LOCAL_MEMORY_CONST = 4e5
 def batch_size_heuristic(memory_const: float) -> int:
     buffer = args.batch_size_buffer or 1
     return max(
-        1, int(memory_const / (args.dmodel * args.n_blocks * 12 + VOCAB_SIZE)) * buffer
+        1,
+        int(memory_const / (args.dmodel * args.n_blocks * 6.5 + VOCAB_SIZE * 1.15))
+        * buffer,
     )
 
 
@@ -265,7 +267,15 @@ if args.model_load_path:
 logger = get_logger(args, model, VOCAB_SIZE)
 
 # set optimizer
-if args.optimizer == "adam":
+if args.ff_layer == "quality":
+    assert args.optimizer == "adam"
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
+    quality_optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
+elif args.optimizer == "adam":
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )

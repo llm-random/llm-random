@@ -20,6 +20,7 @@ from lizrd.support.loss import (
     LossWeightDict,
     update_losses_dict,
 )
+from lizrd.train import global_params
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
@@ -570,6 +571,141 @@ class RetrainTrainer(Trainer):
 
         self.pruner.apply_new_weights()
         self.pruner.post_retrain()
+
+
+@define
+class AutoQualityTrainer(Trainer):
+    quality_optimizer: torch.optim.Optimizer = None
+    pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
+    retrain_warmup_steps: Optional[int] = None
+
+    def __attrs_post_init__(self):
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        self.quality_scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        self.reset_loss_stats()
+
+    def optimize(self, scaler, loss, optimizer, step):
+        optimizer.zero_grad()
+        scaler.scale(loss).backward()
+        scaler.unscale_(optimizer)
+
+        self.after_backprop(step)
+
+        scaler.step(optimizer)
+        scaler.update()
+
+    def _train_step(
+        self,
+        optimizer: torch.optim.Optimizer,
+        quality_optimizer: torch.optim.Optimizer,
+        dataset: wikibookdata.ProcessedDataset,
+        step: int,
+        log_auxiliary_loss: bool = True,
+    ):
+        losses = {}
+        self.model.train()
+        processed_batch = dataset.get_batch()
+        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        x_set = processed_batch.masked_tokens
+        y_token_set = processed_batch.tokens
+        y_mask_set = processed_batch.mask_mask
+
+        with torch.autocast(
+            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        ):
+            losses["mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            losses = update_losses_dict(losses, self.pruner.get_auxiliary_loss())
+
+        self.update_loss_stats(losses)
+        scaled_losses = self.scale_losses(losses)
+        self.optimize(
+            self.scaler,
+            loss=sum(scaled_losses.values()),
+            optimizer=optimizer,
+            step=step,
+        )
+
+        global_params.QUALITY_TRAIN_MODEL = True
+
+        with torch.autocast(
+            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        ):
+            losses["quality_mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
+
+        self.update_loss_stats(losses)
+        scaled_losses = self.scale_losses(losses)
+        self.optimize(
+            self.quality_scaler,
+            loss=sum(scaled_losses.values()),
+            optimizer=quality_optimizer,
+            step=step,
+        )
+
+        global_params.QUALITY_TRAIN_MODEL = False
+
+    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
+        full_step = step + self.retrain_count
+        if full_step:
+            self.logger.report_scalar(
+                title="loss/train_total",
+                value=total_loss,
+                iteration=step,
+            )
+            self.logger.report_scalar(
+                title="full_loss/train_total",
+                value=total_loss,
+                iteration=full_step,
+            )
+            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+            self.logger.report_scalar(
+                title="full_steps/lr",
+                value=self.optimizer.param_groups[0]["lr"],
+                iteration=full_step,
+            )
+            self.logger.report_scalar(
+                title="is_retraining",
+                value=0,
+                iteration=full_step,
+            )
+            if full_step % self.n_log_light_steps == 0:
+                self.pruner.log_light(full_step)
+
+    def _log_quality_stats(
+        self,
+        total_loss: float,
+        mask_loss: float,
+        step: int,
+        optimizer: torch.optim.Optimizer,
+    ):
+        full_step = self.full_step(step)
+        if self.full_step:
+            self.logger.report_scalar(
+                title="full_loss/train_total",
+                value=total_loss,
+                iteration=full_step,
+            )
+            self.logger.report_scalar(
+                title="full_loss/train_mask",
+                value=mask_loss,
+                iteration=full_step,
+            )
+            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+            self.logger.report_scalar(
+                title="full_steps/lr",
+                value=optimizer.param_groups[0]["lr"],
+                iteration=full_step,
+            )
+            self.logger.report_scalar(
+                title="is_retraining",
+                value=1,
+                iteration=full_step,
+            )
+            if full_step % self.n_log_light_steps == 0:
+                self.pruner.log_light(full_step)
+
+    def _pruning_step(self, step):
+        if self.scheduler.is_time_to_prune(step):
+            self._retrain(step)
 
 
 @define
