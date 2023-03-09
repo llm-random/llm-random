@@ -79,7 +79,7 @@ def get_processed_dataset(
     )
 
 
-@define
+@define(slots=False)
 class Trainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
@@ -113,6 +113,11 @@ class Trainer:
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.reset_loss_stats()
 
+        # create mpl optimizer
+        self.sgd_optimizer = torch.optim.SGD(
+            self.model.parameters(), self.optimizer.param_groups[0]["lr"]
+        )
+
     def after_backprop(self, step: int):
         self.pruner.after_backprop(step)
 
@@ -125,6 +130,7 @@ class Trainer:
         sgd_loss = sum(losses.get(k, 0.0) for k in SGD_LOSSES)
 
         # mpl optimizer step
+        # TODO: add here losses["mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
         self.sgd_optimizer.zero_grad()
 
         self.scaler.scale(sgd_loss).backward()
@@ -220,7 +226,6 @@ class Trainer:
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            losses["mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
             losses = update_losses_dict(losses, self.pruner.get_auxiliary_loss())
 
         self.update_loss_stats(losses)
@@ -361,6 +366,13 @@ class Trainer:
 
         print("Neuron diff logged.")
 
+    def set_lr(self, lr: float):
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = lr
+
+        for param_group in self.sgd_optimizer.param_groups:
+            param_group["lr"] = lr
+
     def train(self, n_steps: int, n_steps_eval: int):
         # params for lr warmup
         target_lr = self.optimizer.param_groups[0]["lr"]
@@ -375,17 +387,11 @@ class Trainer:
                 sample_size=self.neuron_diff_sample_size,
             )
 
-        # create mpl optimizer
-        self.sgd_optimizer = torch.optim.SGD(
-            self.model.parameters(), self.optimizer.param_groups[0]["lr"]
-        )
-
         for step in range(n_steps):
             # lr warmup in the beginning
             if step <= self.lr_warmup_steps and self.lr_warmup_steps > 0:
                 lr = target_lr * step / self.lr_warmup_steps
-                for param_group in self.optimizer.param_groups:
-                    param_group["lr"] = lr
+                self.set_lr(lr)
 
             # tell the model to save activation stats if necessary:
             if self.n_log_heavy_steps and step % self.n_log_heavy_steps == 0:
