@@ -2,6 +2,7 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from lizrd.core import misc
+from lizrd.support.loss import LossDict
 from research.reinitialization.core.pruner import Pruner
 import numpy as np
 from lizrd.support.logging import (
@@ -12,8 +13,27 @@ import plotly_express as px
 
 
 class BaseLossFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(
+        self,
+        dmodel: int,
+        dff: int,
+        reg_pow: float,
+        only_smaller_neurons: bool,
+        midpoint_type: str,
+        transform_type: str,
+        pruner: Pruner,
+        aggregation_type: str = "regular",
+    ):
         super().__init__()
+        self.reg_pow = reg_pow
+        self.only_smaller_neurons = only_smaller_neurons
+        assert midpoint_type in ["mean", "median"]
+        self.midpoint_type = midpoint_type
+        assert transform_type in ["linear", "log"]
+        self.transform_type = transform_type
+        assert aggregation_type in ["regular", "concat", "mixed", "dmodel"]
+        self.aggregation_type = aggregation_type
+
         self.lin1 = misc.Linear(dmodel, dff)
         self.lin2 = misc.Linear(dff, dmodel)
         self.current_activations = self.activate_ratio = np.zeros(dff)
@@ -28,9 +48,6 @@ class BaseLossFF(nn.Module):
         x = F.relu(x)
         x = self.lin2(x)
         return x
-
-    def get_auxiliary_loss(self) -> torch.Tensor:
-        raise NotImplementedError()
 
     @property
     def neuron_magnitudes(self) -> torch.Tensor:
@@ -98,82 +115,7 @@ class BaseLossFF(nn.Module):
             self.log_magnitude(layer_name, step)
             get_current_logger().flush_if_necessary()
 
-
-class InverseWeightDecayFF(BaseLossFF):
-    def __init__(
-        self,
-        dmodel: int,
-        dff: int,
-        reg_pow: float,
-        only_smaller_neurons: bool,
-        midpoint_type: str,
-        pruner: Pruner,
-        scale: str = "regular",
-    ):
-        super().__init__(
-            dmodel=dmodel,
-            dff=dff,
-            pruner=pruner,
-        )
-
-        self.reg_pow = reg_pow
-        self.only_smaller_neurons = only_smaller_neurons
-        assert midpoint_type in ["mean", "median"]
-        self.midpoint_type = midpoint_type
-        self.scale = scale
-
-    def get_auxiliary_loss(self) -> torch.Tensor:
-        magnitudes = self.neuron_magnitudes
-
-        if self.scale == "log":
-            magnitudes = torch.log(magnitudes + 1e-6)
-        elif self.scale == "regular":
-            pass
-        else:
-            raise ValueError(f"Unknown scale: {self.scale}")
-
-        if self.midpoint_type == "median":
-            midpoint = magnitudes.median().detach()
-        elif self.midpoint_type == "mean":
-            midpoint = magnitudes.mean().detach()
-        else:
-            raise ValueError(f"Unknown average type: {self.midpoint_type}")
-
-        which_neurons = (
-            (magnitudes < midpoint)
-            if self.only_smaller_neurons
-            else torch.ones_like(magnitudes)
-        )
-        penalty = torch.abs(magnitudes - midpoint) ** self.reg_pow
-
-        loss = (which_neurons * penalty).sum()
-        return loss
-
-
-class IWDBaselineFF(BaseLossFF):
-    def __init__(
-        self,
-        dmodel: int,
-        dff: int,
-        reg_pow: float,
-        only_smaller_neurons: bool,
-        midpoint_type: str,
-        pruner: Pruner,
-        aggregation_type: str,
-    ):
-        super().__init__(
-            dmodel=dmodel,
-            dff=dff,
-            pruner=pruner,
-        )
-
-        self.reg_pow = reg_pow
-        self.only_smaller_neurons = only_smaller_neurons
-        assert midpoint_type in ["mean", "median"]
-        self.midpoint_type = midpoint_type
-        self.aggregation_type = aggregation_type
-
-    def get_auxiliary_loss(self) -> torch.Tensor:
+    def get_midpoint_loss(self) -> torch.Tensor:
         if self.aggregation_type == "concat":
             magnitudes = misc.get_split_neuron_magnitudes(
                 self.lin1.weight, self.lin2.weight
@@ -184,6 +126,8 @@ class IWDBaselineFF(BaseLossFF):
             )
         elif self.aggregation_type == "dmodel":
             magnitudes = misc.get_dmodel_magnitudes(self.lin1.weight, self.lin2.weight)
+        else:
+            magnitudes = self.neuron_magnitudes
 
         if self.midpoint_type == "median":
             midpoint = magnitudes.median().detach()
@@ -201,3 +145,9 @@ class IWDBaselineFF(BaseLossFF):
 
         loss = (which_neurons * penalty).sum()
         return loss
+
+    def get_decay_loss(self) -> torch.Tensor:
+        return (self.lin1.weight**2).sum() + (self.lin2.weight**2).sum()
+
+    def get_auxiliary_loss(self) -> LossDict:
+        return {"midpoint": self.get_midpoint_loss(), "decay": self.get_decay_loss()}

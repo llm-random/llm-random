@@ -13,6 +13,7 @@ from time import sleep
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    multiply_grid,
     timestr_to_minutes,
     get_machine_backend,
     MachineBackend,
@@ -45,6 +46,8 @@ SINGULARITY_IMAGE = (
     "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
 )
 CODE_PATH = os.getcwd()
+INTERACTIVE_DEBUG = False
+RUNS_MULTIPLIER = 1
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -57,8 +60,11 @@ if __name__ == "__main__":
         GRES = grid_args.get("gres", GRES)
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
+        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
+        INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
 
     grid = create_grid(PARAMS)
+    grid = multiply_grid(grid, RUNS_MULTIPLIER)
     no_experiments = len(grid)
     minutes_per_exp = timestr_to_minutes(TIME)
 
@@ -67,10 +73,15 @@ if __name__ == "__main__":
             f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
         )
 
-    name = next(iter(grid))["name"]
-    name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-    print(f"Creating branch {name_for_branch}")
-    version_code(name_for_branch, name_for_branch)
+    if not INTERACTIVE_DEBUG:
+        exp_name = next(iter(grid))["name"]
+        name_for_branch = (
+            f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+        )
+        print(f"Creating branch {name_for_branch}")
+        version_code(name_for_branch, name_for_branch)
+    else:
+        print(f"Running in debug mode, skipping branch creation.")
 
     total_minutes = no_experiments * minutes_per_exp
     if not runner == MachineBackend.LOCAL:
@@ -96,6 +107,8 @@ if __name__ == "__main__":
                 continue
             else:
                 runner_params.append(f"--{k}")
+                if isinstance(v, list):
+                    v = " ".join([str(s) for s in v])
                 runner_params.append(v)
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
@@ -112,8 +125,9 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
+            run_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
             subprocess_args = [
-                "sbatch",
+                run_command,
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 "--cpus-per-gpu=8",

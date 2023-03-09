@@ -164,6 +164,10 @@ def GradientLike(value_layer, gradient_layer):
     )
 
 
+def get_default_device():
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 def print_available_gpus():
     if torch.cuda.is_available():
         count = torch.cuda.device_count()

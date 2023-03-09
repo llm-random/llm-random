@@ -1,7 +1,5 @@
 import argparse
-import datetime
 import torch
-from torch.utils.tensorboard import SummaryWriter
 
 from lizrd.core import misc
 from lizrd.support.logging import get_logger
@@ -70,14 +68,6 @@ args = parser.parse_args()
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
-modelpath = f"runs/wikibooktest/{timestamp}"
-writer = SummaryWriter(log_dir=modelpath)
-
-ff_layer_fun = get_ff_layer(args)
-attention_layer_fun = get_attention_layer(args)
-
 misc.print_available_gpus()
 
 train_dataloader = get_processed_dataset(
@@ -88,6 +78,9 @@ train_dataloader = get_processed_dataset(
     batch_size=args.batch_size,
     seed=args.seed,
 )
+
+ff_layer_fun = get_ff_layer(args)
+attention_layer_fun = get_attention_layer(args)
 
 model = get_model(
     max_length=args.cutoff,
@@ -107,11 +100,7 @@ trainer = NonlinearityTrainer(
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
-    mask_loss_weight=args.mask_loss_weight,
-    modelpath=modelpath,
-    writer=writer,
     mixed_precision=args.mixed_precision,
-    save_model_checkpoints=args.save_model_checkpoints,
     distribution_logging=args.log_distributions,
     logging_frequency=args.logging_frequency,
 )

@@ -7,7 +7,7 @@ from torch.nn.init import kaiming_uniform_
 import numpy as np
 import plotly.express as px
 
-from lizrd.core.misc import Linear
+from lizrd.core.misc import Linear, get_default_device
 
 from lizrd.support.logging import (
     get_current_logger,
@@ -313,7 +313,7 @@ class RetrainRecycleFF(nn.Module):
         self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin2.weight))
         pruner.register(self)
         self.mode = "regular"
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device(get_default_device())
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
         self.current_activations = self.activation_ratio = np.zeros(dff)
@@ -392,8 +392,8 @@ class RetrainRecycleFF(nn.Module):
     @property
     def neuron_magnitudes(self):
         if self.mode == "regular" or self.mode == "neuron_diff":
-            weights1 = misc.einsum("f m -> f", self.lin1.weight**2)
-            weights2 = misc.einsum("m f -> f", self.lin2.weight**2)
+            weights1 = self.lin1.weight
+            weights2 = self.lin2.weight
         elif self.mode == "new_neurons":
             weights1 = misc.einsum(
                 "f, f m -> f m", self.mask, self.lin1.weight.data

@@ -4,6 +4,7 @@ import secrets
 import torch
 
 from lizrd.core import misc, bert
+from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
 from research.reinitialization.core.pruner import Pruner
@@ -20,6 +21,8 @@ from lizrd.support.logging import (
     make_concise_datetime,
 )
 
+VOCAB_SIZE = 30522
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--testing_regular", action="store_true")
@@ -30,7 +33,6 @@ parser.add_argument("--use_pruner", action="store_true")
 parser.add_argument("--mixed_precision", action="store_true")
 parser.add_argument("--x_flop", action="store_true")
 parser.add_argument("--x_logarithmic", action="store_true")
-
 
 parser.add_argument("--pruner_prob", type=float, default=None)
 parser.add_argument("--pruner_n_steps", type=int, default=None)
@@ -47,17 +49,20 @@ parser.add_argument("--ds_seed", type=int, default=42)
 parser.add_argument("--eval_ds_seed", type=int, default=1984)
 parser.add_argument("--retrain_ds_seed", type=int, default=1998)
 
-parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--batch_size", type=str, default=64)
+parser.add_argument("--batch_size_buffer", type=float, default=None)
 parser.add_argument("--cutoff", type=int, default=128)
 parser.add_argument("--dmodel", type=int, default=256)
-parser.add_argument("--dff", type=int, default=1024)
+parser.add_argument("--dff", type=str, default="auto")
 parser.add_argument("--n_blocks", type=int, default=4)
-parser.add_argument("--heads", type=int, default=2)
-parser.add_argument("--dhead", type=int, default=32)
+parser.add_argument("--heads", type=int, default=4)
+parser.add_argument("--dhead", type=int, default=None)
 parser.add_argument("--optimizer", type=str, default="adam")
 parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
+parser.add_argument("--midpoint_loss_weight", type=float, default=0.0)
+parser.add_argument("--decay_loss_weight", type=float, default=0.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
@@ -79,17 +84,45 @@ parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
-parser.add_argument("--auxiliary_loss_weight", default=0.0, type=float, required=False)
 
-parser.add_argument("--iwd_reg_pow", type=float, required=False)
-parser.add_argument("--iwd_midpoint_type", type=str, required=False)
-parser.add_argument("--iwd_only_smaller_neurons", action="store_true")
-parser.add_argument("--iwd_aggregation_type", type=str, required=False)
-parser.add_argument("--iwd_scale", type=str, required=False, default="regular")
+parser.add_argument("--mpl_reg_pow", type=float, required=False)
+parser.add_argument("--mpl_midpoint_type", type=str, default="mean")
+parser.add_argument("--mpl_transform_type", type=str, default="linear")
+parser.add_argument("--mpl_only_smaller_neurons", action="store_true")
 
+
+parser.add_argument("--mpl_aggregation_type", type=str, default="regular")
 parser.add_argument("--weight_decay", type=float, default=0.0)
+parser.add_argument("--model_load_path", type=str, default=None)
 
 args = parser.parse_args()
+
+if args.dff == "auto":
+    args.dff = args.dmodel * 4
+else:
+    args.dff = int(args.dff)
+
+ATHENA_MEMORY_CONST = 2.192e7
+ENTROPY_MEMORY_CONST = 5.48e6
+LOCAL_MEMORY_CONST = 4e5
+
+
+def batch_size_heuristic(memory_const: float) -> int:
+    buffer = args.batch_size_buffer or 1
+    return max(
+        1, int(memory_const / (args.dmodel * args.n_blocks * 12 + VOCAB_SIZE)) * buffer
+    )
+
+
+if args.batch_size == "auto":
+    if get_machine_backend() == MachineBackend.ENTROPY:
+        args.batch_size = batch_size_heuristic(ATHENA_MEMORY_CONST)
+    elif get_machine_backend() == MachineBackend.ENTROPY:
+        args.batch_size = batch_size_heuristic(ENTROPY_MEMORY_CONST)
+    else:
+        args.batch_size = batch_size_heuristic(LOCAL_MEMORY_CONST)
+else:
+    args.batch_size = int(args.batch_size)
 
 # basic validation of args
 if args.use_pruner and (args.pruner_n_steps is None or args.pruner_prob is None):
@@ -116,8 +149,7 @@ print("cuda available:")
 print(torch.cuda.is_available())
 
 # constants
-VOCAB_SIZE = 30522  # BertTokenizer uses this many words
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = misc.get_default_device()
 
 unique_timestamp = f"{make_concise_datetime()}{secrets.token_urlsafe(1)}"
 modelpath = f"models/{unique_timestamp}"
@@ -185,26 +217,17 @@ elif args.ff_layer == "separate_direction_magnitude_ff":
 elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "plusminus_ff":
-    ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dmodel, args.dff)
-elif args.ff_layer == "inverse_wd":
-    ff_layer_fun = lambda: linears_loss.InverseWeightDecayFF(
+    ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dm, args.dff)
+elif args.ff_layer == "loss_ff":
+    ff_layer_fun = lambda: linears_loss.BaseLossFF(
         dmodel=args.dmodel,
         dff=args.dff,
+        only_smaller_neurons=args.mpl_only_smaller_neurons,
+        reg_pow=args.mpl_reg_pow,
+        midpoint_type=args.mpl_midpoint_type,
+        transform_type=args.mpl_transform_type,
         pruner=pruner,
-        only_smaller_neurons=args.iwd_only_smaller_neurons,
-        reg_pow=args.iwd_reg_pow,
-        midpoint_type=args.iwd_midpoint_type,
-        scale=args.iwd_scale,
-    )
-elif args.ff_layer == "iwd_baseline":
-    ff_layer_fun = lambda: linears_loss.IWDBaselineFF(
-        dmodel=args.dmodel,
-        dff=args.dff,
-        pruner=pruner,
-        only_smaller_neurons=args.iwd_only_smaller_neurons,
-        reg_pow=args.iwd_reg_pow,
-        midpoint_type=args.iwd_midpoint_type,
-        aggregation_type=args.iwd_aggregation_type,
+        aggregation_type=args.mpl_aggregation_type,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
@@ -238,6 +261,10 @@ model = get_model(
         args.dmodel, args.heads, dhead=args.dhead
     ),
 )
+if args.model_load_path:
+    print(f"Loading model from {args.model_load_path}")
+    print("Make sure that parameters of the saved model are the same as current")
+    model.load_state_dict(torch.load(args.model_load_path))
 
 logger = get_logger(args, model, VOCAB_SIZE)
 
@@ -276,7 +303,6 @@ base_trainer_params = dict(
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
-    mask_loss_weight=args.mask_loss_weight,
     modelpath=modelpath,
     pruner=pruner,
     logger=logger,
@@ -285,11 +311,15 @@ base_trainer_params = dict(
     n_log_light_steps=args.n_log_light_steps,
     n_log_heavy_steps=args.n_log_heavy_steps,
     log_acc_steps=args.log_acc_steps,
-    auxiliary_loss_weight=args.auxiliary_loss_weight,
     neuron_diff_dataset=pdataset_neuron_diff,
     neuron_diff_sample_size=args.log_neuron_diff_sample_size,
     neuron_diff_n_samples=args.log_neuron_diff_n_samples,
     neuron_diff_n_batches=args.neuron_diff_batches,
+    losses_weights={
+        "mask": args.mask_loss_weight,
+        "midpoint": args.midpoint_loss_weight,
+        "decay": args.decay_loss_weight,
+    },
 )
 
 if args.trainer_type == "retrain":
