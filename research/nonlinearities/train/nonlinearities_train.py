@@ -51,8 +51,8 @@ parser.add_argument("--tags", nargs="*", type=str, default=None)
 parser.add_argument("--exp_rate", type=int, default=4)
 parser.add_argument("--bottleneck_size", type=int, default=4)
 
-# parser.add_argument("--n_ff_heads", type=int, default=8)
-# parser.add_argument("--d_ff_head", type=int, default=256)
+parser.add_argument("--n_ff_heads", type=int, default=8)
+parser.add_argument("--d_ff_head", type=int, default=256)
 parser.add_argument("--n_ff_heads_and_d_ff_head_size", nargs="+", type=int)
 parser.add_argument("--n_chunks", type=int, default=4)
 parser.add_argument("--multineck_mode", type=str, default="none")
@@ -72,6 +72,11 @@ parser.add_argument("--x_logarithmic", action="store_true")
 args = parser.parse_args()
 print(args)
 
+##################################
+args.dff = 4 * args.dmodel
+args.d_ff_head = args.dmodel // args.n_ff_heads
+##################################
+
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -79,8 +84,6 @@ timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
 modelpath = f"runs/wikibooktest/{timestamp}"
 writer = SummaryWriter(log_dir=modelpath)
 
-args.d_ff_head, args.n_ff_heads = args.n_ff_heads_and_d_ff_head_size
-args.dff = args.d_ff_head * args.exp_rate
 ff_layer_fun = get_ff_layer(args)
 attention_layer_fun = get_attention_layer(args)
 
