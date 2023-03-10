@@ -1,3 +1,4 @@
+from argparse import Namespace
 import math
 import os
 import secrets
@@ -24,9 +25,9 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
-    def __init__(self, logger, model, args, VOCAB_SIZE):
+    def __init__(self, logger, args: Namespace):
         self.instance_logger = logger
-        self.auxiliary_params = self.get_auxiliary_params(model, args, VOCAB_SIZE)
+        self.args = vars(args)
         set_current_logger(self)
 
     @abstractmethod
@@ -49,17 +50,6 @@ class AbstractLogger(ABC):
         iteration,
     ):
         raise NotImplementedError()
-
-    def get_auxiliary_params(self, model, args, VOCAB_SIZE):
-        parameter_count = count_parameters(model, args, VOCAB_SIZE)
-        auxiliary_params = {}
-        if args.x_flop:
-            auxiliary_params["x_flop"] = True
-            auxiliary_params["batch_size"] = args.batch_size
-            auxiliary_params["model_size"] = parameter_count
-        if args.x_logarithmic:
-            auxiliary_params["x_logarithmic"] = True
-        return auxiliary_params
 
     def potentially_log_plotly_figure_scalars(
         self,
@@ -113,35 +103,25 @@ class AbstractLogger(ABC):
         }
 
     def get_metric_with_flop_scale(self, value: float, iteration: int):
-        assert (
-            self.auxiliary_params["model_size"] is not None
-        ), "if using x_compute_scale, you must provide model_size"
-        assert (
-            self.auxiliary_params["batch_size"] is not None
-        ), "if using x_compute_scale, you must provide batch_size"
-
         return {
             "value": value,
             "iteration": iteration
-            * self.auxiliary_params["model_size"]
-            * self.auxiliary_params["batch_size"],
+            * self.args["model_n_params"]
+            * self.args["batch_size"],
         }
 
     def get_auxiliary_metrics(self, title: str, value: float, iteration: int):
-        if self.auxiliary_params is None or self.auxiliary_params == {}:
+        if not self.args.get("x_flop") and not self.args.get("log_x_scale"):
             return {}
 
         metric_x_flop = None
         auxiliary_metrics = {}
 
-        if "x_flop" in self.auxiliary_params and self.auxiliary_params["x_flop"]:
+        if self.args.get("x_flop"):
             metric_x_flop = self.get_metric_with_flop_scale(value, iteration)
             auxiliary_metrics[f"{title}_(x_flop)"] = metric_x_flop
 
-        if (
-            "x_logarithmic" in self.auxiliary_params
-            and self.auxiliary_params["x_logarithmic"]
-        ):
+        if self.args.get("x_logarithmic"):
             if metric_x_flop is not None:
                 metric_x_flop_logarithmic = self.get_log_x_scale_metric(
                     metric_x_flop["value"], metric_x_flop["iteration"]
@@ -163,8 +143,8 @@ class ClearMLLogger(AbstractLogger):
 class NeptuneLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
-    def __init__(self, logger, model, args, VOCAB_SIZE):
-        super().__init__(logger, model, args, VOCAB_SIZE)
+    def __init__(self, logger, args: Namespace):
+        super().__init__(logger, args)
         self.random_id = generate_random_string(8)
         os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
 
@@ -214,12 +194,13 @@ class NeptuneLogger(AbstractLogger):
         series: Optional[str] = None,
     ):
         path = self._make_path(title, series, iteration)
+        directory, filename = path.rsplit("/", 1)
         # log json
         json = figure.to_json()
-        self._upload_with_tmp_file(f"{path}_json", json, "json")
+        self._upload_with_tmp_file(f"{directory}/json_{filename}", json, "json")
         # log html
         html = figure.to_html(include_plotlyjs="cdn")
-        self._upload_with_tmp_file(f"{path}_plot", html, "html")
+        self._upload_with_tmp_file(f"{directory}/plot_{filename}", html, "html")
         # log associated_scalars
         self.potentially_log_plotly_figure_scalars(
             figure=figure, title=title, series=series, iteration=iteration
@@ -247,8 +228,9 @@ def get_logger(args, model, VOCAB_SIZE):
         run["args"] = vars(args)
         run["working_directory"] = os.getcwd()
         run["git_branch"] = os.getcwd().split("/")[-1]
-        logger = NeptuneLogger(run, model, args, VOCAB_SIZE)
-        return logger
+
+        args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
+        return NeptuneLogger(run, args)
 
     elif args.use_clearml:
         task = Task.init(
