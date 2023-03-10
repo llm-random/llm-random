@@ -124,20 +124,27 @@ class Trainer:
     def optimize(
         self,
         optimizer: torch.optim.Optimizer,
-        scaler: torch.cuda.amp.grad_scaler.GradScaler,
+        scaler: Optional[torch.cuda.amp.grad_scaler.GradScaler],
         loss: torch.Tensor,
         step: int,
         run_after_backprop: bool,
     ):
         optimizer.zero_grad()
 
-        scaler.scale(loss).backward()
-        scaler.unscale_(optimizer)
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+        else:
+            loss.backward()
+
         if run_after_backprop:
             self.after_backprop(step)
 
-        scaler.step(optimizer)
-        scaler.update()
+        if scaler is not None:
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            optimizer.step()
 
     def _pruning_step(self, step):
         if self.scheduler and self.scheduler.is_time_to_prune(step):
@@ -214,26 +221,32 @@ class Trainer:
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
             losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
+            self.update_loss_stats(losses)
+            scaled_losses = self.scale_losses(losses)
+            loss = sum(scaled_losses.values())
 
-        self.update_loss_stats(losses)
-        scaled_losses = self.scale_losses(losses)
         self.optimize(
             optimizer=self.optimizer,
             scaler=self.scaler,
-            loss=sum(scaled_losses.values()),
+            loss=loss,
             step=step,
             run_after_backprop=True,
         )
 
     def _model_train_step(self, step: int):
         self.model.train()
-        losses = self.pruner.get_auxiliary_loss()
-        self.update_loss_stats(losses)
-        scaled_losses = self.scale_losses(losses)
+        with torch.autocast(
+            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        ):
+            losses = self.pruner.get_auxiliary_loss()
+            self.update_loss_stats(losses)
+            scaled_losses = self.scale_losses(losses)
+            loss = sum(scaled_losses.values())
+
         self.optimize(
             optimizer=self.sgd_optimizer,
             scaler=self.sgd_scaler,
-            loss=sum(scaled_losses.values()),
+            loss=loss,
             step=step,
             run_after_backprop=False,
         )

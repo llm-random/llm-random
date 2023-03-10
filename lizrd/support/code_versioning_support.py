@@ -32,7 +32,6 @@ def version_code(
 
     tmp_dir = f"/tmp/{random_string}"
     tmp_git_dir = f"{tmp_dir}/.git"
-
     subprocess.run(
         ["mkdir", "-p", tmp_dir],
         capture_output=True,
