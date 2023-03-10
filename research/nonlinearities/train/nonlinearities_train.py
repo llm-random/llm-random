@@ -11,6 +11,7 @@ from research.nonlinearities.core.trainers import NonlinearityTrainer
 from research.nonlinearities.train.utils import (
     get_ff_layer,
     get_attention_layer,
+    divide_model_parameters,
 )
 
 parser = argparse.ArgumentParser()
@@ -92,7 +93,9 @@ model = get_model(
     device=DEVICE,
 )
 
-optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+optimizer = torch.optim.Adam(
+    divide_model_parameters(model, args), lr=args.learning_rate
+)
 trainer = NonlinearityTrainer(
     model=model,
     optimizer=optimizer,

@@ -15,6 +15,22 @@ from research.nonlinearities.temporary_code.temp_research_bert import (
 )
 
 
+def divide_model_parameters(model, args):
+    "Iterates over named modules of the model, and gathers them into two groups: for modules whose name includes \
+    'forward' returns them separately with args.learning_rate_ff, while the rest uses the deafult args.learning_rate"
+    params_non_ff = []
+    params_ff = []
+    for name, param in model.named_parameters():
+        if "forward" in name:
+            params_ff.append(param)
+        else:
+            params_non_ff.append(param)
+    return [
+        {"params": params_non_ff},
+        {"params": params_ff, "lr": args.learning_rate_ff},
+    ]
+
+
 def process_and_remove_nan(tensor):
     tensor = tensor.detach().cpu()
     mask = torch.isnan(tensor) | torch.isinf(tensor) | torch.isinf(-tensor)
