@@ -82,7 +82,7 @@ if __name__ == "__main__":
         )
         copy_and_version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
     else:
-        print(f"Running in debug mode, skipping branch creation.")
+        print(f"Running in debug mode, skip copying code to a new directory.")
 
     total_minutes = no_experiments * minutes_per_exp
     user_input = input(
