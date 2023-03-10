@@ -5,7 +5,10 @@ import os
 
 
 def version_code(
-    branch_name, newdir_name, remote_url="git@github.com:Simontwice/sparsity.git"
+    name_for_branch,
+    newdir_name,
+    push_to_git,
+    remote_url="git@github.com:Simontwice/sparsity.git",
 ):
     """Copies the current code to a new directory, and pushes the code to a remote repo.
     NOTE: it is assumed that this function is called from inside the project.
@@ -33,10 +36,13 @@ def version_code(
     # Change to the new directory
     os.chdir(newdir_path)
 
-    # Push the code to the remote repo
-    push_code_to_url(branch_name, remote_url)
-
-    print(f"Code pushed successfully to {remote_url} under branch {branch_name}")
+    if push_to_git:
+        print(f"Creating branch {name_for_branch}")
+        # Push the code to the remote repo
+        push_code_to_url(name_for_branch, remote_url)
+        print(
+            f"Code pushed successfully to {remote_url} under branch {name_for_branch}"
+        )
 
 
 def push_code_to_url(
