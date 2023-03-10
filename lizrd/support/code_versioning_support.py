@@ -4,7 +4,7 @@ import shutil
 import os
 
 
-def version_code(
+def copy_and_version_code(
     name_for_branch,
     newdir_name,
     push_to_git,
@@ -21,17 +21,21 @@ def version_code(
 
     # Set up ignore patterns
     with open(os.path.join(root_dir, ".versioningignore")) as f:
-        gitignore_patterns = f.read().splitlines()
-        gitignore_patterns = [
+        versioning_ignore_patterns = f.read().splitlines()
+        versioning_ignore_patterns = [
             pattern
-            for pattern in gitignore_patterns
+            for pattern in versioning_ignore_patterns
             if pattern != "" and pattern[0] != "#"
         ]
-        gitignore_patterns = [p.strip() for p in gitignore_patterns]
-    gitignore_patterns = shutil.ignore_patterns(*gitignore_patterns)
+        versioning_ignore_patterns = [p.strip() for p in versioning_ignore_patterns]
+        if not push_to_git:
+            versioning_ignore_patterns.append(".git")
+    versioning_ignore_patterns = shutil.ignore_patterns(*versioning_ignore_patterns)
 
+    print(f"Copying code to {newdir_path}...")
     # Copy the project root directory to a new directory, ignoring files described in .gitignore
-    shutil.copytree(root_dir, newdir_path, ignore=gitignore_patterns)
+    shutil.copytree(root_dir, newdir_path, ignore=versioning_ignore_patterns)
+    print(f"Code copied successfully to {newdir_path}")
 
     # Change to the new directory
     os.chdir(newdir_path)

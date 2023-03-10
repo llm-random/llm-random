@@ -19,7 +19,7 @@ from lizrd.scripts.grid_utils import (
     MachineBackend,
     get_grid_entrypoint,
 )
-from lizrd.support.code_versioning_support import version_code
+from lizrd.support.code_versioning_support import copy_and_version_code
 
 
 RUNNER = "research.reinitialization.train.reinit_train"
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
+        copy_and_version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
     else:
         print(f"Running in debug mode, skipping branch creation.")
 
