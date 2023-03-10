@@ -7,6 +7,7 @@ from lizrd.core import misc, bert
 from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
+from research.reinitialization.core import linears_noise
 from research.reinitialization.core.pruner import Pruner
 from lizrd.train.train_utils import (
     get_model,
@@ -94,6 +95,9 @@ parser.add_argument("--mpl_only_smaller_neurons", action="store_true")
 parser.add_argument("--weight_decay", type=float, default=0.0)
 parser.add_argument("--model_load_path", type=str, default=None)
 
+parser.add_argument("--noise_ff_prune_ratio", type=float, required=False)
+parser.add_argument("--noise_ff_n_steps", type=int, required=False)
+
 args = parser.parse_args()
 
 if args.dff == "auto":
@@ -139,6 +143,18 @@ if not args.use_pruner and (
 ):
     raise ValueError(
         "use_pruner not set but pruner_n_steps or pruner_prob or pruner_delay set"
+    )
+if args.ff_layer == "noise" and (
+    args.noise_ff_prune_ratio is None or args.noise_ff_n_steps is None
+):
+    raise ValueError(
+        "ff_layer is noise but noise_ff_prune_ratio or noise_ff_n_steps not set"
+    )
+if (
+    args.noise_ff_prune_ratio is not None or args.noise_ff_n_steps is not None
+) and args.ff_layer != "noise":
+    raise ValueError(
+        "ff_layer is not noise but noise_ff_prune_ratio or noise_ff_n_steps set"
     )
 
 print("BEGINNING OF FILE")
@@ -224,6 +240,14 @@ elif args.ff_layer == "loss_ff":
         midpoint_type=args.mpl_midpoint_type,
         transform_type=args.mpl_transform_type,
         pruner=pruner,
+    )
+elif args.ff_layer == "noise":
+    ff_layer_fun = lambda: linears_noise.NoiseFF(
+        dmodel=args.dmodel,
+        dff=args.dff,
+        pruner=pruner,
+        prune_ratio=args.noise_ff_prune_ratio,
+        n_steps_interpolate=args.noise_ff_n_steps,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")

@@ -32,10 +32,10 @@ class NoiseFF(nn.Module):
         self.n_steps_interpolate = n_steps_interpolate
 
         self.mask = torch.ones(dff, device=get_default_device(), requires_grad=False)
-        self.frozen.weights_1 = (
+        self.frozen_weights_1 = (
             self.lin1.weight.data.detach().clone().requires_grad_(False)
         )
-        self.frozen.weights_2 = (
+        self.frozen_weights_2 = (
             self.lin2.weight.data.detach().clone().requires_grad_(False)
         )
         self.target_weights_1 = (
@@ -55,7 +55,7 @@ class NoiseFF(nn.Module):
 
         # apply lin1
         new_weights = (
-            self.alpha * self.frozen.weights_1
+            self.alpha * self.frozen_weights_1
             + (1 - self.alpha) * self.target_weights_1
         )
         self.lin1.weight.data = misc.einsum(
@@ -67,7 +67,7 @@ class NoiseFF(nn.Module):
 
         # apply lin2
         new_weights = (
-            self.alpha * self.frozen.weights_2
+            self.alpha * self.frozen_weights_2
             + (1 - self.alpha) * self.target_weights_1
         )
         self.lin2.weight.data = misc.einsum(
@@ -80,10 +80,10 @@ class NoiseFF(nn.Module):
         return x
 
     def prepare_mask(self):
-        self.frozen.weights_1 = (
+        self.frozen_weights_1 = (
             self.lin1.weight.data.detach().clone().requires_grad_(False)
         )
-        self.frozen.weights_2 = (
+        self.frozen_weights_2 = (
             self.lin2.weight.data.detach().clone().requires_grad_(False)
         )
 
