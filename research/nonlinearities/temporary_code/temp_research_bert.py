@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 import lizrd.core.nn as nn
-from lizrd.core.bert import LowRank
+from lizrd.core.bert import LowRank, Residual
 from lizrd.core.misc import EinMix
 from lizrd.support import ash
 from research.nonlinearities.temporary_code.helper_layers import (
@@ -207,6 +207,70 @@ def OverparametrisedFeedForward(dmodel, dff):
                 ("logging_ff2", nn.Linear(dff, dff)),
                 ("relu", nn.ReLU(inplace=True)),
                 ("logging_ff3", nn.Linear(dff, dff)),
+                ("logging_ff4", nn.Linear(dff, dmodel)),
+            ]
+        )
+    )
+    return block
+
+
+def OverparametrisedFeedForwardResidual(dmodel, dff):
+    """
+    Modification of a standard feed-forward transformer layer done by replacing each dense layer with two consecutive dense layers with no activation between them
+    :param dmodel: dimension of the model
+    :param dff: dimension of the feedforward layer
+    """
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_ff1", nn.Linear(dmodel, dff)),
+                ("logging_ff2", Residual(nn.Linear(dff, dff))),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_ff3", Residual(nn.Linear(dff, dff))),
+                ("logging_ff4", nn.Linear(dff, dmodel)),
+            ]
+        )
+    )
+    return block
+
+
+def OverparametrisedFeedForwardNormed(dmodel, dff):
+    """
+    Modification of a standard feed-forward transformer layer done by replacing each dense layer with two consecutive dense layers with no activation between them
+    :param dmodel: dimension of the model
+    :param dff: dimension of the feedforward layer
+    """
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_ff1", nn.Linear(dmodel, dff)),
+                ("norm1", nn.LayerNorm(dff)),
+                ("logging_ff2", nn.Linear(dff, dff)),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_ff3", nn.Linear(dff, dff)),
+                ("norm2", nn.LayerNorm(dff)),
+                ("logging_ff4", nn.Linear(dff, dmodel)),
+            ]
+        )
+    )
+    return block
+
+
+def OverparametrisedFeedForwardResidualNormed(dmodel, dff):
+    """
+    Modification of a standard feed-forward transformer layer done by replacing each dense layer with two consecutive dense layers with no activation between them
+    :param dmodel: dimension of the model
+    :param dff: dimension of the feedforward layer
+    """
+    block = nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_ff1", nn.Linear(dmodel, dff)),
+                ("norm1", nn.LayerNorm(dff)),
+                ("logging_ff2", Residual(nn.Linear(dff, dff))),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_ff3", Residual(nn.Linear(dff, dff))),
+                ("norm2", nn.LayerNorm(dff)),
                 ("logging_ff4", nn.Linear(dff, dmodel)),
             ]
         )
