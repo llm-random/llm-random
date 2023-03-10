@@ -72,12 +72,19 @@ args = parser.parse_args()
 
 
 ##################################
+TRAIN = False
 args.dff = 4 * args.dmodel
 args.d_ff_head = args.dmodel // args.n_ff_heads
 args.learning_rate_ff = (
     args.learning_rate / 8 if args.learning_rate_ff < 0 else args.learning_rate
 )
 print(args)
+
+if args.ff_mode == "vanilla" and args.learning_rate_ff > 0:
+    pass
+else:
+    TRAIN = True
+
 ##################################
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
@@ -129,6 +136,6 @@ trainer = NonlinearityTrainer(
     distribution_logging=args.log_distributions,
     logging_frequency=args.logging_frequency,
 )
-
-logger = get_logger(args, model, VOCAB_SIZE)
-trainer.train(args.n_steps)
+if TRAIN:
+    logger = get_logger(args, model, VOCAB_SIZE)
+    trainer.train(args.n_steps)
