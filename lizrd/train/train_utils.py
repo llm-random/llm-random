@@ -18,7 +18,6 @@ from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
     LossWeightDict,
-    update_losses_dict,
 )
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
@@ -77,7 +76,7 @@ def get_processed_dataset(
     )
 
 
-@define
+@define(slots=False)
 class Trainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
@@ -109,20 +108,41 @@ class Trainer:
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+
+        self.sgd_optimizer = torch.optim.SGD(
+            params=self.model.parameters(), lr=self.optimizer.param_groups[0]["lr"]
+        )
+        self.sgd_scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+
         self.reset_loss_stats()
 
     def after_backprop(self, step: int):
         self.pruner.after_backprop(step)
 
-    def optimize(self, loss, optimizer, step):
+    def optimize(
+        self,
+        optimizer: torch.optim.Optimizer,
+        scaler: Optional[torch.cuda.amp.grad_scaler.GradScaler],
+        loss: torch.Tensor,
+        step: int,
+        run_after_backprop: bool,
+    ):
         optimizer.zero_grad()
-        self.scaler.scale(loss).backward()
-        self.scaler.unscale_(optimizer)
 
-        self.after_backprop(step)
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+        else:
+            loss.backward()
 
-        self.scaler.step(optimizer)
-        self.scaler.update()
+        if run_after_backprop:
+            self.after_backprop(step)
+
+        if scaler is not None:
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            optimizer.step()
 
     def _pruning_step(self, step):
         if self.scheduler and self.scheduler.is_time_to_prune(step):
@@ -131,7 +151,6 @@ class Trainer:
     def update_loss_stats(self, losses: LossDict):
         for k, v in losses.items():
             self.running_losses[k] += v.item()
-        self.running_loss_steps += 1
 
     def reset_loss_stats(self):
         for k in self.running_losses.keys():
@@ -184,14 +203,11 @@ class Trainer:
         mask_loss = mask_loss.mean() / self.mask_percent
         return mask_loss
 
-    def _train_step(
+    def _task_train_step(
         self,
-        optimizer: torch.optim.Optimizer,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
-        log_auxiliary_loss: bool = True,
     ):
-        losses = {}
         self.model.train()
         processed_batch = dataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
@@ -202,12 +218,44 @@ class Trainer:
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            losses["mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
-            losses = update_losses_dict(losses, self.pruner.get_auxiliary_loss())
+            losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
+            self.update_loss_stats(losses)
+            scaled_losses = self.scale_losses(losses)
+            loss = sum(scaled_losses.values())
 
-        self.update_loss_stats(losses)
-        scaled_losses = self.scale_losses(losses)
-        self.optimize(loss=sum(scaled_losses.values()), optimizer=optimizer, step=step)
+        self.optimize(
+            optimizer=self.optimizer,
+            scaler=self.scaler,
+            loss=loss,
+            step=step,
+            run_after_backprop=True,
+        )
+
+    def _model_train_step(self, step: int):
+        self.model.train()
+        with torch.autocast(
+            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        ):
+            losses = self.pruner.get_auxiliary_loss()
+            self.update_loss_stats(losses)
+            scaled_losses = self.scale_losses(losses)
+            loss = sum(scaled_losses.values())
+
+        self.optimize(
+            optimizer=self.sgd_optimizer,
+            scaler=self.sgd_scaler,
+            loss=loss,
+            step=step,
+            run_after_backprop=False,
+        )
+
+    def _train_step(
+        self,
+        dataset: wikibookdata.ProcessedDataset,
+        step: int,
+    ):
+        self._task_train_step(dataset, step)
+        self._model_train_step(step)
 
     def _log_train_stats(self, step: int):
         if self.n_log_light_steps and step % self.n_log_light_steps == 0:
@@ -343,6 +391,13 @@ class Trainer:
 
         print("Neuron diff logged.")
 
+    def set_lr(self, lr: float):
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = lr
+
+        for param_group in self.sgd_optimizer.param_groups:
+            param_group["lr"] = lr
+
     def train(self, n_steps: int, n_steps_eval: int):
         # params for lr warmup
         target_lr = self.optimizer.param_groups[0]["lr"]
@@ -361,8 +416,7 @@ class Trainer:
             # lr warmup in the beginning
             if step <= self.lr_warmup_steps and self.lr_warmup_steps > 0:
                 lr = target_lr * step / self.lr_warmup_steps
-                for param_group in self.optimizer.param_groups:
-                    param_group["lr"] = lr
+                self.set_lr(lr)
 
             # tell the model to save activation stats if necessary:
             if self.n_log_heavy_steps and step % self.n_log_heavy_steps == 0:
@@ -376,8 +430,9 @@ class Trainer:
                 self.check_neuron_diff(step)
 
             self._pruning_step(step)
-            self._train_step(optimizer=self.optimizer, dataset=self.pdataset, step=step)
-            self._log_train_stats(step)  # check if it's the time and log stats
+            self._train_step(dataset=self.pdataset, step=step)
+            self.running_loss_steps += 1
+            self._log_train_stats(step)
             if step % self.log_acc_steps == 0:
                 self.logger.report_scalar(title="step", value=step, iteration=step)
             if step % n_steps_eval == 0:
@@ -419,6 +474,7 @@ class SetLRTemporarily:
 
 @define
 class RetrainTrainer(Trainer):
+    # TODO: totally split from Trainer
     pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
     retrain_warmup_steps: Optional[int] = None
     retrain_count: int = 0
