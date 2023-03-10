@@ -70,11 +70,6 @@ if __name__ == "__main__":
             f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
         )
 
-    name = next(iter(grid))["name"]
-    name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-    print(f"Creating branch {name_for_branch}")
-    version_code(name_for_branch, name_for_branch)
-
     total_minutes = no_experiments * minutes_per_exp
     user_input = input(
         f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
@@ -83,6 +78,11 @@ if __name__ == "__main__":
     if user_input.lower() not in ("", "y", "Y"):
         print("Aborting...")
         exit(1)
+
+    name = next(iter(grid))["name"]
+    name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+    print(f"Creating branch {name_for_branch}")
+    version_code(name_for_branch, name_for_branch)
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
