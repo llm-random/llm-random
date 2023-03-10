@@ -91,6 +91,25 @@ class StructPruneFF(nn.Module):
             self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
         )
 
+#TODO: Move to better place
+@ash.check("... d -> ... d")
+class QualityFF(nn.Module):
+    def __init__(self, dmodel: int, dff: int, pruner: Pruner, mask_percentage: float):
+        super().__init__()
+        self.lin1 = nn.Linear(dmodel, dff)
+        self.lin2 = nn.Linear(dff, dmodel)
+
+        self.mask = nn.parameter.Parameter(torch.ones([dff]), requires_grad=True)
+
+        pruner.register(self)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.lin1(x)
+        x = misc.einsum("... i, i -> ... i", x, self.mask)
+        x = F.relu(x)
+        x = self.lin2(x)
+        return x
+
 
 def prepare_tensor_for_logging(x, sample_size=2500):
     """Prepare tensor or tensors for logging by sampling it to a maximum of `sample_size` elements.

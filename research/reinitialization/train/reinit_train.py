@@ -269,6 +269,8 @@ logger = get_logger(args, model, VOCAB_SIZE)
 # set optimizer
 if args.ff_layer == "quality":
     assert args.optimizer == "adam"
+    #TODO SPLIT PARAMETERS
+
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
