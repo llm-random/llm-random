@@ -68,14 +68,16 @@ class NoiseFF(nn.Module):
         # apply lin2
         new_weights = (
             self.alpha * self.frozen_weights_2
-            + (1 - self.alpha) * self.target_weights_1
+            + (1 - self.alpha) * self.target_weights_2
         )
         self.lin2.weight.data = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin2.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - self.mask, new_weights)
+            "f, m f -> m f", self.mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - self.mask, new_weights)
 
         # update value of alpha
         self.alpha = self.alpha + 1 / self.n_steps_interpolate
+
+        # TODO: x is not applied!!!
 
         return x
 
@@ -110,7 +112,7 @@ class NoiseFF(nn.Module):
 
         new_weights = torch.normal(mean, std, size=layer.weight.shape)
 
-        return new_weights.to(self.device)
+        return new_weights.to(get_default_device())
 
     @property
     def neuron_magnitudes(self) -> torch.Tensor:
