@@ -129,6 +129,7 @@ if __name__ == "__main__":
                 "-G1",
                 "--cpus-per-gpu=8",
                 f"--job-name={name}",
+                f"--output=/net/people/plgrid/plgtodrzygozdz/out/{name}.out",
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),
                 "singularity",

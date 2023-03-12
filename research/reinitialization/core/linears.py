@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from lizrd.core import misc
 from lizrd.core.bert import decode_bias_string
 from lizrd.support import ash
+from lizrd.train import global_params
 from research.reinitialization.core.pruner import Pruner
 import plotly_express as px
 import numpy as np
@@ -99,13 +100,46 @@ class QualityFF(nn.Module):
         self.lin1 = nn.Linear(dmodel, dff)
         self.lin2 = nn.Linear(dff, dmodel)
 
-        self.mask = nn.parameter.Parameter(torch.ones([dff]), requires_grad=True)
+        self.mask = nn.parameter.Parameter(torch.zeros([dff]), requires_grad=True)
+        self.magnitude_scale = nn.parameter.Parameter(torch.ones([dff]), requires_grad=True)
+        self.mask_percentage = mask_percentage
 
         pruner.register(self)
 
+    def get_proper_sigmoid_bias(self):
+        #bin search proper bias: such that avg(sigmoid(mask + bias)) = mask_percentage
+        min_bias = -1000.
+        max_bias = 1000.
+        avg = -10.
+        while abs(avg - self.mask_percentage) > 0.00001:
+            bias = (min_bias + max_bias) / 2
+            avg = torch.sigmoid(self.mask + bias).mean()
+            if avg > self.mask_percentage:
+                max_bias = bias
+            else:
+                min_bias = bias
+        return bias
+
+
+    def get_mask_percentage(self):
+        return torch.sigmoid(self.mask + self.get_proper_sigmoid_bias())
+
+    def get_mask_sample(self):
+        return torch.bernoulli(self.get_mask_percentage())
+
+    def get_straight_through_mask(self):
+        return self.get_mask_sample().detach() + self.get_mask_percentage() - self.get_mask_percentage().detach()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
-        x = misc.einsum("... i, i -> ... i", x, self.mask)
+        if global_params.QUALITY_TRAIN_MODEL:
+            self.mask.requires_grad = True
+            self.magnitude_scale.requires_grad = True
+            x = misc.einsum("... i, i -> ... i", x, self.get_straight_through_mask())
+            x = misc.einsum("... i, i -> ... i", x, self.magnitude_scale)
+        else:
+            self.mask.requires_grad = False
+            self.magnitude_scale.requires_grad = False
         x = F.relu(x)
         x = self.lin2(x)
         return x

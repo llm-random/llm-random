@@ -574,10 +574,9 @@ class RetrainTrainer(Trainer):
 
 
 @define
-class AutoQualityTrainer(Trainer):
+class QualityTrainer(Trainer):
     quality_optimizer: torch.optim.Optimizer = None
-    pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
-    retrain_warmup_steps: Optional[int] = None
+    quality_scaler: torch.cuda.amp.GradScaler = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -597,7 +596,6 @@ class AutoQualityTrainer(Trainer):
     def _train_step(
         self,
         optimizer: torch.optim.Optimizer,
-        quality_optimizer: torch.optim.Optimizer,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
         log_auxiliary_loss: bool = True,
@@ -614,6 +612,7 @@ class AutoQualityTrainer(Trainer):
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
             losses["mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            loss_mask = losses["mask"]
             losses = update_losses_dict(losses, self.pruner.get_auxiliary_loss())
 
         self.update_loss_stats(losses)
@@ -626,6 +625,9 @@ class AutoQualityTrainer(Trainer):
         )
 
         global_params.QUALITY_TRAIN_MODEL = True
+        self.model.requires_grad_(False)
+
+        losses = {}
 
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
@@ -633,42 +635,17 @@ class AutoQualityTrainer(Trainer):
             losses["quality_mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
 
         self.update_loss_stats(losses)
+        self.update_loss_stats({'delta_loss': losses['quality_mask'] - loss_mask})
         scaled_losses = self.scale_losses(losses)
         self.optimize(
             self.quality_scaler,
             loss=sum(scaled_losses.values()),
-            optimizer=quality_optimizer,
+            optimizer=self.quality_optimizer,
             step=step,
         )
 
         global_params.QUALITY_TRAIN_MODEL = False
-
-    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
-        full_step = step + self.retrain_count
-        if full_step:
-            self.logger.report_scalar(
-                title="loss/train_total",
-                value=total_loss,
-                iteration=step,
-            )
-            self.logger.report_scalar(
-                title="full_loss/train_total",
-                value=total_loss,
-                iteration=full_step,
-            )
-            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
-            self.logger.report_scalar(
-                title="full_steps/lr",
-                value=self.optimizer.param_groups[0]["lr"],
-                iteration=full_step,
-            )
-            self.logger.report_scalar(
-                title="is_retraining",
-                value=0,
-                iteration=full_step,
-            )
-            if full_step % self.n_log_light_steps == 0:
-                self.pruner.log_light(full_step)
+        self.model.requires_grad_(True)
 
     def _log_quality_stats(
         self,

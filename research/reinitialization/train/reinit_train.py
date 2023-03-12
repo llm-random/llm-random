@@ -12,7 +12,7 @@ from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
     Trainer,
-    RetrainTrainer,
+    RetrainTrainer, QualityTrainer,
 )
 from research.reinitialization.core.scheduler import DelayedConstScheduler
 import os
@@ -84,6 +84,7 @@ parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
+parser.add_argument("--quality_mask_percentage", type=float, default=0.9)
 
 parser.add_argument("--mpl_reg_pow", type=float, required=False)
 parser.add_argument("--mpl_midpoint_type", type=str, default="mean")
@@ -98,8 +99,10 @@ args = parser.parse_args()
 
 if args.dff == "auto":
     args.dff = args.dmodel * 4
-else:
+elif type(args.dff) == int:
     args.dff = int(args.dff)
+else:
+    raise ValueError("dff must be auto or int")
 
 ATHENA_MEMORY_CONST = 21386706.2
 ENTROPY_MEMORY_CONST = 5.48e6
@@ -227,6 +230,8 @@ elif args.ff_layer == "loss_ff":
         transform_type=args.mpl_transform_type,
         pruner=pruner,
     )
+elif args.ff_layer == "quality":
+    ff_layer_fun = lambda: linears.QualityFF(dmodel=args.dmodel, dff=args.dff, pruner=pruner, mask_percentage=args.quality_mask_percentage)
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 
@@ -325,6 +330,8 @@ base_trainer_params = dict(
     neuron_diff_n_batches=args.neuron_diff_batches,
     losses_weights={
         "mask": args.mask_loss_weight,
+        "quality_mask": args.mask_loss_weight,
+        "delta_loss": 1.,
         "midpoint": args.midpoint_loss_weight,
         "decay": args.decay_loss_weight,
     },
@@ -346,6 +353,8 @@ if args.trainer_type == "retrain":
     )
 elif args.trainer_type == "regular":
     trainer = Trainer(**base_trainer_params)
+elif args.trainer_type == "quality":
+    trainer = QualityTrainer(**base_trainer_params, quality_optimizer=quality_optimizer)
 else:
     raise ValueError(f"trainer_type {args.trainer_type} not recognized")
 

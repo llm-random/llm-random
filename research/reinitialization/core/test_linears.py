@@ -3,6 +3,7 @@ import torch
 from research.reinitialization.core import linears
 
 from lizrd.support.test_utils import GeneralTestCase
+from research.reinitialization.core.linears import QualityFF
 from research.reinitialization.core.pruner import Pruner
 
 
@@ -114,6 +115,55 @@ class TestStructPruneFF(PruneFFTest):
         perc_nonzero = 100 * nonzero / torch.numel(ff_layer.mask)
         perc_nonzero = perc_nonzero.item()
         self.assertAlmostEqual(perc_nonzero, perc_nonzero_exp, 0)
+
+
+# class QualityFF(nn.Module):
+#     def __init__(self, dmodel: int, dff: int, pruner: Pruner, mask_percentage: float):
+#         super().__init__()
+#         self.lin1 = nn.Linear(dmodel, dff)
+#         self.lin2 = nn.Linear(dff, dmodel)
+#
+#         self.mask = nn.parameter.Parameter(torch.ones([dff]), requires_grad=True)
+#         self.mask_percentage = mask_percentage
+#
+#         pruner.register(self)
+#
+#     def get_proper_sigmoid_bias(self):
+#         #bin search proper bias: such that avg(sigmoid(mask + bias)) = mask_percentage
+#         min_bias = -1000.
+#         max_bias = 1000.
+#         while max_bias - min_bias > 1e-3:
+#             bias = (min_bias + max_bias) / 2
+#             avg = torch.sigmoid(self.mask + bias).mean()
+#             if avg > self.mask_percentage:
+#                 max_bias = bias
+#             else:
+#                 min_bias = bias
+#         return bias
+
+
+class TestQualityFF(GeneralTestCase):
+    def test_smoke(self):
+        pruner = Pruner()
+        QualityFF(10, 2, pruner, 0.5)
+        QualityFF(10, 1, pruner, 0.5)
+        QualityFF(5, 5, pruner, 0.5)
+
+    def test_get_proper_sigmoid_bias(self):
+        pruner = Pruner()
+        layer = QualityFF(10, 100, pruner, 0.5)
+        bias = layer.get_proper_sigmoid_bias()
+        avg = torch.sigmoid(layer.mask + bias).mean().item()
+        self.assertAlmostEqual(avg, 0.5, 4)
+
+    def test_get_proper_sigmoid_bias_2(self):
+        pruner = Pruner()
+        layer = QualityFF(10, 100, pruner, 0.1)
+        # set mask randomly. normal(0, 10)
+        layer.mask.data = torch.normal(0, 10, layer.mask.shape)
+        bias = layer.get_proper_sigmoid_bias()
+        avg = torch.sigmoid(layer.mask + bias).mean().item()
+        self.assertAlmostEqual(avg, 0.1, 4)
 
 
 class TestUnstructMagnitudePruneFF(TestUnstructPruneFF):

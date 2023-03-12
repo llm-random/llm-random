@@ -34,7 +34,7 @@ def version_code(
     os.chdir(newdir_path)
 
     # Push the code to the remote repo
-    push_code_to_url(branch_name, remote_url)
+    # push_code_to_url(branch_name, remote_url)
 
     print(f"Code pushed successfully to {remote_url} under branch {branch_name}")
 
