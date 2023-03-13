@@ -501,3 +501,143 @@ def FeedForwardMultineckNormed(
             ]
         )
     )
+
+
+def FeedForwardMultineckResidual(
+    dmodel,
+    dhead,
+    n_heads,
+    dff,
+):
+    assert dff % n_heads == 0, f"dff={dff} should be divisible by n_heads={n_heads}"
+
+    weight_shapes = {
+        "multineck_1": "nheads dmodel dhead",
+        "expand": "nheads dhead dff",
+        "contract": "nheads dff dhead",
+        "multineck_2": "nheads dhead dmodel",
+    }
+
+    bias_shapes = {
+        "multineck_1": "nheads dhead",
+        "expand": "nheads dff",
+        "contract": "nheads dhead",
+        "multineck_2": "dmodel",
+    }
+
+    assert None not in [weight_shapes, bias_shapes]
+
+    multineck_1 = EinMix(
+        "batch seqlen dmodel -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["multineck_1"],
+        bias_shape=bias_shapes["multineck_1"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    expand = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen (nheads dff)",
+        weight_shape=weight_shapes["expand"],
+        bias_shape=bias_shapes["expand"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    contract = EinMix(
+        "batch seqlen (nheads dff) -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["contract"],
+        bias_shape=bias_shapes["contract"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    multineck_2 = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen dmodel",
+        weight_shape=weight_shapes["multineck_2"],
+        bias_shape=bias_shapes["multineck_2"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+
+    return nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_expand", Residual(multineck_1)),
+                ("logging_expand", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_contract", contract),
+                ("logging_post_contract", Residual(multineck_2)),
+            ]
+        )
+    )
+
+
+def FeedForwardMultineckResidualNormed(
+    dmodel,
+    dhead,
+    n_heads,
+    dff,
+):
+    assert dff % n_heads == 0, f"dff={dff} should be divisible by n_heads={n_heads}"
+
+    weight_shapes = {
+        "multineck_1": "nheads dmodel dhead",
+        "expand": "nheads dhead dff",
+        "contract": "nheads dff dhead",
+        "multineck_2": "nheads dhead dmodel",
+    }
+
+    bias_shapes = {
+        "multineck_1": "nheads dhead",
+        "expand": "nheads dff",
+        "contract": "nheads dhead",
+        "multineck_2": "dmodel",
+    }
+
+    assert None not in [weight_shapes, bias_shapes]
+
+    multineck_1 = EinMix(
+        "batch seqlen dmodel -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["multineck_1"],
+        bias_shape=bias_shapes["multineck_1"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    expand = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen (nheads dff)",
+        weight_shape=weight_shapes["expand"],
+        bias_shape=bias_shapes["expand"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    contract = EinMix(
+        "batch seqlen (nheads dff) -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["contract"],
+        bias_shape=bias_shapes["contract"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    multineck_2 = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen dmodel",
+        weight_shape=weight_shapes["multineck_2"],
+        bias_shape=bias_shapes["multineck_2"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+
+    return nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_expand", Residual(multineck_1)),
+                ("logging_expand", expand),
+                ("relu", nn.ReLU(inplace=True)),
+                ("logging_contract", contract),
+                ("logging_post_contract", Residual(multineck_2)),
+            ]
+        )
+    )

@@ -14,6 +14,7 @@ from research.nonlinearities.train.utils import (
     get_ff_layer,
     get_attention_layer,
     divide_model_parameters,
+    WarmupScheduler,
 )
 
 parser = argparse.ArgumentParser()
@@ -30,7 +31,7 @@ parser.add_argument("--dff", type=int, default=1024)
 parser.add_argument("--n_att_heads", type=int, default=4)
 parser.add_argument("--n_blocks", type=int, default=4)
 parser.add_argument("--mixed_precision", action="store_false")
-parser.add_argument("--log_distributions", action="store_false")
+parser.add_argument("--log_distributions", action="store_true")
 parser.add_argument("--logging_frequency", type=int, default=1000)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
@@ -80,7 +81,7 @@ args.learning_rate_ff = (
 )
 print(args)
 
-if args.ff_mode == "vanilla" and args.learning_rate_ff > 0:
+if args.ff_mode == "vanilla" and args.learning_rate_ff < 0:
     pass
 else:
     TRAIN = True
@@ -121,9 +122,12 @@ model = get_model(
 optimizer = torch.optim.Adam(
     divide_model_parameters(model, args), lr=args.learning_rate
 )
+
+scheduler = WarmupScheduler(optimizer, warmup_steps=5000, min_lr_factor=0.01)
 trainer = NonlinearityTrainer(
     model=model,
     optimizer=optimizer,
+    scheduler=scheduler,
     train_dataloader=train_dataloader,
     batch_size=args.batch_size,
     vocab_size=VOCAB_SIZE,

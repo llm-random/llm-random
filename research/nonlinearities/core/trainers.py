@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 import torch
 import torch.nn.functional as F
@@ -21,6 +21,7 @@ from research.nonlinearities.train.utils import (
 class NonlinearityTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
+    scheduler: Any
     train_dataloader: wikibookdata.ProcessedDatasetWrapper
     batch_size: int
     vocab_size: int
@@ -44,6 +45,7 @@ class NonlinearityTrainer:
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
         self.scaler.update()
+        self.scheduler.step()
 
     def _train_step(
         self,

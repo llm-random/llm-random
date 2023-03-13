@@ -8,6 +8,32 @@ from research.nonlinearities.core import research_bert
 from research.nonlinearities.temporary_code import temp_research_bert
 
 
+class WarmupScheduler:
+    def __init__(self, optimizer, warmup_steps, min_lr_factor):
+        self.optimizer = optimizer
+        self.warmup_steps = warmup_steps
+        self.min_lr_factor = min_lr_factor
+        self.steps = 0
+        self.default_lrs = [
+            param_group["lr"] for param_group in self.optimizer.param_groups
+        ]
+
+    def step(self):
+        self.steps += 1
+        lrs = self.get_lrs()
+        for i, param_group in enumerate(self.optimizer.param_groups):
+            param_group["lr"] = lrs[i]
+
+    def get_lrs(self):
+        if self.steps < self.warmup_steps:
+            alpha = float(self.steps) / float(max(1, self.warmup_steps))
+            factor = self.min_lr_factor + alpha * (1.0 - self.min_lr_factor)
+            lrs = [factor * base_lr for base_lr in self.default_lrs]
+        else:
+            lrs = self.default_lrs
+        return lrs
+
+
 def divide_model_parameters(model, args):
     "Iterates over named modules of the model, and gathers them into two groups: for modules whose name includes \
     'forward' returns them separately with args.learning_rate_ff, while the rest uses the deafult args.learning_rate"
@@ -168,6 +194,23 @@ def get_ff_layer(args):
         )
     elif mode == "multineck_normed":
         ff_layer_type, ff_args = temp_research_bert.FeedForwardMultineckNormed, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.dff,
+        )
+    elif mode == "multineck_residual":
+        ff_layer_type, ff_args = temp_research_bert.FeedForwardMultineckResidual, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.dff,
+        )
+    elif mode == "multineck_residual_normed":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineckResidualNormed, (
             args.dmodel,
             args.d_ff_head,
             args.n_ff_heads,
