@@ -26,6 +26,7 @@ class NoiseFF(nn.Module):
         self.lin2 = misc.Linear(dff, dmodel)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         pruner.register(self)
+        self.dff = dff
 
         self.prune_ratio = prune_ratio
         self.n_steps_interpolate = n_steps_interpolate
@@ -56,6 +57,7 @@ class NoiseFF(nn.Module):
         self.latest_activations = x.detach().clone()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        input_x = x
         # make sure requires_grad is set correctly
         assert self.target_weights_1.requires_grad
         assert self.target_weights_2.requires_grad
@@ -64,8 +66,8 @@ class NoiseFF(nn.Module):
         assert not self.mask.requires_grad
 
         if self.alpha == 1.0:
-            self.prepare_mask()
             self.apply_new_weights()
+            self.prepare_mask()
 
         # apply lin1
         new_weights = (
@@ -93,7 +95,7 @@ class NoiseFF(nn.Module):
         # update value of alpha
         self.alpha = self.alpha + 1 / self.n_steps_interpolate
 
-        return x
+        return input_x
 
     def apply_new_weights(self):
         self.lin1.weight.data = misc.einsum(
@@ -104,16 +106,20 @@ class NoiseFF(nn.Module):
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.target_weights_2)
 
     def prepare_mask(self):
-        self.frozen_weights_1 = self.lin1.weight.detach().clone().requires_grad_(False)
-        self.frozen_weights_2 = self.lin2.weight.detach().clone().requires_grad_(False)
+        self.frozen_weights_1.copy_(
+            self.lin1.weight.detach().clone().requires_grad_(False)
+        )
+        self.frozen_weights_2.copy_(
+            self.lin2.weight.detach().clone().requires_grad_(False)
+        )
 
         # prepare target weights
-        self.target_weights_1 = self.get_new_weight(self.lin1)
-        self.target_weights_2 = self.get_new_weight(self.lin2)
+        self.target_weights_1.copy_(self.get_new_weight(self.lin1))
+        self.target_weights_2.copy_(self.get_new_weight(self.lin2))
 
         # prepare mask
         self.mask.fill_(1)
-        weights = self.neuron_magnitudes()
+        weights = self.neuron_magnitudes
 
         n_els_weights = torch.numel(weights)
         assert n_els_weights == self.dff
@@ -128,7 +134,7 @@ class NoiseFF(nn.Module):
 
         new_weights = torch.normal(mean, std, size=layer.weight.shape)
 
-        return new_weights  # .to(self.get_device())
+        return new_weights
 
     @property
     def neuron_magnitudes(self) -> torch.Tensor:
@@ -146,7 +152,7 @@ class NoiseFF(nn.Module):
         )
 
     def log_activations(self, layer_name: str, step: int):
-        values = self.latest_activations.sum(dim=[0, 1]).cpu().numpy()
+        values = self.latest_activations.sum(dim=[0, 1]).cpu().numpy().tolist()
         fig = px.histogram(values)
         log_plot(
             title="Average activations of all neurons",
@@ -156,7 +162,14 @@ class NoiseFF(nn.Module):
         )
 
     def log_activation_ratios(self, layer_name: str, step: int):
-        values = (self.latest_activations > 0).float().mean(dim=[0, 1]).cpu().numpy()
+        values = (
+            (self.latest_activations > 0)
+            .float()
+            .mean(dim=[0, 1])
+            .cpu()
+            .numpy()
+            .tolist()
+        )
         fig = px.histogram(values)
         log_plot(
             title="Average ratio of activation per neuron",
@@ -168,7 +181,7 @@ class NoiseFF(nn.Module):
     def log_activations_sampled(self, layer_name: str, step: int):
         x_flattened = self.latest_activations.flatten().cpu().numpy()
         random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
-        values = x_flattened[random_indices]
+        values = x_flattened[random_indices].tolist()
         fig = px.histogram(values)
         log_plot(
             title="Activations of sampled neurons",

@@ -237,6 +237,11 @@ class Trainer:
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
             losses = self.pruner.get_auxiliary_loss()
+
+            # return if there are no auxiliary losses to optimize
+            if len(losses) == 0:
+                return
+
             self.update_loss_stats(losses)
             scaled_losses = self.scale_losses(losses)
             loss = sum(scaled_losses.values())

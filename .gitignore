@@ -151,3 +151,5 @@ research/reinitialization/scripts/jk_scripts
 
 # jsons of jk
 jk_train/
+
+tmp_plots/
