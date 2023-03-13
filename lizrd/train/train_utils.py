@@ -1,3 +1,4 @@
+from collections import defaultdict
 import copy
 from typing import Callable, Optional
 
@@ -13,6 +14,11 @@ from lizrd.core import bert
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from lizrd.support.loss import (
+    LossDict,
+    RunningLossDict,
+    LossWeightDict,
+)
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
 from research.reinitialization.core.pruner import BasePruner
@@ -32,12 +38,10 @@ def get_model(
     embedding_layer = bert.EmbeddingLayer(
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
     )
-    encoder_tower = bert.EncoderTower(
-        n_blocks,
-        dm,
-        attention_layer_fun,
-        ff_layer_fun,
-    )
+
+    layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
+    # Python officially preserves dict order since 3.7, so we pass the layer dict
+    encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict)
     head = bert.PredictionHead(dm, vocab_size)
     model = bert.BERT(embedding_layer, encoder_tower, head)
 
@@ -72,7 +76,7 @@ def get_processed_dataset(
     )
 
 
-@define
+@define(slots=False)
 class Trainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
@@ -81,7 +85,6 @@ class Trainer:
     batch_size: int
     vocab_size: int
     mask_percent: float
-    mask_loss_weight: float
     modelpath: str
     pruner: BasePruner
     logger: AbstractLogger
@@ -95,60 +98,113 @@ class Trainer:
     running_total_loss: float = 0.0
     running_mask_loss: float = 0.0
     running_loss_steps: int = 0
-    auxiliary_loss_weight: float = 0.0
+    losses_weights: LossWeightDict = defaultdict(lambda: 0.0)
+    running_losses: RunningLossDict = defaultdict(lambda: 0.0)
     neuron_diff_dataset: Optional[wikibookdata.ProcessedDatasetWrapper] = None
     neuron_diff_sample_size: int = 1
     neuron_diff_n_samples: int = 100
     neuron_diff_n_batches: int = 10
+    lr_warmup_steps: int = 10_000
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+
+        self.sgd_optimizer = torch.optim.SGD(
+            params=self.model.parameters(), lr=self.optimizer.param_groups[0]["lr"]
+        )
+        self.sgd_scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+
         self.reset_loss_stats()
 
     def after_backprop(self, step: int):
         self.pruner.after_backprop(step)
 
-    def optimize(self, loss, optimizer, step):
+    def optimize(
+        self,
+        optimizer: torch.optim.Optimizer,
+        scaler: Optional[torch.cuda.amp.grad_scaler.GradScaler],
+        loss: torch.Tensor,
+        step: int,
+        run_after_backprop: bool,
+    ):
         optimizer.zero_grad()
-        self.scaler.scale(loss).backward()
-        self.scaler.unscale_(optimizer)
 
-        self.after_backprop(step)
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+        else:
+            loss.backward()
 
-        self.scaler.step(optimizer)
-        self.scaler.update()
+        if run_after_backprop:
+            self.after_backprop(step)
+
+        if scaler is not None:
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            optimizer.step()
 
     def _pruning_step(self, step):
         if self.scheduler and self.scheduler.is_time_to_prune(step):
             self.pruner.prune(self.scheduler.prob)
 
-    def update_loss_stats(self, total_loss, mask_loss):
-        self.running_total_loss += total_loss.item()
-        self.running_mask_loss += mask_loss.item()
-        self.running_loss_steps += 1
+    def update_loss_stats(self, losses: LossDict):
+        for k, v in losses.items():
+            self.running_losses[k] += v.item()
 
     def reset_loss_stats(self):
-        self.running_total_loss = 0.0
-        self.running_mask_loss = 0.0
+        for k in self.running_losses.keys():
+            self.running_losses[k] = 0.0
         self.running_loss_steps = 0
 
     def log_loss_stats(self, step):
+        total_loss = 0.0
+        for k, v in self.running_losses.items():
+            self.logger.report_scalar(
+                title="loss",
+                series=f"{k} (before scaling)",
+                value=v / self.running_loss_steps,
+                iteration=step,
+            )
+            scaled_loss = self.losses_weights[k] * v
+            self.logger.report_scalar(
+                title="loss",
+                series=f"{k} (after scaling)",
+                value=scaled_loss / self.running_loss_steps,
+                iteration=step,
+            )
+            total_loss += scaled_loss
         self.logger.report_scalar(
             title="loss",
-            series="train_total",
-            value=self.running_total_loss / self.running_loss_steps,
-            iteration=step,
-        )
-        self.logger.report_scalar(
-            title="loss",
-            series="train_mask",
-            value=self.running_mask_loss / self.running_loss_steps,
+            series=f"total loss (after scaling)",
+            value=total_loss / self.running_loss_steps,
             iteration=step,
         )
 
-    def _train_step(
+    def scale_losses(self, losses: dict) -> dict:
+        scaled_losses = dict()
+        for k, v in losses.items():
+            scaled_losses[k] = v * self.losses_weights[k]
+        return scaled_losses
+
+    def _get_mask_loss(
         self,
-        optimizer: torch.optim.Optimizer,
+        x_set: torch.Tensor,
+        y_token_set: torch.Tensor,
+        y_mask_set: torch.Tensor,
+    ) -> torch.Tensor:
+        model_output = self.model(x_set)
+        mask_loss = F.cross_entropy(
+            model_output.reshape(-1, self.vocab_size),
+            y_token_set.reshape(-1).long(),
+            reduction="none",
+        )
+        mask_loss *= y_mask_set.reshape(-1)  # only check masked words
+        mask_loss = mask_loss.mean() / self.mask_percent
+        return mask_loss
+
+    def _task_train_step(
+        self,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
@@ -162,60 +218,51 @@ class Trainer:
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            model_output = self.model(x_set)
-            mask_loss = F.cross_entropy(
-                model_output.reshape(-1, self.vocab_size),
-                y_token_set.reshape(-1).long(),
-                reduction="none",
-            )
-            mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-            mask_loss = mask_loss.mean() / self.mask_percent
-            scaled_mask_loss = mask_loss * self.mask_loss_weight
-            total_loss = scaled_mask_loss
+            losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
+            self.update_loss_stats(losses)
+            scaled_losses = self.scale_losses(losses)
+            loss = sum(scaled_losses.values())
 
-            auxiliary_loss = self.pruner.get_auxiliary_loss()
-            self.logger.report_scalar(
-                title="loss",
-                series="auxiliary (before scaling)",
-                value=auxiliary_loss.item(),
-                iteration=step,
-            )
-            auxiliary_loss *= self.auxiliary_loss_weight
-            self.logger.report_scalar(
-                title="loss",
-                series="auxiliary (after scaling)",
-                value=auxiliary_loss.item(),
-                iteration=step,
-            )
+        self.optimize(
+            optimizer=self.optimizer,
+            scaler=self.scaler,
+            loss=loss,
+            step=step,
+            run_after_backprop=True,
+        )
 
-            total_loss += auxiliary_loss
+    def _model_train_step(self, step: int):
+        self.model.train()
+        with torch.autocast(
+            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        ):
+            losses = self.pruner.get_auxiliary_loss()
+            self.update_loss_stats(losses)
+            scaled_losses = self.scale_losses(losses)
+            loss = sum(scaled_losses.values())
 
-        self.optimize(loss=total_loss, optimizer=optimizer, step=step)
-        self.update_loss_stats(total_loss, mask_loss)
+        self.optimize(
+            optimizer=self.sgd_optimizer,
+            scaler=self.sgd_scaler,
+            loss=loss,
+            step=step,
+            run_after_backprop=False,
+        )
 
-        return total_loss.item(), mask_loss.item()
+    def _train_step(
+        self,
+        dataset: wikibookdata.ProcessedDataset,
+        step: int,
+    ):
+        self._task_train_step(dataset, step)
+        self._model_train_step(step)
 
-    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
+    def _log_train_stats(self, step: int):
         if self.n_log_light_steps and step % self.n_log_light_steps == 0:
             self.pruner.log_light(step)
         if step and (step % self.log_acc_steps == 0):
             self.log_loss_stats(step)
             self.reset_loss_stats()
-
-    def _compute_loss(self, batch: wikibookdata.ProcessedBatch):
-        x_set = batch.masked_tokens
-        y_token_set = batch.tokens
-        y_mask_set = batch.mask_mask
-        model_output = self.model(x_set)
-        mask_loss = F.cross_entropy(
-            model_output.reshape(-1, self.vocab_size),
-            y_token_set.reshape(-1).long(),
-            reduction="none",
-        )
-        mask_loss *= y_mask_set.reshape(-1)
-        mask_loss = mask_loss.mean() / self.mask_percent
-        scaled_mask_loss = mask_loss * self.mask_loss_weight
-        return scaled_mask_loss
 
     def _eval_step(
         self,
@@ -230,9 +277,12 @@ class Trainer:
             for _ in range(sample):
                 processed_batch = self.pdataset_eval.get_batch()
                 assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-
-                scaled_mask_loss = self._compute_loss(processed_batch)
-                total_mask_loss += scaled_mask_loss.item()
+                mask_loss = self._get_mask_loss(
+                    x_set=processed_batch.masked_tokens,
+                    y_token_set=processed_batch.tokens,
+                    y_mask_set=processed_batch.mask_mask,
+                )
+                total_mask_loss += mask_loss.item()
             total_mask_loss /= sample
 
             if log_values:
@@ -260,6 +310,7 @@ class Trainer:
             for i in range(len(self.pruner.layers)):
                 results = np.zeros(self.neuron_diff_n_samples)
                 activation_ratios = np.zeros(self.neuron_diff_n_samples)
+                magnitudes = np.zeros(self.neuron_diff_n_samples)
 
                 for _ in range(self.neuron_diff_n_batches):
                     processed_batch = self.neuron_diff_dataset.get_batch()
@@ -276,18 +327,30 @@ class Trainer:
                         activation_ratios[
                             j
                         ] = self.pruner.get_activation_ratios_of_masked_neurons(i)
+                        magnitudes[j] = self.pruner.get_magnitudes_of_masked_neurons(i)
 
                 results /= self.neuron_diff_n_batches
                 activation_ratios /= self.neuron_diff_n_batches
+                magnitudes /= self.neuron_diff_n_batches
+                mean = results.mean()
                 results = results.tolist()
                 activation_ratios = activation_ratios.tolist()
+                magnitudes = magnitudes.tolist()
                 self.pruner.disable_neuron_diff()
 
                 # log neuron diffs
                 fig = px.histogram(results)
+                fig.add_vline(
+                    x=mean,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text="mean",
+                    annotation=dict(font_size=20),
+                    annotation_position="top right",
+                )
                 get_current_logger().report_plotly(
-                    title="Neuron quality difference",
-                    series=f"Layer {i}",
+                    title="Neuron quality (higher is better)",
+                    series=f"Layer {i+1}",
                     iteration=step,
                     figure=fig,
                 )
@@ -299,7 +362,8 @@ class Trainer:
                         y=activation_ratios,
                     )
                     fig.update_layout(
-                        xaxis_title="Quality", yaxis_title="Activation ratio"
+                        xaxis_title="Quality (Higher is better)",
+                        yaxis_title="Activation ratio",
                     )
                     get_current_logger().report_plotly(
                         title="Quality vs activation",
@@ -308,12 +372,39 @@ class Trainer:
                         figure=fig,
                     )
 
+                # Log scatter of neurn diff/magnitudes
+                if self.neuron_diff_sample_size == 1:
+                    fig = px.scatter(
+                        x=results,
+                        y=magnitudes,
+                    )
+                    fig.update_layout(
+                        xaxis_title="Quality (higher is better)",
+                        yaxis_title="Magnitude",
+                    )
+                    get_current_logger().report_plotly(
+                        title="Quality vs magnitude",
+                        series=f"Layer {i+1}",
+                        iteration=step,
+                        figure=fig,
+                    )
+
         print("Neuron diff logged.")
+
+    def set_lr(self, lr: float):
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = lr
+
+        for param_group in self.sgd_optimizer.param_groups:
+            param_group["lr"] = lr
 
     def train(self, n_steps: int, n_steps_eval: int):
         # params for lr warmup
         target_lr = self.optimizer.param_groups[0]["lr"]
-        warmup_steps = int(0.01 * n_steps)
+        if self.lr_warmup_steps > n_steps:
+            print(
+                f"Warning: lr_warmup_steps ({self.lr_warmup_steps}) is larger than n_steps ({n_steps})."
+            )
 
         if self.neuron_diff_dataset is not None:
             self.pruner.prepare_neuron_diff_idx(
@@ -323,10 +414,9 @@ class Trainer:
 
         for step in range(n_steps):
             # lr warmup in the beginning
-            if step <= warmup_steps and warmup_steps > 0:
-                lr = target_lr * step / warmup_steps
-                for param_group in self.optimizer.param_groups:
-                    param_group["lr"] = lr
+            if step <= self.lr_warmup_steps and self.lr_warmup_steps > 0:
+                lr = target_lr * step / self.lr_warmup_steps
+                self.set_lr(lr)
 
             # tell the model to save activation stats if necessary:
             if self.n_log_heavy_steps and step % self.n_log_heavy_steps == 0:
@@ -340,12 +430,9 @@ class Trainer:
                 self.check_neuron_diff(step)
 
             self._pruning_step(step)
-            total_loss, mask_loss = self._train_step(
-                optimizer=self.optimizer, dataset=self.pdataset, step=step
-            )
-            self._log_train_stats(
-                total_loss, mask_loss, step
-            )  # check if it's the time and log stats
+            self._train_step(dataset=self.pdataset, step=step)
+            self.running_loss_steps += 1
+            self._log_train_stats(step)
             if step % self.log_acc_steps == 0:
                 self.logger.report_scalar(title="step", value=step, iteration=step)
             if step % n_steps_eval == 0:
@@ -387,6 +474,7 @@ class SetLRTemporarily:
 
 @define
 class RetrainTrainer(Trainer):
+    # TODO: totally split from Trainer
     pdataset_retrain: Optional[wikibookdata.ProcessedDataset] = None
     retrain_warmup_steps: Optional[int] = None
     retrain_count: int = 0
@@ -503,7 +591,9 @@ class RetrainTrainer(Trainer):
             self.statistics_reset_steps = self.retrain_count
         with SetLRTemporarily(self.optimizer, 0.0):
             for _ in range(self.statistics_reset_steps):
-                self._train_step(retrain_optim, self.pdataset_retrain)
+                self._train_step(
+                    retrain_optim, self.pdataset_retrain, log_auxiliary_loss=False
+                )
         print("Optimizer stats reset.")
 
         # retrain
@@ -521,7 +611,10 @@ class RetrainTrainer(Trainer):
             retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr
 
             total_loss, mask_loss = self._train_step(
-                retrain_optim, self.pdataset_retrain, step=self.full_step(step)
+                retrain_optim,
+                self.pdataset_retrain,
+                step=self.full_step(step),
+                log_auxiliary_loss=False,
             )
             self._log_retrain_stats(total_loss, mask_loss, step, retrain_optim)
             self.retrain_count += 1

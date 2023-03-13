@@ -13,13 +13,14 @@ from time import sleep
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    multiply_grid,
     timestr_to_minutes,
     get_machine_backend,
     MachineBackend,
     get_grid_entrypoint,
     unpack_params,
 )
-from lizrd.support.code_versioning_support import version_code
+from lizrd.support.code_versioning_support import copy_and_version_code
 
 
 RUNNER = "research.reinitialization.train.reinit_train"
@@ -47,7 +48,8 @@ SINGULARITY_IMAGE = (
 )
 CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
-
+RUNS_MULTIPLIER = 1
+PUSH_TO_GIT = False
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -60,8 +62,12 @@ if __name__ == "__main__":
         GRES = grid_args.get("gres", GRES)
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
+        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
+        INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
+        PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
 
     grid = create_grid(PARAMS)
+    grid = multiply_grid(grid, RUNS_MULTIPLIER)
     no_experiments = len(grid)
     minutes_per_exp = timestr_to_minutes(TIME)
 
@@ -79,10 +85,14 @@ if __name__ == "__main__":
         print("Aborting...")
         exit(1)
 
-    name = next(iter(grid))["name"]
-    name_for_branch = f"{name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-    print(f"Creating branch {name_for_branch}")
-    version_code(name_for_branch, name_for_branch)
+    if not INTERACTIVE_DEBUG:
+        exp_name = next(iter(grid))["name"]
+        name_for_branch = (
+            f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+        )
+        copy_and_version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
+    else:
+        print(f"Running in debug mode, skip copying code to a new directory.")
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
@@ -117,11 +127,13 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
+            run_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
             subprocess_args = [
-                "sbatch",
+                run_command,
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 "--cpus-per-gpu=8",
+                "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),

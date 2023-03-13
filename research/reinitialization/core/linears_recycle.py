@@ -7,7 +7,7 @@ from torch.nn.init import kaiming_uniform_
 import numpy as np
 import plotly.express as px
 
-from lizrd.core.misc import Linear
+from lizrd.core.misc import Linear, get_default_device
 
 from lizrd.support.logging import (
     get_current_logger,
@@ -313,7 +313,7 @@ class RetrainRecycleFF(nn.Module):
         self.new_weights_2 = nn.Parameter(torch.empty_like(self.lin2.weight))
         pruner.register(self)
         self.mode = "regular"
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device(get_default_device())
         self.recycle_counter = torch.zeros(self.dff).to(device)
         self.recently_pruned = torch.full((dff,), False).to(device)
         self.current_activations = self.activation_ratio = np.zeros(dff)
@@ -383,13 +383,15 @@ class RetrainRecycleFF(nn.Module):
             self.current_activations = x.sum(dim=[0, 1]).detach().cpu().numpy()
             self.activation_ratio = (x > 0).float().mean(dim=[0, 1]).cpu().numpy()
             x_flattened = x.flatten().detach().cpu().numpy()
-            random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
+            random_indices = np.random.choice(
+                x_flattened.shape[0], min(x_flattened.shape[0], 1024), replace=False
+            )
             self.some_activations = x_flattened[random_indices]
             self.save_stats = False
 
     @property
     def neuron_magnitudes(self):
-        if self.mode == "regular":
+        if self.mode == "regular" or self.mode == "neuron_diff":
             weights1 = self.lin1.weight
             weights2 = self.lin2.weight
         elif self.mode == "new_neurons":
@@ -421,6 +423,9 @@ class RetrainRecycleFF(nn.Module):
 
     def activation_ratios_of_masked_neurons(self):
         return self.activation_ratio[self.neuron_diff_current_idx]
+
+    def neuron_magnitudes_of_masked_neurons(self):
+        return self.neuron_magnitudes[self.neuron_diff_current_idx]
 
     def disable_neuron_diff(self):
         self.mode = "regular"

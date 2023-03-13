@@ -175,7 +175,6 @@ def get_ff_layer(args):
             args.dmodel,
             args.dff,
         )
-
     elif mode == "overparametrized_residual":
         (
             ff_layer_type,

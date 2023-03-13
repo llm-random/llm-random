@@ -35,7 +35,7 @@ def split_params(params: dict) -> Tuple[list, list, list]:
     grids = []
     normals = []
     for k, v in params.items():
-        if k[0] in ["^"]:
+        if k[0] == "^":
             grids.append((k[1:], v))
         elif k[0] == "*":
             functions.append((k[1:], v))
@@ -158,6 +158,22 @@ def create_grid(params: dict) -> List[dict]:
         out_params.append(out_dict)
 
     return out_params
+
+
+def multiply_grid(param_sets: List[dict], runs_count: int) -> List[dict]:
+    assert runs_count > 0
+
+    if runs_count == 1:
+        return param_sets
+
+    out_params_sets = []
+    for param_set in param_sets:
+        for i in range(runs_count):
+            out_dict = copy.deepcopy(param_set)
+            out_dict["tags"].append(f"run={i+1}")
+            out_dict["tags"].append(f"num_runs={runs_count}")
+            out_params_sets.append(out_dict)
+    return out_params_sets
 
 
 def unpack_params(k, v):
