@@ -1,4 +1,6 @@
 import datetime
+import random
+import string
 from typing import Optional, List
 
 
@@ -17,3 +19,8 @@ def count_parameters(model, args, VOCAB_SIZE):
     pos_embedding_params = args.cutoff * args.dmodel
     model_n_params -= input_embedding_and_head_params + pos_embedding_params
     return model_n_params
+
+
+def generate_random_string(length: int) -> str:
+    letters = string.ascii_lowercase
+    return "".join(random.choice(letters) for i in range(length))

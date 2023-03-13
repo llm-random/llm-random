@@ -1,6 +1,3 @@
-import random
-import string
-
 import torch
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
@@ -174,11 +171,6 @@ def print_available_gpus():
         print("Found {} GPU(s)".format(count))
         for i in range(count):
             print("GPU {}: {}".format(i, torch.cuda.get_device_name(i)))
-
-
-def generate_random_string(length: int) -> str:
-    letters = string.ascii_lowercase
-    return "".join(random.choice(letters) for i in range(length))
 
 
 def are_state_dicts_the_same(

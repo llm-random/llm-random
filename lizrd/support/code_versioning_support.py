@@ -3,6 +3,8 @@ import subprocess
 import shutil
 import os
 
+from lizrd.support.misc import generate_random_string
+
 
 def copy_and_version_code(
     name_for_branch,
@@ -18,6 +20,7 @@ def copy_and_version_code(
     # Find git root directory
     root_dir = find_git_root()
     newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
+    random_string = generate_random_string(10)
 
     # Set up ignore patterns
     with open(os.path.join(root_dir, ".versioningignore")) as f:
@@ -27,13 +30,14 @@ def copy_and_version_code(
             for pattern in versioning_ignore_patterns
             if pattern != "" and pattern[0] != "#"
         ]
-        versioning_ignore_patterns = [p.strip() for p in versioning_ignore_patterns]
-        if not push_to_git:
-            versioning_ignore_patterns.append(".git")
+        versioning_ignore_patterns = [p.strip() for p in versioning_ignore_patterns] + [
+            ".git"
+        ]
+
     versioning_ignore_patterns = shutil.ignore_patterns(*versioning_ignore_patterns)
 
     print(f"Copying code to {newdir_path}...")
-    # Copy the project root directory to a new directory, ignoring files described in .gitignore
+    # Copy the project root directory to a new directory, ignoring files described in versioning_ignore_patterns
     shutil.copytree(root_dir, newdir_path, ignore=versioning_ignore_patterns)
     print(f"Code copied successfully to {newdir_path}")
 
@@ -41,12 +45,29 @@ def copy_and_version_code(
     os.chdir(newdir_path)
 
     if push_to_git:
+        tmp_dir = f"{root_dir}/tmp/{random_string}"
+        tmp_git_dir = f"{tmp_dir}/.git"
+        subprocess.run(
+            ["mkdir", "-p", tmp_dir],
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["cp", "-r", f".git", tmp_dir],
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["ln", "-s", tmp_git_dir, ".git"], capture_output=True, text=True
+        )
         print(f"Creating branch {name_for_branch}")
         # Push the code to the remote repo
         push_code_to_url(name_for_branch, remote_url)
         print(
             f"Code pushed successfully to {remote_url} under branch {name_for_branch}"
         )
+        subprocess.run(["rm", "-rf", tmp_dir], capture_output=True, text=True)
+        subprocess.run(["rm", ".git"], capture_output=True, text=True)
 
 
 def push_code_to_url(
