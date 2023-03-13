@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from lizrd.core import misc
 from research.reinitialization.core.pruner import Pruner
 import numpy as np
-from lizrd.core.misc import get_default_device
 from lizrd.support.logging import (
     get_current_logger,
     log_plot as log_plot,
@@ -31,36 +30,52 @@ class NoiseFF(nn.Module):
         self.prune_ratio = prune_ratio
         self.n_steps_interpolate = n_steps_interpolate
 
-        self.mask = torch.ones(dff, device=get_default_device(), requires_grad=False)
-        self.frozen_weights_1 = (
-            self.lin1.weight.data.detach().clone().requires_grad_(False)
+        self.register_buffer("mask", torch.ones(dff, requires_grad=False))
+        self.register_buffer(
+            "frozen_weights_1",
+            self.lin1.weight.data.detach().clone().requires_grad_(False),
         )
-        self.frozen_weights_2 = (
-            self.lin2.weight.data.detach().clone().requires_grad_(False)
+        self.register_buffer(
+            "frozen_weights_2",
+            self.lin2.weight.data.detach().clone().requires_grad_(False),
         )
-        self.target_weights_1 = (
-            self.lin1.weight.data.detach().clone().requires_grad_(True)
+
+        self.target_weights_1 = torch.nn.Parameter(
+            self.lin1.weight.detach().clone().requires_grad_(True)
         )
-        self.target_weights_2 = (
-            self.lin2.weight.data.detach().clone().requires_grad_(True)
+        self.target_weights_2 = torch.nn.Parameter(
+            self.lin2.weight.detach().clone().requires_grad_(True)
         )
+
         self.alpha = 0.0
+
+    def get_device(self):
+        return self.lin1.weight.device
 
     def _save_activation_stats(self, x: torch.Tensor):
         self.latest_activations = x.detach().clone()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.alpha == 1:
+        # make sure requires_grad is set correctly
+        assert self.target_weights_1.requires_grad
+        assert self.target_weights_2.requires_grad
+        assert not self.frozen_weights_1.requires_grad
+        assert not self.frozen_weights_2.requires_grad
+        assert not self.mask.requires_grad
+
+        if self.alpha == 1.0:
             self.prepare_mask()
+            self.apply_new_weights()
 
         # apply lin1
         new_weights = (
             self.alpha * self.frozen_weights_1
             + (1 - self.alpha) * self.target_weights_1
         )
-        self.lin1.weight.data = misc.einsum(
+        weight_1 = misc.einsum(
             "f, f m -> f m", self.mask, self.lin1.weight.data
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, new_weights)
+        x = misc.einsum("... m, f m -> ... f", x, weight_1)
 
         self._save_activation_stats(x)
         x = F.relu(x)
@@ -70,33 +85,34 @@ class NoiseFF(nn.Module):
             self.alpha * self.frozen_weights_2
             + (1 - self.alpha) * self.target_weights_2
         )
-        self.lin2.weight.data = misc.einsum(
+        weights_2 = misc.einsum(
             "f, m f -> m f", self.mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, new_weights)
+        x = misc.einsum("... f, m f -> ... m", x, weights_2)
 
         # update value of alpha
         self.alpha = self.alpha + 1 / self.n_steps_interpolate
 
-        # TODO: x is not applied!!!
-
         return x
 
+    def apply_new_weights(self):
+        self.lin1.weight.data = misc.einsum(
+            "f, f m -> f m", self.mask, self.lin1.weight
+        ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.target_weights_1)
+        self.lin2.weight.data = misc.einsum(
+            "f, m f -> m f", self.mask, self.lin2.weight
+        ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.target_weights_2)
+
     def prepare_mask(self):
-        self.frozen_weights_1 = (
-            self.lin1.weight.data.detach().clone().requires_grad_(False)
-        )
-        self.frozen_weights_2 = (
-            self.lin2.weight.data.detach().clone().requires_grad_(False)
-        )
+        self.frozen_weights_1 = self.lin1.weight.detach().clone().requires_grad_(False)
+        self.frozen_weights_2 = self.lin2.weight.detach().clone().requires_grad_(False)
 
         # prepare target weights
         self.target_weights_1 = self.get_new_weight(self.lin1)
         self.target_weights_2 = self.get_new_weight(self.lin2)
 
         # prepare mask
-        self.mask = torch.ones(
-            self.dff, device=get_default_device(), requires_grad=False
-        )
+        self.mask.fill_(1)
         weights = self.neuron_magnitudes()
 
         n_els_weights = torch.numel(weights)
@@ -112,7 +128,7 @@ class NoiseFF(nn.Module):
 
         new_weights = torch.normal(mean, std, size=layer.weight.shape)
 
-        return new_weights.to(get_default_device())
+        return new_weights  # .to(self.get_device())
 
     @property
     def neuron_magnitudes(self) -> torch.Tensor:

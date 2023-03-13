@@ -84,13 +84,16 @@ if __name__ == "__main__":
         print(f"Running in debug mode, skipping branch creation.")
 
     total_minutes = no_experiments * minutes_per_exp
-    user_input = input(
+
+    print(
         f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-        f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+        f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \n"
     )
-    if user_input.lower() not in ("", "y", "Y"):
-        print("Aborting...")
-        exit(1)
+    if not INTERACTIVE_DEBUG:
+        user_input = input("Continue? [Y/n] ")
+        if user_input.lower() not in ("", "y", "Y"):
+            print("Aborting...")
+            exit(1)
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
