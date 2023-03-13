@@ -50,6 +50,8 @@ class NoiseFF(nn.Module):
 
         self.alpha = 0.0
 
+        self.noise_enabled = False
+
     def get_device(self):
         return self.lin1.weight.device
 
@@ -65,9 +67,13 @@ class NoiseFF(nn.Module):
         assert not self.frozen_weights_2.requires_grad
         assert not self.mask.requires_grad
 
-        if self.alpha == 1.0:
-            self.apply_new_weights()
-            self.prepare_mask()
+        if self.noise_enabled:
+            # update value of alpha
+            self.alpha = self.alpha + 1 / self.n_steps_interpolate
+
+            if self.alpha > 1.0:
+                self.apply_new_weights()
+                self.prepare_mask()
 
         # apply lin1
         new_weights = (
@@ -92,10 +98,10 @@ class NoiseFF(nn.Module):
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, new_weights)
         x = misc.einsum("... f, m f -> ... m", x, weights_2)
 
-        # update value of alpha
-        self.alpha = self.alpha + 1 / self.n_steps_interpolate
-
         return input_x
+
+    def enable_noise_interpolation(self):
+        self.noise_enabled = True
 
     def apply_new_weights(self):
         self.lin1.weight.data = misc.einsum(

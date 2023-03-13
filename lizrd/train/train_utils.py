@@ -105,6 +105,7 @@ class Trainer:
     neuron_diff_n_samples: int = 100
     neuron_diff_n_batches: int = 10
     lr_warmup_steps: int = 10_000
+    noise_interpolation_delay: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -433,6 +434,10 @@ class Trainer:
                 and step % self.n_log_heavy_steps == 0
             ):
                 self.check_neuron_diff(step)
+
+            # tell the model that noise interpolation delay is finished (if necessary)
+            if step == self.noise_interpolation_delay:
+                self.pruner.enable_noise_interpolation()
 
             self._pruning_step(step)
             self._train_step(dataset=self.pdataset, step=step)
