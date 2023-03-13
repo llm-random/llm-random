@@ -75,15 +75,6 @@ if __name__ == "__main__":
             f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
         )
 
-    if not INTERACTIVE_DEBUG:
-        exp_name = next(iter(grid))["name"]
-        name_for_branch = (
-            f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-        )
-        copy_and_version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
-    else:
-        print(f"Running in debug mode, skip copying code to a new directory.")
-
     total_minutes = no_experiments * minutes_per_exp
     user_input = input(
         f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
@@ -92,6 +83,15 @@ if __name__ == "__main__":
     if user_input.lower() not in ("", "y", "Y"):
         print("Aborting...")
         exit(1)
+
+    if not INTERACTIVE_DEBUG:
+        exp_name = next(iter(grid))["name"]
+        name_for_branch = (
+            f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+        )
+        copy_and_version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
+    else:
+        print(f"Running in debug mode, skip copying code to a new directory.")
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
