@@ -66,6 +66,7 @@ class NoiseFF(nn.Module):
         assert not self.frozen_weights_2.requires_grad
         assert not self.mask.requires_grad
 
+        # noise interpolation is not applied before n_delay_steps controlled by Trainer
         if self.noise_enabled:
             # update value of alpha
             self.alpha = self.alpha + 1 / self.n_steps_interpolate
