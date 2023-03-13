@@ -59,7 +59,6 @@ class NoiseFF(nn.Module):
         self.latest_activations = x.detach().clone()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        input_x = x
         # make sure requires_grad is set correctly
         assert self.target_weights_1.requires_grad
         assert self.target_weights_2.requires_grad
@@ -98,7 +97,7 @@ class NoiseFF(nn.Module):
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, new_weights)
         x = misc.einsum("... f, m f -> ... m", x, weights_2)
 
-        return input_x
+        return x
 
     def enable_noise_interpolation(self):
         self.noise_enabled = True
