@@ -53,7 +53,7 @@ def version_code(
     subprocess.run(["ln", "-s", tmp_git_dir, ".git"], capture_output=True, text=True)
 
     # Push the code to the remote repo
-    push_code_to_url(branch_name, remote_url)
+    # push_code_to_url(branch_name, remote_url)
 
     subprocess.run(["rm", "-rf", tmp_dir], capture_output=True, text=True)
     subprocess.run(["rm", ".git"], capture_output=True, text=True)

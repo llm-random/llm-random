@@ -120,8 +120,8 @@ class NoiseFF(nn.Module):
         )
 
         # prepare target weights
-        self.target_weights_1.copy_(self.get_new_weight(self.lin1))
-        self.target_weights_2.copy_(self.get_new_weight(self.lin2))
+        self.target_weights_1.data = self.get_new_weight(self.lin1)
+        self.target_weights_2.data = self.get_new_weight(self.lin2)
 
         # prepare mask
         self.mask.fill_(1)
@@ -138,7 +138,9 @@ class NoiseFF(nn.Module):
         std = layer.weight.std().detach().cpu().item()
         mean = layer.weight.mean().detach().cpu().item()
 
-        new_weights = torch.normal(mean, std, size=layer.weight.shape)
+        new_weights = torch.normal(
+            mean, std, size=layer.weight.shape, device=self.get_device()
+        )
 
         return new_weights
 
