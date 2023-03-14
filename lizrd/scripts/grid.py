@@ -42,9 +42,6 @@ PARAMS = {
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
 DRY_RUN = False
-SINGULARITY_IMAGE = (
-    "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
-)
 CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
@@ -52,6 +49,14 @@ PUSH_TO_GIT = False
 
 if __name__ == "__main__":
     runner = get_machine_backend()
+    if runner == MachineBackend.ATHENA:
+        SINGULARITY_IMAGE = "/net/tscratch/people/plgmaciejpioro/images/sparsity_2023.02.12_21.20.53.sif"
+    elif runner == MachineBackend.IDEAS:
+        SINGULARITY_IMAGE = (
+            "/raid/NFS_SHARE/home/maciej.pioro/images/sparsity_2023.02.12_21.20.53.sif"
+        )
+    else:
+        SINGULARITY_IMAGE = None
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -84,6 +89,8 @@ if __name__ == "__main__":
         print("Aborting...")
         exit(1)
 
+    slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
+
     if not INTERACTIVE_DEBUG:
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
@@ -112,7 +119,7 @@ if __name__ == "__main__":
                 runner_params.append(v)
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
-                "sbatch",
+                slurm_command,
                 "--partition=common",
                 "--qos=16gpu7d",
                 f"--gres={GRES}",
@@ -125,9 +132,8 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
-            run_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
             subprocess_args = [
-                run_command,
+                slurm_command,
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 "--cpus-per-gpu=8",
@@ -140,6 +146,25 @@ if __name__ == "__main__":
                 "--bind=/net:/net",
                 "--env HF_DATASETS_CACHE=/net/pr2/projects/plgrid/plggllmeffi/.cache",
                 f"-B={CODE_PATH}:/sparsity",
+                "--nv",
+                SINGULARITY_IMAGE,
+                "python3",
+                "-m",
+                RUNNER,
+                *runner_params,
+            ]
+        elif runner == MachineBackend.IDEAS:
+            subprocess_args = [
+                slurm_command,
+                "-G1",
+                "--cpus-per-gpu=8",
+                f"--job-name={name}",
+                f"--time={TIME}",
+                get_grid_entrypoint(runner),
+                "singularity",
+                "run",
+                f"-B={CODE_PATH}:/sparsity",
+                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/maciej.pioro/.cache",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
