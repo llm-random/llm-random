@@ -136,10 +136,9 @@ class NoiseFF(nn.Module):
 
     def get_new_weight(self, layer):
         std = layer.weight.std().detach().cpu().item()
-        midpoint = layer.weight.median().detach().cpu().item()
 
-        new_weights = torch.normal(
-            midpoint, std, size=layer.weight.shape, device=self.get_device()
+        new_weights = layer.weight.detach().clone() + torch.normal(
+            0, std, size=layer.weight.shape, device=self.get_device()
         )
 
         return new_weights
