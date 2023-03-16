@@ -48,7 +48,7 @@ class NoiseFF(nn.Module):
             self.lin2.weight.detach().clone().requires_grad_(True)
         )
 
-        self.alpha = 0.0
+        self.alpha = 1.0
 
         self.noise_enabled = False
 
