@@ -81,13 +81,11 @@ if __name__ == "__main__":
         )
 
     total_minutes = no_experiments * minutes_per_exp
-
-    print(
-        f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-        f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \n"
-    )
-    if not INTERACTIVE_DEBUG:
-        user_input = input("Continue? [Y/n] ")
+    if not runner == MachineBackend.LOCAL:
+        user_input = input(
+            f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
+            f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+        )
         if user_input.lower() not in ("", "y", "Y"):
             print("Aborting...")
             exit(1)

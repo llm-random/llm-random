@@ -22,6 +22,7 @@ class BaseLossFF(nn.Module):
         midpoint_type: str,
         transform_type: str,
         pruner: Pruner,
+        aggregation_type: str = "regular",
     ):
         super().__init__()
         self.reg_pow = reg_pow
@@ -30,6 +31,8 @@ class BaseLossFF(nn.Module):
         self.midpoint_type = midpoint_type
         assert transform_type in ["linear", "log"]
         self.transform_type = transform_type
+        assert aggregation_type in ["regular", "concat", "mixed", "dmodel"]
+        self.aggregation_type = aggregation_type
 
         self.lin1 = misc.Linear(dmodel, dff)
         self.lin2 = misc.Linear(dff, dmodel)
@@ -62,7 +65,7 @@ class BaseLossFF(nn.Module):
         )
 
     def log_activations(self, layer_name: str, step: int):
-        values = self.latest_activations.sum(dim=[0, 1]).cpu().numpy()
+        values = self.latest_activations.sum(dim=[0, 1]).cpu().numpy().tolist()
         fig = px.histogram(values)
         log_plot(
             title="Average activations of all neurons",
@@ -72,7 +75,14 @@ class BaseLossFF(nn.Module):
         )
 
     def log_activation_ratios(self, layer_name: str, step: int):
-        values = (self.latest_activations > 0).float().mean(dim=[0, 1]).cpu().numpy()
+        values = (
+            (self.latest_activations > 0)
+            .float()
+            .mean(dim=[0, 1])
+            .cpu()
+            .numpy()
+            .tolist()
+        )
         fig = px.histogram(values)
         log_plot(
             title="Average ratio of activation per neuron",
@@ -84,7 +94,7 @@ class BaseLossFF(nn.Module):
     def log_activations_sampled(self, layer_name: str, step: int):
         x_flattened = self.latest_activations.flatten().cpu().numpy()
         random_indices = np.random.choice(x_flattened.shape[0], 1024, replace=False)
-        values = x_flattened[random_indices]
+        values = x_flattened[random_indices].tolist()
         fig = px.histogram(values)
         log_plot(
             title="Activations of sampled neurons",
@@ -106,10 +116,18 @@ class BaseLossFF(nn.Module):
             get_current_logger().flush_if_necessary()
 
     def get_midpoint_loss(self) -> torch.Tensor:
-        magnitudes = self.neuron_magnitudes
-
-        if self.transform_type == "log":
-            magnitudes = torch.log(magnitudes + 1e-6)
+        if self.aggregation_type == "concat":
+            magnitudes = misc.get_split_neuron_magnitudes(
+                self.lin1.weight, self.lin2.weight
+            )
+        elif self.aggregation_type == "mixed":
+            magnitudes = misc.get_mixed_neuron_magnitudes(
+                self.lin1.weight, self.lin2.weight
+            )
+        elif self.aggregation_type == "dmodel":
+            magnitudes = misc.get_dmodel_magnitudes(self.lin1.weight, self.lin2.weight)
+        else:
+            magnitudes = self.neuron_magnitudes
 
         if self.midpoint_type == "median":
             midpoint = magnitudes.median().detach()
