@@ -22,8 +22,8 @@ class NoiseFF(nn.Module):
     ):
         super().__init__()
 
-        self.lin1 = misc.Linear(dmodel, dff)
-        self.lin2 = misc.Linear(dff, dmodel)
+        self.lin1 = misc.Linear(dmodel, dff, bias=False)
+        self.lin2 = misc.Linear(dff, dmodel, bias=False)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         pruner.register(self)
         self.dff = dff
@@ -39,13 +39,6 @@ class NoiseFF(nn.Module):
         self.register_buffer(
             "frozen_weights_2",
             self.lin2.weight.data.detach().clone().requires_grad_(False),
-        )
-
-        self.target_weights_1 = torch.nn.Parameter(
-            self.lin1.weight.detach().clone().requires_grad_(True)
-        )
-        self.target_weights_2 = torch.nn.Parameter(
-            self.lin2.weight.detach().clone().requires_grad_(True)
         )
 
         self.alpha = 1.0
@@ -65,6 +58,7 @@ class NoiseFF(nn.Module):
         assert not self.frozen_weights_1.requires_grad
         assert not self.frozen_weights_2.requires_grad
         assert not self.mask.requires_grad
+        assert self.mask.shape == (self.dff,)
 
         # noise interpolation is not applied before n_delay_steps controlled by Trainer
         if self.noise_enabled:
@@ -73,43 +67,29 @@ class NoiseFF(nn.Module):
 
             if self.alpha > 1.0:
                 self.alpha = 0.0
-                self.apply_new_weights()
                 self.prepare_mask()
 
         # apply lin1
-        new_weights = (
-            1 - self.alpha
-        ) * self.frozen_weights_1 + self.alpha * self.target_weights_1
-        weight_1 = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - self.mask, new_weights)
-        x = misc.einsum("... m, f m -> ... f", x, weight_1)
+        weight = self.mask * self.lin1.weight.data + (1 - self.mask) * (
+            (1 - self.alpha) * self.frozen_weights_1
+            + self.alpha * self.lin1.weight.data
+        )
+        x = misc.einsum("... m, f m -> ... f", x, weight)
 
         self._save_activation_stats(x)
         x = F.relu(x)
 
         # apply lin2
-        new_weights = (
-            self.alpha * self.frozen_weights_2
-            + (1 - self.alpha) * self.target_weights_2
+        weight = self.mask * self.lin2.weight.data + (1 - self.mask) * (
+            (1 - self.alpha) * self.frozen_weights_2
+            + self.alpha * self.lin2.weight.data
         )
-        weights_2 = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.data
-        ) + misc.einsum("f, m f -> m f", 1 - self.mask, new_weights)
-        x = misc.einsum("... f, m f -> ... m", x, weights_2)
+        x = misc.einsum("... f, m f -> ... m", x, weight)
 
         return x
 
     def enable_noise_interpolation(self):
         self.noise_enabled = True
-
-    def apply_new_weights(self):
-        self.lin1.weight.data = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight
-        ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.target_weights_1)
-        self.lin2.weight.data = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight
-        ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.target_weights_2)
 
     def prepare_mask(self):
         self.frozen_weights_1.copy_(
@@ -118,10 +98,6 @@ class NoiseFF(nn.Module):
         self.frozen_weights_2.copy_(
             self.lin2.weight.detach().clone().requires_grad_(False)
         )
-
-        # prepare target weights
-        self.target_weights_1.data = self.get_new_weight(self.lin1)
-        self.target_weights_2.data = self.get_new_weight(self.lin2)
 
         # prepare mask
         self.mask.fill_(1)
@@ -133,6 +109,14 @@ class NoiseFF(nn.Module):
         n_to_prune = round(self.prune_ratio * n_els_weights)
         topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
         self.mask[topk.indices] = 0
+
+        # prepare target weights
+        self.lin1.weight.data = self.mask * self.lin1.weight.data + (
+            1 - self.mask
+        ) * self.get_new_weight(self.lin1)
+        self.lin2.weight.data = self.mask * self.lin2.weight.data + (
+            1 - self.mask
+        ) * self.get_new_weight(self.lin2)
 
     def get_new_weight(self, layer):
         std = layer.weight.std().detach().cpu().item()
