@@ -99,6 +99,7 @@ parser.add_argument("--model_load_path", type=str, default=None)
 parser.add_argument("--noise_ff_prune_ratio", type=float, required=False)
 parser.add_argument("--noise_ff_n_steps", type=int, required=False)
 parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
+parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
 
 args = parser.parse_args()
 
@@ -354,6 +355,7 @@ base_trainer_params = dict(
         "decay": args.decay_loss_weight,
     },
     noise_interpolation_delay=args.noise_interpolation_delay,
+    lr_warmup_steps=args.lr_warmup_steps,
 )
 
 if args.trainer_type == "retrain":
