@@ -437,8 +437,6 @@ def FeedForwardMultineckNormed(
     n_heads,
     dff,
 ):
-    assert dff % n_heads == 0, f"dff={dff} should be divisible by n_heads={n_heads}"
-
     weight_shapes = {
         "multineck_1": "nheads dmodel dhead",
         "expand": "nheads dhead dff",

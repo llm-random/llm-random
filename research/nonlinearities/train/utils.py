@@ -9,10 +9,9 @@ from research.nonlinearities.temporary_code import temp_research_bert
 
 
 class WarmupScheduler:
-    def __init__(self, optimizer, warmup_steps, min_lr_factor):
+    def __init__(self, optimizer, warmup_steps):
         self.optimizer = optimizer
         self.warmup_steps = warmup_steps
-        self.min_lr_factor = min_lr_factor
         self.steps = 0
         self.default_lrs = [
             param_group["lr"] for param_group in self.optimizer.param_groups
@@ -27,8 +26,7 @@ class WarmupScheduler:
     def get_lrs(self):
         if self.steps < self.warmup_steps:
             alpha = float(self.steps) / float(max(1, self.warmup_steps))
-            factor = self.min_lr_factor + alpha * (1.0 - self.min_lr_factor)
-            lrs = [factor * base_lr for base_lr in self.default_lrs]
+            lrs = [alpha * base_lr for base_lr in self.default_lrs]
         else:
             lrs = self.default_lrs
         return lrs
