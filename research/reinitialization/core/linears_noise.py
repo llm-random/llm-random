@@ -72,14 +72,14 @@ class NoiseFF(nn.Module):
             self.alpha = self.alpha + 1 / self.n_steps_interpolate
 
             if self.alpha > 1.0:
+                self.alpha = 0.0
                 self.apply_new_weights()
                 self.prepare_mask()
 
         # apply lin1
         new_weights = (
-            self.alpha * self.frozen_weights_1
-            + (1 - self.alpha) * self.target_weights_1
-        )
+            1 - self.alpha
+        ) * self.frozen_weights_1 + self.alpha * self.target_weights_1
         weight_1 = misc.einsum(
             "f, f m -> f m", self.mask, self.lin1.weight.data
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, new_weights)
