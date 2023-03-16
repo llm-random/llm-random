@@ -509,7 +509,7 @@ class RetrainRecycleFF(nn.Module):
         values = tensor.tolist()
         fig = px.histogram(values)
         log_plot(
-            title="Magnitude of all neurons",
+            title="Magnitude of all neurons (no square)",
             series=layer_name,
             iteration=step,
             figure=fig,

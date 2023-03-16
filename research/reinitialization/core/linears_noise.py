@@ -134,11 +134,11 @@ class NoiseFF(nn.Module):
         return misc.get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
 
     def log_magnitude(self, layer_name, step: int):
-        tensor = (self.neuron_magnitudes**2).flatten().cpu()
+        tensor = self.neuron_magnitudes.flatten().cpu()
         values = tensor.tolist()
         fig = px.histogram(values)
         log_plot(
-            title="Magnitude of all neurons",
+            title="Magnitude of all neurons (no square)",
             series=layer_name,
             iteration=step,
             figure=fig,
