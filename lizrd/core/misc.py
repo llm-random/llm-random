@@ -3,6 +3,7 @@ from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
 from lizrd.core import nn
 from lizrd.support import ash
+from torch.utils.checkpoint import checkpoint
 
 
 class Noop(nn.Module):
@@ -148,6 +149,36 @@ class Aggregate(nn.Module):
             else:
                 result = self.function(result, layer(x))
         return result
+
+
+class Chunked(nn.Module):
+    """
+    Wraps a module to be called on chunks of the input, forgetting the intermediate results and activations. Those are recomputed during the backward pass.
+    The way to implement a "forgetful" call of the wrapped module is to wrap its call in `checkpoint`, which takes output of self.custom as input.
+    """
+
+    def __init__(self, module, n_chunks):
+        super(Chunked, self).__init__()
+        self.module = module
+        self.n_chunks = n_chunks
+
+    def custom(self):
+        def custom_forward(*inputs):
+            output = self.module(inputs[0])
+            return output
+
+        return custom_forward
+
+    def forward(self, x):
+        output = []
+        chunked_inputs = torch.chunk(x, self.n_chunks, dim=0)
+        for chunked_input in chunked_inputs:
+            partial_output = checkpoint(
+                self.custom(),
+                chunked_input,
+            )
+            output.append(partial_output)
+        return torch.cat(output, dim=0)
 
 
 def Sum(*layers):
