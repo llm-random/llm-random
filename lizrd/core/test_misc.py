@@ -1,7 +1,7 @@
 import torch
 
 from lizrd.core import misc
-from lizrd.core.misc import Chunked
+from lizrd.core.misc import Chungus
 from lizrd.support.test_utils import GeneralTestCase
 
 
@@ -86,27 +86,27 @@ class TestChungus(GeneralTestCase):
             torch.nn.Linear(20, 70),
         )
 
-        model_chunked = torch.nn.Sequential(
+        model_chunged = torch.nn.Sequential(
             torch.nn.Linear(100, 20),
-            Chunked(torch.nn.Linear(20, 20), n_chunks=2),
+            Chungus(torch.nn.Linear(20, 20), n_chungs=2),
             torch.nn.Linear(20, 70),
         )
 
         # clone the model weights
-        model_chunked._modules["0"].weight.data = model._modules[
+        model_chunged._modules["0"].weight.data = model._modules[
             "0"
         ].weight.data.clone()
-        model_chunked._modules["0"].bias.data = model._modules["0"].bias.data.clone()
-        model_chunked._modules["1"].module.weight.data = model._modules[
+        model_chunged._modules["0"].bias.data = model._modules["0"].bias.data.clone()
+        model_chunged._modules["1"].module.weight.data = model._modules[
             "1"
         ].weight.data.clone()
-        model_chunked._modules["1"].module.bias.data = model._modules[
+        model_chunged._modules["1"].module.bias.data = model._modules[
             "1"
         ].bias.data.clone()
-        model_chunked._modules["2"].weight.data = model._modules[
+        model_chunged._modules["2"].weight.data = model._modules[
             "2"
         ].weight.data.clone()
-        model_chunked._modules["2"].bias.data = model._modules["2"].bias.data.clone()
+        model_chunged._modules["2"].bias.data = model._modules["2"].bias.data.clone()
 
         x = torch.rand(100, 100)
         y = x.clone()
@@ -121,25 +121,25 @@ class TestChungus(GeneralTestCase):
             grad_vanilla[name] = param.grad.data.clone()
 
         ###################### CHUNGUS ############################
-        output_chunked = model_chunked(y)
-        model_chunked.zero_grad()
-        output_chunked.sum().backward()
+        output_chunged = model_chunged(y)
+        model_chunged.zero_grad()
+        output_chunged.sum().backward()
 
-        grad_chunked = {}
-        for name, param in model_chunked.named_parameters():
-            grad_chunked[name] = param.grad.data.clone()
+        grad_chunged = {}
+        for name, param in model_chunged.named_parameters():
+            grad_chunged[name] = param.grad.data.clone()
 
         ####################### COMPARE ORIG MODEL AND CHUNGUS #######################
         # compare the output and parameters gradients
         assert torch.isclose(
-            output_original, output_chunked
-        ).all(), f" output failed, log of difference is: {torch.log10((output_original - output_chunked).abs().max())}, max difference is: {((output_original - output_chunked).abs().max())}, argmax is {((output_original - output_chunked).abs().argmax())}"
+            output_original, output_chunged
+        ).all(), f" output failed, log of difference is: {torch.log10((output_original - output_chunged).abs().max())}, max difference is: {((output_original - output_chunged).abs().max())}, argmax is {((output_original - output_chunged).abs().argmax())}"
         for name in grad_vanilla:
-            name_for_chunked = name
+            name_for_chunged = name
             if "1" in name:
-                name_for_chunked = name.replace("1", "1.module")
+                name_for_chunged = name.replace("1", "1.module")
 
-            chung = grad_chunked[name_for_chunked]
+            chung = grad_chunged[name_for_chunged]
             van = grad_vanilla[name]
 
             assert torch.isclose(

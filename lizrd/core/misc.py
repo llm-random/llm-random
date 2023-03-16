@@ -151,16 +151,15 @@ class Aggregate(nn.Module):
         return result
 
 
-class Chunked(nn.Module):
+class Chungus(nn.Module):
     """
-    Wraps a module to be called on chunks of the input, forgetting the intermediate results and activations. Those are recomputed during the backward pass.
-    The way to implement a "forgetful" call of the wrapped module is to wrap its call in `checkpoint`, which takes output of self.custom as input.
+    https://i.ytimg.com/vi/inD-WWvtTW0/maxresdefault.jpg
     """
 
-    def __init__(self, module, n_chunks):
-        super(Chunked, self).__init__()
+    def __init__(self, module, n_chungs):
+        super(Chungus, self).__init__()
         self.module = module
-        self.n_chunks = n_chunks
+        self.n_chungs = n_chungs
 
     def custom(self):
         def custom_forward(*inputs):
@@ -171,14 +170,30 @@ class Chunked(nn.Module):
 
     def forward(self, x):
         output = []
-        chunked_inputs = torch.chunk(x, self.n_chunks, dim=0)
-        for chunked_input in chunked_inputs:
+        chunged_inputs = torch.chunk(x, self.n_chungs, dim=0)
+        for chunged_input in chunged_inputs:
             partial_output = checkpoint(
                 self.custom(),
-                chunked_input,
+                chunged_input,
             )
             output.append(partial_output)
         return torch.cat(output, dim=0)
+
+
+class Checkpoint(nn.Module):
+    def __init__(self, module, n_chunks):
+        super(Checkpoint, self).__init__()
+        self.module = module
+
+    def custom(self):
+        def custom_forward(*inputs):
+            output = self.module(inputs[0])
+            return output
+
+        return custom_forward
+
+    def forward(self, x):
+        return checkpoint(self.custom(), x)
 
 
 def Sum(*layers):
