@@ -187,6 +187,6 @@ if __name__ == "__main__":
             subprocess.run(
                 [str(s) for s in subprocess_args],
             )
-            sleep(10)
+            sleep(0.1)
         else:
             print(" ".join([str(s) for s in subprocess_args]))

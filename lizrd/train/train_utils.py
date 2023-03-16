@@ -233,17 +233,21 @@ class Trainer:
 
     def _model_train_step(self, step: int):
         self.model.train()
-        with torch.autocast(
-            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-        ):
-            losses = self.pruner.get_auxiliary_loss()
-            self.update_loss_stats(losses)
-            scaled_losses = self.scale_losses(losses)
-            loss = sum(scaled_losses.values())
+        # with torch.autocast(
+        #     device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        # ):
+        losses = self.pruner.get_auxiliary_loss()
+        self.update_loss_stats(losses)
+        scaled_losses = self.scale_losses(losses)
+        loss = sum(scaled_losses.values())
+
+        if len(losses) == 0:
+            print("No model auxiliary losses, skipping model training step")
+            return
 
         self.optimize(
             optimizer=self.sgd_optimizer,
-            scaler=self.sgd_scaler,
+            scaler=None,
             loss=loss,
             step=step,
             run_after_backprop=False,

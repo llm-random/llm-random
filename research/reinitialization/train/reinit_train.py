@@ -59,6 +59,7 @@ parser.add_argument("--heads", type=int, default=4)
 parser.add_argument("--dhead", type=int, default=None)
 parser.add_argument("--optimizer", type=str, default="adam")
 parser.add_argument("--learning_rate", type=float, default=1e-3)
+parser.add_argument("--lr_warmup_steps", type=str, default="10000")
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--midpoint_loss_weight", type=float, default=0.0)
@@ -89,6 +90,7 @@ parser.add_argument("--mpl_reg_pow", type=float, required=False)
 parser.add_argument("--mpl_midpoint_type", type=str, default="mean")
 parser.add_argument("--mpl_transform_type", type=str, default="linear")
 parser.add_argument("--mpl_only_smaller_neurons", action="store_true")
+parser.add_argument("--dropout", type=float, default=0.0)
 
 
 parser.add_argument("--weight_decay", type=float, default=0.0)
@@ -100,6 +102,11 @@ if args.dff == "auto":
     args.dff = args.dmodel * 4
 else:
     args.dff = int(args.dff)
+
+if "." in args.lr_warmup_steps:
+    args.lr_warmup_steps = int(float(args.lr_warmup_steps) * args.n_steps)
+else:
+    args.lr_warmup_steps = int(args.lr_warmup_steps)
 
 ATHENA_MEMORY_CONST = 2.192e7
 ENTROPY_MEMORY_CONST = 5.48e6
@@ -224,6 +231,7 @@ elif args.ff_layer == "loss_ff":
         midpoint_type=args.mpl_midpoint_type,
         transform_type=args.mpl_transform_type,
         pruner=pruner,
+        dropout=args.dropout,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
@@ -316,6 +324,7 @@ base_trainer_params = dict(
         "midpoint": args.midpoint_loss_weight,
         "decay": args.decay_loss_weight,
     },
+    lr_warmup_steps=args.lr_warmup_steps,
 )
 
 if args.trainer_type == "retrain":

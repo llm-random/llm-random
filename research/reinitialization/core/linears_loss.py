@@ -22,6 +22,7 @@ class BaseLossFF(nn.Module):
         midpoint_type: str,
         transform_type: str,
         pruner: Pruner,
+        dropout: float = 0.0,
     ):
         super().__init__()
         self.reg_pow = reg_pow
@@ -33,6 +34,8 @@ class BaseLossFF(nn.Module):
 
         self.lin1 = misc.Linear(dmodel, dff)
         self.lin2 = misc.Linear(dff, dmodel)
+        if dropout > 0:
+            self.dropout = nn.Dropout(dropout)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         pruner.register(self)
 
@@ -44,6 +47,8 @@ class BaseLossFF(nn.Module):
         self._save_activation_stats(x)
         x = F.relu(x)
         x = self.lin2(x)
+        if hasattr(self, "dropout"):
+            x = self.dropout(x)
         return x
 
     @property
