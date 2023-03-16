@@ -53,8 +53,6 @@ class NoiseFF(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # make sure requires_grad is set correctly
-        assert self.target_weights_1.requires_grad
-        assert self.target_weights_2.requires_grad
         assert not self.frozen_weights_1.requires_grad
         assert not self.frozen_weights_2.requires_grad
         assert not self.mask.requires_grad
@@ -70,20 +68,24 @@ class NoiseFF(nn.Module):
                 self.prepare_mask()
 
         # apply lin1
-        weight = self.mask * self.lin1.weight.data + (1 - self.mask) * (
-            (1 - self.alpha) * self.frozen_weights_1
-            + self.alpha * self.lin1.weight.data
-        )
+        noisy_weights = (
+            1 - self.alpha
+        ) * self.frozen_weights_1 + self.alpha * self.lin1.weight.data
+        weight = misc.einsum(
+            "f, f m -> f m", self.mask, self.lin1.weight.data
+        ) + misc.einsum("f, f m -> f m", 1 - self.mask, noisy_weights)
         x = misc.einsum("... m, f m -> ... f", x, weight)
 
         self._save_activation_stats(x)
         x = F.relu(x)
 
         # apply lin2
-        weight = self.mask * self.lin2.weight.data + (1 - self.mask) * (
-            (1 - self.alpha) * self.frozen_weights_2
-            + self.alpha * self.lin2.weight.data
-        )
+        noisy_weights = (
+            1 - self.alpha
+        ) * self.frozen_weights_2 + self.alpha * self.lin2.weight.data
+        weight = misc.einsum(
+            "f, m f -> m f", self.mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - self.mask, noisy_weights)
         x = misc.einsum("... f, m f -> ... m", x, weight)
 
         return x
@@ -111,12 +113,12 @@ class NoiseFF(nn.Module):
         self.mask[topk.indices] = 0
 
         # prepare target weights
-        self.lin1.weight.data = self.mask * self.lin1.weight.data + (
-            1 - self.mask
-        ) * self.get_new_weight(self.lin1)
-        self.lin2.weight.data = self.mask * self.lin2.weight.data + (
-            1 - self.mask
-        ) * self.get_new_weight(self.lin2)
+        self.lin1.weight.data = misc.einsum(
+            "f, f m -> f m", self.mask, self.lin1.weight.data
+        ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.get_new_weight(self.lin1))
+        self.lin2.weight.data = misc.einsum(
+            "f, m f -> m f", self.mask, self.lin2.weight.data
+        ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.get_new_weight(self.lin2))
 
     def get_new_weight(self, layer):
         std = layer.weight.std().detach().cpu().item()
