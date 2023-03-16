@@ -91,6 +91,7 @@ parser.add_argument("--mpl_transform_type", type=str, default="linear")
 parser.add_argument("--mpl_only_smaller_neurons", action="store_true")
 
 
+parser.add_argument("--mpl_aggregation_type", type=str, default="regular")
 parser.add_argument("--weight_decay", type=float, default=0.0)
 parser.add_argument("--model_load_path", type=str, default=None)
 
@@ -140,6 +141,8 @@ if not args.use_pruner and (
     raise ValueError(
         "use_pruner not set but pruner_n_steps or pruner_prob or pruner_delay set"
     )
+if args.ff_layer == "iwd_baseline" and args.iwd_aggregation_type is None:
+    raise ValueError("ff_layer is iwd_baseline but iwd_aggregation_type not set")
 
 print("BEGINNING OF FILE")
 print("cuda available:")
@@ -205,14 +208,14 @@ elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 elif args.ff_layer == "separate_direction_magnitude_ff":
     ff_layer_fun = lambda: linears.SeparateDirectionMagnitudeFF(
-        args.dm,
+        args.dmodel,
         args.dff,
         magnitude_requires_grad=args.sep_dir_mag_magnitude_requires_grad,
         small_grad=args.sep_dir_mag_small_grad,
         bias=args.bias,
     )
 elif args.ff_layer == "log_ff":
-    ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.LogFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "plusminus_ff":
     ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dm, args.dff)
 elif args.ff_layer == "loss_ff":
@@ -224,6 +227,7 @@ elif args.ff_layer == "loss_ff":
         midpoint_type=args.mpl_midpoint_type,
         transform_type=args.mpl_transform_type,
         pruner=pruner,
+        aggregation_type=args.mpl_aggregation_type,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
