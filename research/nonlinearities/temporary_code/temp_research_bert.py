@@ -1,8 +1,8 @@
 from collections import OrderedDict
-
 import lizrd.core.nn as nn
+from lizrd.core import bert
 from lizrd.core.bert import LowRank, Residual
-from lizrd.core.misc import EinMix
+from lizrd.core.misc import EinMix, Chunked
 from lizrd.support import ash
 from research.nonlinearities.temporary_code.helper_layers import (
     Sum_norm,
@@ -571,6 +571,146 @@ def FeedForwardMultineckResidual(
     )
 
 
+@ash.check("... d -> ... d")
+def FeedForwardMultineckChunked(
+    dmodel,
+    dhead,
+    n_heads,
+    dff,
+):
+    weight_shapes = {
+        "multineck_1": "nheads dmodel dhead",
+        "expand": "nheads dhead dff",
+        "contract": "nheads dff dhead",
+        "multineck_2": "nheads dhead dmodel",
+    }
+
+    bias_shapes = {
+        "multineck_1": "nheads dhead",
+        "expand": "nheads dff",
+        "contract": "nheads dhead",
+        "multineck_2": "dmodel",
+    }
+
+    assert None not in [weight_shapes, bias_shapes]
+
+    multineck_1 = EinMix(
+        "batch seqlen dmodel -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["multineck_1"],
+        bias_shape=bias_shapes["multineck_1"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    expand = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen (nheads dff)",
+        weight_shape=weight_shapes["expand"],
+        bias_shape=bias_shapes["expand"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    contract = EinMix(
+        "batch seqlen (nheads dff) -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["contract"],
+        bias_shape=bias_shapes["contract"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    multineck_2 = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen dmodel",
+        weight_shape=weight_shapes["multineck_2"],
+        bias_shape=bias_shapes["multineck_2"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+
+    wide_part = nn.Sequential(expand, nn.ReLU(inplace=True), contract)
+    n_chunks = n_heads * dff // dmodel + 1
+    return nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_expand", multineck_1),
+                ("wide_part", Chunked(wide_part, n_chunks)),
+                ("logging_post_contract", multineck_2),
+            ]
+        )
+    )
+
+
+@ash.check("... d -> ... d")
+def FeedForwardMultineckNormedChunked(
+    dmodel,
+    dhead,
+    n_heads,
+    dff,
+):
+    weight_shapes = {
+        "multineck_1": "nheads dmodel dhead",
+        "expand": "nheads dhead dff",
+        "contract": "nheads dff dhead",
+        "multineck_2": "nheads dhead dmodel",
+    }
+
+    bias_shapes = {
+        "multineck_1": "nheads dhead",
+        "expand": "nheads dff",
+        "contract": "nheads dhead",
+        "multineck_2": "dmodel",
+    }
+
+    assert None not in [weight_shapes, bias_shapes]
+
+    multineck_1 = EinMix(
+        "batch seqlen dmodel -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["multineck_1"],
+        bias_shape=bias_shapes["multineck_1"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    expand = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen (nheads dff)",
+        weight_shape=weight_shapes["expand"],
+        bias_shape=bias_shapes["expand"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    contract = EinMix(
+        "batch seqlen (nheads dff) -> batch seqlen (nheads dhead)",
+        weight_shape=weight_shapes["contract"],
+        bias_shape=bias_shapes["contract"],
+        dff=dff,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+    multineck_2 = EinMix(
+        "batch seqlen (nheads dhead) -> batch seqlen dmodel",
+        weight_shape=weight_shapes["multineck_2"],
+        bias_shape=bias_shapes["multineck_2"],
+        dmodel=dmodel,
+        nheads=n_heads,
+        dhead=dhead,
+    )
+
+    wide_part = nn.Sequential(expand, nn.ReLU(inplace=True), contract)
+    n_chunks = n_heads * dff // dmodel + 1
+    return nn.Sequential(
+        OrderedDict(
+            [
+                ("logging_pre_expand", multineck_1),
+                ("norm", nn.LayerNorm(n_heads * dhead)),
+                ("wide_part", Chunked(wide_part, n_chunks)),
+                ("norm", nn.LayerNorm(n_heads * dhead)),
+                ("logging_post_contract", multineck_2),
+            ]
+        )
+    )
+
+
 def FeedForwardMultineckResidualNormed(
     dmodel,
     dhead,
@@ -639,3 +779,7 @@ def FeedForwardMultineckResidualNormed(
             ]
         )
     )
+
+
+def VanillaChunked(dmodel, dff, n_chunks):
+    return Chunked(bert.FeedForward(dmodel, dff), n_chunks)

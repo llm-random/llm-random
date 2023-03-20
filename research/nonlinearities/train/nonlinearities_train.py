@@ -1,4 +1,7 @@
 import argparse
+import random
+
+import numpy as np
 import torch
 
 from lizrd.core import misc
@@ -34,7 +37,8 @@ parser.add_argument("--logging_frequency", type=int, default=1000)
 parser.add_argument("--mask_loss_weight", type=float, default=1.0)
 parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
-parser.add_argument("--seed", type=int, default=42)
+parser.add_argument("--data_seed", type=int, default=42)
+parser.add_argument("--torch_seed", type=int, default=42)
 
 # parameters usually changed for experiments
 
@@ -47,12 +51,13 @@ parser.add_argument("--tags", nargs="*", type=str, default=None)
 
 # experimental/legacy parameters
 
+parser.add_argument("--n_chunks", type=int, default=1)
+
 parser.add_argument("--exp_rate", type=int, default=4)
 parser.add_argument("--bottleneck_size", type=int, default=4)
 
 parser.add_argument("--n_ff_heads", type=int, default=4)
 parser.add_argument("--d_ff_head", type=int, default=256)
-parser.add_argument("--n_chunks", type=int, default=4)
 parser.add_argument("--multineck_mode", type=str, default="none")
 parser.add_argument("--inception_head_sizes", nargs="*", type=float)
 parser.add_argument("--dbottle", type=int, default=-1)
@@ -62,20 +67,27 @@ parser.add_argument("--attention_thinning_coeff", type=float, default=1.0)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--save_model_checkpoints", action="store_true")
-parser.add_argument("--deterministic", action="store_true")
+parser.add_argument("--deterministic", type=int, default=0)
 parser.add_argument("--x_flop", action="store_true")
 parser.add_argument("--x_logarithmic", action="store_true")
 
 
 args = parser.parse_args()
 
-
-##################################
-##################################
+###########################
+args.d_ff_head = args.dmodel // args.n_ff_heads
+###########################
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 misc.print_available_gpus()
+
+if args.deterministic == 1:
+    torch.use_deterministic_algorithms(True)
+    torch.manual_seed(args.torch_seed)
+    random.seed(args.torch_seed)
+    np.random.seed(args.torch_seed)
+    torch.cuda.manual_seed(args.torch_seed)
 
 train_dataloader = get_processed_dataset(
     max_total_length=args.cutoff,
@@ -83,7 +95,7 @@ train_dataloader = get_processed_dataset(
     device=DEVICE,
     num_workers=args.num_workers,
     batch_size=args.batch_size,
-    seed=args.seed,
+    seed=args.data_seed,
 )
 
 ff_layer_fun = get_ff_layer(args)

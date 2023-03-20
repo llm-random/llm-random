@@ -91,6 +91,12 @@ def get_ff_layer(args):
     mode = args.ff_mode
     if mode == "vanilla":
         ff_layer_type, ff_args = bert.FeedForward, (args.dmodel, args.dff)
+    if mode == "vanilla_chunked":
+        ff_layer_type, ff_args = temp_research_bert.VanillaChunked, (
+            args.dmodel,
+            args.dff,
+            args.n_chunks,
+        )
     elif mode == "vanilla_einmix":
         ff_layer_type, ff_args = temp_research_bert.LinearEinmix, (
             args.dmodel,
@@ -208,6 +214,26 @@ def get_ff_layer(args):
             ff_layer_type,
             ff_args,
         ) = temp_research_bert.FeedForwardMultineckResidualNormed, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.dff,
+        )
+    elif mode == "multineck_chunked":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineckChunked, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.dff,
+        )
+    elif mode == "multineck_normed_chunked":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineckNormedChunked, (
             args.dmodel,
             args.d_ff_head,
             args.n_ff_heads,
