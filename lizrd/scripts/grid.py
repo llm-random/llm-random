@@ -19,7 +19,7 @@ from lizrd.scripts.grid_utils import (
     MachineBackend,
     get_grid_entrypoint,
 )
-from lizrd.support.code_versioning_support import version_code
+from lizrd.support.code_versioning_support import copy_and_version_code
 
 
 RUNNER = "research.reinitialization.train.reinit_train"
@@ -42,15 +42,21 @@ PARAMS = {
 TIME = "1-00:00:00"
 GRES = "gpu:titanv:1"
 DRY_RUN = False
-SINGULARITY_IMAGE = (
-    "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.02.12_21.20.53.sif"
-)
 CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
+PUSH_TO_GIT = False
 
 if __name__ == "__main__":
     runner = get_machine_backend()
+    if runner == MachineBackend.ATHENA:
+        SINGULARITY_IMAGE = "/net/tscratch/people/plgmaciejpioro/images/sparsity_2023.02.12_21.20.53.sif"
+    elif runner == MachineBackend.IDEAS:
+        SINGULARITY_IMAGE = (
+            "/raid/NFS_SHARE/home/maciej.pioro/images/sparsity_2023.02.12_21.20.53.sif"
+        )
+    else:
+        SINGULARITY_IMAGE = None
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -62,6 +68,7 @@ if __name__ == "__main__":
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
         RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
         INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
+        PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
 
     grid = create_grid(PARAMS)
     grid = multiply_grid(grid, RUNS_MULTIPLIER)
@@ -73,24 +80,26 @@ if __name__ == "__main__":
             f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
         )
 
+    total_minutes = no_experiments * minutes_per_exp
+    if not runner == MachineBackend.LOCAL:
+        user_input = input(
+            f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
+            f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+        )
+        if user_input.lower() not in ("", "y", "Y"):
+            print("Aborting...")
+            exit(1)
+
+    slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
+
     if not INTERACTIVE_DEBUG:
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        print(f"Creating branch {name_for_branch}")
-        version_code(name_for_branch, name_for_branch)
+        copy_and_version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
     else:
-        print(f"Running in debug mode, skipping branch creation.")
-
-    total_minutes = no_experiments * minutes_per_exp
-    user_input = input(
-        f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-        f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
-    )
-    if user_input.lower() not in ("", "y", "Y"):
-        print("Aborting...")
-        exit(1)
+        print(f"Running in debug mode, skip copying code to a new directory.")
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
@@ -106,10 +115,12 @@ if __name__ == "__main__":
                 continue
             else:
                 runner_params.append(f"--{k}")
+                if isinstance(v, list):
+                    v = " ".join([str(s) for s in v])
                 runner_params.append(v)
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
-                "sbatch",
+                slurm_command,
                 "--partition=common",
                 "--qos=16gpu7d",
                 f"--gres={GRES}",
@@ -122,12 +133,12 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
-            run_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
             subprocess_args = [
-                run_command,
+                slurm_command,
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 "--cpus-per-gpu=8",
+                "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--output=/net/people/plgrid/plgtodrzygozdz/out/{name}.out",
                 f"--time={TIME}",
@@ -137,6 +148,26 @@ if __name__ == "__main__":
                 "--bind=/net:/net",
                 "--env HF_DATASETS_CACHE=/net/pr2/projects/plgrid/plggllmeffi/.cache",
                 f"-B={CODE_PATH}:/sparsity",
+                "--nv",
+                SINGULARITY_IMAGE,
+                "python3",
+                "-m",
+                RUNNER,
+                *runner_params,
+            ]
+        elif runner == MachineBackend.IDEAS:
+            subprocess_args = [
+                slurm_command,
+                "-G1",
+                "--cpus-per-gpu=8",
+                f"--job-name={name}",
+                f"--time={TIME}",
+                "--mem=32G",
+                get_grid_entrypoint(runner),
+                "singularity",
+                "run",
+                f"-B={CODE_PATH}:/sparsity",
+                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/maciej.pioro/.cache",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",

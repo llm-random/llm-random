@@ -7,6 +7,7 @@ from lizrd.core import misc, bert
 from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
+from research.reinitialization.core import linears_noise
 from research.reinitialization.core.pruner import Pruner
 from lizrd.train.train_utils import (
     get_model,
@@ -93,8 +94,14 @@ parser.add_argument("--mpl_transform_type", type=str, default="linear")
 parser.add_argument("--mpl_only_smaller_neurons", action="store_true")
 
 
+parser.add_argument("--mpl_aggregation_type", type=str, default="regular")
 parser.add_argument("--weight_decay", type=float, default=0.0)
 parser.add_argument("--model_load_path", type=str, default=None)
+
+parser.add_argument("--noise_ff_prune_ratio", type=float, required=False)
+parser.add_argument("--noise_ff_n_steps", type=int, required=False)
+parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
+parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
 
 args = parser.parse_args()
 
@@ -146,6 +153,20 @@ if not args.use_pruner and (
     raise ValueError(
         "use_pruner not set but pruner_n_steps or pruner_prob or pruner_delay set"
     )
+if args.ff_layer == "noise" and (
+    args.noise_ff_prune_ratio is None or args.noise_ff_n_steps is None
+):
+    raise ValueError(
+        "ff_layer is noise but noise_ff_prune_ratio or noise_ff_n_steps not set"
+    )
+if (
+    args.noise_ff_prune_ratio is not None or args.noise_ff_n_steps is not None
+) and args.ff_layer != "noise":
+    raise ValueError(
+        "ff_layer is not noise but noise_ff_prune_ratio or noise_ff_n_steps set"
+    )
+if args.ff_layer == "iwd_baseline" and args.iwd_aggregation_type is None:
+    raise ValueError("ff_layer is iwd_baseline but iwd_aggregation_type not set")
 
 print("BEGINNING OF FILE")
 print("cuda available:")
@@ -211,14 +232,14 @@ elif args.ff_layer == "masked_ff":
     ff_layer_fun = linears.MaskedFF
 elif args.ff_layer == "separate_direction_magnitude_ff":
     ff_layer_fun = lambda: linears.SeparateDirectionMagnitudeFF(
-        args.dm,
+        args.dmodel,
         args.dff,
         magnitude_requires_grad=args.sep_dir_mag_magnitude_requires_grad,
         small_grad=args.sep_dir_mag_small_grad,
         bias=args.bias,
     )
 elif args.ff_layer == "log_ff":
-    ff_layer_fun = lambda: linears.LogFF(args.dm, args.dff, pruner)
+    ff_layer_fun = lambda: linears.LogFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "plusminus_ff":
     ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dm, args.dff)
 elif args.ff_layer == "loss_ff":
@@ -230,6 +251,23 @@ elif args.ff_layer == "loss_ff":
         midpoint_type=args.mpl_midpoint_type,
         transform_type=args.mpl_transform_type,
         pruner=pruner,
+        aggregation_type=args.mpl_aggregation_type,
+    )
+elif args.ff_layer == "noise":
+    ff_layer_fun = lambda: linears_noise.NoiseFF(
+        dmodel=args.dmodel,
+        dff=args.dff,
+        pruner=pruner,
+        prune_ratio=args.noise_ff_prune_ratio,
+        n_steps_interpolate=args.noise_ff_n_steps,
+    )
+elif args.ff_layer == "noise":
+    ff_layer_fun = lambda: linears_noise.NoiseFF(
+        dmodel=args.dmodel,
+        dff=args.dff,
+        pruner=pruner,
+        prune_ratio=args.noise_ff_prune_ratio,
+        n_steps_interpolate=args.noise_ff_n_steps,
     )
 elif args.ff_layer == "quality":
     ff_layer_fun = lambda: linears.QualityFF(
@@ -348,6 +386,8 @@ base_trainer_params = dict(
         "delta_q_m": 1.0,
         "delta_m_b": 1.0,
     },
+    noise_interpolation_delay=args.noise_interpolation_delay,
+    lr_warmup_steps=args.lr_warmup_steps,
 )
 
 if args.trainer_type == "retrain":

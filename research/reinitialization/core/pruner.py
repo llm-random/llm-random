@@ -108,3 +108,8 @@ class Pruner(BasePruner):
         if not hasattr(self.layers[layer_num], "neuron_magnitudes_of_masked_neurons"):
             raise ValueError("Property magnitudes not present")
         return self.layers[layer_num].neuron_magnitudes_of_masked_neurons()
+
+    def enable_noise_interpolation(self):
+        for layer in self.layers:
+            if hasattr(layer, "enable_noise_interpolation"):
+                layer.enable_noise_interpolation()
