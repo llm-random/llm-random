@@ -584,6 +584,7 @@ class QualityTrainer(Trainer):
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.quality_scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        self.magnitude_scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.reset_loss_stats()
 
     def optimize(self, scaler, loss, optimizer, step):

@@ -288,6 +288,9 @@ if args.ff_layer == "quality":
     quality_optimizer = torch.optim.Adam(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
+    magnitude_optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
 elif args.optimizer == "adam":
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
@@ -364,7 +367,11 @@ if args.trainer_type == "retrain":
 elif args.trainer_type == "regular":
     trainer = Trainer(**base_trainer_params)
 elif args.trainer_type == "quality":
-    trainer = QualityTrainer(**base_trainer_params, quality_optimizer=quality_optimizer)
+    trainer = QualityTrainer(
+        **base_trainer_params,
+        quality_optimizer=quality_optimizer,
+        magnitude_optimizer=magnitude_optimizer,
+    )
 else:
     raise ValueError(f"trainer_type {args.trainer_type} not recognized")
 
