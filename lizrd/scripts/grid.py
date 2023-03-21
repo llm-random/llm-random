@@ -161,6 +161,7 @@ if __name__ == "__main__":
                 "--cpus-per-gpu=8",
                 f"--job-name={name}",
                 f"--time={TIME}",
+                "--mem=32G",
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
