@@ -12,7 +12,8 @@ from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
     Trainer,
-    RetrainTrainer, QualityTrainer,
+    RetrainTrainer,
+    QualityTrainer,
 )
 from research.reinitialization.core.scheduler import DelayedConstScheduler
 import os
@@ -231,7 +232,12 @@ elif args.ff_layer == "loss_ff":
         pruner=pruner,
     )
 elif args.ff_layer == "quality":
-    ff_layer_fun = lambda: linears.QualityFF(dmodel=args.dmodel, dff=args.dff, pruner=pruner, mask_percentage=args.quality_mask_percentage)
+    ff_layer_fun = lambda: linears.QualityFF(
+        dmodel=args.dmodel,
+        dff=args.dff,
+        pruner=pruner,
+        mask_percentage=args.quality_mask_percentage,
+    )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
 
@@ -274,7 +280,7 @@ logger = get_logger(args, model, VOCAB_SIZE)
 # set optimizer
 if args.ff_layer == "quality":
     assert args.optimizer == "adam"
-    #TODO SPLIT PARAMETERS
+    # TODO SPLIT PARAMETERS
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
@@ -331,9 +337,13 @@ base_trainer_params = dict(
     losses_weights={
         "mask": args.mask_loss_weight,
         "quality_mask": args.mask_loss_weight,
-        "delta_loss": 1.,
+        "magnitude_mask": args.mask_loss_weight,
+        "delta_loss": 1.0,
         "midpoint": args.midpoint_loss_weight,
         "decay": args.decay_loss_weight,
+        "delta_q_b": 1.0,
+        "delta_q_m": 1.0,
+        "delta_m_b": 1.0,
     },
 )
 

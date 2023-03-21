@@ -5,8 +5,10 @@ import torch.nn.functional as F
 
 from lizrd.core import misc
 from lizrd.core.bert import decode_bias_string
+from lizrd.core.misc import get_neuron_magnitudes
 from lizrd.support import ash
 from lizrd.train import global_params
+from lizrd.train.global_params import QualityFFMode
 from research.reinitialization.core.pruner import Pruner
 import plotly_express as px
 import numpy as np
@@ -92,7 +94,8 @@ class StructPruneFF(nn.Module):
             self.mask, torch.rand_like(self.mask), round(self.mask.numel() * prob)
         )
 
-#TODO: Move to better place
+
+# TODO: Move to better place
 @ash.check("... d -> ... d")
 class QualityFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner, mask_percentage: float):
@@ -101,16 +104,21 @@ class QualityFF(nn.Module):
         self.lin2 = nn.Linear(dff, dmodel)
 
         self.mask = nn.parameter.Parameter(torch.zeros([dff]), requires_grad=True)
-        self.magnitude_scale = nn.parameter.Parameter(torch.ones([dff]), requires_grad=True)
+        self.quality_scale = nn.parameter.Parameter(
+            torch.ones([dff]), requires_grad=True
+        )
+        self.magnitude_scale = nn.parameter.Parameter(
+            torch.ones([dff]), requires_grad=True
+        )
         self.mask_percentage = mask_percentage
 
         pruner.register(self)
 
     def get_proper_sigmoid_bias(self):
-        #bin search proper bias: such that avg(sigmoid(mask + bias)) = mask_percentage
-        min_bias = -1000.
-        max_bias = 1000.
-        avg = -10.
+        # bin search proper bias: such that avg(sigmoid(mask + bias)) = mask_percentage
+        min_bias = -1000.0
+        max_bias = 1000.0
+        avg = -10.0
         while abs(avg - self.mask_percentage) > 0.00001:
             bias = (min_bias + max_bias) / 2
             avg = torch.sigmoid(self.mask + bias).mean()
@@ -120,7 +128,6 @@ class QualityFF(nn.Module):
                 min_bias = bias
         return bias
 
-
     def get_mask_percentage(self):
         return torch.sigmoid(self.mask + self.get_proper_sigmoid_bias())
 
@@ -128,18 +135,45 @@ class QualityFF(nn.Module):
         return torch.bernoulli(self.get_mask_percentage())
 
     def get_straight_through_mask(self):
-        return self.get_mask_sample().detach() + self.get_mask_percentage() - self.get_mask_percentage().detach()
+        return (
+            self.get_mask_sample().detach()
+            + self.get_mask_percentage()
+            - self.get_mask_percentage().detach()
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
-        if global_params.QUALITY_TRAIN_MODEL:
+        if global_params.QUALITY_TRAIN_MODEL == QualityFFMode.QUALITY:
             self.mask.requires_grad = True
+            self.quality_scale.requires_grad = True
+            self.magnitude_scale.requires_grad = False
+            x = misc.einsum(
+                "... i, i -> ... i", x, 1.0 - self.get_straight_through_mask()
+            )
+            x = misc.einsum("... i, i -> ... i", x, self.quality_scale)
+        elif global_params.QUALITY_TRAIN_MODEL == QualityFFMode.BASELINE:
+            self.mask.requires_grad = False
+            self.quality_scale.requires_grad = False
+            self.magnitude_scale.requires_grad = False
+        elif global_params.QUALITY_TRAIN_MODEL == QualityFFMode.MAGNITUDE:
+            self.mask.requires_grad = False
+            self.quality_scale.requires_grad = False
             self.magnitude_scale.requires_grad = True
-            x = misc.einsum("... i, i -> ... i", x, self.get_straight_through_mask())
+
+            tensor_magnitudes = get_neuron_magnitudes(
+                self.lin1.weight, self.lin2.weight
+            )
+            top_magnitudes = torch.topk(
+                tensor_magnitudes,
+                int(tensor_magnitudes.numel() * (1.0 - self.mask_percentage)),
+                largest=True,
+            )
+            mask_top_magnitudes = torch.zeros_like(tensor_magnitudes)
+            mask_top_magnitudes[top_magnitudes.indices] = 1.0
+            x = misc.einsum("... i, i -> ... i", x, mask_top_magnitudes)
             x = misc.einsum("... i, i -> ... i", x, self.magnitude_scale)
         else:
-            self.mask.requires_grad = False
-            self.magnitude_scale.requires_grad = False
+            raise ValueError("Unknown QualityFFMode")
         x = F.relu(x)
         x = self.lin2(x)
         return x
