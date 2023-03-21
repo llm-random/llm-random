@@ -121,10 +121,15 @@ class NoiseFF(nn.Module):
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.get_new_weight(self.lin2))
 
     def get_new_weight(self, layer):
+        mean = layer.weight.mean().detach().cpu().item()
         std = layer.weight.std().detach().cpu().item()
+        print(f"mean: {mean}, std: {std}")
 
-        new_weights = layer.weight.detach().clone() + torch.normal(
-            0, std, size=layer.weight.shape, device=self.get_device()
+        # new_weights = layer.weight.detach().clone() + torch.normal(
+        #     0, std, size=layer.weight.shape, device=self.get_device()
+        # )
+        new_weights = torch.normal(
+            mean, std, size=layer.weight.shape, device=self.get_device()
         )
 
         return new_weights
