@@ -16,6 +16,7 @@ from research.nonlinearities.train.utils import (
     get_attention_layer,
     divide_model_parameters,
     WarmupScheduler,
+    map_args,
 )
 
 parser = argparse.ArgumentParser()
@@ -39,6 +40,8 @@ parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--data_seed", type=int, default=42)
 parser.add_argument("--torch_seed", type=int, default=42)
+parser.add_argument("--tags", nargs="*", type=str, default=None)
+
 
 # parameters usually changed for experiments
 
@@ -46,8 +49,8 @@ parser.add_argument("--ff_mode", type=str, default="vanilla")
 parser.add_argument("--project_name", type=str, default="nonlinearities/initial_tests")
 parser.add_argument("--name", type=str, default="")
 parser.add_argument("--learning_rate", type=float, default=5e-5)
-parser.add_argument("--learning_rate_ff", type=float, default=5e-5)
-parser.add_argument("--tags", nargs="*", type=str, default=None)
+parser.add_argument("--learning_rate_ff", type=float)
+parser.add_argument("--neck_width_increase_ratio", type=float, default=1.0)
 
 # experimental/legacy parameters
 
@@ -73,10 +76,7 @@ parser.add_argument("--x_logarithmic", action="store_true")
 
 
 args = parser.parse_args()
-
-###########################
-args.d_ff_head = args.dmodel // args.n_ff_heads
-###########################
+args = map_args(args)
 
 VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

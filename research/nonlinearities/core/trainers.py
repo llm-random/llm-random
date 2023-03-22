@@ -34,6 +34,7 @@ class NonlinearityTrainer:
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        self.loss = 0.0
 
     def optimize(self, loss):
         self.optimizer.zero_grad()
@@ -58,14 +59,7 @@ class NonlinearityTrainer:
         self.optimize(loss)
         self.log_distributions(step)
         self.detach_logging_hooks(step)
-
-        if step:
-            log_scalar(
-                name="loss/train",
-                value=loss.item(),
-                step=step,
-                series="train",
-            )
+        self.aggregate_and_log(loss, step)
 
     def train(self, n_steps: int):
         for step in range(n_steps):
@@ -130,3 +124,11 @@ class NonlinearityTrainer:
                 series=series,
                 step=step,
             )
+
+    def aggregate_and_log(self, loss, step):
+        log_scalar(name="step", value=step, step=step, series="train")
+        self.loss += loss.item()
+        if step % self.logging_frequency == 0:
+            self.loss /= self.logging_frequency
+            log_scalar(name="loss", value=self.loss, step=step, series="train")
+            self.loss = 0.0

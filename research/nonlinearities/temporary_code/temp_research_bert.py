@@ -697,7 +697,7 @@ def FeedForwardMultineckNormedChunked(
     )
 
     wide_part = nn.Sequential(expand, nn.ReLU(inplace=True), contract)
-    n_chunks = n_heads * dff // dmodel + 1
+    n_chunks = n_heads * dff // (4 * dmodel) + 1
     return nn.Sequential(
         OrderedDict(
             [

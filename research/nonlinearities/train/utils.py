@@ -37,6 +37,8 @@ def divide_model_parameters(model, args):
     'forward' returns them separately with args.learning_rate_ff, while the rest uses the deafult args.learning_rate"
     params_non_ff = []
     params_ff = []
+    if args.learning_rate_ff is None:
+        args.learning_rate_ff = args.learning_rate
     for name, param in model.named_parameters():
         if "forward" in name:
             params_ff.append(param)
@@ -87,11 +89,24 @@ def make_concise_datetime() -> str:
     return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
 
 
+def map_args(args):
+    if args.ff_mode == "multineck_normed_chunked_adjusted_dff":
+        args.d_ff_head = int(
+            args.dmodel / args.n_ff_heads * args.neck_width_increase_ratio
+        )
+        args.dff = int(args.dff / args.neck_width_increase_ratio)
+        args.ff_mode = "multineck_normed_chunked"
+    elif args.ff_mode == "multineck_normed_chunked_adjusted_neck_width":
+        args.d_ff_head = int(args.dmodel / args.n_ff_heads)
+        args.ff_mode = "multineck_normed_chunked"
+    return args
+
+
 def get_ff_layer(args):
     mode = args.ff_mode
     if mode == "vanilla":
         ff_layer_type, ff_args = bert.FeedForward, (args.dmodel, args.dff)
-    if mode == "vanilla_chunked":
+    elif mode == "vanilla_chunked":
         ff_layer_type, ff_args = temp_research_bert.VanillaChunked, (
             args.dmodel,
             args.dff,
@@ -239,7 +254,6 @@ def get_ff_layer(args):
             args.n_ff_heads,
             args.dff,
         )
-
     else:
         raise NotImplementedError(f"ff_mode={mode} is not implemented")
 
