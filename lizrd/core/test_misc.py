@@ -1,7 +1,7 @@
 import torch
 
 from lizrd.core import misc
-from lizrd.core.misc import Chunked
+from lizrd.core.misc import Chungus, Checkpoint
 from lizrd.support.test_utils import GeneralTestCase
 
 
@@ -77,71 +77,91 @@ class TestEinMix(GeneralTestCase):
 
 class TestChungus(GeneralTestCase):
     def test_outputs_and_grads(self):
-        # create the model inputs
         torch.manual_seed(0)
         # create a simple Sequential model
         model = torch.nn.Sequential(
             torch.nn.Linear(100, 20),
-            torch.nn.Linear(20, 20),
-            torch.nn.Linear(20, 70),
+            torch.nn.Linear(20, 10),
+            torch.nn.Linear(10, 20),
         )
 
-        model_chunked = torch.nn.Sequential(
+        model_chunged = torch.nn.Sequential(
             torch.nn.Linear(100, 20),
-            Chunked(torch.nn.Linear(20, 20), n_chunks=2),
-            torch.nn.Linear(20, 70),
+            Chungus(torch.nn.Linear(20, 10), n_chungs=2),
+            torch.nn.Linear(10, 20),
         )
 
         # clone the model weights
-        model_chunked._modules["0"].weight.data = model._modules[
-            "0"
-        ].weight.data.clone()
-        model_chunked._modules["0"].bias.data = model._modules["0"].bias.data.clone()
-        model_chunked._modules["1"].module.weight.data = model._modules[
-            "1"
-        ].weight.data.clone()
-        model_chunked._modules["1"].module.bias.data = model._modules[
-            "1"
-        ].bias.data.clone()
-        model_chunked._modules["2"].weight.data = model._modules[
-            "2"
-        ].weight.data.clone()
-        model_chunked._modules["2"].bias.data = model._modules["2"].bias.data.clone()
+        for (_, param), (_, param_chunged) in zip(
+            model.named_parameters(), model_chunged.named_parameters()
+        ):
+            param_chunged.data = param.data.clone()
 
         x = torch.rand(100, 100)
-        y = x.clone()
-        ###################### ORIGINAL ###########################
-        # get the model output and save it to prevent any modifications
-        output_original = model(x)
+        outputs = {}
+        grads = {}
+        for model, name in [[model, "vanilla"], [model_chunged, "chunged"]]:
+            outputs[name] = model(x)
 
-        model.zero_grad()
-        output_original.sum().backward()
-        grad_vanilla = {}
-        for name, param in model.named_parameters():
-            grad_vanilla[name] = param.grad.data.clone()
+            model.zero_grad()
+            outputs[name].sum().backward()
+            grads[name] = {}
+            for param_name, param in model.named_parameters():
+                grads[name][param_name] = param.grad.data.clone()
 
-        ###################### CHUNGUS ############################
-        output_chunked = model_chunked(y)
-        model_chunked.zero_grad()
-        output_chunked.sum().backward()
-
-        grad_chunked = {}
-        for name, param in model_chunked.named_parameters():
-            grad_chunked[name] = param.grad.data.clone()
-
-        ####################### COMPARE ORIG MODEL AND CHUNGUS #######################
         # compare the output and parameters gradients
         assert torch.isclose(
-            output_original, output_chunked
-        ).all(), f" output failed, log of difference is: {torch.log10((output_original - output_chunked).abs().max())}, max difference is: {((output_original - output_chunked).abs().max())}, argmax is {((output_original - output_chunked).abs().argmax())}"
-        for name in grad_vanilla:
-            name_for_chunked = name
-            if "1" in name:
-                name_for_chunked = name.replace("1", "1.module")
-
-            chung = grad_chunked[name_for_chunked]
-            van = grad_vanilla[name]
-
+            outputs["vanilla"], outputs["chunged"]
+        ).all(), f" output failed, log of difference is: {torch.log10((outputs['vanilla'] - outputs['chunged']).abs().max())}, max difference is: {((output_original - output_checkpointed).abs().max())}, argmax is {((output_original - output_checkpointed).abs().argmax())}"
+        for grad, grad_checkpointed in zip(
+            grads["vanilla"].values(), grads["chunged"].values()
+        ):
             assert torch.isclose(
-                chung, van
-            ).all(), f"parameter {name} failed, log of difference is: {torch.log10((chung - van).abs().max())}"
+                grad, grad_checkpointed
+            ).all(), f"parameter {name} failed, log of difference is: {torch.log10((grad - grad_checkpointed).abs().max())}"
+
+
+class TestCheckpoint(GeneralTestCase):
+    def test_checkpoint(self):
+        torch.manual_seed(0)
+        # create a simple Sequential model
+        model = torch.nn.Sequential(
+            torch.nn.Linear(100, 20),
+            torch.nn.Linear(20, 10),
+            torch.nn.Linear(10, 20),
+        )
+
+        model_checkpointed = torch.nn.Sequential(
+            torch.nn.Linear(100, 20),
+            Checkpoint(torch.nn.Linear(20, 10)),
+            torch.nn.Linear(10, 20),
+        )
+
+        # clone the model weights
+        for (name, param), (name_checkpointed, param_checkpointed) in zip(
+            model.named_parameters(), model_checkpointed.named_parameters()
+        ):
+            param_checkpointed.data = param.data.clone()
+
+        x = torch.rand(100, 100)
+        outputs = {}
+        grads = {}
+        for model, name in [[model, "vanilla"], [model_checkpointed, "checkpointed"]]:
+            outputs[name] = model(x)
+
+            model.zero_grad()
+            outputs[name].sum().backward()
+            grads[name] = {}
+            for param_name, param in model.named_parameters():
+                grads[name][param_name] = param.grad.data.clone()
+
+        # compare the output and parameters gradients
+        assert torch.isclose(
+            outputs["vanilla"], outputs["checkpointed"]
+        ).all(), f" output failed, log of difference is: {torch.log10((outputs['vanilla'] - outputs['checkpointed']).abs().max())}, max difference is: {((output_original - output_checkpointed).abs().max())}, argmax is {((output_original - output_checkpointed).abs().argmax())}"
+        for grad, grad_checkpointed in zip(
+            grads["vanilla"].values(), grads["checkpointed"].values()
+        ):
+            assert torch.isclose(
+                grad, grad_checkpointed
+            ).all(), f"parameter {name} failed, log of difference is: {torch.log10((grad - grad_checkpointed).abs().max())}"

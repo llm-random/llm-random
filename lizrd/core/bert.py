@@ -6,6 +6,7 @@ import lizrd.core.nn as nn
 from typing import Literal
 
 from lizrd.core import misc
+from lizrd.core.misc import Checkpoint
 from lizrd.support import ash
 
 
@@ -157,21 +158,40 @@ def ResidualBlock(dmodel, layer, name):
     )
 
 
+# @ash.check("... d -> ... d")
+# def EncoderBlock(dmodel, layers, gradient_checkpointing):
+#     residual_layers = []
+#     for name, layer in layers:
+#         if gradient_checkpointing:
+#             block = misc.Checkpoint(ResidualBlock(dmodel, layer, name))
+#         else:
+#             block = ResidualBlock(dmodel, layer, name)
+#         residual_layers.append(block)
+#     return nn.Sequential(*residual_layers)
+
+
 @ash.check("... d -> ... d")
-def EncoderBlock(dmodel, layers):
+def EncoderBlock(dmodel, layers, gradient_checkpointing):
     residual_layers = []
     for name, layer in layers:
-        residual_layers.append(ResidualBlock(dmodel, layer, name))
-    return nn.Sequential(*residual_layers)
+        block = ResidualBlock(dmodel, layer, name)
+        residual_layers.append(block)
+    if gradient_checkpointing:
+        return Checkpoint(nn.Sequential(*residual_layers))
+    else:
+        return nn.Sequential(*residual_layers)
 
 
 @ash.check("... d -> ... d")
-def EncoderTower(n_blocks, dmodel, layer_dict):
+def EncoderTower(n_blocks, dmodel, layer_dict, gradient_checkpointing=False):
     misc.check_layer_funs(*layer_dict.values())
     encoder_blocks = []
     for i_block in range(n_blocks):
         layers_info = [(name, layer_fun()) for name, layer_fun in layer_dict.items()]
-        name_and_block = (f"block_{i_block}", EncoderBlock(dmodel, layers_info))
+        name_and_block = (
+            f"block_{i_block}",
+            EncoderBlock(dmodel, layers_info, gradient_checkpointing),
+        )
         encoder_blocks.append(name_and_block)
 
     return nn.Sequential(OrderedDict(encoder_blocks))

@@ -2,7 +2,7 @@ from collections import OrderedDict
 import lizrd.core.nn as nn
 from lizrd.core import bert
 from lizrd.core.bert import LowRank, Residual
-from lizrd.core.misc import EinMix, Chunked
+from lizrd.core.misc import EinMix, Chungus
 from lizrd.support import ash
 from research.nonlinearities.temporary_code.helper_layers import (
     Sum_norm,
@@ -633,7 +633,7 @@ def FeedForwardMultineckChunked(
         OrderedDict(
             [
                 ("logging_pre_expand", multineck_1),
-                ("wide_part", Chunked(wide_part, n_chunks)),
+                ("wide_part", Chungus(wide_part, n_chunks)),
                 ("logging_post_contract", multineck_2),
             ]
         )
@@ -703,7 +703,7 @@ def FeedForwardMultineckNormedChunked(
             [
                 ("logging_pre_expand", multineck_1),
                 ("norm", nn.LayerNorm(n_heads * dhead)),
-                ("wide_part", Chunked(wide_part, n_chunks)),
+                ("wide_part", Chungus(wide_part, n_chunks)),
                 ("norm", nn.LayerNorm(n_heads * dhead)),
                 ("logging_post_contract", multineck_2),
             ]
@@ -782,4 +782,4 @@ def FeedForwardMultineckResidualNormed(
 
 
 def VanillaChunked(dmodel, dff, n_chunks):
-    return Chunked(bert.FeedForward(dmodel, dff), n_chunks)
+    return Chungus(bert.FeedForward(dmodel, dff), n_chunks)

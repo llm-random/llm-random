@@ -85,7 +85,7 @@ if __name__ == "__main__":
     if not runner == MachineBackend.LOCAL:
         user_input = input(
             f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-            f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+            f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \nContinue? [Y/n] "
         )
         if user_input.lower() not in ("", "y", "Y"):
             print("Aborting...")
@@ -120,6 +120,7 @@ if __name__ == "__main__":
                     if isinstance(v, list):
                         v = " ".join([str(s) for s in v])
                     runner_params.append(v)
+
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
@@ -168,7 +169,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
-                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/maciej.pioro/.cache",
+                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/szymon.antoniak/.cache",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",

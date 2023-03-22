@@ -51,11 +51,13 @@ parser.add_argument("--name", type=str, default="")
 parser.add_argument("--learning_rate", type=float, default=5e-5)
 parser.add_argument("--learning_rate_ff", type=float)
 parser.add_argument("--neck_width_increase_ratio", type=float, default=1.0)
+parser.add_argument("--hack_for_batch_size", action="store_true")
+parser.add_argument("--deterministic", action="store_true")
+parser.add_argument("--gradient_checkpointing", action="store_true")
 
 # experimental/legacy parameters
 
 parser.add_argument("--n_chunks", type=int, default=1)
-
 parser.add_argument("--exp_rate", type=int, default=4)
 parser.add_argument("--bottleneck_size", type=int, default=4)
 
@@ -70,7 +72,6 @@ parser.add_argument("--attention_thinning_coeff", type=float, default=1.0)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--class_loss_weight", type=float, default=1.0)
 parser.add_argument("--save_model_checkpoints", action="store_true")
-parser.add_argument("--deterministic", type=int, default=0)
 parser.add_argument("--x_flop", action="store_true")
 parser.add_argument("--x_logarithmic", action="store_true")
 
@@ -82,7 +83,7 @@ VOCAB_SIZE = 30522  # BertTokenizer uses this many words
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 misc.print_available_gpus()
 
-if args.deterministic == 1:
+if args.deterministic:
     torch.use_deterministic_algorithms(True)
     torch.manual_seed(args.torch_seed)
     random.seed(args.torch_seed)
@@ -109,6 +110,7 @@ model = get_model(
     dm=args.dmodel,
     n_blocks=args.n_blocks,
     device=DEVICE,
+    gradient_checkpointing=args.gradient_checkpointing,
 )
 
 optimizer = torch.optim.Adam(
@@ -128,4 +130,9 @@ trainer = NonlinearityTrainer(
     logging_frequency=args.logging_frequency,
 )
 logger = get_logger(args, model, VOCAB_SIZE)
-trainer.train(args.n_steps)
+
+if not args.hack_for_batch_size:
+    trainer.train(args.n_steps)
+else:
+    args.learning_rate = 1e-7
+    trainer.batch_size_search(args.n_steps)

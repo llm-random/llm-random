@@ -28,13 +28,14 @@ class NonlinearityTrainer:
     logging_frequency: int
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
+    running_loss: Optional[float] = 0.0
     distribution_logging: bool = False
     hook_handles: Optional[list] = None
     saved_activations: Optional[Dict[str, torch.Tensor]] = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
-        self.loss = 0.0
+        self.running_loss = 0.0
 
     def optimize(self, loss):
         self.optimizer.zero_grad()
@@ -127,8 +128,33 @@ class NonlinearityTrainer:
 
     def aggregate_and_log(self, loss, step):
         log_scalar(name="step", value=step, step=step, series="train")
-        self.loss += loss.item()
+        self.running_loss += loss.item()
         if step % self.logging_frequency == 0:
-            self.loss /= self.logging_frequency
-            log_scalar(name="loss", value=self.loss, step=step, series="train")
-            self.loss = 0.0
+            self.running_loss /= self.logging_frequency
+            log_scalar(name="loss", value=self.running_loss, step=step, series="train")
+            self.running_loss = 0.0
+
+    def batch_size_search(self, n_steps: int):
+        for step in range(n_steps):
+            self._hack_for_batch_size(step)
+            if step % 500 == 0:
+                print(f"Step {step}")
+
+    def _hack_for_batch_size(
+        self,
+        step,
+    ):
+        self.model.train()
+        processed_batch = self.train_dataloader.get_batch()
+        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        x_set = processed_batch.masked_tokens
+        y_token_set = processed_batch.tokens
+        y_mask_set = processed_batch.mask_mask
+        for tensor in [x_set, y_token_set, y_mask_set]:
+            tensor.data = tensor[:1].repeat(step + 1, 1).data
+        self.attach_logging_hooks(step)
+        loss = self.calculate_loss(x_set, y_token_set, y_mask_set)
+        self.optimize(loss)
+        self.log_distributions(step)
+        self.detach_logging_hooks(step)
+        self.aggregate_and_log(loss, step)
