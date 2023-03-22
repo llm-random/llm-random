@@ -181,7 +181,7 @@ class Chungus(nn.Module):
 
 
 class Checkpoint(nn.Module):
-    def __init__(self, module, n_chunks):
+    def __init__(self, module):
         super(Checkpoint, self).__init__()
         self.module = module
 
