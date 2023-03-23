@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Any
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from attr import define
@@ -28,14 +29,14 @@ class NonlinearityTrainer:
     logging_frequency: int
     mixed_precision: bool = False
     scaler: Optional[torch.cuda.amp.GradScaler] = None
-    running_loss: Optional[float] = 0.0
+    running_loss: Optional[list] = []
     distribution_logging: bool = False
     hook_handles: Optional[list] = None
     saved_activations: Optional[Dict[str, torch.Tensor]] = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
-        self.running_loss = 0.0
+        self.running_loss = []
 
     def optimize(self, loss):
         self.optimizer.zero_grad()
@@ -128,11 +129,13 @@ class NonlinearityTrainer:
 
     def aggregate_and_log(self, loss, step):
         log_scalar(name="step", value=step, step=step, series="train")
-        self.running_loss += loss.item()
-        if step % self.logging_frequency == 0:
-            self.running_loss /= self.logging_frequency
-            log_scalar(name="loss", value=self.running_loss, step=step, series="train")
-            self.running_loss = 0.0
+        self.running_loss.append(loss.item())
+        if step and step % self.logging_frequency == 0:
+            np_loss = np.array(self.running_loss)
+            loss, std = np_loss.mean(), np_loss.std()
+            log_scalar(name="loss", value=loss, step=step, series="train")
+            log_scalar(name="loss_std", value=std, step=step, series="train")
+            self.running_loss = []
 
     def batch_size_search(self, n_steps: int):
         for step in range(n_steps):
