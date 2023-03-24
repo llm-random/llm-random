@@ -19,6 +19,7 @@ class NoiseFF(nn.Module):
         pruner: Pruner,
         prune_ratio: float,
         n_steps_interpolate: int,
+        new_weight_init: str = "random",
     ):
         super().__init__()
 
@@ -44,6 +45,9 @@ class NoiseFF(nn.Module):
         self.alpha = 1.0
 
         self.noise_enabled = False
+
+        assert new_weight_init in ["random", "mimic"]
+        self.new_weight_init = new_weight_init
 
     def get_device(self):
         return self.lin1.weight.device
@@ -121,16 +125,27 @@ class NoiseFF(nn.Module):
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.get_new_weight(self.lin2))
 
     def get_new_weight(self, layer):
-        mean = layer.weight.mean().detach().cpu().item()
-        std = layer.weight.std().detach().cpu().item()
-        print(f"mean: {mean}, std: {std}")
+        if self.new_weight_init == "random":
+            mean = layer.weight.mean().detach().cpu().item()
+            std = layer.weight.std().detach().cpu().item()
+            print(f"mean: {mean}, std: {std}")
 
-        # new_weights = layer.weight.detach().clone() + torch.normal(
-        #     0, std, size=layer.weight.shape, device=self.get_device()
-        # )
-        new_weights = torch.normal(
-            mean, std, size=layer.weight.shape, device=self.get_device()
-        )
+            new_weights = torch.normal(
+                mean, std, size=layer.weight.shape, device=self.get_device()
+            )
+        elif self.new_weight_init == "mimic":
+            if layer.weight.shape[0] == self.dff:
+                new_weights = (
+                    layer.weight.data.detach()
+                    .clone()
+                    .requires_grad_(False)[torch.randperm(self.dff), :]
+                )
+            else:
+                new_weights = (
+                    layer.weight.data.detach()
+                    .clone()
+                    .requires_grad_(False)[:, torch.randperm(self.dff)]
+                )
 
         return new_weights
 

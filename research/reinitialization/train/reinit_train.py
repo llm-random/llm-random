@@ -2,8 +2,6 @@ import argparse
 import secrets
 
 import torch
-import numpy as np
-import random
 
 from lizrd.core import misc, bert
 from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
@@ -101,15 +99,10 @@ parser.add_argument("--model_load_path", type=str, default=None)
 parser.add_argument("--noise_ff_prune_ratio", type=float, required=False)
 parser.add_argument("--noise_ff_n_steps", type=int, required=False)
 parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
+parser.add_argument("--noise_ff_weight_init", type=str, default="random")
 parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
-parser.add_argument("--manual_seed", type=int, default=None)
 
 args = parser.parse_args()
-
-if args.manual_seed is not None:
-    torch.manual_seed(args.manual_seed)
-    np.random.seed(args.manual_seed)
-    random.seed(args.manual_seed)
 
 if args.dff == "auto":
     args.dff = args.dmodel * 4
@@ -270,6 +263,7 @@ elif args.ff_layer == "noise":
         pruner=pruner,
         prune_ratio=args.noise_ff_prune_ratio,
         n_steps_interpolate=args.noise_ff_n_steps,
+        new_weight_init=args.noise_ff_new_weight_init,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
