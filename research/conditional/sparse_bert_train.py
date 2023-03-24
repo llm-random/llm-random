@@ -42,6 +42,9 @@ EXPERTSIZE = 64
 NAME = ""
 TESTING = False
 
+# bash command to secure copy ~/clearml.conf from entropy.mimuw.edu.pl username jaszczur to local
+# scp jaszczur@entropy.mimuw.edu.pl:~/clearml.conf ~/clearml.conf
+
 for arg in sys.argv[1:]:
     if arg == "TESTING":
         TESTING = True

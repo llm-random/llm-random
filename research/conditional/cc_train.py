@@ -1,0 +1,159 @@
+import argparse
+from typing import List, Optional
+
+import torch
+import torch.nn.functional as F
+import datetime
+from torch.utils.tensorboard import SummaryWriter
+from clearml import Task
+
+from lizrd.core import misc, bert
+from research.conditional import ffs
+from lizrd.train.train_utils import get_model, get_processed_dataset, Trainer
+import secrets
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument("--use_clearml", action="store_true")
+parser.add_argument("--mixed_precision", action="store_true", default=True)
+
+parser.add_argument("--pruner_prob", type=float)
+parser.add_argument("--pruner_n_steps", type=int)
+parser.add_argument("--project_name", type=str)
+
+parser.add_argument("--name", type=str, default="")
+parser.add_argument("--pruner_delay", type=int, default=0)
+parser.add_argument("--ff_layer", type=str, default="regular")
+parser.add_argument("--tags", nargs="*", type=str, default=None)
+parser.add_argument("--ds_seed", type=int, default=42)
+parser.add_argument("--eval_ds_seed", type=int, default=1984)
+
+
+parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--cutoff", type=int, default=128)
+parser.add_argument("--dm", type=int, default=256)
+parser.add_argument("--dff", type=int, default=1024)
+
+parser.add_argument("--expertsets", type=int, default=8)
+parser.add_argument("--nexperts", type=int, default=8)
+parser.add_argument("--expertsize", type=int, default=16)
+parser.add_argument("--sparsity", type=int, default=8)
+
+parser.add_argument("--n_blocks", type=int, default=4)
+parser.add_argument("--heads", type=int, default=4)
+parser.add_argument("--optimizer", type=str, default="adam")
+parser.add_argument("--learning_rate", type=float, default=8e-4)
+parser.add_argument("--mask_loss_weight", type=float, default=1.0)
+parser.add_argument("--class_loss_weight", type=float, default=1.0)
+parser.add_argument("--mask_percent", type=float, default=0.15)
+parser.add_argument("--n_steps", type=int, default=100_001)
+parser.add_argument("--n_steps_eval", type=int, default=100)
+parser.add_argument("--immunity", type=int, default=10)
+parser.add_argument("--reinit_dist", type=str, default="init")
+parser.add_argument("--num_workers", type=int, default=8)
+parser.add_argument("--n_log_steps", type=int, default=100)
+
+args = parser.parse_args()
+
+# constants
+VOCAB_SIZE = 30522  # BertTokenizer uses this many words
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def tags_to_name(tags: Optional[List[str]]) -> str:
+    return "_".join(tags) if tags else ""
+
+
+def make_concise_datetime() -> str:
+    now = datetime.datetime.now()
+    return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
+
+
+timestamp = make_concise_datetime()
+unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
+
+if args.use_clearml:
+    task = Task.init(
+        project_name=args.project_name,
+        task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+    )
+    task.connect(vars(args))
+    if args.tags:
+        task.add_tags(args.tags)
+
+modelpath = f"runs/wikibooktest/{unique_timestamp}"
+writer = SummaryWriter(log_dir=modelpath)
+
+# set pruner if needed
+scheduler = None
+
+# set ff layer
+if args.ff_layer == "regular":
+    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff)
+elif args.ff_layer == "simplesplit":  # SimpleSplitFF
+    ff_layer_fun = lambda: ffs.SimpleSplitFF([], args.dm, args.dff,
+                                             nexperts=args.nexperts,
+                                             expertsets=args.expertsets,
+                                             expertsize=args.expertsize)
+elif args.ff_layer == "rewrittensplit":  # RewrittenSplitFF
+    ff_layer_fun = lambda: ffs.RewrittenSplitFF([], args.dm, args.dff,
+                                                nexperts=args.nexperts*args.expertsets,
+                                                sparsity=args.sparsity,
+                                                expertsize=args.expertsize)
+elif args.ff_layer == "batchsplit":  # BatchSplitFF
+    ff_layer_fun = lambda: ffs.BatchSplitFF([], args.dm, args.dff,
+                                            nexperts=args.nexperts,
+                                            expertsets=args.expertsets,
+                                            expertsize=args.expertsize)
+
+
+misc.print_available_gpus()
+pdataset = get_processed_dataset(
+    batch_size=args.batch_size,
+    max_total_length=args.cutoff,
+    mask_percent=args.mask_percent,
+    device=DEVICE,
+    num_workers=args.num_workers,
+    seed=args.ds_seed,
+)
+eval_pdataset = get_processed_dataset(
+    batch_size=args.batch_size,
+    max_total_length=args.cutoff,
+    mask_percent=args.mask_percent,
+    device=DEVICE,
+    num_workers=1,
+    seed=args.eval_ds_seed,
+)
+
+model = get_model(
+    max_length=args.cutoff,
+    vocab_size=VOCAB_SIZE,
+    ff_layer_fun=ff_layer_fun,
+    dm=args.dm,
+    n_blocks=args.n_blocks,
+    device=DEVICE,
+    attention_layer_fun=lambda: bert.Attention(args.dm, args.heads),
+)
+
+# set optimizer
+if args.optimizer == "adam":
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+elif args.optimizer == "sgd":
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+
+trainer = Trainer(
+    model=model,
+    optimizer=optimizer,
+    pdataset=pdataset,
+    pdataset_eval=eval_pdataset,
+    batch_size=args.batch_size,
+    vocab_size=VOCAB_SIZE,
+    mask_percent=args.mask_percent,
+    mask_loss_weight=args.mask_loss_weight,
+    modelpath=modelpath,
+    scheduler=scheduler,
+    writer=writer,
+    mixed_precision=args.mixed_precision,
+    n_log_steps=args.n_log_steps,
+)
+trainer.train(args.n_steps, args.n_steps_eval)

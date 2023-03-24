@@ -3,6 +3,7 @@ import torch
 from research.reinitialization.core import linears
 
 from lizrd.support.test_utils import GeneralTestCase
+from research.reinitialization.core.linears import DirFF
 from research.reinitialization.core.pruner import Pruner
 
 
@@ -221,6 +222,32 @@ class TestStructMagnitudePruneFF(TestStructPruneFF):
         pruner.prune(P)
 
         assert layer.mask[7] == 0
+
+
+class TestDirFF(GeneralTestCase):
+    def test_dirff(self):
+        DM = 64
+        DFF = 128
+        layer = DirFF(DM, DFF)
+        inp_tensor = torch.rand((2, 10, DM))
+        res = layer(inp_tensor)
+        assert res.shape == (2, 10, DM)
+
+    def test_dirff_grad_mult(self):
+        DM = 64
+        DFF = 128
+        layer = DirFF(DM, DFF, grad_mult="$")
+        inp_tensor = torch.rand((2, 10, DM))
+        res = layer(inp_tensor)
+        assert res.shape == (2, 10, DM)
+
+    def test_dirff_grad_mult2(self):
+        DM = 64
+        DFF = 128
+        layer = DirFF(DM, DFF, grad_mult="0.5#0.5")
+        inp_tensor = torch.rand((2, 10, DM))
+        res = layer(inp_tensor)
+        assert res.shape == (2, 10, DM)
 
 
 class TestLayersPruningEquivalence(GeneralTestCase):

@@ -46,6 +46,7 @@ parser.add_argument("--ff_layer", type=str, default="regular")
 parser.add_argument("--bias", type=str, default="none")
 parser.add_argument("--trainer_type", type=str, default="regular")
 parser.add_argument("--tags", nargs="*", type=str, default=None)
+parser.add_argument("--dirff_grad_mult", type=str, default=None)
 parser.add_argument("--ds_seed", type=int, default=42)
 parser.add_argument("--eval_ds_seed", type=int, default=1984)
 parser.add_argument("--retrain_ds_seed", type=int, default=1998)
@@ -110,13 +111,13 @@ else:
 
 ATHENA_MEMORY_CONST = 2.192e7
 ENTROPY_MEMORY_CONST = 5.48e6
-LOCAL_MEMORY_CONST = 4e5
+LOCAL_MEMORY_CONST = 21386706.2
 
 
 def batch_size_heuristic(memory_const: float) -> int:
     buffer = args.batch_size_buffer or 1
     return max(
-        1, int(memory_const / (args.dmodel * args.n_blocks * 12 + VOCAB_SIZE)) * buffer
+        1, int(memory_const / (args.dmodel * args.n_blocks * 6.5 + VOCAB_SIZE * 1.15)) * buffer
     )
 
 
@@ -231,6 +232,12 @@ elif args.ff_layer == "separate_direction_magnitude_ff":
         magnitude_requires_grad=args.sep_dir_mag_magnitude_requires_grad,
         small_grad=args.sep_dir_mag_small_grad,
         bias=args.bias,
+    )
+elif args.ff_layer == "dirff":
+    ff_layer_fun = lambda: linears.DirFF(
+        args.dmodel,
+        args.dff,
+        grad_mult=args.dirff_grad_mult,
     )
 elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dmodel, args.dff, pruner)

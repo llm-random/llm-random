@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Union, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -601,6 +601,82 @@ class SeparateDirectionMagnitudeFF(nn.Module):
                 misc.einsum("... f, f -> ... f", x, self.magnitude).detach() - x
             ).detach()
         )
+        x = F.relu(x)
+        x = self.dir2(x)
+        return x
+
+
+class GradMultParameter(nn.Module):
+    def __init__(self, param, grad_mult: float):
+        super().__init__()
+        self.param = param
+        self.param.data /= grad_mult
+        self.grad_mult = grad_mult
+
+    def forward(self):
+        return self.param * self.grad_mult
+
+
+@ash.check("... d -> ... d")
+class DirFF(nn.Module):
+    def __init__(
+        self,
+        dmodel: int,
+        dff: int,
+        # either False or tuple of two numbers
+        grad_mult: Union[bool, Tuple[float, float]] = "$",
+    ):
+        super().__init__()
+        dir1 = misc.Linear(dmodel, dff, bias=False)
+        dir2 = misc.Linear(dff, dmodel, bias=False)
+        if grad_mult != "$":
+            grad_mult = grad_mult.split('#') if grad_mult != "$" else False
+            self.grad_mult = grad_mult
+
+            dir1 = dir1.weight
+            dir2 = dir2.weight
+            magnitude = nn.parameter.Parameter(
+                torch.ones(dff), requires_grad=True,
+            )
+            self.normalize(dir1, dir2, magnitude, mod_mag=True)
+
+            self.ff_mult = float(grad_mult[0]) if grad_mult else 1.0
+            self.mag_mult = float(grad_mult[1]) if grad_mult else 1.0
+
+            dir1 = GradMultParameter(dir1, self.ff_mult)
+            dir2 = GradMultParameter(dir2, self.ff_mult)
+            self.magnitude = GradMultParameter(magnitude, self.mag_mult)
+        self.dir1 = dir1
+        self.dir2 = dir2
+        self.grad_mult = grad_mult
+
+    def normalize(self, dir1, dir2, magnitude, mod_mag=False):
+        with torch.no_grad():
+            norms1 = torch.sqrt(misc.einsum("f m -> f", dir1**2))
+            norms2 = torch.sqrt(misc.einsum("m f -> f", dir2**2))
+            if mod_mag:
+                magnitude.data *= norms1 * norms2
+            dir1.data /= torch.unsqueeze(norms1, 1)
+            dir2.data /= torch.unsqueeze(norms2, 0)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.grad_mult != "$":
+            return self.grad_mult_forward(x)
+        else:
+            return self.normal_forward(x)
+
+    def grad_mult_forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.normalize(self.dir1.param, self.dir2.param, self.magnitude)
+        # multiply x by dir1.weight
+        x = misc.einsum("... m, f m -> ... f", x, self.dir1())
+        x = misc.einsum("... f, f -> ... f", x, self.magnitude())
+        x = F.relu(x)
+        # multiply x by dir2.weight
+        x = misc.einsum("... f, m f -> ... m", x, self.dir2())
+        return x
+
+    def normal_forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.dir1(x)
         x = F.relu(x)
         x = self.dir2(x)
         return x
