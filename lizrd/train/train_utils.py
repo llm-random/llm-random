@@ -18,6 +18,7 @@ from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
     LossWeightDict,
+    update_losses_dict,
 )
 from lizrd.train import global_params
 from lizrd.train.global_params import QualityFFMode
@@ -668,7 +669,8 @@ class QualityTrainer(Trainer):
         step: int,
         log_auxiliary_loss: bool = True,
     ):
-        losses = {}
+        losses_for_logger = {}
+
         self.model.train()
         processed_batch = dataset.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
@@ -676,39 +678,18 @@ class QualityTrainer(Trainer):
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
 
-        global_params.QUALITY_TRAIN_MODEL = QualityFFMode.BASELINE
-        self.model.requires_grad_(True)
-
-        with torch.autocast(
-            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-        ):
-            losses["mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
-            loss_mask = losses["mask"]
-            losses = update_losses_dict(losses, self.pruner.get_auxiliary_loss())
-
-        self.update_loss_stats(losses)
-        scaled_losses = self.scale_losses(losses)
-        self.optimize(
-            self.scaler,
-            loss=sum(scaled_losses.values()),
-            optimizer=optimizer,
-            step=step,
-        )
-
         global_params.QUALITY_TRAIN_MODEL = QualityFFMode.QUALITY
         self.model.requires_grad_(False)
-
         losses = {}
 
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            losses["quality_mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            quality_loss = self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            losses["quality_mask"] = quality_loss
 
         self.update_loss_stats(losses)
-        self.update_loss_stats({"delta_q_b": losses["quality_mask"] - loss_mask})
-
-        loss_quality = losses["quality_mask"]
+        losses_for_logger["quality"] = quality_loss
 
         scaled_losses = self.scale_losses(losses)
         self.optimize(
@@ -722,24 +703,58 @@ class QualityTrainer(Trainer):
         self.model.requires_grad_(False)
 
         losses = {}
-
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
-            losses["magnitude_mask"] = self._get_mask_loss(
-                x_set, y_token_set, y_mask_set
-            )
+            magnitude_loss = self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            losses["magnitude"] = magnitude_loss
 
         self.update_loss_stats(losses)
-        self.update_loss_stats({"delta_m_b": losses["magnitude_mask"] - loss_mask})
-        self.update_loss_stats({"delta_q_m": loss_quality - losses["magnitude_mask"]})
+        losses_for_logger["magnitude"] = magnitude_loss
+
         scaled_losses = self.scale_losses(losses)
-        # todo correct optimizer
         self.optimize(
             self.magnitude_scaler,
             loss=sum(scaled_losses.values()),
             optimizer=self.magnitude_optimizer,
             step=step,
+        )
+
+        global_params.QUALITY_TRAIN_MODEL = QualityFFMode.BASELINE
+        self.model.requires_grad_(True)
+
+        losses = {}
+        with torch.autocast(
+            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+        ):
+            losses["mask"] = self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            loss_baseline = losses["mask"]
+            losses = update_losses_dict(losses, self.pruner.get_auxiliary_loss())
+
+        self.update_loss_stats(losses)
+        losses_for_logger["baseline"] = loss_baseline
+
+        scaled_losses = self.scale_losses(losses)
+        self.optimize(
+            self.scaler,
+            loss=sum(scaled_losses.values()),
+            optimizer=optimizer,
+            step=step,
+        )
+
+        # Upadate all losses:
+        self.update_loss_stats({"baseline": losses_for_logger["baseline"]})
+        self.update_loss_stats(
+            {"delta_q_b": losses_for_logger["quality"] - losses_for_logger["baseline"]}
+        )
+        self.update_loss_stats(
+            {
+                "delta_m_b": losses_for_logger["magnitude"]
+                - losses_for_logger["baseline"]
+            }
+        )
+        self.update_loss_stats(
+            {"delta_q_m": losses_for_logger["quality"] - losses_for_logger["magnitude"]}
         )
 
     def _log_quality_stats(

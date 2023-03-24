@@ -117,31 +117,6 @@ class TestStructPruneFF(PruneFFTest):
         self.assertAlmostEqual(perc_nonzero, perc_nonzero_exp, 0)
 
 
-# class QualityFF(nn.Module):
-#     def __init__(self, dmodel: int, dff: int, pruner: Pruner, mask_percentage: float):
-#         super().__init__()
-#         self.lin1 = nn.Linear(dmodel, dff)
-#         self.lin2 = nn.Linear(dff, dmodel)
-#
-#         self.mask = nn.parameter.Parameter(torch.ones([dff]), requires_grad=True)
-#         self.mask_percentage = mask_percentage
-#
-#         pruner.register(self)
-#
-#     def get_proper_sigmoid_bias(self):
-#         #bin search proper bias: such that avg(sigmoid(mask + bias)) = mask_percentage
-#         min_bias = -1000.
-#         max_bias = 1000.
-#         while max_bias - min_bias > 1e-3:
-#             bias = (min_bias + max_bias) / 2
-#             avg = torch.sigmoid(self.mask + bias).mean()
-#             if avg > self.mask_percentage:
-#                 max_bias = bias
-#             else:
-#                 min_bias = bias
-#         return bias
-
-
 class TestQualityFF(GeneralTestCase):
     def test_smoke(self):
         pruner = Pruner()

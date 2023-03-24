@@ -40,6 +40,7 @@ PARAMS = {
 }
 
 TIME = "1-00:00:00"
+OUT = "out.txt"
 GRES = "gpu:titanv:1"
 DRY_RUN = False
 CODE_PATH = os.getcwd()
@@ -63,6 +64,7 @@ if __name__ == "__main__":
         RUNNER = grid_args.get("runner", RUNNER)
         PARAMS = grid_args.get("params", PARAMS)
         TIME = grid_args.get("time", TIME)
+        OUT = grid_args.get("out", OUT)
         GRES = grid_args.get("gres", GRES)
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
@@ -140,7 +142,7 @@ if __name__ == "__main__":
                 "--cpus-per-gpu=8",
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
-                f"--output=/net/people/plgrid/plgtodrzygozdz/out/{name}.out",
+                f"--output={OUT}",
                 f"--time={TIME}",
                 get_grid_entrypoint(runner),
                 "singularity",

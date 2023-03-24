@@ -86,7 +86,7 @@ parser.add_argument("--neuron_diff_batches", type=int, default=10)
 parser.add_argument("--retrain_without_reinit", action="store_true")
 parser.add_argument("--random_indexes", action="store_true")
 parser.add_argument("--highest_magnitudes", action="store_true")
-parser.add_argument("--quality_mask_percentage", type=float, default=0.9)
+parser.add_argument("--quality_mask_percentage", type=float, default=0.1)
 
 parser.add_argument("--mpl_reg_pow", type=float, required=False)
 parser.add_argument("--mpl_midpoint_type", type=str, default="mean")
@@ -379,7 +379,6 @@ base_trainer_params = dict(
         "mask": args.mask_loss_weight,
         "quality_mask": args.mask_loss_weight,
         "magnitude_mask": args.mask_loss_weight,
-        "delta_loss": 1.0,
         "midpoint": args.midpoint_loss_weight,
         "decay": args.decay_loss_weight,
         "delta_q_b": 1.0,
