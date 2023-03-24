@@ -324,10 +324,10 @@ if args.ff_layer == "quality":
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
     quality_optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+        model.parameters(), lr=args.learning_rate, weight_decay=0.0
     )
     magnitude_optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+        model.parameters(), lr=args.learning_rate, weight_decay=0.0
     )
 elif args.optimizer == "adam":
     optimizer = torch.optim.Adam(
