@@ -117,39 +117,54 @@ class NoiseFF(nn.Module):
         self.mask[topk.indices] = 0
 
         # prepare target weights
+        if self.new_weight_init == "random":
+            target_weights_1 = self.get_random_weight(self.lin1)
+            target_weights_2 = self.get_random_weight(self.lin2)
+        elif self.new_weight_init == "mimic":
+            perm = torch.randperm(
+                self.dff
+            )  # make sure permutation is the same in both layers
+            target_weights_1 = self.get_mimicked_weight(self.lin1, perm)
+            target_weights_2 = self.get_mimicked_weight(self.lin2, perm)
+
         self.lin1.weight.data = misc.einsum(
             "f, f m -> f m", self.mask, self.lin1.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.get_new_weight(self.lin1))
+        ) + misc.einsum("f, f m -> f m", 1 - self.mask, target_weights_1)
         self.lin2.weight.data = misc.einsum(
             "f, m f -> m f", self.mask, self.lin2.weight.data
-        ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.get_new_weight(self.lin2))
+        ) + misc.einsum("f, m f -> m f", 1 - self.mask, target_weights_2)
 
-    def get_new_weight(self, layer):
+    def get_random_weight(self, layer):
         mean = layer.weight.mean().detach().cpu().item()
         std = layer.weight.std().detach().cpu().item()
 
-        if self.new_weight_init == "random":
-            new_weights = torch.normal(
-                mean, std, size=layer.weight.shape, device=self.get_device()
-            )
-        elif self.new_weight_init == "mimic":
-            if layer.weight.shape[0] == self.dff:
-                new_weights = (
-                    layer.weight.data.detach()
-                    .clone()
-                    .requires_grad_(False)[torch.randperm(self.dff), :]
-                )
-            else:
-                new_weights = (
-                    layer.weight.data.detach()
-                    .clone()
-                    .requires_grad_(False)[:, torch.randperm(self.dff)]
-                )
+        new_weights = torch.normal(
+            mean, std, size=layer.weight.shape, device=self.get_device()
+        )
 
-            # add small noise (std = 0.05 * std of weights in layer)
-            new_weights += torch.normal(
-                mean, 0.05 * std, size=new_weights.shape, device=self.get_device()
+        return new_weights
+
+    def get_mimicked_weight(self, layer, permute_order):
+        mean = layer.weight.mean().detach().cpu().item()
+        std = layer.weight.std().detach().cpu().item()
+
+        if layer.weight.shape[0] == self.dff:
+            new_weights = (
+                layer.weight.data.detach()
+                .clone()
+                .requires_grad_(False)[permute_order, :]
             )
+        else:
+            new_weights = (
+                layer.weight.data.detach()
+                .clone()
+                .requires_grad_(False)[:, permute_order]
+            )
+
+        # add small noise (std = 0.05 * std of weights in layer)
+        new_weights += torch.normal(
+            mean, 0.05 * std, size=new_weights.shape, device=self.get_device()
+        )
 
         return new_weights
 
