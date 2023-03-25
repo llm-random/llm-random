@@ -377,10 +377,11 @@ base_trainer_params = dict(
     neuron_diff_n_batches=args.neuron_diff_batches,
     losses_weights={
         "mask": args.mask_loss_weight,
-        "quality_mask": args.mask_loss_weight,
-        "magnitude_mask": args.mask_loss_weight,
+        "quality": args.mask_loss_weight,
+        "magnitude": args.mask_loss_weight,
         "midpoint": args.midpoint_loss_weight,
         "decay": args.decay_loss_weight,
+        "baseline": 1.0,
         "delta_q_b": 1.0,
         "delta_q_m": 1.0,
         "delta_m_b": 1.0,

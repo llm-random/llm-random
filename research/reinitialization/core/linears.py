@@ -141,6 +141,46 @@ class QualityFF(nn.Module):
             - self.get_mask_percentage().detach()
         )
 
+    def get_magnitude_mask(self):
+        tensor_magnitudes = get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
+        top_magnitudes = torch.topk(
+            tensor_magnitudes,
+            int(tensor_magnitudes.numel() * (1.0 - self.mask_percentage)),
+            largest=True,
+        )
+        mask_top_magnitudes = torch.zeros_like(tensor_magnitudes)
+        mask_top_magnitudes[top_magnitudes.indices] = 1.0
+        return mask_top_magnitudes
+
+    def log_magnitude(self, layer_name, step: int):
+        tensor = self.neuron_magnitudes.flatten().cpu()
+        if global_params.QUALITY_TRAIN_MODEL == QualityFFMode.MAGNITUDE:
+            neurons_mask = self.get_magnitude_mask()
+            tensor = tensor[neurons_mask.flatten().cpu() == 1]
+        if global_params.QUALITY_TRAIN_MODEL == QualityFFMode.QUALITY:
+            neurons_mask = self.get_straight_through_mask()
+            tensor = tensor[neurons_mask.flatten().cpu() == 1]
+        values = tensor.tolist()
+        fig = px.histogram(values)
+        log_plot(
+            title="Magnitude of all neurons (no square)",
+            series=layer_name,
+            iteration=step,
+            figure=fig,
+        )
+
+    def log_heavy(self, layer_name, step: int):
+        global_params.QUALITY_TRAIN_MODEL = QualityFFMode.QUALITY
+        self.log_magnitude(f"quality magnitude of all neurons {layer_name}", step)
+        global_params.QUALITY_TRAIN_MODEL = QualityFFMode.MAGNITUDE
+        self.log_magnitude(f"magnitude magnitude of all neurons {layer_name}", step)
+        global_params.QUALITY_TRAIN_MODEL = QualityFFMode.BASELINE
+        self.log_magnitude(f"baseline magnitude of all neurons {layer_name}", step)
+
+    @property
+    def neuron_magnitudes(self) -> torch.Tensor:
+        return misc.get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
         if global_params.QUALITY_TRAIN_MODEL == QualityFFMode.QUALITY:
@@ -160,16 +200,7 @@ class QualityFF(nn.Module):
             self.quality_scale.requires_grad = False
             self.magnitude_scale.requires_grad = True
 
-            tensor_magnitudes = get_neuron_magnitudes(
-                self.lin1.weight, self.lin2.weight
-            )
-            top_magnitudes = torch.topk(
-                tensor_magnitudes,
-                int(tensor_magnitudes.numel() * (1.0 - self.mask_percentage)),
-                largest=True,
-            )
-            mask_top_magnitudes = torch.zeros_like(tensor_magnitudes)
-            mask_top_magnitudes[top_magnitudes.indices] = 1.0
+            mask_top_magnitudes = self.get_magnitude_mask()
             x = misc.einsum("... i, i -> ... i", x, mask_top_magnitudes)
             x = misc.einsum("... i, i -> ... i", x, self.magnitude_scale)
         else:

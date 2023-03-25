@@ -662,12 +662,14 @@ class QualityTrainer(Trainer):
         scaler.step(optimizer)
         scaler.update()
 
+    def set_lr(self, lr: float):
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = lr
+
     def _train_step(
         self,
-        optimizer: torch.optim.Optimizer,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
-        log_auxiliary_loss: bool = True,
     ):
         losses_for_logger = {}
 
@@ -686,7 +688,7 @@ class QualityTrainer(Trainer):
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
         ):
             quality_loss = self._get_mask_loss(x_set, y_token_set, y_mask_set)
-            losses["quality_mask"] = quality_loss
+            losses["quality"] = quality_loss
 
         self.update_loss_stats(losses)
         losses_for_logger["quality"] = quality_loss
@@ -738,7 +740,7 @@ class QualityTrainer(Trainer):
         self.optimize(
             self.scaler,
             loss=sum(scaled_losses.values()),
-            optimizer=optimizer,
+            optimizer=self.optimizer,
             step=step,
         )
 
