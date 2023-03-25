@@ -9,6 +9,7 @@ from lizrd.support.logging import (
     log_plot as log_plot,
 )
 import plotly_express as px
+import torch.nn.functional as F
 
 
 class NoiseFF(nn.Module):
@@ -76,12 +77,12 @@ class NoiseFF(nn.Module):
         # apply lin1
         noisy_weights = (
             1 - self.alpha
-        ) * self.frozen_weights_1 + self.alpha * self.lin1.weight.data
+        ) * self.frozen_weights_1 + self.alpha * self.lin1.weight
         # weight = misc.einsum(
         #     "f, f m -> f m", self.mask, self.lin1.weight.data
         # ) + misc.einsum("f, f m -> f m", 1 - self.mask, noisy_weights)
         weight = (
-            self.mask.view(self.dff, 1) * self.lin1.weight.data
+            self.mask.view(self.dff, 1) * self.lin1.weight
             + (1 - self.mask.view(self.dff, 1)) * noisy_weights
         )
 
@@ -90,7 +91,9 @@ class NoiseFF(nn.Module):
             and ((weight == self.lin1.weight).count_nonzero() == weight.numel())
         )
         # x = misc.einsum("... m, f m -> ... f", x, weight)
-        x = x @ weight.transpose(0, 1)
+        # x = x @ weight.transpose(0, 1)
+        # x = self.lin1(x)
+        x = F.linear(x, weight)
 
         self._save_activation_stats(x)
         x = F.relu(x)
@@ -98,12 +101,12 @@ class NoiseFF(nn.Module):
         # apply lin2
         noisy_weights = (
             1 - self.alpha
-        ) * self.frozen_weights_2 + self.alpha * self.lin2.weight.data
+        ) * self.frozen_weights_2 + self.alpha * self.lin2.weight
         # weight = misc.einsum(
         #     "f, m f -> m f", self.mask, self.lin2.weight.data
         # ) + misc.einsum("f, m f -> m f", 1 - self.mask, noisy_weights)
         weight = (
-            self.mask.view(1, self.dff) * self.lin2.weight.data
+            self.mask.view(1, self.dff) * self.lin2.weight
             + (1 - self.mask.view(1, self.dff)) * noisy_weights
         )
 
@@ -113,7 +116,9 @@ class NoiseFF(nn.Module):
             and ((weight == self.lin2.weight).count_nonzero() == weight.numel())
         )
         # x = misc.einsum("... f, m f -> ... m", x, weight)
-        x = x @ weight.transpose(0, 1)
+        # x = x @ weight.transpose(0, 1)
+        # x = self.lin2(x)
+        x = F.linear(x, weight)
 
         return x
 
@@ -150,12 +155,19 @@ class NoiseFF(nn.Module):
             target_weights_1 = self.get_mimicked_weight(self.lin1, perm)
             target_weights_2 = self.get_mimicked_weight(self.lin2, perm)
 
-        self.lin1.weight.data = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - self.mask, target_weights_1)
-        self.lin2.weight.data = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.data
-        ) + misc.einsum("f, m f -> m f", 1 - self.mask, target_weights_2)
+        # self.lin1.weight.data = misc.einsum(
+        #     "f, f m -> f m", self.mask, self.lin1.weight.data
+        # ) + misc.einsum("f, f m -> f m", 1 - self.mask, target_weights_1)
+        self.lin1.weight.data = (
+            self.mask.view(self.dff, 1) * self.lin1.weight.data
+            + (1 - self.mask.view(self.dff, 1)) * target_weights_1
+        )
+        # self.lin2.weight.data = misc.einsum(
+        #     "f, m f -> m f", self.mask, self.lin2.weight.data
+        # ) + misc.einsum("f, m f -> m f", 1 - self.mask, target_weights_2)
+        self.lin2.weight.data = (
+            self.mask.view(1, self.dff) * self.lin2.weight.data
+        ) + (1 - self.mask.view(1, self.dff)) * target_weights_2
 
     def get_random_weight(self, layer):
         mean = layer.weight.mean().detach().cpu().item()
