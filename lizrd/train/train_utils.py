@@ -215,6 +215,10 @@ class Trainer:
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
+        # # remove everything but first "step + 1" examples
+        # x_set = x_set[: step + 1]
+        # y_token_set = y_token_set[: step + 1]
+        # y_mask_set = y_mask_set[: step + 1]
 
         with torch.autocast(
             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
@@ -287,6 +291,9 @@ class Trainer:
                     x_set=processed_batch.masked_tokens,
                     y_token_set=processed_batch.tokens,
                     y_mask_set=processed_batch.mask_mask,
+                    # x_set=processed_batch.masked_tokens[: step + 1],
+                    # y_token_set=processed_batch.tokens[: step + 1],
+                    # y_mask_set=processed_batch.mask_mask[: step + 1],
                 )
                 total_mask_loss += mask_loss.item()
             total_mask_loss /= sample

@@ -101,6 +101,9 @@ parser.add_argument("--noise_ff_n_steps", type=int, required=False)
 parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
 parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
 
+parser.add_argument("--mconv_weight_const", type=float, default=1.0)
+parser.add_argument("--mconv_mult_const", type=float, default=1.0)
+
 args = parser.parse_args()
 
 if args.dff == "auto":
@@ -235,7 +238,9 @@ elif args.ff_layer == "separate_direction_magnitude_ff":
 elif args.ff_layer == "log_ff":
     ff_layer_fun = lambda: linears.LogFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "plusminus_ff":
-    ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dm, args.dff)
+    ff_layer_fun = lambda: linears_plusminus.PlusMinusFF(args.dmodel, args.dff)
+elif args.ff_layer == "multi_grouped":
+    ff_layer_fun = lambda: linears_plusminus.MultiGroupedConv(args.dmodel, args.dff, args.mconv_weight_const, args.mconv_mult_const)
 elif args.ff_layer == "loss_ff":
     ff_layer_fun = lambda: linears_loss.BaseLossFF(
         dmodel=args.dmodel,

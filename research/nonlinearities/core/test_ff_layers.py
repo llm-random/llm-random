@@ -1,4 +1,4 @@
-import torch
+import torchHEAD
 
 from lizrd.support.test_utils import GeneralTestCase
 from research.nonlinearities.core.research_bert import (
