@@ -71,6 +71,8 @@ class NoiseFF(nn.Module):
                 self.alpha = 0.0
                 self.prepare_mask()
 
+        print(f"Noise enabled: {self.noise_enabled}")
+
         # apply lin1
         noisy_weights = (
             1 - self.alpha
@@ -78,6 +80,8 @@ class NoiseFF(nn.Module):
         weight = misc.einsum(
             "f, f m -> f m", self.mask, self.lin1.weight.data
         ) + misc.einsum("f, f m -> f m", 1 - self.mask, noisy_weights)
+
+        assert self.noise_enabled or (self.alpha == 1.0 and weight == self.lin1.weight)
         x = misc.einsum("... m, f m -> ... f", x, weight)
 
         self._save_activation_stats(x)
@@ -90,6 +94,8 @@ class NoiseFF(nn.Module):
         weight = misc.einsum(
             "f, m f -> m f", self.mask, self.lin2.weight.data
         ) + misc.einsum("f, m f -> m f", 1 - self.mask, noisy_weights)
+
+        assert self.noise_enabled or (self.alpha == 1.0 and weight == self.lin2.weight)
         x = misc.einsum("... f, m f -> ... m", x, weight)
 
         return x
