@@ -145,7 +145,6 @@ class NoiseFF(nn.Module):
         return new_weights
 
     def get_mimicked_weight(self, layer, permute_order):
-        mean = layer.weight.mean().detach().cpu().item()
         std = layer.weight.std().detach().cpu().item()
 
         if layer.weight.shape[0] == self.dff:
@@ -163,7 +162,7 @@ class NoiseFF(nn.Module):
 
         # add small noise (std = 0.05 * std of weights in layer)
         new_weights += torch.normal(
-            mean, 0.05 * std, size=new_weights.shape, device=self.get_device()
+            0, 0.05 * std, size=new_weights.shape, device=self.get_device()
         )
 
         return new_weights
