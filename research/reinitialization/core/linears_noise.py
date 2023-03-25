@@ -77,12 +77,20 @@ class NoiseFF(nn.Module):
         noisy_weights = (
             1 - self.alpha
         ) * self.frozen_weights_1 + self.alpha * self.lin1.weight.data
-        weight = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - self.mask, noisy_weights)
+        # weight = misc.einsum(
+        #     "f, f m -> f m", self.mask, self.lin1.weight.data
+        # ) + misc.einsum("f, f m -> f m", 1 - self.mask, noisy_weights)
+        weight = (
+            self.mask.view(self.dff, 1) * self.lin1.weight.data
+            + (1 - self.mask.view(self.dff, 1)) * noisy_weights
+        )
 
-        assert self.noise_enabled or (self.alpha == 1.0 and weight == self.lin1.weight)
-        x = misc.einsum("... m, f m -> ... f", x, weight)
+        assert self.noise_enabled or (
+            (self.alpha == 1.0)
+            and ((weight == self.lin1.weight).count_nonzero() == weight.numel())
+        )
+        # x = misc.einsum("... m, f m -> ... f", x, weight)
+        x = x @ weight.transpose(0, 1)
 
         self._save_activation_stats(x)
         x = F.relu(x)
@@ -91,12 +99,21 @@ class NoiseFF(nn.Module):
         noisy_weights = (
             1 - self.alpha
         ) * self.frozen_weights_2 + self.alpha * self.lin2.weight.data
-        weight = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.data
-        ) + misc.einsum("f, m f -> m f", 1 - self.mask, noisy_weights)
+        # weight = misc.einsum(
+        #     "f, m f -> m f", self.mask, self.lin2.weight.data
+        # ) + misc.einsum("f, m f -> m f", 1 - self.mask, noisy_weights)
+        weight = (
+            self.mask.view(1, self.dff) * self.lin2.weight.data
+            + (1 - self.mask.view(1, self.dff)) * noisy_weights
+        )
 
-        assert self.noise_enabled or (self.alpha == 1.0 and weight == self.lin2.weight)
-        x = misc.einsum("... f, m f -> ... m", x, weight)
+        assert (
+            self.noise_enabled
+            or (self.alpha == 1.0)
+            and ((weight == self.lin2.weight).count_nonzero() == weight.numel())
+        )
+        # x = misc.einsum("... f, m f -> ... m", x, weight)
+        x = x @ weight.transpose(0, 1)
 
         return x
 
