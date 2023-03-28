@@ -455,7 +455,7 @@ class Trainer:
                 and step % self.n_log_heavy_steps == 0
             ):
                 print(f"Running heavy log at step {step}")
-                self.pruner.log_heavy(step)
+                self.pruner.log_heavy(step, self.modelpath)
             print(f"Step {step}")
 
 

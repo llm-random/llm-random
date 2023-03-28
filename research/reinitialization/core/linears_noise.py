@@ -10,6 +10,7 @@ from lizrd.support.logging import (
 )
 import plotly_express as px
 import torch.nn.functional as F
+import pickle
 
 
 class NoiseFF(nn.Module):
@@ -207,6 +208,8 @@ class NoiseFF(nn.Module):
         return misc.get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
 
     def log_magnitude(self, layer_name, step: int):
+        # save lin1 weights
+
         tensor = self.neuron_magnitudes.flatten().cpu()
         values = tensor.tolist()
         fig = px.histogram(values)
@@ -256,7 +259,7 @@ class NoiseFF(nn.Module):
             figure=fig,
         )
 
-    def log_heavy(self, layer_name: str, step: int):
+    def log_heavy(self, layer_name: str, step: int, modelpath: str = None):
         with torch.no_grad():
             get_current_logger().flush_if_necessary()
             self.log_activations(layer_name, step)
@@ -267,3 +270,13 @@ class NoiseFF(nn.Module):
             get_current_logger().flush_if_necessary()
             self.log_magnitude(layer_name, step)
             get_current_logger().flush_if_necessary()
+            # save lin1 weights
+            with open(
+                f"{modelpath}/{layer_name}_step_{step}_weights_lin1.pkl", "wb"
+            ) as f:
+                pickle.dump(self.lin1.weight, f)
+            # save lin2 weights
+            with open(
+                f"{modelpath}/{layer_name}_step_{step}_weights_lin2.pkl", "wb"
+            ) as f:
+                pickle.dump(self.lin2.weight, f)
