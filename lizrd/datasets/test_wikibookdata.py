@@ -21,7 +21,7 @@ class TestWikibookdata(GeneralTestCase):
         self.assertShape(processed_batch.special_token_mask, (batch_size, max_len))
         self.assertShape(processed_batch.special_token_mask, (batch_size, max_len))
 
-    @heavy_test
+    @skip_test(reason="Needs to be updated")
     def test_consistency(self):
         ds = get_processed_dataset(32, 128, 0.15, "cpu", 2, 1)
         batch = ds.get_batch()

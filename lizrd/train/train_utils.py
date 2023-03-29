@@ -60,8 +60,11 @@ def get_processed_dataset(
     device: torch.device,
     num_workers: int,
     seed: int,
+    max_one_sample_per_document: bool = False,
 ) -> wikibookdata.ProcessedDatasetWrapper:
-    raw_dataset = wikibookdata.WikiBookDataset()
+    raw_dataset = wikibookdata.WikiBookDataset(
+        max_one_sample_per_document=max_one_sample_per_document
+    )
     processor = wikibookdata.SentenceProcessor(
         max_total_length=max_total_length,
         mask_percent=mask_percent,

@@ -168,7 +168,7 @@ def process_book_text(document_sentences, chunk_length: int = 450):
 
 
 class WikiBookDataset:
-    def __init__(self, rng=random):
+    def __init__(self, max_one_sample_per_document: bool, rng=random):
         self.examples_buffer = []
         self.dataset_wiki = load_dataset("wikipedia", "20220301.en")["train"]
         self.dataset_book = load_dataset("bookcorpus")["train"]
@@ -182,18 +182,24 @@ class WikiBookDataset:
         self.bookcorpus_chance = self.bookcorpus_chance / 100 * self.bookcorpus_lines
         self.bookcorpus_lines = 100  # the above is very approximate
         self.wikipedia_chance = 1.0 - self.bookcorpus_chance
+        self.max_one_sample_per_document = max_one_sample_per_document
         print("bookcorpus_lines:", self.bookcorpus_lines)
         print("bookcorpus_chance:", self.bookcorpus_chance)
 
     def get_example(self):
-        if len(self.examples_buffer) <= self.buffer_refill_from:
-            self._refill_buffer()
-        example = self.examples_buffer.pop()
+        if self.max_one_sample_per_document:
+            example = None
+            while example is None:
+                document = self._get_random_document()
+                for sentence in document:
+                    if len(sentence) > self.min_sentence_length:
+                        example = sentence
+                        break
+        else:
+            if len(self.examples_buffer) <= self.buffer_refill_from:
+                self._refill_buffer()
+            example = self.examples_buffer.pop()
         return example
-
-    def get_batch(self, batch_size):
-        batch = [self.get_example() for _ in range(batch_size)]
-        return batch
 
     def _refill_buffer(self):
         while len(self.examples_buffer) <= self.buffer_refill_to:
