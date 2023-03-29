@@ -191,10 +191,9 @@ class WikiBookDataset:
             example = None
             while example is None:
                 document = self._get_random_document()
-                for sentence in document:
-                    if len(sentence) > self.min_sentence_length:
-                        example = sentence
-                        break
+                examples = self.get_eligible_examples(document)
+                if len(examples) > 0:
+                    example = self.rng.choice(examples)
         else:
             if len(self.examples_buffer) <= self.buffer_refill_from:
                 self._refill_buffer()
@@ -225,13 +224,18 @@ class WikiBookDataset:
             assert isinstance(documents_sentences[0], str)
         return documents_sentences
 
-    def _add_examples(self, param):
+    def get_eligible_examples(self, document):
+        return [
+            sentence
+            for sentence in document
+            if len(sentence) > self.min_sentence_length
+        ]
+
+    def _add_examples(self, document):
         """This version simply filters out all sentences that are too short, then adds all remaining sentences to the buffer."""
 
-        document_sentences = [
-            sentence for sentence in param if len(sentence) > self.min_sentence_length
-        ]
-        self.examples_buffer += document_sentences
+        document_examples = self.get_eligible_examples(document)
+        self.examples_buffer.extend(document_examples)
 
 
 class ProcessedDataset:
