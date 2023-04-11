@@ -512,6 +512,108 @@ class BatchSplitFF(nn.Module):
             return result_final
 
 
+def stable_softmax_temperature(x, temperature):
+    x = x / temperature
+    x = x - x.max(dim=-1, keepdim=True)[0]
+    x = torch.exp(x)
+    x = x / x.sum(dim=-1, keepdim=True)
+    return x
+
+
+@ash.check("... dinp -> ... dout")
+class ContinuousMoE(nn.Module):
+    """
+    Continuous mixture of experts. Each expert attends to some subset of the input.
+    """
+    def __init__(self, dm, dff, n_experts, sparsity, sparsity_dim, temperature):
+        super().__init__()
+        self.dm = dm
+        self.dff = dff
+        self.n_experts = n_experts
+        self.sparsity = sparsity
+        self.sparsity_dim = sparsity_dim
+        self.temperature = temperature
+        self.expertsize = dff // n_experts
+
+        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
+        self.lin1 = nn.Parameter(
+            misc.get_init_weight((dm, n_experts, self.expertsize),
+                                 fan_in=dm)
+        )
+
+        self.lin2 = nn.Parameter(
+            misc.get_init_weight((dm, n_experts, self.expertsize),
+                                 fan_in=self.expertsize)
+        )
+
+        # controller: dmodel to n_experts
+        self.controller = nn.Parameter(
+            misc.get_init_weight((dm, n_experts), fan_in=dm)
+        )
+
+
+    def forward(self, x):
+        # assert shape: x is of shape (batch, seq_len, dmodel)
+        ash.assert_shape("S B d", x, d=self.dm)
+        # we want to split the input into chunks of size sparsity according to sparsity_dim
+        if self.sparsity_dim == 0:
+            # rearrange
+            x = einops.rearrange(x, "(S s) B d -> S B s d", s=self.sparsity)
+        elif self.sparsity_dim == 1:
+            x = einops.rearrange(x, "S (B s) d -> S B s d", s=self.sparsity)
+        else:
+            raise NotImplementedError("sparsity_dim must be 0 or 1")
+        
+        # assert shape: x is of shape (seq_len, batch, sparsity, dmodel)
+        ash.assert_shape("S B s d", x, d=self.dm, s=self.sparsity)
+
+        # controller: (seq_len, batch, sparsity, dmodel) to (seq_len, batch, sparsity, n_experts)
+        controller_logits = misc.einsum("S B s d, d e -> S B s e", x, self.controller)
+        # assert shape: controller_logits is of shape (seq_len, batch, sparsity, n_experts)
+        ash.assert_shape("S B s e", controller_logits, e=self.n_experts)
+        # apply temperature and softmax over "sparsity" dimension
+        controller_weights = stable_softmax_temperature(controller_logits, self.temperature)
+        # assert shape: controller_weights is of shape (seq_len, batch, sparsity, n_experts)
+        ash.assert_shape("S B s e", controller_weights, e=self.n_experts)
+
+        # aggregate x according to controller weights
+        # (seq_len, batch, sparsity, n_experts) * (seq_len, batch, sparsity, dmodel) -> (seq_len, batch, n_experts, dmodel)
+        x = torch.einsum("S B s e, S B s d -> S B e d", controller_weights, x)
+        # assert shape: x is of shape (seq_len, batch, n_experts, dmodel)
+        ash.assert_shape("S B e d", x, e=self.n_experts, d=self.dm)
+
+        # lin1: (seq_len, batch, n_experts, dmodel) to (seq_len, batch, n_experts, dff/n_experts)
+        mid_act = misc.einsum("S B e d, d e f -> S B e f", x, self.lin1)
+        # assert shape: lin1 is of shape (seq_len, batch, n_experts, dff/n_experts)
+        ash.assert_shape("S B e f", mid_act, e=self.n_experts, f=self.expertsize)
+
+        # relu
+        mid_act = torch.relu_(mid_act)
+
+        # lin2: (seq_len, batch, n_experts, dff/n_experts) to (seq_len, batch, n_experts, dff/n_experts)
+        out = misc.einsum("S B e f, d e f-> S B e d", mid_act, self.lin2)
+        # assert shape: lin2 is of shape (seq_len, batch, n_experts, dmodel)
+        ash.assert_shape("S B e d", out, e=self.n_experts, d=self.dm)
+
+        # distribute expert outputs according to controller weights
+        # (seq_len, batch, n_experts, dmodel) * (seq_len, batch, sparsity, n_experts) -> (seq_len, batch, sparsity, dmodel)
+        out = torch.einsum("S B e d, S B s e -> S B s d", out, controller_weights)
+        # assert shape: out is of shape (seq_len, batch, sparsity, dmodel)
+        ash.assert_shape("S B s d", out, d=self.dm, s=self.sparsity)
+
+        # rearrange
+        if self.sparsity_dim == 0:
+            out = einops.rearrange(out, "S B s d -> (S s) B d")
+        elif self.sparsity_dim == 1:
+            out = einops.rearrange(out, "S B s d -> S (B s) d")
+        else:
+            raise NotImplementedError("sparsity_dim must be 0 or 1")
+        
+        # assert shape: out is of shape (batch, seq_len, dmodel)
+        ash.assert_shape("S B d", out, d=self.dm)
+        return out
+
+
 @ash.check("... dinp -> ... dout")
 class FactoredDense(nn.Module):
     def __init__(self, dinput, doutput, modules):

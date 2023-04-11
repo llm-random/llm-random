@@ -38,6 +38,43 @@ class FactoredDenseTest(GeneralTestCase):
         self.assertShape(output, (batch, seql, dout))
 
 
+'''
+@ash.check("... dinp -> ... dout")
+class ContinuousMoE(nn.Module):
+    """
+    Continuous mixture of experts. Each expert attends to some subset of the input.
+    """
+    def __init__(self, dm, dff, n_experts, sparsity, sparsity_dim, temperature):
+        self.dm = dm
+        self.dff = dff
+        self.n_experts = n_experts
+        self.sparsity = sparsity
+        self.sparsity_dim = sparsity_dim
+        self.temperature = temperature
+        self.expertsize = dff // n_experts
+'''
+
+
+class TestContinuousMoE(GeneralTestCase):
+    def test_basic(self):
+        batch, seq_len, dm, dff,  = 4, 10, 32, 64
+        layer = research.conditional.ffs.ContinuousMoE(
+            dm, dff, n_experts=4, sparsity=4, sparsity_dim=0, temperature=1.0
+        )
+        input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
+        output = layer(input)
+        self.assertShape(output, (batch, seq_len, dm))
+    
+    def test_dim1(self):
+        batch, seq_len, dm, dff,  = 5, 12, 32, 64
+        layer = research.conditional.ffs.ContinuousMoE(
+            dm, dff, n_experts=4, sparsity=4, sparsity_dim=1, temperature=1.0
+        )
+        input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
+        output = layer(input)
+        self.assertShape(output, (batch, seq_len, dm))
+
+
 class TestGeneralizedReLU(GeneralTestCase):
     def test_basic(self):
         batch, dinp = 4, 32
