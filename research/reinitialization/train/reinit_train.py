@@ -307,7 +307,10 @@ logger = get_logger(args, model, VOCAB_SIZE)
 # set optimizer
 if args.optimizer == "adam":
     optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=(0.9, 0.)
+        model.parameters(),
+        lr=args.learning_rate,
+        weight_decay=args.weight_decay,
+        betas=(0.9, 0.0),
     )
 elif args.optimizer == "adamw":
     optimizer = torch.optim.AdamW(
