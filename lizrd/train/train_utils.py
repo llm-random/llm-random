@@ -13,7 +13,7 @@ import plotly.express as px
 from lizrd.core import bert
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
-from lizrd.support.logging import AbstractLogger
+from lizrd.support.logging import AbstractLogger, log_plot
 from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
@@ -201,6 +201,7 @@ class Trainer:
             reduction="none",
         )
         mask_loss *= y_mask_set.reshape(-1)  # only check masked words
+        self.token_losses = mask_loss[mask_loss != 0]
         mask_loss = mask_loss.mean() / self.mask_percent
         return mask_loss
 
@@ -231,6 +232,11 @@ class Trainer:
             step=step,
             run_after_backprop=True,
         )
+
+        if self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
+            self.token_losses_before = self.token_losses
+            self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            self.token_losses_after = self.token_losses
 
     def _model_train_step(self, step: int):
         self.model.train()
@@ -397,6 +403,17 @@ class Trainer:
 
         print("Neuron diff logged.")
 
+    def log_token_losses(self, step: int):
+        values = self.token_losses_after - self.token_losses_before
+        values = values.detach().cpu().numpy().tolist()
+        fig = px.histogram(values)
+        log_plot(
+            title="Token losses difference",
+            series="Token losses difference",
+            iteration=step,
+            figure=fig,
+        )
+
     def set_lr(self, lr: float):
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
@@ -456,6 +473,7 @@ class Trainer:
             ):
                 print(f"Running heavy log at step {step}")
                 self.pruner.log_heavy(step, self.modelpath)
+                self.log_token_losses(step)
             print(f"Step {step}")
 
 
