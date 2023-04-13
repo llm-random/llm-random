@@ -1,5 +1,6 @@
 from collections import defaultdict
 import copy
+import os
 from typing import Callable, Optional
 
 import torch
@@ -195,14 +196,14 @@ class Trainer:
         y_mask_set: torch.Tensor,
     ) -> torch.Tensor:
         model_output = self.model(x_set)
-        mask_loss = F.cross_entropy(
+        self.mask_loss = F.cross_entropy(
             model_output.reshape(-1, self.vocab_size),
             y_token_set.reshape(-1).long(),
             reduction="none",
         )
-        mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-        self.token_losses = mask_loss[mask_loss != 0]
-        mask_loss = mask_loss.mean() / self.mask_percent
+        self.mask_loss *= y_mask_set.reshape(-1)  # only check masked words
+        self.token_losses = self.mask_loss[y_mask_set.reshape(-1).bool()]
+        mask_loss = self.mask_loss.mean() / self.mask_percent
         return mask_loss
 
     def _task_train_step(
@@ -225,6 +226,10 @@ class Trainer:
             scaled_losses = self.scale_losses(losses)
             loss = sum(scaled_losses.values())
 
+        if self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
+            with torch.no_grad():
+                self._get_mask_loss(x_set, y_token_set, y_mask_set)
+
         self.optimize(
             optimizer=self.optimizer,
             scaler=self.scaler,
@@ -234,9 +239,38 @@ class Trainer:
         )
 
         if self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
-            self.token_losses_before = self.token_losses
-            self._get_mask_loss(x_set, y_token_set, y_mask_set)
-            self.token_losses_after = self.token_losses
+            self.token_losses_before = self.token_losses.clone()
+            with torch.no_grad():
+                self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            self.token_losses_after = self.token_losses.clone()
+            assert self.token_losses_before.shape == self.token_losses_after.shape
+            torch.save(processed_batch, os.path.join(self.modelpath, "checked_batch"))
+            torch.save(
+                self.token_losses_before,
+                os.path.join(self.modelpath, "token_losses_before"),
+            )
+
+        if (
+            self.n_log_heavy_steps
+            and step > 0
+            and step > self.n_log_heavy_steps
+            and step % self.n_log_heavy_steps in [10, 100, 500, 1000]
+        ):
+            del processed_batch
+            historical_batch = torch.load(os.path.join(self.modelpath, "checked_batch"))
+            historical_losses = torch.load(
+                os.path.join(self.modelpath, "token_losses_before")
+            )
+
+            x_set = historical_batch.masked_tokens
+            y_token_set = historical_batch.tokens
+            y_mask_set = historical_batch.mask_mask
+            with torch.no_grad():
+                self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            self.token_losses_after = self.token_losses.clone()
+            self.token_losses_before = historical_losses
+
+            self.log_token_losses(step)
 
     def _model_train_step(self, step: int):
         self.model.train()
@@ -404,6 +438,7 @@ class Trainer:
         print("Neuron diff logged.")
 
     def log_token_losses(self, step: int):
+        print(f"Logging token losses at step {step}...")
         values = self.token_losses_after - self.token_losses_before
         values = values.detach().cpu().numpy().tolist()
         fig = px.histogram(values)
