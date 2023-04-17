@@ -58,7 +58,7 @@ parser.add_argument("--gradient_checkpointing", action="store_true")
 # experimental/legacy parameters
 
 parser.add_argument("--n_chunks", type=int, default=1)
-parser.add_argument("--exp_rate", type=int, default=4)
+parser.add_argument("--exp_rate", type=float, default=4.0)
 parser.add_argument("--bottleneck_size", type=int, default=4)
 
 parser.add_argument("--n_ff_heads", type=int, default=4)

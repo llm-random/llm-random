@@ -254,6 +254,81 @@ def get_ff_layer(args):
             args.n_ff_heads,
             args.dff,
         )
+    elif mode == "multineck_normed_chunked_safe":
+        args.d_ff_head = int(
+            4 * args.dmodel // int(args.n_ff_heads * (1 + args.exp_rate))
+        )
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineckNormedChunked_play_it_safe, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.exp_rate,
+        )
+    elif mode == "multineck_normed_left":
+        args.d_ff_head = int(
+            4 * args.dmodel // int(args.n_ff_heads * (1 + args.exp_rate))
+        )
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineckNormedChunked_only_left, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.exp_rate,
+        )
+    elif mode == "multineck_normed_right":
+        args.d_ff_head = int(
+            4 * args.dmodel // int(args.n_ff_heads * (1 + args.exp_rate))
+        )
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineckNormedChunked_only_right, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.exp_rate,
+        )
+    elif mode == "multineck_normed_chunked_safe_doubleparam_neck":
+        args.d_ff_head = 2 * int(
+            (4 * args.dmodel) // int(args.n_ff_heads * (1 + args.exp_rate))
+        )
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineckNormedChunked_play_it_safe, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.exp_rate,
+        )
+    elif mode == "multineck_normed_chunked_safe_doubleparam_dff":
+        args.d_ff_head = int(
+            4 * args.dmodel // int(args.n_ff_heads * (1 + args.exp_rate))
+        )
+        args.exp_rate *= 2
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineckNormedChunked_play_it_safe, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+            args.exp_rate,
+        )
+    elif mode == "multineck_normed_simple_fuse":
+        (
+            ff_layer_type,
+            ff_args,
+        ) = temp_research_bert.FeedForwardMultineck_simple_fuse, (
+            args.dmodel,
+            args.d_ff_head,
+            args.n_ff_heads,
+        )
     else:
         raise NotImplementedError(f"ff_mode={mode} is not implemented")
 
