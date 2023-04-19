@@ -1,15 +1,15 @@
+import datetime
 import sys
+import time
 
 import torch
 import torch.nn.functional as F
-import datetime
-
-import research.conditional.ffs
-from lizrd.core import misc
-from lizrd.core import bert
 from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
-import time
+
+import research.conditional.moe_layers
+from lizrd.core import bert
+from lizrd.core import misc
 from lizrd.datasets import wikibookdata
 from lizrd.support import profile
 
@@ -116,7 +116,7 @@ def get_model(dense=False):
     if dense:
         ff_layer = lambda: bert.FeedForward(dm, dff)
     else:
-        ff_layer = lambda: research.conditional.ffs.RewrittenSplitFF(
+        ff_layer = lambda: research.conditional.ffs.ffs.RewrittenSplitFF(
             [], dm, dff, NEXPERTS, SPARSITY, EXPERTSIZE
         )
 
