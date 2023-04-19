@@ -205,6 +205,7 @@ class NeptuneLogger(AbstractLogger):
         # log html
         html = figure.to_html(include_plotlyjs="cdn")
         self._upload_with_tmp_file(f"{directory}/plot_{filename}", html, "html")
+        print(f"saving plotly to: {directory}/plot_{filename}")
         # log associated_scalars
         self.potentially_log_plotly_figure_scalars(
             figure=figure, title=title, series=series, iteration=iteration

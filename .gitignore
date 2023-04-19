@@ -153,3 +153,4 @@ research/reinitialization/scripts/jk_scripts
 jk_train/
 
 tmp_plots/
+models/

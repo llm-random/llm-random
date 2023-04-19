@@ -3,7 +3,6 @@ from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
 from lizrd.core import nn
 from lizrd.support import ash
-from torch.utils.checkpoint import checkpoint
 
 
 class Noop(nn.Module):
@@ -149,51 +148,6 @@ class Aggregate(nn.Module):
             else:
                 result = self.function(result, layer(x))
         return result
-
-
-class Chungus(nn.Module):
-    """
-    https://i.ytimg.com/vi/inD-WWvtTW0/maxresdefault.jpg
-    """
-
-    def __init__(self, module, n_chungs):
-        super(Chungus, self).__init__()
-        self.module = module
-        self.n_chungs = n_chungs
-
-    def custom(self):
-        def custom_forward(*inputs):
-            output = self.module(inputs[0])
-            return output
-
-        return custom_forward
-
-    def forward(self, x):
-        output = []
-        chunged_inputs = torch.chunk(x, self.n_chungs, dim=0)
-        for chunged_input in chunged_inputs:
-            partial_output = checkpoint(
-                self.custom(),
-                chunged_input,
-            )
-            output.append(partial_output)
-        return torch.cat(output, dim=0)
-
-
-class Checkpoint(nn.Module):
-    def __init__(self, module):
-        super(Checkpoint, self).__init__()
-        self.module = module
-
-    def custom(self):
-        def custom_forward(*inputs):
-            output = self.module(inputs[0])
-            return output
-
-        return custom_forward
-
-    def forward(self, x):
-        return checkpoint(self.custom(), x)
 
 
 def Sum(*layers):

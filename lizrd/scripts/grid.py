@@ -166,7 +166,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
-                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/maciej.pioro/.cache",
+                f"--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/{os.getenv('USER')}/.cache",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",

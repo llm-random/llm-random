@@ -99,7 +99,12 @@ parser.add_argument("--model_load_path", type=str, default=None)
 parser.add_argument("--noise_ff_prune_ratio", type=float, required=False)
 parser.add_argument("--noise_ff_n_steps", type=int, required=False)
 parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
+parser.add_argument("--noise_ff_weight_init", type=str, default="random")
 parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
+parser.add_argument("--write_easy_masks", action="store_true")
+parser.add_argument("--easy_mask_path", type=str, default=None)
+parser.add_argument("--hard_portion", type=float, default=1.0)
+parser.add_argument("--random_token_mask", action="store_true")
 
 args = parser.parse_args()
 
@@ -262,6 +267,7 @@ elif args.ff_layer == "noise":
         pruner=pruner,
         prune_ratio=args.noise_ff_prune_ratio,
         n_steps_interpolate=args.noise_ff_n_steps,
+        new_weight_init=args.noise_ff_new_weight_init,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")
@@ -329,6 +335,15 @@ if args.log_neuron_diff:
 else:
     pdataset_neuron_diff = None
 
+dataset_token_eval_fn = lambda: get_processed_dataset(
+    batch_size=args.batch_size,
+    max_total_length=args.cutoff,
+    mask_percent=args.mask_percent,
+    device=DEVICE,
+    num_workers=args.num_workers,
+    seed=43,
+)
+
 base_trainer_params = dict(
     model=model,
     optimizer=optimizer,
@@ -356,6 +371,11 @@ base_trainer_params = dict(
     },
     noise_interpolation_delay=args.noise_interpolation_delay,
     lr_warmup_steps=args.lr_warmup_steps,
+    dataset_token_eval_fn=dataset_token_eval_fn,
+    write_easy_masks=args.write_easy_masks,
+    easy_mask_path=args.easy_mask_path,
+    hard_portion=args.hard_portion,
+    random_token_mask=args.random_token_mask,
 )
 
 if args.trainer_type == "retrain":

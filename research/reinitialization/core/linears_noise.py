@@ -9,6 +9,7 @@ from lizrd.support.logging import (
     log_plot as log_plot,
 )
 import plotly_express as px
+import torch.nn.functional as F
 
 
 class NoiseFF(nn.Module):
@@ -19,6 +20,7 @@ class NoiseFF(nn.Module):
         pruner: Pruner,
         prune_ratio: float,
         n_steps_interpolate: int,
+        new_weight_init: str = "random",
     ):
         super().__init__()
 
@@ -45,6 +47,9 @@ class NoiseFF(nn.Module):
 
         self.noise_enabled = False
 
+        assert new_weight_init in ["random", "mimic"]
+        self.new_weight_init = new_weight_init
+
     def get_device(self):
         return self.lin1.weight.device
 
@@ -67,14 +72,28 @@ class NoiseFF(nn.Module):
                 self.alpha = 0.0
                 self.prepare_mask()
 
+        # print(f"Noise enabled: {self.noise_enabled}")
+
         # apply lin1
         noisy_weights = (
             1 - self.alpha
-        ) * self.frozen_weights_1 + self.alpha * self.lin1.weight.data
-        weight = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - self.mask, noisy_weights)
-        x = misc.einsum("... m, f m -> ... f", x, weight)
+        ) * self.frozen_weights_1 + self.alpha * self.lin1.weight
+        # weight = misc.einsum(
+        #     "f, f m -> f m", self.mask, self.lin1.weight.data
+        # ) + misc.einsum("f, f m -> f m", 1 - self.mask, noisy_weights)
+        weight = (
+            self.mask.view(self.dff, 1) * self.lin1.weight
+            + (1 - self.mask.view(self.dff, 1)) * noisy_weights
+        )
+
+        assert self.noise_enabled or (
+            (self.alpha == 1.0)
+            and ((weight == self.lin1.weight).count_nonzero() == weight.numel())
+        )
+        # x = misc.einsum("... m, f m -> ... f", x, weight)
+        # x = x @ weight.transpose(0, 1)
+        # x = self.lin1(x)
+        x = F.linear(x, weight)
 
         self._save_activation_stats(x)
         x = F.relu(x)
@@ -82,11 +101,24 @@ class NoiseFF(nn.Module):
         # apply lin2
         noisy_weights = (
             1 - self.alpha
-        ) * self.frozen_weights_2 + self.alpha * self.lin2.weight.data
-        weight = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.data
-        ) + misc.einsum("f, m f -> m f", 1 - self.mask, noisy_weights)
-        x = misc.einsum("... f, m f -> ... m", x, weight)
+        ) * self.frozen_weights_2 + self.alpha * self.lin2.weight
+        # weight = misc.einsum(
+        #     "f, m f -> m f", self.mask, self.lin2.weight.data
+        # ) + misc.einsum("f, m f -> m f", 1 - self.mask, noisy_weights)
+        weight = (
+            self.mask.view(1, self.dff) * self.lin2.weight
+            + (1 - self.mask.view(1, self.dff)) * noisy_weights
+        )
+
+        assert (
+            self.noise_enabled
+            or (self.alpha == 1.0)
+            and ((weight == self.lin2.weight).count_nonzero() == weight.numel())
+        )
+        # x = misc.einsum("... f, m f -> ... m", x, weight)
+        # x = x @ weight.transpose(0, 1)
+        # x = self.lin2(x)
+        x = F.linear(x, weight)
 
         return x
 
@@ -113,18 +145,59 @@ class NoiseFF(nn.Module):
         self.mask[topk.indices] = 0
 
         # prepare target weights
-        self.lin1.weight.data = misc.einsum(
-            "f, f m -> f m", self.mask, self.lin1.weight.data
-        ) + misc.einsum("f, f m -> f m", 1 - self.mask, self.get_new_weight(self.lin1))
-        self.lin2.weight.data = misc.einsum(
-            "f, m f -> m f", self.mask, self.lin2.weight.data
-        ) + misc.einsum("f, m f -> m f", 1 - self.mask, self.get_new_weight(self.lin2))
+        if self.new_weight_init == "random":
+            target_weights_1 = self.get_random_weight(self.lin1)
+            target_weights_2 = self.get_random_weight(self.lin2)
+        elif self.new_weight_init == "mimic":
+            perm = torch.randperm(
+                self.dff
+            )  # make sure permutation is the same in both layers
+            target_weights_1 = self.get_mimicked_weight(self.lin1, perm)
+            target_weights_2 = self.get_mimicked_weight(self.lin2, perm)
 
-    def get_new_weight(self, layer):
+        # self.lin1.weight.data = misc.einsum(
+        #     "f, f m -> f m", self.mask, self.lin1.weight.data
+        # ) + misc.einsum("f, f m -> f m", 1 - self.mask, target_weights_1)
+        self.lin1.weight.data = (
+            self.mask.view(self.dff, 1) * self.lin1.weight.data
+            + (1 - self.mask.view(self.dff, 1)) * target_weights_1
+        )
+        # self.lin2.weight.data = misc.einsum(
+        #     "f, m f -> m f", self.mask, self.lin2.weight.data
+        # ) + misc.einsum("f, m f -> m f", 1 - self.mask, target_weights_2)
+        self.lin2.weight.data = (
+            self.mask.view(1, self.dff) * self.lin2.weight.data
+        ) + (1 - self.mask.view(1, self.dff)) * target_weights_2
+
+    def get_random_weight(self, layer):
+        mean = layer.weight.mean().detach().cpu().item()
         std = layer.weight.std().detach().cpu().item()
 
-        new_weights = layer.weight.detach().clone() + torch.normal(
-            0, std, size=layer.weight.shape, device=self.get_device()
+        new_weights = torch.normal(
+            mean, std, size=layer.weight.shape, device=self.get_device()
+        )
+
+        return new_weights
+
+    def get_mimicked_weight(self, layer, permute_order):
+        std = layer.weight.std().detach().cpu().item()
+
+        if layer.weight.shape[0] == self.dff:
+            new_weights = (
+                layer.weight.data.detach()
+                .clone()
+                .requires_grad_(False)[permute_order, :]
+            )
+        else:
+            new_weights = (
+                layer.weight.data.detach()
+                .clone()
+                .requires_grad_(False)[:, permute_order]
+            )
+
+        # add small noise (std = 0.05 * std of weights in layer)
+        new_weights += torch.normal(
+            0, 0.05 * std, size=new_weights.shape, device=self.get_device()
         )
 
         return new_weights
@@ -134,6 +207,8 @@ class NoiseFF(nn.Module):
         return misc.get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
 
     def log_magnitude(self, layer_name, step: int):
+        # save lin1 weights
+
         tensor = self.neuron_magnitudes.flatten().cpu()
         values = tensor.tolist()
         fig = px.histogram(values)
