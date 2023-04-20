@@ -44,6 +44,7 @@ model = get_model(
     dm=args.dmodel,
     n_blocks=args.n_blocks,
     device=DEVICE,
+    gradient_checkpointing=args.gradient_checkpointing,
 )
 
 optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)

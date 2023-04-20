@@ -1,19 +1,19 @@
-from collections import defaultdict
 import copy
+from collections import defaultdict
 from typing import Callable, Optional
 
+import numpy as np
+import plotly.express as px
 import torch
 import torch.nn.functional as F
 from attr import define
 from torch.utils.tensorboard import SummaryWriter
-import torch.nn.functional as F
-import numpy as np
-import plotly.express as px
 
 from lizrd.core import bert
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from lizrd.support.logging import get_current_logger
 from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
@@ -21,9 +21,6 @@ from lizrd.support.loss import (
 )
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
-from research.reinitialization.core.pruner import BasePruner
-from lizrd.core.misc import are_state_dicts_the_same
-from lizrd.support.logging import get_current_logger
 
 
 def get_model(
@@ -34,6 +31,7 @@ def get_model(
     dm: int,
     n_blocks: int,
     device: torch.device,
+    gradient_checkpointing: bool = False,
 ):
     embedding_layer = bert.EmbeddingLayer(
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
@@ -41,7 +39,7 @@ def get_model(
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
-    encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict)
+    encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict, gradient_checkpointing)
     head = bert.PredictionHead(dm, vocab_size)
     model = bert.BERT(embedding_layer, encoder_tower, head)
 
