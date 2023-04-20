@@ -1,8 +1,8 @@
-import research.conditional.ffs
-from lizrd.core import misc
-from lizrd.core import bert
 import torch
 
+import research.conditional.moe_layers
+from lizrd.core import bert
+from lizrd.core import misc
 from lizrd.support import profile
 
 
@@ -20,7 +20,11 @@ def test_basic(self):
     encoder_tower = bert.EncoderTower(
         n_blocks,
         dm,
-        (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 4, 4, 4)),
+        (
+            lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
+                [], dm, dff, 4, 4, 4
+            )
+        ),
         (lambda: bert.Attention(dm, heads)),
     )
 
@@ -153,7 +157,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
@@ -164,7 +168,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.RewrittenSplitFF(
+                lambda: research.conditional.moe_layers.ffs.RewrittenSplitFF(
                     [], dm, dff, expertsets * nexperts, nexperts, expertsize
                 )
             ),
@@ -175,7 +179,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.SimpleSplitFF(
+                lambda: research.conditional.moe_layers.ffs.SimpleSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
@@ -183,8 +187,8 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
         )
     elif version == "sparse+qkv":
         modules = 4
-        sparse_linear_projection = lambda: research.conditional.ffs.FactoredDense(
-            dm, dm, modules
+        sparse_linear_projection = (
+            lambda: research.conditional.moe_layers.ffs.FactoredDense(dm, dm, modules)
         )
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
@@ -195,7 +199,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
@@ -218,7 +222,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
@@ -230,7 +234,9 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             ),
         )
     elif version == "sparse+perm":
-        sparse_linear_projection = lambda: research.conditional.ffs.PermutationDense(dm)
+        sparse_linear_projection = (
+            lambda: research.conditional.moe_layers.ffs.PermutationDense(dm)
+        )
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
                 "projection", func()
@@ -240,7 +246,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
@@ -252,7 +258,9 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             ),
         )
     elif version == "sparse+noop":
-        sparse_linear_projection = lambda: research.conditional.ffs.NoopDense()
+        sparse_linear_projection = (
+            lambda: research.conditional.moe_layers.ffs.NoopDense()
+        )
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
                 "projection", func()
@@ -262,7 +270,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
