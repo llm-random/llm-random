@@ -1,7 +1,7 @@
 import torch
 
 import research.conditional
-import research.conditional.ffs
+import research.conditional.moe_layers
 from lizrd.core import bert
 from lizrd.support.test_utils import GeneralTestCase, skip_test
 
@@ -14,7 +14,7 @@ class TestBatchedFeedForward(GeneralTestCase):
         seql = experts * 3
         expertsize = 11
         dff = sets * experts * expertsize
-        layer = research.conditional.ffs.BatchSplitFF(
+        layer = research.conditional.moe_layers.ffs.BatchSplitFF(
             [], dm, dff, sets, experts, expertsize
         )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
@@ -25,14 +25,14 @@ class TestBatchedFeedForward(GeneralTestCase):
 class FactoredDenseTest(GeneralTestCase):
     def test_basic(self):
         batch, dinp, dout = 4, 32, 64
-        layer = research.conditional.ffs.FactoredDense(dinp, dout, modules=4)
+        layer = research.conditional.moe_layers.ffs.FactoredDense(dinp, dout, modules=4)
         input = torch.normal(0.0, 1.0, (batch, dinp))
         output = layer(input)
         self.assertShape(output, (batch, dout))
 
     def test_more_dims(self):
         batch, seql, dinp, dout = 4, 8, 32, 64
-        layer = research.conditional.ffs.FactoredDense(dinp, dout, modules=2)
+        layer = research.conditional.moe_layers.ffs.FactoredDense(dinp, dout, modules=2)
         input = torch.normal(0.0, 1.0, (batch, seql, dinp))
         output = layer(input)
         self.assertShape(output, (batch, seql, dout))
@@ -42,7 +42,7 @@ class TestGeneralizedReLU(GeneralTestCase):
     def test_basic(self):
         batch, dinp = 4, 32
         bias = False
-        layer = research.conditional.ffs.GeneralizedReLU(dinp, bias)
+        layer = research.conditional.moe_layers.ffs.GeneralizedReLU(dinp, bias)
         input = torch.normal(0.0, 1.0, (batch, dinp))
         output = layer(input)
         self.assertShape(output, (batch, dinp))
@@ -63,14 +63,18 @@ class BERTSparseTest(GeneralTestCase):
             bert.TokenEmbedding(vocab_size, dm),
         )
 
-        factored_dense_fun = lambda: research.conditional.ffs.FactoredDense(
+        factored_dense_fun = lambda: research.conditional.moe_layers.ffs.FactoredDense(
             dm, dm, modules
         )
 
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 4, 4, 4)),
+            (
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
+                    [], dm, dff, 4, 4, 4
+                )
+            ),
             (lambda: bert.Attention(dm, heads, layer_fun=factored_dense_fun)),
         )
 
@@ -100,14 +104,18 @@ class BERTSparseGradientTest(GeneralTestCase):
             bert.TokenEmbedding(vocab_size, dm),
         )
 
-        factored_dense_fun = lambda: research.conditional.ffs.FactoredDense(
+        factored_dense_fun = lambda: research.conditional.moe_layers.ffs.FactoredDense(
             dm, dm, modules
         )
 
         encoder_tower = bert.EncoderTower(
             n_blocks,
             dm,
-            (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 4, 4, 4)),
+            (
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
+                    [], dm, dff, 4, 4, 4
+                )
+            ),
             (lambda: bert.Attention(dm, heads, layer_fun=factored_dense_fun)),
         )
 

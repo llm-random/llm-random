@@ -1,15 +1,16 @@
-import torch
-from tensorflow.keras.datasets import imdb
-import torch.nn.functional as F
 import datetime
-import numpy as np
-
-import research.conditional.ffs
-from lizrd.core import misc
-from lizrd.core import bert
-from clearml import Task
-from torch.utils.tensorboard import SummaryWriter
 import time
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from clearml import Task
+from tensorflow.keras.datasets import imdb
+from torch.utils.tensorboard import SummaryWriter
+
+import research.conditional.moe_layers
+from lizrd.core import bert
+from lizrd.core import misc
 
 INDEX_FROM = 4
 CUTOFF = 128
@@ -105,7 +106,11 @@ def get_model():
         n_blocks,
         dm,
         # (lambda: bert.FeedForward(dm, dff)),
-        (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 8, 8, 16)),
+        (
+            lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
+                [], dm, dff, 8, 8, 16
+            )
+        ),
         (lambda: bert.Attention(dm, heads)),
     )
 
