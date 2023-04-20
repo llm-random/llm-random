@@ -105,6 +105,7 @@ parser.add_argument("--write_easy_masks", action="store_true")
 parser.add_argument("--easy_mask_path", type=str, default=None)
 parser.add_argument("--hard_portion", type=float, default=1.0)
 parser.add_argument("--random_token_mask", action="store_true")
+parser.add_argument("--train_dynamics", action="store_true")
 
 args = parser.parse_args()
 
@@ -372,6 +373,7 @@ base_trainer_params = dict(
     noise_interpolation_delay=args.noise_interpolation_delay,
     lr_warmup_steps=args.lr_warmup_steps,
     dataset_token_eval_fn=dataset_token_eval_fn,
+    train_dynamics=args.train_dynamics,
     write_easy_masks=args.write_easy_masks,
     easy_mask_path=args.easy_mask_path,
     hard_portion=args.hard_portion,

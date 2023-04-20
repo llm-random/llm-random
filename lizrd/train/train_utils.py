@@ -108,6 +108,7 @@ class Trainer:
     lr_warmup_steps: int = 10_000
     noise_interpolation_delay: int = 0
     dataset_token_eval_fn: wikibookdata.ProcessedDataset = None
+    train_dynamics: bool = False
     write_easy_masks: bool = False
     easy_mask_path: str = None
     hard_portion: float = 1.0
@@ -380,12 +381,13 @@ class Trainer:
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
-        if self.easy_mask_path is not None:
-            self.task_mask_train_step(dataset, step)
-        elif self.write_easy_masks:
-            self.task_diff_train_step(dataset, step)
-        elif self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
-            self.heavy_task_train_step(dataset, step)
+        if self.train_dynamics:
+            if self.easy_mask_path is not None:
+                self.task_mask_train_step(dataset, step)
+            elif self.write_easy_masks:
+                self.task_diff_train_step(dataset, step)
+            elif self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
+                self.heavy_task_train_step(dataset, step)
         else:
             self.model.train()
             processed_batch = dataset.get_batch()
@@ -705,7 +707,8 @@ class Trainer:
             ):
                 print(f"Running heavy log at step {step}")
                 self.pruner.log_heavy(step)
-                self.log_token_losses(step)
+                if self.train_dynamics:
+                    self.log_token_losses(step)
             print(f"Step {step}")
 
 
