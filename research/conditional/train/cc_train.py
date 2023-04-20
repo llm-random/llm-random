@@ -47,6 +47,8 @@ model = get_model(
 )
 
 optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+logger = get_logger(args, model, VOCAB_SIZE)
+
 trainer = ConditionalTrainer(
     model=model,
     optimizer=optimizer,
@@ -55,7 +57,7 @@ trainer = ConditionalTrainer(
     vocab_size=VOCAB_SIZE,
     mask_percent=args.mask_percent,
     mixed_precision=args.mixed_precision,
+    logger=logger,
 )
 
-logger = get_logger(args, model, VOCAB_SIZE)
 trainer.train(args.n_steps)

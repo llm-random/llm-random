@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from attr import define
 
 from lizrd.datasets import wikibookdata
+from lizrd.support.logging import AbstractLogger
 
 
 @define
@@ -15,7 +16,8 @@ class ConditionalTrainer:
     batch_size: int
     vocab_size: int
     mask_percent: float
-    mixed_precision: bool = False
+    mixed_precision: bool
+    logger: AbstractLogger
     scaler: Optional[torch.cuda.amp.GradScaler] = None
 
     def __attrs_post_init__(self):
@@ -37,9 +39,11 @@ class ConditionalTrainer:
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask
-
         loss = self.calculate_loss(x_set, y_token_set, y_mask_set)
         self.optimize(loss)
+        self.logger.report_scalar(
+            title="loss", value=loss.item(), iteration=step, series="train"
+        )
 
     def train(self, n_steps: int):
         for step in range(n_steps):
