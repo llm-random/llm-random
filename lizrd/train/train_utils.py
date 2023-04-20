@@ -399,7 +399,8 @@ class Trainer:
             self.model_update(step, x_set, y_token_set, y_mask_set)
 
             if (
-                self.n_log_heavy_steps
+                self.train_dynamics
+                and self.n_log_heavy_steps
                 and step > 0
                 and step > self.n_log_heavy_steps
                 and step % self.n_log_heavy_steps in [10, 100, 500, 1000]
