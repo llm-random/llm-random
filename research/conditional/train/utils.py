@@ -3,14 +3,15 @@ from lizrd.core import bert
 
 def introduce_parser_arguments(parser):
     # core hyperparameters, fixed for all experiments; needs a good reason to change
+
     parser.add_argument("--use_clearml", action="store_true")
     parser.add_argument("--use_neptune", action="store_false")
-    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--cutoff", type=int, default=128)
-    parser.add_argument("--dmodel", type=int, default=768)
-    parser.add_argument("--dff", type=int, default=3072)
-    parser.add_argument("--n_att_heads", type=int, default=8)
+    parser.add_argument("--dmodel", type=int, default=256)
+    parser.add_argument("--dff", type=int, default=1024)
+    parser.add_argument("--n_att_heads", type=int, default=4)
     parser.add_argument("--n_blocks", type=int, default=4)
     parser.add_argument("--mixed_precision", action="store_false")
     parser.add_argument("--log_distributions", action="store_true")
