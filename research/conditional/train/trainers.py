@@ -30,7 +30,7 @@ class ConditionalTrainer:
                 self._hack_for_batch_size(step)
             else:
                 self._train_step(step)
-            if step % 500 == 0:
+            if step % 10 == 0:
                 print(f"Step {step}")
 
     def _optimize(self, loss):
