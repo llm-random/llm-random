@@ -34,6 +34,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--learning_rate", type=float, default=5e-5)
     parser.add_argument("--learning_rate_ff", type=float)
     parser.add_argument("--gradient_checkpointing", action="store_true")
+    parser.add_argument("--hack_for_batch_size", action="store_true")
 
     # experimental/legacy parameters
 

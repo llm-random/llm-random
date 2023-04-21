@@ -59,6 +59,7 @@ trainer = ConditionalTrainer(
     mask_percent=args.mask_percent,
     mixed_precision=args.mixed_precision,
     logger=logger,
+    hack_for_batch_size=args.hack_for_batch_size,
 )
 
 trainer.train(args.n_steps)
