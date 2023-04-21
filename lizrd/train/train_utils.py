@@ -31,6 +31,7 @@ def get_model(
     dm: int,
     n_blocks: int,
     device: torch.device,
+    gradient_checkpointing: bool,
 ):
     embedding_layer = bert.EmbeddingLayer(
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
@@ -38,7 +39,7 @@ def get_model(
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
-    encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict)
+    encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict, gradient_checkpointing)
     head = bert.PredictionHead(dm, vocab_size)
     model = bert.BERT(embedding_layer, encoder_tower, head)
 
