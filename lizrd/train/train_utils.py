@@ -31,7 +31,7 @@ def get_model(
     dm: int,
     n_blocks: int,
     device: torch.device,
-    gradient_checkpointing: bool,
+    gradient_checkpointing: bool = False,
 ):
     embedding_layer = bert.EmbeddingLayer(
         bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
