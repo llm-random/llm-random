@@ -164,9 +164,8 @@ def EncoderBlock(dmodel, layers, gradient_checkpointing):
         block = ResidualBlock(dmodel, layer, name)
         residual_layers.append(block)
     if gradient_checkpointing:
-        return Checkpoint(nn.Sequential(*residual_layers))
-    else:
-        return nn.Sequential(*residual_layers)
+        residual_layers = [Checkpoint(layer) for layer in residual_layers]
+    return nn.Sequential(*residual_layers)
 
 
 @ash.check("... d -> ... d")
