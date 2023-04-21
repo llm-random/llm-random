@@ -1,19 +1,19 @@
-from collections import defaultdict
 import copy
+from collections import defaultdict
 from typing import Callable, Optional
 
+import numpy as np
+import plotly.express as px
 import torch
 import torch.nn.functional as F
 from attr import define
 from torch.utils.tensorboard import SummaryWriter
-import torch.nn.functional as F
-import numpy as np
-import plotly.express as px
 
 from lizrd.core import bert
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from lizrd.support.logging import get_current_logger
 from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
@@ -21,9 +21,6 @@ from lizrd.support.loss import (
 )
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
-from research.reinitialization.core.pruner import BasePruner
-from lizrd.core.misc import are_state_dicts_the_same
-from lizrd.support.logging import get_current_logger
 
 
 def get_model(
