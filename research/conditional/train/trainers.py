@@ -28,10 +28,11 @@ class ConditionalTrainer:
         for step in range(n_steps):
             if self.hack_for_batch_size:
                 self._hack_for_batch_size(step)
+                print(f"Step {step}")
             else:
                 self._train_step(step)
-            if step % 10 == 0:
-                print(f"Step {step}")
+                if step % 1000 == 0:
+                    print(f"Step {step}")
 
     def _optimize(self, loss):
         self.optimizer.zero_grad()
