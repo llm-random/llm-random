@@ -526,17 +526,17 @@ class ContinuousMoE(nn.Module):
     Continuous mixture of experts. Each expert attends to some subset of the input.
     """
 
-    def __init__(self, dm, dff, n_experts, chunk_size, sparsity_dim, temperature):
+    def __init__(self, dm, dff, n_experts, group_size, sparsity_dim, temperature):
         """
-        1. Groups tokens into chunks of fixed size,
-        2. Each expert independently aggregates tokens within a chunk (aggregate means take a weighted combination, weights sum to 1) into a single token,
+        1. Groups tokens into groups of fixed size,
+        2. Each expert independently aggregates tokens within a group (aggregate means take a weighted combination, weights sum to 1) into a single token,
         3. Each expert processes the token constructed above to output a token of size dmodel
         4. The mapped token is then redistributed to the original tokens, with weights determined by the expert's weighting from step 2.
 
         :param dm: usual dmodel
         :param dff: usual dff, though it's never explicitly used alone: dff = n_experts * expertsize
         :param n_experts: number of experts
-        :param chunk_size: number of tokens to aggregate into one "token mix"
+        :param group_size: number of tokens to aggregate into one "token mix"
         :param sparsity_dim: dimension over which to aggregate: 0 for batch, 1 for sequence
         :param temperature: temperature for softmax
         """
@@ -544,7 +544,7 @@ class ContinuousMoE(nn.Module):
         self.dm = dm
         self.dff = dff
         self.n_experts = n_experts
-        self.chunk_size = chunk_size
+        self.group_size = group_size
         self.sparsity_dim = sparsity_dim
         self.temperature = temperature
         self.expertsize = dff // n_experts
@@ -566,35 +566,35 @@ class ContinuousMoE(nn.Module):
         # assert shape: x is of shape (batch, seq_len, dmodel)
         ash.assert_shape("B S d", x, d=self.dm)
 
-        # 1. Groups tokens into chunks of fixed size,
+        # 1. Groups tokens into groups of fixed size,
 
-        # we want to split the input into chunks of size self.chunk_size according to sparsity_dim
+        # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
             # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
-            x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.chunk_size)
+            x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
         elif self.sparsity_dim == 1:
             # gather tokens from the same sequence (does not mix data from different examples within a batch)
-            x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.chunk_size)
+            x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        # - mind that either batch or seqlen has been split into chunks, so it's not the same values as in the input
-        ash.assert_shape("B S c d", x, d=self.dm, c=self.chunk_size)
+        # - mind that either batch or seqlen has been split into groups, so it's not the same sizes as in the input
+        ash.assert_shape("B S c d", x, d=self.dm, c=self.group_size)
 
-        # controller logits hols normalised weights for every chunk x expert pair
+        # controller weights hold normalised weights for every group x expert pair
         controller_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
         ash.assert_shape(
-            "B S e c", controller_logits, e=self.n_experts, c=self.chunk_size
+            "B S e c", controller_logits, e=self.n_experts, c=self.group_size
         )
-        # apply softmax over "chunk_size" dimension
+        # apply softmax over "group_size" dimension
         controller_weights = stable_softmax_temperature(
             controller_logits, self.temperature
         )
 
-        # 2. Each expert independently aggregates tokens within a chunk (aggregate means take a weighted combination, weights sum to 1) into a single token,
+        # 2. Each expert independently aggregates tokens within a group (aggregate means take a weighted combination, weights sum to 1) into a single token,
 
         # aggregate x according to controller weights
-        # for every chunk in x, we aggregate the tokens according to the controller weights
+        # for every group in x, we aggregate the tokens according to the controller weights
         x = torch.einsum("B S c d, B S e c -> B S e d", x, controller_weights)
         ash.assert_shape("B S e d", x, e=self.n_experts, d=self.dm)
 
@@ -616,7 +616,7 @@ class ContinuousMoE(nn.Module):
         # distribute expert outputs according to controller weights
         # (batch, seqlen, n_experts, dmodel) * (batch, seqlen, sparsity, n_experts) -> (batch, seqlen, sparsity, dmodel)
         out = torch.einsum("B S e d, B S e c -> B S c d", out, controller_weights)
-        ash.assert_shape("B S c d", out, d=self.dm, c=self.chunk_size)
+        ash.assert_shape("B S c d", out, d=self.dm, c=self.group_size)
 
         # rearrange
         if self.sparsity_dim == 0:
