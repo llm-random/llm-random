@@ -1,4 +1,5 @@
 from lizrd.core import bert
+from research.conditional.moe_layers.ffs import ContinuousMoE
 
 
 def introduce_parser_arguments(parser):
@@ -27,9 +28,7 @@ def introduce_parser_arguments(parser):
 
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--attention_mode", type=str, default="vanilla")
-    parser.add_argument(
-        "--project_name", type=str, default="nonlinearities/initial_tests"
-    )
+    parser.add_argument("--project_name", type=str, default="")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--learning_rate", type=float, default=5e-5)
     parser.add_argument("--learning_rate_ff", type=float)
@@ -38,6 +37,10 @@ def introduce_parser_arguments(parser):
 
     # experimental/legacy parameters
 
+    parser.add_argument("--n_experts", type=int, default=4)
+    parser.add_argument("--group_size", type=int, default=4)
+    parser.add_argument("--sparsity_dim", type=int, default=1)
+    parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--save_model_checkpoints", action="store_true")
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
@@ -57,7 +60,15 @@ def get_attention_layer(args):
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        ff_layer_fun = lambda: bert.FeedForward(args.dmodel, args.dff)
+        return lambda: bert.FeedForward(args.dmodel, args.dff)
+    elif args.ff_mode == "cont_moe":
+        return lambda: ContinuousMoE(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+        )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
-    return ff_layer_fun
