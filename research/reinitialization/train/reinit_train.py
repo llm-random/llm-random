@@ -100,6 +100,7 @@ parser.add_argument("--noise_ff_prune_ratio", type=float, required=False)
 parser.add_argument("--noise_ff_n_steps", type=int, required=False)
 parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
 parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
+parser.add_argument("--attention_fun", type=str, default="regular")
 
 args = parser.parse_args()
 
@@ -284,6 +285,15 @@ eval_pdataset = get_processed_dataset(
     seed=args.eval_ds_seed,
 )
 
+if args.attention_fun == "regular":
+    attention_layer_fun=lambda: llm.Attention(
+        args.dmodel, args.heads, dhead=args.dhead
+    )
+elif args.attention_fun == "causal":
+    attention_layer_fun=lambda: llm.CausalAttention(
+        args.dmodel, args.heads, dhead=args.dhead
+    )
+
 model = get_model(
     max_length=args.cutoff,
     vocab_size=VOCAB_SIZE,
@@ -291,9 +301,7 @@ model = get_model(
     dm=args.dmodel,
     n_blocks=args.n_blocks,
     device=DEVICE,
-    attention_layer_fun=lambda: llm.Attention(
-        args.dmodel, args.heads, dhead=args.dhead
-    ),
+    attention_layer_fun=attention_layer_fun
 )
 if args.model_load_path:
     print(f"Loading model from {args.model_load_path}")

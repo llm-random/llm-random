@@ -137,9 +137,6 @@ class Attention(nn.Module):
 
         a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
         a = a * (1 / self.dhead**0.5)
-        a.masked_fill_(
-            torch.triu(torch.ones_like(a)) == 1, float("-inf")
-        )  # mask out future tokens
         a = torch.softmax(a, dim=-1)
         prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
         output = self.D(prefinal)
@@ -149,7 +146,7 @@ class Attention(nn.Module):
 @ash.check("... d -> ... d")
 class CausalAttention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
-        super(Attention, self).__init__()
+        super(CausalAttention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
             dhead = dmodel // heads
@@ -181,9 +178,6 @@ class CausalAttention(nn.Module):
         )
         self.D = combine_gen()
 
-        # causal mask
-        self.register_buffer("mask", torch.tril(torch.ones(1, 1, 1, 1), diagonal=0))
-
     def forward(self, x):
         q = self.Q(x)
         k = self.K(x)
@@ -191,6 +185,9 @@ class CausalAttention(nn.Module):
 
         a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
         a = a * (1 / self.dhead**0.5)
+        a.masked_fill_(
+            torch.tril(torch.ones_like(a)) == 0, float("-inf")
+        )  # mask out future tokens
         a = torch.softmax(a, dim=-1)
         prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
         output = self.D(prefinal)
