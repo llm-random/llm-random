@@ -1,4 +1,4 @@
-from lizrd.core import bert
+from lizrd.core import llm
 from research.conditional.moe_layers.ffs import ContinuousMoE
 
 
@@ -50,7 +50,7 @@ def introduce_parser_arguments(parser):
 
 def get_attention_layer(args):
     if args.attention_mode == "vanilla":
-        attention_layer_fun = lambda: bert.Attention(args.dmodel, args.n_att_heads)
+        attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     else:
         raise NotImplementedError(
             f"Attention mode {args.attention_mode} not implemented"
@@ -60,7 +60,7 @@ def get_attention_layer(args):
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        return lambda: bert.FeedForward(args.dmodel, args.dff)
+        return lambda: llm.FeedForward(args.dmodel, args.dff)
     elif args.ff_mode == "cont_moe":
         return lambda: ContinuousMoE(
             args.dmodel,

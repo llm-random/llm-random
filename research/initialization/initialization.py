@@ -3,7 +3,7 @@ from torch.nn import init as nninit
 from lizrd.core import nn
 
 from lizrd.core import misc
-from lizrd.core import bert
+from lizrd.core import llm
 from lizrd.support import metrics
 
 
@@ -101,40 +101,40 @@ def StandardFeedForward(dmodel, dff):
 
 
 def FixedBERT(max_length, dm, vocab_size, dff, heads, n_blocks, output_size):
-    embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
+    embedding_layer = llm.EmbeddingLayer(
+        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
     layer_fun = lambda: FixedLinear(dm, dm, relu=False)
 
-    encoder_tower = bert.EncoderTower(
+    encoder_tower = llm.EncoderTower(
         n_blocks,
         dm,
         (lambda: FixedFeedForward(dm, dff)),
-        (lambda: bert.Attention(dm, heads, layer_fun=layer_fun)),
+        (lambda: llm.Attention(dm, heads, layer_fun=layer_fun)),
     )
 
     head = FixedLinear(dm, output_size)
 
-    model = bert.BERT(embedding_layer, encoder_tower, head)
+    model = llm.BERT(embedding_layer, encoder_tower, head)
     return model
 
 
 def StandardBERT(max_length, dm, vocab_size, dff, heads, n_blocks, output_size):
-    embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
+    embedding_layer = llm.EmbeddingLayer(
+        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
     layer_fun = lambda: StandardLinear(dm, dm, relu=False)
 
-    encoder_tower = bert.EncoderTower(
+    encoder_tower = llm.EncoderTower(
         n_blocks,
         dm,
         (lambda: StandardFeedForward(dm, dff)),
-        (lambda: bert.Attention(dm, heads, layer_fun=layer_fun)),
+        (lambda: llm.Attention(dm, heads, layer_fun=layer_fun)),
     )
 
     head = StandardLinear(dm, output_size)
 
-    model = bert.BERT(embedding_layer, encoder_tower, head)
+    model = llm.BERT(embedding_layer, encoder_tower, head)
     return model

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import datetime
 
 from lizrd.core import misc
-from lizrd.core import bert
+from lizrd.core import llm
 from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
@@ -80,7 +80,7 @@ else:
 
 
 FF_MODE_MAP = {
-    "vanilla": (bert.FeedForward, (DM, DFF)),
+    "vanilla": (llm.FeedForward, (DM, DFF)),
     "bottleneck": (research_bert.FeedForwardBottleneck, (DM, EXP_RATE)),
     "multineck": (research_bert.FeedForwardMultineck, (DM, EXP_RATE, N_FF_HEADS)),
     "choppedneck": (research_bert.FeedForwardChoppedneck, (DM, N_CHUNKS)),
@@ -123,23 +123,23 @@ def get_model():
             },
         )
 
-    embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
+    embedding_layer = llm.EmbeddingLayer(
+        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
     ff_layer_type, ff_kwargs = FF_MODE_MAP[ff_mode]
     ff_layer = lambda: ff_layer_type(*ff_kwargs)
 
-    encoder_tower = bert.EncoderTower(
+    encoder_tower = llm.EncoderTower(
         n_blocks,
         dm,
-        (lambda: bert.Attention(dm, heads)),
+        (lambda: llm.Attention(dm, heads)),
         ff_layer,
     )
 
-    head = bert.PredictionHead(dm, output_size)
+    head = llm.PredictionHead(dm, output_size)
 
-    model = bert.BERT(embedding_layer, encoder_tower, head)
+    model = llm.BERT(embedding_layer, encoder_tower, head)
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)

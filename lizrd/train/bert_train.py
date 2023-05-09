@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import datetime
 
 from lizrd.core import misc
-from lizrd.core import bert
+from lizrd.core import llm
 from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
@@ -92,22 +92,22 @@ def get_model():
             },
         )
 
-    embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
+    embedding_layer = llm.EmbeddingLayer(
+        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
-    ff_layer = lambda: bert.FeedForward(dm, dff)
+    ff_layer = lambda: llm.FeedForward(dm, dff)
 
-    encoder_tower = bert.EncoderTower(
+    encoder_tower = llm.EncoderTower(
         n_blocks,
         dm,
-        (lambda: bert.Attention(dm, heads)),
+        (lambda: llm.Attention(dm, heads)),
         ff_layer,
     )
 
-    head = bert.PredictionHead(dm, output_size)
+    head = llm.PredictionHead(dm, output_size)
 
-    model = bert.BERT(embedding_layer, encoder_tower, head)
+    model = llm.BERT(embedding_layer, encoder_tower, head)
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)

@@ -1,6 +1,6 @@
 import torch
 
-from lizrd.core import bert
+from lizrd.core import llm
 import unittest
 
 from lizrd.support.test_utils import GeneralTestCase
@@ -9,7 +9,7 @@ from lizrd.support.test_utils import GeneralTestCase
 class TestFeedForward(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, dff = 4, 8, 32, 64
-        layer = bert.FeedForward(dm, dff)
+        layer = llm.FeedForward(dm, dff)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         output = layer(input)
         self.assertShape(output, (batch, seql, dm))
@@ -18,8 +18,8 @@ class TestFeedForward(GeneralTestCase):
 class ResidualTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, dff = 4, 8, 32, 64
-        layer_ff = bert.FeedForward(dm, dff)
-        layer_residual = bert.Residual(layer_ff)
+        layer_ff = llm.FeedForward(dm, dff)
+        layer_residual = llm.Residual(layer_ff)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         output1 = layer_ff(input)
         output2 = layer_residual(input)
@@ -31,21 +31,21 @@ class ResidualTest(GeneralTestCase):
 class AttentionTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = bert.Attention(dm, heads)
+        layer = llm.Attention(dm, heads)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
     def test_nonstandard_dhead(self):
         batch, seql, dm, heads, dhead = 3, 7, 32, 4, 100
-        layer = bert.Attention(dm, heads, dhead=dhead)
+        layer = llm.Attention(dm, heads, dhead=dhead)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
     def test_residual(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = bert.Residual(bert.Attention(dm, heads))
+        layer = llm.Residual(llm.Attention(dm, heads))
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
@@ -56,10 +56,10 @@ class EncoderTowerTest(GeneralTestCase):
         batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
         nblocks = 3
         layer_dict = {
-            "attention": lambda: bert.Attention(dm, heads),
-            "feedforward": lambda: bert.FeedForward(dm, dff),
+            "attention": lambda: llm.Attention(dm, heads),
+            "feedforward": lambda: llm.FeedForward(dm, dff),
         }
-        model = bert.EncoderTower(nblocks, dm, layer_dict)
+        model = llm.EncoderTower(nblocks, dm, layer_dict)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = model(input)
         self.assertShape(out, (batch, seql, dm))
@@ -72,19 +72,19 @@ class BERTTest(GeneralTestCase):
         output_size = 3
         n_blocks = 2
 
-        embedding_layer = bert.EmbeddingLayer(
-            bert.PositionalEmbedding(max_length, dm),
-            bert.TokenEmbedding(vocab_size, dm),
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm),
+            llm.TokenEmbedding(vocab_size, dm),
         )
         layer_dict = {
-            "attention": lambda: bert.Attention(dm, heads),
-            "feedforward": lambda: bert.FeedForward(dm, dff),
+            "attention": lambda: llm.Attention(dm, heads),
+            "feedforward": lambda: llm.FeedForward(dm, dff),
         }
-        encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict)
+        encoder_tower = llm.EncoderTower(n_blocks, dm, layer_dict)
 
-        head = bert.PredictionHead(dm, output_size)
+        head = llm.PredictionHead(dm, output_size)
 
-        model = bert.BERT(embedding_layer, encoder_tower, head)
+        model = llm.BERT(embedding_layer, encoder_tower, head)
 
         input = torch.randint(0, vocab_size, (batch, seql))
 

@@ -3,7 +3,7 @@ import secrets
 
 import torch
 
-from lizrd.core import misc, bert
+from lizrd.core import llm, misc
 from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
@@ -190,7 +190,7 @@ print(pruner)
 print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dmodel, args.dff, bias=args.bias)
+    ff_layer_fun = lambda: llm.FeedForward(args.dmodel, args.dff, bias=args.bias)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "struct_prune":
@@ -291,7 +291,7 @@ model = get_model(
     dm=args.dmodel,
     n_blocks=args.n_blocks,
     device=DEVICE,
-    attention_layer_fun=lambda: bert.Attention(
+    attention_layer_fun=lambda: llm.Attention(
         args.dmodel, args.heads, dhead=args.dhead
     ),
 )
