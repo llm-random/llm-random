@@ -17,7 +17,7 @@ def test_basic(self):
         llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
-    encoder_tower = llm.EncoderTower(
+    encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
         (
@@ -30,7 +30,7 @@ def test_basic(self):
 
     head = llm.PredictionHead(dm, output_size)
 
-    model = llm.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
 
     input = torch.randint(0, vocab_size, (batch, seql))
 
@@ -153,7 +153,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
     )
 
     if version == "sparse":
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -164,7 +164,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             (lambda: profile.TimerLayer("attention", llm.Attention(dm, heads))),
         )
     elif version == "rewritten":
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -175,7 +175,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             (lambda: profile.TimerLayer("attention", llm.Attention(dm, heads))),
         )
     elif version == "simplesparse":
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -195,7 +195,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
                 "projection", func()
             )
         )
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -218,7 +218,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
                 "projection", func()
             )
         )
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -242,7 +242,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
                 "projection", func()
             )
         )
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -266,7 +266,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
                 "projection", func()
             )
         )
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -288,7 +288,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
                 "projection", func()
             )
         )
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (lambda: llm.FeedForward(dm, dff)),
@@ -304,7 +304,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
 
     head = llm.PredictionHead(dm, output_size)
 
-    model = llm.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
     model = profile.TimerLayer("model", model)
     model.train()
 

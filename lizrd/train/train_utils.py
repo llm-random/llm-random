@@ -39,9 +39,11 @@ def get_model(
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
-    encoder_tower = llm.EncoderTower(n_blocks, dm, layer_dict, gradient_checkpointing)
+    encoder_tower = llm.TransformerTower(
+        n_blocks, dm, layer_dict, gradient_checkpointing
+    )
     head = llm.PredictionHead(dm, vocab_size)
-    model = llm.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
 
     # sanity check to make sure it works
     input = torch.randint(0, vocab_size, (16, 10))

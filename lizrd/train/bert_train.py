@@ -98,7 +98,7 @@ def get_model():
 
     ff_layer = lambda: llm.FeedForward(dm, dff)
 
-    encoder_tower = llm.EncoderTower(
+    encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
         (lambda: llm.Attention(dm, heads)),
@@ -107,7 +107,7 @@ def get_model():
 
     head = llm.PredictionHead(dm, output_size)
 
-    model = llm.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)

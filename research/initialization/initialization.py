@@ -107,7 +107,7 @@ def FixedBERT(max_length, dm, vocab_size, dff, heads, n_blocks, output_size):
 
     layer_fun = lambda: FixedLinear(dm, dm, relu=False)
 
-    encoder_tower = llm.EncoderTower(
+    encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
         (lambda: FixedFeedForward(dm, dff)),
@@ -116,7 +116,7 @@ def FixedBERT(max_length, dm, vocab_size, dff, heads, n_blocks, output_size):
 
     head = FixedLinear(dm, output_size)
 
-    model = llm.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
     return model
 
 
@@ -127,7 +127,7 @@ def StandardBERT(max_length, dm, vocab_size, dff, heads, n_blocks, output_size):
 
     layer_fun = lambda: StandardLinear(dm, dm, relu=False)
 
-    encoder_tower = llm.EncoderTower(
+    encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
         (lambda: StandardFeedForward(dm, dff)),
@@ -136,5 +136,5 @@ def StandardBERT(max_length, dm, vocab_size, dff, heads, n_blocks, output_size):
 
     head = StandardLinear(dm, output_size)
 
-    model = llm.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
     return model

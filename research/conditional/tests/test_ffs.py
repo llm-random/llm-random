@@ -106,7 +106,7 @@ class BERTSparseTest(GeneralTestCase):
             dm, dm, modules
         )
 
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -119,7 +119,7 @@ class BERTSparseTest(GeneralTestCase):
 
         head = llm.PredictionHead(dm, output_size)
 
-        model = llm.BERT(embedding_layer, encoder_tower, head)
+        model = llm.LLM(embedding_layer, encoder_tower, head)
 
         input = torch.randint(0, vocab_size, (batch, seql))
 
@@ -147,7 +147,7 @@ class BERTSparseGradientTest(GeneralTestCase):
             dm, dm, modules
         )
 
-        encoder_tower = llm.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -160,7 +160,7 @@ class BERTSparseGradientTest(GeneralTestCase):
 
         head = llm.PredictionHead(dm, output_size)
 
-        model = llm.BERT(embedding_layer, encoder_tower, head)
+        model = llm.LLM(embedding_layer, encoder_tower, head)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 

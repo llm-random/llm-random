@@ -59,7 +59,7 @@ class EncoderTowerTest(GeneralTestCase):
             "attention": lambda: llm.Attention(dm, heads),
             "feedforward": lambda: llm.FeedForward(dm, dff),
         }
-        model = llm.EncoderTower(nblocks, dm, layer_dict)
+        model = llm.TransformerTower(nblocks, dm, layer_dict)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = model(input)
         self.assertShape(out, (batch, seql, dm))
@@ -80,11 +80,11 @@ class BERTTest(GeneralTestCase):
             "attention": lambda: llm.Attention(dm, heads),
             "feedforward": lambda: llm.FeedForward(dm, dff),
         }
-        encoder_tower = llm.EncoderTower(n_blocks, dm, layer_dict)
+        encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict)
 
         head = llm.PredictionHead(dm, output_size)
 
-        model = llm.BERT(embedding_layer, encoder_tower, head)
+        model = llm.LLM(embedding_layer, encoder_tower, head)
 
         input = torch.randint(0, vocab_size, (batch, seql))
 

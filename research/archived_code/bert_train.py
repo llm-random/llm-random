@@ -102,7 +102,7 @@ def get_model():
         llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
-    encoder_tower = llm.EncoderTower(
+    encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
         # (lambda: bert.FeedForward(dm, dff)),
@@ -116,7 +116,7 @@ def get_model():
 
     head = llm.PredictionHead(dm, output_size)
 
-    model = llm.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)
