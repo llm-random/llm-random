@@ -214,6 +214,17 @@ class Trainer:
         mask_loss = mask_loss.mean() / self.mask_percent
         return mask_loss
 
+    def _get_lm_loss(self, input, target, non_padded_mask):
+        output = self.model(input)
+        lm_loss = F.cross_entropy(
+            output.reshape(-1, self.vocab_size),
+            target.reshape(-1).long(),
+            reduction="none",
+        )
+        lm_loss *= non_padded_mask.reshape(-1)
+        lm_loss = lm_loss.mean()
+        return lm_loss
+
     def _task_train_step(
         self,
         dataset: wikibookdata.ProcessedDataset,
@@ -243,7 +254,28 @@ class Trainer:
                 run_after_backprop=True,
             )
         else:
-            print("other training type not implemented yet")
+            self.model.train()
+            processed_batch = dataset.get_batch()
+            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+            input = processed_batch.tokens
+            target = processed_batch.target_tokens
+            non_padded_mask = processed_batch.non_padded_mask
+
+            with torch.autocast(
+                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+            ):
+                losses = {"mask": self._get_lm_loss(input, target, non_padded_mask)}
+                self.update_loss_stats(losses)
+                scaled_losses = self.scale_losses(losses)
+                loss = sum(scaled_losses.values())
+
+            self.optimize(
+                optimizer=self.optimizer,
+                scaler=self.scaler,
+                loss=loss,
+                step=step,
+                run_after_backprop=True,
+            )
 
     def _model_train_step(self, step: int):
         self.model.train()
@@ -316,7 +348,27 @@ class Trainer:
 
                 return total_mask_loss
         else:
-            print("other training type not implemented yet")
+            with torch.no_grad():
+                total_loss = 0.0
+                for _ in range(sample):
+                    processed_batch = self.pdataset_eval.get_batch()
+                    assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+                    input = processed_batch.tokens
+                    target = processed_batch.target_tokens
+                    non_padded_mask = processed_batch.non_padded_mask
+                    mask_loss = self._get_lm_loss(input, target, non_padded_mask)
+                    total_loss += mask_loss.item()
+                total_loss /= sample
+
+                if log_values:
+                    self.logger.report_scalar(
+                        title="loss",
+                        series="eval_mask",
+                        value=total_loss,
+                        iteration=step,
+                    )
+
+                return total_loss
 
     def check_neuron_diff(self, step: int):
         """

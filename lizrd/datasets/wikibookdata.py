@@ -21,7 +21,8 @@ class ProcessedBERTExample(object):
 class ProcessedGPTExample(object):
     def __init__(self, sentence, processor):
         self.tokens = processor.tokenize_text(sentence)
-        self.tokens = processor.pad_tokens(self.tokens)
+        self.tokens, self.non_padded_mask = processor.pad_tokens(self.tokens)
+        self.target_tokens = self.tokens[1:] + [processor.end_token_id]
 
 
 class ProcessedBatch(ABC):
@@ -60,6 +61,12 @@ class ProcessedGPTBatch(ProcessedBatch):
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
         )
+        self.target_tokens = self._make_tensor(
+            [example.target_tokens for example in processed_examples]
+        )
+        self.non_padded_mask = self._make_tensor(
+            [example.non_padded_mask for example in processed_examples]
+        )
 
     def _make_tensor(self, list_of_token_lists):
         matrix = np.array(list_of_token_lists)
@@ -67,6 +74,8 @@ class ProcessedGPTBatch(ProcessedBatch):
 
     def to_(self, device):
         self.tokens = self.tokens.to(device)
+        self.target_tokens = self.target_tokens.to(device)
+        self.non_padded_mask = self.non_padded_mask.to(device)
         return self
 
 
@@ -107,9 +116,11 @@ class GPTSentenceProcessor(object):
         if len(sentence_tokens) > self.max_total_length - 1:
             sentence_tokens = sentence_tokens[: self.max_total_length - 1]
         sentence_tokens.append(self.end_token_id)
-        return sentence_tokens + [self.pad_id] * (
-            self.max_total_length - len(sentence_tokens)
-        )
+        non_padding_length = len(sentence_tokens)
+        padding_length = self.max_total_length - non_padding_length
+        sentence_tokens = sentence_tokens + [self.end_token_id] * padding_length
+        non_padded_mask = [1] * non_padding_length + [0] * padding_length
+        return sentence_tokens, non_padded_mask
 
 
 class BERTSentenceProcessor(object):
@@ -327,18 +338,6 @@ class ProcessedDatasetWrapper:
     To make `get_batch` return the same sequence of batches, keep the seed, batch_size and num_workers unchanged.
     """
 
-    def _collate_fn(self, batch) -> ProcessedBatch:
-        if self.model_type == "bert":
-            processed_batch = ProcessedBERTBatch(batch)
-        elif self.model_type == "gpt":
-            processed_batch = ProcessedGPTBatch(batch)
-        else:
-            raise ValueError(
-                f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
-            )
-
-        return processed_batch
-
     def __init__(
         self,
         pdataset: ProcessedDataset,
@@ -350,16 +349,27 @@ class ProcessedDatasetWrapper:
     ):
         self.pdataset = pdataset
         self.device = device
+
+        self.model_type = model_type
+
+        if self.model_type == "bert":
+            collate_fn = lambda batch: ProcessedBERTBatch(batch)
+        elif self.model_type == "gpt":
+            collate_fn = lambda batch: ProcessedGPTBatch(batch)
+        else:
+            raise ValueError(
+                f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
+            )
+
         self.dataloader = iter(
             DataLoader(
                 ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed),
                 num_workers=num_workers,
                 batch_size=batch_size,
-                collate_fn=self._collate_fn,
+                collate_fn=collate_fn,
                 shuffle=False,  # WikiBookDataset already shuffles
             )
         )
-        self.model_type = model_type
 
     def get_batch(self) -> ProcessedBatch:
         return next(self.dataloader).to_(self.device)
