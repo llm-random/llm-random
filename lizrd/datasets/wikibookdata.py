@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
-from transformers import BertTokenizer
+from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
 
 
@@ -17,20 +17,34 @@ class ProcessedExample(object):
         self.masked_tokens = processor.mask_tokens(self.tokens, self.mask_mask)
 
 
-class ProcessedBatch(object):
+class ProcessedGPTExample(ProcessedExample):
+    def __init__(self, sentence, processor):
+        super().__init__(sentence, processor)
+        self.tokens = self.tokens + [processor.sep_id]
+        self.mask_mask = [0] + self.mask_mask + [0]
+        self.masked_tokens = [processor.cls_id] + self.masked_tokens + [processor.sep_id]
+
+
+class ProcessedBertBatch(object):
     def __init__(self, processed_examples):
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
         )
-        self.mask_mask = self._make_tensor(
-            [example.mask_mask for example in processed_examples]
+        self.mask_mask = (
+            self._make_tensor([example.mask_mask for example in processed_examples])
+            if processed_examples[0].mask_mask is not None
+            else None
         )
-        self.masked_tokens = self._make_tensor(
-            [example.masked_tokens for example in processed_examples]
+        self.masked_tokens = (
+            self._make_tensor([example.masked_tokens for example in processed_examples])
+            if processed_examples[0].masked_tokens is not None
+            else None
         )
 
-        assert self.tokens.shape == self.masked_tokens.shape
-        assert self.tokens.shape == self.mask_mask.shape
+        assert (
+            self.masked_tokens is None or self.tokens.shape == self.masked_tokens.shape
+        )
+        assert self.masked_tokens is None or self.tokens.shape == self.mask_mask.shape
 
     def _make_tensor(self, list_of_token_lists):
         matrix = np.array(list_of_token_lists)
@@ -38,9 +52,17 @@ class ProcessedBatch(object):
 
     def to_(self, device):
         self.tokens = self.tokens.to(device)
-        self.masked_tokens = self.masked_tokens.to(device)
-        self.mask_mask = self.mask_mask.to(device)
+
+        if self.masked_tokens is not None:
+            self.masked_tokens = self.masked_tokens.to(device)
+
+        if self.mask_mask is not None:
+            self.mask_mask = self.mask_mask.to(device)
         return self
+
+
+class ProcessedGPTBatch(object):
+    pass
 
 
 @define
@@ -57,7 +79,34 @@ class MaskingReplacementConfig:
         ) == 1.0
 
 
-class SentenceProcessor(object):
+class GPTSentenceProcessor(object):
+    def __init__(
+        self,
+        max_total_length=128,
+    ):
+        self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        self.max_total_length = max_total_length
+        end_token = "<|endoftext|>"
+        self.end_token_id = self.tokenizer._convert_token_to_id(end_token)
+
+    def process(self, sentence):
+        return ProcessedGPTExample(sentence, self)
+
+    def tokenize_text(self, sentence_text):
+        # note: tokenizer.encode _claims_ to be equivalent. This isn't true.
+        return self.tokenizer.convert_tokens_to_ids(
+            self.tokenizer.tokenize(sentence_text)
+        )
+
+    def pad_tokens(self, sentence_tokens):
+        if len(sentence_tokens) > self.max_total_length:
+            sentence_tokens = sentence_tokens[: self.max_total_length]
+        return sentence_tokens + [self.pad_id] * (
+            self.max_total_length - len(sentence_tokens)
+        )
+
+
+class BERTSentenceProcessor(object):
     def __init__(
         self,
         max_total_length=128,
@@ -232,7 +281,9 @@ class ProcessedDataset:
     def __init__(self, dataset, processor):
         assert isinstance(dataset, WikiBookDataset)
         self.dataset = dataset
-        assert isinstance(processor, SentenceProcessor)
+        assert isinstance(processor, BERTSentenceProcessor) or isinstance(
+            processor, GPTSentenceProcessor
+        )
         self.processor = processor
 
     def get_example(self):

@@ -22,8 +22,6 @@ from lizrd.support.logging import (
     make_concise_datetime,
 )
 
-VOCAB_SIZE = 30522
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--testing_regular", action="store_true")
@@ -101,8 +99,12 @@ parser.add_argument("--noise_ff_n_steps", type=int, required=False)
 parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
 parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
 parser.add_argument("--attention_fun", type=str, default="regular")
+parser.add_argument("--pdataset_processor_type", type=str, default="bert")
+parser.add_argument("--training_type", type=str, default="bert")
 
 args = parser.parse_args()
+
+VOCAB_SIZE = 30522 if args.pdataset_processor_type == "bert" else 50257
 
 if args.dff == "auto":
     args.dff = args.dmodel * 4
@@ -275,6 +277,7 @@ pdataset = get_processed_dataset(
     device=DEVICE,
     num_workers=args.num_workers,
     seed=args.ds_seed,
+    processor_type=args.pdataset_processor_type,
 )
 eval_pdataset = get_processed_dataset(
     batch_size=args.batch_size,
@@ -283,6 +286,7 @@ eval_pdataset = get_processed_dataset(
     device=DEVICE,
     num_workers=1,
     seed=args.eval_ds_seed,
+    processor_type=args.pdataset_processor_type,
 )
 
 if args.attention_fun == "regular":
@@ -364,6 +368,7 @@ base_trainer_params = dict(
     },
     noise_interpolation_delay=args.noise_interpolation_delay,
     lr_warmup_steps=args.lr_warmup_steps,
+    training_type=args.training_type,
 )
 
 if args.trainer_type == "retrain":

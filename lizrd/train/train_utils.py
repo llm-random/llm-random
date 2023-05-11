@@ -60,12 +60,21 @@ def get_processed_dataset(
     device: torch.device,
     num_workers: int,
     seed: int,
+    processor_type: str = "bert",
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset()
-    processor = wikibookdata.SentenceProcessor(
-        max_total_length=max_total_length,
-        mask_percent=mask_percent,
-    )
+
+    if processor_type == "bert":
+        processor = wikibookdata.BERTSentenceProcessor(
+            max_total_length=max_total_length,
+            mask_percent=mask_percent,
+        )
+    elif processor_type == "gpt":
+        processor = wikibookdata.GPTSentenceProcessor(
+            max_total_length=max_total_length,
+            mask_percent=mask_percent,
+        )
+
     dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
     return wikibookdata.ProcessedDatasetWrapper(
         pdataset=dataset,
@@ -106,6 +115,7 @@ class Trainer:
     neuron_diff_n_batches: int = 10
     lr_warmup_steps: int = 10_000
     noise_interpolation_delay: int = 0
+    training_type: str = "bert"
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -209,28 +219,31 @@ class Trainer:
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
-        self.model.train()
-        processed_batch = dataset.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        x_set = processed_batch.masked_tokens
-        y_token_set = processed_batch.tokens
-        y_mask_set = processed_batch.mask_mask
+        if self.training_type == "bert":
+            self.model.train()
+            processed_batch = dataset.get_batch()
+            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+            x_set = processed_batch.masked_tokens
+            y_token_set = processed_batch.tokens
+            y_mask_set = processed_batch.mask_mask
 
-        with torch.autocast(
-            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-        ):
-            losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
-            self.update_loss_stats(losses)
-            scaled_losses = self.scale_losses(losses)
-            loss = sum(scaled_losses.values())
+            with torch.autocast(
+                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+            ):
+                losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
+                self.update_loss_stats(losses)
+                scaled_losses = self.scale_losses(losses)
+                loss = sum(scaled_losses.values())
 
-        self.optimize(
-            optimizer=self.optimizer,
-            scaler=self.scaler,
-            loss=loss,
-            step=step,
-            run_after_backprop=True,
-        )
+            self.optimize(
+                optimizer=self.optimizer,
+                scaler=self.scaler,
+                loss=loss,
+                step=step,
+                run_after_backprop=True,
+            )
+        else:
+            print("other training type not implemented yet")
 
     def _model_train_step(self, step: int):
         self.model.train()
