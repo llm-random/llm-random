@@ -2,13 +2,14 @@ import random
 
 import numpy as np
 import torch
+from abc import ABC
 from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
 
 
-class ProcessedExample(object):
+class ProcessedBERTExample(object):
     def __init__(self, sentence, processor):
         self.tokens = processor.tokenize_text(sentence)
         self.tokens = processor.pad_tokens(self.tokens)
@@ -17,34 +18,31 @@ class ProcessedExample(object):
         self.masked_tokens = processor.mask_tokens(self.tokens, self.mask_mask)
 
 
-class ProcessedGPTExample(ProcessedExample):
+class ProcessedGPTExample(object):
     def __init__(self, sentence, processor):
-        super().__init__(sentence, processor)
-        self.tokens = self.tokens + [processor.sep_id]
-        self.mask_mask = [0] + self.mask_mask + [0]
-        self.masked_tokens = [processor.cls_id] + self.masked_tokens + [processor.sep_id]
+        self.tokens = processor.tokenize_text(sentence)
+        self.tokens = processor.pad_tokens(self.tokens)
 
 
-class ProcessedBertBatch(object):
+class ProcessedBatch(ABC):
+    def __init__(self, processed_examples):
+        pass
+
+
+class ProcessedBERTBatch(ProcessedBatch):
     def __init__(self, processed_examples):
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
         )
-        self.mask_mask = (
-            self._make_tensor([example.mask_mask for example in processed_examples])
-            if processed_examples[0].mask_mask is not None
-            else None
+        self.mask_mask = self._make_tensor(
+            [example.mask_mask for example in processed_examples]
         )
-        self.masked_tokens = (
-            self._make_tensor([example.masked_tokens for example in processed_examples])
-            if processed_examples[0].masked_tokens is not None
-            else None
+        self.masked_tokens = self._make_tensor(
+            [example.masked_tokens for example in processed_examples]
         )
 
-        assert (
-            self.masked_tokens is None or self.tokens.shape == self.masked_tokens.shape
-        )
-        assert self.masked_tokens is None or self.tokens.shape == self.mask_mask.shape
+        assert self.tokens.shape == self.masked_tokens.shape
+        assert self.tokens.shape == self.mask_mask.shape
 
     def _make_tensor(self, list_of_token_lists):
         matrix = np.array(list_of_token_lists)
@@ -52,17 +50,24 @@ class ProcessedBertBatch(object):
 
     def to_(self, device):
         self.tokens = self.tokens.to(device)
-
-        if self.masked_tokens is not None:
-            self.masked_tokens = self.masked_tokens.to(device)
-
-        if self.mask_mask is not None:
-            self.mask_mask = self.mask_mask.to(device)
+        self.masked_tokens = self.masked_tokens.to(device)
+        self.mask_mask = self.mask_mask.to(device)
         return self
 
 
-class ProcessedGPTBatch(object):
-    pass
+class ProcessedGPTBatch(ProcessedBatch):
+    def __init__(self, processed_examples):
+        self.tokens = self._make_tensor(
+            [example.tokens for example in processed_examples]
+        )
+
+    def _make_tensor(self, list_of_token_lists):
+        matrix = np.array(list_of_token_lists)
+        return torch.from_numpy(matrix)
+
+    def to_(self, device):
+        self.tokens = self.tokens.to(device)
+        return self
 
 
 @define
@@ -99,8 +104,9 @@ class GPTSentenceProcessor(object):
         )
 
     def pad_tokens(self, sentence_tokens):
-        if len(sentence_tokens) > self.max_total_length:
-            sentence_tokens = sentence_tokens[: self.max_total_length]
+        if len(sentence_tokens) > self.max_total_length - 1:
+            sentence_tokens = sentence_tokens[: self.max_total_length - 1]
+        sentence_tokens.append(self.end_token_id)
         return sentence_tokens + [self.pad_id] * (
             self.max_total_length - len(sentence_tokens)
         )
@@ -140,7 +146,7 @@ class BERTSentenceProcessor(object):
         self.rng = rng
 
     def process(self, sentence):
-        return ProcessedExample(sentence, self)
+        return ProcessedBERTExample(sentence, self)
 
     def tokenize_text(self, sentence_text):
         # note: tokenizer.encode _claims_ to be equivalent. This isn't true.
@@ -322,7 +328,16 @@ class ProcessedDatasetWrapper:
     """
 
     def _collate_fn(self, batch) -> ProcessedBatch:
-        return ProcessedBatch(batch)
+        if self.model_type == "bert":
+            processed_batch = ProcessedBERTBatch(batch)
+        elif self.model_type == "gpt":
+            processed_batch = ProcessedGPTBatch(batch)
+        else:
+            raise ValueError(
+                f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
+            )
+
+        return processed_batch
 
     def __init__(
         self,
@@ -331,6 +346,7 @@ class ProcessedDatasetWrapper:
         batch_size: int,
         num_workers: int = 8,
         seed: int = 42,
+        model_type: str = "bert",
     ):
         self.pdataset = pdataset
         self.device = device
@@ -343,6 +359,7 @@ class ProcessedDatasetWrapper:
                 shuffle=False,  # WikiBookDataset already shuffles
             )
         )
+        self.model_type = model_type
 
     def get_batch(self) -> ProcessedBatch:
         return next(self.dataloader).to_(self.device)

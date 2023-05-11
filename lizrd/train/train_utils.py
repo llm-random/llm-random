@@ -60,19 +60,18 @@ def get_processed_dataset(
     device: torch.device,
     num_workers: int,
     seed: int,
-    processor_type: str = "bert",
+    model_type: str = "bert",
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset()
 
-    if processor_type == "bert":
+    if model_type == "bert":
         processor = wikibookdata.BERTSentenceProcessor(
             max_total_length=max_total_length,
             mask_percent=mask_percent,
         )
-    elif processor_type == "gpt":
+    elif model_type == "gpt":
         processor = wikibookdata.GPTSentenceProcessor(
             max_total_length=max_total_length,
-            mask_percent=mask_percent,
         )
 
     dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
@@ -82,6 +81,7 @@ def get_processed_dataset(
         batch_size=batch_size,
         num_workers=num_workers,
         seed=seed,
+        model_type=model_type,
     )
 
 
@@ -115,7 +115,7 @@ class Trainer:
     neuron_diff_n_batches: int = 10
     lr_warmup_steps: int = 10_000
     noise_interpolation_delay: int = 0
-    training_type: str = "bert"
+    model_type: str = "bert"
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -219,7 +219,7 @@ class Trainer:
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
-        if self.training_type == "bert":
+        if self.model_type == "bert":
             self.model.train()
             processed_batch = dataset.get_batch()
             assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
@@ -291,28 +291,32 @@ class Trainer:
     ):
         self.model.eval()
 
-        with torch.no_grad():
-            total_mask_loss = 0.0
-            for _ in range(sample):
-                processed_batch = self.pdataset_eval.get_batch()
-                assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-                mask_loss = self._get_mask_loss(
-                    x_set=processed_batch.masked_tokens,
-                    y_token_set=processed_batch.tokens,
-                    y_mask_set=processed_batch.mask_mask,
-                )
-                total_mask_loss += mask_loss.item()
-            total_mask_loss /= sample
+        if self.model_type == "bert":
 
-            if log_values:
-                self.logger.report_scalar(
-                    title="loss",
-                    series="eval_mask",
-                    value=total_mask_loss,
-                    iteration=step,
-                )
+            with torch.no_grad():
+                total_mask_loss = 0.0
+                for _ in range(sample):
+                    processed_batch = self.pdataset_eval.get_batch()
+                    assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+                    mask_loss = self._get_mask_loss(
+                        x_set=processed_batch.masked_tokens,
+                        y_token_set=processed_batch.tokens,
+                        y_mask_set=processed_batch.mask_mask,
+                    )
+                    total_mask_loss += mask_loss.item()
+                total_mask_loss /= sample
 
-            return total_mask_loss
+                if log_values:
+                    self.logger.report_scalar(
+                        title="loss",
+                        series="eval_mask",
+                        value=total_mask_loss,
+                        iteration=step,
+                    )
+
+                return total_mask_loss
+        else:
+            print("other training type not implemented yet")
 
     def check_neuron_diff(self, step: int):
         """
