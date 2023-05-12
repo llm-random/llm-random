@@ -26,23 +26,27 @@ def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
 
 
 def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent):
-    x_set = batch.masked_tokens
-    y_token_set = batch.tokens
-    y_mask_set = batch.mask_mask
+    input = batch.masked_tokens
+    non_masked_input = batch.tokens
+    non_masked_mask = batch.mask_mask
+
+    # input = batch.tokens
+    # target = batch.target_tokens
+    # non_padded_mask = batch.non_padded_mask
 
     if mixed_precision:
         with torch.autocast(
             device_type="cuda", enabled=mixed_precision, dtype=torch.float16
         ):
-            model_output = model(x_set)
+            model_output = model(input)
     else:
-        model_output = model(x_set)
+        model_output = model(input)
 
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, vocab_size),
-        y_token_set.reshape(-1).long(),
+        non_masked_input.reshape(-1).long(),
         reduction="none",
     )
-    mask_loss *= y_mask_set.reshape(-1)
+    mask_loss *= non_masked_mask.reshape(-1)
     loss = mask_loss.mean() / mask_percent
     return loss

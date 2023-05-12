@@ -29,9 +29,9 @@ class ConditionalTrainer:
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         if self.model_type == "gpt":
-            self.calculate_loss = calculate_gpt_loss
+            self._calculate_loss = calculate_gpt_loss
         elif self.model_type == "bert":
-            self.calculate_loss = partial(
+            self._calculate_loss = partial(
                 calculate_bert_loss, mask_percent=self.mask_percent
             )
 
@@ -58,7 +58,7 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
 
-        loss = self.calculate_loss(
+        loss = self._calculate_loss(
             processed_batch, self.model, self.mixed_precision, self.vocab_size
         )
         self._optimize(loss)
@@ -76,11 +76,11 @@ class ConditionalTrainer:
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        x_set = processed_batch.masked_tokens
-        y_token_set = processed_batch.tokens
-        y_mask_set = processed_batch.mask_mask
-        for tensor in [x_set, y_token_set, y_mask_set]:
-            tensor.data = tensor[:1].repeat(step + 1, 1).data
-        loss = self._calculate_loss(x_set, y_token_set, y_mask_set)
+        for tensor in dir(processed_batch):
+            if isinstance(tensor, torch.Tensor):
+                tensor.data = tensor[:1].repeat(step + 1, 1).data
+        loss = self._calculate_loss(
+            processed_batch, self.model, self.mixed_precision, self.vocab_size
+        )
         self._optimize(loss)
         print(f"Batch size {step} still fits!")
