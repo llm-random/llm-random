@@ -6,7 +6,7 @@ def introduce_parser_arguments(parser):
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
     parser.add_argument("--use_clearml", action="store_true")
-    parser.add_argument("--use_neptune", action="store_false")
+    parser.add_argument("--use_neptune", action="store_true")
     parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--cutoff", type=int, default=128)
@@ -54,9 +54,7 @@ def get_attention_layer(args):
     elif args.model_type == "bert":
         attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     else:
-        raise NotImplementedError(
-            f"Model type {args.model_type} not implemented"
-        )
+        raise NotImplementedError(f"Model type {args.model_type} not implemented")
     return attention_layer_fun
 
 
