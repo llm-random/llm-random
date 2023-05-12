@@ -23,7 +23,9 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
     parser.add_argument("--tags", nargs="*", type=str, default=None)
-    parser.add_argument("--model_type", type=str, default="gpt")
+    parser.add_argument(
+        "--model_type", type=str, choices=["gpt", "bert"], default="gpt"
+    )
 
     # parameters usually changed for experiments
 

@@ -1,7 +1,7 @@
+from functools import partial
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from attr import define
 
 from lizrd.datasets import wikibookdata
@@ -22,12 +22,18 @@ class ConditionalTrainer:
     mask_percent: float
     mixed_precision: bool
     logger: AbstractLogger
+    model_type: str
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     hack_for_batch_size: bool = False
-    model_type: str = "bert"
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        if self.model_type == "gpt":
+            self.calculate_loss = calculate_gpt_loss
+        elif self.model_type == "bert":
+            self.calculate_loss = partial(
+                calculate_bert_loss, mask_percent=self.mask_percent
+            )
 
     def train(self, n_steps: int):
         for step in range(n_steps):
@@ -52,19 +58,9 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
 
-        if self.model_type == "gpt":
-            loss = calculate_gpt_loss(
-                processed_batch, self.model, self.mixed_precision, self.vocab_size
-            )
-        elif self.model_type == "bert":
-            loss = calculate_bert_loss(
-                processed_batch,
-                self.model,
-                self.mixed_precision,
-                self.vocab_size,
-                self.mask_percent,
-            )
-
+        loss = self.calculate_loss(
+            processed_batch, self.model, self.mixed_precision, self.vocab_size
+        )
         self._optimize(loss)
         self.logger.report_scalar(
             title="loss", value=loss.item(), iteration=step, series="train"
