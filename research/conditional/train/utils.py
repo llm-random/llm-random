@@ -23,11 +23,11 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
     parser.add_argument("--tags", nargs="*", type=str, default=None)
+    parser.add_argument("--model_type", type=str, default="gpt")
 
     # parameters usually changed for experiments
 
     parser.add_argument("--ff_mode", type=str, default="vanilla")
-    parser.add_argument("--attention_mode", type=str, default="vanilla")
     parser.add_argument("--project_name", type=str, default="")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--learning_rate", type=float, default=5e-5)
@@ -49,11 +49,13 @@ def introduce_parser_arguments(parser):
 
 
 def get_attention_layer(args):
-    if args.attention_mode == "vanilla":
+    if args.model_type == "gpt":
+        attention_layer_fun = lambda: llm.CausalAttention(args.dmodel, args.n_att_heads)
+    elif args.model_type == "bert":
         attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     else:
         raise NotImplementedError(
-            f"Attention mode {args.attention_mode} not implemented"
+            f"Model type {args.model_type} not implemented"
         )
     return attention_layer_fun
 

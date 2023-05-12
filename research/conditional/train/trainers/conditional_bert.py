@@ -9,7 +9,7 @@ from lizrd.support.logging import AbstractLogger
 
 
 @define
-class ConditionalTrainer:
+class ConditionalBERTTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: wikibookdata.ProcessedDatasetWrapper
