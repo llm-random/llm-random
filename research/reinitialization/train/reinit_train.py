@@ -287,12 +287,12 @@ eval_pdataset = get_processed_dataset(
     model_type=args.model_type,
 )
 
-if args.model_type== "bert":
-    attention_layer_fun=lambda: llm.Attention(
+if args.model_type == "bert":
+    attention_layer_fun = lambda: llm.Attention(
         args.dmodel, args.heads, dhead=args.dhead
     )
 elif args.model_type == "gpt":
-    attention_layer_fun=lambda: llm.CausalAttention(
+    attention_layer_fun = lambda: llm.CausalAttention(
         args.dmodel, args.heads, dhead=args.dhead
     )
 
@@ -303,7 +303,7 @@ model = get_model(
     dm=args.dmodel,
     n_blocks=args.n_blocks,
     device=DEVICE,
-    attention_layer_fun=attention_layer_fun
+    attention_layer_fun=attention_layer_fun,
 )
 if args.model_load_path:
     print(f"Loading model from {args.model_load_path}")

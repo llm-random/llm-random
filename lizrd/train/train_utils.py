@@ -324,7 +324,6 @@ class Trainer:
         self.model.eval()
 
         if self.model_type == "bert":
-
             with torch.no_grad():
                 total_mask_loss = 0.0
                 for _ in range(sample):

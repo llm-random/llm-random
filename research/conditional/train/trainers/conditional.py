@@ -6,10 +6,14 @@ from attr import define
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from research.conditional.train.trainers.utils import (
+    calculate_gpt_loss,
+    calculate_bert_loss,
+)
 
 
 @define
-class ConditionalBERTTrainer:
+class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: wikibookdata.ProcessedDatasetWrapper
@@ -20,6 +24,7 @@ class ConditionalBERTTrainer:
     logger: AbstractLogger
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     hack_for_batch_size: bool = False
+    model_type: str = "bert"
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -39,24 +44,6 @@ class ConditionalBERTTrainer:
         self.scaler.step(self.optimizer)
         self.scaler.update()
 
-    def _calculate_loss(self, x_set, y_token_set, y_mask_set):
-        if self.mixed_precision:
-            with torch.autocast(
-                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-            ):
-                model_output = self.model(x_set)
-        else:
-            model_output = self.model(x_set)
-
-        mask_loss = F.cross_entropy(
-            model_output.reshape(-1, self.vocab_size),
-            y_token_set.reshape(-1).long(),
-            reduction="none",
-        )
-        mask_loss *= y_mask_set.reshape(-1)
-        loss = mask_loss.mean() / self.mask_percent
-        return loss
-
     def _train_step(
         self,
         step,
@@ -64,10 +51,20 @@ class ConditionalBERTTrainer:
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        x_set = processed_batch.masked_tokens
-        y_token_set = processed_batch.tokens
-        y_mask_set = processed_batch.mask_mask
-        loss = self._calculate_loss(x_set, y_token_set, y_mask_set)
+
+        if self.model_type == "gpt":
+            loss = calculate_gpt_loss(
+                processed_batch, self.model, self.mixed_precision, self.vocab_size
+            )
+        elif self.model_type == "bert":
+            loss = calculate_bert_loss(
+                processed_batch,
+                self.model,
+                self.mixed_precision,
+                self.vocab_size,
+                self.mask_percent,
+            )
+
         self._optimize(loss)
         self.logger.report_scalar(
             title="loss", value=loss.item(), iteration=step, series="train"
