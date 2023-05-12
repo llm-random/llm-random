@@ -30,10 +30,6 @@ def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent)
     non_masked_input = batch.tokens
     non_masked_mask = batch.mask_mask
 
-    # input = batch.tokens
-    # target = batch.target_tokens
-    # non_padded_mask = batch.non_padded_mask
-
     if mixed_precision:
         with torch.autocast(
             device_type="cuda", enabled=mixed_precision, dtype=torch.float16
