@@ -1,7 +1,7 @@
 import torch
 
 import research.conditional.moe_layers.ffs
-from lizrd.core import bert
+from lizrd.core import llm
 from lizrd.support.test_utils import GeneralTestCase, skip_test
 
 
@@ -97,16 +97,16 @@ class BERTSparseTest(GeneralTestCase):
         output_size = 3
         n_blocks = 2
 
-        embedding_layer = bert.EmbeddingLayer(
-            bert.PositionalEmbedding(max_length, dm),
-            bert.TokenEmbedding(vocab_size, dm),
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm),
+            llm.TokenEmbedding(vocab_size, dm),
         )
 
         factored_dense_fun = lambda: research.conditional.moe_layers.ffs.FactoredDense(
             dm, dm, modules
         )
 
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -114,12 +114,12 @@ class BERTSparseTest(GeneralTestCase):
                     [], dm, dff, 4, 4, 4
                 )
             ),
-            (lambda: bert.Attention(dm, heads, layer_fun=factored_dense_fun)),
+            (lambda: llm.Attention(dm, heads, layer_fun=factored_dense_fun)),
         )
 
-        head = bert.PredictionHead(dm, output_size)
+        head = llm.PredictionHead(dm, output_size)
 
-        model = bert.BERT(embedding_layer, encoder_tower, head)
+        model = llm.LLM(embedding_layer, encoder_tower, head)
 
         input = torch.randint(0, vocab_size, (batch, seql))
 
@@ -138,16 +138,16 @@ class BERTSparseGradientTest(GeneralTestCase):
         output_size = 3
         n_blocks = 1
 
-        embedding_layer = bert.EmbeddingLayer(
-            bert.PositionalEmbedding(max_length, dm),
-            bert.TokenEmbedding(vocab_size, dm),
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm),
+            llm.TokenEmbedding(vocab_size, dm),
         )
 
         factored_dense_fun = lambda: research.conditional.moe_layers.ffs.FactoredDense(
             dm, dm, modules
         )
 
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
@@ -155,12 +155,12 @@ class BERTSparseGradientTest(GeneralTestCase):
                     [], dm, dff, 4, 4, 4
                 )
             ),
-            (lambda: bert.Attention(dm, heads, layer_fun=factored_dense_fun)),
+            (lambda: llm.Attention(dm, heads, layer_fun=factored_dense_fun)),
         )
 
-        head = bert.PredictionHead(dm, output_size)
+        head = llm.PredictionHead(dm, output_size)
 
-        model = bert.BERT(embedding_layer, encoder_tower, head)
+        model = llm.LLM(embedding_layer, encoder_tower, head)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 

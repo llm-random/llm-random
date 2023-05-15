@@ -8,7 +8,7 @@ from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
 )
-from research.conditional.train.trainers import ConditionalTrainer
+from research.conditional.train.trainers.conditional import ConditionalTrainer
 from research.conditional.train.utils import (
     introduce_parser_arguments,
     get_attention_layer,
@@ -20,7 +20,7 @@ introduce_parser_arguments(parser)
 args = parser.parse_args()
 
 
-VOCAB_SIZE = 30522  # BertTokenizer uses this many words
+VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 misc.print_available_gpus()
 
@@ -31,6 +31,7 @@ train_dataloader = get_processed_dataset(
     num_workers=args.num_workers,
     batch_size=args.batch_size,
     seed=args.data_seed,
+    model_type=args.model_type,
 )
 
 ff_layer_fun = get_ff_layer(args)
@@ -60,6 +61,7 @@ trainer = ConditionalTrainer(
     mixed_precision=args.mixed_precision,
     logger=logger,
     hack_for_batch_size=args.hack_for_batch_size,
+    model_type=args.model_type,
 )
 
 trainer.train(args.n_steps)
