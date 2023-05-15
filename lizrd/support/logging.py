@@ -1,13 +1,14 @@
-from argparse import Namespace
 import math
 import os
 import secrets
 from abc import ABC, abstractmethod
+from argparse import Namespace
 from typing import Optional
+
 import neptune.new as neptune
-from clearml import Task
 import numpy as np
 import plotly
+from clearml import Task
 
 from lizrd.support.misc import (
     make_concise_datetime,
@@ -53,6 +54,10 @@ class AbstractLogger(ABC):
         series,
         iteration,
     ):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def report_generic_info(self, *, type: str, title: str, iteration: int, **kwargs):
         raise NotImplementedError()
 
     def potentially_log_plotly_figure_scalars(
@@ -209,6 +214,12 @@ class NeptuneLogger(AbstractLogger):
         self.potentially_log_plotly_figure_scalars(
             figure=figure, title=title, series=series, iteration=iteration
         )
+
+    def report_generic_info(self, *, type: str, title: str, iteration: int, **kwargs):
+        if type == "scalar":
+            pass
+        elif type == "plotly":
+            pass
 
     def flush_if_necessary(self):
         pass

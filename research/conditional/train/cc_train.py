@@ -9,7 +9,7 @@ from lizrd.train.train_utils import (
     get_processed_dataset,
 )
 from research.conditional.train.trainers.conditional import ConditionalTrainer
-from research.conditional.train.utils import (
+from research.conditional.utils.utils import (
     introduce_parser_arguments,
     get_attention_layer,
     get_ff_layer,
