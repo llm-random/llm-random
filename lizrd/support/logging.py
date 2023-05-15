@@ -217,9 +217,18 @@ class NeptuneLogger(AbstractLogger):
 
     def report_generic_info(self, *, type: str, title: str, iteration: int, **kwargs):
         if type == "scalar":
-            pass
+            value = kwargs.pop("value")
+            series = kwargs.pop("series", None)
+            self.report_scalar(
+                title=title, value=value, iteration=iteration, series=series
+            )
+
         elif type == "plotly":
-            pass
+            figure = kwargs.pop("figure")
+            series = kwargs.pop("series", None)
+            self.report_plotly(
+                figure=figure, title=title, iteration=iteration, series=series
+            )
 
     def flush_if_necessary(self):
         pass
