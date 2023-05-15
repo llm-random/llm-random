@@ -73,6 +73,8 @@ class ConditionalTrainer:
         )
 
     def log(self, step):
+        if self.verbosity_level == 0:
+            return
         if step and step % self.logging_interval == 0:
             self.layer_manager.log(step, verbosity_level=self.verbosity_level)
 
