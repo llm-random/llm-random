@@ -173,6 +173,21 @@ class NeptuneLogger(AbstractLogger):
             f.write(obj)
         self.instance_logger[path].upload(tmp_file)
 
+    def report_generic_info(self, *, type: str, title: str, iteration: int, **kwargs):
+        if type == "scalar":
+            value = kwargs.pop("data")
+            series = kwargs.pop("series", None)
+            self.report_scalar(
+                title=title, value=value, iteration=iteration, series=series
+            )
+
+        elif type == "plotly":
+            figure = kwargs.pop("data")
+            series = kwargs.pop("series", None)
+            self.report_plotly(
+                figure=figure, title=title, iteration=iteration, series=series
+            )
+
     def report_scalar(
         self,
         *,
@@ -214,21 +229,6 @@ class NeptuneLogger(AbstractLogger):
         self.potentially_log_plotly_figure_scalars(
             figure=figure, title=title, series=series, iteration=iteration
         )
-
-    def report_generic_info(self, *, type: str, title: str, iteration: int, **kwargs):
-        if type == "scalar":
-            value = kwargs.pop("data")
-            series = kwargs.pop("series", None)
-            self.report_scalar(
-                title=title, value=value, iteration=iteration, series=series
-            )
-
-        elif type == "plotly":
-            figure = kwargs.pop("data")
-            series = kwargs.pop("series", None)
-            self.report_plotly(
-                figure=figure, title=title, iteration=iteration, series=series
-            )
 
     def flush_if_necessary(self):
         pass

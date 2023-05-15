@@ -39,6 +39,7 @@ class ConditionalTrainer:
                 calculate_bert_loss, mask_percent=self.mask_percent
             )
         self.layer_manager = LayerManager(self.model)
+        assert self.verbosity_level in [0, 1, 2]
 
     def train(self, n_steps: int):
         for step in range(n_steps):
