@@ -8,12 +8,9 @@ from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
 )
-from research.conditional.train.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.utils import (
-    introduce_parser_arguments,
-    get_attention_layer,
-    get_ff_layer,
-)
+from research.conditional.utils.conditional_trainer import ConditionalTrainer
+from research.conditional.utils.misc_utils import introduce_parser_arguments
+from research.conditional.utils.model_utils import get_ff_layer, get_attention_layer
 
 parser = argparse.ArgumentParser()
 introduce_parser_arguments(parser)

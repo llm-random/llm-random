@@ -6,11 +6,11 @@ from attr import define
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from research.conditional.train.utils import (
+from research.conditional.utils.layer_manager import LayerManager
+from research.conditional.utils.model_utils import (
     calculate_gpt_loss,
     calculate_bert_loss,
 )
-from research.conditional.utils.layer_manager import LayerManager
 
 
 @define

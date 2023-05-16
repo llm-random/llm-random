@@ -1,7 +1,3 @@
-from lizrd.core import llm
-from research.conditional.moe_layers.ffs import ContinuousMoE
-
-
 def introduce_parser_arguments(parser):
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
@@ -34,43 +30,18 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--project_name", type=str, default="")
     parser.add_argument("--name", type=str, default="")
-    parser.add_argument("--learning_rate", type=float, default=1e-3)
+    parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--gradient_checkpointing", action="store_true")
-    parser.add_argument("--hack_for_batch_size", action="store_true")
-
-    # experimental/legacy parameters
 
     parser.add_argument("--n_experts", type=int, default=1)
     parser.add_argument("--group_size", type=int, default=1)
     parser.add_argument("--sparsity_dim", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=1.0)
+
+    # experimental/legacy parameters
+
+    parser.add_argument("--hack_for_batch_size", action="store_true")
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 
     return parser
-
-
-def get_attention_layer(args):
-    if args.model_type == "gpt":
-        attention_layer_fun = lambda: llm.CausalAttention(args.dmodel, args.n_att_heads)
-    elif args.model_type == "bert":
-        attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
-    else:
-        raise NotImplementedError(f"Model type {args.model_type} not implemented")
-    return attention_layer_fun
-
-
-def get_ff_layer(args):
-    if args.ff_mode == "vanilla":
-        return lambda: llm.FeedForward(args.dmodel, args.dff)
-    elif args.ff_mode == "cont_moe":
-        return lambda: ContinuousMoE(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-        )
-    else:
-        raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
