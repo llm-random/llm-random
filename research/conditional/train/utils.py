@@ -37,6 +37,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--learning_rate_ff", type=float)
     parser.add_argument("--gradient_checkpointing", action="store_true")
     parser.add_argument("--hack_for_batch_size", action="store_true")
+    parser.add_argument("--expert_size", type=int, required=False)
+    parser.add_argument("--topk", type=int, required=False)
 
     # experimental/legacy parameters
 
@@ -75,12 +77,11 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "expert_choice":
         return lambda: ExpertChoiceFF(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            cutoff=args.cutoff,
+            topk=args.topk,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

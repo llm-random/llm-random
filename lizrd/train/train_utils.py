@@ -47,8 +47,8 @@ def get_model(
 
     # sanity check to make sure it works
     input = torch.randint(0, vocab_size, (16, 10))
-    model(input)
-    del input
+    # model(input)
+    # del input
 
     return model.to(device)
 

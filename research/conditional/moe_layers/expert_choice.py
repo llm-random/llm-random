@@ -21,7 +21,7 @@ class ExpertChoiceFF(nn.Module):
         super().__init__()
 
         # make sure that n_experts, topk and expert_size are compatible
-        
+
 
         self.dmodel = dmodel
         self.n_experts = n_experts
@@ -31,7 +31,7 @@ class ExpertChoiceFF(nn.Module):
 
         self.lin1 = Linear(dmodel, self.width)
         self.lin2 = Linear(self.width, dmodel)
-        self.gate = nn.Parameter(get_init_weight((cutoff, n_experts))).requires_grad_(
+        self.gate = nn.Parameter(get_init_weight((cutoff, n_experts), fan_in=dmodel)).requires_grad_(
             True
         )
 
