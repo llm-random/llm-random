@@ -126,8 +126,8 @@ class GPTSentenceProcessor(object):
 class BERTSentenceProcessor(object):
     def __init__(
         self,
-        max_total_length=128,
-        mask_percent=0.15,
+        max_total_length,
+        mask_percent,
         mask_replace_config=None,
         rng=None,
     ):
