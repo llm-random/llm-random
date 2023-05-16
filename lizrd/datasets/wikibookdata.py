@@ -2,13 +2,14 @@ import random
 
 import numpy as np
 import torch
+from abc import ABC
 from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
-from transformers import BertTokenizer
+from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
 
 
-class ProcessedExample(object):
+class ProcessedBERTExample(object):
     def __init__(self, sentence, processor):
         self.tokens = processor.tokenize_text(sentence)
         self.tokens = processor.pad_tokens(self.tokens)
@@ -17,7 +18,19 @@ class ProcessedExample(object):
         self.masked_tokens = processor.mask_tokens(self.tokens, self.mask_mask)
 
 
-class ProcessedBatch(object):
+class ProcessedGPTExample(object):
+    def __init__(self, sentence, processor):
+        self.tokens = processor.tokenize_text(sentence)
+        self.tokens, self.non_padded_mask = processor.pad_tokens(self.tokens)
+        self.target_tokens = self.tokens[1:] + [processor.end_token_id]
+
+
+class ProcessedBatch(ABC):
+    def __init__(self, processed_examples):
+        pass
+
+
+class ProcessedBERTBatch(ProcessedBatch):
     def __init__(self, processed_examples):
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
@@ -43,6 +56,29 @@ class ProcessedBatch(object):
         return self
 
 
+class ProcessedGPTBatch(ProcessedBatch):
+    def __init__(self, processed_examples):
+        self.tokens = self._make_tensor(
+            [example.tokens for example in processed_examples]
+        )
+        self.target_tokens = self._make_tensor(
+            [example.target_tokens for example in processed_examples]
+        )
+        self.non_padded_mask = self._make_tensor(
+            [example.non_padded_mask for example in processed_examples]
+        )
+
+    def _make_tensor(self, list_of_token_lists):
+        matrix = np.array(list_of_token_lists)
+        return torch.from_numpy(matrix)
+
+    def to_(self, device):
+        self.tokens = self.tokens.to(device)
+        self.target_tokens = self.target_tokens.to(device)
+        self.non_padded_mask = self.non_padded_mask.to(device)
+        return self
+
+
 @define
 class MaskingReplacementConfig:
     replace_with_mask: float = 0.8
@@ -57,7 +93,37 @@ class MaskingReplacementConfig:
         ) == 1.0
 
 
-class SentenceProcessor(object):
+class GPTSentenceProcessor(object):
+    def __init__(
+        self,
+        max_total_length=128,
+    ):
+        self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        self.max_total_length = max_total_length
+        end_token = "<|endoftext|>"
+        self.end_token_id = self.tokenizer._convert_token_to_id(end_token)
+
+    def process(self, sentence):
+        return ProcessedGPTExample(sentence, self)
+
+    def tokenize_text(self, sentence_text):
+        # note: tokenizer.encode _claims_ to be equivalent. This isn't true.
+        return self.tokenizer.convert_tokens_to_ids(
+            self.tokenizer.tokenize(sentence_text)
+        )
+
+    def pad_tokens(self, sentence_tokens):
+        if len(sentence_tokens) > self.max_total_length - 1:
+            sentence_tokens = sentence_tokens[: self.max_total_length - 1]
+        sentence_tokens.append(self.end_token_id)
+        non_padding_length = len(sentence_tokens)
+        padding_length = self.max_total_length - non_padding_length
+        sentence_tokens = sentence_tokens + [self.end_token_id] * padding_length
+        non_padded_mask = [1] * non_padding_length + [0] * padding_length
+        return sentence_tokens, non_padded_mask
+
+
+class BERTSentenceProcessor(object):
     def __init__(
         self,
         max_total_length=128,
@@ -91,7 +157,7 @@ class SentenceProcessor(object):
         self.rng = rng
 
     def process(self, sentence):
-        return ProcessedExample(sentence, self)
+        return ProcessedBERTExample(sentence, self)
 
     def tokenize_text(self, sentence_text):
         # note: tokenizer.encode _claims_ to be equivalent. This isn't true.
@@ -232,7 +298,9 @@ class ProcessedDataset:
     def __init__(self, dataset, processor):
         assert isinstance(dataset, WikiBookDataset)
         self.dataset = dataset
-        assert isinstance(processor, SentenceProcessor)
+        assert isinstance(processor, BERTSentenceProcessor) or isinstance(
+            processor, GPTSentenceProcessor
+        )
         self.processor = processor
 
     def get_example(self):
@@ -270,9 +338,6 @@ class ProcessedDatasetWrapper:
     To make `get_batch` return the same sequence of batches, keep the seed, batch_size and num_workers unchanged.
     """
 
-    def _collate_fn(self, batch) -> ProcessedBatch:
-        return ProcessedBatch(batch)
-
     def __init__(
         self,
         pdataset: ProcessedDataset,
@@ -280,15 +345,28 @@ class ProcessedDatasetWrapper:
         batch_size: int,
         num_workers: int = 8,
         seed: int = 42,
+        model_type: str = "bert",
     ):
         self.pdataset = pdataset
         self.device = device
+
+        self.model_type = model_type
+
+        if self.model_type == "bert":
+            collate_fn = lambda batch: ProcessedBERTBatch(batch)
+        elif self.model_type == "gpt":
+            collate_fn = lambda batch: ProcessedGPTBatch(batch)
+        else:
+            raise ValueError(
+                f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
+            )
+
         self.dataloader = iter(
             DataLoader(
                 ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed),
                 num_workers=num_workers,
                 batch_size=batch_size,
-                collate_fn=self._collate_fn,
+                collate_fn=collate_fn,
                 shuffle=False,  # WikiBookDataset already shuffles
             )
         )

@@ -1,4 +1,4 @@
-from lizrd.core import bert
+from lizrd.core import llm
 from research.conditional.moe_layers.ffs import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 
@@ -7,7 +7,7 @@ def introduce_parser_arguments(parser):
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
     parser.add_argument("--use_clearml", action="store_true")
-    parser.add_argument("--use_neptune", action="store_false")
+    parser.add_argument("--use_neptune", action="store_true")
     parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--cutoff", type=int, default=128)
@@ -24,11 +24,13 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
     parser.add_argument("--tags", nargs="*", type=str, default=None)
+    parser.add_argument(
+        "--model_type", type=str, choices=["gpt", "bert"], default="gpt"
+    )
 
     # parameters usually changed for experiments
 
     parser.add_argument("--ff_mode", type=str, default="vanilla")
-    parser.add_argument("--attention_mode", type=str, default="vanilla")
     parser.add_argument("--project_name", type=str, default="")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--learning_rate", type=float, default=5e-5)
@@ -50,18 +52,18 @@ def introduce_parser_arguments(parser):
 
 
 def get_attention_layer(args):
-    if args.attention_mode == "vanilla":
-        attention_layer_fun = lambda: bert.Attention(args.dmodel, args.n_att_heads)
+    if args.model_type == "gpt":
+        attention_layer_fun = lambda: llm.CausalAttention(args.dmodel, args.n_att_heads)
+    elif args.model_type == "bert":
+        attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     else:
-        raise NotImplementedError(
-            f"Attention mode {args.attention_mode} not implemented"
-        )
+        raise NotImplementedError(f"Model type {args.model_type} not implemented")
     return attention_layer_fun
 
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        return lambda: bert.FeedForward(args.dmodel, args.dff)
+        return lambda: llm.FeedForward(args.dmodel, args.dff)
     elif args.ff_mode == "cont_moe":
         return lambda: ContinuousMoE(
             args.dmodel,

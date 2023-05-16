@@ -1,11 +1,15 @@
+from functools import partial
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from attr import define
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from research.conditional.train.trainers.utils import (
+    calculate_gpt_loss,
+    calculate_bert_loss,
+)
 
 
 @define
@@ -18,11 +22,18 @@ class ConditionalTrainer:
     mask_percent: float
     mixed_precision: bool
     logger: AbstractLogger
+    model_type: str
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     hack_for_batch_size: bool = False
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        if self.model_type == "gpt":
+            self._calculate_loss = calculate_gpt_loss
+        elif self.model_type == "bert":
+            self._calculate_loss = partial(
+                calculate_bert_loss, mask_percent=self.mask_percent
+            )
 
     def train(self, n_steps: int):
         for step in range(n_steps):
@@ -39,24 +50,6 @@ class ConditionalTrainer:
         self.scaler.step(self.optimizer)
         self.scaler.update()
 
-    def _calculate_loss(self, x_set, y_token_set, y_mask_set):
-        if self.mixed_precision:
-            with torch.autocast(
-                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-            ):
-                model_output = self.model(x_set)
-        else:
-            model_output = self.model(x_set)
-
-        mask_loss = F.cross_entropy(
-            model_output.reshape(-1, self.vocab_size),
-            y_token_set.reshape(-1).long(),
-            reduction="none",
-        )
-        mask_loss *= y_mask_set.reshape(-1)
-        loss = mask_loss.mean() / self.mask_percent
-        return loss
-
     def _train_step(
         self,
         step,
@@ -64,10 +57,10 @@ class ConditionalTrainer:
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        x_set = processed_batch.masked_tokens
-        y_token_set = processed_batch.tokens
-        y_mask_set = processed_batch.mask_mask
-        loss = self._calculate_loss(x_set, y_token_set, y_mask_set)
+
+        loss = self._calculate_loss(
+            processed_batch, self.model, self.mixed_precision, self.vocab_size
+        )
         self._optimize(loss)
         self.logger.report_scalar(
             title="loss", value=loss.item(), iteration=step, series="train"
@@ -83,11 +76,11 @@ class ConditionalTrainer:
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        x_set = processed_batch.masked_tokens
-        y_token_set = processed_batch.tokens
-        y_mask_set = processed_batch.mask_mask
-        for tensor in [x_set, y_token_set, y_mask_set]:
-            tensor.data = tensor[:1].repeat(step + 1, 1).data
-        loss = self._calculate_loss(x_set, y_token_set, y_mask_set)
+        for tensor in dir(processed_batch):
+            if isinstance(tensor, torch.Tensor):
+                tensor.data = tensor[:1].repeat(step + 1, 1).data
+        loss = self._calculate_loss(
+            processed_batch, self.model, self.mixed_precision, self.vocab_size
+        )
         self._optimize(loss)
         print(f"Batch size {step} still fits!")

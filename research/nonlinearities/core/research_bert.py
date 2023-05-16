@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 import lizrd.core.nn as nn
-from lizrd.core.bert import LowRank
+from lizrd.core.llm import LowRank
 from lizrd.core.misc import EinMix, Linear
 from lizrd.support import ash
 

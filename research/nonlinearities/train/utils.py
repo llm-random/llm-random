@@ -3,7 +3,7 @@ import re
 
 import torch
 
-from lizrd.core import bert
+from lizrd.core import llm
 from research.nonlinearities.core import research_bert
 from research.nonlinearities.temporary_code import temp_research_bert
 
@@ -34,11 +34,11 @@ def get_attention_layer(args):
         if att_dhead == 0:
             attention_layer_fun = lambda: None
         else:
-            attention_layer_fun = lambda: bert.Attention(
+            attention_layer_fun = lambda: llm.Attention(
                 args.dmodel, args.n_att_heads, att_dhead
             )
     else:
-        attention_layer_fun = lambda: bert.Attention(args.dmodel, args.n_att_heads)
+        attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     return attention_layer_fun
 
 
@@ -50,7 +50,7 @@ def make_concise_datetime() -> str:
 def get_ff_layer(args):
     mode = args.ff_mode
     if mode == "vanilla":
-        ff_layer_type, ff_args = bert.FeedForward, (args.dmodel, args.dff)
+        ff_layer_type, ff_args = llm.FeedForward, (args.dmodel, args.dff)
     elif mode == "vanilla_einmix":
         ff_layer_type, ff_args = temp_research_bert.LinearEinmix, (
             args.dmodel,
