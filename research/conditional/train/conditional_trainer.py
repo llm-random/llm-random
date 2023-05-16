@@ -6,7 +6,7 @@ from attr import define
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from research.conditional.train.trainers.utils import (
+from research.conditional.train.utils import (
     calculate_gpt_loss,
     calculate_bert_loss,
 )
@@ -20,11 +20,13 @@ class ConditionalTrainer:
     train_dataloader: wikibookdata.ProcessedDatasetWrapper
     batch_size: int
     vocab_size: int
-    mask_percent: float
     mixed_precision: bool
     logger: AbstractLogger
     model_type: str
+    _calculate_loss: Optional[callable] = None
+    mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
+    layer_manager: Optional[LayerManager] = None
     hack_for_batch_size: bool = False
     logging_interval: int = 1000
     verbosity_level: int = 0

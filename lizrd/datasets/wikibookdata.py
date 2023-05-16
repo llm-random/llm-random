@@ -1,12 +1,12 @@
 import random
+from abc import ABC
 
 import numpy as np
 import torch
-from abc import ABC
+from attr import define
 from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer, GPT2Tokenizer
-from attr import define
 
 
 class ProcessedBERTExample(object):
@@ -96,7 +96,7 @@ class MaskingReplacementConfig:
 class GPTSentenceProcessor(object):
     def __init__(
         self,
-        max_total_length=128,
+        max_total_length,
     ):
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
         self.max_total_length = max_total_length

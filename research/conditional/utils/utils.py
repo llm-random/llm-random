@@ -15,7 +15,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--n_att_heads", type=int, default=8)
     parser.add_argument("--n_blocks", type=int, default=4)
     parser.add_argument("--mixed_precision", action="store_false")
-    parser.add_argument("--logging_frequency", type=int, default=1000)
+    parser.add_argument("--logging_interval", type=int, default=1000)
     parser.add_argument(
         "--logging_verbosity", type=int, choices=[0, 1, 2, 3], default=0
     )
@@ -26,7 +26,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--torch_seed", type=int, default=42)
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument(
-        "--model_type", type=str, choices=["gpt", "bert"], default="gpt"
+        "--model_type", type=str, choices=["gpt", "bert"], default="bert"
     )
 
     # parameters usually changed for experiments
@@ -40,11 +40,10 @@ def introduce_parser_arguments(parser):
 
     # experimental/legacy parameters
 
-    parser.add_argument("--n_experts", type=int, default=4)
-    parser.add_argument("--group_size", type=int, default=4)
+    parser.add_argument("--n_experts", type=int, default=1)
+    parser.add_argument("--group_size", type=int, default=1)
     parser.add_argument("--sparsity_dim", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=1.0)
-    parser.add_argument("--save_model_checkpoints", action="store_true")
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 

@@ -9,7 +9,7 @@ from lizrd.support.logging import get_current_logger
 class LayerManager:
     """
     This class is used to manage the feedforward layers of a model.
-    It is used to log everything from weights and activations to gradients and your mum's phone number. [citation needed][this an unfiltered Codex suggestion I need to leave this in im sorry]
+    It is used to log everything from weights and activations to gradients and your mum's phone number. [citation needed][this an unfiltered Codex suggestion I had to leave this in im sorry]
     """
 
     def __init__(self, model):
