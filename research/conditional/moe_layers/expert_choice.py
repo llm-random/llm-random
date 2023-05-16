@@ -55,7 +55,7 @@ class ExpertChoiceFF(nn.Module):
         gate_out = torch.softmax(gate_out, dim=1)
         softmax_gate_out = gate_out
         # choose topk tokens for each expert and code as one-hot
-        gate_out = torch.topk(gate_out, k=self.topk, dim=1).values
+        gate_out = torch.topk(gate_out, k=self.topk, dim=1).indices
         gate_out = F.one_hot(gate_out, num_classes=n_tokens)
         # create permutation matrix
         fake_mask = einsum(
@@ -64,10 +64,13 @@ class ExpertChoiceFF(nn.Module):
             softmax_gate_out,
         )
         perm = gate_out + fake_mask - fake_mask.detach()
-        perm = perm.flatten(start_dim=0, end_dim=1)
 
         # flatten x s. t. first dimension is tokens instead of batch_size x cutoff
         x = x.flatten(start_dim=0, end_dim=1)
+
+        # save x
+        x_before_ff = x
+
         # permute tokens according to permutation matrix
         x = einsum(
             "n_elems dmodel, n_experts topk n_elems -> n_experts topk dmodel", x, perm
@@ -75,15 +78,13 @@ class ExpertChoiceFF(nn.Module):
         # flatten dim of expert and topk to get input to ff
         x = x.flatten(start_dim=0, end_dim=1)
 
-        # save x
-        x_before_ff = x
-
         # feed through ff
         x = self.lin1(x)
         x = F.relu(x)
         x = self.lin2(x)
 
         # add tokens that have been processed by more than one expert
+        perm = perm.flatten(start_dim=0, end_dim=1)
         id = torch.eye(n_tokens, device=x.device)
         chosen_examples = einsum(
             "n_elems n_elems, expert_layer_width n_elems -> expert_layer_width n_elems",
