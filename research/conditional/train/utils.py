@@ -1,5 +1,6 @@
 from lizrd.core import bert
 from research.conditional.moe_layers.ffs import ContinuousMoE
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 
 
 def introduce_parser_arguments(parser):
@@ -63,6 +64,15 @@ def get_ff_layer(args):
         return lambda: bert.FeedForward(args.dmodel, args.dff)
     elif args.ff_mode == "cont_moe":
         return lambda: ContinuousMoE(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+        )
+    elif args.ff_mode == "expert_choice":
+        return lambda: ExpertChoiceFF(
             args.dmodel,
             args.dff,
             args.n_experts,
