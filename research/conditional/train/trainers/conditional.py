@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Optional
+from typing import Optional, Callable
 
 import torch
 from attr import define
@@ -12,7 +12,7 @@ from research.conditional.train.trainers.utils import (
 )
 
 
-@define
+@define(slots=False)
 class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
