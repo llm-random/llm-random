@@ -26,7 +26,7 @@ class LayerManager:
                     block_name = match.group()
                 else:
                     raise Exception(
-                        f"The expected pattern {pattern} was not found in name: {name}. The naming convention for layers is not as expected."
+                        f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected."
                     )
                 self._layers.append((block_name, layer))
 
@@ -39,16 +39,18 @@ class LayerManager:
                 layer.prepare_for_logging()
 
     def log(self, step):
+        if step == 0:
+            return
         verbosity_levels = []
         for level, freq in enumerate(
             [self.logging_interval_light, self.logging_interval_heavy], start=1
         ):
-            if step % level == 0:
+            if step % freq == 0:
                 verbosity_levels.append(level)
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
                 info = layer.log(verbosity_level)
-                for name, data in info:
+                for name, data in info.items():
                     logging_name = block_name + "/" + name
                     self.logger.report_generic_info(
                         title=logging_name, iteration=step, data=data
@@ -73,7 +75,7 @@ class LoggingLayer(nn.Module):
 
     def cache(self, key, value):
         if self.logging_switch:
-            self.cached_data[key] = value.detach().cpu()
+            self.cached_data[key] = value.clone().detach().cpu()
 
     def log(self, verbosity_level):
         if verbosity_level == 0:

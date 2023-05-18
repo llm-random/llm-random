@@ -1,3 +1,5 @@
+import math
+
 import einops
 import torch
 from torch.nn import functional as F
@@ -635,6 +637,13 @@ class ContinuousMoE(LoggingLayer):
         return out
 
     def log_light(self):
+        boi = self.cached_data["controller_logits"].mean().item()
+        if math.isnan(boi):
+            print("controller_logits is nan")
+            breakpoint()
+        elif math.isinf(boi):
+            print("controller_logits is inf")
+            breakpoint()
         return {
             "controller_logits_mean": self.cached_data["controller_logits"]
             .mean()
@@ -644,7 +653,7 @@ class ContinuousMoE(LoggingLayer):
     def log_heavy(self):
         return {
             "controller_logits_distribution": make_histogram(
-                self.cached_data["controller_logits"], log_y=True, log_x=True
+                self.cached_data["controller_logits"]
             ),
         }
 

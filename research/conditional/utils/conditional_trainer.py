@@ -23,13 +23,14 @@ class ConditionalTrainer:
     mixed_precision: bool
     logger: AbstractLogger
     model_type: str
+    logging_interval_light: int
+    logging_interval_heavy: int
     _calculate_loss: Optional[callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     hack_for_batch_size: bool = False
-    logging_interval_light: int = 1000
-    logging_interval_heavy: int = 10000
+
     verbosity_level: int = 0
 
     def __attrs_post_init__(self):

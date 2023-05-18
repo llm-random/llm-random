@@ -61,7 +61,6 @@ trainer = ConditionalTrainer(
     model_type=args.model_type,
     logging_interval_light=args.logging_interval_light,
     logging_interval_heavy=args.logging_interval_heavy,
-    verbosity_level=args.logging_verbosity,
 )
 
 trainer.train(args.n_steps)
