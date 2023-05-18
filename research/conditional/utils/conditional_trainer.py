@@ -28,7 +28,8 @@ class ConditionalTrainer:
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     hack_for_batch_size: bool = False
-    logging_interval: int = 1000
+    logging_interval_light: int = 1000
+    logging_interval_heavy: int = 10000
     verbosity_level: int = 0
 
     def __attrs_post_init__(self):
@@ -40,7 +41,9 @@ class ConditionalTrainer:
             self._calculate_loss = partial(
                 calculate_bert_loss, mask_percent=self.mask_percent
             )
-        self.layer_manager = LayerManager(self.model)
+        self.layer_manager = LayerManager(
+            self.model, self.logging_interval_light, self.logging_interval_heavy
+        )
 
     def train(self, n_steps: int):
         for step in range(n_steps):
@@ -62,6 +65,7 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
+        self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
 
@@ -72,12 +76,7 @@ class ConditionalTrainer:
         self.logger.report_scalar(
             title="loss", value=loss.item(), iteration=step, series="train"
         )
-
-    def log(self, step):
-        if self.verbosity_level == 0:
-            return
-        if step and step % self.logging_interval == 0:
-            self.layer_manager.log(step, verbosity_level=self.verbosity_level)
+        self.layer_manager.log(step)
 
     def _hack_for_batch_size(
         self,
