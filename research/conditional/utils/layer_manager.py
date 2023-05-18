@@ -1,7 +1,4 @@
 import re
-from typing import Dict, Union
-
-import plotly.graph_objs as go
 
 from lizrd.core import nn
 from lizrd.support.logging import get_current_logger
@@ -50,7 +47,7 @@ class LayerManager:
                 verbosity_levels.append(level)
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
-                info: Dict[str, Union[float, go.Figure]] = layer.log(verbosity_level)
+                info = layer.log(verbosity_level)
                 for name, data in info:
                     logging_name = block_name + "/" + name
                     self.logger.report_generic_info(
