@@ -37,12 +37,13 @@ class LayerManager:
             layer.prepare_for_logging()
 
     def log(self, step, verbosity_level):
-        infos = []
         for block_name, layer in self._layers:
             info: Dict[str, Union[float, go.Figure]] = layer.log(verbosity_level)
-            infos.append(info)
-        for name, data in infos:
-            self.logger.report_generic_info(title=name, iteration=step, data=data)
+            for name, data in info:
+                logging_name = block_name + "/" + name
+                self.logger.report_generic_info(
+                    title=logging_name, iteration=step, data=data
+                )
 
 
 class LoggingLayer(nn.Module):
