@@ -26,7 +26,7 @@ class ExpertChoiceFF(nn.Module):
         self.dmodel = dmodel
         self.n_experts = n_experts
         self.expert_size = expert_size
-        self.width = dmodel * n_experts
+        self.width = expert_size * n_experts
         self.topk = topk
 
         self.lin1 = Linear(dmodel, self.width)
