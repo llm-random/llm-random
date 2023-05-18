@@ -7,7 +7,9 @@ from lizrd.core import nn
 from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
 from lizrd.core.misc import EinMix
 from lizrd.support import ash
+from lizrd.support.logging import make_histogram
 from lizrd.support.profile import Timer, TimerLayer
+from research.conditional.utils.layer_manager import LoggingLayer
 
 
 @ash.check("... d -> ... d")
@@ -521,7 +523,7 @@ def stable_softmax_temperature(x, temperature, dim=-1):
 
 
 @ash.check("... dinp -> ... dout")
-class ContinuousMoE(nn.Module):
+class ContinuousMoE(LoggingLayer):
     """
     Continuous mixture of experts. Each expert attends to some subset of the input.
     """
@@ -583,6 +585,8 @@ class ContinuousMoE(nn.Module):
 
         # controller weights hold normalised weights for every group x expert pair
         controller_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
+        self.cache("controller_logits", controller_logits)
+
         ash.assert_shape(
             "B S e c", controller_logits, e=self.n_experts, c=self.group_size
         )
@@ -629,6 +633,20 @@ class ContinuousMoE(nn.Module):
         # assert shape: out is of shape (batch, seq_len, dmodel)
         ash.assert_shape("B S d", out, d=self.dm)
         return out
+
+    def log_light(self):
+        return {
+            "controller_logits_mean": self.cached_data["controller_logits"]
+            .mean()
+            .item(),
+        }
+
+    def log_heavy(self):
+        return {
+            "controller_logits_distribution": make_histogram(
+                self.cached_data["controller_logits"], log_y=True, log_x=True
+            ),
+        }
 
 
 @ash.check("... dinp -> ... dout")
