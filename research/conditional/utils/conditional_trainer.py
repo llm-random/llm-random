@@ -31,8 +31,6 @@ class ConditionalTrainer:
     layer_manager: Optional[LayerManager] = None
     hack_for_batch_size: bool = False
 
-    verbosity_level: int = 0
-
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
 
