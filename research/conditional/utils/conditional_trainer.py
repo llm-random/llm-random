@@ -6,7 +6,8 @@ from attr import define
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from research.conditional.train.trainers.utils import (
+from research.conditional.utils.layer_manager import LayerManager
+from research.conditional.utils.model_utils import (
     calculate_gpt_loss,
     calculate_bert_loss,
 )
@@ -19,21 +20,27 @@ class ConditionalTrainer:
     train_dataloader: wikibookdata.ProcessedDatasetWrapper
     batch_size: int
     vocab_size: int
-    mask_percent: float
     mixed_precision: bool
     logger: AbstractLogger
     model_type: str
+    _calculate_loss: Optional[callable] = None
+    mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
+    layer_manager: Optional[LayerManager] = None
     hack_for_batch_size: bool = False
+    logging_interval: int = 1000
+    verbosity_level: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+
         if self.model_type == "gpt":
             self._calculate_loss = calculate_gpt_loss
         elif self.model_type == "bert":
             self._calculate_loss = partial(
                 calculate_bert_loss, mask_percent=self.mask_percent
             )
+        self.layer_manager = LayerManager(self.model)
 
     def train(self, n_steps: int):
         for step in range(n_steps):
@@ -65,6 +72,12 @@ class ConditionalTrainer:
         self.logger.report_scalar(
             title="loss", value=loss.item(), iteration=step, series="train"
         )
+
+    def log(self, step):
+        if self.verbosity_level == 0:
+            return
+        if step and step % self.logging_interval == 0:
+            self.layer_manager.log(step, verbosity_level=self.verbosity_level)
 
     def _hack_for_batch_size(
         self,
