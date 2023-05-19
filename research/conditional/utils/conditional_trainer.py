@@ -87,11 +87,11 @@ class ConditionalTrainer:
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        for tensor in dir(processed_batch):
-            if isinstance(tensor, torch.Tensor):
+        for tensor in vars(processed_batch).values():
+            if hasattr(tensor, "shape"):
                 tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
             processed_batch, self.model, self.mixed_precision, self.vocab_size
         )
         self._optimize(loss)
-        print(f"Batch size {step} still fits!")
+        self.logger.report_scalar(title="max batch size", value=step, iteration=step)
