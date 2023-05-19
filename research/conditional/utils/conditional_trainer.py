@@ -29,10 +29,12 @@ class ConditionalTrainer:
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
+    loss_accumulator: Optional[float] = None
     hack_for_batch_size: bool = False
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        self.loss_accumulator = 0.0
 
         if self.model_type == "gpt":
             self._calculate_loss = calculate_gpt_loss
@@ -72,10 +74,16 @@ class ConditionalTrainer:
             processed_batch, self.model, self.mixed_precision, self.vocab_size
         )
         self._optimize(loss)
-        self.logger.report_scalar(
-            title="loss", value=loss.item(), iteration=step, series="train"
-        )
+        self._log_loss(loss, step)
         self.layer_manager.log(step)
+
+    def _log_loss(self, loss, step):
+        self.loss_accumulator += loss.item()
+        if step % 1000 == 0:
+            self.logger.report_scalar(
+                title="loss", value=self.loss_accumulator / 1000, iteration=step
+            )
+            self.loss_accumulator = 0.0
 
     def _hack_for_batch_size(
         self,
