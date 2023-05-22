@@ -8,12 +8,9 @@ from lizrd.train.train_utils import (
     get_model,
     get_processed_dataset,
 )
-from research.conditional.train.trainers.conditional import ConditionalTrainer
-from research.conditional.train.utils import (
-    introduce_parser_arguments,
-    get_attention_layer,
-    get_ff_layer,
-)
+from research.conditional.utils.conditional_trainer import ConditionalTrainer
+from research.conditional.utils.misc_utils import introduce_parser_arguments
+from research.conditional.utils.model_utils import get_ff_layer, get_attention_layer
 
 parser = argparse.ArgumentParser()
 introduce_parser_arguments(parser)
@@ -62,6 +59,8 @@ trainer = ConditionalTrainer(
     logger=logger,
     hack_for_batch_size=args.hack_for_batch_size,
     model_type=args.model_type,
+    logging_interval_light=args.logging_interval_light,
+    logging_interval_heavy=args.logging_interval_heavy,
 )
 
 trainer.train(args.n_steps)

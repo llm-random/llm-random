@@ -45,11 +45,6 @@ def get_model(
     head = llm.PredictionHead(dm, vocab_size)
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
-    # sanity check to make sure it works
-    input = torch.randint(0, vocab_size, (16, 10))
-    model(input)
-    del input
-
     return model.to(device)
 
 
