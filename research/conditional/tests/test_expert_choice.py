@@ -13,17 +13,22 @@ class TestExpertChoice(GeneralTestCase):
         layer = ExpertChoiceFF(dm, experts, dff, seql, batch * dm)
 
         # make sure weights don't change input
-        torch.eye(
-            n=layer.lin1.weight.shape[0],
-            m=layer.lin1.weight.shape[1],
-            out=layer.lin1.weight.data,
-        )
-        torch.eye(
-            n=layer.lin2.weight.shape[0],
-            m=layer.lin2.weight.shape[1],
-            out=layer.lin2.weight.data,
-        )
+        # now make sure each expert is identity matrix
+        out = torch.zeros_like(layer.lin1_weight).flatten(end_dim=1)
+        print(out.shape)
+        res = torch.eye(
+            n=layer.lin1_weight.shape[0], m=layer.lin1_weight.shape[2], out=out
+        ).reshape(layer.lin1_weight.shape)
+        layer.lin1_weight.data = res
+
+        out = torch.zeros_like(layer.lin2_weight).flatten(end_dim=1)
+        layer.lin2_weight.data = torch.eye(
+            n=layer.lin2_weight.shape[1], m=layer.lin2_weight.shape[2], out=out
+        ).reshape(layer.lin2_weight.shape)
 
         input = torch.rand((batch, seql, dm))
         output = layer(input)
         self.assertTensorAlmostEqual(output, input)
+
+    def test_equivalence_linear(self):
+        pass
