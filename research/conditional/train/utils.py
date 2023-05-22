@@ -65,7 +65,7 @@ def get_attention_layer(args):
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        return lambda: llm.FeedForward(args.dmodel, args.dff)
+        return lambda: llm.FeedForward(args.dmodel, args.dff, bias="none")
     elif args.ff_mode == "cont_moe":
         return lambda: ContinuousMoE(
             args.dmodel,
