@@ -57,9 +57,8 @@ class ExpertChoiceFF(nn.Module):
         gate_out = gate_out.flatten(start_dim=1)
         # perform softmax over tokens for each expert
         gate_out = torch.softmax(gate_out, dim=1)
-        softmax_gate_out = gate_out
         # choose topk tokens for each expert
-        gate_out = torch.topk(gate_out, k=self.topk, dim=1).indices
+        topk_values, topk_indices = torch.topk(gate_out, k=self.topk, dim=1)
 
         # flatten x s. t. first dimension is tokens instead of batch_size x cutoff
         x = x.flatten(start_dim=0, end_dim=1)
@@ -68,7 +67,7 @@ class ExpertChoiceFF(nn.Module):
         x_before_ff = x
 
         # choose the right tokens from x for each expert
-        x = torch.index_select(x, dim=0, index=gate_out.flatten()).reshape(
+        x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
             (self.n_experts, self.topk, self.dmodel)
         )
         ash.assert_shape("e k m", x, e=self.n_experts, k=self.topk, m=self.dmodel)
@@ -91,14 +90,16 @@ class ExpertChoiceFF(nn.Module):
         )
         ash.assert_shape("e k m", x, e=self.n_experts, k=self.topk, m=self.dmodel)
 
+        # multiply by softmax
+        ash.assert_shape("e k", topk_values, e=self.n_experts, k=self.topk)
+        x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
+
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
         x = x.flatten(start_dim=0, end_dim=1)
 
-        # TODO: here multiply by softmax
-
         # add tokens that have been processed by more than one expert
         z = torch.zeros_like(x_before_ff)
-        z.index_add_(dim=0, index=gate_out.flatten().to(int), source=x)
+        z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
         # reshape to (batch_size, cutoff, dmodel)
         x = z.reshape((batch_size, cutoff, self.dmodel))
