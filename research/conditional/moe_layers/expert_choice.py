@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 
 from lizrd.core import nn
-from lizrd.core.misc import Linear, get_init_weight
+from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
 
 
@@ -21,8 +21,6 @@ class ExpertChoiceFF(nn.Module):
         """
         super().__init__()
 
-        # make sure that n_experts, topk and expert_size are compatible
-
         self.dmodel = dmodel
         self.n_experts = n_experts
         self.expert_size = expert_size
@@ -33,7 +31,7 @@ class ExpertChoiceFF(nn.Module):
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
         )
         self.lin2_weight = nn.Parameter(
-            get_init_weight((n_experts, dmodel, expert_size), fan_in=expert_size)
+            get_init_weight((n_experts, expert_size, dmodel), fan_in=expert_size)
         )
         self.gate = nn.Parameter(
             get_init_weight((cutoff, n_experts), fan_in=dmodel)
@@ -73,7 +71,10 @@ class ExpertChoiceFF(nn.Module):
         x_before_ff = x
 
         # choose the right tokens from x for each expert
-        x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
+        # x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
+        #     (self.n_experts, self.topk, self.dmodel)
+        # )
+        x = x.reshape(
             (self.n_experts, self.topk, self.dmodel)
         )
         ash.assert_shape("e k m", x, e=self.n_experts, k=self.topk, m=self.dmodel)
@@ -81,7 +82,7 @@ class ExpertChoiceFF(nn.Module):
         # feed through ff
         # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, dff/n_experts)
         x = einsum(
-            "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp exp_size topk",
+            "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
             x,
             self.lin1_weight,
         )
@@ -90,9 +91,9 @@ class ExpertChoiceFF(nn.Module):
 
         # lin2 maps from (...) to (n_experts, topk, dmodel)
         x = einsum(
-            "n_exp dmodel exp_size, n_exp exp_size topk -> n_exp topk dmodel",
+            "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
+            x,
             self.lin2_weight,
-            x
         )
         ash.assert_shape("e k m", x, e=self.n_experts, k=self.topk, m=self.dmodel)
 
@@ -104,10 +105,11 @@ class ExpertChoiceFF(nn.Module):
         x = x.flatten(start_dim=0, end_dim=1)
 
         # add tokens that have been processed by more than one expert
-        z = torch.zeros_like(x_before_ff).type(x.type())
-        z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
+        # z = torch.zeros_like(x_before_ff).type(x.type())
+        # z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
         # reshape to (batch_size, cutoff, dmodel)
-        x = z.reshape((batch_size, cutoff, self.dmodel))
+        # x = z.reshape((batch_size, cutoff, self.dmodel))
+        x = x.reshape((batch_size, cutoff, self.dmodel))
 
         return x
