@@ -30,19 +30,25 @@ class ExpertChoiceFF(nn.Module):
         self.topk = topk
 
         self.lin1_weight = nn.Parameter(
-            get_init_weight((dmodel, n_experts, expert_size), fan_in=dmodel)
+            get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
         )
         self.lin2_weight = nn.Parameter(
-            get_init_weight((n_experts, expert_size, dmodel), fan_in=expert_size)
+            get_init_weight((n_experts, dmodel, expert_size), fan_in=expert_size)
         )
         self.gate = nn.Parameter(
             get_init_weight((cutoff, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
+        self.old_gate = self.gate.data.clone()
 
     def forward(self, x: torch.Tensor):
+        self.old_gate = self.old_gate.to(self.gate.device)
+        # check if values in gate are approx. the same as before
+        if torch.allclose(self.gate, self.old_gate):
+            print("gate is same")
+        else:
+            print("gate is different")
         # x is (batch, cutoff, dmodel)
         batch_size, cutoff = x.shape[0], x.shape[1]
-        n_tokens = batch_size * cutoff
 
         # transform cutoff to n_experts
         # expert embedding
@@ -75,7 +81,7 @@ class ExpertChoiceFF(nn.Module):
         # feed through ff
         # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, dff/n_experts)
         x = einsum(
-            "n_exp topk dmodel, dmodel n_exp exp_size -> n_exp topk exp_size",
+            "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp exp_size topk",
             x,
             self.lin1_weight,
         )
@@ -84,21 +90,21 @@ class ExpertChoiceFF(nn.Module):
 
         # lin2 maps from (...) to (n_experts, topk, dmodel)
         x = einsum(
-            "n_exp topk expert_size, n_exp exp_size dmodel -> n_exp topk dmodel",
-            x,
+            "n_exp dmodel exp_size, n_exp exp_size topk -> n_exp topk dmodel",
             self.lin2_weight,
+            x
         )
         ash.assert_shape("e k m", x, e=self.n_experts, k=self.topk, m=self.dmodel)
 
         # multiply by softmax
-        ash.assert_shape("e k", topk_values, e=self.n_experts, k=self.topk)
-        x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
+        # ash.assert_shape("e k", topk_values, e=self.n_experts, k=self.topk)
+        # x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
 
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
         x = x.flatten(start_dim=0, end_dim=1)
 
         # add tokens that have been processed by more than one expert
-        z = torch.zeros_like(x_before_ff)
+        z = torch.zeros_like(x_before_ff).type(x.type())
         z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
         # reshape to (batch_size, cutoff, dmodel)

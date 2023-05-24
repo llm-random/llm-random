@@ -1,4 +1,6 @@
 import torch
+import torch.nn.functional as F
+from fancy_einsum import einsum
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
@@ -6,26 +8,33 @@ from lizrd.support.test_utils import GeneralTestCase
 
 class TestExpertChoice(GeneralTestCase):
     def test_permutation(self):
-        batch, dm = 4, 16
+        batch, dm = 2, 4
         experts = 1
-        dff = 32
-        seql = 16
-        layer = ExpertChoiceFF(dm, experts, dff, seql, batch * dm)
+        exp_size = 6
+        seql = 2
+        topk = batch * seql
+        layer = ExpertChoiceFF(dm, experts, exp_size, seql, topk)
 
         # make sure weights don't change input
-        # now make sure each expert is identity matrix
-        out = torch.zeros_like(layer.lin1_weight).flatten(end_dim=1)
-        print(out.shape)
-        res = torch.eye(
-            n=layer.lin1_weight.shape[0], m=layer.lin1_weight.shape[2], out=out
-        ).reshape(layer.lin1_weight.shape)
-        layer.lin1_weight.data = res
+        layer.lin1_weight.data = torch.eye(m=exp_size, n=dm).unsqueeze(0)
+        layer.lin2_weight.data = torch.eye(m=exp_size, n=dm).unsqueeze(0)
 
-        out = torch.zeros_like(layer.lin2_weight).flatten(end_dim=1)
-        layer.lin2_weight.data = torch.eye(
-            n=layer.lin2_weight.shape[1], m=layer.lin2_weight.shape[2], out=out
-        ).reshape(layer.lin2_weight.shape)
+        # make sure weight matrices are identity
+        input = torch.rand((1, batch * seql, dm))
+        x = einsum(
+            "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp exp_size topk",
+            input,
+            layer.lin1_weight,
+        )
+        x = F.relu(x)
+        output = einsum(
+            "n_exp dmodel exp_size, n_exp exp_size topk -> n_exp topk dmodel",
+            layer.lin2_weight,
+            x
+        )
+        self.assertTensorAlmostEqual(output, input)
 
+        # make sure permutation works as intended
         input = torch.rand((batch, seql, dm))
         output = layer(input)
         self.assertTensorAlmostEqual(output, input)
