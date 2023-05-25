@@ -8,6 +8,7 @@ from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
+from lizrd.support.logging import make_histogram
 
 
 class ExpertChoiceFF(LoggingLayer):
@@ -107,8 +108,4 @@ class ExpertChoiceFF(LoggingLayer):
         return dict()
 
     def log_heavy(self):
-        # histogram of gradients of gate
-        gate_grad = self.gate.grad
-        gate_grad = gate_grad.flatten()
-        hist_gate_grad = px.histogram(gate_grad, title="gate_grad")
-        return dict()
+        return {"gradient of gate distribution": make_histogram(self.gate.grad.flatten())}
