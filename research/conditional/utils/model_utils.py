@@ -1,6 +1,9 @@
 import torch
 import torch.nn.functional as F
 
+from lizrd.core import llm
+from research.conditional.moe_layers.ffs import ContinuousMoE
+
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
     input = batch.tokens
@@ -46,3 +49,29 @@ def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent)
     mask_loss *= non_masked_mask.reshape(-1)
     loss = mask_loss.mean() / mask_percent
     return loss
+
+
+def get_attention_layer(args):
+    if args.model_type == "gpt":
+        attention_layer_fun = lambda: llm.CausalAttention(args.dmodel, args.n_att_heads)
+    elif args.model_type == "bert":
+        attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
+    else:
+        raise NotImplementedError(f"Model type {args.model_type} not implemented")
+    return attention_layer_fun
+
+
+def get_ff_layer(args):
+    if args.ff_mode == "vanilla":
+        return lambda: llm.FeedForward(args.dmodel, args.dff)
+    elif args.ff_mode == "cont_moe":
+        return lambda: ContinuousMoE(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+        )
+    else:
+        raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
