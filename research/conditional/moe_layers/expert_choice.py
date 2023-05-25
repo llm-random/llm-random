@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn import LayerNorm
 from fancy_einsum import einsum
+import plotly.express as px
 
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
@@ -106,4 +107,8 @@ class ExpertChoiceFF(LoggingLayer):
         return dict()
 
     def log_heavy(self):
+        # histogram of gradients of gate
+        gate_grad = self.gate.grad
+        gate_grad = gate_grad.flatten()
+        hist_gate_grad = px.histogram(gate_grad, title="gate_grad")
         return dict()
