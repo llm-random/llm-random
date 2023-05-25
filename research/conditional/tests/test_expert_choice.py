@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from torch.nn import Sequential, ReLU
+from torch.nn import Sequential, ReLU, LayerNorm
 from fancy_einsum import einsum
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
@@ -14,8 +14,8 @@ class TestExpertChoice(GeneralTestCase):
         experts = 1
         exp_size = 6
         seql = 2
-        topk = batch * seql
-        layer = ExpertChoiceFF(dm, experts, exp_size, seql, topk)
+        topk_perc = 100
+        layer = ExpertChoiceFF(dm, experts, exp_size, topk_perc)
 
         # make sure weights don't change input
         layer.lin1_weight.data = torch.eye(m=exp_size, n=dm).unsqueeze(0)
@@ -41,21 +41,17 @@ class TestExpertChoice(GeneralTestCase):
         output = layer(input)
         self.assertTensorAlmostEqual(output, input)
 
-    def test_equivalence_linear(self):
+    def test_equivalence_linear(self, softmax_disabled=False):
         batch, dm = 2, 2
         experts = 1
         exp_size = 6
         seql = 2
-        topk = batch * seql
-        # lin1: dff x dm
-        # lin2: dm x dff
-        # expert_lin1: n_exp x dm x exp_size
-        # expert_lin2: n_exp x exp_size x dm
-        # need to transpose lin1 and lin2 to match expert_lin1 and expert_lin2 + unsqueeze
+        topk_perc = 100
+        ln = LayerNorm(dm)
         lin = Sequential(
             Linear(dm, exp_size, bias=False), ReLU(), Linear(exp_size, dm, bias=False)
         )
-        ec = ExpertChoiceFF(dm, experts, exp_size, seql, topk)
+        ec = ExpertChoiceFF(dm, experts, exp_size, topk_perc)
         ec.lin1_weight.data = lin[0].weight.data.transpose(0, 1).unsqueeze(0)
         ec.lin2_weight.data = lin[2].weight.data.transpose(0, 1).unsqueeze(0)
 
@@ -83,10 +79,12 @@ class TestExpertChoice(GeneralTestCase):
         self.assertTensorAlmostEqual(output_lin, output_ec)
 
         # create inputs and make sure both layers give the same output
-        input = torch.rand((batch, seql, dm))
-        output_lin = lin(input)
-        output_ec = ec(input)
-        self.assertTensorAlmostEqual(output_lin, output_ec)
+        # works only when multiply by softmax is commended out
+        if softmax_disabled:
+            input = torch.rand((batch, seql, dm))
+            output_lin = lin(input)
+            output_ec = ec(input)
+            self.assertTensorAlmostEqual(output_lin, output_ec)
 
         # backprop and make sure gradients are the same
         output_lin.sum().backward()

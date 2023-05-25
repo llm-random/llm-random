@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from torch.nn import LayerNorm
 from fancy_einsum import einsum
 
 from lizrd.core import nn
@@ -9,9 +10,7 @@ from research.conditional.utils.layer_manager import LoggingLayer
 
 
 class ExpertChoiceFF(LoggingLayer):
-    def __init__(
-        self, dmodel: int, n_experts: int, expert_size: int, topk_perc: float
-    ):
+    def __init__(self, dmodel: int, n_experts: int, expert_size: int, topk_perc: float):
         """
         Args:
             dmodel: dimension of the input
@@ -35,16 +34,9 @@ class ExpertChoiceFF(LoggingLayer):
         self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
-        self.old_gate = self.gate.data.clone()
+        self.ln = LayerNorm(dmodel)
 
     def forward(self, x: torch.Tensor):
-        x_in = x.clone()
-        self.old_gate = self.old_gate.to(self.gate.device)
-        # check if values in gate are approx. the same as before
-        if torch.allclose(self.gate, self.old_gate):
-            print("gate is same")
-        else:
-            print("gate is different")
         # x is (batch, cutoff, dmodel)
         batch_size, cutoff = x.shape[0], x.shape[1]
         n_examples = batch_size * cutoff
@@ -79,25 +71,25 @@ class ExpertChoiceFF(LoggingLayer):
 
         # feed through ff
         # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, exp_size)
-        # x = einsum(
-        #     "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
-        #     x,
-        #     self.lin1_weight,
-        # )
+        x = einsum(
+            "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
+            x,
+            self.lin1_weight,
+        )
 
-        # x = F.relu(x)
+        x = F.relu(x)
 
-        # # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
-        # x = einsum(
-        #     "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
-        #     x,
-        #     self.lin2_weight,
-        # )
+        # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
+        x = einsum(
+            "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
+            x,
+            self.lin2_weight,
+        )
         ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.dmodel)
 
         # multiply by softmax
-        # ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
-        # x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
+        ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
+        x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
 
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
         x = x.flatten(start_dim=0, end_dim=1)
@@ -109,7 +101,7 @@ class ExpertChoiceFF(LoggingLayer):
         # reshape to (batch_size, cutoff, dmodel)
         x = z.reshape((batch_size, cutoff, self.dmodel))
 
-        assert torch.isclose(x_in, x).all()
+        x = self.ln(x)
 
         return x
 
