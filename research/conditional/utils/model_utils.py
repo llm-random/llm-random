@@ -79,8 +79,7 @@ def get_ff_layer(args):
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_size=args.expert_size,
-            cutoff=args.cutoff,
-            topk=args.topk,
+            topk_perc=args.topk_perc,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
