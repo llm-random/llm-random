@@ -60,9 +60,6 @@ class ExpertChoiceFF(LoggingLayer):
         # flatten x s. t. first dimension is tokens instead of batch_size x cutoff
         x = x.flatten(start_dim=0, end_dim=1)
 
-        # save x
-        x_before_ff = x
-
         # choose the right tokens from x for each expert
         x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
             (self.n_experts, topk, self.dmodel)
@@ -95,7 +92,7 @@ class ExpertChoiceFF(LoggingLayer):
         x = x.flatten(start_dim=0, end_dim=1)
 
         # add tokens that have been processed by more than one expert
-        z = torch.zeros_like(x_before_ff).type(x.type())
+        z = torch.zeros((batch_size * cutoff, self.dmodel)).type(x.type())
         z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
         # reshape to (batch_size, cutoff, dmodel)

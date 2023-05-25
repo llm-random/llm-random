@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Optional, Callable
+from typing import Optional
 
 import torch
 from attr import define

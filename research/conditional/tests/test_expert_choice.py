@@ -9,7 +9,15 @@ from lizrd.core.misc import Linear
 
 
 class TestExpertChoice(GeneralTestCase):
-    def test_permutation(self):
+    def test_permutation(self, softmax_disabled=False):
+        """
+        Test that the ExpertChoiceFF layer permutes the input as intended.
+        This test only works if multiplication by softmax is commented out.
+        Only the case with one expert is tested here.
+        """
+        if not softmax_disabled:
+            self.skipTest("This test only works if softmax is commented out.")
+
         batch, dm = 2, 2
         experts = 1
         exp_size = 6
@@ -42,18 +50,26 @@ class TestExpertChoice(GeneralTestCase):
         self.assertTensorAlmostEqual(output, input)
 
     def test_equivalence_linear(self, softmax_disabled=False):
+        """
+        Test that the ExpertChoiceFF layer with one expert is equivalent to a linear layer.
+
+        If we don't multiply by softmax, the layer is equivalent
+        to a linear layer (plus LayerNorm) with regard to output and gradients.
+
+        If we multiply by softmax the layer is equivalent to with regard to gradients only.
+        """
         batch, dm = 2, 2
         experts = 1
         exp_size = 6
         seql = 2
         topk_perc = 100
-        ln = LayerNorm(dm)
         lin = Sequential(
             Linear(dm, exp_size, bias=False), ReLU(), Linear(exp_size, dm, bias=False)
         )
         ec = ExpertChoiceFF(dm, experts, exp_size, topk_perc)
         ec.lin1_weight.data = lin[0].weight.data.transpose(0, 1).unsqueeze(0)
         ec.lin2_weight.data = lin[2].weight.data.transpose(0, 1).unsqueeze(0)
+        ln = ec.ln
 
         # make sure weights act the same
         input = torch.rand((batch, seql, dm))
@@ -82,7 +98,7 @@ class TestExpertChoice(GeneralTestCase):
         # works only when multiply by softmax is commended out
         if softmax_disabled:
             input = torch.rand((batch, seql, dm))
-            output_lin = lin(input)
+            output_lin = ln(lin(input))
             output_ec = ec(input)
             self.assertTensorAlmostEqual(output_lin, output_ec)
 
