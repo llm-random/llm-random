@@ -5,9 +5,10 @@ from fancy_einsum import einsum
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
+from research.conditional.utils.layer_manager import LoggingLayer
 
 
-class ExpertChoiceFF(nn.Module):
+class ExpertChoiceFF(LoggingLayer):
     def __init__(
         self, dmodel: int, n_experts: int, expert_size: int, cutoff: int, topk: int
     ):
@@ -73,9 +74,7 @@ class ExpertChoiceFF(nn.Module):
         x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
             (self.n_experts, self.topk, self.dmodel)
         )
-        x = x.reshape(
-            (self.n_experts, self.topk, self.dmodel)
-        )
+        x = x.reshape((self.n_experts, self.topk, self.dmodel))
 
         # feed through ff
         # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, exp_size)
@@ -96,8 +95,8 @@ class ExpertChoiceFF(nn.Module):
         ash.assert_shape("e k m", x, e=self.n_experts, k=self.topk, m=self.dmodel)
 
         # multiply by softmax
-        ash.assert_shape("e k", topk_values, e=self.n_experts, k=self.topk)
-        x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
+        # ash.assert_shape("e k", topk_values, e=self.n_experts, k=self.topk)
+        # x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
 
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
         x = x.flatten(start_dim=0, end_dim=1)
@@ -110,3 +109,9 @@ class ExpertChoiceFF(nn.Module):
         x = z.reshape((batch_size, cutoff, self.dmodel))
 
         return x
+
+    def log_light(self):
+        return dict()
+
+    def log_heavy(self):
+        return dict()

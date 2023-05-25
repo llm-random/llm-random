@@ -36,7 +36,8 @@ class LayerManager:
             or step % self.logging_interval_heavy == 0
         ):
             for block_name, layer in self._layers:
-                layer.prepare_for_logging()
+                if hasattr(layer, "prepare_for_logging"):
+                    layer.prepare_for_logging()
 
     def log(self, step):
         if step == 0:
