@@ -79,7 +79,7 @@ class ConditionalTrainer:
 
     def _log_loss(self, loss, step):
         self.loss_accumulator += loss.item()
-        if step % 1000 == 0:
+        if step % 250 == 0 and step > 0:
             self.logger.report_scalar(
                 title="loss", value=self.loss_accumulator / 1000, iteration=step
             )
