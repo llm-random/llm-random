@@ -10,7 +10,7 @@ from research.conditional.utils.layer_manager import LoggingLayer
 
 
 class ExpertChoiceFF(LoggingLayer):
-    def __init__(self, dmodel: int, n_experts: int, expert_size: int, topk_perc: float):
+    def __init__(self, dmodel: int, n_experts: int, expert_size: int, topk_fraction: float):
         """
         Args:
             dmodel: dimension of the input
@@ -23,13 +23,16 @@ class ExpertChoiceFF(LoggingLayer):
         self.dmodel = dmodel
         self.n_experts = n_experts
         self.expert_size = expert_size
-        self.topk_perc = topk_perc
+        self.topk_fraction = topk_fraction
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
         )
         self.lin2_weight = nn.Parameter(
-            get_init_weight((n_experts, expert_size, dmodel), fan_in=expert_size)
+            get_init_weight(
+                (n_experts, expert_size, dmodel),
+                fan_in=int(n_experts * expert_size * topk_fraction),
+            )
         )
         self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
@@ -37,27 +40,27 @@ class ExpertChoiceFF(LoggingLayer):
         self.ln = LayerNorm(dmodel)
 
     def forward(self, x: torch.Tensor):
-        # x is (batch, cutoff, dmodel)
-        batch_size, cutoff = x.shape[0], x.shape[1]
-        n_examples = batch_size * cutoff
-        topk = round(self.topk_perc / 100 * n_examples)
+        # x is (batch, seq_len, dmodel)
+        batch_size, seq_len = x.shape[0], x.shape[1]
+        n_examples = batch_size * seq_len
+        topk = round(self.topk_fraction * n_examples)
 
         # expert embedding
         gate_out = einsum(
-            "batch_size cutoff dmodel, dmodel n_experts -> batch_size cutoff n_experts",
+            "batch_size seq_len dmodel, dmodel n_experts -> batch_size seq_len n_experts",
             x,
             self.gate,
         )
         # transform such that first dimension corresponds to experts
         gate_out = gate_out.permute(2, 0, 1)
-        # flatten batch_size x cutoff
+        # flatten batch_size x seq_len
         gate_out = gate_out.flatten(start_dim=1)
         # perform softmax over tokens for each expert
         gate_out = torch.softmax(gate_out, dim=1)
         # choose topk tokens for each expert
         topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
 
-        # flatten x s. t. first dimension is tokens instead of batch_size x cutoff
+        # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
         x = x.flatten(start_dim=0, end_dim=1)
 
         # choose the right tokens from x for each expert
@@ -92,11 +95,11 @@ class ExpertChoiceFF(LoggingLayer):
         x = x.flatten(start_dim=0, end_dim=1)
 
         # add tokens that have been processed by more than one expert
-        z = torch.zeros((batch_size * cutoff, self.dmodel)).type(x.type())
+        z = torch.zeros((batch_size * seq_len, self.dmodel)).type(x.type())
         z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
-        # reshape to (batch_size, cutoff, dmodel)
-        x = z.reshape((batch_size, cutoff, self.dmodel))
+        # reshape to (batch_size, seq_len, dmodel)
+        x = z.reshape((batch_size, seq_len, self.dmodel))
 
         x = self.ln(x)
 

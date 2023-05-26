@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from torch.nn import Sequential, ReLU, LayerNorm
+from torch.nn import Sequential, ReLU, LayerNorm, Identity
 from fancy_einsum import einsum
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
@@ -9,21 +9,26 @@ from lizrd.core.misc import Linear
 
 
 class TestExpertChoice(GeneralTestCase):
-    def test_permutation(self, softmax_disabled=False):
+    def test_permutation(self):
         """
         Test that the ExpertChoiceFF layer permutes the input as intended.
-        This test only works if multiplication by softmax is commented out.
         Only the case with one expert is tested here.
         """
-        if not softmax_disabled:
-            self.skipTest("This test only works if softmax is commented out.")
+        # patch torch functions to make sure it works
+        # (we don't want to multiply by softmax)
+        og_topk = torch.topk
+        def patched_topk(x, k, dim):
+            values, indices = og_topk(x, k=k, dim=dim)
+            return torch.ones_like(values), indices
+        torch.topk = patched_topk
 
         batch, dm = 2, 2
         experts = 1
         exp_size = 6
         seql = 2
-        topk_perc = 100
-        layer = ExpertChoiceFF(dm, experts, exp_size, topk_perc)
+        topk_fraction = 1
+        layer = ExpertChoiceFF(dm, experts, exp_size, topk_fraction)
+        layer.ln = Identity()
 
         # make sure weights don't change input
         layer.lin1_weight.data = torch.eye(m=exp_size, n=dm).unsqueeze(0)
@@ -47,26 +52,27 @@ class TestExpertChoice(GeneralTestCase):
         # make sure permutation works as intended
         input = torch.rand((batch, seql, dm))
         output = layer(input)
+        torch.topk = og_topk
         self.assertTensorAlmostEqual(output, input)
 
-    def test_equivalence_linear(self, softmax_disabled=False):
+    def test_equivalence_linear(self):
         """
         Test that the ExpertChoiceFF layer with one expert is equivalent to a linear layer.
 
         If we don't multiply by softmax, the layer is equivalent
         to a linear layer (plus LayerNorm) with regard to output and gradients.
 
-        If we multiply by softmax the layer is equivalent to with regard to gradients only.
+        If we multiply by softmax the layer is equivalent with regard to gradients only.
         """
         batch, dm = 2, 2
         experts = 1
         exp_size = 6
         seql = 2
-        topk_perc = 100
+        topk_fraction = 1
         lin = Sequential(
             Linear(dm, exp_size, bias=False), ReLU(), Linear(exp_size, dm, bias=False)
         )
-        ec = ExpertChoiceFF(dm, experts, exp_size, topk_perc)
+        ec = ExpertChoiceFF(dm, experts, exp_size, topk_fraction)
         ec.lin1_weight.data = lin[0].weight.data.transpose(0, 1).unsqueeze(0)
         ec.lin2_weight.data = lin[2].weight.data.transpose(0, 1).unsqueeze(0)
         ln = ec.ln
@@ -95,12 +101,19 @@ class TestExpertChoice(GeneralTestCase):
         self.assertTensorAlmostEqual(output_lin, output_ec)
 
         # create inputs and make sure both layers give the same output
-        # works only when multiply by softmax is commended out
-        if softmax_disabled:
-            input = torch.rand((batch, seql, dm))
-            output_lin = ln(lin(input))
-            output_ec = ec(input)
-            self.assertTensorAlmostEqual(output_lin, output_ec)
+        # patch torch functions to make sure it works
+        # (we don't want to multiply by softmax)
+        og_topk = torch.topk
+        def patched_topk(x, k, dim):
+            values, indices = og_topk(x, k=k, dim=dim)
+            return torch.ones_like(values), indices
+        torch.topk = patched_topk
+
+        input = torch.rand((batch, seql, dm))
+        output_lin = ln(lin(input))
+        output_ec = ec(input)
+        torch.topk = og_topk
+        self.assertTensorAlmostEqual(output_lin, output_ec)
 
         # backprop and make sure gradients are the same
         output_lin.sum().backward()
