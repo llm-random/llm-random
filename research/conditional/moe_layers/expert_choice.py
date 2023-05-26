@@ -65,8 +65,11 @@ class ExpertChoiceFF(LoggingLayer):
         gate_out = gate_out.flatten(start_dim=1)
         # perform softmax over tokens for each expert
         gate_out = torch.softmax(gate_out, dim=1)
+        self.cache("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+        self.cache("gate_softmax_topk_vals", topk_values)
+        self.cache("indexes_choose_counts", topk_indices.flatten().bincount())
         if self.random_perm:
             topk_values = topk_values.flatten()[
                 torch.randperm(self.n_experts * topk)
@@ -122,5 +125,14 @@ class ExpertChoiceFF(LoggingLayer):
 
     def log_heavy(self):
         return {
-            "gradient of gate distribution": make_histogram(self.gate.grad.flatten())
+            "gradient of gate distribution": make_histogram(self.gate.grad.flatten()),
+            "gate_softmax_topk_vals": make_histogram(
+                self.cached_data["gate_softmax_topk_vals"].flatten()
+            ),
+            "gate_softmax_all_values": make_histogram(
+                self.cached_data["gate_softmax_all_values"].flatten()
+            ),
+            "indexes_choose_counts": make_histogram(
+                self.cached_data["indexes_choose_counts"]
+            ),
         }
