@@ -80,6 +80,7 @@ def get_ff_layer(args):
             n_experts=args.n_experts,
             expert_size=args.expert_size,
             topk_perc=args.topk_perc,
+            random_perm=args.expert_random_perm,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

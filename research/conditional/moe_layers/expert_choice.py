@@ -12,13 +12,21 @@ from lizrd.support.logging import make_histogram
 
 
 class ExpertChoiceFF(LoggingLayer):
-    def __init__(self, dmodel: int, n_experts: int, expert_size: int, topk_perc: float):
+    def __init__(
+        self,
+        dmodel: int,
+        n_experts: int,
+        expert_size: int,
+        topk_perc: float,
+        random_perm: bool = False,
+    ):
         """
         Args:
             dmodel: dimension of the input
             n_experts: number of experts
             expert_size: size of each expert
-            topk: number of tokens that will be chosen for each expert
+            topk_perc: percent of tokens that will be chosen for each expert
+            random_perm: whether to randomly permute tokens for experts (ablation)
         """
         super().__init__()
 
@@ -26,6 +34,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.n_experts = n_experts
         self.expert_size = expert_size
         self.topk_perc = topk_perc
+        self.random_perm = random_perm
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
@@ -58,6 +67,10 @@ class ExpertChoiceFF(LoggingLayer):
         gate_out = torch.softmax(gate_out, dim=1)
         # choose topk tokens for each expert
         topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+        if self.random_perm:
+            topk_values = topk_values.flatten()[
+                torch.randperm(self.n_experts * topk)
+            ].reshape((self.n_experts, topk))
 
         # flatten x s. t. first dimension is tokens instead of batch_size x cutoff
         x = x.flatten(start_dim=0, end_dim=1)
@@ -108,4 +121,6 @@ class ExpertChoiceFF(LoggingLayer):
         return dict()
 
     def log_heavy(self):
-        return {"gradient of gate distribution": make_histogram(self.gate.grad.flatten())}
+        return {
+            "gradient of gate distribution": make_histogram(self.gate.grad.flatten())
+        }
