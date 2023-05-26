@@ -156,3 +156,5 @@ tmp_plots/
 
 # models saved locally
 models/
+# temp notebook
+research/conditional/moe_layers/expert_choice_scratch.ipynb
