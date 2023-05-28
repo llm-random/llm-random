@@ -528,7 +528,9 @@ class ContinuousMoE(LoggingLayer):
     Continuous mixture of experts. Each expert attends to some subset of the input.
     """
 
-    def __init__(self, dm, dff, n_experts, group_size, sparsity_dim, temperature):
+    def __init__(
+        self, dm, dff, n_experts, group_size, sparsity_dim, temperature, expertsize=None
+    ):
         """
         1. Groups tokens into groups of fixed size,
         2. Each expert independently aggregates tokens within a group (aggregate means take a weighted combination, weights sum to 1) into a single token,
@@ -549,22 +551,11 @@ class ContinuousMoE(LoggingLayer):
         self.group_size = group_size
         self.sparsity_dim = sparsity_dim
         self.temperature = temperature
-        self.expertsize = dff // n_experts
-
-        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
-        self.lin1 = nn.Parameter(
-            misc.get_init_weight((dm, n_experts, self.expertsize), fan_in=dm)
-        )
-
-        self.lin2 = nn.Parameter(
-            misc.get_init_weight(
-                (dm, n_experts, self.expertsize), fan_in=self.expertsize
-            )
-        )
-        # controller: dmodel to n_experts
-        self.controller = nn.Parameter(misc.get_init_weight((dm, n_experts), fan_in=dm))
+        self.expertsize = dff // n_experts if expertsize is None else expertsize
+        self.init_parameters()
 
     def forward(self, x):
+        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
         # assert shape: x is of shape (batch, seq_len, dmodel)
         ash.assert_shape("B S d", x, d=self.dm)
 
@@ -585,6 +576,11 @@ class ContinuousMoE(LoggingLayer):
 
         # controller weights hold normalised weights for every group x expert pair
         controller_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
+
+        # print memory usage change
+        # print(f"1. post controller logits memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
+        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
+
         self.cache("controller_logits", controller_logits)
 
         ash.assert_shape(
@@ -594,6 +590,8 @@ class ContinuousMoE(LoggingLayer):
         controller_weights = stable_softmax_temperature(
             controller_logits, self.temperature
         )
+        # print(f"2. post controller weights memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
+        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
         # 2. Each expert independently aggregates tokens within a group (aggregate means take a weighted combination, weights sum to 1) into a single token,
 
@@ -602,17 +600,30 @@ class ContinuousMoE(LoggingLayer):
         x = torch.einsum("B S c d, B S e c -> B S e d", x, controller_weights)
         ash.assert_shape("B S e d", x, e=self.n_experts, d=self.dm)
 
+        # print(f"3. post aggregation memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
+        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
+
         # 3. Each expert processes the token constructed above to output a token of size dmodel
 
         # lin1 maps from (seq_len, batch, n_experts, dmodel) to (seq_len, batch, n_experts, dff/n_experts)
         mid_act = misc.einsum("B S e d, d e f -> B S e f", x, self.lin1)
         ash.assert_shape("B S e f", mid_act, e=self.n_experts, f=self.expertsize)
 
+        # print(f"4. post lin1 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
+        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
+
         # relu
         mid_act = torch.relu_(mid_act)
 
+        # print(f"5. post relu memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
+        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
+
         # lin2 maps from (batch, seqlen, n_experts, dff/n_experts) to (batch, seqlen, n_experts, dmodel)
         out = misc.einsum("B S e f, d e f -> B S e d", mid_act, self.lin2)
+
+        # print(f"6. post lin2 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
+        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
+
         ash.assert_shape("B S e d", out, e=self.n_experts, d=self.dm)
 
         # 4. The mapped token is then redistributed to the original tokens, with weights determined by the expert's weighting from step 2.
@@ -622,6 +633,9 @@ class ContinuousMoE(LoggingLayer):
         out = torch.einsum("B S e d, B S e c -> B S c d", out, controller_weights)
         ash.assert_shape("B S c d", out, d=self.dm, c=self.group_size)
 
+        # print(f"7. post distribution memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
+        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
+
         # rearrange
         if self.sparsity_dim == 0:
             out = einops.rearrange(out, "B S c d -> (B c) S d")
@@ -630,9 +644,31 @@ class ContinuousMoE(LoggingLayer):
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
+        print(
+            f"8. post rearrange memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB"
+        )
+
         # assert shape: out is of shape (batch, seq_len, dmodel)
         ash.assert_shape("B S d", out, d=self.dm)
         return out
+
+    def init_parameters(self):
+        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
+        self.lin1 = nn.Parameter(
+            misc.get_init_weight(
+                (self.dm, self.n_experts, self.expertsize), fan_in=self.dm
+            )
+        )
+
+        self.lin2 = nn.Parameter(
+            misc.get_init_weight(
+                (self.dm, self.n_experts, self.expertsize), fan_in=self.expertsize
+            )
+        )
+        # controller: dmodel to n_experts
+        self.controller = nn.Parameter(
+            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
+        )
 
     def log_light(self):
         return {

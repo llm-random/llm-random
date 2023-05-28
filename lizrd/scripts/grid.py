@@ -21,7 +21,6 @@ from lizrd.scripts.grid_utils import (
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
 
-
 RUNNER = "research.reinitialization.train.reinit_train"
 
 
@@ -82,10 +81,13 @@ if __name__ == "__main__":
 
     total_minutes = no_experiments * minutes_per_exp
     if not runner == MachineBackend.LOCAL:
-        user_input = input(
-            f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-            f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
-        )
+        if not INTERACTIVE_DEBUG:
+            user_input = input(
+                f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
+                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+            )
+        else:
+            user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
         if user_input.lower() not in ("", "y", "Y"):
             print("Aborting...")
             exit(1)
@@ -192,3 +194,5 @@ if __name__ == "__main__":
             sleep(10)
         else:
             print(" ".join([str(s) for s in subprocess_args]))
+        if INTERACTIVE_DEBUG:
+            break

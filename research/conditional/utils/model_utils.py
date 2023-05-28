@@ -72,6 +72,7 @@ def get_ff_layer(args):
             args.group_size,
             args.sparsity_dim,
             args.temperature,
+            args.expert_size,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
