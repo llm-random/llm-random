@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Literal
+from typing import Literal, Callable
 
 import torch
 
@@ -47,7 +47,9 @@ def FeedForward(
 
 
 class EveryOtherLayer:
-    def __init__(self, layer1_fn: callable[nn.Module], layer2_fn: callable[nn.Module]):
+    def __init__(
+        self, layer1_fn: Callable[[], nn.Module], layer2_fn: Callable[[], nn.Module]
+    ):
         """
         This class is used to alternate between two layers.
         It is useful for Mixture of Experts,
@@ -57,13 +59,13 @@ class EveryOtherLayer:
         self.layer2_fn = layer2_fn
         self.counter = 0
 
-    def __call__(self, x):
+    def __call__(self):
         if self.counter % 2 == 0:
             layer = self.layer1_fn()
         else:
             layer = self.layer2_fn()
         self.counter += 1
-        return layer(x)
+        return layer
 
 
 @ash.check("... -> ... ")
