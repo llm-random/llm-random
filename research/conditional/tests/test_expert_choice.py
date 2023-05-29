@@ -1,11 +1,21 @@
+from unittest.mock import patch
+
 import torch
 import torch.nn.functional as F
-from torch.nn import Sequential, ReLU, LayerNorm, Identity
+from torch.nn import Sequential, ReLU, Identity
 from fancy_einsum import einsum
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
 from lizrd.core.misc import Linear
+
+
+def mock_topk_factory(topk_fn):
+    def mock_topk(x, k, dim):
+        values, indices = topk_fn(x, k=k, dim=dim)
+        return torch.ones_like(values), indices
+
+    return mock_topk
 
 
 class TestExpertChoice(GeneralTestCase):
@@ -14,13 +24,6 @@ class TestExpertChoice(GeneralTestCase):
         Test that the ExpertChoiceFF layer permutes the input as intended.
         Only the case with one expert is tested here.
         """
-        # patch torch functions to make sure it works
-        # (we don't want to multiply by softmax)
-        og_topk = torch.topk
-        def patched_topk(x, k, dim):
-            values, indices = og_topk(x, k=k, dim=dim)
-            return torch.ones_like(values), indices
-        torch.topk = patched_topk
 
         batch, dm = 2, 2
         experts = 1
@@ -51,8 +54,10 @@ class TestExpertChoice(GeneralTestCase):
 
         # make sure permutation works as intended
         input = torch.rand((batch, seql, dm))
-        output = layer(input)
-        torch.topk = og_topk
+        with patch(
+            "torch.topk", wraps=mock_topk_factory(torch.topk)
+        ):  # patch torch topk, s t. we don't use softmax
+            output = layer(input)
         self.assertTensorAlmostEqual(output, input)
 
     def test_equivalence_linear(self):
@@ -100,19 +105,12 @@ class TestExpertChoice(GeneralTestCase):
         output_ec = output_ec.reshape(batch, seql, dm)
         self.assertTensorAlmostEqual(output_lin, output_ec)
 
-        # create inputs and make sure both layers give the same output
-        # patch torch functions to make sure it works
-        # (we don't want to multiply by softmax)
-        og_topk = torch.topk
-        def patched_topk(x, k, dim):
-            values, indices = og_topk(x, k=k, dim=dim)
-            return torch.ones_like(values), indices
-        torch.topk = patched_topk
-
         input = torch.rand((batch, seql, dm))
         output_lin = ln(lin(input))
-        output_ec = ec(input)
-        torch.topk = og_topk
+        with patch(
+            "torch.topk", wraps=mock_topk_factory(torch.topk)
+        ):  # patch torch topk, s t. we don't use softmax
+            output_ec = ec(input)
         self.assertTensorAlmostEqual(output_lin, output_ec)
 
         # backprop and make sure gradients are the same
