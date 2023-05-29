@@ -50,12 +50,13 @@ class LayerManager:
                 verbosity_levels.append(level)
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
-                info = layer.log(verbosity_level)
-                for name, data in info.items():
-                    logging_name = block_name + "/" + name
-                    self.logger.report_generic_info(
-                        title=logging_name, iteration=step, data=data
-                    )
+                if hasattr(layer, "log"):
+                    info = layer.log(verbosity_level)
+                    for name, data in info.items():
+                        logging_name = block_name + "/" + name
+                        self.logger.report_generic_info(
+                            title=logging_name, iteration=step, data=data
+                        )
 
 
 class LoggingLayer(nn.Module):
