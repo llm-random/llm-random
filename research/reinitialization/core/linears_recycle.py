@@ -325,6 +325,7 @@ class RetrainRecycleFF(nn.Module):
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
+
         x = F.relu(x)
 
         # save activation stats

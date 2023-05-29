@@ -59,6 +59,7 @@ trainer = ConditionalTrainer(
     logger=logger,
     hack_for_batch_size=args.hack_for_batch_size,
     model_type=args.model_type,
+    logging_interval_loss=args.logging_interval_loss,
     logging_interval_light=args.logging_interval_light,
     logging_interval_heavy=args.logging_interval_heavy,
 )

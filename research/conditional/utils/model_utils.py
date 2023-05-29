@@ -3,6 +3,7 @@ import torch.nn.functional as F
 
 from lizrd.core import llm
 from research.conditional.moe_layers.ffs import ContinuousMoE
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
@@ -72,6 +73,13 @@ def get_ff_layer(args):
             args.group_size,
             args.sparsity_dim,
             args.temperature,
+        )
+    elif args.ff_mode == "expert_choice":
+        return lambda: ExpertChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            topk_fraction=args.topk_fraction,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
