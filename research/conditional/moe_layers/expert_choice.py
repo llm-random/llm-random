@@ -17,7 +17,7 @@ class ExpertChoiceFF(LoggingLayer):
         dmodel: int,
         n_experts: int,
         expert_size: int,
-        topk_perc: float,
+        topk_fraction: float,
         random_perm: bool = False,
     ):
         """
@@ -33,7 +33,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.dmodel = dmodel
         self.n_experts = n_experts
         self.expert_size = expert_size
-        self.topk_perc = topk_perc
+        self.topk_fraction = topk_fraction
         self.random_perm = random_perm
 
         self.lin1_weight = nn.Parameter(
