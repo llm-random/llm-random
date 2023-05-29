@@ -79,7 +79,7 @@ def get_ff_layer(args):
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_size=args.expert_size,
-            topk_perc=args.topk_perc,
+            topk_fraction=args.topk_fraction,
             random_perm=args.expert_random_perm,
         )
     else:
