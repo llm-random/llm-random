@@ -56,7 +56,7 @@ class TestExpertChoice(GeneralTestCase):
         input = torch.rand((batch, seql, dm))
         with patch(
             "torch.topk", wraps=mock_topk_factory(torch.topk)
-        ):  # patch torch topk, s t. we don't use softmax
+        ):  # patch torch topk, s t. we don't multiply by softmax
             output = layer(input)
         self.assertTensorAlmostEqual(output, input)
 
@@ -109,7 +109,7 @@ class TestExpertChoice(GeneralTestCase):
         output_lin = ln(lin(input))
         with patch(
             "torch.topk", wraps=mock_topk_factory(torch.topk)
-        ):  # patch torch topk, s t. we don't use softmax
+        ):  # patch torch topk, s t. we don't multiply by softmax
             output_ec = ec(input)
         self.assertTensorAlmostEqual(output_lin, output_ec)
 
