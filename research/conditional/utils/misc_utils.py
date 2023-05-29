@@ -38,6 +38,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--expert_size", type=int, required=False)
     parser.add_argument("--topk_perc", type=float, required=False)
     parser.add_argument("--expert_random_perm", action="store_true")
+    parser.add_argument("--every_other_layer", action="store_true")
 
     # experimental/legacy parameters
 
