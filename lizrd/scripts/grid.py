@@ -18,9 +18,9 @@ from lizrd.scripts.grid_utils import (
     get_machine_backend,
     MachineBackend,
     get_grid_entrypoint,
+    unpack_params,
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
-
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
@@ -84,10 +84,13 @@ if __name__ == "__main__":
 
     total_minutes = no_experiments * minutes_per_exp
     if not runner == MachineBackend.LOCAL:
-        user_input = input(
-            f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-            f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
-        )
+        if not INTERACTIVE_DEBUG:
+            user_input = input(
+                f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
+                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+            )
+        else:
+            user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
         if user_input.lower() not in ("", "y", "Y"):
             print("Aborting...")
             exit(1)
@@ -108,18 +111,19 @@ if __name__ == "__main__":
         param_set["tags"] = " ".join(param_set["tags"])
 
         runner_params = []
-        for k, v in param_set.items():
-            if isinstance(v, bool):
-                if v:
-                    runner_params.append(f"--{k}")
+        for k_packed, v_packed in param_set.items():
+            for k, v in zip(*unpack_params(k_packed, v_packed)):
+                if isinstance(v, bool):
+                    if v:
+                        runner_params.append(f"--{k}")
+                    else:
+                        pass  # simply don't add it if v == False
+                    continue
                 else:
-                    pass  # simply don't add it if v == False
-                continue
-            else:
-                runner_params.append(f"--{k}")
-                if isinstance(v, list):
-                    v = " ".join([str(s) for s in v])
-                runner_params.append(v)
+                    runner_params.append(f"--{k}")
+                    if isinstance(v, list):
+                        v = " ".join([str(s) for s in v])
+                    runner_params.append(v)
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
@@ -194,3 +198,5 @@ if __name__ == "__main__":
             sleep(10)
         else:
             print(" ".join([str(s) for s in subprocess_args]))
+        if INTERACTIVE_DEBUG:
+            break
