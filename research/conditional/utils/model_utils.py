@@ -88,3 +88,5 @@ def get_ff_layer(args):
         return_fn = llm.EveryOtherLayer(
             return_fn, lambda: llm.FeedForward(args.dmodel, args.dff)
         )
+
+    return return_fn
