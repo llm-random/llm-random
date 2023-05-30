@@ -39,7 +39,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--topk_fraction", type=float, required=False)
     parser.add_argument("--logging_interval_loss", type=int, default=250)
     parser.add_argument("--every_other_layer", action="store_true")
-    parser.add_argument("--linear_first", action="store_true")
+    parser.add_argument("--standard_ff_first", action="store_true")
 
     # experimental/legacy parameters
 

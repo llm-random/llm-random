@@ -85,9 +85,9 @@ def get_ff_layer(args):
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 
     if args.every_other_layer:
-        if args.linear_first:
+        if args.standard_ff_first:
             return_fn = llm.EveryOtherLayer(
-                lambda: llm.Linear(args.dmodel, args.dmodel), return_fn
+                lambda: llm.FeedForward(args.dmodel, args.dmodel), return_fn
             )
         else:
             return_fn = llm.EveryOtherLayer(
