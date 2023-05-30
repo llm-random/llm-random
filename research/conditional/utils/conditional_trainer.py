@@ -79,6 +79,7 @@ class ConditionalTrainer:
         self.layer_manager.log(step)
 
     def _log_loss(self, loss, step):
+        self.logger.report_scalar(title="step", value=step, iteration=step)
         self.loss_accumulator += loss.item()
         if step % 1000 == 0:
             self.logger.report_scalar(

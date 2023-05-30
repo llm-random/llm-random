@@ -42,7 +42,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--group_size", type=int, default=1)
     parser.add_argument("--sparsity_dim", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=1.0)
-    parser.add_argument("--expert_size", type=int, default=1)
+    parser.add_argument("--expert_size", type=int, default=-1)
 
     # experimental/legacy parameters
 
@@ -103,3 +103,7 @@ def determine_mem_usage():
             )
             del module, input_batch, activations
             breakpoint()
+
+
+def entropy(x):
+    return -torch.sum(x * torch.log(x + 1e-8), dim=-1)

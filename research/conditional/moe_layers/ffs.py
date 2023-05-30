@@ -1,4 +1,6 @@
 import einops
+import numpy as np
+import plotly.express as px
 import torch
 from torch.nn import functional as F
 
@@ -522,6 +524,10 @@ def stable_softmax_temperature(x, temperature, dim=-1):
     return x
 
 
+def entropy(x):
+    return -torch.sum(x * torch.log(x + 1e-8), dim=-1)
+
+
 @ash.check("... dinp -> ... dout")
 class ContinuousMoE(LoggingLayer):
     """
@@ -551,7 +557,12 @@ class ContinuousMoE(LoggingLayer):
         self.group_size = group_size
         self.sparsity_dim = sparsity_dim
         self.temperature = temperature
-        self.expertsize = dff // n_experts if expertsize is None else expertsize
+        if expertsize < 0:
+            print(
+                f"expertsize is None, setting it to dff // n_experts = {dff // n_experts}"
+            )
+            expertsize = dff // n_experts
+        self.expertsize = expertsize
         self.init_parameters()
 
     def forward(self, x):
@@ -576,12 +587,11 @@ class ContinuousMoE(LoggingLayer):
 
         # controller weights hold normalised weights for every group x expert pair
         controller_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
+        self.cache("controller_logits", controller_logits)
 
         # print memory usage change
         # print(f"1. post controller logits memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
         # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-
-        self.cache("controller_logits", controller_logits)
 
         ash.assert_shape(
             "B S e c", controller_logits, e=self.n_experts, c=self.group_size
@@ -590,6 +600,7 @@ class ContinuousMoE(LoggingLayer):
         controller_weights = stable_softmax_temperature(
             controller_logits, self.temperature
         )
+        self.cache("controller_weights", controller_weights)
         # print(f"2. post controller weights memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
         # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
@@ -644,9 +655,9 @@ class ContinuousMoE(LoggingLayer):
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        print(
-            f"8. post rearrange memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB"
-        )
+        # print(
+        #     f"8. post rearrange memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB"
+        # )
 
         # assert shape: out is of shape (batch, seq_len, dmodel)
         ash.assert_shape("B S d", out, d=self.dm)
@@ -671,18 +682,39 @@ class ContinuousMoE(LoggingLayer):
         )
 
     def log_light(self):
-        return {
-            "controller_logits_mean": self.cached_data["controller_logits"]
-            .mean()
-            .item(),
-        }
+        return {}
 
     def log_heavy(self):
-        return {
-            "controller_logits_distribution": make_histogram(
-                self.cached_data["controller_logits"]
-            ),
-        }
+        log = {}
+        controller_weights = torch.flatten(
+            self.cached_data["controller_weights"], start_dim=0, end_dim=-2
+        )
+        controller_logits = torch.flatten(
+            self.cached_data["controller_logits"], start_dim=0, end_dim=-2
+        )
+        sample_weight_distros = controller_weights[:5]
+        sample_logits_distros = controller_logits[:5]
+
+        for i, sample in enumerate(sample_weight_distros):
+            sample = sample.sort(descending=True).values
+            sample = sample.tolist()
+            fig = px.bar(x=range(len(sample)), y=sample, title=f"sample {i}")
+            log[f"controller_weights/sample_{i}"] = fig
+
+        for i, sample in enumerate(sample_logits_distros):
+            sample = sample.sort(descending=True).values
+            sample = sample.tolist()
+            fig = px.bar(x=range(len(sample)), y=sample, title=f"sample {i}")
+            log[f"controller_logits/sample_{i}"] = fig
+
+        ent = entropy(controller_weights)
+        max_entropy = np.log(self.n_experts)
+        normalised_ent = ent / max_entropy
+        log["controller_weights/normalised_entropy"] = make_histogram(
+            normalised_ent, title="controller weights entropy (normalised to [0,1])"
+        )
+
+        return log
 
 
 @ash.check("... dinp -> ... dout")
