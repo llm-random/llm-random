@@ -26,7 +26,9 @@ class ExpertChoiceFF(LoggingLayer):
             n_experts: number of experts
             expert_size: size of each expert
             topk_fraction: fraction of tokens that will be chosen for each expert
-            random_perm: whether to randomly permute tokens for experts (ablation)
+            random_perm: randomly permute tokens for experts (ablation). Note that
+                network can still learn which tokens to choose,
+                but not which expert to choose for token
         """
         super().__init__()
 
@@ -77,6 +79,8 @@ class ExpertChoiceFF(LoggingLayer):
         self.cache("topk_indices", topk_indices)
         self.cache("n_tokens", torch.Tensor([batch_size * seq_len]))
 
+        # Randomly permute tokens for experts if random_perm is True
+        # Note this is not total randomness, since topk values are already chosen
         if self.random_perm:
             topk_values = topk_values.flatten()[
                 torch.randperm(self.n_experts * topk)
