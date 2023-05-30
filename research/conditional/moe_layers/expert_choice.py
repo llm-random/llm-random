@@ -25,7 +25,7 @@ class ExpertChoiceFF(LoggingLayer):
             dmodel: dimension of the input
             n_experts: number of experts
             expert_size: size of each expert
-            topk_perc: percent of tokens that will be chosen for each expert
+            topk_fraction: fraction of tokens that will be chosen for each expert
             random_perm: whether to randomly permute tokens for experts (ablation)
         """
         super().__init__()
