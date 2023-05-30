@@ -71,8 +71,20 @@ class ExpertChoiceFF(LoggingLayer):
         self.cache("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+
+        # cache softmax values
         self.cache("gate_softmax_topk_vals", topk_values)
-        self.cache("indexes_choose_counts", topk_indices.flatten().bincount())
+
+        # cache number of times tokens have been chosen
+        chosen_indexes = topk_indices.flatten()
+        chosen_indexes = torch.cat(
+            (
+                chosen_indexes,
+                torch.Tensor([batch_size * seq_len - 1]).type(chosen_indexes.type()),
+            )
+        ) # make sure bincount takes into account the whole range of indexes
+        self.cache("indexes_choose_counts", chosen_indexes.bincount())
+
         if self.random_perm:
             topk_values = topk_values.flatten()[
                 torch.randperm(self.n_experts * topk)
