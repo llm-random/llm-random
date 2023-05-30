@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
-from torch.nn import LayerNorm
 from fancy_einsum import einsum
+from torch.nn import LayerNorm
 
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
@@ -10,7 +10,9 @@ from research.conditional.utils.layer_manager import LoggingLayer
 
 
 class ExpertChoiceFF(LoggingLayer):
-    def __init__(self, dmodel: int, n_experts: int, expert_size: int, topk_fraction: float):
+    def __init__(
+        self, dmodel: int, n_experts: int, expert_size: int, topk_fraction: float
+    ):
         """
         Args:
             dmodel: dimension of the input

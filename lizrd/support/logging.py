@@ -8,7 +8,7 @@ from typing import Optional
 import neptune.new as neptune
 import numpy as np
 import plotly
-import plotly.express as px
+import plotly_express as px
 import torch
 from clearml import Task
 
