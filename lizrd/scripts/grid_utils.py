@@ -1,8 +1,8 @@
 import copy
+import platform
+from enum import Enum
 from itertools import product
 from typing import List, Tuple
-from enum import Enum
-import platform
 
 
 class MachineBackend(Enum):
@@ -42,6 +42,8 @@ def split_params(params: dict) -> Tuple[list, list, list]:
             grids.append((k[1:], v))
         elif k[0] == "*":
             functions.append((k[1:], v))
+        elif "," in k:
+            grids.append((k, v))
         else:
             normals.append((k, v))
     return grids, functions, normals
@@ -175,6 +177,13 @@ def multiply_grid(param_sets: List[dict], runs_count: int) -> List[dict]:
             out_dict["tags"].append(f"num_runs={runs_count}")
             out_params_sets.append(out_dict)
     return out_params_sets
+
+
+def unpack_params(k, v):
+    if "," in k:
+        k = k.split(",")
+        return k, v
+    return [k], [v]
 
 
 def param_to_str(param) -> str:
