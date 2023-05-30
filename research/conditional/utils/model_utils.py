@@ -87,7 +87,7 @@ def get_ff_layer(args):
     if args.every_other_layer:
         if args.standard_ff_first:
             return_fn = llm.EveryOtherLayer(
-                lambda: llm.FeedForward(args.dmodel, args.dmodel), return_fn
+                lambda: llm.FeedForward(args.dmodel, args.dff), return_fn
             )
         else:
             return_fn = llm.EveryOtherLayer(
