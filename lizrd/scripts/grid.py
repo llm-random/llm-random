@@ -55,7 +55,7 @@ if __name__ == "__main__":
         )
     elif runner == MachineBackend.IDEAS:
         SINGULARITY_IMAGE = (
-            "/raid/NFS_SHARE/home/maciej.pioro/images/sparsity_2023.02.12_21.20.53.sif"
+            "/raid/NFS_SHARE/home/jakub.krajewski/images/sparsity_2023.05.16_18.07.20.sif"
         )
     else:
         SINGULARITY_IMAGE = None
