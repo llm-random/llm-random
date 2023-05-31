@@ -1,3 +1,5 @@
+from warnings import warn
+
 import torch
 import torch.nn.functional as F
 
@@ -76,6 +78,9 @@ def get_expert_choice_args(args):
         assert experts_per_token == int(experts_per_token)
 
         topk_fraction = experts_per_token / args.n_experts
+        if topk_fraction > 1:
+            warn(f"topk_fraction > 1 for n_experts={args.n_experts}, setting to 1")
+            topk_fraction = 1.
     else:
         expert_size = args.expert_size
         topk_fraction = args.topk_fraction
