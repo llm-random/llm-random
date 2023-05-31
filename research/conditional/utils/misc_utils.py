@@ -41,6 +41,9 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
+    parser.add_argument("--granularity_expert_config", action="store_true")
+    parser.add_argument("--total_experts_width", type=int, required=False)
+    parser.add_argument("--effective_dff", type=int, required=False)
 
     # experimental/legacy parameters
 
