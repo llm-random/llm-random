@@ -2,12 +2,14 @@ import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
+import plotly.express as px
 
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
+from lizrd.support.logging import make_histogram
 
 
 class ExpertChoiceFF(LoggingLayer):
