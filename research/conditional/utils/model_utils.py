@@ -73,9 +73,9 @@ def get_expert_choice_args(args):
 
         expert_size = args.total_experts_width / args.n_experts
         assert expert_size == int(expert_size)
+        expert_size = int(expert_size)
 
         experts_per_token = args.effective_dff / expert_size
-        assert experts_per_token == int(experts_per_token)
 
         topk_fraction = experts_per_token / args.n_experts
         if topk_fraction > 1:
