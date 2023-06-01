@@ -14,7 +14,7 @@ from research.conditional.utils.model_utils import (
 )
 
 
-@define
+@define(slots=False)
 class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
@@ -24,6 +24,7 @@ class ConditionalTrainer:
     mixed_precision: bool
     logger: AbstractLogger
     model_type: str
+    logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
     _calculate_loss: Optional[callable] = None
@@ -49,8 +50,8 @@ class ConditionalTrainer:
 
     def train(self, n_steps: int):
         for step in range(n_steps):
-            if self.hack_name is not None:
-                self._hack(self.hack_name, step)
+            if self.hack_for_batch_size:
+                self._hack_for_batch_size(step)
             else:
                 self._train_step(step)
             if step % 1000 == 0:
@@ -81,9 +82,11 @@ class ConditionalTrainer:
     def _log_loss(self, loss, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.loss_accumulator += loss.item()
-        if step % 1000 == 0:
+        if step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
-                title="loss", value=self.loss_accumulator / 1000, iteration=step
+                title="loss",
+                value=self.loss_accumulator / self.logging_interval_loss,
+                iteration=step,
             )
             self.loss_accumulator = 0.0
 

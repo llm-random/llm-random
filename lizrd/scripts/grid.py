@@ -18,7 +18,6 @@ from lizrd.scripts.grid_utils import (
     get_machine_backend,
     MachineBackend,
     get_grid_entrypoint,
-    unpack_params,
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
 
@@ -50,7 +49,9 @@ PUSH_TO_GIT = False
 if __name__ == "__main__":
     runner = get_machine_backend()
     if runner == MachineBackend.ATHENA:
-        SINGULARITY_IMAGE = "/net/tscratch/people/plgmaciejpioro/images/sparsity_2023.02.12_21.20.53.sif"
+        SINGULARITY_IMAGE = (
+            "/net/tscratch/people/plgjkrajewski/images/sparsity_2023.05.16_18.07.20.sif"
+        )
     elif runner == MachineBackend.IDEAS:
         SINGULARITY_IMAGE = (
             "/raid/NFS_SHARE/home/maciej.pioro/images/sparsity_2023.02.12_21.20.53.sif"

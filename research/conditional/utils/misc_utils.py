@@ -17,7 +17,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--dff", type=int, default=3072)
     parser.add_argument("--n_att_heads", type=int, default=8)
     parser.add_argument("--n_blocks", type=int, default=4)
-    parser.add_argument("--mixed_precision", action="store_false")
+    parser.add_argument("--mixed_precision", action="store_true")
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
     parser.add_argument("--mask_loss_weight", type=float, default=1.0)
@@ -43,6 +43,11 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--sparsity_dim", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--expert_size", type=int, default=-1)
+    parser.add_argument("--topk_fraction", type=float, required=False)
+    parser.add_argument("--logging_interval_loss", type=int, default=250)
+    parser.add_argument("--every_other_layer", action="store_true")
+    parser.add_argument("--expert_random_perm", action="store_true")
+    parser.add_argument("--standard_ff_first", action="store_true")
 
     # experimental/legacy parameters
 

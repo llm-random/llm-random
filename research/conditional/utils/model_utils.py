@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 
 from lizrd.core import llm
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.ffs import ContinuousMoE
 
 
@@ -63,16 +64,35 @@ def get_attention_layer(args):
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        return lambda: llm.FeedForward(args.dmodel, args.dff)
+        return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
     elif args.ff_mode == "cont_moe":
-        return lambda: ContinuousMoE(
+        return_fn = lambda: ContinuousMoE(
             args.dmodel,
             args.dff,
             args.n_experts,
             args.group_size,
             args.sparsity_dim,
             args.temperature,
-            args.expert_size,
+        )
+    elif args.ff_mode == "expert_choice":
+        return_fn = lambda: ExpertChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            topk_fraction=args.topk_fraction,
+            random_perm=args.expert_random_perm,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
+
+    if args.every_other_layer:
+        if args.standard_ff_first:
+            return_fn = llm.EveryOtherLayer(
+                lambda: llm.FeedForward(args.dmodel, args.dff), return_fn
+            )
+        else:
+            return_fn = llm.EveryOtherLayer(
+                return_fn, lambda: llm.FeedForward(args.dmodel, args.dff)
+            )
+
+    return return_fn
