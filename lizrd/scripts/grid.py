@@ -168,7 +168,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
-                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/maciej.pioro/.cache",
+                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/jakub.krajewski/.cache",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
