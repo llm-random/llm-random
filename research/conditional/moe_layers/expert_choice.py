@@ -6,19 +6,28 @@ from torch.nn import LayerNorm
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
+from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
 
 
 class ExpertChoiceFF(LoggingLayer):
     def __init__(
-        self, dmodel: int, n_experts: int, expert_size: int, topk_fraction: float
+        self,
+        dmodel: int,
+        n_experts: int,
+        expert_size: int,
+        topk_fraction: float,
+        random_perm: bool = False,
     ):
         """
         Args:
             dmodel: dimension of the input
             n_experts: number of experts
             expert_size: size of each expert
-            topk: number of tokens that will be chosen for each expert
+            topk_fraction: fraction of tokens that will be chosen for each expert
+            random_perm: randomly permute tokens for experts (ablation). Note that
+                network can still learn which tokens to choose,
+                but not which expert to choose for token
         """
         super().__init__()
 
@@ -26,6 +35,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.n_experts = n_experts
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
+        self.random_perm = random_perm
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
@@ -59,8 +69,21 @@ class ExpertChoiceFF(LoggingLayer):
         gate_out = gate_out.flatten(start_dim=1)
         # perform softmax over tokens for each expert
         gate_out = torch.softmax(gate_out, dim=1)
+        self.cache("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+
+        # cache values for logging
+        self.cache("gate_softmax_topk_vals", topk_values)
+        self.cache("topk_indices", topk_indices)
+        self.cache("n_tokens", torch.Tensor([batch_size * seq_len]))
+
+        # Randomly permute tokens for experts if random_perm is True
+        # Note this is not total randomness, since topk values are already chosen
+        if self.random_perm:
+            topk_values = topk_values.flatten()[
+                torch.randperm(self.n_experts * topk)
+            ].reshape((self.n_experts, topk))
 
         # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
         x = x.flatten(start_dim=0, end_dim=1)
@@ -111,4 +134,25 @@ class ExpertChoiceFF(LoggingLayer):
         return dict()
 
     def log_heavy(self):
-        return dict()
+        # calculate indexes choose counts
+        chosen_indexes = self.cached_data["topk_indices"].flatten()
+        chosen_indexes = torch.cat(
+            (
+                chosen_indexes,
+                torch.Tensor([self.cached_data["n_tokens"] - 1]).type(
+                    chosen_indexes.type()
+                ),
+            )
+        )  # make sure bincount takes into account the whole range of indexes
+        indexes_choose_counts = chosen_indexes.bincount()
+
+        return {
+            "gradient of gate distribution": make_histogram(self.gate.grad.flatten()),
+            "gate_softmax_topk_vals": make_histogram(
+                self.cached_data["gate_softmax_topk_vals"].flatten()
+            ),
+            "gate_softmax_all_values": make_histogram(
+                self.cached_data["gate_softmax_all_values"].flatten()
+            ),
+            "indexes_choose_counts": make_histogram(indexes_choose_counts),
+        }
