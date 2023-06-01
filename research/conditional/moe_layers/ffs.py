@@ -535,7 +535,7 @@ class ContinuousMoE(LoggingLayer):
     """
 
     def __init__(
-        self, dm, dff, n_experts, group_size, sparsity_dim, temperature, expertsize=None
+        self, dm, dff, n_experts, group_size, sparsity_dim, temperature, expertsize
     ):
         """
         1. Groups tokens into groups of fixed size,
