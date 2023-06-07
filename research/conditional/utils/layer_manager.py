@@ -1,4 +1,8 @@
 import re
+from contextlib import contextmanager
+import time
+
+import torch
 
 from lizrd.core import nn
 from lizrd.support.logging import get_current_logger
@@ -77,7 +81,13 @@ class LoggingLayer(nn.Module):
 
     def cache(self, key, value):
         if self.logging_switch:
-            self.cached_data[key] = value.clone().detach().cpu()
+            if type(value) == dict:
+                if key in self.cached_data:
+                    self.cached_data[key].update(value)
+                else:
+                    self.cached_data[key] = value
+            else:
+                self.cached_data[key] = value.clone().detach().cpu()
 
     def log(self, verbosity_level):
         if verbosity_level == 0:
@@ -94,3 +104,23 @@ class LoggingLayer(nn.Module):
 
     def log_heavy(self):
         return []
+
+
+@contextmanager
+def measure_time(obj: LoggingLayer, instruction_name: str):
+    """
+    This simple context manager is used to measure the time of a block of code.
+    Args:
+        obj: The LoggingLayer object that will be used to cache the time.
+        instruction_name: The name of the instruction that is being measured.
+    """
+    if obj.logging_switch and torch.cuda.is_available():
+        torch.cuda.synchronize()
+    start_time = time.time()
+
+    yield
+
+    if obj.logging_switch and torch.cuda.is_available():
+        torch.cuda.synchronize()
+    end_time = time.time()
+    obj.cache("time", {instruction_name: end_time - start_time})
