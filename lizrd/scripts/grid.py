@@ -164,6 +164,7 @@ if __name__ == "__main__":
                 f"--job-name={name}",
                 f"--time={TIME}",
                 "--mem=32G",
+                "--nodelist=login01",
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
