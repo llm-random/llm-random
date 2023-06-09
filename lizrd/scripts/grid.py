@@ -49,16 +49,8 @@ PUSH_TO_GIT = False
 
 if __name__ == "__main__":
     runner = get_machine_backend()
-    if runner == MachineBackend.ATHENA:
-        SINGULARITY_IMAGE = (
-            "/net/tscratch/people/plgjkrajewski/images/sparsity_2023.05.16_18.07.20.sif"
-        )
-    elif runner == MachineBackend.IDEAS:
-        SINGULARITY_IMAGE = (
-            "/raid/NFS_SHARE/home/jakub.krajewski/images/sparsity_2023.05.16_18.07.20.sif"
-        )
-    else:
-        SINGULARITY_IMAGE = None
+    SINGULARITY_IMAGE = None
+    NODELIST = ""
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -71,6 +63,7 @@ if __name__ == "__main__":
         RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
         INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
         PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
+        NODELIST = grid_args.get("nodelist", NODELIST)
 
     grid = create_grid(PARAMS)
     grid = multiply_grid(grid, RUNS_MULTIPLIER)
@@ -143,6 +136,7 @@ if __name__ == "__main__":
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--time={TIME}",
+                NODELIST,
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
@@ -164,12 +158,11 @@ if __name__ == "__main__":
                 f"--job-name={name}",
                 f"--time={TIME}",
                 "--mem=32G",
-                "--nodelist=login01",
+                NODELIST,
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
-                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/jakub.krajewski/.cache",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
