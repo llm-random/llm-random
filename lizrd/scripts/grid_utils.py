@@ -179,6 +179,13 @@ def multiply_grid(param_sets: List[dict], runs_count: int) -> List[dict]:
     return out_params_sets
 
 
+def unpack_params(k, v):
+    if "," in k:
+        k = k.split(",")
+        return k, v
+    return [k], [v]
+
+
 def param_to_str(param) -> str:
     if isinstance(param, str):
         return " ".join(param)

@@ -2,8 +2,10 @@ import torch
 import torch.nn.functional as F
 
 from lizrd.core import llm
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from research.conditional.moe_layers.ffs import ContinuousMoE
+from research.conditional.moe_layers.continuous_moe import (
+    ContinuousMoE,
+    ContinuousMoEQuick,
+)
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
@@ -73,15 +75,27 @@ def get_ff_layer(args):
             args.group_size,
             args.sparsity_dim,
             args.temperature,
+            args.expert_size,
         )
-    elif args.ff_mode == "expert_choice":
-        return_fn = lambda: ExpertChoiceFF(
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            expert_size=args.expert_size,
-            topk_fraction=args.topk_fraction,
-            random_perm=args.expert_random_perm,
+    elif args.ff_mode == "cont_moe_quick":
+        return_fn = lambda: ContinuousMoEQuick(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+            args.expert_size,
+            args.use_opt_einsum,
         )
+    # elif args.ff_mode == "expert_choice":
+    #     return_fn = lambda: ExpertChoiceFF(
+    #         dmodel=args.dmodel,
+    #         n_experts=args.n_experts,
+    #         expert_size=args.expert_size,
+    #         topk_fraction=args.topk_fraction,
+    #         random_perm=args.expert_random_perm,
+    #     )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 

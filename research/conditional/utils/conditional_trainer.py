@@ -6,7 +6,7 @@ from attr import define
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from research.conditional.moe_layers.ffs import ContinuousMoE
+from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.model_utils import (
     calculate_gpt_loss,
@@ -49,9 +49,9 @@ class ConditionalTrainer:
         )
 
     def train(self, n_steps: int):
-        for step in range(n_steps):
-            if self.hack_for_batch_size:
-                self._hack_for_batch_size(step)
+        for step in range(n_steps + 1):
+            if self.hack_name is not None:
+                self._hack(self.hack_name, step)
             else:
                 self._train_step(step)
             if step % 1000 == 0:

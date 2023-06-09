@@ -19,4 +19,4 @@ black==23.1.0
 autoflake
 plotly-express
 neptune-client
-fancy-einsum
+fancy-einsum=0.0.3

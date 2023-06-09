@@ -18,6 +18,7 @@ from lizrd.scripts.grid_utils import (
     get_machine_backend,
     MachineBackend,
     get_grid_entrypoint,
+    unpack_params,
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
 
@@ -171,7 +172,6 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
-                "--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/maciej.pioro/.cache",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
