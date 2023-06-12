@@ -7,6 +7,7 @@ import plotly.express as px
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
+from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
 from lizrd.support.logging import make_histogram
@@ -60,20 +61,25 @@ class ExpertChoiceFF(LoggingLayer):
         topk = round(self.topk_fraction * n_examples)
 
         # expert embedding
-        gate_out = einsum(
-            "batch_size seq_len dmodel, dmodel n_experts -> batch_size seq_len n_experts",
-            x,
-            self.gate,
-        )
-        # transform such that first dimension corresponds to experts
-        gate_out = gate_out.permute(2, 0, 1)
-        # flatten batch_size x seq_len
-        gate_out = gate_out.flatten(start_dim=1)
+        with measure_time(self, "expert_embedding"):
+            gate_out = einsum(
+                "batch_size seq_len dmodel, dmodel n_experts -> batch_size seq_len n_experts",
+                x,
+                self.gate,
+            )
+            # transform such that first dimension corresponds to experts
+            gate_out = gate_out.permute(2, 0, 1)
+            # flatten batch_size x seq_len
+            gate_out = gate_out.flatten(start_dim=1)
+
         # perform softmax over tokens for each expert
-        gate_out = torch.softmax(gate_out, dim=1)
+        with measure_time(self, "softmax"):
+            gate_out = torch.softmax(gate_out, dim=1)
+
         self.cache("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
-        topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+        with measure_time(self, "topk"):
+            topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
 
         # cache values for logging
         self.cache("gate_softmax_topk_vals", topk_values)
@@ -88,47 +94,56 @@ class ExpertChoiceFF(LoggingLayer):
             ].reshape((self.n_experts, topk))
 
         # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
-        x = x.flatten(start_dim=0, end_dim=1)
+        with measure_time(self, "first_flatten"):
+            x = x.flatten(start_dim=0, end_dim=1)
 
         # choose the right tokens from x for each expert
-        x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
-            (self.n_experts, topk, self.dmodel)
-        )
-        x = x.reshape((self.n_experts, topk, self.dmodel))
+        with measure_time(self, "index_select"):
+            x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
+                (self.n_experts, topk, self.dmodel)
+            )
+
+        with measure_time(self, "reshape"):
+            x = x.reshape((self.n_experts, topk, self.dmodel))
 
         # feed through ff
-        # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, exp_size)
-        x = einsum(
-            "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
-            x,
-            self.lin1_weight,
-        )
+        with measure_time(self, "ff"):
+            # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, exp_size)
+            x = einsum(
+                "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
+                x,
+                self.lin1_weight,
+            )
 
-        x = F.relu(x)
+            x = F.relu(x)
 
-        # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
-        x = einsum(
-            "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
-            x,
-            self.lin2_weight,
-        )
-        ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.dmodel)
+            # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
+            x = einsum(
+                "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
+                x,
+                self.lin2_weight,
+            )
+            ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.dmodel)
 
         # multiply by softmax
-        ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
-        x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
+        with measure_time(self, "multiply_softmax"):
+            ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
+            x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
 
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
-        x = x.flatten(start_dim=0, end_dim=1)
+        with measure_time(self, "second_flatten"):
+            x = x.flatten(start_dim=0, end_dim=1)
 
         # add tokens that have been processed by more than one expert
-        z = torch.zeros((batch_size * seq_len, self.dmodel)).type(x.type())
-        z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
+        with measure_time(self, "add_tokens_many_experts"):
+            z = torch.zeros((batch_size * seq_len, self.dmodel)).type(x.type())
+            z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
-        # reshape to (batch_size, seq_len, dmodel)
-        x = z.reshape((batch_size, seq_len, self.dmodel))
+            # reshape to (batch_size, seq_len, dmodel)
+            x = z.reshape((batch_size, seq_len, self.dmodel))
 
-        x = self.ln(x)
+        with measure_time(self, "layer_norm"):
+            x = self.ln(x)
 
         return x
 
@@ -148,6 +163,11 @@ class ExpertChoiceFF(LoggingLayer):
         )  # make sure bincount takes into account the whole range of indexes
         indexes_choose_counts = chosen_indexes.bincount()
 
+        # make bar plot of values cached in forward with measure_time
+        instr_names = list(self.cached_data["time"].keys())
+        instr_times = list(self.cached_data["time"].values())
+        times_fig = px.bar(x=instr_names, y=instr_times)
+
         return {
             "gradient of gate distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_topk_vals": make_histogram(
@@ -157,4 +177,5 @@ class ExpertChoiceFF(LoggingLayer):
                 self.cached_data["gate_softmax_all_values"].flatten()
             ),
             "indexes_choose_counts": make_histogram(indexes_choose_counts),
+            "instruction_times": times_fig,
         }

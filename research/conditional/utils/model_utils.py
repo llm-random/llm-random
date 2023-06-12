@@ -1,3 +1,5 @@
+from warnings import warn
+
 import torch
 import torch.nn.functional as F
 
@@ -62,6 +64,34 @@ def get_attention_layer(args):
     return attention_layer_fun
 
 
+def get_expert_choice_args(args):
+    if args.granularity_expert_config:
+        if (args.expert_size is not None) or (args.topk_fraction is not None):
+            raise ValueError(
+                "Cannot specify expert_size or topk_fraction when using granularity config"
+            )
+
+        expert_size = args.total_experts_width / args.n_experts
+        assert expert_size == int(expert_size)
+        expert_size = int(expert_size)
+
+        experts_per_token = args.effective_dff / expert_size
+
+        topk_fraction = experts_per_token / args.n_experts
+        assert 0. <= topk_fraction <= 1.
+    else:
+        expert_size = args.expert_size
+        topk_fraction = args.topk_fraction
+
+    return {
+        "dmodel": args.dmodel,
+        "n_experts": args.n_experts,
+        "expert_size": expert_size,
+        "topk_fraction": topk_fraction,
+        "random_perm": args.expert_random_perm,
+    }
+
+
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
@@ -76,11 +106,7 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            expert_size=args.expert_size,
-            topk_fraction=args.topk_fraction,
-            random_perm=args.expert_random_perm,
+            **get_expert_choice_args(args),
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
