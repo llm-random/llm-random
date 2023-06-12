@@ -141,7 +141,6 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 "--bind=/net:/net",
-                "--env HF_DATASETS_CACHE=/net/pr2/projects/plgrid/plggllmeffi/.cache",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
@@ -183,8 +182,8 @@ if __name__ == "__main__":
 
         if not DRY_RUN:
             subprocess.run(
-                [str(s) for s in subprocess_args],
+                [str(s) for s in subprocess_args if s is not None],
             )
             sleep(10)
         else:
-            print(" ".join([str(s) for s in subprocess_args]))
+            print(" ".join([str(s) for s in subprocess_args if s is not None]))
