@@ -51,7 +51,7 @@ class TestContinuousMoE(GeneralTestCase):
             64,
         )
         layer = research.conditional.moe_layers.ffs.ContinuousMoE(
-            dm, dff, n_experts=4, chunk_size=4, sparsity_dim=0, temperature=1.0
+            dm, dff, n_experts=4, group_size=4, sparsity_dim=0, temperature=1.0
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
@@ -70,7 +70,7 @@ class TestContinuousMoE(GeneralTestCase):
             64,
         )
         layer = research.conditional.moe_layers.ffs.ContinuousMoE(
-            dm, dff, n_experts=4, chunk_size=4, sparsity_dim=1, temperature=1.0
+            dm, dff, n_experts=4, group_size=4, sparsity_dim=1, temperature=1.0
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
