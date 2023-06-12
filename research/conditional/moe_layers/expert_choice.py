@@ -92,7 +92,7 @@ class ExpertChoiceFF(LoggingLayer):
             ].reshape((self.n_experts, topk))
 
         # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
-        with measure_time(self, "flatten"):
+        with measure_time(self, "first_flatten"):
             x = x.flatten(start_dim=0, end_dim=1)
 
         # choose the right tokens from x for each expert
@@ -100,7 +100,9 @@ class ExpertChoiceFF(LoggingLayer):
             x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
                 (self.n_experts, topk, self.dmodel)
             )
-        x = x.reshape((self.n_experts, topk, self.dmodel))
+
+        with measure_time(self, "reshape"):
+            x = x.reshape((self.n_experts, topk, self.dmodel))
 
         # feed through ff
         with measure_time(self, "ff"):
@@ -127,7 +129,8 @@ class ExpertChoiceFF(LoggingLayer):
             x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
 
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
-        x = x.flatten(start_dim=0, end_dim=1)
+        with measure_time(self, "second_flatten"):
+            x = x.flatten(start_dim=0, end_dim=1)
 
         # add tokens that have been processed by more than one expert
         with measure_time(self, "add_tokens_many_experts"):
