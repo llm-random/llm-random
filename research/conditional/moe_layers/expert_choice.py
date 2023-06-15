@@ -1,16 +1,15 @@
+import plotly.express as px
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
-import plotly.express as px
 
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
-from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
-from lizrd.support.logging import make_histogram
+from research.conditional.utils.layer_manager import measure_time
 
 
 class ExpertChoiceFF(LoggingLayer):
@@ -128,7 +127,9 @@ class ExpertChoiceFF(LoggingLayer):
         # multiply by softmax
         with measure_time(self, "multiply_softmax"):
             ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
-            x = einsum("n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values)
+            x = einsum(
+                "n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values
+            )
 
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
         with measure_time(self, "second_flatten"):

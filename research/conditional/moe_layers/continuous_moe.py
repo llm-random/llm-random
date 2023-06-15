@@ -6,7 +6,7 @@ from plotly import express as px
 from lizrd.core import misc, nn
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
-from research.conditional.utils.layer_manager import LoggingLayer
+from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 
 
 def stable_softmax_temperature(x, temperature, dim=-1):
@@ -37,6 +37,33 @@ def set_highest_index_one(tensor: torch.Tensor) -> torch.Tensor:
     )
 
     return result_tensor
+
+
+class FeedForwardTimed(LoggingLayer):
+    def __init__(self, dmodel, dff):
+        super().__init__()
+        self.dmodel = dmodel
+        self.dff = dff
+        self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
+        self.relu = nn.ReLU(inplace=True)
+        self.logging_ff_post_relu = misc.Linear(dff, dmodel)
+
+    def forward(self, x):
+        with measure_time(self, "logging_ff_pre_relu"):
+            x = self.logging_ff_pre_relu(x)
+        with measure_time(self, "relu"):
+            x = self.relu(x)
+        with measure_time(self, "logging_ff_post_relu"):
+            x = self.logging_ff_post_relu(x)
+        return x
+
+    def log_heavy(self):
+        instr_names = list(self.cached_data["time"].keys())
+        instr_times = list(self.cached_data["time"].values())
+        times_fig = px.bar(x=instr_names, y=instr_times)
+        out = {"instruction_times_plot": times_fig}
+        out.update(self.cached_data["time"])
+        return out
 
 
 @ash.check("... dinp -> ... dout")
@@ -231,7 +258,7 @@ class ContinuousMoE(LoggingLayer):
 @ash.check("... dinp -> ... dout")
 class ContinuousMoEQuick(LoggingLayer):
     """
-    Continuous mixture of experts. Each expert attends to some subset of the input.
+    Continuous mixture of experts. Each expert attends to some subset of the input. The token merging and linear mapping operations are fused into 1 einsum, which is less memory intensive than the original implementation.
     """
 
     def __init__(
@@ -245,19 +272,6 @@ class ContinuousMoEQuick(LoggingLayer):
         expert_size,
         use_opt_einsum,
     ):
-        """
-        1. Groups tokens into groups of fixed size,
-        2. Each expert independently aggregates tokens within a group (aggregate means take a weighted combination, weights sum to 1) into a single token,
-        3. Each expert processes the token constructed above to output a token of size dmodel
-        4. The mapped token is then redistributed to the original tokens, with weights determined by the expert's weighting from step 2.
-
-        :param dm: usual dmodel
-        :param dff: usual dff, though it's never explicitly used alone: dff = n_experts * expert_size
-        :param n_experts: number of experts
-        :param group_size: number of tokens to aggregate into one "token mix"
-        :param sparsity_dim: dimension over which to aggregate: 0 for batch, 1 for sequence
-        :param temperature: temperature for softmax
-        """
         super().__init__()
         self.dm = dm
         self.dff = dff
@@ -275,51 +289,25 @@ class ContinuousMoEQuick(LoggingLayer):
         self.init_parameters()
 
     def forward(self, x):
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-        # assert shape: x is of shape (batch, seq_len, dmodel)
-        ash.assert_shape("B S d", x, d=self.dm)
-        # print(f"x shape before action: {x.shape}")
-
-        # 1. Groups tokens into groups of fixed size,
-
-        # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
-            # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
             x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
         elif self.sparsity_dim == 1:
-            # gather tokens from the same sequence (does not mix data from different examples within a batch)
             x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
-        # print(f"x shape after rearrange: {x.shape}")
 
-        # - mind that either batch or seqlen has been split into groups, so it's not the same sizes as in the input
-        ash.assert_shape("B S c d", x, d=self.dm, c=self.group_size)
-
-        # controller weights hold normalised weights for every group x expert pair
         controller_logits = misc.einsum(
             "B S c d, d e -> B S e c",
             x,
             self.controller,
             use_opt_einsum=self.use_opt_einsum,
         )
-        self.cache("controller_logits", controller_logits)
-
-        # print memory usage change
-        # print(f"1. post controller logits memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-
         ash.assert_shape(
             "B S e c", controller_logits, e=self.n_experts, c=self.group_size
         )
-        # apply softmax over "group_size" dimension
         controller_weights = stable_softmax_temperature(
             controller_logits, self.temperature
         )
-        self.cache("controller_weights", controller_weights)
-
-        taken_up_memory = torch.cuda.memory_allocated() / 1024**3
-        # print aggregate tokens according to controller weights and map them using each expert
         x = misc.einsum(
             "B S c d, B S e c, d e f -> B S e f",
             x,
@@ -327,13 +315,7 @@ class ContinuousMoEQuick(LoggingLayer):
             self.lin1,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"1. post big step1 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-
-        # relu
         mid_act = torch.relu_(x)
-
-        # map back to dmodel and redistribute to original tokens according to controller weights
         out = misc.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             mid_act,
@@ -341,11 +323,6 @@ class ContinuousMoEQuick(LoggingLayer):
             controller_weights,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"x shape after action: {out.shape}")
-        # print(f"1. post big step2 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-
-        # rearrange
         if self.sparsity_dim == 0:
             out = einops.rearrange(out, "B S c d -> (B c) S d")
         elif self.sparsity_dim == 1:
@@ -354,23 +331,19 @@ class ContinuousMoEQuick(LoggingLayer):
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
         ash.assert_shape("B S d", out, d=self.dm)
-        # print(f"x shape after re-rearrange: {x.shape}")
         return out
 
     def init_parameters(self):
-        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
             )
         )
-
         self.lin2 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
-        # controller: dmodel to n_experts
         self.controller = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
         )
@@ -415,7 +388,7 @@ class ContinuousMoEQuick(LoggingLayer):
 class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
     """
     Continuous mixture of experts. Each expert attends to some subset of the input.
-    Emits tokens with separate weight, instead of using the weights from the merging step.
+    Emits tokens with separate weights, instead of using the weights from the merging step.
     """
 
     def __init__(
@@ -429,19 +402,6 @@ class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
         expert_size,
         use_opt_einsum,
     ):
-        """
-        1. Groups tokens into groups of fixed size,
-        2. Each expert independently aggregates tokens within a group (aggregate means take a weighted combination, weights sum to 1) into a single token,
-        3. Each expert processes the token constructed above to output a token of size dmodel
-        4. The mapped token is then redistributed to the original tokens, with weights determined by the expert's weighting from step 2.
-
-        :param dm: usual dmodel
-        :param dff: usual dff, though it's never explicitly used alone: dff = n_experts * expert_size
-        :param n_experts: number of experts
-        :param group_size: number of tokens to aggregate into one "token mix"
-        :param sparsity_dim: dimension over which to aggregate: 0 for batch, 1 for sequence
-        :param temperature: temperature for softmax
-        """
         super().__init__()
         self.dm = dm
         self.dff = dff
@@ -459,21 +419,13 @@ class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
         self.init_parameters()
 
     def forward(self, x):
-        ash.assert_shape("B S d", x, d=self.dm)
-
-        # 1. Groups tokens into groups of fixed size,
-
-        # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
-            # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
             x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
         elif self.sparsity_dim == 1:
-            # gather tokens from the same sequence (does not mix data from different examples within a batch)
             x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        # controller weights hold normalised weights for every group x expert pair
         controller_logits_merge = misc.einsum(
             "B S c d, d e -> B S e c",
             x,
@@ -486,10 +438,7 @@ class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
             self.controller_emit,
             use_opt_einsum=self.use_opt_einsum,
         )
-        self.cache("controller_logits_merge", controller_logits_merge)
-        self.cache("controller_logits_emit", controller_logits_emit)
 
-        # apply softmax over "group_size" dimension
         controller_weights_merge = stable_softmax_temperature(
             controller_logits_merge, self.temperature
         )
@@ -497,10 +446,6 @@ class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
             controller_logits_emit, self.temperature
         )
 
-        self.cache("controller_weights", controller_weights_merge)
-        self.cache("controller_weights", controller_weights_emit)
-
-        # print aggregate tokens according to controller weights and map them using each expert
         x = misc.einsum(
             "B S c d, B S e c, d e f -> B S e f",
             x,
@@ -509,10 +454,8 @@ class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
             use_opt_einsum=self.use_opt_einsum,
         )
 
-        # relu
         mid_act = torch.relu_(x)
 
-        # map back to dmodel and redistribute to original tokens according to controller weights
         out = misc.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             mid_act,
@@ -521,7 +464,6 @@ class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
             use_opt_einsum=self.use_opt_einsum,
         )
 
-        # rearrange
         if self.sparsity_dim == 0:
             out = einops.rearrange(out, "B S c d -> (B c) S d")
         elif self.sparsity_dim == 1:
@@ -529,11 +471,9 @@ class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        ash.assert_shape("B S d", out, d=self.dm)
         return out
 
     def init_parameters(self):
-        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
@@ -544,7 +484,6 @@ class ContinuousMoEQuickMergeDifferentlySimple(LoggingLayer):
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
-        # controller: dmodel to n_experts
         self.controller_merge = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
         )
@@ -602,21 +541,13 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(LoggingLayer):
         self.init_parameters()
 
     def forward(self, x):
-        ash.assert_shape("B S d", x, d=self.dm)
-
-        # 1. Groups tokens into groups of fixed size,
-
-        # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
-            # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
             x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
         elif self.sparsity_dim == 1:
-            # gather tokens from the same sequence (does not mix data from different examples within a batch)
             x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        # controller weights hold normalised weights for every group x expert pair
         controller_logits_common = misc.einsum(
             "B S c d, d e -> B S e c",
             x,
@@ -635,10 +566,7 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(LoggingLayer):
             self.controller_emit,
             use_opt_einsum=self.use_opt_einsum,
         )
-        self.cache("controller_logits_merge", controller_logits_merge)
-        self.cache("controller_logits_emit", controller_logits_emit)
 
-        # apply softmax over "group_size" dimension
         controller_weights_merge = stable_softmax_temperature(
             controller_logits_merge + controller_logits_common, self.temperature
         )
@@ -646,10 +574,6 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(LoggingLayer):
             controller_logits_emit + controller_logits_common, self.temperature
         )
 
-        self.cache("controller_weights", controller_weights_merge)
-        self.cache("controller_weights", controller_weights_emit)
-
-        # print aggregate tokens according to controller weights and map them using each expert
         x = misc.einsum(
             "B S c d, B S e c, d e f -> B S e f",
             x,
@@ -658,10 +582,8 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(LoggingLayer):
             use_opt_einsum=self.use_opt_einsum,
         )
 
-        # relu
         mid_act = torch.relu_(x)
 
-        # map back to dmodel and redistribute to original tokens according to controller weights
         out = misc.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             mid_act,
@@ -670,7 +592,6 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(LoggingLayer):
             use_opt_einsum=self.use_opt_einsum,
         )
 
-        # rearrange
         if self.sparsity_dim == 0:
             out = einops.rearrange(out, "B S c d -> (B c) S d")
         elif self.sparsity_dim == 1:
@@ -678,11 +599,9 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(LoggingLayer):
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        ash.assert_shape("B S d", out, d=self.dm)
         return out
 
     def init_parameters(self):
-        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
@@ -693,7 +612,6 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(LoggingLayer):
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
-        # controller: dmodel to n_experts
         self.controller_common = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
         )
@@ -753,50 +671,24 @@ class ContinuousMoEQuickRawmerge(LoggingLayer):
         self.init_parameters()
 
     def forward(self, x):
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-        # assert shape: x is of shape (batch, seq_len, dmodel)
-        ash.assert_shape("B S d", x, d=self.dm)
-        # print(f"x shape before action: {x.shape}")
-
-        # 1. Groups tokens into groups of fixed size,
-
-        # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
-            # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
             x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
         elif self.sparsity_dim == 1:
-            # gather tokens from the same sequence (does not mix data from different examples within a batch)
             x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
-        # print(f"x shape after rearrange: {x.shape}")
 
-        # - mind that either batch or seqlen has been split into groups, so it's not the same sizes as in the input
-        ash.assert_shape("B S c d", x, d=self.dm, c=self.group_size)
-
-        # controller weights hold normalised weights for every group x expert pair
         controller_logits = misc.einsum(
             "B S c d, d e -> B S e c",
             x,
             self.controller,
             use_opt_einsum=self.use_opt_einsum,
         )
-        self.cache("controller_logits", controller_logits)
 
-        # print memory usage change
-        # print(f"1. post controller logits memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-
-        ash.assert_shape(
-            "B S e c", controller_logits, e=self.n_experts, c=self.group_size
-        )
-        # apply softmax over "group_size" dimension
         controller_weights = stable_softmax_temperature(
             controller_logits, self.temperature
         )
-        self.cache("controller_weights", controller_weights)
 
-        # print aggregate tokens according to controller weights and map them using each expert
         x = misc.einsum(
             "B S c d, B S e c, d e f -> B S e f",
             x,
@@ -804,13 +696,9 @@ class ContinuousMoEQuickRawmerge(LoggingLayer):
             self.lin1,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"1. post big step1 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
-        # relu
         mid_act = torch.relu_(x)
 
-        # map back to dmodel and redistribute to original tokens according to controller weights
         out = misc.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             mid_act,
@@ -818,11 +706,7 @@ class ContinuousMoEQuickRawmerge(LoggingLayer):
             controller_weights * 0 + 1,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"x shape after action: {out.shape}")
-        # print(f"1. post big step2 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
-        # rearrange
         if self.sparsity_dim == 0:
             out = einops.rearrange(out, "B S c d -> (B c) S d")
         elif self.sparsity_dim == 1:
@@ -830,12 +714,9 @@ class ContinuousMoEQuickRawmerge(LoggingLayer):
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        ash.assert_shape("B S d", out, d=self.dm)
-        # print(f"x shape after re-rearrange: {x.shape}")
         return out
 
     def init_parameters(self):
-        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
@@ -847,7 +728,6 @@ class ContinuousMoEQuickRawmerge(LoggingLayer):
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
-        # controller: dmodel to n_experts
         self.controller = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
         )
@@ -901,49 +781,23 @@ class ContinuousMoEQuickTopmerge(LoggingLayer):
         self.init_parameters()
 
     def forward(self, x):
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-        # assert shape: x is of shape (batch, seq_len, dmodel)
-        ash.assert_shape("B S d", x, d=self.dm)
-        # print(f"x shape before action: {x.shape}")
-
-        # 1. Groups tokens into groups of fixed size,
-
-        # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
-            # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
             x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
         elif self.sparsity_dim == 1:
-            # gather tokens from the same sequence (does not mix data from different examples within a batch)
             x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
-        # print(f"x shape after rearrange: {x.shape}")
 
-        # - mind that either batch or seqlen has been split into groups, so it's not the same sizes as in the input
-        ash.assert_shape("B S c d", x, d=self.dm, c=self.group_size)
-
-        # controller weights hold normalised weights for every group x expert pair
         controller_logits = misc.einsum(
             "B S c d, d e -> B S e c",
             x,
             self.controller,
             use_opt_einsum=self.use_opt_einsum,
         )
-        self.cache("controller_logits", controller_logits)
 
-        # print memory usage change
-        # print(f"1. post controller logits memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-
-        ash.assert_shape(
-            "B S e c", controller_logits, e=self.n_experts, c=self.group_size
-        )
-        # apply softmax over "group_size" dimension
         merge_weights = stable_softmax_temperature(controller_logits, self.temperature)
         emit_weights = set_highest_index_one(merge_weights).to(x.device)
-        self.cache("controller_weights", merge_weights)
 
-        # print aggregate tokens according to controller weights and map them using each expert
         x = misc.einsum(
             "B S c d, B S e c, d e f -> B S e f",
             x,
@@ -951,13 +805,9 @@ class ContinuousMoEQuickTopmerge(LoggingLayer):
             self.lin1,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"1. post big step1 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
-        # relu
         mid_act = torch.relu_(x)
 
-        # map back to dmodel and redistribute to original tokens according to controller weights
         out = misc.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             mid_act,
@@ -965,11 +815,7 @@ class ContinuousMoEQuickTopmerge(LoggingLayer):
             emit_weights,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"x shape after action: {out.shape}")
-        # print(f"1. post big step2 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
-        # rearrange
         if self.sparsity_dim == 0:
             out = einops.rearrange(out, "B S c d -> (B c) S d")
         elif self.sparsity_dim == 1:
@@ -977,12 +823,9 @@ class ContinuousMoEQuickTopmerge(LoggingLayer):
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        ash.assert_shape("B S d", out, d=self.dm)
-        # print(f"x shape after re-rearrange: {x.shape}")
         return out
 
     def init_parameters(self):
-        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
@@ -994,7 +837,6 @@ class ContinuousMoEQuickTopmerge(LoggingLayer):
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
-        # controller: dmodel to n_experts
         self.controller = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
         )
@@ -1048,28 +890,13 @@ class ContinuousMoEQuickNosoftmax(LoggingLayer):
         self.init_parameters()
 
     def forward(self, x):
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-        # assert shape: x is of shape (batch, seq_len, dmodel)
-        ash.assert_shape("B S d", x, d=self.dm)
-        # print(f"x shape before action: {x.shape}")
-
-        # 1. Groups tokens into groups of fixed size,
-
-        # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
-            # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
             x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
         elif self.sparsity_dim == 1:
-            # gather tokens from the same sequence (does not mix data from different examples within a batch)
             x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
-        # print(f"x shape after rearrange: {x.shape}")
 
-        # - mind that either batch or seqlen has been split into groups, so it's not the same sizes as in the input
-        ash.assert_shape("B S c d", x, d=self.dm, c=self.group_size)
-
-        # controller weights hold normalised weights for every group x expert pair
         merge_weights = misc.einsum(
             "B S c d, d e -> B S e c",
             x,
@@ -1083,13 +910,6 @@ class ContinuousMoEQuickNosoftmax(LoggingLayer):
             use_opt_einsum=self.use_opt_einsum,
         )
 
-        # print memory usage change
-        # print(f"1. post controller logits memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-
-        self.cache("controller_weights", merge_weights)
-
-        # print aggregate tokens according to controller weights and map them using each expert
         x = misc.einsum(
             "B S c d, B S e c, d e f -> B S e f",
             x,
@@ -1097,13 +917,9 @@ class ContinuousMoEQuickNosoftmax(LoggingLayer):
             self.lin1,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"1. post big step1 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
-        # relu
         mid_act = torch.relu_(x)
 
-        # map back to dmodel and redistribute to original tokens according to controller weights
         out = misc.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             mid_act,
@@ -1111,11 +927,7 @@ class ContinuousMoEQuickNosoftmax(LoggingLayer):
             emit_weights,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"x shape after action: {out.shape}")
-        # print(f"1. post big step2 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
-        # rearrange
         if self.sparsity_dim == 0:
             out = einops.rearrange(out, "B S c d -> (B c) S d")
         elif self.sparsity_dim == 1:
@@ -1123,12 +935,9 @@ class ContinuousMoEQuickNosoftmax(LoggingLayer):
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        ash.assert_shape("B S d", out, d=self.dm)
-        # print(f"x shape after re-rearrange: {x.shape}")
         return out
 
     def init_parameters(self):
-        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
@@ -1140,7 +949,6 @@ class ContinuousMoEQuickNosoftmax(LoggingLayer):
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
-        # controller: dmodel to n_experts
         self.controller_merge = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
         )
@@ -1197,51 +1005,24 @@ class ContinuousMoEQuickAdaTemp(LoggingLayer):
         self.init_parameters()
 
     def forward(self, x):
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-        # assert shape: x is of shape (batch, seq_len, dmodel)
-        ash.assert_shape("B S d", x, d=self.dm)
-        # print(f"x shape before action: {x.shape}")
-
-        # 1. Groups tokens into groups of fixed size,
-
-        # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
-            # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
             x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
         elif self.sparsity_dim == 1:
-            # gather tokens from the same sequence (does not mix data from different examples within a batch)
             x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
-        # print(f"x shape after rearrange: {x.shape}")
 
-        # - mind that either batch or seqlen has been split into groups, so it's not the same sizes as in the input
-        ash.assert_shape("B S c d", x, d=self.dm, c=self.group_size)
-
-        # controller weights hold normalised weights for every group x expert pair
         controller_logits = misc.einsum(
             "B S c d, d e -> B S e c",
             x,
             self.controller,
             use_opt_einsum=self.use_opt_einsum,
         )
-        self.cache("controller_logits", controller_logits)
 
-        # print memory usage change
-        # print(f"1. post controller logits memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
-
-        ash.assert_shape(
-            "B S e c", controller_logits, e=self.n_experts, c=self.group_size
-        )
-        # apply softmax over "group_size" dimension
         controller_weights = stable_softmax_temperature(
             controller_logits, self.learnable_temp
         )
-        self.cache("controller_weights", controller_weights)
 
-        taken_up_memory = torch.cuda.memory_allocated() / 1024**3
-        # print aggregate tokens according to controller weights and map them using each expert
         x = misc.einsum(
             "B S c d, B S e c, d e f -> B S e f",
             x,
@@ -1249,13 +1030,9 @@ class ContinuousMoEQuickAdaTemp(LoggingLayer):
             self.lin1,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"1. post big step1 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
-        # relu
         mid_act = torch.relu_(x)
 
-        # map back to dmodel and redistribute to original tokens according to controller weights
         out = misc.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             mid_act,
@@ -1263,11 +1040,7 @@ class ContinuousMoEQuickAdaTemp(LoggingLayer):
             controller_weights,
             use_opt_einsum=self.use_opt_einsum,
         )
-        # print(f"x shape after action: {out.shape}")
-        # print(f"1. post big step2 memory usage: {taken_up_memory} GB -> {torch.cuda.memory_allocated() / 1024 ** 3} GB")
-        # taken_up_memory = torch.cuda.memory_allocated() / 1024 ** 3
 
-        # rearrange
         if self.sparsity_dim == 0:
             out = einops.rearrange(out, "B S c d -> (B c) S d")
         elif self.sparsity_dim == 1:
@@ -1275,12 +1048,9 @@ class ContinuousMoEQuickAdaTemp(LoggingLayer):
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
 
-        ash.assert_shape("B S d", out, d=self.dm)
-        # print(f"x shape after re-rearrange: {x.shape}")
         return out
 
     def init_parameters(self):
-        # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
@@ -1292,44 +1062,8 @@ class ContinuousMoEQuickAdaTemp(LoggingLayer):
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
-        # controller: dmodel to n_experts
         self.controller = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
         )
 
         self.learnable_temp = nn.Parameter(torch.ones(1))
-
-    def log_light(self):
-        return {}
-
-    def log_heavy(self):
-        log = {}
-        controller_weights = torch.flatten(
-            self.cached_data["controller_weights"], start_dim=0, end_dim=-2
-        )
-        controller_logits = torch.flatten(
-            self.cached_data["controller_logits"], start_dim=0, end_dim=-2
-        )
-        sample_weight_distros = controller_weights[:5]
-        sample_logits_distros = controller_logits[:5]
-
-        for i, sample in enumerate(sample_weight_distros):
-            sample = sample.sort(descending=True).values
-            sample = sample.tolist()
-            fig = px.bar(x=range(len(sample)), y=sample, title=f"sample {i}")
-            log[f"controller_weights/sample_{i}"] = fig
-
-        for i, sample in enumerate(sample_logits_distros):
-            sample = sample.sort(descending=True).values
-            sample = sample.tolist()
-            fig = px.bar(x=range(len(sample)), y=sample, title=f"sample {i}")
-            log[f"controller_logits/sample_{i}"] = fig
-
-        ent = entropy(controller_weights)
-        max_entropy = np.log(self.n_experts)
-        normalised_ent = ent / max_entropy
-        log["controller_weights/normalised_entropy"] = make_histogram(
-            normalised_ent, title="controller weights entropy (normalised to [0,1])"
-        )
-
-        return log
