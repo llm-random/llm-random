@@ -4,15 +4,17 @@ import torch
 import torch.nn.functional as F
 
 from lizrd.core import llm
-from research.conditional.moe_layers.continuous_moe import (
-    ContinuousMoE,
-    ContinuousMoEQuick,
+from research.conditional.archive.continuous_moe_alternatives import (
     ContinuousMoEQuickMergeDifferentlySimple,
     ContinuousMoEQuickMergeDifferentlyCommonBase,
     ContinuousMoEQuickRawmerge,
     ContinuousMoEQuickTopmerge,
     ContinuousMoEQuickNosoftmax,
     ContinuousMoEQuickAdaTemp,
+)
+from research.conditional.moe_layers.continuous_moe import (
+    ContinuousMoE,
+    ContinuousMoEQuick,
     FeedForwardTimed,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF

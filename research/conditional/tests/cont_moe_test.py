@@ -1,5 +1,6 @@
 import torch
 
+import research.conditional.archive.continuous_moe_alternatives
 import research.conditional.moe_layers.continuous_moe
 import research.conditional.moe_layers.ffs
 from lizrd.support.test_utils import GeneralTestCase
@@ -132,7 +133,7 @@ class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
             32,
             64,
         )
-        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickMergeDifferentlySimple(
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlySimple(
             dm,
             dff,
             n_experts=4,
@@ -160,7 +161,7 @@ class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
             32,
             64,
         )
-        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickMergeDifferentlySimple(
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlySimple(
             dm,
             dff,
             n_experts=4,
@@ -190,7 +191,7 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
             32,
             64,
         )
-        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickMergeDifferentlyCommonBase(
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlyCommonBase(
             dm,
             dff,
             n_experts=4,
@@ -218,7 +219,7 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
             32,
             64,
         )
-        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickMergeDifferentlyCommonBase(
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlyCommonBase(
             dm,
             dff,
             n_experts=4,
@@ -248,17 +249,15 @@ class ContinuousMoEQuickRawmerge(GeneralTestCase):
             32,
             64,
         )
-        layer = (
-            research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickRawmerge(
-                dm,
-                dff,
-                n_experts=4,
-                group_size=4,
-                sparsity_dim=0,
-                temperature=1.0,
-                expert_size=8,
-                use_opt_einsum=True,
-            )
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickRawmerge(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=0,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
@@ -278,17 +277,15 @@ class ContinuousMoEQuickRawmerge(GeneralTestCase):
             32,
             64,
         )
-        layer = (
-            research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickRawmerge(
-                dm,
-                dff,
-                n_experts=4,
-                group_size=4,
-                sparsity_dim=1,
-                temperature=1.0,
-                expert_size=8,
-                use_opt_einsum=True,
-            )
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickRawmerge(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=1,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
@@ -310,17 +307,15 @@ class ContinuousMoEQuickTopmerge(GeneralTestCase):
             32,
             64,
         )
-        layer = (
-            research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickTopmerge(
-                dm,
-                dff,
-                n_experts=4,
-                group_size=4,
-                sparsity_dim=0,
-                temperature=1.0,
-                expert_size=8,
-                use_opt_einsum=True,
-            )
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickTopmerge(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=0,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
@@ -340,17 +335,15 @@ class ContinuousMoEQuickTopmerge(GeneralTestCase):
             32,
             64,
         )
-        layer = (
-            research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickTopmerge(
-                dm,
-                dff,
-                n_experts=4,
-                group_size=4,
-                sparsity_dim=1,
-                temperature=1.0,
-                expert_size=8,
-                use_opt_einsum=True,
-            )
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickTopmerge(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=1,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
@@ -372,17 +365,15 @@ class ContinuousMoEQuickNosoftmax(GeneralTestCase):
             32,
             64,
         )
-        layer = (
-            research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickNosoftmax(
-                dm,
-                dff,
-                n_experts=4,
-                group_size=4,
-                sparsity_dim=0,
-                temperature=1.0,
-                expert_size=8,
-                use_opt_einsum=True,
-            )
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickNosoftmax(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=0,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
@@ -402,17 +393,15 @@ class ContinuousMoEQuickNosoftmax(GeneralTestCase):
             32,
             64,
         )
-        layer = (
-            research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickNosoftmax(
-                dm,
-                dff,
-                n_experts=4,
-                group_size=4,
-                sparsity_dim=1,
-                temperature=1.0,
-                expert_size=8,
-                use_opt_einsum=True,
-            )
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickNosoftmax(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=1,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
@@ -434,17 +423,15 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             32,
             64,
         )
-        layer = (
-            research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickAdaTemp(
-                dm,
-                dff,
-                n_experts=4,
-                group_size=4,
-                sparsity_dim=0,
-                temperature=1.0,
-                expert_size=8,
-                use_opt_einsum=True,
-            )
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickAdaTemp(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=0,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
@@ -464,17 +451,15 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             32,
             64,
         )
-        layer = (
-            research.conditional.moe_layers.continuous_moe.ContinuousMoEQuickAdaTemp(
-                dm,
-                dff,
-                n_experts=4,
-                group_size=4,
-                sparsity_dim=1,
-                temperature=1.0,
-                expert_size=8,
-                use_opt_einsum=True,
-            )
+        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickAdaTemp(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=1,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
