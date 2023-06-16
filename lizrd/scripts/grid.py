@@ -65,6 +65,9 @@ if __name__ == "__main__":
         PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
         NODELIST = grid_args.get("nodelist", NODELIST)
 
+    if SINGULARITY_IMAGE is None:
+        raise ValueError("Singularity image is not specified")
+
     grid = create_grid(PARAMS)
     grid = multiply_grid(grid, RUNS_MULTIPLIER)
     no_experiments = len(grid)
