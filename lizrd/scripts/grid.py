@@ -50,7 +50,7 @@ PUSH_TO_GIT = False
 if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
-    NODELIST = ""
+    NODELIST = None
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
