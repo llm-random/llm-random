@@ -2,6 +2,7 @@ import random
 
 import numpy as np
 import torch
+from torch.utils.data.distributed import DistributedSampler
 from abc import ABC
 from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
@@ -346,6 +347,7 @@ class ProcessedDatasetWrapper:
         num_workers: int = 8,
         seed: int = 42,
         model_type: str = "bert",
+        distributed: bool = False,
     ):
         self.pdataset = pdataset
         self.device = device
@@ -361,6 +363,8 @@ class ProcessedDatasetWrapper:
                 f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
             )
 
+        sampler = DistributedSampler(pdataset, shuffle=False) if distributed else None
+
         self.dataloader = iter(
             DataLoader(
                 ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed),
@@ -368,6 +372,7 @@ class ProcessedDatasetWrapper:
                 batch_size=batch_size,
                 collate_fn=collate_fn,
                 shuffle=False,  # WikiBookDataset already shuffles
+                sampler=sampler,
             )
         )
 

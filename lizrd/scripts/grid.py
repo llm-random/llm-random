@@ -51,6 +51,7 @@ if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
     NODELIST = None
+    N_GPUS = None
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -64,6 +65,7 @@ if __name__ == "__main__":
         INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
         PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
         NODELIST = grid_args.get("nodelist", NODELIST)
+        N_GPUS = grid_args.get("n_gpus", N_GPUS)
 
     if SINGULARITY_IMAGE is None:
         print(
@@ -111,6 +113,8 @@ if __name__ == "__main__":
     for i, param_set in enumerate(grid):
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
+        if N_GPUS is not None:
+            param_set["n_gpus"] = N_GPUS
 
         runner_params = []
         for k_packed, v_packed in param_set.items():
@@ -150,6 +154,7 @@ if __name__ == "__main__":
                 )
             subprocess_args = [
                 slurm_command,
+                f"--gpus={N_GPUS}",
                 "--partition=plgrid-gpu-a100",
                 "-G1",
                 "--cpus-per-gpu=8",
@@ -173,6 +178,7 @@ if __name__ == "__main__":
         elif runner == MachineBackend.IDEAS:
             subprocess_args = [
                 slurm_command,
+                f"--gpus={N_GPUS}",
                 "-G1",
                 "--cpus-per-gpu=8",
                 f"--job-name={name}",

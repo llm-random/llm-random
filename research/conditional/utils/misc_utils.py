@@ -44,6 +44,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--granularity_expert_config", action="store_true")
     parser.add_argument("--total_experts_width", type=int, required=False)
     parser.add_argument("--effective_dff", type=int, required=False)
+    parser.add_argument("--n_gpus", type=int, default=1)
 
     # experimental/legacy parameters
 

@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 from attr import define
 from torch.utils.tensorboard import SummaryWriter
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same
@@ -56,6 +57,7 @@ def get_processed_dataset(
     num_workers: int,
     seed: int,
     model_type: str = "bert",
+    distributed: bool = False,
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset()
 
@@ -77,6 +79,7 @@ def get_processed_dataset(
         num_workers=num_workers,
         seed=seed,
         model_type=model_type,
+        distributed=distributed,
     )
 
 
