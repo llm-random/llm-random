@@ -142,10 +142,11 @@ if __name__ == "__main__":
             ]
         elif runner == MachineBackend.ATHENA:
             datasets_cache = os.getenv("HF_DATASETS_CACHE")
+            # raise error is HF_DATASETS_CACHE is not set
+            # it is needed to avoid exceeding disk quota
             if datasets_cache is None:
                 raise ValueError(
-                    """HF_DATASETS_CACHE environment variable is not set.
-                    It is required for running on Athena, otherwise disk quota will be exceeded."""
+                    "HF_DATASETS_CACHE needs to be set on Atena"
                 )
             subprocess_args = [
                 slurm_command,
