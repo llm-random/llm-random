@@ -91,7 +91,7 @@ if __name__ == "__main__":
         if not INTERACTIVE_DEBUG:
             user_input = input(
                 f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
             )
         else:
             user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")

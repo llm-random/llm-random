@@ -87,8 +87,8 @@ def main(rank: Optional[int]):
     if rank is not None:
         destroy_process_group()
 
-
-if args.n_gpus == 1:
-    main(None)
-else:
-    mp.spawn(main, nprocs=args.n_gpus)
+if __name__ == "__main__":
+    if args.n_gpus == 1:
+        main(None)
+    else:
+        mp.spawn(main, nprocs=args.n_gpus)
