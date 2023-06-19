@@ -141,6 +141,12 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
+            datasets_cache = os.getenv("HF_DATASETS_CACHE")
+            if datasets_cache is None:
+                raise ValueError(
+                    """HF_DATASETS_CACHE environment variable is not set.
+                    It is required for running on Athena, otherwise disk quota will be exceeded."""
+                )
             subprocess_args = [
                 slurm_command,
                 "--partition=plgrid-gpu-a100",
@@ -154,6 +160,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 "--bind=/net:/net",
+                f"--env HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
