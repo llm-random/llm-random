@@ -51,7 +51,8 @@ if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
     NODELIST = None
-    N_GPUS = None
+    N_GPUS = 1
+    CPUS_PER_GPU = 8
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -66,6 +67,7 @@ if __name__ == "__main__":
         PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
         NODELIST = grid_args.get("nodelist", NODELIST)
         N_GPUS = grid_args.get("n_gpus", N_GPUS)
+        CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
 
     if SINGULARITY_IMAGE is None:
         print(
@@ -113,7 +115,7 @@ if __name__ == "__main__":
     for i, param_set in enumerate(grid):
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
-        if N_GPUS is not None:
+        if N_GPUS > 1:
             param_set["n_gpus"] = N_GPUS
 
         runner_params = []
@@ -156,8 +158,7 @@ if __name__ == "__main__":
                 slurm_command,
                 f"--gpus={N_GPUS}",
                 "--partition=plgrid-gpu-a100",
-                "-G1",
-                "--cpus-per-gpu=8",
+                f"--cpus-per-gpu={CPUS_PER_GPU}",
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--time={TIME}",
@@ -179,8 +180,7 @@ if __name__ == "__main__":
             subprocess_args = [
                 slurm_command,
                 f"--gpus={N_GPUS}",
-                "-G1",
-                "--cpus-per-gpu=8",
+                f"--cpus-per-gpu={CPUS_PER_GPU}",
                 f"--job-name={name}",
                 f"--time={TIME}",
                 "--mem=32G",
