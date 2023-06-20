@@ -23,7 +23,7 @@ introduce_parser_arguments(parser)
 args = parser.parse_args()
 
 
-def main(rank: Optional[int], data_seeds: Optional[list[int]]):
+def main(rank: Optional[int], data_seeds: Optional[list[int]] = None):
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = "12355"
