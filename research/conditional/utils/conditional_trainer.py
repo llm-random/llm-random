@@ -108,4 +108,7 @@ class ConditionalTrainer:
             processed_batch, self.model, self.mixed_precision, self.vocab_size
         )
         self._optimize(loss)
-        self.logger.report_scalar(title="max batch size", value=step, iteration=step)
+        if self.logger is not None:
+            self.logger.report_scalar(
+                title="max batch size", value=step, iteration=step
+            )
