@@ -6,6 +6,7 @@ from attr import define
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
+from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.model_utils import (
     calculate_gpt_loss,
@@ -31,7 +32,7 @@ class ConditionalTrainer:
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
-    hack_for_batch_size: bool = False
+    hack_name: str = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -48,9 +49,9 @@ class ConditionalTrainer:
         )
 
     def train(self, n_steps: int):
-        for step in range(n_steps):
-            if self.hack_for_batch_size:
-                self._hack_for_batch_size(step)
+        for step in range(n_steps + 1):
+            if self.hack_name is not None:
+                self._hack(self.hack_name, step)
             else:
                 self._train_step(step)
             if step % 1000 == 0:
@@ -89,6 +90,14 @@ class ConditionalTrainer:
             )
             self.loss_accumulator = 0.0
 
+    def _hack(self, hack_name, step):
+        if hack_name == "batch_size":
+            self._hack_for_batch_size(step)
+        elif hack_name == "expert_size":
+            self._hack_for_contmoe_expert_size(step)
+        else:
+            raise ValueError(f"Unknown hack {hack_name}")
+
     def _hack_for_batch_size(
         self,
         step,
@@ -107,3 +116,29 @@ class ConditionalTrainer:
         )
         self._optimize(loss)
         self.logger.report_scalar(title="max batch size", value=step, iteration=step)
+
+    def _hack_for_contmoe_expert_size(
+        self,
+        step,
+    ):
+        """
+        This is a hack to easily determine the maximal batch size that can be used with given GPU memory and model size.
+        """
+        assert all(
+            [
+                isinstance(layer, ContinuousMoE)
+                for name, layer in self.layer_manager._layers
+            ]
+        )
+        self.model.train()
+        processed_batch = self.train_dataloader.get_batch()
+        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        for block_name, layer in self.layer_manager._layers:
+            layer.expertsize = step + 1
+            layer.init_parameters()
+            layer.to(torch.device("cuda"))
+        loss = self._calculate_loss(
+            processed_batch, self.model, self.mixed_precision, self.vocab_size
+        )
+        self._optimize(loss)
+        self.logger.report_scalar(title="max expert size", value=step, iteration=step)
