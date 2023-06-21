@@ -50,7 +50,7 @@ PUSH_TO_GIT = False
 if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
-    NODELIST = ""
+    NODELIST = None
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -145,6 +145,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 "--bind=/net:/net",
+                "--env HF_DATASETS_CACHE=/net/pr2/projects/plgrid/plggllmeffi/.cache2",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
@@ -185,6 +186,9 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown runner: {runner}")
 
         if not DRY_RUN:
+            print(
+                f"running experiment with sbtach command: {[str(s) for s in subprocess_args if s is not None]}"
+            )
             subprocess.run(
                 [str(s) for s in subprocess_args if s is not None],
             )

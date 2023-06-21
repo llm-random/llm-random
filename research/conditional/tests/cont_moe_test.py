@@ -432,6 +432,8 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             temperature=1.0,
             expert_size=8,
             use_opt_einsum=True,
+            share_by_experts=True,
+            share_by_emit_merge=True,
         )
         input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
         output = layer(input)
