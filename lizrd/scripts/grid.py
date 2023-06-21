@@ -115,8 +115,7 @@ if __name__ == "__main__":
     for i, param_set in enumerate(grid):
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
-        if N_GPUS > 1:
-            param_set["n_gpus"] = N_GPUS
+        param_set["n_gpus"] = N_GPUS
 
         runner_params = []
         for k_packed, v_packed in param_set.items():

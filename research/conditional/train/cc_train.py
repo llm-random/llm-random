@@ -80,6 +80,7 @@ def main(rank: Optional[int], data_seeds: Optional[list[int]] = None):
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
+        n_gpus=args.n_gpus,
     )
     trainer.train(args.n_steps)
 

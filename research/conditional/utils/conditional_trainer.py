@@ -32,6 +32,7 @@ class ConditionalTrainer:
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
     hack_for_batch_size: bool = False
+    n_gpus: int = 1
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -110,5 +111,5 @@ class ConditionalTrainer:
         self._optimize(loss)
         if self.logger is not None:
             self.logger.report_scalar(
-                title="max batch size", value=step, iteration=step
+                title="max batch size", value=step * self.n_gpus, iteration=step
             )
