@@ -193,6 +193,8 @@ def get_ff_layer(args):
             args.temperature,
             args.expert_size,
             args.use_opt_einsum,
+            args.share_by_experts,
+            args.share_by_emit_merge,
         )
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(

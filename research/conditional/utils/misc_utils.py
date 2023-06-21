@@ -45,6 +45,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--total_experts_width", type=int, required=False)
     parser.add_argument("--effective_dff", type=int, required=False)
     parser.add_argument("--use_opt_einsum", action="store_true")
+    parser.add_argument("--share_by_experts", action="store_true")
+    parser.add_argument("--share_by_emit_merge", action="store_true")
 
     # experimental/legacy parameters
 
