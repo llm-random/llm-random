@@ -65,7 +65,7 @@ class LayerManager:
 
 class LoggingLayer(nn.Module):
     def __init__(self):
-        super(LoggingLayer, self).__init__()
+        super().__init__()
         self.logging_switch = False
         self.cached_data = {}
 

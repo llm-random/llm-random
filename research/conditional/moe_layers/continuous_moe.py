@@ -1,9 +1,9 @@
+import dataclasses
 from typing import Union
 
 import einops
 import numpy as np
 import torch
-from attr import define
 from plotly import express as px
 
 from lizrd.core import misc, nn
@@ -56,7 +56,7 @@ class FeedForwardTimed(LoggingLayer):
         return out
 
 
-@define(slots=False)
+@dataclasses.dataclass(eq=False, repr=False)
 class ContinuousMoeBaseClass(LoggingLayer):
     """
     1. Groups tokens into groups of fixed size,
@@ -74,7 +74,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
     expert_size: Union[int, None]
     use_opt_einsum: bool = False
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         super().__init__()
         if self.expert_size is None:
             assert (

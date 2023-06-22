@@ -18,12 +18,14 @@ from lizrd.support.test_utils import GeneralTestCase
 )
 
 
-def test_basic(self, layer):
+def shape_and_parameters(layer):
+    for _ in layer.parameters():
+        pass
     input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
     output = layer(input)
     loss = output.sum()
     loss.backward()
-    self.assertShape(output, (batch, seq_len, dm))
+    assert output.shape == (batch, seq_len, dm)
 
 
 class TestContinuousMoE(GeneralTestCase):
@@ -37,7 +39,7 @@ class TestContinuousMoE(GeneralTestCase):
             temperature=1.0,
             expert_size=8,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
     def test_dim1(self):
         layer = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
@@ -49,7 +51,7 @@ class TestContinuousMoE(GeneralTestCase):
             temperature=1.0,
             expert_size=8,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
 
 class TestContinuousMoEQuick(GeneralTestCase):
@@ -64,7 +66,7 @@ class TestContinuousMoEQuick(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
     def test_dim1(self):
         layer = research.conditional.moe_layers.continuous_moe.ContinuousMoEQuick(
@@ -77,7 +79,7 @@ class TestContinuousMoEQuick(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
 
 class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
@@ -92,7 +94,7 @@ class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
     def test_dim1(self):
         layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlySimple(
@@ -105,7 +107,7 @@ class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
 
 class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
@@ -120,7 +122,7 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
     def test_dim1(self):
         layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlyCommonBase(
@@ -133,7 +135,7 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
 
 class ContinuousMoEQuickRawmerge(GeneralTestCase):
@@ -148,7 +150,7 @@ class ContinuousMoEQuickRawmerge(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
     def test_dim1(self):
         layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickRawmerge(
@@ -161,7 +163,7 @@ class ContinuousMoEQuickRawmerge(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
 
 class ContinuousMoEQuickTopmerge(GeneralTestCase):
@@ -176,7 +178,7 @@ class ContinuousMoEQuickTopmerge(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
     def test_dim1(self):
         layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickTopmerge(
@@ -189,7 +191,7 @@ class ContinuousMoEQuickTopmerge(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
 
 class ContinuousMoEQuickNosoftmax(GeneralTestCase):
@@ -204,7 +206,7 @@ class ContinuousMoEQuickNosoftmax(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
     def test_dim1(self):
         layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickNosoftmax(
@@ -217,7 +219,7 @@ class ContinuousMoEQuickNosoftmax(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
 
 class ContinuousMoEQuickAdaTemp(GeneralTestCase):
@@ -234,7 +236,7 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             share_by_experts=True,
             share_by_emit_merge=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)
 
     def test_dim1(self):
         layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickAdaTemp(
@@ -247,4 +249,4 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             expert_size=8,
             use_opt_einsum=True,
         )
-        test_basic(self, layer)
+        shape_and_parameters(layer)

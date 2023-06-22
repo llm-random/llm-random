@@ -1,5 +1,6 @@
+import dataclasses
+
 import torch
-from attr import define
 
 from lizrd.core import misc, nn
 from lizrd.support import ash
@@ -10,7 +11,6 @@ from research.conditional.moe_layers.continuous_moe import (
 )
 
 
-@ash.check("... dinp -> ... dout")
 class ContinuousMoEQuickMergeDifferentlySimple(ContinuousMoeBaseClass):
     """
     Emits tokens with separate weights, instead of using the weights from the merging step.
@@ -46,7 +46,6 @@ class ContinuousMoEQuickMergeDifferentlySimple(ContinuousMoeBaseClass):
         return merge_weights, emit_weights
 
 
-@ash.check("... dinp -> ... dout")
 class ContinuousMoEQuickMergeDifferentlyCommonBase(ContinuousMoeBaseClass):
     """
     Both the merge and emit logits are computed as base + merge/emit. The init variance is set so the sum of base + merge/emit is as usual
@@ -89,7 +88,6 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(ContinuousMoeBaseClass):
         )
 
 
-@ash.check("... dinp -> ... dout")
 class ContinuousMoEQuickRawmerge(ContinuousMoeBaseClass):
     """
     The rawmerge means that the emitting step is done with weights = 1
@@ -136,7 +134,7 @@ class ContinuousMoEQuickNosoftmax(ContinuousMoeBaseClass):
         return {}
 
 
-@define
+@dataclasses.dataclass(eq=False, repr=False)
 class ContinuousMoEQuickAdaTemp(ContinuousMoeBaseClass):
     """
     learnable temperature,
