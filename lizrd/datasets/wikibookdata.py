@@ -364,8 +364,7 @@ class ProcessedDatasetWrapper:
 
         pdataset = ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed)
 
-        # we are getting an error when using multiple workers with multiple gpus
-        # TODO: check and fix this
+        # using multiple workers is not compatible with DDP in the current setting
         if distributed and num_workers > 0:
             raise NotImplementedError(
                 "Multiple workers are currently not supported when using multiple gpus."
