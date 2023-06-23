@@ -87,7 +87,6 @@ def main(rank: Optional[int], data_seeds: Optional[list[int]] = None):
     if rank is not None:
         destroy_process_group()
 
-
 if __name__ == "__main__":
     misc.print_available_gpus()
     if args.n_gpus == 1:

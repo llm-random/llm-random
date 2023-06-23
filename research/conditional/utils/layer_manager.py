@@ -1,6 +1,6 @@
 import re
-from contextlib import contextmanager
 import time
+from contextlib import contextmanager
 
 import torch
 
@@ -65,7 +65,7 @@ class LayerManager:
 
 class LoggingLayer(nn.Module):
     def __init__(self):
-        super(LoggingLayer, self).__init__()
+        super().__init__()
         self.logging_switch = False
         self.cached_data = {}
 
@@ -100,10 +100,10 @@ class LoggingLayer(nn.Module):
             raise Exception("Invalid verbosity level")
 
     def log_light(self):
-        return []
+        return {}
 
     def log_heavy(self):
-        return []
+        return {}
 
 
 @contextmanager

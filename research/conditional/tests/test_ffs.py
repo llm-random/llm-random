@@ -37,46 +37,6 @@ class FactoredDenseTest(GeneralTestCase):
         self.assertShape(output, (batch, seql, dout))
 
 
-class TestContinuousMoE(GeneralTestCase):
-    def test_basic(self):
-        (
-            batch,
-            seq_len,
-            dm,
-            dff,
-        ) = (
-            4,
-            10,
-            32,
-            64,
-        )
-        layer = research.conditional.moe_layers.ffs.ContinuousMoE(
-            dm, dff, n_experts=4, group_size=4, sparsity_dim=0, temperature=1.0
-        )
-        input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
-        output = layer(input)
-        self.assertShape(output, (batch, seq_len, dm))
-
-    def test_dim1(self):
-        (
-            batch,
-            seq_len,
-            dm,
-            dff,
-        ) = (
-            5,
-            12,
-            32,
-            64,
-        )
-        layer = research.conditional.moe_layers.ffs.ContinuousMoE(
-            dm, dff, n_experts=4, group_size=4, sparsity_dim=1, temperature=1.0
-        )
-        input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
-        output = layer(input)
-        self.assertShape(output, (batch, seq_len, dm))
-
-
 class TestGeneralizedReLU(GeneralTestCase):
     def test_basic(self):
         batch, dinp = 4, 32

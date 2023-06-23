@@ -1,10 +1,20 @@
-from warnings import warn
-
 import torch
 import torch.nn.functional as F
 
 from lizrd.core import llm
-from research.conditional.moe_layers.ffs import ContinuousMoE
+from research.conditional.archive.continuous_moe_alternatives import (
+    ContinuousMoEQuickMergeDifferentlySimple,
+    ContinuousMoEQuickMergeDifferentlyCommonBase,
+    ContinuousMoEQuickRawmerge,
+    ContinuousMoEQuickTopmerge,
+    ContinuousMoEQuickNosoftmax,
+    ContinuousMoEQuickAdaTemp,
+)
+from research.conditional.moe_layers.continuous_moe import (
+    ContinuousMoE,
+    ContinuousMoEQuick,
+    FeedForwardTimed,
+)
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 
 
@@ -78,7 +88,7 @@ def get_expert_choice_args(args):
         experts_per_token = args.effective_dff / expert_size
 
         topk_fraction = experts_per_token / args.n_experts
-        assert 0. <= topk_fraction <= 1.
+        assert 0.0 <= topk_fraction <= 1.0
     else:
         expert_size = args.expert_size
         topk_fraction = args.topk_fraction
@@ -95,6 +105,8 @@ def get_expert_choice_args(args):
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
+    elif args.ff_mode == "vanilla_timed":
+        return_fn = lambda: FeedForwardTimed(args.dmodel, args.dff)
     elif args.ff_mode == "cont_moe":
         return_fn = lambda: ContinuousMoE(
             args.dmodel,
@@ -103,6 +115,86 @@ def get_ff_layer(args):
             args.group_size,
             args.sparsity_dim,
             args.temperature,
+            args.expert_size,
+        )
+    elif args.ff_mode == "cont_moe_quick":
+        return_fn = lambda: ContinuousMoEQuick(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+            args.expert_size,
+            args.use_opt_einsum,
+        )
+    elif args.ff_mode == "cont_moe_quick_merge_diff_simple":
+        return_fn = lambda: ContinuousMoEQuickMergeDifferentlySimple(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+            args.expert_size,
+            args.use_opt_einsum,
+        )
+    elif args.ff_mode == "cont_moe_quick_merge_diff_comm_base":
+        return_fn = lambda: ContinuousMoEQuickMergeDifferentlyCommonBase(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+            args.expert_size,
+            args.use_opt_einsum,
+        )
+    elif args.ff_mode == "cont_moe_quick_rawmerge":
+        return_fn = lambda: ContinuousMoEQuickRawmerge(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+            args.expert_size,
+            args.use_opt_einsum,
+        )
+    elif args.ff_mode == "cont_moe_quick_topmerge":
+        return_fn = lambda: ContinuousMoEQuickTopmerge(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+            args.expert_size,
+            args.use_opt_einsum,
+        )
+    elif args.ff_mode == "cont_moe_quick_nosoft":
+        return_fn = lambda: ContinuousMoEQuickNosoftmax(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+            args.expert_size,
+            args.use_opt_einsum,
+        )
+    elif args.ff_mode == "cont_moe_quick_adatemp":
+        return_fn = lambda: ContinuousMoEQuickAdaTemp(
+            args.dmodel,
+            args.dff,
+            args.n_experts,
+            args.group_size,
+            args.sparsity_dim,
+            args.temperature,
+            args.expert_size,
+            args.use_opt_einsum,
+            args.share_by_experts,
+            args.share_by_emit_merge,
         )
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(
