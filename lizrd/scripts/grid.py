@@ -51,6 +51,8 @@ if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
     NODELIST = None
+    N_GPUS = 1
+    CPUS_PER_GPU = 8
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -64,9 +66,20 @@ if __name__ == "__main__":
         INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
         PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
         NODELIST = grid_args.get("nodelist", NODELIST)
+        N_GPUS = grid_args.get("n_gpus", N_GPUS)
+        CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
 
     if SINGULARITY_IMAGE is None:
-        raise ValueError("Singularity image is not specified")
+        print(
+            "Getting SINGULARITY_IMAGE from environment variable SINGULARITY_IMAGE..."
+        )
+        SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE")
+
+    if SINGULARITY_IMAGE is None:
+        raise ValueError("Singularity image is not specified (in JSON or env variable)")
+
+    if NODELIST is not None:
+        NODELIST = "--nodelist=" + NODELIST
 
     grid = create_grid(PARAMS)
     grid = multiply_grid(grid, RUNS_MULTIPLIER)
@@ -83,7 +96,7 @@ if __name__ == "__main__":
         if not INTERACTIVE_DEBUG:
             user_input = input(
                 f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
+                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
             )
         else:
             user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
@@ -105,6 +118,7 @@ if __name__ == "__main__":
     for i, param_set in enumerate(grid):
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
+        param_set["n_gpus"] = N_GPUS
 
         runner_params = []
         for k_packed, v_packed in param_set.items():
@@ -135,11 +149,18 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
+            datasets_cache = os.getenv("HF_DATASETS_CACHE")
+            # raise error is HF_DATASETS_CACHE is not set
+            # it is needed to avoid exceeding disk quota
+            if datasets_cache is None:
+                raise ValueError(
+                    "HF_DATASETS_CACHE needs to be set on Atena"
+                )
             subprocess_args = [
                 slurm_command,
+                f"--gpus={N_GPUS}",
                 "--partition=plgrid-gpu-a100",
-                "-G1",
-                "--cpus-per-gpu=8",
+                f"--cpus-per-gpu={CPUS_PER_GPU}",
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--time={TIME}",
@@ -148,7 +169,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 "--bind=/net:/net",
-                "--env HF_DATASETS_CACHE=/net/pr2/projects/plgrid/plggllmeffi/.cache2",
+                f"--env HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
@@ -160,8 +181,8 @@ if __name__ == "__main__":
         elif runner == MachineBackend.IDEAS:
             subprocess_args = [
                 slurm_command,
-                "-G1",
-                "--cpus-per-gpu=8",
+                f"--gpus={N_GPUS}",
+                f"--cpus-per-gpu={CPUS_PER_GPU}",
                 f"--job-name={name}",
                 f"--time={TIME}",
                 "--mem=32G",

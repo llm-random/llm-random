@@ -22,7 +22,7 @@ class ConditionalTrainer:
     batch_size: int
     vocab_size: int
     mixed_precision: bool
-    logger: AbstractLogger
+    logger: Optional[AbstractLogger]
     model_type: str
     logging_interval_loss: int
     logging_interval_light: int
@@ -32,6 +32,7 @@ class ConditionalTrainer:
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
+    n_gpus: int = 1
     hack_name: str = None
 
     def __attrs_post_init__(self):
@@ -68,7 +69,8 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
-        self.layer_manager.prepare_for_logging(step)
+        if self.logger is not None:
+            self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
 
@@ -76,8 +78,9 @@ class ConditionalTrainer:
             processed_batch, self.model, self.mixed_precision, self.vocab_size
         )
         self._optimize(loss)
-        self._log_loss(loss, step)
-        self.layer_manager.log(step)
+        if self.logger is not None:
+            self._log_loss(loss, step)
+            self.layer_manager.log(step)
 
     def _log_loss(self, loss, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
@@ -115,7 +118,10 @@ class ConditionalTrainer:
             processed_batch, self.model, self.mixed_precision, self.vocab_size
         )
         self._optimize(loss)
-        self.logger.report_scalar(title="max batch size", value=step, iteration=step)
+        if self.logger is not None:
+            self.logger.report_scalar(
+                title="max batch size", value=step * self.n_gpus, iteration=step
+            )
 
     def _hack_for_contmoe_expert_size(
         self,
