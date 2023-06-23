@@ -78,6 +78,9 @@ if __name__ == "__main__":
     if SINGULARITY_IMAGE is None:
         raise ValueError("Singularity image is not specified (in JSON or env variable)")
 
+    if NODELIST is not None:
+        NODELIST = "--nodelist=" + NODELIST
+
     grid = create_grid(PARAMS)
     grid = multiply_grid(grid, RUNS_MULTIPLIER)
     no_experiments = len(grid)
