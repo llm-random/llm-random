@@ -178,7 +178,7 @@ if __name__ == "__main__":
                 RUNNER,
                 *runner_params,
             ]
-        elif runner == MachineBackend.IDEAS:
+        elif runner == MachineBackend.IDEAS or runner == MachineBackend.ENTROPY_GPU:
             subprocess_args = [
                 slurm_command,
                 f"--gpus={N_GPUS}",
