@@ -14,6 +14,7 @@ class MachineBackend(Enum):
 
 def get_machine_backend() -> MachineBackend:
     node = platform.uname().node
+    print(f"Detected node: {node}")
     if node == "asusgpu0":
         return MachineBackend.ENTROPY
     elif "athena" in node:
