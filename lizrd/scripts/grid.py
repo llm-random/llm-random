@@ -22,9 +22,6 @@ from lizrd.scripts.grid_utils import (
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
 
-import torch
-print(f'Cuda available: {torch.cuda.is_available()}')
-
 RUNNER = "research.reinitialization.train.reinit_train"
 
 
