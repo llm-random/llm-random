@@ -198,7 +198,19 @@ if __name__ == "__main__":
                 RUNNER,
                 *runner_params,
             ]
-        elif runner == MachineBackend.LOCAL or runner == MachineBackend.ENTROPY_GPU:
+        elif runner == MachineBackend.ENTROPY_GPU:
+            subprocess_args = [
+                "singularity",
+                "run",
+                f"-B={CODE_PATH}:/sparsity",
+                "--nv",
+                SINGULARITY_IMAGE,
+                "python3",
+                "-m",
+                RUNNER,
+                *runner_params,
+            ]
+        elif runner == MachineBackend.LOCAL:
             subprocess_args = [
                 get_grid_entrypoint(runner),
                 "python3",
