@@ -178,7 +178,7 @@ if __name__ == "__main__":
                 RUNNER,
                 *runner_params,
             ]
-        elif runner == MachineBackend.IDEAS or runner == MachineBackend.ENTROPY_GPU:
+        elif runner == MachineBackend.IDEAS:
             subprocess_args = [
                 slurm_command,
                 f"--gpus={N_GPUS}",
@@ -198,7 +198,7 @@ if __name__ == "__main__":
                 RUNNER,
                 *runner_params,
             ]
-        elif runner == MachineBackend.LOCAL:
+        elif runner == MachineBackend.LOCAL or runner == MachineBackend.ENTROPY_GPU:
             subprocess_args = [
                 get_grid_entrypoint(runner),
                 "python3",
