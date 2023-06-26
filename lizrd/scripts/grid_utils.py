@@ -9,7 +9,8 @@ class MachineBackend(Enum):
     ENTROPY = 1
     ATHENA = 2
     IDEAS = 3
-    LOCAL = 4
+    ENTROPY_GPU = 4
+    LOCAL = 5
 
 
 def get_machine_backend() -> MachineBackend:
@@ -20,6 +21,8 @@ def get_machine_backend() -> MachineBackend:
         return MachineBackend.ATHENA
     elif node == "login01":
         return MachineBackend.IDEAS
+    elif node == "4124gs01":
+        return MachineBackend.ENTROPY_GPU
     else:
         return MachineBackend.LOCAL
 
