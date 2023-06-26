@@ -31,7 +31,7 @@ def get_machine_backend() -> MachineBackend:
 def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
     if machine_backend in [MachineBackend.ENTROPY, MachineBackend.LOCAL]:
         return "lizrd/scripts/grid_entrypoint.sh"
-    elif machine_backend in [MachineBackend.ATHENA, MachineBackend.IDEAS]:
+    elif machine_backend in [MachineBackend.ATHENA, MachineBackend.IDEAS, MachineBackend.ENTROPY_GPU]:
         return "lizrd/scripts/grid_entrypoint_athena.sh"
     else:
         raise ValueError(f"Unknown machine backend: {machine_backend}")
