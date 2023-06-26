@@ -207,6 +207,7 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         else:
+            print('debug')
             raise ValueError(f"Unknown runner: {runner}")
 
         if not DRY_RUN:
