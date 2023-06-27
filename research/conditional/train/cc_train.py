@@ -26,7 +26,7 @@ args = parser.parse_args()
 def main(rank: Optional[int], data_seeds: Optional[list[int]] = None):
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = "12355"
+        os.environ["MASTER_PORT"] = "-1"
         init_process_group("nccl", rank=rank, world_size=args.n_gpus)
         torch.cuda.set_device(rank)
 
