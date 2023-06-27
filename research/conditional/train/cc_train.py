@@ -103,7 +103,7 @@ if __name__ == "__main__":
         # find free port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("", 0))
-            port = s.getsockname()[1]
+            port = str(s.getsockname()[1])
 
         mp.spawn(
             main,
