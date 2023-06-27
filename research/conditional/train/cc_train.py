@@ -2,6 +2,7 @@ import argparse
 import os
 import random
 from typing import Optional
+import socket
 
 import torch
 import torch.multiprocessing as mp
@@ -26,7 +27,13 @@ args = parser.parse_args()
 def main(rank: Optional[int], data_seeds: Optional[list[int]] = None):
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = "-1"
+
+        # find free port and assign it
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("",0))
+        port = s.getsockname()[1]
+        os.environ["MASTER_PORT"] = port
+
         init_process_group("nccl", rank=rank, world_size=args.n_gpus)
         torch.cuda.set_device(rank)
 
