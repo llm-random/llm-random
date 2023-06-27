@@ -71,9 +71,6 @@ if __name__ == "__main__":
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
         CUDA_VISIBLE = grid_args.get("cuda_visible", CUDA_VISIBLE)
 
-    if CUDA_VISIBLE is not None:
-        CUDA_VISIBLE = "CUDA_VISIBLE_DEVICES=" + CUDA_VISIBLE
-
     if SINGULARITY_IMAGE is None:
         print(
             "Getting SINGULARITY_IMAGE from environment variable SINGULARITY_IMAGE..."
@@ -124,6 +121,7 @@ if __name__ == "__main__":
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
         param_set["n_gpus"] = N_GPUS
+        env = None
 
         runner_params = []
         for k_packed, v_packed in param_set.items():
@@ -158,9 +156,7 @@ if __name__ == "__main__":
             # raise error is HF_DATASETS_CACHE is not set
             # it is needed to avoid exceeding disk quota
             if datasets_cache is None:
-                raise ValueError(
-                    "HF_DATASETS_CACHE needs to be set on Atena"
-                )
+                raise ValueError("HF_DATASETS_CACHE needs to be set on Atena")
             subprocess_args = [
                 slurm_command,
                 f"--gpus={N_GPUS}",
@@ -204,6 +200,9 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
+            if CUDA_VISIBLE is not None:
+                env = os.environ.copy()
+                env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE})
             subprocess_args = [
                 CUDA_VISIBLE,
                 "singularity",
@@ -231,9 +230,7 @@ if __name__ == "__main__":
             print(
                 f"running experiment with sbtach command: {[str(s) for s in subprocess_args if s is not None]}"
             )
-            subprocess.run(
-                [str(s) for s in subprocess_args if s is not None],
-            )
+            subprocess.run([str(s) for s in subprocess_args if s is not None], env=env)
             sleep(10)
         else:
             print(" ".join([str(s) for s in subprocess_args if s is not None]))
