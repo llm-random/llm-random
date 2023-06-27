@@ -204,7 +204,6 @@ if __name__ == "__main__":
                 env = os.environ.copy()
                 env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE})
             subprocess_args = [
-                CUDA_VISIBLE,
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
