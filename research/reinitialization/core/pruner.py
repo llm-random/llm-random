@@ -32,11 +32,14 @@ class Pruner(BasePruner):
             if hasattr(layer, "log_light"):
                 layer.log_light(f"Layer {i+1}", step)
 
-    def log_heavy(self, step):
+    def log_heavy(self, step, modelpath: str = None):
         print("Heavy logging step")
         for i, layer in enumerate(self.layers):
             if hasattr(layer, "log_heavy"):
-                layer.log_heavy(f"Layer {i+1}", step)
+                if modelpath is not None:
+                    layer.log_heavy(f"Layer {i+1}", step, modelpath)
+                else:
+                    layer.log_heavy(f"Layer {i+1}", step)
 
     def prune(self, prob: float):
         print("Pruning step")
