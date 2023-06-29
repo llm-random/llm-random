@@ -100,8 +100,12 @@ parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
 parser.add_argument("--noise_ff_weight_init", type=str, default="random")
 parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
 parser.add_argument("--model_type", type=str, default="bert")
+parser.add_argument("--n_gpus", type=int, default=1)
 
 args = parser.parse_args()
+
+if args.n_gpus > 1:
+    raise NotImplementedError("Multi-GPU training is not supported yet.")
 
 VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
 
