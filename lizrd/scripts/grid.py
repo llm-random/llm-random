@@ -18,9 +18,9 @@ from lizrd.scripts.grid_utils import (
     get_machine_backend,
     MachineBackend,
     get_grid_entrypoint,
+    unpack_params,
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
-
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
@@ -49,14 +49,10 @@ PUSH_TO_GIT = False
 
 if __name__ == "__main__":
     runner = get_machine_backend()
-    if runner == MachineBackend.ATHENA:
-        SINGULARITY_IMAGE = "/net/tscratch/people/plgmaciejpioro/images/sparsity_2023.02.12_21.20.53.sif"
-    elif runner == MachineBackend.IDEAS:
-        SINGULARITY_IMAGE = (
-            "/raid/NFS_SHARE/home/maciej.pioro/images/sparsity_2023.02.12_21.20.53.sif"
-        )
-    else:
-        SINGULARITY_IMAGE = None
+    SINGULARITY_IMAGE = None
+    NODELIST = None
+    N_GPUS = 1
+    CPUS_PER_GPU = 8
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -69,6 +65,21 @@ if __name__ == "__main__":
         RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
         INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
         PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
+        NODELIST = grid_args.get("nodelist", NODELIST)
+        N_GPUS = grid_args.get("n_gpus", N_GPUS)
+        CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
+
+    if SINGULARITY_IMAGE is None:
+        print(
+            "Getting SINGULARITY_IMAGE from environment variable SINGULARITY_IMAGE..."
+        )
+        SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE")
+
+    if SINGULARITY_IMAGE is None:
+        raise ValueError("Singularity image is not specified (in JSON or env variable)")
+
+    if NODELIST is not None:
+        NODELIST = "--nodelist=" + NODELIST
 
     grid = create_grid(PARAMS)
     grid = multiply_grid(grid, RUNS_MULTIPLIER)
@@ -82,10 +93,13 @@ if __name__ == "__main__":
 
     total_minutes = no_experiments * minutes_per_exp
     if not runner == MachineBackend.LOCAL:
-        user_input = input(
-            f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-            f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{GRES=} \nContinue? [Y/n] "
-        )
+        if not INTERACTIVE_DEBUG:
+            user_input = input(
+                f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
+                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
+            )
+        else:
+            user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
         if user_input.lower() not in ("", "y", "Y"):
             print("Aborting...")
             exit(1)
@@ -104,20 +118,22 @@ if __name__ == "__main__":
     for i, param_set in enumerate(grid):
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
+        param_set["n_gpus"] = N_GPUS
 
         runner_params = []
-        for k, v in param_set.items():
-            if isinstance(v, bool):
-                if v:
-                    runner_params.append(f"--{k}")
+        for k_packed, v_packed in param_set.items():
+            for k, v in zip(*unpack_params(k_packed, v_packed)):
+                if isinstance(v, bool):
+                    if v:
+                        runner_params.append(f"--{k}")
+                    else:
+                        pass  # simply don't add it if v == False
+                    continue
                 else:
-                    pass  # simply don't add it if v == False
-                continue
-            else:
-                runner_params.append(f"--{k}")
-                if isinstance(v, list):
-                    v = " ".join([str(s) for s in v])
-                runner_params.append(v)
+                    runner_params.append(f"--{k}")
+                    if isinstance(v, list):
+                        v = " ".join([str(s) for s in v])
+                    runner_params.append(v)
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
@@ -133,19 +149,27 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
+            datasets_cache = os.getenv("HF_DATASETS_CACHE")
+            # raise error is HF_DATASETS_CACHE is not set
+            # it is needed to avoid exceeding disk quota
+            if datasets_cache is None:
+                raise ValueError(
+                    "HF_DATASETS_CACHE needs to be set on Atena"
+                )
             subprocess_args = [
                 slurm_command,
+                f"--gpus={N_GPUS}",
                 "--partition=plgrid-gpu-a100",
-                "-G1",
-                "--cpus-per-gpu=8",
+                f"--cpus-per-gpu={CPUS_PER_GPU}",
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--time={TIME}",
+                NODELIST,
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
                 "--bind=/net:/net",
-                "--env HF_DATASETS_CACHE=/net/pr2/projects/plgrid/plggllmeffi/.cache",
+                f"--env HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
@@ -157,16 +181,28 @@ if __name__ == "__main__":
         elif runner == MachineBackend.IDEAS:
             subprocess_args = [
                 slurm_command,
-                "-G1",
-                "--cpus-per-gpu=8",
+                f"--gpus={N_GPUS}",
+                f"--cpus-per-gpu={CPUS_PER_GPU}",
                 f"--job-name={name}",
                 f"--time={TIME}",
                 "--mem=32G",
+                NODELIST,
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
-                f"--env HF_DATASETS_CACHE=/raid/NFS_SHARE/home/{os.getenv('USER')}/.cache",
+                "--nv",
+                SINGULARITY_IMAGE,
+                "python3",
+                "-m",
+                RUNNER,
+                *runner_params,
+            ]
+        elif runner == MachineBackend.ENTROPY_GPU:
+            subprocess_args = [
+                "singularity",
+                "run",
+                f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
@@ -186,9 +222,14 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown runner: {runner}")
 
         if not DRY_RUN:
+            print(
+                f"running experiment with sbtach command: {[str(s) for s in subprocess_args if s is not None]}"
+            )
             subprocess.run(
-                [str(s) for s in subprocess_args],
+                [str(s) for s in subprocess_args if s is not None],
             )
             sleep(10)
         else:
-            print(" ".join([str(s) for s in subprocess_args]))
+            print(" ".join([str(s) for s in subprocess_args if s is not None]))
+        if INTERACTIVE_DEBUG:
+            break

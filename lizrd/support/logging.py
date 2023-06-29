@@ -1,13 +1,16 @@
-from argparse import Namespace
 import math
 import os
 import secrets
 from abc import ABC, abstractmethod
+from argparse import Namespace
 from typing import Optional
+
 import neptune.new as neptune
-from clearml import Task
 import numpy as np
 import plotly
+import plotly.express as px
+import torch
+from clearml import Task
 
 from lizrd.support.misc import (
     make_concise_datetime,
@@ -53,6 +56,10 @@ class AbstractLogger(ABC):
         series,
         iteration,
     ):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def report_generic_info(self, *, title: str, iteration: int, data):
         raise NotImplementedError()
 
     def potentially_log_plotly_figure_scalars(
@@ -168,6 +175,12 @@ class NeptuneLogger(AbstractLogger):
             f.write(obj)
         self.instance_logger[path].upload(tmp_file)
 
+    def report_generic_info(self, *, title: str, iteration: int, data):
+        if isinstance(data, plotly.graph_objs.Figure):
+            self.report_plotly(figure=data, title=title, iteration=iteration)
+        else:
+            self.report_scalar(title=title, value=data, iteration=iteration)
+
     def report_scalar(
         self,
         *,
@@ -251,3 +264,26 @@ def get_logger(args, model, VOCAB_SIZE):
             "No logger specified! either args.use_neptune or args.use_clearml must be True"
         )
         raise NotImplementedError
+
+
+def prepare_tensor_for_logging(
+    x: torch.Tensor, sample_size=2500, with_replacement=False
+):
+    """Prepare tensor or tensors for logging by sampling it to a maximum of `sample_size` elements.
+    Default sample size = 2500 is selected because (experimentally) this works with ClearML plotting
+    """
+    num_elems = x.numel()
+    x = x.detach().view(-1).cpu().numpy()
+
+    if num_elems <= sample_size:
+        return x.tolist()
+
+    random_indices = np.random.choice(num_elems, sample_size, replace=with_replacement)
+    ret_val = x[random_indices].tolist()
+    return ret_val
+
+
+def make_histogram(tensor, **kwargs):
+    return px.histogram(
+        prepare_tensor_for_logging(tensor, with_replacement=False), **kwargs
+    )

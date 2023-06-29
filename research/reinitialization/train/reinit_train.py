@@ -3,7 +3,7 @@ import secrets
 
 import torch
 
-from lizrd.core import misc, bert
+from lizrd.core import llm, misc
 from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
@@ -21,8 +21,6 @@ from lizrd.support.logging import (
     get_logger,
     make_concise_datetime,
 )
-
-VOCAB_SIZE = 30522
 
 parser = argparse.ArgumentParser()
 
@@ -101,8 +99,11 @@ parser.add_argument("--noise_ff_n_steps", type=int, required=False)
 parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
 parser.add_argument("--noise_ff_weight_init", type=str, default="random")
 parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
+parser.add_argument("--model_type", type=str, default="bert")
 
 args = parser.parse_args()
+
+VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
 
 if args.dff == "auto":
     args.dff = args.dmodel * 4
@@ -191,7 +192,7 @@ print(pruner)
 print(scheduler)
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dmodel, args.dff, bias=args.bias)
+    ff_layer_fun = lambda: llm.FeedForward(args.dmodel, args.dff, bias=args.bias)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dmodel, args.dff, pruner)
 elif args.ff_layer == "struct_prune":
@@ -276,6 +277,7 @@ pdataset = get_processed_dataset(
     device=DEVICE,
     num_workers=args.num_workers,
     seed=args.ds_seed,
+    model_type=args.model_type,
 )
 eval_pdataset = get_processed_dataset(
     batch_size=args.batch_size,
@@ -284,7 +286,17 @@ eval_pdataset = get_processed_dataset(
     device=DEVICE,
     num_workers=1,
     seed=args.eval_ds_seed,
+    model_type=args.model_type,
 )
+
+if args.model_type == "bert":
+    attention_layer_fun = lambda: llm.Attention(
+        args.dmodel, args.heads, dhead=args.dhead
+    )
+elif args.model_type == "gpt":
+    attention_layer_fun = lambda: llm.CausalAttention(
+        args.dmodel, args.heads, dhead=args.dhead
+    )
 
 model = get_model(
     max_length=args.cutoff,
@@ -293,9 +305,7 @@ model = get_model(
     dm=args.dmodel,
     n_blocks=args.n_blocks,
     device=DEVICE,
-    attention_layer_fun=lambda: bert.Attention(
-        args.dmodel, args.heads, dhead=args.dhead
-    ),
+    attention_layer_fun=attention_layer_fun,
 )
 if args.model_load_path:
     print(f"Loading model from {args.model_load_path}")
@@ -358,6 +368,7 @@ base_trainer_params = dict(
     },
     noise_interpolation_delay=args.noise_interpolation_delay,
     lr_warmup_steps=args.lr_warmup_steps,
+    model_type=args.model_type,
 )
 
 if args.trainer_type == "retrain":

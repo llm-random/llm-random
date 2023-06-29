@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 from clearml import Task
 
 from lizrd.core import misc
-from lizrd.core import bert
+from lizrd.core import llm
 from research.reinitialization.core import linears, linears_recycle
 from research.reinitialization.core.pruner import VariableProbabilityPruner
 from lizrd.train.train_utils import (
@@ -59,7 +59,7 @@ pruner = VariableProbabilityPruner()
 
 # set ff layer
 if args.ff_layer == "regular":
-    ff_layer_fun = lambda: bert.FeedForward(args.dm, args.dff)
+    ff_layer_fun = lambda: llm.FeedForward(args.dm, args.dff)
 elif args.ff_layer == "unstruct_prune":
     ff_layer_fun = lambda: linears.UnstructPruneFF(args.dm, args.dff, pruner)
 elif args.ff_layer == "struct_prune":

@@ -1,11 +1,11 @@
 from collections import OrderedDict
+from typing import Literal, Callable
 
 import torch
 
 import lizrd.core.nn as nn
-from typing import Literal
-
 from lizrd.core import misc
+from lizrd.core.misc import Checkpoint
 from lizrd.support import ash
 
 
@@ -44,6 +44,28 @@ def FeedForward(
             ]
         )
     )
+
+
+class EveryOtherLayer:
+    def __init__(
+        self, layer1_fn: Callable[[], nn.Module], layer2_fn: Callable[[], nn.Module]
+    ):
+        """
+        This class is used to alternate between two layers.
+        It is useful for Mixture of Experts,
+        where every other layer is a regular linear layer.
+        """
+        self.layer1_fn = layer1_fn
+        self.layer2_fn = layer2_fn
+        self.counter = 0
+
+    def __call__(self):
+        if self.counter % 2 == 0:
+            layer = self.layer1_fn()
+        else:
+            layer = self.layer2_fn()
+        self.counter += 1
+        return layer
 
 
 @ash.check("... -> ... ")
@@ -144,6 +166,57 @@ class Attention(nn.Module):
 
 
 @ash.check("... d -> ... d")
+class CausalAttention(nn.Module):
+    def __init__(self, dmodel, heads, dhead=None):
+        super(CausalAttention, self).__init__()
+        if dhead is None:
+            assert dmodel % heads == 0
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.dmodel = dmodel
+
+        key_query_value_gen = lambda: misc.EinMix(
+            "... dmodel -> ... heads dhead",
+            weight_shape="dmodel heads dhead",
+            bias_shape="heads dhead",
+            dmodel=dmodel,
+            heads=heads,
+            dhead=dhead,
+        )
+
+        self.Q = key_query_value_gen()
+        self.K = key_query_value_gen()
+        self.V = key_query_value_gen()
+
+        combine_gen = lambda: misc.EinMix(
+            "... heads dhead -> ... dmodel",
+            weight_shape="heads dhead dmodel",
+            bias_shape="dmodel",
+            dmodel=dmodel,
+            heads=heads,
+            dhead=dhead,
+        )
+        self.D = combine_gen()
+
+    def forward(self, x):
+        q = self.Q(x)
+        k = self.K(x)
+        v = self.V(x)
+
+        a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
+        a = a * (1 / self.dhead**0.5)
+        a.masked_fill_(
+            torch.tril(torch.ones_like(a)) == 0, float("-inf")
+        )  # mask out future tokens
+        a = torch.softmax(a, dim=-1)
+        prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
+        output = self.D(prefinal)
+        return output
+
+
+@ash.check("... d -> ... d")
 def ResidualBlock(dmodel, layer, name):
     return Residual(
         nn.Sequential(
@@ -158,20 +231,26 @@ def ResidualBlock(dmodel, layer, name):
 
 
 @ash.check("... d -> ... d")
-def EncoderBlock(dmodel, layers):
+def TransformerBlock(dmodel, layers, gradient_checkpointing):
     residual_layers = []
     for name, layer in layers:
-        residual_layers.append(ResidualBlock(dmodel, layer, name))
+        block = ResidualBlock(dmodel, layer, name)
+        residual_layers.append(block)
+    if gradient_checkpointing:
+        residual_layers = [Checkpoint(layer) for layer in residual_layers]
     return nn.Sequential(*residual_layers)
 
 
 @ash.check("... d -> ... d")
-def EncoderTower(n_blocks, dmodel, layer_dict):
+def TransformerTower(n_blocks, dmodel, layer_dict, gradient_checkpointing=False):
     misc.check_layer_funs(*layer_dict.values())
     encoder_blocks = []
     for i_block in range(n_blocks):
         layers_info = [(name, layer_fun()) for name, layer_fun in layer_dict.items()]
-        name_and_block = (f"block_{i_block}", EncoderBlock(dmodel, layers_info))
+        name_and_block = (
+            f"block_{i_block}",
+            TransformerBlock(dmodel, layers_info, gradient_checkpointing),
+        )
         encoder_blocks.append(name_and_block)
 
     return nn.Sequential(OrderedDict(encoder_blocks))
@@ -207,7 +286,7 @@ def PredictionHead(embedding_dim, output_size):
 
 
 @ash.check("... -> ... out")
-def BERT(embedding_layer, encoder_tower, head):
+def LLM(embedding_layer, encoder_tower, head):
     return nn.Sequential(
         OrderedDict(
             [

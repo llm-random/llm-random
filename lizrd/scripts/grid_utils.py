@@ -1,15 +1,16 @@
 import copy
+import platform
+from enum import Enum
 from itertools import product
 from typing import List, Tuple
-from enum import Enum
-import platform
 
 
 class MachineBackend(Enum):
     ENTROPY = 1
     ATHENA = 2
     IDEAS = 3
-    LOCAL = 4
+    ENTROPY_GPU = 4
+    LOCAL = 5
 
 
 def get_machine_backend() -> MachineBackend:
@@ -20,6 +21,8 @@ def get_machine_backend() -> MachineBackend:
         return MachineBackend.ATHENA
     elif node == "login01":
         return MachineBackend.IDEAS
+    elif node == "4124gs01":
+        return MachineBackend.ENTROPY_GPU
     else:
         return MachineBackend.LOCAL
 
@@ -27,7 +30,7 @@ def get_machine_backend() -> MachineBackend:
 def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
     if machine_backend in [MachineBackend.ENTROPY, MachineBackend.LOCAL]:
         return "lizrd/scripts/grid_entrypoint.sh"
-    elif machine_backend in [MachineBackend.ATHENA, MachineBackend.IDEAS]:
+    elif machine_backend in [MachineBackend.ATHENA, MachineBackend.IDEAS, MachineBackend.ENTROPY_GPU]:
         return "lizrd/scripts/grid_entrypoint_athena.sh"
     else:
         raise ValueError(f"Unknown machine backend: {machine_backend}")
@@ -42,6 +45,8 @@ def split_params(params: dict) -> Tuple[list, list, list]:
             grids.append((k[1:], v))
         elif k[0] == "*":
             functions.append((k[1:], v))
+        elif "," in k:
+            grids.append((k, v))
         else:
             normals.append((k, v))
     return grids, functions, normals
@@ -175,6 +180,13 @@ def multiply_grid(param_sets: List[dict], runs_count: int) -> List[dict]:
             out_dict["tags"].append(f"num_runs={runs_count}")
             out_params_sets.append(out_dict)
     return out_params_sets
+
+
+def unpack_params(k, v):
+    if "," in k:
+        k = k.split(",")
+        return k, v
+    return [k], [v]
 
 
 def param_to_str(param) -> str:

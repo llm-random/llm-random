@@ -1,20 +1,21 @@
-from collections import defaultdict
 import copy
-import os
+from collections import defaultdict
 from typing import Callable, Optional
+import os
 
+import numpy as np
+import plotly.express as px
 import torch
 import torch.nn.functional as F
 from attr import define
 from torch.utils.tensorboard import SummaryWriter
-import torch.nn.functional as F
-import numpy as np
-import plotly.express as px
+from torch.nn.parallel import DistributedDataParallel as DDP
 
-from lizrd.core import bert
+from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
-from lizrd.support.logging import AbstractLogger, log_plot
+from lizrd.support.logging import AbstractLogger
+from lizrd.support.logging import get_current_logger, log_plot
 from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
@@ -22,9 +23,6 @@ from lizrd.support.loss import (
 )
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
-from research.reinitialization.core.pruner import BasePruner
-from lizrd.core.misc import are_state_dicts_the_same
-from lizrd.support.logging import get_current_logger
 
 
 def get_model(
@@ -35,21 +33,19 @@ def get_model(
     dm: int,
     n_blocks: int,
     device: torch.device,
+    gradient_checkpointing: bool = False,
 ):
-    embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
+    embedding_layer = llm.EmbeddingLayer(
+        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
-    encoder_tower = bert.EncoderTower(n_blocks, dm, layer_dict)
-    head = bert.PredictionHead(dm, vocab_size)
-    model = bert.BERT(embedding_layer, encoder_tower, head)
-
-    # sanity check to make sure it works
-    input = torch.randint(0, vocab_size, (16, 10))
-    model(input)
-    del input
+    encoder_tower = llm.TransformerTower(
+        n_blocks, dm, layer_dict, gradient_checkpointing
+    )
+    head = llm.PredictionHead(dm, vocab_size)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
 
     return model.to(device)
 
@@ -61,12 +57,21 @@ def get_processed_dataset(
     device: torch.device,
     num_workers: int,
     seed: int,
+    model_type: str = "bert",
+    distributed: bool = False,
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset()
-    processor = wikibookdata.SentenceProcessor(
-        max_total_length=max_total_length,
-        mask_percent=mask_percent,
-    )
+
+    if model_type == "bert":
+        processor = wikibookdata.BERTSentenceProcessor(
+            max_total_length=max_total_length,
+            mask_percent=mask_percent,
+        )
+    elif model_type == "gpt":
+        processor = wikibookdata.GPTSentenceProcessor(
+            max_total_length=max_total_length,
+        )
+
     dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
     return wikibookdata.ProcessedDatasetWrapper(
         pdataset=dataset,
@@ -74,6 +79,8 @@ def get_processed_dataset(
         batch_size=batch_size,
         num_workers=num_workers,
         seed=seed,
+        model_type=model_type,
+        distributed=distributed,
     )
 
 
@@ -107,6 +114,7 @@ class Trainer:
     neuron_diff_n_batches: int = 10
     lr_warmup_steps: int = 10_000
     noise_interpolation_delay: int = 0
+    model_type: str = "bert"
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -206,37 +214,68 @@ class Trainer:
         mask_loss = self.mask_loss.mean() / self.mask_percent
         return mask_loss
 
+    def _get_lm_loss(self, input, target, non_padded_mask):
+        output = self.model(input)
+        lm_loss = F.cross_entropy(
+            output.reshape(-1, self.vocab_size),
+            target.reshape(-1).long(),
+            reduction="none",
+        )
+        lm_loss *= non_padded_mask.reshape(-1)
+        lm_loss = lm_loss.mean()
+        return lm_loss
+
     def _task_train_step(
         self,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
     ):
-        self.model.train()
-        processed_batch = dataset.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        x_set = processed_batch.masked_tokens
-        y_token_set = processed_batch.tokens
-        y_mask_set = processed_batch.mask_mask
+        if self.model_type == "bert":
+            self.model.train()
+            processed_batch = dataset.get_batch()
+            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+            x_set = processed_batch.masked_tokens
+            y_token_set = processed_batch.tokens
+            y_mask_set = processed_batch.mask_mask
 
-        with torch.autocast(
-            device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
-        ):
-            losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
-            self.update_loss_stats(losses)
-            scaled_losses = self.scale_losses(losses)
-            loss = sum(scaled_losses.values())
+            with torch.autocast(
+                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+            ):
+                losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
+                self.update_loss_stats(losses)
+                scaled_losses = self.scale_losses(losses)
+                loss = sum(scaled_losses.values())
 
-        if self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
-            with torch.no_grad():
-                self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            self.optimize(
+                optimizer=self.optimizer,
+                scaler=self.scaler,
+                loss=loss,
+                step=step,
+                run_after_backprop=True,
+            )
+        else:
+            self.model.train()
+            processed_batch = dataset.get_batch()
+            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+            input = processed_batch.tokens
+            target = processed_batch.target_tokens
+            non_padded_mask = processed_batch.non_padded_mask
 
-        self.optimize(
-            optimizer=self.optimizer,
-            scaler=self.scaler,
-            loss=loss,
-            step=step,
-            run_after_backprop=True,
-        )
+            with torch.autocast(
+                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+            ):
+                losses = {"mask": self._get_lm_loss(input, target, non_padded_mask)}
+                self.update_loss_stats(losses)
+                scaled_losses = self.scale_losses(losses)
+                loss = sum(scaled_losses.values())
+
+            self.optimize(
+                optimizer=self.optimizer,
+                scaler=self.scaler,
+                loss=loss,
+                step=step,
+                run_after_backprop=True,
+            )
 
         if self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
             self.token_losses_before = self.token_losses.clone()
@@ -318,28 +357,51 @@ class Trainer:
     ):
         self.model.eval()
 
-        with torch.no_grad():
-            total_mask_loss = 0.0
-            for _ in range(sample):
-                processed_batch = self.pdataset_eval.get_batch()
-                assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-                mask_loss = self._get_mask_loss(
-                    x_set=processed_batch.masked_tokens,
-                    y_token_set=processed_batch.tokens,
-                    y_mask_set=processed_batch.mask_mask,
-                )
-                total_mask_loss += mask_loss.item()
-            total_mask_loss /= sample
+        if self.model_type == "bert":
+            with torch.no_grad():
+                total_mask_loss = 0.0
+                for _ in range(sample):
+                    processed_batch = self.pdataset_eval.get_batch()
+                    assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+                    mask_loss = self._get_mask_loss(
+                        x_set=processed_batch.masked_tokens,
+                        y_token_set=processed_batch.tokens,
+                        y_mask_set=processed_batch.mask_mask,
+                    )
+                    total_mask_loss += mask_loss.item()
+                total_mask_loss /= sample
 
-            if log_values:
-                self.logger.report_scalar(
-                    title="loss",
-                    series="eval_mask",
-                    value=total_mask_loss,
-                    iteration=step,
-                )
+                if log_values:
+                    self.logger.report_scalar(
+                        title="loss",
+                        series="eval_mask",
+                        value=total_mask_loss,
+                        iteration=step,
+                    )
 
-            return total_mask_loss
+                return total_mask_loss
+        else:
+            with torch.no_grad():
+                total_loss = 0.0
+                for _ in range(sample):
+                    processed_batch = self.pdataset_eval.get_batch()
+                    assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+                    input = processed_batch.tokens
+                    target = processed_batch.target_tokens
+                    non_padded_mask = processed_batch.non_padded_mask
+                    mask_loss = self._get_lm_loss(input, target, non_padded_mask)
+                    total_loss += mask_loss.item()
+                total_loss /= sample
+
+                if log_values:
+                    self.logger.report_scalar(
+                        title="loss",
+                        series="eval_mask",
+                        value=total_loss,
+                        iteration=step,
+                    )
+
+                return total_loss
 
     def check_neuron_diff(self, step: int):
         """

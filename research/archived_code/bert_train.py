@@ -1,15 +1,16 @@
-import torch
-from tensorflow.keras.datasets import imdb
-import torch.nn.functional as F
 import datetime
-import numpy as np
-
-import research.conditional.ffs
-from lizrd.core import misc
-from lizrd.core import bert
-from clearml import Task
-from torch.utils.tensorboard import SummaryWriter
 import time
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from clearml import Task
+from tensorflow.keras.datasets import imdb
+from torch.utils.tensorboard import SummaryWriter
+
+import research.conditional.moe_layers
+from lizrd.core import llm
+from lizrd.core import misc
 
 INDEX_FROM = 4
 CUTOFF = 128
@@ -97,21 +98,25 @@ def get_model():
         },
     )
 
-    embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
+    embedding_layer = llm.EmbeddingLayer(
+        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
-    encoder_tower = bert.EncoderTower(
+    encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
         # (lambda: bert.FeedForward(dm, dff)),
-        (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 8, 8, 16)),
-        (lambda: bert.Attention(dm, heads)),
+        (
+            lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
+                [], dm, dff, 8, 8, 16
+            )
+        ),
+        (lambda: llm.Attention(dm, heads)),
     )
 
-    head = bert.PredictionHead(dm, output_size)
+    head = llm.PredictionHead(dm, output_size)
 
-    model = bert.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
 
     input = torch.randint(0, vocab_size, (batch, seql))
     output = model(input)

@@ -1,8 +1,8 @@
-import research.conditional.ffs
-from lizrd.core import misc
-from lizrd.core import bert
 import torch
 
+import research.conditional.moe_layers
+from lizrd.core import llm
+from lizrd.core import misc
 from lizrd.support import profile
 
 
@@ -13,20 +13,24 @@ def test_basic(self):
     output_size = 3
     n_blocks = 2
 
-    embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
+    embedding_layer = llm.EmbeddingLayer(
+        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
-    encoder_tower = bert.EncoderTower(
+    encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
-        (lambda: research.conditional.ffs.BatchSplitFF([], dm, dff, 4, 4, 4)),
-        (lambda: bert.Attention(dm, heads)),
+        (
+            lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
+                [], dm, dff, 4, 4, 4
+            )
+        ),
+        (lambda: llm.Attention(dm, heads)),
     )
 
-    head = bert.PredictionHead(dm, output_size)
+    head = llm.PredictionHead(dm, output_size)
 
-    model = bert.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
 
     input = torch.randint(0, vocab_size, (batch, seql))
 
@@ -144,132 +148,136 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
     samples = 100
     warmup = 10
 
-    embedding_layer = bert.EmbeddingLayer(
-        bert.PositionalEmbedding(max_length, dm), bert.TokenEmbedding(vocab_size, dm)
+    embedding_layer = llm.EmbeddingLayer(
+        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
 
     if version == "sparse":
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
-            (lambda: profile.TimerLayer("attention", bert.Attention(dm, heads))),
+            (lambda: profile.TimerLayer("attention", llm.Attention(dm, heads))),
         )
     elif version == "rewritten":
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.RewrittenSplitFF(
+                lambda: research.conditional.moe_layers.ffs.RewrittenSplitFF(
                     [], dm, dff, expertsets * nexperts, nexperts, expertsize
                 )
             ),
-            (lambda: profile.TimerLayer("attention", bert.Attention(dm, heads))),
+            (lambda: profile.TimerLayer("attention", llm.Attention(dm, heads))),
         )
     elif version == "simplesparse":
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.SimpleSplitFF(
+                lambda: research.conditional.moe_layers.ffs.SimpleSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
-            (lambda: profile.TimerLayer("attention", bert.Attention(dm, heads))),
+            (lambda: profile.TimerLayer("attention", llm.Attention(dm, heads))),
         )
     elif version == "sparse+qkv":
         modules = 4
-        sparse_linear_projection = lambda: research.conditional.ffs.FactoredDense(
-            dm, dm, modules
+        sparse_linear_projection = (
+            lambda: research.conditional.moe_layers.ffs.FactoredDense(dm, dm, modules)
         )
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
                 "projection", func()
             )
         )
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
             (
                 lambda: profile.TimerLayer(
                     "attention",
-                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                    llm.Attention(dm, heads, layer_fun=sparse_linear_projection),
                 )
             ),
         )
     elif version == "sparse+lowrank":
         lowrank = 16
-        sparse_linear_projection = lambda: bert.LowRank(dm, dm, lowrank)
+        sparse_linear_projection = lambda: llm.LowRank(dm, dm, lowrank)
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
                 "projection", func()
             )
         )
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
             (
                 lambda: profile.TimerLayer(
                     "attention",
-                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                    llm.Attention(dm, heads, layer_fun=sparse_linear_projection),
                 )
             ),
         )
     elif version == "sparse+perm":
-        sparse_linear_projection = lambda: research.conditional.ffs.PermutationDense(dm)
+        sparse_linear_projection = (
+            lambda: research.conditional.moe_layers.ffs.PermutationDense(dm)
+        )
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
                 "projection", func()
             )
         )
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
             (
                 lambda: profile.TimerLayer(
                     "attention",
-                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                    llm.Attention(dm, heads, layer_fun=sparse_linear_projection),
                 )
             ),
         )
     elif version == "sparse+noop":
-        sparse_linear_projection = lambda: research.conditional.ffs.NoopDense()
+        sparse_linear_projection = (
+            lambda: research.conditional.moe_layers.ffs.NoopDense()
+        )
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
                 "projection", func()
             )
         )
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
             (
-                lambda: research.conditional.ffs.BatchSplitFF(
+                lambda: research.conditional.moe_layers.ffs.BatchSplitFF(
                     [], dm, dff, expertsets, nexperts, expertsize
                 )
             ),
             (
                 lambda: profile.TimerLayer(
                     "attention",
-                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                    llm.Attention(dm, heads, layer_fun=sparse_linear_projection),
                 )
             ),
         )
@@ -280,23 +288,23 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
                 "projection", func()
             )
         )
-        encoder_tower = bert.EncoderTower(
+        encoder_tower = llm.TransformerTower(
             n_blocks,
             dm,
-            (lambda: bert.FeedForward(dm, dff)),
+            (lambda: llm.FeedForward(dm, dff)),
             (
                 lambda: profile.TimerLayer(
                     "attention",
-                    bert.Attention(dm, heads, layer_fun=sparse_linear_projection),
+                    llm.Attention(dm, heads, layer_fun=sparse_linear_projection),
                 )
             ),
         )
     else:
         raise ValueError("Unrecognized type of FF: {}".format(version))
 
-    head = bert.PredictionHead(dm, output_size)
+    head = llm.PredictionHead(dm, output_size)
 
-    model = bert.BERT(embedding_layer, encoder_tower, head)
+    model = llm.LLM(embedding_layer, encoder_tower, head)
     model = profile.TimerLayer("model", model)
     model.train()
 

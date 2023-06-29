@@ -4,10 +4,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
-from lizrd.core.bert import decode_bias_string
+from lizrd.core.llm import decode_bias_string
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
-import plotly_express as px
+import plotly.express as px
 import numpy as np
 from lizrd.support.logging import get_current_logger, log_plot
 
