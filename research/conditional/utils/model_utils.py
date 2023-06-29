@@ -10,6 +10,7 @@ from research.conditional.archive.continuous_moe_alternatives import (
     ContinuousMoEQuickNosoftmax,
     ContinuousMoEQuickAdaTemp,
     ContinuousMoELayernorm,
+    ContinuousMoEFinal,
 )
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
@@ -208,6 +209,18 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "cont_moe_ln":
         return_fn = lambda: ContinuousMoELayernorm(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_final":
+        return_fn = lambda: ContinuousMoEFinal(
             dm=args.dmodel,
             dff=args.dff,
             n_experts=args.n_experts,
