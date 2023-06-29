@@ -182,7 +182,7 @@ if __name__ == "__main__":
         elif runner == MachineBackend.IDEAS:
             subprocess_args = [
                 slurm_command,
-                f"--gpus={N_GPUS}",
+                f"--gres=gpu:{N_GPUS}",
                 f"--cpus-per-gpu={CPUS_PER_GPU}",
                 f"--job-name={name}",
                 f"--time={TIME}",
