@@ -11,6 +11,8 @@ import subprocess
 import sys
 from time import sleep
 
+import yaml
+
 from lizrd.scripts.grid_utils import (
     create_grid,
     multiply_grid,
@@ -55,7 +57,14 @@ if __name__ == "__main__":
     CPUS_PER_GPU = 8
 
     if len(sys.argv) > 1:
-        grid_args = json.load(open(sys.argv[1]))
+        path = sys.argv[1]
+        if path.endswith(".json"):
+            grid_args = json.load(open(sys.argv[1]))
+        elif path.endswith(".yaml"):
+            grid_args = yaml.load(open(sys.argv[1]))
+        else:
+            raise ValueError("grid path must be .json or .yaml")
+            
         RUNNER = grid_args.get("runner", RUNNER)
         PARAMS = grid_args.get("params", PARAMS)
         TIME = grid_args.get("time", TIME)
