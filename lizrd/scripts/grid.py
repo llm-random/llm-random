@@ -61,10 +61,10 @@ if __name__ == "__main__":
         if path.endswith(".json"):
             grid_args = json.load(open(sys.argv[1]))
         elif path.endswith(".yaml"):
-            grid_args = yaml.load(open(sys.argv[1]))
+            grid_args = yaml.safe_load(open(sys.argv[1]))
         else:
             raise ValueError("grid path must be .json or .yaml")
-            
+
         RUNNER = grid_args.get("runner", RUNNER)
         PARAMS = grid_args.get("params", PARAMS)
         TIME = grid_args.get("time", TIME)
