@@ -21,6 +21,7 @@ from lizrd.scripts.grid_utils import (
     MachineBackend,
     get_grid_entrypoint,
     unpack_params,
+    get_idle_gpus,
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
 
@@ -209,10 +210,21 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
-            if CUDA_VISIBLE_DEVICES is not None:
-                env = os.environ.copy()
-                env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
+            available_gpus = get_idle_gpus()
+            if len(available_gpus) < N_GPUS:
+                raise ValueError(
+                    f"Not enough GPUs available. Requested: {N_GPUS}, available: {available_gpus}"
+                )
+            CUDA_VISIBLE_DEVICES = ",".join(available_gpus[:N_GPUS])
+            env = os.environ.copy()
+            env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
+            session_name = f"{name}_{i}"
             subprocess_args = [
+                "tmux",
+                "new-session",
+                "-d",
+                "-s",
+                session_name,
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
