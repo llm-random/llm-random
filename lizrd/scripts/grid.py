@@ -53,7 +53,7 @@ if __name__ == "__main__":
     NODELIST = None
     N_GPUS = 1
     CPUS_PER_GPU = 8
-    CUDA_VISIBLE = None
+    CUDA_VISIBLE_DEVICES = None
 
     if len(sys.argv) > 1:
         grid_args = json.load(open(sys.argv[1]))
@@ -69,7 +69,7 @@ if __name__ == "__main__":
         NODELIST = grid_args.get("nodelist", NODELIST)
         N_GPUS = grid_args.get("n_gpus", N_GPUS)
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
-        CUDA_VISIBLE = grid_args.get("cuda_visible", CUDA_VISIBLE)
+        CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
 
     if SINGULARITY_IMAGE is None:
         print(
@@ -200,9 +200,9 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
-            if CUDA_VISIBLE is not None:
+            if CUDA_VISIBLE_DEVICES is not None:
                 env = os.environ.copy()
-                env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE})
+                env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
             subprocess_args = [
                 "singularity",
                 "run",
