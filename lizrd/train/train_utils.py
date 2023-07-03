@@ -352,7 +352,7 @@ class Trainer:
     def _eval_step(
         self,
         step: int,
-        sample: int = 10,
+        sample: int = 100,
         log_values: bool = True,
     ):
         self.model.eval()
