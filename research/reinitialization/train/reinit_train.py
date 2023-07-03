@@ -207,7 +207,9 @@ elif args.ff_layer == "unstruct_magnitude_prune":
         args.dmodel, args.dff, pruner
     )
 elif args.ff_layer == "struct_magnitude_prune":
-    ff_layer_fun = lambda: linears.StructMagnitudePruneFF(args.dmodel, args.dff, pruner, args.pruning_criterion)
+    ff_layer_fun = lambda: linears.StructMagnitudePruneFF(
+        args.dmodel, args.dff, pruner, args.pruning_criterion
+    )
 elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
         args.dmodel, args.dff, pruner
