@@ -55,6 +55,7 @@ if __name__ == "__main__":
     NODELIST = None
     N_GPUS = 1
     CPUS_PER_GPU = 8
+    CUDA_VISIBLE_DEVICES = None
 
     if len(sys.argv) > 1:
         path = sys.argv[1]
@@ -77,6 +78,7 @@ if __name__ == "__main__":
         NODELIST = grid_args.get("nodelist", NODELIST)
         N_GPUS = grid_args.get("n_gpus", N_GPUS)
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
+        CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
 
     if SINGULARITY_IMAGE is None:
         print(
@@ -128,6 +130,7 @@ if __name__ == "__main__":
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
         param_set["n_gpus"] = N_GPUS
+        env = None
 
         runner_params = []
         for k_packed, v_packed in param_set.items():
@@ -162,9 +165,7 @@ if __name__ == "__main__":
             # raise error is HF_DATASETS_CACHE is not set
             # it is needed to avoid exceeding disk quota
             if datasets_cache is None:
-                raise ValueError(
-                    "HF_DATASETS_CACHE needs to be set on Atena"
-                )
+                raise ValueError("HF_DATASETS_CACHE needs to be set on Atena")
             subprocess_args = [
                 slurm_command,
                 f"--gpus={N_GPUS}",
@@ -190,7 +191,7 @@ if __name__ == "__main__":
         elif runner == MachineBackend.IDEAS:
             subprocess_args = [
                 slurm_command,
-                f"--gpus={N_GPUS}",
+                f"--gres=gpu:{N_GPUS}",
                 f"--cpus-per-gpu={CPUS_PER_GPU}",
                 f"--job-name={name}",
                 f"--time={TIME}",
@@ -208,6 +209,9 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
+            if CUDA_VISIBLE_DEVICES is not None:
+                env = os.environ.copy()
+                env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
             subprocess_args = [
                 "singularity",
                 "run",
@@ -234,9 +238,7 @@ if __name__ == "__main__":
             print(
                 f"running experiment with sbtach command: {[str(s) for s in subprocess_args if s is not None]}"
             )
-            subprocess.run(
-                [str(s) for s in subprocess_args if s is not None],
-            )
+            subprocess.run([str(s) for s in subprocess_args if s is not None], env=env)
             sleep(10)
         else:
             print(" ".join([str(s) for s in subprocess_args if s is not None]))
