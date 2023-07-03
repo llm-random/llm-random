@@ -10,6 +10,7 @@ from research.reinitialization.core.pruner import Pruner
 import plotly.express as px
 import numpy as np
 from lizrd.support.logging import get_current_logger, log_plot
+from lizrd.core.misc import get_neuron_magnitudes
 
 
 def mask_by_score(
@@ -519,12 +520,15 @@ class UnstructMagnitudePruneFF(nn.Module):
 
 @ash.check("... d -> ... d")
 class StructMagnitudePruneFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(
+        self, dmodel: int, dff: int, pruner: Pruner, criterion: str = "smallest"
+    ):
         super().__init__()
         self.lin1 = nn.Linear(dmodel, dff)
         self.lin2 = nn.Linear(dff, dmodel)
         self.mask = create_mask(torch.Size([dff]))
         pruner.register(self)
+        self.criterion = criterion
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -537,9 +541,28 @@ class StructMagnitudePruneFF(nn.Module):
         weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
         weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
         scores = weights1 * weights2
+
+        if self.criterion == "largest":
+            scores = -scores
+        elif self.criterion == "random":
+            scores = torch.rand_like(scores)
+
         self.mask.data = mask_by_score(
             self.mask, scores, round(self.mask.numel() * prob)
         )
+
+    def log_neurons_magnitudes(self, layer_name, step) -> None:
+        magnitudes = get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
+        fig = px.histogram(prepare_tensor_for_logging(magnitudes))
+        log_plot(
+            title=f"{layer_name} neuron magnitude",
+            series="magnitude",
+            figure=fig,
+            iteration=step,
+        )
+
+    def log_heavy(self, layer_name, step, modelpath):
+        self.log_neurons_magnitudes(layer_name, step)
 
 
 @ash.check("... d -> ... d")

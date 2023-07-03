@@ -61,10 +61,10 @@ if __name__ == "__main__":
         if path.endswith(".json"):
             grid_args = json.load(open(sys.argv[1]))
         elif path.endswith(".yaml"):
-            grid_args = yaml.load(open(sys.argv[1]))
+            grid_args = yaml.safe_load(open(sys.argv[1]))
         else:
             raise ValueError("grid path must be .json or .yaml")
-            
+
         RUNNER = grid_args.get("runner", RUNNER)
         PARAMS = grid_args.get("params", PARAMS)
         TIME = grid_args.get("time", TIME)
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         )
         SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE")
 
-    if SINGULARITY_IMAGE is None:
+    if SINGULARITY_IMAGE is None and runner != MachineBackend.LOCAL:
         raise ValueError("Singularity image is not specified (in JSON or env variable)")
 
     if NODELIST is not None:
