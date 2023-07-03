@@ -9,7 +9,8 @@ class MachineBackend(Enum):
     ENTROPY = 1
     ATHENA = 2
     IDEAS = 3
-    LOCAL = 4
+    ENTROPY_GPU = 4
+    LOCAL = 5
 
 
 def get_machine_backend() -> MachineBackend:
@@ -20,6 +21,8 @@ def get_machine_backend() -> MachineBackend:
         return MachineBackend.ATHENA
     elif node == "login01":
         return MachineBackend.IDEAS
+    elif node == "4124gs01":
+        return MachineBackend.ENTROPY_GPU
     else:
         return MachineBackend.LOCAL
 
@@ -27,7 +30,11 @@ def get_machine_backend() -> MachineBackend:
 def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
     if machine_backend in [MachineBackend.ENTROPY, MachineBackend.LOCAL]:
         return "lizrd/scripts/grid_entrypoint.sh"
-    elif machine_backend in [MachineBackend.ATHENA, MachineBackend.IDEAS]:
+    elif machine_backend in [
+        MachineBackend.ATHENA,
+        MachineBackend.IDEAS,
+        MachineBackend.ENTROPY_GPU,
+    ]:
         return "lizrd/scripts/grid_entrypoint_athena.sh"
     else:
         raise ValueError(f"Unknown machine backend: {machine_backend}")

@@ -1,4 +1,5 @@
 import copy
+import os
 from collections import defaultdict
 from typing import Callable, Optional
 
@@ -13,7 +14,7 @@ from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.logging import get_current_logger
+from lizrd.support.logging import get_current_logger, log_plot
 from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
@@ -56,6 +57,7 @@ def get_processed_dataset(
     num_workers: int,
     seed: int,
     model_type: str = "bert",
+    distributed: bool = False,
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset()
 
@@ -77,6 +79,7 @@ def get_processed_dataset(
         num_workers=num_workers,
         seed=seed,
         model_type=model_type,
+        distributed=distributed,
     )
 
 
@@ -200,13 +203,14 @@ class Trainer:
         y_mask_set: torch.Tensor,
     ) -> torch.Tensor:
         model_output = self.model(x_set)
-        mask_loss = F.cross_entropy(
+        self.mask_loss = F.cross_entropy(
             model_output.reshape(-1, self.vocab_size),
             y_token_set.reshape(-1).long(),
             reduction="none",
         )
-        mask_loss *= y_mask_set.reshape(-1)  # only check masked words
-        mask_loss = mask_loss.mean() / self.mask_percent
+        self.mask_loss *= y_mask_set.reshape(-1)  # only check masked words
+        self.token_losses = self.mask_loss[y_mask_set.reshape(-1).bool()]
+        mask_loss = self.mask_loss.mean() / self.mask_percent
         return mask_loss
 
     def _get_lm_loss(self, input, target, non_padded_mask):
@@ -271,6 +275,40 @@ class Trainer:
                 step=step,
                 run_after_backprop=True,
             )
+
+        if self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
+            self.token_losses_before = self.token_losses.clone()
+            with torch.no_grad():
+                self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            self.token_losses_after = self.token_losses.clone()
+            assert self.token_losses_before.shape == self.token_losses_after.shape
+            torch.save(processed_batch, os.path.join(self.modelpath, "checked_batch"))
+            torch.save(
+                self.token_losses_before,
+                os.path.join(self.modelpath, "token_losses_before"),
+            )
+
+        if (
+            self.n_log_heavy_steps
+            and step > 0
+            and step > self.n_log_heavy_steps
+            and step % self.n_log_heavy_steps in [10, 100, 500, 1000]
+        ):
+            del processed_batch
+            historical_batch = torch.load(os.path.join(self.modelpath, "checked_batch"))
+            historical_losses = torch.load(
+                os.path.join(self.modelpath, "token_losses_before")
+            )
+
+            x_set = historical_batch.masked_tokens
+            y_token_set = historical_batch.tokens
+            y_mask_set = historical_batch.mask_mask
+            with torch.no_grad():
+                self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            self.token_losses_after = self.token_losses.clone()
+            self.token_losses_before = historical_losses
+
+            self.log_token_losses(step)
 
     def _model_train_step(self, step: int):
         self.model.train()
@@ -460,6 +498,18 @@ class Trainer:
 
         print("Neuron diff logged.")
 
+    def log_token_losses(self, step: int):
+        print(f"Logging token losses at step {step}...")
+        values = self.token_losses_after - self.token_losses_before
+        values = values.detach().cpu().numpy().tolist()
+        fig = px.histogram(values)
+        log_plot(
+            title="Token losses difference",
+            series="Token losses difference",
+            iteration=step,
+            figure=fig,
+        )
+
     def set_lr(self, lr: float):
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
@@ -518,7 +568,8 @@ class Trainer:
                 and step % self.n_log_heavy_steps == 0
             ):
                 print(f"Running heavy log at step {step}")
-                self.pruner.log_heavy(step)
+                self.pruner.log_heavy(step, self.modelpath)
+                self.log_token_losses(step)
             print(f"Step {step}")
 
 
