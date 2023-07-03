@@ -519,12 +519,15 @@ class UnstructMagnitudePruneFF(nn.Module):
 
 @ash.check("... d -> ... d")
 class StructMagnitudePruneFF(nn.Module):
-    def __init__(self, dmodel: int, dff: int, pruner: Pruner):
+    def __init__(
+        self, dmodel: int, dff: int, pruner: Pruner, criterion: str = "smallest"
+    ):
         super().__init__()
         self.lin1 = nn.Linear(dmodel, dff)
         self.lin2 = nn.Linear(dff, dmodel)
         self.mask = create_mask(torch.Size([dff]))
         pruner.register(self)
+        self.criterion = criterion
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -537,6 +540,12 @@ class StructMagnitudePruneFF(nn.Module):
         weights1 = misc.einsum("i o -> i", self.lin1.weight**2)
         weights2 = misc.einsum("o i -> i", self.lin2.weight**2)
         scores = weights1 * weights2
+
+        if self.criterion == "largest":
+            scores = -scores
+        elif self.criterion == "random":
+            scores = torch.rand_like(scores)
+
         self.mask.data = mask_by_score(
             self.mask, scores, round(self.mask.numel() * prob)
         )
