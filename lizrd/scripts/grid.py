@@ -84,7 +84,7 @@ if __name__ == "__main__":
         )
         SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE")
 
-    if SINGULARITY_IMAGE is None:
+    if SINGULARITY_IMAGE is None and runner != MachineBackend.LOCAL:
         raise ValueError("Singularity image is not specified (in JSON or env variable)")
 
     if NODELIST is not None:

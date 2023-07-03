@@ -10,6 +10,7 @@ from research.reinitialization.core.pruner import Pruner
 import plotly.express as px
 import numpy as np
 from lizrd.support.logging import get_current_logger, log_plot
+from lizrd.core.misc import get_neuron_magnitudes
 
 
 def mask_by_score(
@@ -549,6 +550,19 @@ class StructMagnitudePruneFF(nn.Module):
         self.mask.data = mask_by_score(
             self.mask, scores, round(self.mask.numel() * prob)
         )
+
+    def log_neurons_magnitudes(self, layer_name, step) -> None:
+        magnitudes = get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
+        fig = px.histogram(prepare_tensor_for_logging(magnitudes))
+        log_plot(
+            title=f"{layer_name} neuron magnitude",
+            series="magnitude",
+            figure=fig,
+            iteration=step,
+        )
+
+    def log_heavy(self, layer_name, step, modelpath):
+        self.log_neurons_magnitudes(layer_name, step)
 
 
 @ash.check("... d -> ... d")
