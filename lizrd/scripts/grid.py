@@ -248,7 +248,7 @@ if __name__ == "__main__":
 
         if not DRY_RUN:
             print(
-                f"running experiment with sbtach command: {[str(s) for s in subprocess_args if s is not None]}"
+                f"running experiment with command: {[str(s) for s in subprocess_args if s is not None]}"
             )
             subprocess.run([str(s) for s in subprocess_args if s is not None], env=env)
             sleep(10)
