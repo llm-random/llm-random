@@ -49,6 +49,7 @@ CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
 PUSH_TO_GIT = False
+SKIP_FIRST_N_JOBS = -1
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -80,6 +81,7 @@ if __name__ == "__main__":
         N_GPUS = grid_args.get("n_gpus", N_GPUS)
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
         CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
+        SKIP_FIRST_N_JOBS = grid_args.get("skip_first_n_jobs", SKIP_FIRST_N_JOBS)
 
     if SINGULARITY_IMAGE is None:
         print(
@@ -128,6 +130,9 @@ if __name__ == "__main__":
         print(f"Running in debug mode, skip copying code to a new directory.")
 
     for i, param_set in enumerate(grid):
+        if i < SKIP_FIRST_N_JOBS:
+            print(f"Skipping job {i}...")
+            continue
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
         param_set["n_gpus"] = N_GPUS
