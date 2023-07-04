@@ -571,7 +571,7 @@ class RetrainRecycleFF(nn.Module):
             figure=fig,
         )
 
-    def log_heavy(self, layer_name: str, step: int):
+    def log_heavy(self, layer_name: str, step: int, modelpath: str):
         get_current_logger().flush_if_necessary()
         self.log_activations(layer_name, step)
         get_current_logger().flush_if_necessary()
