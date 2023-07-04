@@ -688,6 +688,7 @@ class RetrainTrainer(Trainer):
         dataset: wikibookdata.ProcessedDataset,
         step: int,
         optimizer: Optional[torch.optim.Optimizer] = None,
+        log_stats: bool = True,
     ):
         if self.model_type == "bert":
             self.model.train()
@@ -701,7 +702,8 @@ class RetrainTrainer(Trainer):
                 device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
             ):
                 losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
-                self.update_loss_stats(losses)
+                if log_stats:
+                    self.update_loss_stats(losses)
                 scaled_losses = self.scale_losses(losses)
                 loss = sum(scaled_losses.values())
 
@@ -724,7 +726,8 @@ class RetrainTrainer(Trainer):
                 device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
             ):
                 losses = {"mask": self._get_lm_loss(input, target, non_padded_mask)}
-                self.update_loss_stats(losses)
+                if log_stats:
+                    self.update_loss_stats(losses)
                 scaled_losses = self.scale_losses(losses)
                 loss = sum(scaled_losses.values())
 
@@ -839,6 +842,7 @@ class RetrainTrainer(Trainer):
                 optimizer=retrain_optim,
                 dataset=self.pdataset_retrain,
                 step=self.full_step(step),
+                log_stats=False
             )
             self._log_retrain_stats(total_loss, mask_loss, step, retrain_optim)
             self.retrain_count += 1
