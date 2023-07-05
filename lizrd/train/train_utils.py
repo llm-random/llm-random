@@ -780,8 +780,11 @@ class RetrainTrainer(Trainer):
         dataset: wikibookdata.ProcessedDataset,
         step: int,
         optimizer: Optional[torch.optim.Optimizer] = None,
+        log_stats: Optional[bool] = True,
     ):
-        total_loss, mask_loss = self._task_train_step(dataset, step, optimizer)
+        total_loss, mask_loss = self._task_train_step(
+            dataset, step, optimizer, log_stats=log_stats
+        )
         self._model_train_step(step)
         return total_loss, mask_loss
 
@@ -816,7 +819,7 @@ class RetrainTrainer(Trainer):
         # reset optimizer stats
         print("Resetting optimizer stats...")
         if self.statistics_reset_steps is None:
-            self.statistics_reset_steps = self.retrain_count
+            self.statistics_reset_steps = 0
         with SetLRTemporarily(self.optimizer, 0.0):
             for _ in range(self.statistics_reset_steps):
                 self._train_step(
@@ -842,7 +845,7 @@ class RetrainTrainer(Trainer):
                 optimizer=retrain_optim,
                 dataset=self.pdataset_retrain,
                 step=self.full_step(step),
-                log_stats=False
+                log_stats=False,
             )
             self._log_retrain_stats(total_loss, mask_loss, step, retrain_optim)
             self.retrain_count += 1
