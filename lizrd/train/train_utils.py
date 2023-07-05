@@ -502,10 +502,11 @@ class Trainer:
         print("Neuron diff logged.")
 
     def log_token_losses(self, step: int):
-        print(f"Logging token losses at step {step}...")
-        values = self.token_losses_after - self.token_losses_before
-        values = values.detach().cpu().numpy().tolist()
-        fig = px.histogram(values)
+        pass
+        # print(f"Logging token losses at step {step}...")
+        # values = self.token_losses_after - self.token_losses_before
+        # values = values.detach().cpu().numpy().tolist()
+        # fig = px.histogram(values)
         # log_plot(
         #     title="Token losses difference",
         #     series="Token losses difference",
@@ -665,7 +666,7 @@ class RetrainTrainer(Trainer):
             value=mask_loss,
             iteration=full_step,
         )
-        print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+        # print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
         self.logger.report_scalar(
             title="full_steps/lr",
             value=optimizer.param_groups[0]["lr"],
@@ -789,18 +790,18 @@ class RetrainTrainer(Trainer):
         return total_loss, mask_loss
 
     def _retrain(self, step):
-        loss_before_recycle = self._eval_step(step)
-        self.logger.report_scalar(
-            title="loss/eval_just_before_recycle",
-            value=loss_before_recycle,
-            iteration=step,
-        )
-        print(f"Eval loss before recycle:", loss_before_recycle)
+        # loss_before_recycle = self._eval_step(step)
+        # self.logger.report_scalar(
+        #     title="loss/eval_just_before_recycle",
+        #     value=loss_before_recycle,
+        #     iteration=step,
+        # )
+        # print(f"Eval loss before recycle:", loss_before_recycle)
 
         self.pruner.prepare_new(self.scheduler.prob)
 
         # freeze model
-        self.model.requires_grad_(False)
+        # self.model.requires_grad_(False)
 
         # unfreeze new
         self.pruner.pre_retrain()
@@ -830,13 +831,14 @@ class RetrainTrainer(Trainer):
         # retrain
         for i in range(self.scheduler.n_steps_retrain):
             if i < 5:
-                loss_after_recycle = self._eval_step(step, log_values=False)
+                pass
+                # loss_after_recycle = self._eval_step(step, log_values=False)
                 # self.logger.report_scalar(
                 #     title="loss/eval_just_after_recycle",
                 #     value=loss_after_recycle,
                 #     iteration=step + i,
                 # )
-                print(f"Eval loss after recycle:", loss_after_recycle)
+                # print(f"Eval loss after recycle:", loss_after_recycle)
             # lr warmup
             lr_coeff = min(1.0, i / self.retrain_warmup_steps)
             retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr

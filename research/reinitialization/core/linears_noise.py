@@ -60,6 +60,7 @@ class NoiseFF(nn.Module):
         self.latest_activations = x.detach().clone()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # print(f'lin1 weight requires grad: {self.lin1.weight.requires_grad}')
         # make sure requires_grad is set correctly
         assert not self.frozen_weights_1.requires_grad
         assert not self.frozen_weights_2.requires_grad
@@ -75,7 +76,7 @@ class NoiseFF(nn.Module):
                 self.alpha = 0.0
                 self.prepare_mask()
 
-        print(f"Noise enabled: {self.noise_enabled}")
+        # print(f"Noise enabled: {self.noise_enabled}")
 
         # apply lin1
         noisy_weights = (
@@ -96,6 +97,12 @@ class NoiseFF(nn.Module):
         # x = misc.einsum("... m, f m -> ... f", x, weight)
         # x = x @ weight.transpose(0, 1)
         # x = self.lin1(x)
+        # print(self.alpha)
+        # if self.training and not weight.requires_grad:
+        #     # set breakpopint here
+        #     breakpoint()
+        # else:
+        #     print("weight requires grad")
         x = F.linear(x, weight)
 
         self._save_activation_stats(x)
@@ -171,6 +178,7 @@ class NoiseFF(nn.Module):
         self.lin2.weight.data = (
             self.mask.view(1, self.dff) * self.lin2.weight.data
         ) + (1 - self.mask.view(1, self.dff)) * target_weights_2
+        # print(f'Prepare mask done. Weight requires grad: {self.lin1.weight.requires_grad}')
 
     def get_random_weight(self, layer):
         mean = layer.weight.mean().detach().cpu().item()
