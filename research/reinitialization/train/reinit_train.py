@@ -262,7 +262,7 @@ elif args.ff_layer == "noise":
         pruner=pruner,
         prune_ratio=args.noise_ff_prune_ratio,
         n_steps_interpolate=args.noise_ff_n_steps,
-        new_weight_init=args.noise_ff_new_weight_init,
+        new_weight_init=args.noise_ff_weight_init,
         perform_noise_interpolation=args.noise_ff_perform_noise_interpolation,
     )
 else:
