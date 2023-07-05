@@ -98,6 +98,7 @@ parser.add_argument("--noise_ff_prune_ratio", type=float, required=False)
 parser.add_argument("--noise_ff_n_steps", type=int, required=False)
 parser.add_argument("--noise_interpolation_delay", type=float, default=0.0)
 parser.add_argument("--noise_ff_weight_init", type=str, default="random")
+parser.add_argument("--noise_ff_perform_noise_interpolation", type=bool, default=True)
 parser.add_argument("--lr_warmup_steps", type=int, default=10_000)
 parser.add_argument("--model_type", type=str, default="bert")
 parser.add_argument("--n_gpus", type=int, default=1)
@@ -262,6 +263,7 @@ elif args.ff_layer == "noise":
         prune_ratio=args.noise_ff_prune_ratio,
         n_steps_interpolate=args.noise_ff_n_steps,
         new_weight_init=args.noise_ff_new_weight_init,
+        perform_noise_interpolation=args.noise_ff_perform_noise_interpolation,
     )
 else:
     raise ValueError(f"ff_layer {args.ff_layer} not recognized")

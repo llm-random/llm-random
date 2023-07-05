@@ -22,6 +22,7 @@ class NoiseFF(nn.Module):
         prune_ratio: float,
         n_steps_interpolate: int,
         new_weight_init: str = "random",
+        perform_noise_interpolation: bool = True,
     ):
         super().__init__()
 
@@ -50,6 +51,7 @@ class NoiseFF(nn.Module):
 
         assert new_weight_init in ["random", "mimic"]
         self.new_weight_init = new_weight_init
+        self.perform_noise_interpolation = perform_noise_interpolation
 
     def get_device(self):
         return self.lin1.weight.device
@@ -65,7 +67,7 @@ class NoiseFF(nn.Module):
         assert self.mask.shape == (self.dff,)
 
         # noise interpolation is not applied before n_delay_steps controlled by Trainer
-        if self.noise_enabled:
+        if self.noise_enabled and self.perform_noise_interpolation:
             # update value of alpha
             self.alpha = self.alpha + 1 / self.n_steps_interpolate
 
