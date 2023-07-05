@@ -21,8 +21,9 @@ from lizrd.scripts.grid_utils import (
     MachineBackend,
     get_grid_entrypoint,
     unpack_params,
-    get_idle_gpus,
+    list_to_clean_str,
 )
+from lizrd.scripts.reserve_machines import process_exists, get_tmux_pid_by_name
 from lizrd.support.code_versioning_support import copy_and_version_code
 
 RUNNER = "research.reinitialization.train.reinit_train"
@@ -49,7 +50,7 @@ CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
 PUSH_TO_GIT = False
-SKIP_FIRST_N_JOBS = -1
+ENTROPY_GPU_USAGE_FILES = [f"/home/simontwice/gpu_usage/{i}.txt" for i in range(8)]
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -58,6 +59,10 @@ if __name__ == "__main__":
     N_GPUS = 1
     CPUS_PER_GPU = 8
     CUDA_VISIBLE_DEVICES = None
+    PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
+        list_to_clean_str(args), env=env
+    )
+    AUXILIARY_PROCESS_CALL_FUNCTION = None
 
     if len(sys.argv) > 1:
         path = sys.argv[1]
@@ -81,7 +86,6 @@ if __name__ == "__main__":
         N_GPUS = grid_args.get("n_gpus", N_GPUS)
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
         CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
-        SKIP_FIRST_N_JOBS = grid_args.get("skip_first_n_jobs", SKIP_FIRST_N_JOBS)
 
     if SINGULARITY_IMAGE is None:
         print(
@@ -110,7 +114,7 @@ if __name__ == "__main__":
         if not INTERACTIVE_DEBUG:
             user_input = input(
                 f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
+                f"\nExperiment settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
             )
         else:
             user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
@@ -130,9 +134,6 @@ if __name__ == "__main__":
         print(f"Running in debug mode, skip copying code to a new directory.")
 
     for i, param_set in enumerate(grid):
-        if i < SKIP_FIRST_N_JOBS:
-            print(f"Skipping job {i}...")
-            continue
         name = param_set["name"]
         param_set["tags"] = " ".join(param_set["tags"])
         param_set["n_gpus"] = N_GPUS
@@ -215,21 +216,7 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
-            available_gpus = get_idle_gpus()
-            if len(available_gpus) < N_GPUS:
-                raise ValueError(
-                    f"Not enough GPUs available. Requested: {N_GPUS}, available: {available_gpus}"
-                )
-            CUDA_VISIBLE_DEVICES = ",".join(available_gpus[:N_GPUS])
-            env = os.environ.copy()
-            env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
-            session_name = f"{name}_{i}"
             subprocess_args = [
-                "tmux",
-                "new-session",
-                "-d",
-                "-s",
-                session_name,
                 "singularity",
                 "run",
                 f"-B={CODE_PATH}:/sparsity",
@@ -240,6 +227,30 @@ if __name__ == "__main__":
                 RUNNER,
                 *runner_params,
             ]
+            session_name = (
+                f"{name}_{i}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+            )
+
+            def tmux_wait_and_train():
+                subprocess.run(["tmux", "new-session", "-d", "-s", session_name])
+                tmux_process_pid = get_tmux_pid_by_name(session_name)
+                assert tmux_process_pid is not None
+                entropy_files_str = " ".join(ENTROPY_GPU_USAGE_FILES)
+                train_cmd = list_to_clean_str(subprocess_args)
+                assert process_exists(tmux_process_pid)
+                subprocess.Popen(
+                    [
+                        "tmux",
+                        "send-keys",
+                        "-t",
+                        session_name,
+                        f'bash lizrd/scripts/baby_slurm.sh {tmux_process_pid} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {session_name}.out',
+                        "C-m",
+                    ]
+                )
+
+            AUXILIARY_PROCESS_CALL_FUNCTION = tmux_wait_and_train
+
         elif runner == MachineBackend.LOCAL:
             subprocess_args = [
                 get_grid_entrypoint(runner),
@@ -250,14 +261,14 @@ if __name__ == "__main__":
             ]
         else:
             raise ValueError(f"Unknown runner: {runner}")
-
-        if not DRY_RUN:
-            print(
-                f"running experiment with command: {[str(s) for s in subprocess_args if s is not None]}"
-            )
-            subprocess.run([str(s) for s in subprocess_args if s is not None], env=env)
-            sleep(10)
+        if DRY_RUN:
+            print(" ".join(subprocess_args))
         else:
-            print(" ".join([str(s) for s in subprocess_args if s is not None]))
+            print(f"running experiment {i} from grid ")
+            if AUXILIARY_PROCESS_CALL_FUNCTION is not None:
+                AUXILIARY_PROCESS_CALL_FUNCTION()
+            else:
+                PROCESS_CALL_FUNCTION(subprocess_args, env)
+            sleep(1)
         if INTERACTIVE_DEBUG:
             break

@@ -1,6 +1,5 @@
 import copy
 import platform
-import subprocess
 from enum import Enum
 from itertools import product
 from typing import List, Tuple
@@ -201,41 +200,4 @@ def param_to_str(param) -> str:
         return str(param)
 
 
-def get_idle_gpus():
-    # Get the number of GPUs
-    num_gpus = (
-        len(
-            subprocess.check_output(["nvidia-smi", "--list-gpus"])
-            .decode("utf-8")
-            .split("\n")
-        )
-        - 1
-    )
-
-    idle_gpus = []
-
-    # Check each GPU
-    for i in range(num_gpus):
-        # Get the number of processes on the current GPU
-        num_procs = (
-            len(
-                subprocess.check_output(
-                    [
-                        "nvidia-smi",
-                        "-i",
-                        str(i),
-                        "--query-compute-apps=pid",
-                        "--format=csv",
-                    ]
-                )
-                .decode("utf-8")
-                .split("\n")
-            )
-            - 2
-        )
-
-        # If the number of processes is 0, the GPU is idle
-        if num_procs == 0:
-            idle_gpus.append(i)
-
-    return idle_gpus
+list_to_clean_str = lambda l: " ".join([str(s) for s in l if s is not None])
