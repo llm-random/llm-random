@@ -261,14 +261,6 @@ elif args.ff_layer == "noise":
         pruner=pruner,
         prune_ratio=args.noise_ff_prune_ratio,
         n_steps_interpolate=args.noise_ff_n_steps,
-    )
-elif args.ff_layer == "noise":
-    ff_layer_fun = lambda: linears_noise.NoiseFF(
-        dmodel=args.dmodel,
-        dff=args.dff,
-        pruner=pruner,
-        prune_ratio=args.noise_ff_prune_ratio,
-        n_steps_interpolate=args.noise_ff_n_steps,
         new_weight_init=args.noise_ff_new_weight_init,
     )
 else:
