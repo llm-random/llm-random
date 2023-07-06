@@ -44,7 +44,8 @@ class Pruner(BasePruner):
     def prune(self, prob: float):
         print("Pruning step")
         for layer in self.layers:
-            layer.prune(prob)
+            if hasattr(layer, "prune"):
+                layer.prune(prob)
 
     def decrement_immunity(self):
         for layer in self.layers:

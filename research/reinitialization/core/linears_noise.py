@@ -82,6 +82,8 @@ class NoiseFF(nn.Module):
 
             if not self.perform_noise_interpolation:
                 forward_alpha = 1.0
+        else:
+            forward_alpha = 1.0
 
         # apply lin1
         noisy_weights = (
