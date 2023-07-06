@@ -9,7 +9,6 @@ import torch
 import torch.nn.functional as F
 from attr import define
 from torch.utils.tensorboard import SummaryWriter
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same

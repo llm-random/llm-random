@@ -30,7 +30,11 @@ def get_machine_backend() -> MachineBackend:
 def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
     if machine_backend in [MachineBackend.ENTROPY, MachineBackend.LOCAL]:
         return "lizrd/scripts/grid_entrypoint.sh"
-    elif machine_backend in [MachineBackend.ATHENA, MachineBackend.IDEAS, MachineBackend.ENTROPY_GPU]:
+    elif machine_backend in [
+        MachineBackend.ATHENA,
+        MachineBackend.IDEAS,
+        MachineBackend.ENTROPY_GPU,
+    ]:
         return "lizrd/scripts/grid_entrypoint_athena.sh"
     else:
         raise ValueError(f"Unknown machine backend: {machine_backend}")
@@ -194,3 +198,7 @@ def param_to_str(param) -> str:
         return " ".join(param)
     else:
         return str(param)
+
+
+def list_to_str(l: List[str]) -> str:
+    return " ".join([str(s) for s in l if s is not None])

@@ -68,6 +68,7 @@ def copy_and_version_code(
         )
         subprocess.run(["rm", "-rf", tmp_dir], capture_output=True, text=True)
         subprocess.run(["rm", ".git"], capture_output=True, text=True)
+    return newdir_path
 
 
 def push_code_to_url(
