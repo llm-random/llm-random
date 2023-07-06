@@ -238,7 +238,12 @@ if __name__ == "__main__":
                 subprocess.run(
                     ["tmux", "-S", SOCKET_PATH, "new-session", "-d", "-s", session_name]
                 )
-                os.system(f"chmod 777 {SOCKET_PATH}")
+                subprocess.run(
+                    f"chmod 777 {SOCKET_PATH}",
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=True,
+                )
                 entropy_files_str = " ".join(ENTROPY_GPU_USAGE_FILES)
                 train_cmd = list_to_clean_str(subprocess_args)
 
@@ -251,7 +256,7 @@ if __name__ == "__main__":
                         "send-keys",
                         "-t",
                         session_name,
-                        f'bash lizrd/scripts/baby_slurm.sh {session_name} {SOCKET_PATH} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {os.path.join(COPIED_CODE_PATH,session_name)}.out',
+                        f'bash {CODE_PATH}/lizrd/scripts/baby_slurm.sh {session_name} {SOCKET_PATH} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {os.path.join(COPIED_CODE_PATH,session_name)}.out',
                         "C-m",
                     ]
                 )
