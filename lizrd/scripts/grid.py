@@ -240,10 +240,6 @@ if __name__ == "__main__":
                 os.system(f"chmod 777 {SOCKET_PATH}")
                 entropy_files_str = " ".join(ENTROPY_GPU_USAGE_FILES)
                 train_cmd = list_to_clean_str(subprocess_args)
-                print(
-                    "will write to ",
-                    os.path.join(COPIED_CODE_PATH, session_name) + ".out",
-                )
 
                 # Send keys to the tmux session at specified socket path
                 subprocess.Popen(
