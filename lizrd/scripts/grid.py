@@ -229,9 +229,7 @@ if __name__ == "__main__":
                 RUNNER,
                 *runner_params,
             ]
-            session_name = (
-                f"{name}_{i}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-            )
+            session_name = f"{os.system('whoami')}_{name}_{i}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
 
             def tmux_wait_and_train():
                 # Create a new session at specified socket path
