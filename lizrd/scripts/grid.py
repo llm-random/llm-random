@@ -60,7 +60,7 @@ if __name__ == "__main__":
     CPUS_PER_GPU = 8
     CUDA_VISIBLE_DEVICES = None
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
-        list_to_clean_str(args), env=env
+        [str(arg) for arg in args if arg is not None], env=env
     )
     AUXILIARY_PROCESS_CALL_FUNCTION = None
 
@@ -231,6 +231,7 @@ if __name__ == "__main__":
             ]
             username = subprocess.check_output("whoami", shell=True).decode().strip()
             session_name = f"{username}_{name}_{i}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+            print("will run tmux session with name", session_name)
 
             def tmux_wait_and_train():
                 # Create a new session at specified socket path

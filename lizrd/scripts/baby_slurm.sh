@@ -1,10 +1,10 @@
 #!/bin/sh
 # $1 refers to tmux session name
 # $2 refers to the tmux socket path
-# $2 refers to the space-separated list of log files
-# $3 refers to the number of machines to reserve
-# $4 refers to training command
-# $5 refers to the log file
+# $3 refers to the space-separated list of log files
+# $4 refers to the number of machines to reserve
+# $5 refers to training command
+# $6 refers to the log file
 echo -e "Running baby_slurm.sh \n\n\n"
 echo "SESSION_NAME=$1"
 echo "TMUX_SOCKET_PATH=$2"
