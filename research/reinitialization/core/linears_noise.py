@@ -1,3 +1,4 @@
+from typing import Optional
 from torch import nn
 import torch
 import torch.nn.functional as F
@@ -8,6 +9,7 @@ from lizrd.support.logging import (
     get_current_logger,
     log_plot as log_plot,
 )
+import plotly.express as px
 import torch.nn.functional as F
 import pickle
 
@@ -22,6 +24,7 @@ class NoiseFF(nn.Module):
         n_steps_interpolate: int,
         new_weight_init: str = "random",
         perform_noise_interpolation: bool = True,
+        interval: Optional[int] = None,
     ):
         super().__init__()
 
@@ -45,6 +48,7 @@ class NoiseFF(nn.Module):
         )
 
         self.alpha = 1.0
+        self.max_alpha = 1.0 if interval is None else interval / n_steps_interpolate
 
         self.noise_enabled = False
 
@@ -59,7 +63,6 @@ class NoiseFF(nn.Module):
         self.latest_activations = x.detach().clone()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # print(f'lin1 weight requires grad: {self.lin1.weight.requires_grad}')
         # make sure requires_grad is set correctly
         assert not self.frozen_weights_1.requires_grad
         assert not self.frozen_weights_2.requires_grad
@@ -67,25 +70,30 @@ class NoiseFF(nn.Module):
         assert self.mask.shape == (self.dff,)
 
         # noise interpolation is not applied before n_delay_steps controlled by Trainer
-        if self.noise_enabled and self.perform_noise_interpolation:
+        if self.noise_enabled:
             # update value of alpha
             self.alpha = self.alpha + 1 / self.n_steps_interpolate
 
-            if self.alpha > 1.0:
+            if self.alpha > self.max_alpha:
                 self.alpha = 0.0
                 self.prepare_mask()
 
+            forward_alpha = min(self.alpha, 1.0)
+
+            if not self.perform_noise_interpolation:
+                forward_alpha = 1.0
+
         # apply lin1
         noisy_weights = (
-            1 - self.alpha
-        ) * self.frozen_weights_1 + self.alpha * self.lin1.weight
+            1 - forward_alpha
+        ) * self.frozen_weights_1 + forward_alpha * self.lin1.weight
         weight = (
             self.mask.view(self.dff, 1) * self.lin1.weight
             + (1 - self.mask.view(self.dff, 1)) * noisy_weights
         )
 
         assert self.noise_enabled or (
-            (self.alpha == 1.0)
+            (forward_alpha == 1.0)
             and ((weight == self.lin1.weight).count_nonzero() == weight.numel())
         )
 
@@ -96,8 +104,8 @@ class NoiseFF(nn.Module):
 
         # apply lin2
         noisy_weights = (
-            1 - self.alpha
-        ) * self.frozen_weights_2 + self.alpha * self.lin2.weight
+            1 - forward_alpha
+        ) * self.frozen_weights_2 + forward_alpha * self.lin2.weight
 
         weight = (
             self.mask.view(1, self.dff) * self.lin2.weight
@@ -106,7 +114,7 @@ class NoiseFF(nn.Module):
 
         assert (
             self.noise_enabled
-            or (self.alpha == 1.0)
+            or (forward_alpha == 1.0)
             and ((weight == self.lin2.weight).count_nonzero() == weight.numel())
         )
 
