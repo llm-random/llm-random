@@ -801,7 +801,7 @@ class RetrainTrainer(Trainer):
         self.pruner.prepare_new(self.scheduler.prob)
 
         # freeze model
-        # self.model.requires_grad_(False)
+        self.model.requires_grad_(False)
 
         # unfreeze new
         self.pruner.pre_retrain()
@@ -820,11 +820,14 @@ class RetrainTrainer(Trainer):
         # reset optimizer stats
         print("Resetting optimizer stats...")
         if self.statistics_reset_steps is None:
-            self.statistics_reset_steps = 0
+            self.statistics_reset_steps = 50
         with SetLRTemporarily(self.optimizer, 0.0):
             for _ in range(self.statistics_reset_steps):
                 self._train_step(
-                    retrain_optim, self.pdataset_retrain, log_auxiliary_loss=False
+                    optimizer=retrain_optim,
+                    step=self.full_step(step),
+                    dataset=self.pdataset_retrain,
+                    log_stats=False,
                 )
         print("Optimizer stats reset.")
 
