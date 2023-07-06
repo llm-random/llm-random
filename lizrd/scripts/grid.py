@@ -51,6 +51,7 @@ RUNS_MULTIPLIER = 1
 PUSH_TO_GIT = False
 ENTROPY_GPU_USAGE_FILES = [f"/home/simontwice/gpu_usage/{i}.txt" for i in range(8)]
 SOCKET_PATH = "/home/simontwice/gpu_usage/common_tmux_socket"
+COPIED_CODE_PATH = ""
 if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
@@ -128,7 +129,9 @@ if __name__ == "__main__":
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        copy_and_version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
+        COPIED_CODE_PATH = copy_and_version_code(
+            name_for_branch, name_for_branch, PUSH_TO_GIT
+        )
     else:
         print(f"Running in debug mode, skip copying code to a new directory.")
 
@@ -248,7 +251,7 @@ if __name__ == "__main__":
                         "send-keys",
                         "-t",
                         session_name,
-                        f'bash lizrd/scripts/baby_slurm.sh {session_name} {SOCKET_PATH} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {session_name}.out',
+                        f'bash lizrd/scripts/baby_slurm.sh {session_name} {SOCKET_PATH} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {os.path.join(COPIED_CODE_PATH,session_name)}.out',
                         "C-m",
                     ]
                 )
