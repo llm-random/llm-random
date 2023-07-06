@@ -236,7 +236,7 @@ if __name__ == "__main__":
                 subprocess.run(
                     ["tmux", "-S", SOCKET_PATH, "new-session", "-d", "-s", session_name]
                 )
-                subprocess.run(f"chmod 777 {SOCKET_PATH}")
+                os.system(f"chmod 777 {SOCKET_PATH}")
                 entropy_files_str = " ".join(ENTROPY_GPU_USAGE_FILES)
                 train_cmd = list_to_clean_str(subprocess_args)
                 print(
