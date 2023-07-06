@@ -23,7 +23,6 @@ from lizrd.scripts.grid_utils import (
     unpack_params,
     list_to_clean_str,
 )
-from lizrd.scripts.reserve_machines import process_exists, get_tmux_pid_by_name
 from lizrd.support.code_versioning_support import copy_and_version_code
 
 RUNNER = "research.reinitialization.train.reinit_train"
@@ -51,7 +50,7 @@ INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
 PUSH_TO_GIT = False
 ENTROPY_GPU_USAGE_FILES = [f"/home/simontwice/gpu_usage/{i}.txt" for i in range(8)]
-
+SOCKET_PATH = "/home/simontwice/gpu_usage/common_tmux_socket"
 if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
@@ -232,19 +231,24 @@ if __name__ == "__main__":
             )
 
             def tmux_wait_and_train():
-                subprocess.run(["tmux", "new-session", "-d", "-s", session_name])
-                tmux_process_pid = get_tmux_pid_by_name(session_name)
-                assert tmux_process_pid is not None
+                # Create a new session at specified socket path
+                subprocess.run(
+                    ["tmux", "-S", SOCKET_PATH, "new-session", "-d", "-s", session_name]
+                )
+
                 entropy_files_str = " ".join(ENTROPY_GPU_USAGE_FILES)
                 train_cmd = list_to_clean_str(subprocess_args)
-                assert process_exists(tmux_process_pid)
+
+                # Send keys to the tmux session at specified socket path
                 subprocess.Popen(
                     [
                         "tmux",
+                        "-S",
+                        SOCKET_PATH,
                         "send-keys",
                         "-t",
                         session_name,
-                        f'bash lizrd/scripts/baby_slurm.sh {tmux_process_pid} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {session_name}.out',
+                        f'bash lizrd/scripts/baby_slurm.sh {session_name} {SOCKET_PATH} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {session_name}.out',
                         "C-m",
                     ]
                 )

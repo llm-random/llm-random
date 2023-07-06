@@ -1,37 +1,11 @@
 import argparse
-import os
 import subprocess
 import time
 
 
-def process_exists(pid):
-    """Check For the existence of a unix pid."""
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
-
-
-def get_tmux_pid_by_name(session_name):
-    result = subprocess.run(
-        ["tmux", "list-sessions", "-F", "#{session_name}///#{pane_pid}"],
-        stdout=subprocess.PIPE,
-    )
-
-    sessions = result.stdout.decode("utf-8").split("\n")
-
-    for session in sessions:
-        name, pid = session.split("///")
-        if name == session_name:
-            return int(pid)
-
-    return None  # In case there are no sessions with the given name
-
-
-def write_file(file_path, pid):
+def write_file(file_path, session_name):
     with open(file_path, "w") as file:
-        file.write(str(pid))
+        file.write(str(session_name))
 
 
 def machines_to_gpu_ids(available_machines):
@@ -39,42 +13,52 @@ def machines_to_gpu_ids(available_machines):
     return ids
 
 
-def reserve_machines(process_id, gpu_log_files, no_machines, sleep_time=14.1314151617):
+def reserve_machines(
+    session_name, socket_path, gpu_log_files, no_machines, sleep_time=14.1314151617
+):
     while True:
-        assert process_exists(process_id)
         available_machines = []
         for file in gpu_log_files:
-            if file_is_free(file):
+            if file_is_free(file, socket_path):
                 available_machines.append(file)
         if len(available_machines) >= no_machines:
             available_gpu_files = available_machines[:no_machines]
             actual_available_machines = machines_to_gpu_ids(available_gpu_files)
             for file in available_gpu_files:
-                write_file(file, process_id)
+                write_file(file, session_name)
             print(actual_available_machines)
             break
         time.sleep(sleep_time)
 
 
-def file_is_free(file_path):
-    if os.stat(file_path).st_size == 0:  # returns True is the file is empty
-        return True
-    else:
-        with open(file_path, "r") as file:
-            pid = int(file.read())
-        if not process_exists(pid):  # if process does not exist, returns True
-            return True
-        else:
+def file_is_free(file_path, socket_path):
+    # Read file to get session name
+    with open(file_path, "r") as f:
+        x = f.read().strip()
+
+    # Run the tmux ls command and get output
+    result = subprocess.run(["tmux", "-S", socket_path, "ls"], stdout=subprocess.PIPE)
+    output = result.stdout.decode()
+
+    for line in output.split("\n"):
+        session_name = line.split(":")[0].strip()
+        if session_name == x:
             return False
+    return True
 
 
-def main(process_id, gpu_log_files, no_machines):
-    reserve_machines(process_id, gpu_log_files, no_machines)
+def main(session_name, socket_path, gpu_log_files, no_machines):
+    reserve_machines(session_name, socket_path, gpu_log_files, no_machines)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--process_id", type=int, help="Process ID", required=True)
+    parser.add_argument(
+        "--session_name", type=str, help="tmux session name", required=True
+    )
+    parser.add_argument(
+        "--socket_path", type=str, help="tmux socket path", required=True
+    )
     parser.add_argument(
         "--gpu_log_files",
         type=str,
@@ -86,4 +70,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     log_files = args.gpu_log_files.split(" ")
-    main(args.process_id, log_files, args.no_machines)
+    main(args.session_name, args.socket_path, log_files, args.no_machines)
