@@ -14,7 +14,7 @@ from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.logging import get_current_logger, log_plot
+from lizrd.support.logging import get_current_logger
 from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
@@ -228,6 +228,7 @@ class Trainer:
         self,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
+        optimizer: Optional[torch.optim.Optimizer] = None,
     ):
         if self.model_type == "bert":
             self.model.train()
@@ -246,7 +247,7 @@ class Trainer:
                 loss = sum(scaled_losses.values())
 
             self.optimize(
-                optimizer=self.optimizer,
+                optimizer=self.optimizer if optimizer is None else optimizer,
                 scaler=self.scaler,
                 loss=loss,
                 step=step,
@@ -337,8 +338,9 @@ class Trainer:
         self,
         dataset: wikibookdata.ProcessedDataset,
         step: int,
+        optimizer: Optional[torch.optim.Optimizer] = None,
     ):
-        self._task_train_step(dataset, step)
+        self._task_train_step(dataset, step, optimizer)
         self._model_train_step(step)
 
     def _log_train_stats(self, step: int):
@@ -503,12 +505,12 @@ class Trainer:
         values = self.token_losses_after - self.token_losses_before
         values = values.detach().cpu().numpy().tolist()
         fig = px.histogram(values)
-        log_plot(
-            title="Token losses difference",
-            series="Token losses difference",
-            iteration=step,
-            figure=fig,
-        )
+        # log_plot(
+        #     title="Token losses difference",
+        #     series="Token losses difference",
+        #     iteration=step,
+        #     figure=fig,
+        # )
 
     def set_lr(self, lr: float):
         for param_group in self.optimizer.param_groups:
@@ -607,42 +609,42 @@ class RetrainTrainer(Trainer):
     def full_step(self, step: int):
         return step + self.retrain_count
 
-    def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
-        full_step = step + self.retrain_count
-        if full_step:
-            self.logger.report_scalar(
-                title="loss/train_total",
-                value=total_loss,
-                iteration=step,
-            )
-            self.logger.report_scalar(
-                title="loss/train_mask",
-                value=mask_loss,
-                iteration=step,
-            )
-            self.logger.report_scalar(
-                title="full_loss/train_total",
-                value=total_loss,
-                iteration=full_step,
-            )
-            self.logger.report_scalar(
-                title="full_loss/train_mask",
-                value=mask_loss,
-                iteration=full_step,
-            )
-            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
-            self.logger.report_scalar(
-                title="full_steps/lr",
-                value=self.optimizer.param_groups[0]["lr"],
-                iteration=full_step,
-            )
-            self.logger.report_scalar(
-                title="is_retraining",
-                value=0,
-                iteration=full_step,
-            )
-            if full_step % self.n_log_light_steps == 0:
-                self.pruner.log_light(full_step)
+    # def _log_train_stats(self, total_loss: float, mask_loss: float, step: int):
+    #     full_step = step + self.retrain_count
+    #     if full_step:
+    #         self.logger.report_scalar(
+    #             title="loss/train_total",
+    #             value=total_loss,
+    #             iteration=step,
+    #         )
+    #         self.logger.report_scalar(
+    #             title="loss/train_mask",
+    #             value=mask_loss,
+    #             iteration=step,
+    #         )
+    #         self.logger.report_scalar(
+    #             title="full_loss/train_total",
+    #             value=total_loss,
+    #             iteration=full_step,
+    #         )
+    #         self.logger.report_scalar(
+    #             title="full_loss/train_mask",
+    #             value=mask_loss,
+    #             iteration=full_step,
+    #         )
+    #         print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+    #         self.logger.report_scalar(
+    #             title="full_steps/lr",
+    #             value=self.optimizer.param_groups[0]["lr"],
+    #             iteration=full_step,
+    #         )
+    #         self.logger.report_scalar(
+    #             title="is_retraining",
+    #             value=0,
+    #             iteration=full_step,
+    #         )
+    #         if full_step % self.n_log_light_steps == 0:
+    #             self.pruner.log_light(full_step)
 
     def _log_retrain_stats(
         self,
@@ -652,34 +654,132 @@ class RetrainTrainer(Trainer):
         optimizer: torch.optim.Optimizer,
     ):
         full_step = self.full_step(step)
-        if self.full_step:
-            self.logger.report_scalar(
-                title="full_loss/train_total",
-                value=total_loss,
-                iteration=full_step,
-            )
-            self.logger.report_scalar(
-                title="full_loss/train_mask",
-                value=mask_loss,
-                iteration=full_step,
-            )
-            print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
-            self.logger.report_scalar(
-                title="full_steps/lr",
-                value=optimizer.param_groups[0]["lr"],
-                iteration=full_step,
-            )
-            self.logger.report_scalar(
-                title="is_retraining",
-                value=1,
-                iteration=full_step,
-            )
-            if full_step % self.n_log_light_steps == 0:
-                self.pruner.log_light(full_step)
+        self.logger.report_scalar(
+            title="full_loss/train_total",
+            value=total_loss,
+            iteration=full_step,
+        )
+        self.logger.report_scalar(
+            title="full_loss/train_mask",
+            value=mask_loss,
+            iteration=full_step,
+        )
+        print(f'Reporting lr: {self.optimizer.param_groups[0]["lr"]}')
+        self.logger.report_scalar(
+            title="full_steps/lr",
+            value=optimizer.param_groups[0]["lr"],
+            iteration=full_step,
+        )
+        self.logger.report_scalar(
+            title="is_retraining",
+            value=1,
+            iteration=full_step,
+        )
+        if full_step % self.n_log_light_steps == 0:
+            self.pruner.log_light(full_step)
 
     def _pruning_step(self, step):
         if self.scheduler.is_time_to_prune(step):
             self._retrain(step)
+
+    def _task_train_step(
+        self,
+        dataset: wikibookdata.ProcessedDataset,
+        step: int,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+    ):
+        if self.model_type == "bert":
+            self.model.train()
+            processed_batch = dataset.get_batch()
+            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+            x_set = processed_batch.masked_tokens
+            y_token_set = processed_batch.tokens
+            y_mask_set = processed_batch.mask_mask
+
+            with torch.autocast(
+                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+            ):
+                losses = {"mask": self._get_mask_loss(x_set, y_token_set, y_mask_set)}
+                self.update_loss_stats(losses)
+                scaled_losses = self.scale_losses(losses)
+                loss = sum(scaled_losses.values())
+
+            self.optimize(
+                optimizer=self.optimizer if optimizer is None else optimizer,
+                scaler=self.scaler,
+                loss=loss,
+                step=step,
+                run_after_backprop=True,
+            )
+        else:
+            self.model.train()
+            processed_batch = dataset.get_batch()
+            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+            input = processed_batch.tokens
+            target = processed_batch.target_tokens
+            non_padded_mask = processed_batch.non_padded_mask
+
+            with torch.autocast(
+                device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+            ):
+                losses = {"mask": self._get_lm_loss(input, target, non_padded_mask)}
+                self.update_loss_stats(losses)
+                scaled_losses = self.scale_losses(losses)
+                loss = sum(scaled_losses.values())
+
+            self.optimize(
+                optimizer=self.optimizer,
+                scaler=self.scaler,
+                loss=loss,
+                step=step,
+                run_after_backprop=True,
+            )
+
+        if self.n_log_heavy_steps and step > 0 and step % self.n_log_heavy_steps == 0:
+            self.token_losses_before = self.token_losses.clone()
+            with torch.no_grad():
+                self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            self.token_losses_after = self.token_losses.clone()
+            assert self.token_losses_before.shape == self.token_losses_after.shape
+            torch.save(processed_batch, os.path.join(self.modelpath, "checked_batch"))
+            torch.save(
+                self.token_losses_before,
+                os.path.join(self.modelpath, "token_losses_before"),
+            )
+
+        if (
+            self.n_log_heavy_steps
+            and step > 0
+            and step > self.n_log_heavy_steps
+            and step % self.n_log_heavy_steps in [10, 100, 500, 1000]
+        ):
+            del processed_batch
+            historical_batch = torch.load(os.path.join(self.modelpath, "checked_batch"))
+            historical_losses = torch.load(
+                os.path.join(self.modelpath, "token_losses_before")
+            )
+
+            x_set = historical_batch.masked_tokens
+            y_token_set = historical_batch.tokens
+            y_mask_set = historical_batch.mask_mask
+            with torch.no_grad():
+                self._get_mask_loss(x_set, y_token_set, y_mask_set)
+            self.token_losses_after = self.token_losses.clone()
+            self.token_losses_before = historical_losses
+
+            self.log_token_losses(step)
+
+        return loss, loss
+
+    def _train_step(
+        self,
+        dataset: wikibookdata.ProcessedDataset,
+        step: int,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+    ):
+        total_loss, mask_loss = self._task_train_step(dataset, step, optimizer)
+        self._model_train_step(step)
+        return total_loss, mask_loss
 
     def _retrain(self, step):
         loss_before_recycle = self._eval_step(step)
@@ -735,10 +835,9 @@ class RetrainTrainer(Trainer):
             retrain_optim.param_groups[0]["lr"] = lr_coeff * target_lr
 
             total_loss, mask_loss = self._train_step(
-                retrain_optim,
-                self.pdataset_retrain,
+                optimizer=retrain_optim,
+                dataset=self.pdataset_retrain,
                 step=self.full_step(step),
-                log_auxiliary_loss=False,
             )
             self._log_retrain_stats(total_loss, mask_loss, step, retrain_optim)
             self.retrain_count += 1

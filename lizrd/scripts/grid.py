@@ -21,6 +21,7 @@ from lizrd.scripts.grid_utils import (
     MachineBackend,
     get_grid_entrypoint,
     unpack_params,
+    list_to_clean_str,
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
 
@@ -48,7 +49,9 @@ CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
 PUSH_TO_GIT = False
-
+ENTROPY_GPU_USAGE_FILES = [f"/home/simontwice/gpu_usage/{i}.txt" for i in range(8)]
+SOCKET_PATH = "/home/simontwice/gpu_usage/common_tmux_socket"
+COPIED_CODE_PATH = ""
 if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
@@ -56,6 +59,10 @@ if __name__ == "__main__":
     N_GPUS = 1
     CPUS_PER_GPU = 8
     CUDA_VISIBLE_DEVICES = None
+    PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
+        [str(arg) for arg in args if arg is not None], env=env
+    )
+    AUXILIARY_PROCESS_CALL_FUNCTION = None
 
     if len(sys.argv) > 1:
         path = sys.argv[1]
@@ -107,7 +114,7 @@ if __name__ == "__main__":
         if not INTERACTIVE_DEBUG:
             user_input = input(
                 f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
+                f"\nExperiment settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
             )
         else:
             user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
@@ -122,7 +129,9 @@ if __name__ == "__main__":
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        copy_and_version_code(name_for_branch, name_for_branch, PUSH_TO_GIT)
+        COPIED_CODE_PATH = copy_and_version_code(
+            name_for_branch, name_for_branch, PUSH_TO_GIT
+        )
     else:
         print(f"Running in debug mode, skip copying code to a new directory.")
 
@@ -209,9 +218,6 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
-            if CUDA_VISIBLE_DEVICES is not None:
-                env = os.environ.copy()
-                env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
             subprocess_args = [
                 "singularity",
                 "run",
@@ -223,6 +229,42 @@ if __name__ == "__main__":
                 RUNNER,
                 *runner_params,
             ]
+            username = subprocess.check_output("whoami", shell=True).decode().strip()
+            session_name = f"{username}_{name}_{i}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+            print(
+                "will run experiment and write to log file:",
+                f"{os.path.join(COPIED_CODE_PATH, session_name)}" + ".out",
+            )
+
+            def tmux_wait_and_train():
+                # Create a new session at specified socket path
+                subprocess.run(
+                    ["tmux", "-S", SOCKET_PATH, "new-session", "-d", "-s", session_name]
+                )
+                subprocess.run(
+                    f"chmod 777 {SOCKET_PATH}",
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=True,
+                )
+                entropy_files_str = " ".join(ENTROPY_GPU_USAGE_FILES)
+                train_cmd = list_to_clean_str(subprocess_args)
+                # Send keys to the tmux session at specified socket path
+                subprocess.Popen(
+                    [
+                        "tmux",
+                        "-S",
+                        SOCKET_PATH,
+                        "send-keys",
+                        "-t",
+                        session_name,
+                        f'bash {CODE_PATH}/lizrd/scripts/baby_slurm.sh {session_name} {SOCKET_PATH} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {os.path.join(COPIED_CODE_PATH,session_name)}.out',
+                        "C-m",
+                    ]
+                )
+
+            AUXILIARY_PROCESS_CALL_FUNCTION = tmux_wait_and_train
+
         elif runner == MachineBackend.LOCAL:
             subprocess_args = [
                 get_grid_entrypoint(runner),
@@ -233,14 +275,14 @@ if __name__ == "__main__":
             ]
         else:
             raise ValueError(f"Unknown runner: {runner}")
-
-        if not DRY_RUN:
-            print(
-                f"running experiment with sbtach command: {[str(s) for s in subprocess_args if s is not None]}"
-            )
-            subprocess.run([str(s) for s in subprocess_args if s is not None], env=env)
-            sleep(10)
+        if DRY_RUN:
+            print(" ".join(subprocess_args))
         else:
-            print(" ".join([str(s) for s in subprocess_args if s is not None]))
+            print(f"running experiment {i} from {name}...")
+            if AUXILIARY_PROCESS_CALL_FUNCTION is not None:
+                AUXILIARY_PROCESS_CALL_FUNCTION()
+            else:
+                PROCESS_CALL_FUNCTION(subprocess_args, env)
+            sleep(1)
         if INTERACTIVE_DEBUG:
             break
