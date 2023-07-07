@@ -14,7 +14,7 @@ from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.logging import get_current_logger, log_plot
+from lizrd.support.logging import get_current_logger
 from lizrd.support.loss import (
     LossDict,
     RunningLossDict,

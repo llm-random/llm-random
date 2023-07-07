@@ -231,7 +231,10 @@ if __name__ == "__main__":
             ]
             username = subprocess.check_output("whoami", shell=True).decode().strip()
             session_name = f"{username}_{name}_{i}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-            print("will run tmux session with name", session_name)
+            print(
+                "will run experiment and write to log file:",
+                f"{os.path.join(COPIED_CODE_PATH, session_name)}" + ".out",
+            )
 
             def tmux_wait_and_train():
                 # Create a new session at specified socket path
@@ -246,7 +249,6 @@ if __name__ == "__main__":
                 )
                 entropy_files_str = " ".join(ENTROPY_GPU_USAGE_FILES)
                 train_cmd = list_to_clean_str(subprocess_args)
-
                 # Send keys to the tmux session at specified socket path
                 subprocess.Popen(
                     [
