@@ -31,8 +31,9 @@ def mask_by_score(
     return mask
 
 
+
 def create_mask(size: torch.Size) -> torch.nn.parameter.Parameter:
-    mask = nn.parameter.Parameter(torch.ones(size), requires_grad=False)
+    mask = torch.ones(size).requires_grad_(False)
     return mask
 
 
@@ -518,7 +519,7 @@ class UnstructMagnitudePruneFF(nn.Module):
         return x
 
 
-@ash.check("... d -> ... d")
+#@ash.check("... d -> ... d")
 class StructMagnitudePruneFF(nn.Module):
     def __init__(
         self, dmodel: int, dff: int, pruner: Pruner, criterion: str = "smallest"
@@ -526,7 +527,7 @@ class StructMagnitudePruneFF(nn.Module):
         super().__init__()
         self.lin1 = nn.Linear(dmodel, dff)
         self.lin2 = nn.Linear(dff, dmodel)
-        self.mask = create_mask(torch.Size([dff]))
+        self.register_buffer("mask", create_mask(torch.Size([dff])))
         pruner.register(self)
         self.criterion = criterion
 
@@ -552,7 +553,11 @@ class StructMagnitudePruneFF(nn.Module):
         )
 
     def log_neurons_magnitudes(self, layer_name, step) -> None:
-        magnitudes = get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
+        weight1 = (self.lin1.weight.T * self.mask).T
+        weight2 = self.lin2.weight * self.mask
+        magnitudes = get_neuron_magnitudes(weight1, weight2)
+        # get nonzero magnitudes
+        magnitudes = magnitudes[magnitudes != 0] if len(magnitudes[magnitudes != 0]) != 0 else magnitudes
         fig = px.histogram(prepare_tensor_for_logging(magnitudes))
         log_plot(
             title=f"{layer_name} neuron magnitude",
