@@ -200,5 +200,5 @@ def param_to_str(param) -> str:
         return str(param)
 
 
-def list_to_str(l: List[str]) -> str:
+def list_to_clean_str(l: List[str]) -> str:
     return " ".join([str(s) for s in l if s is not None])
