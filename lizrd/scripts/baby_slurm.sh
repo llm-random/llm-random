@@ -37,8 +37,7 @@ cleanup() {
     echo "Killing all child processes"
     # Kill all processes in the process group except for the cleanup process
     [[ -z "$(jobs -p)" ]] || kill $(jobs -p)
-    echo "Killing tmux session $SESSION"
-    echo "EXITING BABY_SLURM"
+    echo "Killing tmux session $SESSION and exiting baby_slurm"
     tmux -S $SOCKET kill-session -t $SESSION
 
 }
