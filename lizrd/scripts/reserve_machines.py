@@ -1,13 +1,14 @@
 import argparse
+import os
 import random
 import subprocess
 import time
 import re
 
 
-def write_file(file_path, session_name):
+def write_file(file_path, text):
     with open(file_path, "w") as file:
-        file.write(str(session_name))
+        file.write(str(text))
 
 
 def machines_to_gpu_ids(available_machines):
@@ -20,23 +21,25 @@ def machines_to_gpu_ids(available_machines):
     return ids
 
 
-def lock_files(control_file_path="/tmp/gpu_control_file.txt"):
+def lock_files(control_file):
     "writes 'locked' to the control file"
-    write_file(control_file_path, "locked")
+    write_file(control_file, "locked")
 
 
-def release_files(control_file_path="/tmp/gpu_control_file.txt"):
+def release_files(control_file):
     "makes the control file empty"
-    write_file(control_file_path, "")
+    write_file(control_file, "")
 
 
-def can_check_files(control_file_path="/tmp/gpu_control_file.txt"):
+def can_check_files(control_file):
     "checks if the control file is empty. If does not exist, creates it and returns True"
     try:
-        with open(control_file_path, "r") as file:
+        with open(control_file, "r") as file:
             return file.read() == ""
     except FileNotFoundError:
-        write_file(control_file_path, "")
+        with open(control_file, "w") as file:
+            file.write("")
+        os.chmod(control_file, 0o777)
         return True
 
 
@@ -47,10 +50,11 @@ def reserve_machines(
     no_machines,
 ):
     while True:
-        if not can_check_files():
+        lock_register = os.path.join(os.path.dirname(gpu_log_files[0]), "register.txt")
+        if not can_check_files(lock_register):
             time.sleep(random.random() * 10)
             continue
-        lock_files()
+        lock_files(lock_register)
         available_machine_files = []
         for file in gpu_log_files:
             if file_is_free(file, socket_path):
@@ -63,11 +67,11 @@ def reserve_machines(
             for file in available_machine_files:
                 write_file(file, session_name)
             # this is the output in bash
-            release_files()
+            release_files(lock_register)
             print(available_machines_cuda_format)
             break
         else:
-            release_files()
+            release_files(lock_register)
             time.sleep(random.random() * 10)
 
 
