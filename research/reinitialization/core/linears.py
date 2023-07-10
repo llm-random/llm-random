@@ -25,7 +25,7 @@ def mask_by_score(
     # Determine indices of least important elements
     scores[mask == 0] = torch.inf
 
-    topk = torch.topk(torch.abs(scores).view(-1), n_to_mask, largest=False)
+    topk = torch.topk(scores.view(-1), n_to_mask, largest=False)
 
     mask.view(-1)[topk.indices] = 0
     return mask
