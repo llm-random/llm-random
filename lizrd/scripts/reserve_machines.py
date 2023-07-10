@@ -72,7 +72,7 @@ def reserve_machines(
             break
         else:
             release_files(lock_register)
-            time.sleep(random.random() * 10)
+            time.sleep(random.random() * 100)
 
 
 def call_nvidia_smi():
