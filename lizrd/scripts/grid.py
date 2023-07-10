@@ -283,6 +283,6 @@ if __name__ == "__main__":
                 AUXILIARY_PROCESS_CALL_FUNCTION()
             else:
                 PROCESS_CALL_FUNCTION(subprocess_args, env)
-            sleep(1)
+            sleep(5)
         if INTERACTIVE_DEBUG:
             break
