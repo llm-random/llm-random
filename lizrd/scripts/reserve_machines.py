@@ -3,7 +3,6 @@ import os
 import random
 import subprocess
 import time
-import re
 
 
 def write_file(file_path, text):
@@ -21,9 +20,9 @@ def machines_to_gpu_ids(available_machines):
     return ids
 
 
-def lock_files(control_file):
-    "writes 'locked' to the control file"
-    write_file(control_file, "locked")
+def lock_files(control_file, pid):
+    "writes pid to the control file"
+    write_file(control_file, pid)
 
 
 def release_files(control_file):
@@ -35,7 +34,11 @@ def can_check_files(control_file):
     "checks if the control file is empty. If does not exist, creates it and returns True"
     try:
         with open(control_file, "r") as file:
-            return file.read() == ""
+            pid_str = file.read()
+        if pid_str == "":
+            return True
+        else:
+            return int(pid_str) in [pid for pid in os.listdir("/proc") if pid.isdigit()]
     except FileNotFoundError:
         with open(control_file, "w") as file:
             file.write("")
@@ -54,7 +57,8 @@ def reserve_machines(
         if not can_check_files(lock_register):
             time.sleep(random.random() * 10)
             continue
-        lock_files(lock_register)
+        process_id = str(os.getpid())
+        lock_files(lock_register, process_id)
         available_machine_files = []
         for file in gpu_log_files:
             if file_is_free(file, socket_path):
@@ -76,31 +80,28 @@ def reserve_machines(
 
 
 def call_nvidia_smi():
-    result = subprocess.run(["nvidia-smi", "-q"], stdout=subprocess.PIPE)
+    result = subprocess.run(
+        ["nvidia-smi", "-q"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     return result.stdout.decode("utf-8")
 
 
 def gpu_has_no_processes(gpu_number):
-    """parse nvidia-smi output to see if gpu has no processes running"""
+    sp = subprocess.Popen(
+        ["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
 
-    nvidia_output = call_nvidia_smi()
-    chunks = re.split("Product Name", nvidia_output)
-    number_pattern = re.compile(r"\s*Minor Number\s*:\s*(\d+)")
-    gpu_exists = False
+    out_str = sp.communicate()
+    out_list = out_str[0].decode("utf-8").split("\n")
 
-    for chunk in chunks:
-        minor_number_match = re.search(number_pattern, chunk)
-        if minor_number_match:
-            minor_number = minor_number_match.group(1).split(":")[-1].strip()
-            if minor_number == gpu_number:
-                gpu_exists = True
-                if "Process ID" in chunk:
-                    return False
+    gpu_info = {}
 
-    if not gpu_exists:
-        raise ValueError(f"GPU with minor number {gpu_number} not found in string")
+    for item in out_list:
+        if "python3" in item:
+            item_list = item.split()
+            gpu_info[item_list[1]] = item_list[4]
 
-    return True
+    return gpu_number not in gpu_info
 
 
 def file_is_free(file_path, socket_path):
@@ -111,17 +112,21 @@ def file_is_free(file_path, socket_path):
     gpu_num = file_path[-5]
 
     # Run the tmux ls command and get output
-    result = subprocess.run(["tmux", "-S", socket_path, "ls"], stdout=subprocess.PIPE)
+    result = subprocess.run(
+        ["tmux", "-S", socket_path, "ls"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     output = result.stdout.decode()
 
     for line in output.split("\n"):
         session_name = line.split(":")[0].strip()
         if session_name == x:
             return False
-    if not gpu_has_no_processes(gpu_num):
+    if gpu_has_no_processes(gpu_num):
+        return True
+    else:
         return False
-
-    return True
 
 
 def main(session_name, socket_path, gpu_log_files, no_machines):
