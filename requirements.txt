@@ -18,5 +18,5 @@ apache-beam
 black==23.1.0
 autoflake
 plotly-express
-neptune-client
+neptune-client==1.2.0
 fancy-einsum
