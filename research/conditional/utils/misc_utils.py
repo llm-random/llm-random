@@ -26,7 +26,7 @@ def introduce_parser_arguments(parser):
     # parameters usually changed for experiments
 
     parser.add_argument("--ff_mode", type=str, default="vanilla")
-    parser.add_argument("--project_name", type=str, default="")
+    parser.add_argument("--project_name", type=str, default="pmtest/llm-efficiency")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--gradient_checkpointing", action="store_true")
@@ -48,6 +48,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--use_opt_einsum", action="store_true")
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
+    parser.add_argument("--kernel_r", type=int, default=256)
+    parser.add_argument("--fc_kernel_no_batch", action="store_true")
 
     # experimental/legacy parameters
 

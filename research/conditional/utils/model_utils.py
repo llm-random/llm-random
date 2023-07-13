@@ -16,6 +16,7 @@ from research.conditional.moe_layers.continuous_moe import (
     FeedForwardTimed,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.kernelized import FCKernelized
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
@@ -200,6 +201,8 @@ def get_ff_layer(args):
         return_fn = lambda: ExpertChoiceFF(
             **get_expert_choice_args(args),
         )
+    elif args.ff_mode == "kernelized_fc":
+        return_fn = lambda: FCKernelized(args.dmodel, args.dff, args.kernel_r, args.fc_kernel_no_batch)
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 

@@ -20,3 +20,4 @@ autoflake
 plotly-express
 neptune-client==1.2.0
 fancy-einsum
+performer-pytorch==1.1.4

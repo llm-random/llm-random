@@ -238,7 +238,7 @@ def get_logger(args, model, VOCAB_SIZE):
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
     if args.use_neptune:
         run = neptune.init_run(
-            project="pmtest/llm-efficiency",
+            project=args.project_name,
             tags=args.tags,
             name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
         )
