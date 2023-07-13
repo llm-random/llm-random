@@ -1,34 +1,107 @@
 import argparse
+import os
+import random
 import subprocess
 import time
 
 
-def write_file(file_path, session_name):
+def write_file(file_path, text):
     with open(file_path, "w") as file:
-        file.write(str(session_name))
+        file.write(str(text))
 
 
 def machines_to_gpu_ids(available_machines):
+    """
+    This function reserves machines by writing the session name to the gpu log files.
+    It is A BIT fragile: it assumes that the gpu log files are in the format "*0.txt", "*1.txt", etc.
+    the fact that the [-5] index is the number of the gpu in nvidia-smi is what makes it fragile.
+    """
     ids = ",".join([m[-5] for m in available_machines])
     return ids
 
 
+def lock_files(control_file, pid):
+    "writes pid to the control file"
+    write_file(control_file, pid)
+
+
+def release_files(control_file):
+    "makes the control file empty"
+    write_file(control_file, "")
+
+
+def can_check_files(control_file):
+    "checks if the control file is empty. If does not exist, creates it and returns True"
+    try:
+        with open(control_file, "r") as file:
+            pid_str = file.read()
+        if pid_str == "":
+            return True
+        else:
+            return int(pid_str) in [pid for pid in os.listdir("/proc") if pid.isdigit()]
+    except FileNotFoundError:
+        with open(control_file, "w") as file:
+            file.write("")
+        os.chmod(control_file, 0o777)
+        return True
+
+
 def reserve_machines(
-    session_name, socket_path, gpu_log_files, no_machines, sleep_time=14.1314151617
+    session_name,
+    socket_path,
+    gpu_log_files,
+    no_machines,
 ):
     while True:
-        available_machines = []
+        lock_register = os.path.join(os.path.dirname(gpu_log_files[0]), "register.txt")
+        if not can_check_files(lock_register):
+            time.sleep(random.random() * 10)
+            continue
+        process_id = str(os.getpid())
+        lock_files(lock_register, process_id)
+        available_machine_files = []
         for file in gpu_log_files:
             if file_is_free(file, socket_path):
-                available_machines.append(file)
-        if len(available_machines) >= no_machines:
-            available_gpu_files = available_machines[:no_machines]
-            actual_available_machines = machines_to_gpu_ids(available_gpu_files)
-            for file in available_gpu_files:
+                available_machine_files.append(file)
+        if len(available_machine_files) >= no_machines:
+            available_machine_files = available_machine_files[:no_machines]
+            available_machines_cuda_format = machines_to_gpu_ids(
+                available_machine_files
+            )
+            for file in available_machine_files:
                 write_file(file, session_name)
-            print(actual_available_machines)
+            # this is the output in bash
+            release_files(lock_register)
+            print(available_machines_cuda_format)
             break
-        time.sleep(sleep_time)
+        else:
+            release_files(lock_register)
+            time.sleep(random.random() * 100)
+
+
+def call_nvidia_smi():
+    result = subprocess.run(
+        ["nvidia-smi", "-q"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    return result.stdout.decode("utf-8")
+
+
+def gpu_has_no_processes(gpu_number):
+    sp = subprocess.Popen(
+        ["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+
+    out_str = sp.communicate()
+    out_list = out_str[0].decode("utf-8").split("\n")
+
+    gpu_info = {}
+
+    for item in out_list:
+        if "python3" in item:
+            item_list = item.split()
+            gpu_info[item_list[1]] = item_list[4]
+
+    return gpu_number not in gpu_info
 
 
 def file_is_free(file_path, socket_path):
@@ -36,15 +109,24 @@ def file_is_free(file_path, socket_path):
     with open(file_path, "r") as f:
         x = f.read().strip()
 
+    gpu_num = file_path[-5]
+
     # Run the tmux ls command and get output
-    result = subprocess.run(["tmux", "-S", socket_path, "ls"], stdout=subprocess.PIPE)
+    result = subprocess.run(
+        ["tmux", "-S", socket_path, "ls"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     output = result.stdout.decode()
 
     for line in output.split("\n"):
         session_name = line.split(":")[0].strip()
         if session_name == x:
             return False
-    return True
+    if gpu_has_no_processes(gpu_num):
+        return True
+    else:
+        return False
 
 
 def main(session_name, socket_path, gpu_log_files, no_machines):
