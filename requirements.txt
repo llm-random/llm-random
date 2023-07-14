@@ -2,22 +2,22 @@
 # torchvision==0.11.2
 
 torch==1.13.0
-torchvision
+torchvision==0.14.0
 protobuf==3.20.*
 numpy==1.22.1
 matplotlib==3.5.1
-opt_einsum
-line_profiler
+opt-einsum==3.3.0
+line-profiler==4.0.3
 einops==0.4.0
 tensorflow==2.8.0
 clearml==1.3.2
 datasets==2.9.0
-transformers
-clearml-agent
-apache-beam
+transformers==4.29.1
+clearml-agent==1.2.3
+apache-beam==2.47.0
 black==23.1.0
-autoflake
-plotly-express
+autoflake==2.1.1
+plotly-express==0.4.1
 neptune-client==1.2.0
-fancy-einsum
 performer-pytorch==1.1.4
+fancy-einsum==0.0.3
