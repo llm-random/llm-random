@@ -19,13 +19,16 @@ def resolve_kernel_type(kernel_type):
 
 
 class FCKernelized(LoggingLayer):
-    def __init__(self, dmodel, dff, kernel_r, no_batch=False, kernel_type="relu", use_bias=False):
+    def __init__(self, dmodel, dff, kernel_r, no_batch=False, kernel_type="relu", use_bias=False,
+                 redraw_projections_interval=10):
         super().__init__()
         self.dmodel = dmodel
         self.kernel_r = kernel_r
         self.dff = dff
         self.use_bias = use_bias
         self.no_batch = no_batch
+        self.redraw_projections_interval = redraw_projections_interval
+        self.current_projection_count = 0
         self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
         self.activation = resolve_kernel_type(kernel_type)
         self.logging_ff_post_relu = misc.Linear(dff, dmodel)
@@ -39,7 +42,15 @@ class FCKernelized(LoggingLayer):
         self.add_bias2 = (lambda x: x + self.logging_ff_post_relu.bias) \
             if self.use_bias and self.logging_ff_post_relu.bias is not None else lambda x: x
 
+    def check_redraw_projections(self, device):
+        if self.current_projection_count >= self.redraw_projections_interval:
+            self.current_projection_count = 0
+            self.fast_attention.redraw_projection_matrix(device)
+        self.current_projection_count += 1
+
     def forward(self, x):
+        with measure_time(self, "redraw_projections"):
+            self.check_redraw_projections(x.device)
         with measure_time(self, "fc_kern_prep"):
             bs = x.shape[0]
             Q = self.add_bias1(x).reshape(1, 1, -1, self.dmodel)
