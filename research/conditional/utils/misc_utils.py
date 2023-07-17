@@ -51,6 +51,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--kernel_r", type=int, default=256)
     parser.add_argument("--fc_kernel_no_batch", action="store_true")
     parser.add_argument("--redraw_projections_interval", type=int, default=100)
+    parser.add_argument("--no_kernel_norm", action="store_true")
+    parser.add_argument("--no_average_attn", action="store_true")
 
     # experimental/legacy parameters
 

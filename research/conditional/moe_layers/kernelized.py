@@ -21,7 +21,7 @@ def resolve_kernel_type(kernel_type):
 
 class FCKernelized(LoggingLayer):
     def __init__(self, dmodel, dff, kernel_r, no_batch=False, redraw_projections_interval=10,
-                 kernel_type="relu", use_bias=False,):
+                 no_kernel_norm=False, no_average_attn=False, kernel_type="relu", use_bias=False, ):
         super().__init__()
         self.dmodel = dmodel
         self.kernel_r = kernel_r
@@ -31,9 +31,10 @@ class FCKernelized(LoggingLayer):
         self.redraw_projections_interval = redraw_projections_interval
         self.current_projection_count = 0
         self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
-        self.activation = resolve_kernel_type(kernel_type)
+        self.kernel_fn = resolve_kernel_type(kernel_type)
         self.logging_ff_post_relu = misc.Linear(dff, dmodel)
-        self.fast_attention = FastAttention(dmodel=self.dmodel, nb_features=self.kernel_r, kernel_fn=self.activation)
+        self.fast_attention = FastAttention(dmodel=self.dmodel, nb_features=self.kernel_r, kernel_fn=self.activation,
+                                            normalization=not no_kernel_norm, average_attn=not no_average_attn)
         self.K = lambda: self.logging_ff_pre_relu.weight.reshape(1, 1, self.dff, self.dmodel)
         self.V = lambda: self.logging_ff_post_relu.weight.T.reshape(1, 1, self.dff, self.dmodel)
         # TODO, here reverse bias on init
@@ -68,17 +69,20 @@ class FCKernelized(LoggingLayer):
 
 
 class FastAttention(LoggingLayer):
-    def __init__(self, dmodel, nb_features=None, ortho_scaling=0, kernel_fn=nn.ReLU()):
+    def __init__(self, dmodel, nb_features=None, ortho_scaling=0, kernel_fn=nn.ReLU(), normalization=True,
+                 average_attn=True):
         super().__init__()
         self.dmodel = dmodel
         self.nb_features = nb_features
         self.ortho_scaling = ortho_scaling
+        self.kernel_fn = kernel_fn
+        self.normalization = normalization
+        self.average_attn = average_attn
 
         self.create_projection = partial(gaussian_orthogonal_random_matrix, nb_rows=self.nb_features,
                                          nb_columns=dmodel, scaling=ortho_scaling)
         projection_matrix = self.create_projection()
         self.register_buffer('projection_matrix', projection_matrix)
-        self.kernel_fn = kernel_fn
 
     @torch.no_grad()
     def redraw_projection_matrix(self, device):
@@ -87,18 +91,22 @@ class FastAttention(LoggingLayer):
         del projections
 
     def linear_attention(self, q, k, v):
-        with measure_time(self, "lin_attn_d"):
-            k_cumsum = k.sum(dim=-2)
-            D_inv = 1. / torch.einsum('...nd,...d->...n', q, k_cumsum.type_as(q))
+        if self.average_attn:
+            with measure_time(self, "lin_attn_d"):
+                k_cumsum = k.sum(dim=-2)
+                D_inv = 1. / torch.einsum('...nd,...d->...n', q, k_cumsum.type_as(q))
         with measure_time(self, "lin_attn_k_v"):
             context = torch.einsum('...nd,...ne->...de', k, v)
         with measure_time(self, "lin_attn_q"):
-            out = torch.einsum('...de,...nd,...n->...ne', context, q, D_inv)
+            if self.average_attn:
+                out = torch.einsum('...de,...nd,...n->...ne', context, q, D_inv)
+            else:
+                out = torch.einsum('...de,...nd->...ne', context, q)
         return out
 
     def forward(self, q, k, v):
         create_kernel = partial(generalized_kernel, kernel_fn=self.kernel_fn, projection_matrix=self.projection_matrix,
-                                device=q.device)
+                                device=q.device, normalize_data=self.normalization)
 
         with measure_time(self, "kernel_q"):
             q = create_kernel(q)

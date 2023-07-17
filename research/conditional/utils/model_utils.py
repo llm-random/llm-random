@@ -202,7 +202,15 @@ def get_ff_layer(args):
             **get_expert_choice_args(args),
         )
     elif args.ff_mode == "kernelized_fc":
-        return_fn = lambda: FCKernelized(args.dmodel, args.dff, args.kernel_r, args.fc_kernel_no_batch, args.redraw_projections_interval)
+        return_fn = lambda: FCKernelized(
+            args.dmodel,
+            args.dff,
+            args.kernel_r,
+            args.fc_kernel_no_batch,
+            args.redraw_projections_interval,
+            args.no_kernel_norm,
+            args.no_average_attn,
+        )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 
