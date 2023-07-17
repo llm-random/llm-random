@@ -98,3 +98,11 @@ class FCKernelized(LoggingLayer):
             else:
                 out = torch.einsum('...de,...nd->...ne', context, q)
         return out
+
+    def log_heavy(self):
+        instr_names = list(self.cached_data["time"].keys())
+        instr_times = list(self.cached_data["time"].values())
+        times_fig = px.bar(x=instr_names, y=instr_times)
+        out = {"instruction_times_plot": times_fig}
+        out.update(self.cached_data["time"])
+        return out
