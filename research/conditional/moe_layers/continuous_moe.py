@@ -9,6 +9,7 @@ from plotly import express as px
 from lizrd.core import misc, nn
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer, measure_time
+from lizrd.support.misc import resolve_activation_name
 
 
 def stable_softmax_temperature(x, temperature, dim=-1):
@@ -30,12 +31,12 @@ def entropy(x):
 
 
 class FeedForwardTimed(LoggingLayer):
-    def __init__(self, dmodel, dff):
+    def __init__(self, dmodel, dff, activation_type="relu"):
         super().__init__()
         self.dmodel = dmodel
         self.dff = dff
         self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = resolve_activation_name(activation_type)
         self.logging_ff_post_relu = misc.Linear(dff, dmodel)
 
     def forward(self, x):

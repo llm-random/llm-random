@@ -53,6 +53,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--redraw_projections_interval", type=int, default=100)
     parser.add_argument("--no_kernel_norm", action="store_true")
     parser.add_argument("--no_average_attn", action="store_true")
+    parser.add_argument("--kernel_type", type=str, default="relu")
+    parser.add_argument("--activation_type", type=str, default="relu")
 
     # experimental/legacy parameters
 

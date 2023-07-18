@@ -1,28 +1,24 @@
-import numpy as np
 import torch.nn
 from plotly import express as px
 
 from lizrd.core import misc, nn
+from lizrd.support.misc import resolve_activation_name
 from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 from functools import partial
-from performer_pytorch.performer_pytorch import gaussian_orthogonal_random_matrix, generalized_kernel
+from performer_pytorch.performer_pytorch import gaussian_orthogonal_random_matrix, generalized_kernel, softmax_kernel
 
 
-def resolve_kernel_type(kernel_type):
-    if kernel_type == "relu":
-        return nn.ReLU()
-    elif kernel_type == "gelu":
-        return torch.nn.GELU()
-    elif kernel_type == "tanh":
-        return torch.nn.Tanh()
+def create_kernel_base(kernel_type, normalization):
+    if kernel_type == "softmax":
+        return lambda x, is_query=False, **a: softmax_kernel(x, is_query=is_query, **a)
     else:
-        raise ValueError(f"Unrecognized kernel type: {kernel_type}")
+        return lambda x, is_query=False, **a: \
+            generalized_kernel(x, normalize_data=normalization, kernel_fn=resolve_activation_name(kernel_type), **a)
 
 
 class FCKernelized(LoggingLayer):
-    def __init__(self, dmodel, dff, kernel_r, no_batch=False, redraw_projections_interval=10,
-                 no_kernel_norm=False, no_average_attn=False, kernel_type="relu", use_bias=False, ortho_scaling=0,
-                 ):
+    def __init__(self, dmodel, dff, kernel_r, kernel_type="relu", no_batch=False, redraw_projections_interval=10,
+                 no_kernel_norm=False, no_average_attn=False, use_bias=False, ortho_scaling=0):
         super().__init__()
         self.dmodel = dmodel
         self.nb_features = kernel_r
@@ -32,9 +28,7 @@ class FCKernelized(LoggingLayer):
         self.redraw_projections_interval = redraw_projections_interval
         self.current_projection_count = 0
         self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
-        self.kernel_fn = resolve_kernel_type(kernel_type)
         self.logging_ff_post_relu = misc.Linear(dff, dmodel)
-        self.normalization = not no_kernel_norm
         self.average_attn = not no_average_attn
 
         self.create_projection = partial(gaussian_orthogonal_random_matrix, nb_rows=self.nb_features,
@@ -49,6 +43,9 @@ class FCKernelized(LoggingLayer):
             if self.use_bias and self.logging_ff_pre_relu.bias is not None else lambda x: x
         self.add_bias2 = (lambda x: x + self.logging_ff_post_relu.bias) \
             if self.use_bias and self.logging_ff_post_relu.bias is not None else lambda x: x
+
+        create_kernel = create_kernel_base(kernel_type, not no_kernel_norm)
+        self.create_kernel = lambda x, **y: create_kernel(x, device=x.device, projection_matrix=self.projection_matrix, **y)
 
     def check_redraw_projections(self, device):
         with measure_time(self, "redraw_projections"):
@@ -73,14 +70,10 @@ class FCKernelized(LoggingLayer):
         return self.add_bias2(Y).reshape(bs, -1, self.dmodel)
 
     def fast_attention(self, q, k, v):
-        create_kernel = partial(generalized_kernel, kernel_fn=self.kernel_fn, projection_matrix=self.projection_matrix,
-                                device=q.device, normalize_data=self.normalization)
-
         with measure_time(self, "kernel_q"):
-            q = create_kernel(q)
+            q = self.create_kernel(q, is_query=True)
         with measure_time(self, "kernel_k"):
-            k = create_kernel(k)
-
+            k = self.create_kernel(k)
         with measure_time(self, "lin_attn"):
             out = self.linear_attention(q, k, v)
         return out
