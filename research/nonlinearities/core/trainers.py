@@ -76,7 +76,8 @@ class NonlinearityTrainer:
             with torch.autocast(
                 device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
             ):
-                model_output = self.model(x_set)
+                loss = self.model.calculate_loss(x_set, y_token_set, y_mask_set)
+                # model_output = self.model(x_set)
         else:
             model_output = self.model(x_set)
 

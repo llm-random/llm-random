@@ -4,6 +4,7 @@ import opt_einsum
 from lizrd.core import nn
 from lizrd.support import ash
 from torch.utils.checkpoint import checkpoint
+import torch.nn.functional as F
 
 
 class Noop(nn.Module):
@@ -178,6 +179,45 @@ class Chungus(nn.Module):
             )
             output.append(partial_output)
         return torch.cat(output, dim=0)
+
+
+class ChungusBackprop(nn.Module):
+
+    def __init__(self, module, n_chungs, vocab_size):
+        super(ChungusBackprop, self).__init__()
+        self.module = module
+        self.n_chungs = n_chungs
+        self.vocab_size = vocab_size
+
+    def custom(self):
+        def custom_forward(*inputs):
+            output = self.module(inputs[0])
+            gt = inputs[1]
+            mask = inputs[2]
+            loss = F.cross_entropy(
+                output.reshape(-1, self.vocab_size),
+                gt.reshape(-1).long(),
+                reduction="none",
+            )
+            return loss * mask 
+            return loss
+
+        return custom_forward
+
+    def forward(self, x, gt, mask):
+        chunged_losses = []
+        chunged_inputs = torch.chunk(x, self.n_chungs, dim=0)
+        chunged_gts = torch.chunk(gt, self.n_chungs, dim=0)
+        chunged_masks = torch.chunk(mask, self.n_chungs, dim=0)
+        for chunged_input, chunged_gt  in zip(chunged_inputs, chunged_gts) :
+            partial_loss_output = checkpoint(
+                self.custom(),
+                chunged_input,
+                chunged_gt,
+                chunged_masks
+            )
+            chunged_losses.append(partial_loss_output)
+        return torch.cat(chunged_losses, dim=0)
 
 
 class Checkpoint(nn.Module):

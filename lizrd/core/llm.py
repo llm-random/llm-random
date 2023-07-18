@@ -5,7 +5,7 @@ import torch
 
 import lizrd.core.nn as nn
 from lizrd.core import misc
-from lizrd.core.misc import Checkpoint
+from lizrd.core.misc import Checkpoint, ChungusBackprop
 from lizrd.support import ash
 
 
@@ -285,14 +285,64 @@ def PredictionHead(embedding_dim, output_size):
     return nn.Linear(embedding_dim, output_size)
 
 
+    # def calculate_loss(self, x_set, y_token_set, y_mask_set):
+    #     if self.mixed_precision:
+    #         with torch.autocast(
+    #             device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
+    #         ):
+    #             loss = self.model.calculate_loss(x_set, y_token_set, y_mask_set)
+    #             # model_output = self.model(x_set)
+    #     else:
+    #         model_output = self.model(x_set)
+
+    #     mask_loss = F.cross_entropy(
+    #         model_output.reshape(-1, self.vocab_size),
+    #         y_token_set.reshape(-1).long(),
+    #         reduction="none",
+    #     )
+    #     mask_loss *= y_mask_set.reshape(-1)
+    #     loss = mask_loss.mean() / self.mask_percent
+    #     return loss
+
 @ash.check("... -> ... out")
-def LLM(embedding_layer, encoder_tower, head):
-    return nn.Sequential(
-        OrderedDict(
-            [
-                ("embedding_layer", embedding_layer),
-                ("encoder", encoder_tower),
-                ("prediction_head", head),
-            ]
+class LLM(nn.Module):
+    def __init__(self, embedding_layer, encoder_tower, head, n_chungs = 1, vocab_size = None):
+        super(LLM, self).__init__()
+
+        self.encoder = nn.Sequential(
+                OrderedDict(
+                    [
+                        ("embedding_layer", embedding_layer),
+                        ("encoder", encoder_tower),
+                    ]
+                )
+            )
+        self.full_model = nn.Sequential(
+                OrderedDict(
+                    [
+                        ("embedding_layer", embedding_layer),
+                        ("encoder", encoder_tower),
+                        ("head", head)
+                    ]
+                )
+            )        
+        self.chunged_head = ChungusBackprop(head, n_chungs, vocab_size)
+
+
+    def calculate_loss(self, x_set, y_token_set, y_mask_set, mask_percent):
+        encoder_output = self.encoder(x_set)
+        self.chunged_head(encoder_output,)
+
+
+        self.encoder.grad = 
+        mask_loss = F.cross_entropy(
+            model_output.reshape(-1, self.vocab_size),
+            y_token_set.reshape(-1).long(),
+            reduction="none",
         )
-    )
+        mask_loss *= y_mask_set.reshape(-1)
+        loss = mask_loss.mean() / self.mask_percent
+        return loss
+    
+    def forward(self, *args, **kwargs):
+        return self.full_model.forward(*args, **kwargs)
