@@ -9,13 +9,11 @@ import torch
 import torch.nn.functional as F
 from attr import define
 from torch.utils.tensorboard import SummaryWriter
-from torch.nn.parallel import DistributedDataParallel as DDP
-
 from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.logging import get_current_logger, log_plot
+from lizrd.support.logging import get_current_logger
 from lizrd.support.loss import (
     LossDict,
     RunningLossDict,
@@ -792,6 +790,7 @@ class RetrainTrainer(Trainer):
         print(f"Eval loss before recycle:", loss_before_recycle)
 
         self.pruner.prepare_new(self.scheduler.prob)
+        self.pruner.decrement_immunity()
 
         # freeze model
         self.model.requires_grad_(False)

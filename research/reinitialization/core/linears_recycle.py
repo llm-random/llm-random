@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -16,6 +17,7 @@ from lizrd.support.logging import (
 from research.reinitialization.core.pruner import Pruner
 from lizrd.core import misc
 import math
+from lizrd.support.loss import LossDict
 
 
 class RandomUnstructRecycleFF(nn.Module):
@@ -295,6 +297,13 @@ def prepare_subset_for_logging(xs, p=None, size=None):
     return [x[random_indices] for x in xs]
 
 
+def assert_all_or_none(*x):
+    nones = [y is None for y in x]
+    assert sum(nones) == 0 or sum(nones) == len(
+        nones
+    ), "Either all arguments are None or none of them are"
+
+
 class RetrainRecycleFF(nn.Module):
     def __init__(
         self,
@@ -304,6 +313,13 @@ class RetrainRecycleFF(nn.Module):
         retrain_without_reinit: bool = False,
         random_indexes: bool = False,
         highest_magnitudes: bool = False,
+        reinit_dist: str = "init",
+        immunity_start_value: Optional[int] = None,
+        reg_pow: Optional[float] = None,
+        only_smaller_neurons: Optional[bool] = None,
+        midpoint_type: Optional[str] = None,
+        transform_type: Optional[str] = None,
+        aggregation_type: Optional[str] = None,
     ):
         super().__init__()
         self.lin1 = Linear(dmodel, dff, bias=False)
@@ -322,6 +338,36 @@ class RetrainRecycleFF(nn.Module):
         self.retrain_without_reinit = retrain_without_reinit
         self.random_indexes = random_indexes
         self.highest_magnitudes = highest_magnitudes
+        assert reinit_dist in ["init", "zero", "follow_normal"]
+        self.reinit_dist = reinit_dist
+
+        self.immunity_start_value = immunity_start_value
+        if self.immunity_start_value is not None:
+            self.register_buffer("immunity", torch.full((dff,), 0))
+        else:
+            self.register_buffer("immunity", None)
+
+        # assert_all_or_none(
+        #     reg_pow,
+        #     only_smaller_neurons,
+        #     midpoint_type,
+        #     transform_type,
+        #     aggregation_type,
+        # )
+        self.reg_pow = reg_pow
+        self.only_smaller_neurons = only_smaller_neurons
+        assert midpoint_type in ["mean", "median"]
+        self.midpoint_type = midpoint_type
+        assert transform_type in ["linear", "log"]
+        self.transform_type = transform_type
+        assert aggregation_type in ["regular", "concat", "mixed", "dmodel"]
+        self.aggregation_type = aggregation_type
+
+    def decrement_immunity(self):
+        self.immunity = torch.max(
+            torch.zeros_like(self.immunity),
+            self.immunity - 1,
+        )
 
     def _regular_forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.lin1(x)
@@ -439,6 +485,9 @@ class RetrainRecycleFF(nn.Module):
 
         weights = misc.get_neuron_magnitudes(self.lin1.weight, self.lin2.weight)
 
+        if self.immunity_start_value is not None:
+            weights[self.immunity > 0] = float("inf")
+
         n_els_weights = torch.numel(weights)
         assert n_els_weights == self.dff
 
@@ -452,23 +501,38 @@ class RetrainRecycleFF(nn.Module):
             topk = torch.topk(torch.abs(weights).view(-1), n_to_prune, largest=False)
             self.mask[topk.indices] = 0
 
+        if self.immunity_start_value is not None:
+            self.immunity[topk.indices] = self.immunity_start_value
+
         # prepare new weights for lin1
         with torch.no_grad():
             if self.retrain_without_reinit:
                 self.new_weights_1.copy_(self.lin1.weight.data)
             else:
-                self.new_weights_1.normal_(
-                    mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
-                )
+                if self.reinit_dist == "follow_normal":
+                    self.new_weights_1.normal_(
+                        mean=self.lin1.weight.mean(), std=self.lin1.weight.std()
+                    )
+                elif self.reinit_dist == "init":
+                    # apply mask to lin1
+                    self.new_weights_1.data = kaiming_uniform_(
+                        torch.empty_like(self.lin1.weight), a=math.sqrt(5)
+                    ) * (3**0.5)
 
         # prepare new weights for lin2
         with torch.no_grad():
             if self.retrain_without_reinit:
                 self.new_weights_2.copy_(self.lin2.weight.data)
             else:
-                self.new_weights_2.normal_(
-                    mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
-                )
+                if self.reinit_dist == "follow_normal":
+                    self.new_weights_2.normal_(
+                        mean=self.lin2.weight.mean(), std=self.lin2.weight.std()
+                    )
+                elif self.reinit_dist == "init":
+                    # apply mask to lin2
+                    self.new_weights_2.data = kaiming_uniform_(
+                        torch.empty_like(self.lin2.weight), a=math.sqrt(5)
+                    ) * (3**0.5)
 
         # save statistics
         self.recycle_counter += 1 - self.mask  # weights
@@ -572,6 +636,7 @@ class RetrainRecycleFF(nn.Module):
         )
 
     def log_heavy(self, layer_name: str, step: int, modelpath: str):
+        print("HERHERHERHE")
         get_current_logger().flush_if_necessary()
         self.log_activations(layer_name, step)
         get_current_logger().flush_if_necessary()
@@ -588,3 +653,40 @@ class RetrainRecycleFF(nn.Module):
 
     def log_light(self, layer_name: str, step: int):
         self.log_recently_pruned_magnitude(layer_name, step)
+
+    def get_midpoint_loss(self) -> torch.Tensor:
+        if self.aggregation_type == "concat":
+            magnitudes = misc.get_split_neuron_magnitudes(
+                self.lin1.weight, self.lin2.weight
+            )
+        elif self.aggregation_type == "mixed":
+            magnitudes = misc.get_mixed_neuron_magnitudes(
+                self.lin1.weight, self.lin2.weight
+            )
+        elif self.aggregation_type == "dmodel":
+            magnitudes = misc.get_dmodel_magnitudes(self.lin1.weight, self.lin2.weight)
+        else:
+            magnitudes = self.neuron_magnitudes
+
+        if self.midpoint_type == "median":
+            midpoint = magnitudes.median().detach()
+        elif self.midpoint_type == "mean":
+            midpoint = magnitudes.mean().detach()
+        else:
+            raise ValueError(f"Unknown average type: {self.midpoint_type}")
+
+        which_neurons = (
+            (magnitudes < midpoint)
+            if self.only_smaller_neurons
+            else torch.ones_like(magnitudes)
+        )
+        penalty = torch.abs(magnitudes - midpoint) ** self.reg_pow
+
+        loss = (which_neurons * penalty).sum()
+        return loss
+
+    def get_decay_loss(self) -> torch.Tensor:
+        return (self.lin1.weight**2).sum() + (self.lin2.weight**2).sum()
+
+    def get_auxiliary_loss(self) -> LossDict:
+        return {"midpoint": self.get_midpoint_loss(), "decay": self.get_decay_loss()}

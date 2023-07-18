@@ -1,0 +1,45 @@
+time: "0-05:00:00"
+runner: "research.reinitialization.train.reinit_train"
+singularity_image: "/net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.05.16_18.07.20.sif"
+interactive_debug: False
+params:
+  project_name: "mp/recycling"
+  name: "mp"
+
+  # model hparams (BERT Medium)
+  batch_size: 256
+  cutoff: 128
+  dmodel: 512
+  dff: 2048
+  n_blocks: 8
+  heads: 8
+
+  # train settings
+  trainer_type: retrain
+  learning_rate: 1e-3
+  mixed_precision: true
+  use_pruner: true
+  use_neptune: true
+  n_steps: 80000
+  n_log_heavy_steps: 2500
+  n_log_light_steps: 1
+  lr_warmup_steps: 0
+  n_steps_eval: 1000
+
+  # tags
+  tags: ["blog", "blog_pruning", "recycling_magnitude_regular"]
+
+  # other settings
+  ff_layer: "retrain_recycle"
+  "^pruner_n_steps": [1000] # vanilla, 100%, 50%, 10% pruned
+  "^pruner_delay": [10000]
+  "^pruner_prob": [0.01, 0.001]
+  # TEST: 
+  # "^pruner_n_steps": [50] # vanilla, 100%, 50%, 10% pruned
+  # "^pruner_delay": [100]
+  # "^pruner_prob": [0.1]
+  pruner_n_steps_retrain: 0
+  "^reinit_dist": ["follow_normal", "init"]
+  # "^reinit_dist": ["init"]
+
+  # possible hacks etc

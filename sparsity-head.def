@@ -5,6 +5,8 @@ From: sparsity-base.sif
     requirements.txt
 
 %post
+    apt update
+    apt upgrade -y
     apt install python3.10-venv
     python3 -m venv /opt/venv
     . /opt/venv/bin/activate

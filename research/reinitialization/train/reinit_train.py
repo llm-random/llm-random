@@ -66,7 +66,7 @@ parser.add_argument("--mask_percent", type=float, default=0.15)
 parser.add_argument("--n_steps", type=int, default=100_001)
 parser.add_argument("--n_steps_eval", type=int, default=100)
 parser.add_argument("--n_steps_log", type=int, default=5_000)
-parser.add_argument("--immunity", type=int, default=10)
+parser.add_argument("--immunity", type=int, default=None)
 parser.add_argument("--reinit_dist", type=str, default="init")
 parser.add_argument("--num_workers", type=int, default=8)
 parser.add_argument("--sep_dir_mag_magnitude_requires_grad", action="store_true")
@@ -207,7 +207,9 @@ elif args.ff_layer == "unstruct_magnitude_prune":
         args.dmodel, args.dff, pruner
     )
 elif args.ff_layer == "struct_magnitude_prune":
-    ff_layer_fun = lambda: linears.StructMagnitudePruneFF(args.dmodel, args.dff, pruner, args.pruning_criterion)
+    ff_layer_fun = lambda: linears.StructMagnitudePruneFF(
+        args.dmodel, args.dff, pruner, args.pruning_criterion
+    )
 elif args.ff_layer == "unstruct_magnitude_recycle":
     ff_layer_fun = lambda: linears_recycle.UnstructMagnitudeRecycleFF(
         args.dmodel, args.dff, pruner
@@ -224,6 +226,13 @@ elif args.ff_layer == "retrain_recycle":
         retrain_without_reinit=args.retrain_without_reinit,
         random_indexes=args.random_indexes,
         highest_magnitudes=args.highest_magnitudes,
+        reinit_dist=args.reinit_dist,
+        immunity_start_value=args.immunity,
+        reg_pow=args.mpl_reg_pow,
+        only_smaller_neurons=args.mpl_only_smaller_neurons,
+        midpoint_type=args.mpl_midpoint_type,
+        transform_type=args.mpl_transform_type,
+        aggregation_type=args.mpl_aggregation_type,
     )
 elif args.ff_layer == "struct_magnitude_recycle_with_immunity":
     ff_layer_fun = lambda: linears_recycle.StructMagnitudeRecycleImmunityFF(

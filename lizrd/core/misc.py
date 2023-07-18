@@ -102,6 +102,13 @@ class Linear(nn.Linear):
         if self.bias is not None:
             self.bias.data *= 0.0
 
+    def initialize(self):
+        self.reset_parameters()
+
+        self.weight.data *= 3**0.5
+        if self.bias is not None:
+            self.bias.data *= 0.0
+
 
 def check_layer_funs(*layer_funs):
     for layer_fun in layer_funs:
