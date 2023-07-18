@@ -3,9 +3,6 @@ import random
 import string
 from typing import Optional, List
 
-import torch
-import torch.nn as nn
-
 
 def tags_to_name(tags: Optional[List[str]]) -> str:
     return "_".join(tags) if tags else ""
@@ -27,16 +24,3 @@ def count_parameters(model, args, VOCAB_SIZE):
 def generate_random_string(length: int) -> str:
     letters = string.ascii_lowercase
     return "".join(random.choice(letters) for i in range(length))
-
-
-def resolve_activation_name(activation: str) -> nn.Module:
-    if activation == "relu":
-        return nn.ReLU()
-    elif activation == "gelu":
-        return nn.GELU()
-    elif activation == "silu":
-        return nn.SiLU()
-    elif activation == "softmax":
-        return nn.Softmax()
-    else:
-        raise ValueError(f"Unrecognized activation: {activation}")

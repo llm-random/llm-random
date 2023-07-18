@@ -2,7 +2,7 @@ import torch.nn
 from plotly import express as px
 
 from lizrd.core import misc, nn
-from lizrd.support.misc import resolve_activation_name
+from lizrd.core.misc import resolve_activation_name
 from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 from functools import partial
 from performer_pytorch.performer_pytorch import gaussian_orthogonal_random_matrix, generalized_kernel, softmax_kernel

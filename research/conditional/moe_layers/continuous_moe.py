@@ -9,7 +9,7 @@ from plotly import express as px
 from lizrd.core import misc, nn
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer, measure_time
-from lizrd.support.misc import resolve_activation_name
+from lizrd.core.misc import resolve_activation_name
 
 
 def stable_softmax_temperature(x, temperature, dim=-1):
