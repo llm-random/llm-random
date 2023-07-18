@@ -404,28 +404,41 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
         )
 
 
-def generate_shuffler_unshuffler():
-    def shuffle_3d_tensor(tensor):
-        shuffled_indices = torch.randperm(tensor.shape[1])
-        shuffled_tensor = tensor[:, shuffled_indices, :]
-        return shuffled_tensor, shuffled_indices
+def generate_shuffler_unshuffler(batch_size, seqlen, mix_whole_batch=False):
+    if mix_whole_batch:
+        shuffled_indices = torch.randperm(batch_size * seqlen)
+    else:
+        shuffled_indices = torch.randperm(seqlen)
+    unshuffled_indices = shuffled_indices.argsort()
 
-    def unshuffle_3d_tensor(shuffled_tensor, shuffled_indices):
-        return shuffled_tensor[:, shuffled_indices.argsort(), :]
+    if mix_whole_batch:
 
-    return shuffle_3d_tensor, unshuffle_3d_tensor
+        def shuffle_tensor(tensor):
+            reshape = tensor.reshape(-1, *tensor.shape[2:])
+            shuffled_tensor = reshape[shuffled_indices]
+            return shuffled_tensor.reshape(tensor.shape)
+
+        def unshuffle_tensor(shuffled_tensor):
+            reshape = shuffled_tensor.reshape(-1, *shuffled_tensor.shape[2:])
+            return reshape[unshuffled_indices].reshape(shuffled_tensor.shape)
+
+    else:
+
+        def shuffle_tensor(tensor):
+            return tensor[:, shuffled_indices, :]
+
+        def unshuffle_tensor(shuffled_tensor):
+            return shuffled_tensor[:, unshuffled_indices, :]
+
+    return shuffle_tensor, unshuffle_tensor
 
 
 @dataclasses.dataclass(eq=False, repr=False)
 class ContinuousMoERandomGroups(ContinuousMoeBaseClass):
-    """
-    learnable temperature,
-    either shared by experts or not,
-    either shared for merge and emit or not
-    """
-
+    batch_size: int = -1
+    seqlen: int = -1
     mix_whole_batch: bool = False
-    different_group_for_every_expert: bool = True
+    different_group_for_every_expert: bool = False
 
     def reshape_into_token_groups_random(self, x, shuffler):
         # we want to split the input into groups of size self.group_size according to sparsity_dim
@@ -451,7 +464,11 @@ class ContinuousMoERandomGroups(ContinuousMoeBaseClass):
         return out
 
     def forward(self, x):
-        shuffler, unshuffler = generate_shuffler_unshuffler()
+        assert self.batch_size == x.shape[0]
+        assert self.seqlen == x.shape[1]
+        shuffler, unshuffler = generate_shuffler_unshuffler(
+            self.batch_size, self.seqlen, self.mix_whole_batch
+        )
         x = self.reshape_into_token_groups_random(x, shuffler)
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
         x = self.merge_map_emit(x, merge_weights, emit_weights)

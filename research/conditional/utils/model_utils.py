@@ -11,6 +11,7 @@ from research.conditional.archive.continuous_moe_alternatives import (
     ContinuousMoEQuickAdaTemp,
     ContinuousMoELayernorm,
     ContinuousMoEFinal,
+    ContinuousMoERandomGroups,
 )
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
@@ -230,6 +231,21 @@ def get_ff_layer(args):
             expert_size=args.expert_size,
             use_opt_einsum=args.use_opt_einsum,
             flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_random_groups":
+        return_fn = lambda: ContinuousMoERandomGroups(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+            batch_size=args.batch_size,
+            seqlen=args.cutoff,
+            mix_whole_batch=args.mix_whole_batch,
         )
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(
