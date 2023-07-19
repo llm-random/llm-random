@@ -10,7 +10,8 @@ from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.model_utils import (
     calculate_gpt_loss,
-    calculate_bert_loss,
+    #    calculate_bert_loss,
+    chungized_bert_loss,
 )
 
 
@@ -43,7 +44,7 @@ class ConditionalTrainer:
             self._calculate_loss = calculate_gpt_loss
         elif self.model_type == "bert":
             self._calculate_loss = partial(
-                calculate_bert_loss, mask_percent=self.mask_percent
+                chungized_bert_loss, mask_percent=self.mask_percent, n_chungs=12
             )
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
@@ -74,8 +75,12 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
 
+        breakpoint()
         loss = self._calculate_loss(
-            processed_batch, self.model, self.mixed_precision, self.vocab_size
+            batch=processed_batch,
+            model=self.model,
+            mixed_precision=self.mixed_precision,
+            vocab_size=self.vocab_size,
         )
         self._optimize(loss)
         if self.logger is not None:
@@ -115,7 +120,7 @@ class ConditionalTrainer:
             if hasattr(tensor, "shape"):
                 tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
-            processed_batch, self.model, self.mixed_precision, self.vocab_size
+            processed_batch, self.mixed_precision, self.mask_percent, self.vocab_size
         )
         self._optimize(loss)
         if self.logger is not None:

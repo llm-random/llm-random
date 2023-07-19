@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
 from research.conditional.archive.continuous_moe_alternatives import (
@@ -16,6 +17,50 @@ from research.conditional.moe_layers.continuous_moe import (
     FeedForwardTimed,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+
+
+def chungized_bert_loss(
+    batch, model, mixed_precision, vocab_size, mask_percent, n_chungs
+):
+    def make_custom_forward(vocab_size):
+        def custom_forward(*inputs):
+            with torch.autocast(
+                device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+            ):
+                output = model.head(inputs[0])
+                gt = inputs[1]
+                mask = inputs[2]
+                loss = F.cross_entropy(
+                    output.reshape(-1, vocab_size),
+                    gt.reshape(-1).long(),
+                    reduction="none",
+                )
+            return loss * mask.reshape(-1)
+
+        return custom_forward
+
+    input = batch.masked_tokens
+    non_masked_input = batch.tokens
+    non_masked_mask = batch.mask_mask
+
+    encoder_output = model.encoder(input)
+
+    chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
+    chunged_non_masked_inputs = torch.chunk(non_masked_input, n_chungs, dim=0)
+    chunged_non_masked_masks = torch.chunk(non_masked_mask, n_chungs, dim=0)
+
+    num_tokens = 0
+    total_loss = 0
+    for chunged_input, chunged_gt, chunged_mask in zip(
+        chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+    ):
+        partial_loss_output = checkpoint(
+            make_custom_forward(vocab_size), chunged_input, chunged_gt, chunged_mask
+        )
+
+        num_tokens += partial_loss_output.shape[0]
+        total_loss += partial_loss_output.sum()
+    return total_loss / num_tokens / mask_percent
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):

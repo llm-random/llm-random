@@ -1,7 +1,6 @@
 from typing import Optional, Dict
 
 import torch
-import torch.nn.functional as F
 from attr import define
 
 from lizrd.datasets import wikibookdata
@@ -77,17 +76,9 @@ class NonlinearityTrainer:
                 device_type="cuda", enabled=self.mixed_precision, dtype=torch.float16
             ):
                 loss = self.model.calculate_loss(x_set, y_token_set, y_mask_set)
-                # model_output = self.model(x_set)
         else:
-            model_output = self.model(x_set)
+            loss = self.model.calculate_loss(x_set)
 
-        mask_loss = F.cross_entropy(
-            model_output.reshape(-1, self.vocab_size),
-            y_token_set.reshape(-1).long(),
-            reduction="none",
-        )
-        mask_loss *= y_mask_set.reshape(-1)
-        loss = mask_loss.mean() / self.mask_percent
         return loss
 
     def attach_logging_hooks(self, step):
