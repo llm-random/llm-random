@@ -1,3 +1,5 @@
+from functools import partial
+from typing import Literal, Optional
 import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
@@ -19,8 +21,39 @@ from research.conditional.moe_layers.continuous_moe import (
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 
 
-def chungized_bert_loss(
-    batch, model, mixed_precision, vocab_size, mask_percent, n_chungs
+def make_loss_function(
+    model: Literal["bert", "gpt"],
+    loss_checkpoint_chungs: int,
+    mask_percentage: Optional[float] = None,
+):
+    if model == "bert":
+        assert mask_percentage is not None, "Mask percentage must be specified for BERT"
+        if loss_checkpoint_chungs == 0:
+            return partial(calculate_bert_loss, mask_percent=mask_percentage)
+        else:
+            return partial(
+                chungized_bert_loss,
+                mask_percent=mask_percentage,
+                n_chungs=loss_checkpoint_chungs,
+            )
+    elif model == "gpt":
+        if loss_checkpoint_chungs == 0:
+            return calculate_gpt_loss
+        else:
+            return partial(chungized_gpt_loss, n_chungs=loss_checkpoint_chungs)
+    else:
+        raise ValueError(f"Model type {model} not implemented")
+
+
+def chungized_llm_loss(
+    input_tokens,
+    gt_tokens,
+    mask,
+    model,
+    mixed_precision,
+    vocab_size,
+    n_chungs,
+    mask_percent,
 ):
     def make_custom_forward(vocab_size):
         def custom_forward(*inputs):
@@ -39,15 +72,11 @@ def chungized_bert_loss(
 
         return custom_forward
 
-    input = batch.masked_tokens
-    non_masked_input = batch.tokens
-    non_masked_mask = batch.mask_mask
-
-    encoder_output = model.encoder(input)
+    encoder_output = model.encoder(input_tokens)
 
     chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
-    chunged_non_masked_inputs = torch.chunk(non_masked_input, n_chungs, dim=0)
-    chunged_non_masked_masks = torch.chunk(non_masked_mask, n_chungs, dim=0)
+    chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
+    chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
     num_tokens = 0
     total_loss = 0
@@ -63,50 +92,74 @@ def chungized_bert_loss(
     return total_loss / num_tokens / mask_percent
 
 
-def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
-    input = batch.tokens
-    target = batch.target_tokens
-    non_padded_mask = batch.non_padded_mask
-
-    if mixed_precision:
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=torch.float16
-        ):
-            model_output = model(input)
-    else:
-        model_output = model(input)
-
-    lm_loss = F.cross_entropy(
-        model_output.reshape(-1, vocab_size),
-        target.reshape(-1).long(),
-        reduction="none",
+def chungized_bert_loss(
+    batch, model, mixed_precision, vocab_size, mask_percent, n_chungs
+):
+    return chungized_llm_loss(
+        input_tokens=batch.masked_tokens,
+        gt_tokens=batch.tokens,
+        mask=batch.mask_mask,
+        model=model,
+        mixed_precision=mixed_precision,
+        vocab_size=vocab_size,
+        n_chungs=n_chungs,
+        mask_percent=mask_percent,
     )
-    lm_loss *= non_padded_mask.reshape(-1)
-    loss = lm_loss.mean()
-    return loss
 
 
-def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent):
-    input = batch.masked_tokens
-    non_masked_input = batch.tokens
-    non_masked_mask = batch.mask_mask
+def chungized_gpt_loss(batch, model, mixed_precision, vocab_size, n_chungs):
+    return chungized_llm_loss(
+        input_tokens=batch.tokens,
+        gt_tokens=batch.target_tokens,
+        mask=batch.non_padded_mask,
+        model=model,
+        mixed_precision=mixed_precision,
+        vocab_size=vocab_size,
+        n_chungs=n_chungs,
+        mask_percent=1.0,
+    )
 
-    if mixed_precision:
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=torch.float16
-        ):
-            model_output = model(input)
-    else:
-        model_output = model(input)
+
+def calculate_llm_loss(
+    input_tokens, gt_tokens, mask, model, mixed_precision, vocab_size, mask_percent
+):
+    with torch.autocast(
+        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+    ):
+        model_output = model(input_tokens)
 
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, vocab_size),
-        non_masked_input.reshape(-1).long(),
+        gt_tokens.reshape(-1).long(),
         reduction="none",
     )
-    mask_loss *= non_masked_mask.reshape(-1)
+    mask_loss *= mask.reshape(-1)
     loss = mask_loss.mean() / mask_percent
     return loss
+
+
+def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
+    return calculate_llm_loss(
+        input_tokens=batch.tokens,
+        gt_tokens=batch.target_tokens,
+        mask=batch.non_padded_mask,
+        model=model,
+        mixed_precision=mixed_precision,
+        vocab_size=vocab_size,
+        mask_percent=1.0,
+    )
+
+
+def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent):
+    return calculate_llm_loss(
+        input_tokens=batch.masked_tokens,
+        gt_tokens=batch.tokens,
+        mask=batch.mask_mask,
+        model=model,
+        mixed_precision=mixed_precision,
+        vocab_size=vocab_size,
+        mask_percent=mask_percent,
+    )
 
 
 def get_attention_layer(args):

@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from argparse import Namespace
 from typing import Optional
 
-import neptune.new as neptune
+import neptune
 import numpy as np
 import plotly
 import plotly.express as px

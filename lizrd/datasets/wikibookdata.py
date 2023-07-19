@@ -234,10 +234,16 @@ def process_book_text(document_sentences, chunk_length: int = 450):
 
 
 class WikiBookDataset:
-    def __init__(self, rng=random):
+    def __init__(self, rng=random, use_dummy_dataset=False):
         self.examples_buffer = []
-        self.dataset_wiki = load_dataset("wikipedia", "20220301.en")["train"]
-        self.dataset_book = load_dataset("bookcorpus")["train"]
+        self.dataset_wiki = load_dataset(
+            "wikipedia", f"20220301.{'simple' if use_dummy_dataset else 'en'}"
+        )["train"]
+        self.dataset_book = (
+            load_dataset("bookcorpus")["train"]
+            if not use_dummy_dataset
+            else self.dataset_wiki
+        )
         self.rng = rng
 
         self.buffer_refill_to = 10000
