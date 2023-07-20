@@ -61,7 +61,7 @@ def main(
         n_blocks=args.n_blocks,
         device=DEVICE,
         gradient_checkpointing=args.gradient_checkpointing,
-        splits=args.gpu_splits,
+        splits=[int(s) for s in args.gpu_splits.split(",")] if args.gpu_splits is not None else None,
     )
 
     # make model distributed if necessary

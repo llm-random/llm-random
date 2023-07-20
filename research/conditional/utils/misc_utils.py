@@ -49,7 +49,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--use_opt_einsum", action="store_true")
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
-    parser.add_argument("--gpu_splits", type=list, default=None)
+    parser.add_argument("--gpu_splits", type=str, default=None)
 
     # experimental/legacy parameters
 
