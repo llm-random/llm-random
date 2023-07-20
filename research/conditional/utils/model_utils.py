@@ -130,10 +130,10 @@ def calculate_llm_loss(
 
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, vocab_size),
-        gt_tokens.reshape(-1).long(),
+        gt_tokens.reshape(-1).long().to(model_output.device),
         reduction="none",
     )
-    mask_loss *= mask.reshape(-1)
+    mask_loss *= mask.to(model_output.device).reshape(-1)
     loss = mask_loss.mean() / mask_percent
     return loss
 

@@ -36,18 +36,23 @@ def get_model(
     splits: Optional[list[int]] = None,
 ):
     embedding_layer = llm.EmbeddingLayer(
-        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
+        llm.PositionalEmbedding(max_length, dm).to(torch.device("cuda:0")),
+        llm.TokenEmbedding(vocab_size, dm).to(torch.device("cuda:0")),
     )
+    # print(f"embedding layer is on {embedding_layer.device}")
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
         n_blocks, dm, layer_dict, gradient_checkpointing, splits=splits
     )
-    head = llm.PredictionHead(dm, vocab_size)
+
+    last_gpu = len(splits) if splits is not None else 0
+    head = llm.PredictionHead(dm, vocab_size).cuda(last_gpu)
+    
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
-    return model.to(device)
+    return model  # .to(device)
 
 
 def get_processed_dataset(

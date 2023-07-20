@@ -218,6 +218,9 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
+            if CUDA_VISIBLE_DEVICES is not None:
+                env = os.environ.copy()
+                env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
             subprocess_args = [
                 "singularity",
                 "run",
@@ -229,41 +232,6 @@ if __name__ == "__main__":
                 RUNNER,
                 *runner_params,
             ]
-            username = subprocess.check_output("whoami", shell=True).decode().strip()
-            session_name = f"{username}_{name}_{i}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-            print(
-                "will run experiment and write to log file:",
-                f"{os.path.join(COPIED_CODE_PATH, session_name)}" + ".out",
-            )
-
-            def tmux_wait_and_train():
-                # Create a new session at specified socket path
-                subprocess.run(
-                    ["tmux", "-S", SOCKET_PATH, "new-session", "-d", "-s", session_name]
-                )
-                subprocess.run(
-                    f"chmod 777 {SOCKET_PATH}",
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    shell=True,
-                )
-                entropy_files_str = " ".join(ENTROPY_GPU_USAGE_FILES)
-                train_cmd = list_to_clean_str(subprocess_args)
-                # Send keys to the tmux session at specified socket path
-                subprocess.Popen(
-                    [
-                        "tmux",
-                        "-S",
-                        SOCKET_PATH,
-                        "send-keys",
-                        "-t",
-                        session_name,
-                        f'bash {CODE_PATH}/lizrd/scripts/baby_slurm.sh {session_name} {SOCKET_PATH} "{entropy_files_str}" {N_GPUS} "{train_cmd}" {os.path.join(COPIED_CODE_PATH,session_name)}.out',
-                        "C-m",
-                    ]
-                )
-
-            AUXILIARY_PROCESS_CALL_FUNCTION = tmux_wait_and_train
 
         elif runner == MachineBackend.LOCAL:
             subprocess_args = [

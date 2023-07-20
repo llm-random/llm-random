@@ -69,7 +69,6 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
 
-        breakpoint()
         loss = self._calculate_loss(
             batch=processed_batch,
             model=self.model,
@@ -112,14 +111,17 @@ class ConditionalTrainer:
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
         for tensor in vars(processed_batch).values():
             if hasattr(tensor, "shape"):
-                tensor.data = tensor[:1].repeat(step + 1, 1).data
+                tensor.data = tensor[:1].repeat(2 ** step, 1).data
         loss = self._calculate_loss(
-            processed_batch, self.mixed_precision, self.mask_percent, self.vocab_size
+            batch=processed_batch,
+            model=self.model,
+            mixed_precision=self.mixed_precision,
+            vocab_size=self.vocab_size,
         )
         self._optimize(loss)
         if self.logger is not None:
             self.logger.report_scalar(
-                title="max batch size", value=step * self.n_gpus, iteration=step
+                title="max batch size", value=2 ** step * self.n_gpus, iteration=step
             )
 
     def _hack_for_contmoe_expert_size(

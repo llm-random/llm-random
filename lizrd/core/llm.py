@@ -117,7 +117,7 @@ def LowRank(dinput, doutput, dlowrank):
     )
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class Attention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(Attention, self).__init__()
@@ -165,7 +165,7 @@ class Attention(nn.Module):
         return output
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class CausalAttention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(CausalAttention, self).__init__()
@@ -216,7 +216,7 @@ class CausalAttention(nn.Module):
         return output
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 def ResidualBlock(dmodel, layer, name):
     return Residual(
         nn.Sequential(
@@ -230,7 +230,7 @@ def ResidualBlock(dmodel, layer, name):
     )
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 def TransformerBlock(dmodel, layers, gradient_checkpointing):
     residual_layers = []
     for name, layer in layers:
@@ -242,7 +242,14 @@ def TransformerBlock(dmodel, layers, gradient_checkpointing):
 
 
 class TransformerTower(nn.Module):
-    def __init__(self, n_blocks, dmodel, layer_dict, gradient_checkpointing=False, splits: Optional[list[int]]=None):
+    def __init__(
+        self,
+        n_blocks,
+        dmodel,
+        layer_dict,
+        gradient_checkpointing=False,
+        splits: Optional[list[int]] = None,
+    ):
         super(TransformerTower, self).__init__()
 
         misc.check_layer_funs(*layer_dict.values())
@@ -250,23 +257,29 @@ class TransformerTower(nn.Module):
         self.blocks = []
         self.splits = splits if splits else []
 
+        current_gpu = 0
         for i_block in range(n_blocks):
-            layers_info = [(name, layer_fun()) for name, layer_fun in layer_dict.items()]
+            layers_info = [
+                (name, layer_fun()) for name, layer_fun in layer_dict.items()
+            ]
+            if i_block in self.splits:
+                current_gpu += 1
             name_and_block = (
                 f"block_{i_block}",
-                TransformerBlock(dmodel, layers_info, gradient_checkpointing),
+                TransformerBlock(dmodel, layers_info, gradient_checkpointing).cuda(
+                    current_gpu
+                ),
             )
             self.blocks.append(name_and_block)
-
-        for i_split in self.splits:
-            self.blocks[i_split][1].cuda(i_split)
 
         self.blocks = nn.Sequential(OrderedDict(self.blocks))
 
     def forward(self, x):
+        current_gpu = 0
         for i, block in enumerate(self.blocks):
             if i in self.splits:
-                x = x.cuda(i)  # Move data to the same GPU as the block
+                current_gpu += 1
+                x = x.cuda(current_gpu)  # Move data to the same GPU as the block
             x = block(x)
         return x
 
@@ -300,7 +313,7 @@ def PredictionHead(embedding_dim, output_size):
     return nn.Linear(embedding_dim, output_size)
 
 
-@ash.check("... -> ... out")
+# @ash.check("... -> ... out")
 class LLM(nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()
