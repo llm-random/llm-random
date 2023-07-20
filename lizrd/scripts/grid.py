@@ -182,7 +182,6 @@ if __name__ == "__main__":
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--time={TIME}",
-                NODELIST,
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
