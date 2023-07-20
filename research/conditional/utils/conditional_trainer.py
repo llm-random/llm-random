@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Optional
 
 import torch
@@ -8,10 +7,7 @@ from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.model_utils import (
-    calculate_gpt_loss,
-    calculate_bert_loss,
-)
+from research.conditional.utils.model_utils import make_loss_function
 
 
 @define(slots=False)
@@ -34,17 +30,16 @@ class ConditionalTrainer:
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
     hack_name: str = None
+    loss_checkpoint_chungs: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.loss_accumulator = 0.0
-
-        if self.model_type == "gpt":
-            self._calculate_loss = calculate_gpt_loss
-        elif self.model_type == "bert":
-            self._calculate_loss = partial(
-                calculate_bert_loss, mask_percent=self.mask_percent
-            )
+        self._calculate_loss = make_loss_function(
+            model=self.model_type,
+            loss_checkpoint_chungs=self.loss_checkpoint_chungs,
+            mask_percentage=self.mask_percent,
+        )
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
@@ -74,8 +69,12 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
 
+        breakpoint()
         loss = self._calculate_loss(
-            processed_batch, self.model, self.mixed_precision, self.vocab_size
+            batch=processed_batch,
+            model=self.model,
+            mixed_precision=self.mixed_precision,
+            vocab_size=self.vocab_size,
         )
         self._optimize(loss)
         if self.logger is not None:
@@ -115,7 +114,7 @@ class ConditionalTrainer:
             if hasattr(tensor, "shape"):
                 tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
-            processed_batch, self.model, self.mixed_precision, self.vocab_size
+            processed_batch, self.mixed_precision, self.mask_percent, self.vocab_size
         )
         self._optimize(loss)
         if self.logger is not None:

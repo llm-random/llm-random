@@ -58,8 +58,9 @@ def get_processed_dataset(
     seed: int,
     model_type: str = "bert",
     distributed: bool = False,
+    use_dummy_dataset: bool = False,
 ) -> wikibookdata.ProcessedDatasetWrapper:
-    raw_dataset = wikibookdata.WikiBookDataset()
+    raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
 
     if model_type == "bert":
         processor = wikibookdata.BERTSentenceProcessor(
