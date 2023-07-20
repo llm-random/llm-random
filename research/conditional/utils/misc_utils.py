@@ -50,6 +50,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--gpu_splits", type=str, default=None)
+    parser.add_argument("--data_distributed", action="store_true")
 
     # experimental/legacy parameters
 
