@@ -49,6 +49,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--use_opt_einsum", action="store_true")
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
+    parser.add_argument("--flop_matched", action="store_true")
+    parser.add_argument("--mix_whole_batch", action="store_true")
 
     # experimental/legacy parameters
 
