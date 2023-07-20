@@ -6,6 +6,7 @@ from lizrd.core.misc import resolve_activation_name
 from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 from functools import partial
 from performer_pytorch.performer_pytorch import gaussian_orthogonal_random_matrix, generalized_kernel, softmax_kernel
+from xformers.components.attention import FavorAttention, NystromAttention
 
 
 def create_kernel_base(kernel_type, normalization):
@@ -18,7 +19,8 @@ def create_kernel_base(kernel_type, normalization):
 
 class FCKernelized(LoggingLayer):
     def __init__(self, dmodel, dff, kernel_r, kernel_type="relu", no_batch=False, redraw_projections_interval=10,
-                 no_kernel_norm=False, no_average_attn=False, use_bias=False, ortho_scaling=0):
+                 no_kernel_norm=False, no_average_attn=False, nystrom=False, xfavor=False,
+                 use_bias=False, ortho_scaling=0):
         super().__init__()
         self.dmodel = dmodel
         self.nb_features = kernel_r
@@ -31,11 +33,6 @@ class FCKernelized(LoggingLayer):
         self.logging_ff_post_relu = misc.Linear(dff, dmodel)
         self.average_attn = not no_average_attn
 
-        self.create_projection = partial(gaussian_orthogonal_random_matrix, nb_rows=self.nb_features,
-                                         nb_columns=dmodel, scaling=ortho_scaling)
-        projection_matrix = self.create_projection()
-        self.register_buffer('projection_matrix', projection_matrix)
-
         self.K = lambda: self.logging_ff_pre_relu.weight.reshape(1, 1, self.dff, self.dmodel)
         self.V = lambda: self.logging_ff_post_relu.weight.T.reshape(1, 1, self.dff, self.dmodel)
         # TODO, here reverse bias on init
@@ -43,13 +40,29 @@ class FCKernelized(LoggingLayer):
             if self.use_bias and self.logging_ff_pre_relu.bias is not None else lambda x: x
         self.add_bias2 = (lambda x: x + self.logging_ff_post_relu.bias) \
             if self.use_bias and self.logging_ff_post_relu.bias is not None else lambda x: x
+        self.custom_attn = not nystrom and not xfavor
+
+        if nystrom:
+            assert not xfavor
+            self.fast_attention = NystromAttention(num_heads=self.dmodel, num_landmarks=self.nb_features, dropout=0.1)
+            return
+        if xfavor:
+            self.fast_attention = FavorAttention(dim_head=self.dmodel, dim_features=self.nb_features,
+                                                 iter_before_redraw=self.redraw_projections_interval)
+            return
+
+        self.create_projection = partial(gaussian_orthogonal_random_matrix, nb_rows=self.nb_features,
+                                         nb_columns=dmodel, scaling=ortho_scaling)
+        projection_matrix = self.create_projection()
+        self.register_buffer('projection_matrix', projection_matrix)
 
         create_kernel = create_kernel_base(kernel_type, not no_kernel_norm)
         self.create_kernel = lambda x, **y: create_kernel(x, device=x.device, projection_matrix=self.projection_matrix, **y)
+        self.fast_attention = self.fast_attention_custom
 
     def check_redraw_projections(self, device):
         with measure_time(self, "redraw_projections"):
-            if self.current_projection_count >= self.redraw_projections_interval:
+            if self.current_projection_count >= self.redraw_projections_interval and self.custom_attn:
                 self.current_projection_count = 0
                 self.redraw_projection_matrix(device)
             self.current_projection_count += 1
@@ -65,11 +78,11 @@ class FCKernelized(LoggingLayer):
         with measure_time(self, "fc_kern_prep"):
             bs = x.shape[0]
             Q = self.add_bias1(x).reshape(1, 1, -1, self.dmodel)
-        with measure_time(self, "fc_kern_performer"):
+        with measure_time(self, "fc_kern_fast_attn"):
             Y = self.fast_attention(Q, self.K(), self.V())
         return self.add_bias2(Y).reshape(bs, -1, self.dmodel)
 
-    def fast_attention(self, q, k, v):
+    def fast_attention_custom(self, q, k, v):
         with measure_time(self, "kernel_q"):
             q = self.create_kernel(q, is_query=True)
         with measure_time(self, "kernel_k"):

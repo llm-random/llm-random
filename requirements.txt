@@ -21,3 +21,4 @@ plotly-express==0.4.1
 neptune-client==1.2.0
 performer-pytorch==1.1.4
 fancy-einsum==0.0.3
+xformers

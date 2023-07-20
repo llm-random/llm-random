@@ -210,7 +210,9 @@ def get_ff_layer(args):
             args.fc_kernel_no_batch,
             args.redraw_projections_interval,
             args.no_kernel_norm,
-            args.no_average_attn
+            args.no_average_attn,
+            args.nystrom,
+            args.xfavor
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
