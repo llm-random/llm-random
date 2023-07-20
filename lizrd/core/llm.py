@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Literal, Callable
+from typing import Literal, Callable, Optional
 
 import torch
 
@@ -241,19 +241,34 @@ def TransformerBlock(dmodel, layers, gradient_checkpointing):
     return nn.Sequential(*residual_layers)
 
 
-@ash.check("... d -> ... d")
-def TransformerTower(n_blocks, dmodel, layer_dict, gradient_checkpointing=False):
-    misc.check_layer_funs(*layer_dict.values())
-    encoder_blocks = []
-    for i_block in range(n_blocks):
-        layers_info = [(name, layer_fun()) for name, layer_fun in layer_dict.items()]
-        name_and_block = (
-            f"block_{i_block}",
-            TransformerBlock(dmodel, layers_info, gradient_checkpointing),
-        )
-        encoder_blocks.append(name_and_block)
+class TransformerTower(nn.Module):
+    def __init__(self, n_blocks, dmodel, layer_dict, gradient_checkpointing=False, splits: Optional[list[int]]=None):
+        super(TransformerTower, self).__init__()
 
-    return nn.Sequential(OrderedDict(encoder_blocks))
+        misc.check_layer_funs(*layer_dict.values())
+
+        self.blocks = []
+        self.splits = splits if splits else []
+
+        for i_block in range(n_blocks):
+            layers_info = [(name, layer_fun()) for name, layer_fun in layer_dict.items()]
+            name_and_block = (
+                f"block_{i_block}",
+                TransformerBlock(dmodel, layers_info, gradient_checkpointing),
+            )
+            self.blocks.append(name_and_block)
+
+        for i_split in self.splits:
+            self.blocks[i_split][1].cuda(i_split)
+
+        self.blocks = nn.Sequential(OrderedDict(self.blocks))
+
+    def forward(self, x):
+        for i, block in enumerate(self.blocks):
+            if i in self.splits:
+                x = x.cuda(i)  # Move data to the same GPU as the block
+            x = block(x)
+        return x
 
 
 @ash.check("... -> ... d")

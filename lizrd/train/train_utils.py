@@ -33,6 +33,7 @@ def get_model(
     n_blocks: int,
     device: torch.device,
     gradient_checkpointing: bool = False,
+    splits: Optional[list[int]] = None,
 ):
     embedding_layer = llm.EmbeddingLayer(
         llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
@@ -41,7 +42,7 @@ def get_model(
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
-        n_blocks, dm, layer_dict, gradient_checkpointing
+        n_blocks, dm, layer_dict, gradient_checkpointing, splits=splits
     )
     head = llm.PredictionHead(dm, vocab_size)
     model = llm.LLM(embedding_layer, encoder_tower, head)
