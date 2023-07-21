@@ -45,7 +45,7 @@ class ConditionalTrainer:
         )
 
     def train(self, n_steps: int):
-        for step in range(n_steps + 1):
+        for step in range((n_steps + 1) * self.gradient_accumulation_steps):
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
             else:
@@ -56,13 +56,13 @@ class ConditionalTrainer:
     def _optimize(self, loss, step):
         if self.gradient_accumulation_steps > 1:
             # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-            loss = loss / self.gradient_accumulation_steps
+            loss /= self.gradient_accumulation_steps
         # clear computation graph, store gradients
         self.scaler.scale(loss).backward()
         if (step + 1) % self.gradient_accumulation_steps == 0:
             self.scaler.step(self.optimizer)
+            self.optimizer.zero_grad(set_to_none=True)
             self.scaler.update()
-            self.optimizer.zero_grad()
 
     def _train_step(
         self,
@@ -73,8 +73,6 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-
-        breakpoint()
         loss = self._calculate_loss(
             batch=processed_batch,
             model=self.model,
@@ -87,13 +85,22 @@ class ConditionalTrainer:
             self.layer_manager.log(step)
 
     def _log_loss(self, loss, step):
-        self.logger.report_scalar(title="step", value=step, iteration=step)
         self.loss_accumulator += loss.item()
-        if step % self.logging_interval_loss == 0 and step > 0:
+        print(f"Step {step} loss {loss.item()}")
+        real_step = step // self.gradient_accumulation_steps
+        if (step + 1) % self.gradient_accumulation_steps == 0:
+            self.logger.report_scalar(
+                title="step", value=real_step, iteration=real_step
+            )
+        if (
+            (step + 1) % self.logging_interval_loss * self.gradient_accumulation_steps
+            == 0
+            and step > 0
+        ):
             self.logger.report_scalar(
                 title="loss",
                 value=self.loss_accumulator / self.logging_interval_loss,
-                iteration=step,
+                iteration=real_step,
             )
             self.loss_accumulator = 0.0
 
