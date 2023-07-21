@@ -68,8 +68,6 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-
-        breakpoint()
         loss = self._calculate_loss(
             batch=processed_batch,
             model=self.model,

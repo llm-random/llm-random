@@ -22,7 +22,6 @@ def shape_and_parameters(layer):
     for _ in layer.parameters():
         pass
     input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
-    print("input shape: ", input.shape)
     output = layer(input)
     loss = output.sum()
     loss.backward()
