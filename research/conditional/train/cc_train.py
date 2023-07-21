@@ -77,7 +77,6 @@ def main(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
-        batch_size=args.batch_size,
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
         mixed_precision=args.mixed_precision,

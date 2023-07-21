@@ -15,7 +15,6 @@ class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: wikibookdata.ProcessedDatasetWrapper
-    batch_size: int
     vocab_size: int
     mixed_precision: bool
     logger: Optional[AbstractLogger]
