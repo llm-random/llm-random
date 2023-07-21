@@ -86,6 +86,7 @@ def main(
         logging_interval_heavy=args.logging_interval_heavy,
         n_gpus=args.n_gpus,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
     )
     trainer.train(args.n_steps)
 

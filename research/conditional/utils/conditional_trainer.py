@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Literal
 
 import torch
 from attr import define
@@ -19,7 +19,7 @@ class ConditionalTrainer:
     vocab_size: int
     mixed_precision: bool
     logger: Optional[AbstractLogger]
-    model_type: str
+    model_type: Literal["bert", "gpt"]
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
@@ -31,6 +31,7 @@ class ConditionalTrainer:
     n_gpus: int = 1
     hack_name: str = None
     loss_checkpoint_chungs: int = 0
+    gradient_accumulation_steps: int = 1
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -53,11 +54,16 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-    def _optimize(self, loss):
-        self.optimizer.zero_grad()
+    def _optimize(self, loss, step):
+        if self.gradient_accumulation_steps > 1:
+            # since we sum gradients averaged over multiple smaller batches, we need to normalize here
+            loss = loss / self.gradient_accumulation_steps
+        # clear computation graph, store gradients
         self.scaler.scale(loss).backward()
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        if (step + 1) % self.gradient_accumulation_steps == 0:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.optimizer.zero_grad()
 
     def _train_step(
         self,
@@ -76,7 +82,7 @@ class ConditionalTrainer:
             mixed_precision=self.mixed_precision,
             vocab_size=self.vocab_size,
         )
-        self._optimize(loss)
+        self._optimize(loss, step)
         if self.logger is not None:
             self._log_loss(loss, step)
             self.layer_manager.log(step)
@@ -116,7 +122,7 @@ class ConditionalTrainer:
         loss = self._calculate_loss(
             processed_batch, self.mixed_precision, self.mask_percent, self.vocab_size
         )
-        self._optimize(loss)
+        self._optimize(loss, step)
         if self.logger is not None:
             self.logger.report_scalar(
                 title="max batch size", value=step * self.n_gpus, iteration=step
@@ -145,5 +151,5 @@ class ConditionalTrainer:
         loss = self._calculate_loss(
             processed_batch, self.model, self.mixed_precision, self.vocab_size
         )
-        self._optimize(loss)
+        self._optimize(loss, step)
         self.logger.report_scalar(title="max expert size", value=step, iteration=step)
