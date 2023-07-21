@@ -7,6 +7,7 @@ from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 from functools import partial
 from performer_pytorch.performer_pytorch import gaussian_orthogonal_random_matrix, generalized_kernel, softmax_kernel
 from xformers.components.attention import FavorAttention, NystromAttention
+from xformers.components.attention.feature_maps import FeatureMapType
 
 
 def create_kernel_base(kernel_type, normalization):
@@ -33,8 +34,8 @@ class FCKernelized(LoggingLayer):
         self.logging_ff_post_relu = misc.Linear(dff, dmodel)
         self.average_attn = not no_average_attn
 
-        self.K = lambda: self.logging_ff_pre_relu.weight.reshape(1, 1, self.dff, self.dmodel)
-        self.V = lambda: self.logging_ff_post_relu.weight.T.reshape(1, 1, self.dff, self.dmodel)
+        self.K = lambda: self.logging_ff_pre_relu.weight.unsqueeze(0)
+        self.V = lambda: self.logging_ff_post_relu.weight.T.unsqueeze(0)
         # TODO, here reverse bias on init
         self.add_bias1 = (lambda x: x + self.logging_ff_pre_relu.bias) \
             if self.use_bias and self.logging_ff_pre_relu.bias is not None else lambda x: x
@@ -48,6 +49,7 @@ class FCKernelized(LoggingLayer):
             return
         if xfavor:
             self.fast_attention = FavorAttention(dim_head=self.dmodel, dim_features=self.nb_features,
+                                                 feature_map_type=FeatureMapType.SMOrf,
                                                  iter_before_redraw=self.redraw_projections_interval)
             return
 
@@ -77,7 +79,7 @@ class FCKernelized(LoggingLayer):
         self.check_redraw_projections(x.device)
         with measure_time(self, "fc_kern_prep"):
             bs = x.shape[0]
-            Q = self.add_bias1(x).reshape(1, 1, -1, self.dmodel)
+            Q = self.add_bias1(x).reshape(1, -1, self.dmodel)
         with measure_time(self, "fc_kern_fast_attn"):
             Y = self.fast_attention(Q, self.K(), self.V())
         return self.add_bias2(Y).reshape(bs, -1, self.dmodel)
