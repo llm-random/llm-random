@@ -96,7 +96,7 @@ def main(
 
 if __name__ == "__main__":
     misc.print_available_gpus()
-    if args.data_distributed == 1:
+    if args.data_distributed == False:
         main(None)
     else:
         random.seed(args.data_seed)
