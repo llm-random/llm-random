@@ -146,7 +146,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             batch_size=batch,
             seed=0,
             model_type="bert",
-            distributed=False,
+            data_distributed=False,
             use_dummy_dataset=True,
         )
 

@@ -352,7 +352,7 @@ class ProcessedDatasetWrapper:
         num_workers: int = 8,
         seed: int = 42,
         model_type: str = "bert",
-        distributed: bool = False,
+        data_distributed: bool = False,
     ):
         self.pdataset = pdataset
         self.device = device
@@ -371,7 +371,7 @@ class ProcessedDatasetWrapper:
         pdataset = ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed)
 
         # using multiple workers is not compatible with DDP in the current setting
-        if distributed and num_workers > 0:
+        if data_distributed and num_workers > 0:
             raise NotImplementedError(
                 "Multiple workers are currently not supported when using multiple gpus."
             )

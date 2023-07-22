@@ -49,7 +49,7 @@ def get_model(
 
     last_gpu = len(splits) if splits is not None else 0
     head = llm.PredictionHead(dm, vocab_size).cuda(last_gpu)
-    
+
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
     return model  # .to(device)
@@ -63,7 +63,7 @@ def get_processed_dataset(
     num_workers: int,
     seed: int,
     model_type: str = "bert",
-    distributed: bool = False,
+    data_distributed: bool = False,
     use_dummy_dataset: bool = False,
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
@@ -86,7 +86,7 @@ def get_processed_dataset(
         num_workers=num_workers,
         seed=seed,
         model_type=model_type,
-        distributed=distributed,
+        data_distributed=data_distributed,
     )
 
 
