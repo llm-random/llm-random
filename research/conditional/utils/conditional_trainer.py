@@ -1,3 +1,4 @@
+import copy
 from typing import Optional, Literal
 
 import torch
@@ -45,7 +46,7 @@ class ConditionalTrainer:
         )
 
     def train(self, n_steps: int):
-        for step in range((n_steps + 1) * self.gradient_accumulation_steps):
+        for step in range(n_steps + 1):
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
             else:
@@ -53,13 +54,13 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-    def _optimize(self, loss, step):
+    def _optimize(self, loss, should_apply_gradient=False):
         if self.gradient_accumulation_steps > 1:
             # since we sum gradients averaged over multiple smaller batches, we need to normalize here
             loss /= self.gradient_accumulation_steps
         # clear computation graph, store gradients
         self.scaler.scale(loss).backward()
-        if (step + 1) % self.gradient_accumulation_steps == 0:
+        if should_apply_gradient:
             self.scaler.step(self.optimizer)
             self.optimizer.zero_grad(set_to_none=True)
             self.scaler.update()
@@ -73,34 +74,37 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        loss = self._calculate_loss(
-            batch=processed_batch,
-            model=self.model,
-            mixed_precision=self.mixed_precision,
-            vocab_size=self.vocab_size,
-        )
-        self._optimize(loss, step)
+
+        loss_value = 0.0
+        # gradient accumulation: slice the batch into minibatches, get gradients from each
+        for i in range(self.gradient_accumulation_steps):
+            batch_copy = copy.deepcopy(processed_batch)
+            for tensor in vars(batch_copy).values():
+                if hasattr(tensor, "shape"):
+                    tensor.data = tensor[i :: self.gradient_accumulation_steps].data
+            loss = self._calculate_loss(
+                batch=batch_copy,
+                model=self.model,
+                mixed_precision=self.mixed_precision,
+                vocab_size=self.vocab_size,
+            )
+            loss_value += loss.item()
+            # clear computation graph, store gradients, only apply gradients at the end
+            self._optimize(
+                loss, should_apply_gradient=i == self.gradient_accumulation_steps - 1
+            )
         if self.logger is not None:
-            self._log_loss(loss, step)
+            self._log_loss(loss_value, step)
             self.layer_manager.log(step)
 
-    def _log_loss(self, loss, step):
-        self.loss_accumulator += loss.item()
-        print(f"Step {step} loss {loss.item()}")
-        real_step = step // self.gradient_accumulation_steps
-        if (step + 1) % self.gradient_accumulation_steps == 0:
-            self.logger.report_scalar(
-                title="step", value=real_step, iteration=real_step
-            )
-        if (
-            (step + 1) % self.logging_interval_loss * self.gradient_accumulation_steps
-            == 0
-            and step > 0
-        ):
+    def _log_loss(self, loss_value, step):
+        self.logger.report_scalar(title="step", value=step, iteration=step)
+        self.loss_accumulator += loss_value
+        if step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
                 title="loss",
                 value=self.loss_accumulator / self.logging_interval_loss,
-                iteration=real_step,
+                iteration=step,
             )
             self.loss_accumulator = 0.0
 

@@ -36,17 +36,13 @@ def main(
 
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-
     distributed = True if rank is not None else False
-    actual_batch_size = args.batch_size // args.gradient_accumulation_steps
-    if distributed:
-        actual_batch_size = actual_batch_size // args.n_gpus
     train_dataloader = get_processed_dataset(
         max_total_length=args.cutoff,
         mask_percent=args.mask_percent,
         device=DEVICE,
         num_workers=args.num_workers,
-        batch_size=actual_batch_size,
+        batch_size=args.batch_size // args.n_gpus if distributed else args.batch_size,
         seed=args.data_seed if data_seeds is None else data_seeds[rank],
         model_type=args.model_type,
         distributed=distributed,
