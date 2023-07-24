@@ -8,6 +8,7 @@ from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
+from research.conditional.utils.misc_utils import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
 
 
@@ -55,14 +56,14 @@ class ConditionalTrainer:
                 print(f"Step {step}")
 
     def _optimize(self, loss, should_apply_gradient=False):
-        if self.gradient_accumulation_steps > 1:
-            # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-            loss /= self.gradient_accumulation_steps
+        # since we sum gradients averaged over multiple smaller batches, we need to normalize here
+        loss /= self.gradient_accumulation_steps
+        print("partial loss", loss.item())
         # clear computation graph, store gradients
         self.scaler.scale(loss).backward()
         if should_apply_gradient:
             self.scaler.step(self.optimizer)
-            self.optimizer.zero_grad(set_to_none=True)
+            self.optimizer.zero_grad()
             self.scaler.update()
 
     def _train_step(
@@ -74,28 +75,34 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        loss = self.optimize_with_gradient_accumulation(processed_batch)
+        if self.logger is not None:
+            self._log_loss(loss, step)
+            self.layer_manager.log(step)
 
+    def optimize_with_gradient_accumulation(self, processed_batch):
+        """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         loss_value = 0.0
-        # gradient accumulation: slice the batch into minibatches, get gradients from each
         for i in range(self.gradient_accumulation_steps):
             batch_copy = copy.deepcopy(processed_batch)
             for tensor in vars(batch_copy).values():
-                if hasattr(tensor, "shape"):
-                    tensor.data = tensor[i :: self.gradient_accumulation_steps].data
+                tensor.data = get_ith_chunk(
+                    tensor.data, self.gradient_accumulation_steps, i
+                )
             loss = self._calculate_loss(
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
                 vocab_size=self.vocab_size,
             )
-            loss_value += loss.item()
+
             # clear computation graph, store gradients, only apply gradients at the end
-            self._optimize(
-                loss, should_apply_gradient=i == self.gradient_accumulation_steps - 1
-            )
-        if self.logger is not None:
-            self._log_loss(loss_value, step)
-            self.layer_manager.log(step)
+            should_apply_gradient = i == self.gradient_accumulation_steps - 1
+            self._optimize(loss, should_apply_gradient=should_apply_gradient)
+            loss_value += loss.item()
+            print("         loss value", loss_value)
+
+        return loss_value
 
     def _log_loss(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
@@ -126,13 +133,12 @@ class ConditionalTrainer:
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
         assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
-        for tensor in vars(processed_batch).values():
-            if hasattr(tensor, "shape"):
-                tensor.data = tensor[:1].repeat(step + 1, 1).data
+        for tensor in processed_batch:
+            tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
             processed_batch, self.mixed_precision, self.mask_percent, self.vocab_size
         )
-        self._optimize(loss, step)
+        self._optimize(loss, should_apply_gradient=True)
         if self.logger is not None:
             self.logger.report_scalar(
                 title="max batch size", value=step * self.n_gpus, iteration=step
@@ -161,5 +167,5 @@ class ConditionalTrainer:
         loss = self._calculate_loss(
             processed_batch, self.model, self.mixed_precision, self.vocab_size
         )
-        self._optimize(loss, step)
+        self._optimize(loss, should_apply_gradient=True)
         self.logger.report_scalar(title="max expert size", value=step, iteration=step)
