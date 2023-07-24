@@ -21,12 +21,11 @@ class TestWikibookdata(GeneralTestCase):
         self.assertShape(processed_batch.special_token_mask, (batch_size, max_len))
         self.assertShape(processed_batch.special_token_mask, (batch_size, max_len))
 
-    @skip_test(reason="TODO: Fix this test")
     def test_consistency(self):
         ds = get_processed_dataset(32, 128, 0.15, "cpu", 2, 1)
         batch = ds.get_batch()
         # compare batch with saved batch
-        with open("test_batch.pkl", "rb") as f:
+        with open("lizrd/datasets/test_batch.pkl", "rb") as f:
             saved_batch = pickle.load(f)
         self.assertTensorEqual(batch.masked_tokens, saved_batch.masked_tokens)
         self.assertTensorEqual(batch.tokens, saved_batch.tokens)
