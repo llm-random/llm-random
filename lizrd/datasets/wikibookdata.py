@@ -29,9 +29,14 @@ class ProcessedBatch(ABC):
     def __init__(self, processed_examples):
         pass
 
+    def __iter__(self):
+        all_attrs = vars(self).values()
+        return iter([attr for attr in all_attrs if hasattr(attr, "shape")])
+
 
 class ProcessedBERTBatch(ProcessedBatch):
     def __init__(self, processed_examples):
+        super().__init__(processed_examples)
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
         )
@@ -58,6 +63,7 @@ class ProcessedBERTBatch(ProcessedBatch):
 
 class ProcessedGPTBatch(ProcessedBatch):
     def __init__(self, processed_examples):
+        super().__init__(processed_examples)
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
         )

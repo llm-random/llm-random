@@ -36,7 +36,6 @@ def main(
 
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-
     distributed = True if rank is not None else False
     train_dataloader = get_processed_dataset(
         max_total_length=args.cutoff,
@@ -74,7 +73,6 @@ def main(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
-        batch_size=args.batch_size,
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
         mixed_precision=args.mixed_precision,
@@ -86,6 +84,7 @@ def main(
         logging_interval_heavy=args.logging_interval_heavy,
         n_gpus=args.n_gpus,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
     )
     trainer.train(args.n_steps)
 

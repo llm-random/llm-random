@@ -1,3 +1,6 @@
+import torch
+
+
 def introduce_parser_arguments(parser):
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
@@ -31,6 +34,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--gradient_checkpointing", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=str, default=0)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
 
     parser.add_argument("--n_experts", type=int, default=1)
     parser.add_argument("--group_size", type=int, default=1)
@@ -57,3 +61,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--x_logarithmic", action="store_true")
 
     return parser
+
+
+def get_ith_chunk(tensor, chunks, i):
+    list_of_chunks = torch.chunk(tensor, chunks, dim=0)
+    return list_of_chunks[i]
