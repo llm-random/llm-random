@@ -127,12 +127,10 @@ def find_optimal_grad_accumulation(args, vocab_size, device):
     while True:
         try:
             print(f"Trying {grad_steps} grad steps...")
-            breakpoint()
             trainer, model, optimizer = get_trainer(
                 args, vocab_size, device, grad_steps
             )
             model_fit = True
-            breakpoint()
             trainer.train(10)
             break
         except Exception as e:
