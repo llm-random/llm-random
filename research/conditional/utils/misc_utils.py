@@ -67,3 +67,7 @@ def introduce_parser_arguments(parser):
 def get_ith_chunk(tensor, chunks, i):
     list_of_chunks = torch.chunk(tensor, chunks, dim=0)
     return list_of_chunks[i]
+
+
+def find_optimal_grad_accumulation(args, vocab_size, device):
+    pass

@@ -16,7 +16,10 @@ from lizrd.train.train_utils import (
     get_processed_dataset,
 )
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.misc_utils import introduce_parser_arguments
+from research.conditional.utils.misc_utils import (
+    introduce_parser_arguments,
+    find_optimal_grad_accumulation,
+)
 from research.conditional.utils.model_utils import get_ff_layer, get_attention_layer
 
 parser = argparse.ArgumentParser()
@@ -37,6 +40,10 @@ def main(
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
     distributed = True if rank is not None else False
+    if args.auto_find_grad_accumultaion:
+        args.gradient_accumulation_steps = find_optimal_grad_accumulation(
+            args=args, vocab_size=VOCAB_SIZE, device=DEVICE
+        )
     train_dataloader = get_processed_dataset(
         max_total_length=args.cutoff,
         mask_percent=args.mask_percent,
