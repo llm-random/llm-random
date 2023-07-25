@@ -119,11 +119,21 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return merge_weights, merge_weights
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        x = torch.einsum("B S c d, B S e c -> B S e d", x, merge_weights)
-        x = misc.einsum("B S e d, d e f -> B S e f", x, self.lin1)
+        x = misc.einsum(
+            "B S c d, B S e c, d e f -> B S e f",
+            x,
+            merge_weights,
+            self.lin1,
+            use_opt_einsum=self.use_opt_einsum,
+        )
         x = torch.relu_(x)
-        x = misc.einsum("B S e f, d e f -> B S e d", x, self.lin2)
-        x = torch.einsum("B S e d, B S e c -> B S c d", x, emit_weights)
+        x = misc.einsum(
+            "B S e f, d e f, B S e c -> B S c d",
+            x,
+            self.lin2,
+            emit_weights,
+            use_opt_einsum=self.use_opt_einsum,
+        )
         return x
 
     def reshape_into_original(self, x):
@@ -196,20 +206,4 @@ class ContinuousMoE(ContinuousMoeBaseClass):
 
 
 class ContinuousMoEQuick(ContinuousMoeBaseClass):
-    def merge_map_emit(self, x, merge_weights, emit_weights):
-        x = misc.einsum(
-            "B S c d, B S e c, d e f -> B S e f",
-            x,
-            merge_weights,
-            self.lin1,
-            use_opt_einsum=self.use_opt_einsum,
-        )
-        x = torch.relu_(x)
-        x = misc.einsum(
-            "B S e f, d e f, B S e c -> B S c d",
-            x,
-            self.lin2,
-            emit_weights,
-            use_opt_einsum=self.use_opt_einsum,
-        )
-        return x
+    pass
