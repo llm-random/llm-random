@@ -126,14 +126,27 @@ def find_optimal_grad_accumulation(args, vocab_size, device):
     Find the optimal number of gradient accumulation steps for a given model.
     CURRENTLY NO SUPPORT FOR DISTRIBUTED TRAINING.
     """
-    grad_acc_steps = 1
+    grad_steps = 1
+    model_fit = False
+
     while True:
         try:
-            trainer = get_trainer(args, vocab_size, device, grad_acc_steps)
+            print(f"Trying {grad_steps} grad steps...")
+            trainer, model, optimizer = get_trainer(
+                args, vocab_size, device, grad_steps
+            )
+            model_fit = True
             trainer.train(10)
-            return grad_acc_steps
+            break
         except Exception as e:
             print(e)
+            if not model_fit:
+                raise Exception(
+                    "Model does not fit in memory. No accumulation of gradients is possible."
+                )
+            grad_steps += 1
+        finally:
             torch.cuda.empty_cache()
+            del trainer, model, optimizer
             gc.collect()
-            grad_acc_steps += 1
+    return grad_steps
