@@ -35,6 +35,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--gradient_checkpointing", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=str, default=0)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
+    parser.add_argument("--auto_find_grad_accumultaion", action="store_true")
 
     parser.add_argument("--n_experts", type=int, default=1)
     parser.add_argument("--group_size", type=int, default=1)
