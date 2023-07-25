@@ -73,9 +73,15 @@ class ContinuousMoeBaseClass(LoggingLayer):
     temperature: float
     expert_size: Union[int, None]
     use_opt_einsum: bool = False
+    flop_matched: bool = False
 
     def __post_init__(self):
         super().__init__()
+        if self.flop_matched:
+            assert (
+                self.dff == 4 * self.dm
+            ), f"dff = {self.dff} is not equal to 4*dm = {4*self.dm} as in vanilla transformer"
+            self.dff *= self.group_size
         if self.expert_size is None:
             assert (
                 self.dff % self.n_experts == 0
