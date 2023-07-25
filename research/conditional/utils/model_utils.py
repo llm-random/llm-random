@@ -312,3 +312,8 @@ def get_ff_layer(args):
             )
 
     return return_fn
+
+
+def get_ith_chunk(tensor, chunks, i):
+    list_of_chunks = torch.chunk(tensor, chunks, dim=0)
+    return list_of_chunks[i]

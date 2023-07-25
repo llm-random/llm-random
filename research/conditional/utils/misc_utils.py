@@ -70,11 +70,6 @@ def introduce_parser_arguments(parser):
     return parser
 
 
-def get_ith_chunk(tensor, chunks, i):
-    list_of_chunks = torch.chunk(tensor, chunks, dim=0)
-    return list_of_chunks[i]
-
-
 def get_trainer(args, vocab_size, device, grad_acc_steps):
     train_dataloader = get_processed_dataset(
         max_total_length=args.cutoff,
@@ -118,24 +113,26 @@ def get_trainer(args, vocab_size, device, grad_acc_steps):
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=grad_acc_steps,
     )
-    return trainer
+    return trainer, model, optimizer
 
 
 def find_optimal_grad_accumulation(args, vocab_size, device):
     """
     Find the optimal number of gradient accumulation steps for a given model.
-    CURRENTLY NO SUPPORT FOR DISTRIBUTED TRAINING.
+    NO SUPPORT FOR DISTRIBUTED TRAINING.
     """
     grad_steps = 1
     model_fit = False
-
+    trainer, model, optimizer = None, None, None
     while True:
         try:
             print(f"Trying {grad_steps} grad steps...")
+            breakpoint()
             trainer, model, optimizer = get_trainer(
                 args, vocab_size, device, grad_steps
             )
             model_fit = True
+            breakpoint()
             trainer.train(10)
             break
         except Exception as e:
@@ -149,4 +146,5 @@ def find_optimal_grad_accumulation(args, vocab_size, device):
             torch.cuda.empty_cache()
             del trainer, model, optimizer
             gc.collect()
+    print(f"Found optimal value of gradient accumulation: {grad_steps}.")
     return grad_steps

@@ -40,7 +40,7 @@ def main(
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
     distributed = True if rank is not None else False
-    if args.auto_find_grad_accumultaion:
+    if args.auto_find_grad_accumulation:
         args.gradient_accumulation_steps = find_optimal_grad_accumulation(
             args=args, vocab_size=VOCAB_SIZE, device=DEVICE
         )
