@@ -133,14 +133,15 @@ def find_optimal_grad_accumulation(args, vocab_size, device):
             model_fit = True
             trainer.train(10)
             break
-        except Exception as e:
-            print(e)
+        except RuntimeError as e:
+            if "CUDA out of memory" not in str(e):
+                raise Exception(f"Unknown error: {e}")
+            grad_steps += 1
+        finally:
             if not model_fit:
                 raise Exception(
                     "Model does not fit in memory. No accumulation of gradients is possible."
                 )
-            grad_steps += 1
-        finally:
             torch.cuda.empty_cache()
             del trainer, model, optimizer
             gc.collect()
