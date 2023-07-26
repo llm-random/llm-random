@@ -122,7 +122,7 @@ def find_optimal_grad_accumulation(args, vocab_size, device):
     NO SUPPORT FOR DISTRIBUTED TRAINING.
     """
     n_grad_acc_steps = 1
-    model_fit = False
+    model_fits_in_memory = False
     trainer, model, optimizer = None, None, None
     while True:
         try:
@@ -130,7 +130,7 @@ def find_optimal_grad_accumulation(args, vocab_size, device):
             trainer, model, optimizer = get_trainer(
                 args, vocab_size, device, n_grad_acc_steps
             )
-            model_fit = True
+            model_fits_in_memory = True
             trainer.train(10)
             break
         except RuntimeError as e:
@@ -138,7 +138,7 @@ def find_optimal_grad_accumulation(args, vocab_size, device):
                 raise Exception(f"Unknown error: {e}")
             n_grad_acc_steps += 1
         finally:
-            if not model_fit:
+            if not model_fits_in_memory:
                 raise Exception(
                     "Model does not fit in memory. No accumulation of gradients is possible."
                 )
