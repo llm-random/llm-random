@@ -1,6 +1,3 @@
-import torch
-
-
 def introduce_parser_arguments(parser):
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
@@ -63,8 +60,3 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--x_logarithmic", action="store_true")
 
     return parser
-
-
-def get_ith_chunk(tensor, chunks, i):
-    list_of_chunks = torch.chunk(tensor, chunks, dim=0)
-    return list_of_chunks[i]

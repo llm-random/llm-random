@@ -2,11 +2,13 @@ import time
 from itertools import product
 
 import torch
+from plotly import express as px
 
+from lizrd.core import misc, nn
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
-    ContinuousMoEQuick,
 )
+from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 
 
 def get_parameter_size_in_gb(parameter):
@@ -80,7 +82,7 @@ def einsum_opt_v_normal():
         torch.cuda.empty_cache()
         memory_allocated = torch.cuda.memory_allocated() / (1024**3)
         print(f"memory_allocated after freeing: {memory_allocated}")
-        module = ContinuousMoEQuick(
+        module = ContinuousMoE(
             dm,
             dff,
             n_experts,
@@ -113,10 +115,6 @@ def einsum_opt_v_normal():
             del loss, activations
 
 
-def entropy(x):
-    return -torch.sum(x * torch.log(x + 1e-8), dim=-1)
-
-
 def set_highest_index_one(tensor: torch.Tensor) -> torch.Tensor:
     # Get the index of the highest value in the last dimension
     _, indices = torch.max(tensor, dim=-1)
@@ -133,3 +131,30 @@ def set_highest_index_one(tensor: torch.Tensor) -> torch.Tensor:
     )
 
     return result_tensor
+
+
+class FeedForwardTimed(LoggingLayer):
+    def __init__(self, dmodel, dff):
+        super().__init__()
+        self.dmodel = dmodel
+        self.dff = dff
+        self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
+        self.relu = nn.ReLU(inplace=True)
+        self.logging_ff_post_relu = misc.Linear(dff, dmodel)
+
+    def forward(self, x):
+        with measure_time(self, "logging_ff_pre_relu"):
+            x = self.logging_ff_pre_relu(x)
+        with measure_time(self, "relu"):
+            x = self.relu(x)
+        with measure_time(self, "logging_ff_post_relu"):
+            x = self.logging_ff_post_relu(x)
+        return x
+
+    def log_heavy(self):
+        instr_names = list(self.cached_data["time"].keys())
+        instr_times = list(self.cached_data["time"].values())
+        times_fig = px.bar(x=instr_names, y=instr_times)
+        out = {"instruction_times_plot": times_fig}
+        out.update(self.cached_data["time"])
+        return out
