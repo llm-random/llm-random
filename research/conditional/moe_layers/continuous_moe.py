@@ -41,9 +41,9 @@ class FeedForwardTimed(LoggingLayer):
         self.logging_ff_post_relu = misc.Linear(dff, dmodel)
 
     def forward(self, x):
-        if self.no_ff:
-            return x
         with measure_time(self, "logging_ff_pre_relu"):
+            if self.no_ff:
+                return x
             x = self.logging_ff_pre_relu(x)
         with measure_time(self, "activation"):
             x = self.activation(x)
