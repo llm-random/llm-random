@@ -16,11 +16,12 @@ from lizrd.train.train_utils import (
     get_processed_dataset,
 )
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.misc_utils import (
-    introduce_parser_arguments,
-    find_optimal_grad_accumulation,
+from research.conditional.utils.argparse import introduce_parser_arguments
+from research.conditional.utils.model_utils import (
+    get_ff_layer,
+    get_attention_layer,
 )
-from research.conditional.utils.model_utils import get_ff_layer, get_attention_layer
+from research.conditional.utils.training_utils import find_optimal_grad_accumulation
 
 parser = argparse.ArgumentParser()
 introduce_parser_arguments(parser)

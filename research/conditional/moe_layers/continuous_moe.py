@@ -8,52 +8,8 @@ from plotly import express as px
 
 from lizrd.core import misc, nn
 from lizrd.support.logging import make_histogram
-from research.conditional.utils.layer_manager import LoggingLayer, measure_time
-
-
-def stable_softmax_temperature(x, temperature, dim=-1):
-    x = x / temperature
-    x = x - x.max(dim=dim, keepdim=True)[0]
-    x = torch.exp(x)
-    x = x / x.sum(dim=dim, keepdim=True)
-    return x
-
-
-def entropy(x):
-    ent = -torch.sum(x * torch.log(x + 1e-8), dim=-1)
-    # make sure there aren't any NaNs or Infs or anything
-    try:
-        assert torch.all(torch.isfinite(ent))
-    except AssertionError:
-        breakpoint()
-    return ent
-
-
-class FeedForwardTimed(LoggingLayer):
-    def __init__(self, dmodel, dff):
-        super().__init__()
-        self.dmodel = dmodel
-        self.dff = dff
-        self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
-        self.relu = nn.ReLU(inplace=True)
-        self.logging_ff_post_relu = misc.Linear(dff, dmodel)
-
-    def forward(self, x):
-        with measure_time(self, "logging_ff_pre_relu"):
-            x = self.logging_ff_pre_relu(x)
-        with measure_time(self, "relu"):
-            x = self.relu(x)
-        with measure_time(self, "logging_ff_post_relu"):
-            x = self.logging_ff_post_relu(x)
-        return x
-
-    def log_heavy(self):
-        instr_names = list(self.cached_data["time"].keys())
-        instr_times = list(self.cached_data["time"].values())
-        times_fig = px.bar(x=instr_names, y=instr_times)
-        out = {"instruction_times_plot": times_fig}
-        out.update(self.cached_data["time"])
-        return out
+from research.conditional.utils.layer_manager import LoggingLayer
+from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 
 
 @dataclasses.dataclass(eq=False, repr=False)
@@ -73,9 +29,15 @@ class ContinuousMoeBaseClass(LoggingLayer):
     temperature: float
     expert_size: Union[int, None]
     use_opt_einsum: bool = False
+    flop_matched: bool = False
 
     def __post_init__(self):
         super().__init__()
+        if self.flop_matched:
+            assert (
+                self.dff == 4 * self.dm
+            ), f"dff = {self.dff} is not equal to 4*dm = {4*self.dm} as in vanilla transformer"
+            self.dff *= self.group_size
         if self.expert_size is None:
             assert (
                 self.dff % self.n_experts == 0
@@ -94,37 +56,51 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return x
 
     def reshape_into_token_groups(self, x):
+        """
+        :param x: normal input tensor of shape (B, S, dmodel)
+        :return: x reshaped so that one of dimensions is split into groups of size self.group_size, (the dimension is determined by self.sparsity_dim)
+        """
         # we want to split the input into groups of size self.group_size according to sparsity_dim
         if self.sparsity_dim == 0:
             # gather tokens from the same position in each sequence (mixes data from different examples within a batch)
-            x = einops.rearrange(x, "(B c) S d -> B S c d", c=self.group_size)
+            x = einops.rearrange(x, "(B g) S d -> B S g d", g=self.group_size)
         elif self.sparsity_dim == 1:
             # gather tokens from the same sequence (does not mix data from different examples within a batch)
-            x = einops.rearrange(x, "B (S c) d -> B S c d", c=self.group_size)
+            x = einops.rearrange(x, "B (S g) d -> B S g d", g=self.group_size)
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
         return x
 
     def get_merge_and_emit_weights(self, x):
-        merge_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
+        merge_logits = misc.einsum("B S g d, d e -> B S e g", x, self.controller)
         self.cache("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
         self.cache("merge_weights", merge_weights)
         return merge_weights, merge_weights
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        x = torch.einsum("B S c d, B S e c -> B S e d", x, merge_weights)
-        x = misc.einsum("B S e d, d e f -> B S e f", x, self.lin1)
+        x = misc.einsum(
+            "B S c d, B S e c, d e f -> B S e f",
+            x,
+            merge_weights,
+            self.lin1,
+            use_opt_einsum=self.use_opt_einsum,
+        )
         x = torch.relu_(x)
-        x = misc.einsum("B S e f, d e f -> B S e d", x, self.lin2)
-        x = torch.einsum("B S e d, B S e c -> B S c d", x, emit_weights)
+        x = misc.einsum(
+            "B S e f, d e f, B S e c -> B S c d",
+            x,
+            self.lin2,
+            emit_weights,
+            use_opt_einsum=self.use_opt_einsum,
+        )
         return x
 
     def reshape_into_original(self, x):
         if self.sparsity_dim == 0:
-            out = einops.rearrange(x, "B S c d -> (B c) S d")
+            out = einops.rearrange(x, "B S g d -> (B g) S d")
         elif self.sparsity_dim == 1:
-            out = einops.rearrange(x, "B S c d -> B (S c) d")
+            out = einops.rearrange(x, "B S g d -> B (S g) d")
         else:
             raise NotImplementedError("sparsity_dim must be 0 or 1")
         return out
@@ -187,23 +163,3 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
 class ContinuousMoE(ContinuousMoeBaseClass):
     pass
-
-
-class ContinuousMoEQuick(ContinuousMoeBaseClass):
-    def merge_map_emit(self, x, merge_weights, emit_weights):
-        x = misc.einsum(
-            "B S c d, B S e c, d e f -> B S e f",
-            x,
-            merge_weights,
-            self.lin1,
-            use_opt_einsum=self.use_opt_einsum,
-        )
-        x = torch.relu_(x)
-        x = misc.einsum(
-            "B S e f, d e f, B S e c -> B S c d",
-            x,
-            self.lin2,
-            emit_weights,
-            use_opt_einsum=self.use_opt_einsum,
-        )
-        return x

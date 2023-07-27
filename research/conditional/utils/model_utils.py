@@ -5,19 +5,37 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
-from research.conditional.archive.continuous_moe_alternatives import (
-    ContinuousMoEQuickMergeDifferentlySimple,
-    ContinuousMoEQuickMergeDifferentlyCommonBase,
-    ContinuousMoEQuickRawmerge,
-    ContinuousMoEQuickTopmerge,
-    ContinuousMoEQuickNosoftmax,
-    ContinuousMoEQuickAdaTemp,
+from research.conditional.moe_layers.cont_moe_designs.random_grouping import (
+    ContinuousMoERandomGroups,
+)
+from research.conditional.moe_layers.cont_moe_designs.learn_temp_and_common_base import (
+    ContinuousMoEFinal,
+)
+from research.conditional.moe_layers.cont_moe_designs.learnable_temperature import (
+    ContinuousMoEAdaTemp,
+)
+from research.conditional.moe_layers.cont_moe_designs.add_layernorms import (
+    ContinuousMoELayernorm,
+)
+from research.conditional.moe_layers.cont_moe_designs.no_softmax_on_weights import (
+    ContinuousMoENosoftmax,
+)
+from research.conditional.moe_layers.cont_moe_designs.send_result_only_to_top1_token import (
+    ContinuousMoETopmerge,
+)
+from research.conditional.moe_layers.cont_moe_designs.merge_without_weights import (
+    ContinuousMoERawmerge,
+)
+from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base import (
+    ContinuousMoEMergeDifferentlyCommonBase,
+)
+from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights import (
+    ContinuousMoEMergeDifferentlySimple,
 )
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
-    ContinuousMoEQuick,
-    FeedForwardTimed,
 )
+from research.conditional.archive.rogue_code import FeedForwardTimed
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 
 
@@ -205,94 +223,130 @@ def get_ff_layer(args):
         return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
     elif args.ff_mode == "vanilla_timed":
         return_fn = lambda: FeedForwardTimed(args.dmodel, args.dff)
-    elif args.ff_mode == "cont_moe":
+    elif args.ff_mode == "cont_moe" or args.ff_mode == "cont_moe_quick":
         return_fn = lambda: ContinuousMoE(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-            args.expert_size,
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
         )
-    elif args.ff_mode == "cont_moe_quick":
-        return_fn = lambda: ContinuousMoEQuick(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-            args.expert_size,
-            args.use_opt_einsum,
+    elif args.ff_mode == "cont_moe_merge_diff_simple":
+        return_fn = lambda: ContinuousMoEMergeDifferentlySimple(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
         )
-    elif args.ff_mode == "cont_moe_quick_merge_diff_simple":
-        return_fn = lambda: ContinuousMoEQuickMergeDifferentlySimple(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-            args.expert_size,
-            args.use_opt_einsum,
+    elif args.ff_mode == "cont_moe_merge_diff_comm_base":
+        return_fn = lambda: ContinuousMoEMergeDifferentlyCommonBase(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
         )
-    elif args.ff_mode == "cont_moe_quick_merge_diff_comm_base":
-        return_fn = lambda: ContinuousMoEQuickMergeDifferentlyCommonBase(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-            args.expert_size,
-            args.use_opt_einsum,
+    elif args.ff_mode == "cont_moe_rawmerge":
+        return_fn = lambda: ContinuousMoERawmerge(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
         )
-    elif args.ff_mode == "cont_moe_quick_rawmerge":
-        return_fn = lambda: ContinuousMoEQuickRawmerge(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-            args.expert_size,
-            args.use_opt_einsum,
+    elif args.ff_mode == "cont_moe_topmerge":
+        return_fn = lambda: ContinuousMoETopmerge(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
         )
-    elif args.ff_mode == "cont_moe_quick_topmerge":
-        return_fn = lambda: ContinuousMoEQuickTopmerge(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-            args.expert_size,
-            args.use_opt_einsum,
+    elif args.ff_mode == "cont_moe_nosoft":
+        return_fn = lambda: ContinuousMoENosoftmax(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
         )
-    elif args.ff_mode == "cont_moe_quick_nosoft":
-        return_fn = lambda: ContinuousMoEQuickNosoftmax(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-            args.expert_size,
-            args.use_opt_einsum,
+    elif args.ff_mode == "cont_moe_adatemp":
+        return_fn = lambda: ContinuousMoEAdaTemp(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+            share_by_experts=args.share_by_experts,
+            share_by_emit_merge=args.share_by_emit_merge,
         )
-    elif args.ff_mode == "cont_moe_quick_adatemp":
-        return_fn = lambda: ContinuousMoEQuickAdaTemp(
-            args.dmodel,
-            args.dff,
-            args.n_experts,
-            args.group_size,
-            args.sparsity_dim,
-            args.temperature,
-            args.expert_size,
-            args.use_opt_einsum,
-            args.share_by_experts,
-            args.share_by_emit_merge,
+    elif args.ff_mode == "cont_moe_ln":
+        return_fn = lambda: ContinuousMoELayernorm(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_final":
+        return_fn = lambda: ContinuousMoEFinal(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_random_groups":
+        return_fn = lambda: ContinuousMoERandomGroups(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+            batch_size=args.batch_size,
+            seqlen=args.cutoff,
+            mix_whole_batch=args.mix_whole_batch,
         )
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(
@@ -312,8 +366,3 @@ def get_ff_layer(args):
             )
 
     return return_fn
-
-
-def get_ith_chunk(tensor, chunks, i):
-    list_of_chunks = torch.chunk(tensor, chunks, dim=0)
-    return list_of_chunks[i]

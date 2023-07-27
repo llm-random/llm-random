@@ -8,7 +8,8 @@ from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.model_utils import make_loss_function, get_ith_chunk
+from research.conditional.utils.misc_tools import get_ith_chunk
+from research.conditional.utils.model_utils import make_loss_function
 
 
 @define(slots=False)
