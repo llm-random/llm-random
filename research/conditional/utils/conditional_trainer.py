@@ -38,6 +38,7 @@ class ConditionalTrainer:
     save_weights_path: str = None
     save_weights_interval: int = 1000
     load_weights_path: str = None
+    gradient_clipping: float = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -79,6 +80,8 @@ class ConditionalTrainer:
     def _optimize(self, loss):
         self.optimizer.zero_grad()
         self.scaler.scale(loss).backward()
+        if self.gradient_clipping is not None:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clipping)
         self.scaler.step(self.optimizer)
         self.scaler.update()
 

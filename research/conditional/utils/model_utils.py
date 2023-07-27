@@ -107,7 +107,7 @@ def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
     elif args.ff_mode == "vanilla_timed":
-        return_fn = lambda: FeedForwardTimed(args.dmodel, args.dff, args.activation_type)
+        return_fn = lambda: FeedForwardTimed(args.dmodel, args.dff, args.activation_type, args.no_ff)
     elif args.ff_mode == "cont_moe":
         return_fn = lambda: ContinuousMoE(
             args.dmodel,
