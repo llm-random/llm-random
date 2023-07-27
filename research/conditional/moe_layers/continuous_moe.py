@@ -31,7 +31,7 @@ def entropy(x):
 
 
 class FeedForwardTimed(LoggingLayer):
-    def __init__(self, dmodel, dff, activation_type="relu", no_ff=False)
+    def __init__(self, dmodel, dff, activation_type="relu", no_ff=False):
         super().__init__()
         self.dmodel = dmodel
         self.no_ff = no_ff
