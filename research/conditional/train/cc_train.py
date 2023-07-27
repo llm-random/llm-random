@@ -85,6 +85,9 @@ def main(
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
         n_gpus=args.n_gpus,
+        save_weights_path=args.save_weights_path,
+        save_weights_interval=args.save_weights_interval,
+        load_weights_path=args.load_weights_path,
     )
     trainer.train(args.n_steps)
 

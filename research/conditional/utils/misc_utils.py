@@ -30,6 +30,9 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--gradient_checkpointing", action="store_true")
+    parser.add_argument("--save_weights_path", type=str, default=None)
+    parser.add_argument("--save_weights_interval", type=int, default=1000)
+    parser.add_argument("--load_weights_path", type=str, default=None)
 
     parser.add_argument("--n_experts", type=int, default=1)
     parser.add_argument("--group_size", type=int, default=1)

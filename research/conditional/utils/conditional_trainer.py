@@ -1,3 +1,4 @@
+import os.path
 from functools import partial
 from typing import Optional
 
@@ -34,6 +35,9 @@ class ConditionalTrainer:
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
     hack_name: str = None
+    save_weights_path: str = None
+    save_weights_interval: int = 1000
+    load_weights_path: str = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -49,7 +53,21 @@ class ConditionalTrainer:
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
 
+    def _try_restore_weights(self):
+        if self.load_weights_path is not None:
+            if os.path.exists(self.load_weights_path):
+                print(f"Loading weights from {self.load_weights_path}")
+                self.model.load_state_dict(torch.load(self.load_weights_path), strict=False)
+            else:
+                print(f"No weights found at {self.load_weights_path}, training from scratch")
+
+    def _check_save_weights(self, step):
+        if self.save_weights_path is not None and step % self.save_weights_interval == 0:
+            torch.save(self.model.state_dict(), self.save_weights_path)
+            print(f"Weights saved to {self.save_weights_path} (step {step})")
+
     def train(self, n_steps: int):
+        self._try_restore_weights()
         for step in range(n_steps + 1):
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
@@ -81,6 +99,8 @@ class ConditionalTrainer:
         if self.logger is not None:
             self._log_loss(loss, step)
             self.layer_manager.log(step)
+
+        self._check_save_weights(step)
 
     def _log_loss(self, loss, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
