@@ -40,7 +40,7 @@ def main(
 
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-    distributed = True if rank is not None else False
+    data_distributed = True if rank is not None else False
     if args.auto_find_grad_accumulation:
         args.gradient_accumulation_steps = find_optimal_grad_accumulation(
             args=args, vocab_size=VOCAB_SIZE, device=DEVICE
@@ -50,15 +50,20 @@ def main(
         mask_percent=args.mask_percent,
         device=DEVICE,
         num_workers=args.num_workers,
-        batch_size=args.batch_size // args.n_gpus if distributed else args.batch_size,
+        batch_size=args.batch_size // args.n_gpus
+        if data_distributed
+        else args.batch_size,
         seed=args.data_seed if data_seeds is None else data_seeds[rank],
         model_type=args.model_type,
-        distributed=distributed,
+        data_distributed=data_distributed,
     )
 
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
-
+    if args.model_parallelism_fragmentation is not None:
+        args.model_parallelism_fragmentation = [
+            int(s) for s in args.model_parallelism_fragmentation.split(",")
+        ]
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -68,9 +73,10 @@ def main(
         n_blocks=args.n_blocks,
         device=DEVICE,
         gradient_checkpointing=args.gradient_checkpointing,
+        model_fragmentation=args.model_parallelism_fragmentation,
     )
 
-    # make model distributed if necessary
+    # make model data_distributed if necessary
     if rank is not None:
         model = DDP(model, device_ids=[rank])
 
@@ -102,7 +108,7 @@ def main(
 
 if __name__ == "__main__":
     misc.print_available_gpus()
-    if args.n_gpus == 1:
+    if args.data_distributed == False:
         main(None)
     else:
         random.seed(args.data_seed)

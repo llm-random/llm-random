@@ -72,19 +72,20 @@ class ConditionalTrainer:
         self.model.train()
         if self.logger is not None:
             self.layer_manager.prepare_for_logging(step)
-        processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         loss = self.optimize_with_gradient_accumulation(processed_batch)
         if self.logger is not None:
             self._log_loss(loss, step)
             self.layer_manager.log(step)
 
-    def optimize_with_gradient_accumulation(self, processed_batch):
+    def optimize_with_gradient_accumulation(
+        self, processed_batch: wikibookdata.ProcessedBatch
+    ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         loss_value = 0.0
         for i in range(self.gradient_accumulation_steps):
             batch_copy = copy.deepcopy(processed_batch)
-            for tensor in vars(batch_copy).values():
+            for tensor in batch_copy:
                 tensor.data = get_ith_chunk(
                     tensor.data, self.gradient_accumulation_steps, i
                 )
@@ -129,8 +130,7 @@ class ConditionalTrainer:
         This is a hack to easily determine the maximal batch size that can be used with given GPU memory and model size.
         """
         self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         for tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
@@ -156,8 +156,7 @@ class ConditionalTrainer:
             ]
         )
         self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         for block_name, layer in self.layer_manager._layers:
             layer.expertsize = step + 1
             layer.init_parameters()

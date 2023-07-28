@@ -60,7 +60,6 @@ def determine_mem_usage():
                 f"model.lin1: {get_parameter_size_in_gb(module.lin1)}, model.lin2: {get_parameter_size_in_gb(module.lin2)}, model.controller: {get_parameter_size_in_gb(module.controller)}"
             )
             del module, input_batch, activations
-            breakpoint()
 
 
 def einsum_opt_v_normal():
@@ -77,7 +76,6 @@ def einsum_opt_v_normal():
 
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    breakpoint()
     for use_opt in use_opt_einsum:
         torch.cuda.empty_cache()
         memory_allocated = torch.cuda.memory_allocated() / (1024**3)

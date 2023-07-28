@@ -53,6 +53,13 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
+    parser.add_argument(
+        "--model_parallelism_fragmentation",
+        type=str,
+        default=None,
+        help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
+    )
+    parser.add_argument("--data_distributed", action="store_true")
 
     # experimental/legacy parameters
 
