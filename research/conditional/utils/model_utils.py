@@ -37,6 +37,7 @@ from research.conditional.moe_layers.continuous_moe import (
 )
 from research.conditional.archive.rogue_code import FeedForwardTimed
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.token_choice import TokenChoiceFF
 
 
 def make_loss_function(
@@ -352,6 +353,8 @@ def get_ff_layer(args):
         return_fn = lambda: ExpertChoiceFF(
             **get_expert_choice_args(args),
         )
+    elif args.ff_mode == "token_choice":
+        return_fn = lambda: TokenChoiceFF(dmodel=args.dmodel, n_experts=args.n_experts, expert_size=args.dff)
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 
