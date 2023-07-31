@@ -34,19 +34,23 @@ class TokenChoiceFF(LoggingLayer):
         self.n_experts = n_experts
         self.expert_size = expert_size
 
-        self.lin1_weights = [
-            nn.Parameter(get_init_weight((dmodel, expert_size), fan_in=dmodel))
-            for _ in range(n_experts)
-        ]
-        self.lin2_weights = [
-            nn.Parameter(
-                get_init_weight(
-                    (expert_size, dmodel),
-                    fan_in=expert_size,
+        self.lin1_weights = torch.nn.ParameterList(
+            [
+                nn.Parameter(get_init_weight((dmodel, expert_size), fan_in=dmodel))
+                for _ in range(n_experts)
+            ]
+        )
+        self.lin2_weights = torch.nn.ParameterList(
+            [
+                nn.Parameter(
+                    get_init_weight(
+                        (expert_size, dmodel),
+                        fan_in=expert_size,
+                    )
                 )
-            )
-            for _ in range(n_experts)
-        ]
+                for _ in range(n_experts)
+            ]
+        )
         self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
@@ -86,7 +90,7 @@ class TokenChoiceFF(LoggingLayer):
         # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
         with measure_time(self, "flatten"):
             x = x.flatten(start_dim=0, end_dim=1)
-        final_output = x.new_zeros(x.shape)
+        final_output = torch.zeros_like(x)
         for i in range(self.n_experts):
             expert_output = einsum(
                 "list_size dmodel, dmodel expert_size -> list_size expert_size",
@@ -98,7 +102,7 @@ class TokenChoiceFF(LoggingLayer):
                 "list_size expert_size, expert_size dmodel -> list_size dmodel",
                 expert_output,
                 self.lin2_weights[i],
-            )
+            ).to(x.dtype)
             final_output[experts_lists[i], :] = expert_output
 
         self.cache("gate_softmax_values", gate_values)
