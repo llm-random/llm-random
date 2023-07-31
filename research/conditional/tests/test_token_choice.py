@@ -15,7 +15,6 @@ def mock_topk_factory(topk_fn):
 
 
 class TestTokenChoice(GeneralTestCase):
-
     def test_equivalence_linear(self):
         """
         Test that the TokenChoiceFF layer with one expert is equivalent to a linear layer.
@@ -48,8 +47,10 @@ class TestTokenChoice(GeneralTestCase):
         output_lin.sum().backward()
         output_token_choice.sum().backward()
         self.assertTensorAlmostEqual(
-            lin[0].weight.grad, token_choice_layer.lin1_weights[0].grad.squeeze(0).transpose(0, 1)
+            lin[0].weight.grad,
+            token_choice_layer.lin1_weights[0].grad.squeeze(0).transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
-            lin[2].weight.grad, token_choice_layer.lin2_weights[0].grad.squeeze(0).transpose(0, 1)
+            lin[2].weight.grad,
+            token_choice_layer.lin2_weights[0].grad.squeeze(0).transpose(0, 1),
         )

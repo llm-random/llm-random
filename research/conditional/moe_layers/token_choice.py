@@ -34,16 +34,20 @@ class TokenChoiceFF(LoggingLayer):
         self.n_experts = n_experts
         self.expert_size = expert_size
 
-        self.lin1_weights = [ nn.Parameter( 
-            get_init_weight((dmodel, expert_size), fan_in=dmodel)
-        ) for _ in range(n_experts)]
-        self.lin2_weights = [nn.Parameter( 
-            get_init_weight(
-                (expert_size, dmodel),
-                fan_in=expert_size,
+        self.lin1_weights = [
+            nn.Parameter(get_init_weight((dmodel, expert_size), fan_in=dmodel))
+            for _ in range(n_experts)
+        ]
+        self.lin2_weights = [
+            nn.Parameter(
+                get_init_weight(
+                    (expert_size, dmodel),
+                    fan_in=expert_size,
+                )
             )
-        ) for _ in range(n_experts)]
-        self.gate = nn.Parameter( 
+            for _ in range(n_experts)
+        ]
+        self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
         self.ln = LayerNorm(dmodel)
@@ -75,13 +79,14 @@ class TokenChoiceFF(LoggingLayer):
         #  group tokens by expert it should be processed by
         with measure_time(self, "experts_lists"):
             experts_lists = [
-                torch.eq(experts_indices, i).nonzero(as_tuple=True)[0] for i in range(self.n_experts)
+                torch.eq(experts_indices, i).nonzero(as_tuple=True)[0]
+                for i in range(self.n_experts)
             ]
 
         # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
         with measure_time(self, "flatten"):
             x = x.flatten(start_dim=0, end_dim=1)
-        final_output = x.new_zeros(x.shape) 
+        final_output = x.new_zeros(x.shape)
         for i in range(self.n_experts):
             expert_output = einsum(
                 "list_size dmodel, dmodel expert_size -> list_size expert_size",
@@ -99,7 +104,6 @@ class TokenChoiceFF(LoggingLayer):
         self.cache("gate_softmax_values", gate_values)
         self.cache("max_indices", experts_indices)
         self.cache("n_tokens", torch.Tensor([batch_size * seq_len]))
-
 
         # multiply final_output by softmax values
         with measure_time(self, "multiply_softmax"):
