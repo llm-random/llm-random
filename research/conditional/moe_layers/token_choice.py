@@ -102,7 +102,7 @@ class TokenChoiceFF(LoggingLayer):
                 "list_size expert_size, expert_size dmodel -> list_size dmodel",
                 expert_output,
                 self.lin2_weights[i],
-            )
+            ).to(x.dtype)
             final_output[experts_lists[i], :] = expert_output
 
         self.cache("gate_softmax_values", gate_values)
