@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from argparse import Namespace
 from typing import Optional
 
-import neptune.new as neptune
+import neptune
 import numpy as np
 import plotly
 import plotly.express as px
@@ -178,6 +178,14 @@ class NeptuneLogger(AbstractLogger):
     def report_generic_info(self, *, title: str, iteration: int, data):
         if isinstance(data, plotly.graph_objs.Figure):
             self.report_plotly(figure=data, title=title, iteration=iteration)
+        elif isinstance(data, list):
+            if isinstance(data[0], float):
+                for i, scalar in enumerate(data):
+                    self.report_scalar(
+                        title=title, value=scalar, series=str(i), iteration=iteration
+                    )
+            else:
+                raise NotImplementedError()
         else:
             self.report_scalar(title=title, value=data, iteration=iteration)
 

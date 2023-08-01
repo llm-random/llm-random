@@ -29,9 +29,14 @@ class ProcessedBatch(ABC):
     def __init__(self, processed_examples):
         pass
 
+    def __iter__(self):
+        all_attrs = vars(self).values()
+        return iter([attr for attr in all_attrs if hasattr(attr, "shape")])
+
 
 class ProcessedBERTBatch(ProcessedBatch):
     def __init__(self, processed_examples):
+        super().__init__(processed_examples)
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
         )
@@ -58,6 +63,7 @@ class ProcessedBERTBatch(ProcessedBatch):
 
 class ProcessedGPTBatch(ProcessedBatch):
     def __init__(self, processed_examples):
+        super().__init__(processed_examples)
         self.tokens = self._make_tensor(
             [example.tokens for example in processed_examples]
         )
@@ -234,10 +240,16 @@ def process_book_text(document_sentences, chunk_length: int = 450):
 
 
 class WikiBookDataset:
-    def __init__(self, rng=random):
+    def __init__(self, rng=random, use_dummy_dataset=False):
         self.examples_buffer = []
-        self.dataset_wiki = load_dataset("wikipedia", "20220301.en")["train"]
-        self.dataset_book = load_dataset("bookcorpus")["train"]
+        self.dataset_wiki = load_dataset(
+            "wikipedia", f"20220301.{'simple' if use_dummy_dataset else 'en'}"
+        )["train"]
+        self.dataset_book = (
+            load_dataset("bookcorpus")["train"]
+            if not use_dummy_dataset
+            else self.dataset_wiki
+        )
         self.rng = rng
 
         self.buffer_refill_to = 10000

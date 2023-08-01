@@ -176,7 +176,6 @@ if __name__ == "__main__":
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
                 f"--time={TIME}",
-                NODELIST,
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
@@ -244,6 +243,8 @@ if __name__ == "__main__":
             subprocess.run([str(s) for s in subprocess_args if s is not None], env=env)
             sleep(10)
         else:
-            print(" ".join([str(s) for s in subprocess_args if s is not None]))
+            print(f"running experiment {i} from {name}...")
+            PROCESS_CALL_FUNCTION(subprocess_args, env)
+            sleep(5)
         if INTERACTIVE_DEBUG:
             break

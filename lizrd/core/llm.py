@@ -286,13 +286,28 @@ def PredictionHead(embedding_dim, output_size):
 
 
 @ash.check("... -> ... out")
-def LLM(embedding_layer, encoder_tower, head):
-    return nn.Sequential(
-        OrderedDict(
-            [
-                ("embedding_layer", embedding_layer),
-                ("encoder", encoder_tower),
-                ("prediction_head", head),
-            ]
+class LLM(nn.Module):
+    def __init__(self, embedding_layer, encoder_tower, head):
+        super(LLM, self).__init__()
+
+        self.encoder = nn.Sequential(
+            OrderedDict(
+                [
+                    ("embedding_layer", embedding_layer),
+                    ("encoder", encoder_tower),
+                ]
+            )
         )
-    )
+        self.full_model = nn.Sequential(
+            OrderedDict(
+                [
+                    ("embedding_layer", embedding_layer),
+                    ("encoder", encoder_tower),
+                    ("head", head),
+                ]
+            )
+        )
+        self.head = head
+
+    def forward(self, *args, **kwargs):
+        return self.full_model.forward(*args, **kwargs)

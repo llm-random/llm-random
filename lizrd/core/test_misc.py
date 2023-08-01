@@ -1,8 +1,14 @@
+import copy
 import torch
 
-from lizrd.core import misc
+from lizrd.core import llm, misc
 from lizrd.core.misc import Chungus, Checkpoint
 from lizrd.support.test_utils import GeneralTestCase
+from lizrd.train.train_utils import get_processed_dataset, get_model
+from research.conditional.utils.model_utils import (
+    calculate_bert_loss,
+    chungized_bert_loss,
+)
 
 
 class TestDense(GeneralTestCase):
@@ -119,6 +125,72 @@ class TestChungus(GeneralTestCase):
             assert torch.isclose(
                 grad, grad_checkpointed
             ).all(), f"parameter {name} failed, log of difference is: {torch.log10((grad - grad_checkpointed).abs().max())}"
+
+
+class TestChungizedCalculateLoss(GeneralTestCase):
+    def test_outputs_and_grads(self):
+        torch.manual_seed(0)
+
+        batch, seql, dm, heads, dff = 3, 32, 32, 4, 64
+        vocab_size = 30522
+        n_blocks = 2
+        device = "cpu"
+        mask_percentage = 0.15
+        n_chungs = 3
+
+        dataset = get_processed_dataset(
+            max_total_length=seql,
+            mask_percent=mask_percentage,
+            device=device,
+            num_workers=1,
+            batch_size=batch,
+            seed=0,
+            model_type="bert",
+            distributed=False,
+            use_dummy_dataset=True,
+        )
+
+        model = get_model(
+            max_length=seql,
+            vocab_size=vocab_size,
+            ff_layer_fun=lambda: llm.FeedForward(dm, dff),
+            attention_layer_fun=lambda: llm.Attention(dm, heads),
+            dm=dm,
+            n_blocks=n_blocks,
+            device=device,
+        )
+
+        with torch.no_grad():
+            model_chunged = copy.deepcopy(model)
+
+        batch = dataset.get_batch()
+
+        loss_no_chung = calculate_bert_loss(
+            batch=batch,
+            model=model,
+            mixed_precision=False,
+            vocab_size=vocab_size,
+            mask_percent=mask_percentage,
+        )
+
+        loss_chung = chungized_bert_loss(
+            batch=batch,
+            model=model_chunged,
+            mixed_precision=False,
+            vocab_size=vocab_size,
+            mask_percent=mask_percentage,
+            n_chungs=n_chungs,
+        )
+
+        loss_no_chung.backward()
+        loss_chung.backward()
+
+        assert torch.isclose(loss_no_chung, loss_chung)
+
+        chunged_dict = {n: p for n, p in model_chunged.named_parameters()}
+
+        for param_name, param in model.named_parameters():
+            assert torch.isclose(param.grad, chunged_dict[param_name].grad).all()
 
 
 class TestCheckpoint(GeneralTestCase):

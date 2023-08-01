@@ -1,8 +1,15 @@
 import torch
-
-import research.conditional.archive.continuous_moe_alternatives
+import research.conditional.moe_layers.cont_moe_designs.add_layernorms
+import research.conditional.moe_layers.cont_moe_designs.learn_temp_and_common_base
+import research.conditional.moe_layers.cont_moe_designs.merge_without_weights
+import research.conditional.moe_layers.cont_moe_designs.no_softmax_on_weights
+import research.conditional.moe_layers.cont_moe_designs.random_grouping
+import research.conditional.moe_layers.cont_moe_designs.send_result_only_to_top1_token
+import research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights
+import research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base
 import research.conditional.moe_layers.continuous_moe
 import research.conditional.moe_layers.ffs
+import research.conditional.moe_layers.cont_moe_designs.learnable_temperature
 from lizrd.support.test_utils import GeneralTestCase
 
 (
@@ -11,8 +18,8 @@ from lizrd.support.test_utils import GeneralTestCase
     dm,
     dff,
 ) = (
-    4,
-    12,
+    16,
+    16,
     32,
     64,
 )
@@ -56,7 +63,7 @@ class TestContinuousMoE(GeneralTestCase):
 
 class TestContinuousMoEQuick(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoEQuick(
+        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
             dm,
             dff,
             n_experts=4,
@@ -69,7 +76,7 @@ class TestContinuousMoEQuick(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_dim1(self):
-        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoEQuick(
+        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
             dm,
             dff,
             n_experts=4,
@@ -84,7 +91,7 @@ class TestContinuousMoEQuick(GeneralTestCase):
 
 class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlySimple(
+        layer = research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights.ContinuousMoEMergeDifferentlySimple(
             dm,
             dff,
             n_experts=4,
@@ -97,7 +104,7 @@ class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_dim1(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlySimple(
+        layer = research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights.ContinuousMoEMergeDifferentlySimple(
             dm,
             dff,
             n_experts=4,
@@ -112,7 +119,7 @@ class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
 
 class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlyCommonBase(
+        layer = research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base.ContinuousMoEMergeDifferentlyCommonBase(
             dm,
             dff,
             n_experts=4,
@@ -125,7 +132,7 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_dim1(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickMergeDifferentlyCommonBase(
+        layer = research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base.ContinuousMoEMergeDifferentlyCommonBase(
             dm,
             dff,
             n_experts=4,
@@ -140,7 +147,7 @@ class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
 
 class ContinuousMoEQuickRawmerge(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickRawmerge(
+        layer = research.conditional.moe_layers.cont_moe_designs.merge_without_weights.ContinuousMoERawmerge(
             dm,
             dff,
             n_experts=4,
@@ -153,7 +160,7 @@ class ContinuousMoEQuickRawmerge(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_dim1(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickRawmerge(
+        layer = research.conditional.moe_layers.cont_moe_designs.merge_without_weights.ContinuousMoERawmerge(
             dm,
             dff,
             n_experts=4,
@@ -168,7 +175,7 @@ class ContinuousMoEQuickRawmerge(GeneralTestCase):
 
 class ContinuousMoEQuickTopmerge(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickTopmerge(
+        layer = research.conditional.moe_layers.cont_moe_designs.send_result_only_to_top1_token.ContinuousMoETopmerge(
             dm,
             dff,
             n_experts=4,
@@ -181,7 +188,7 @@ class ContinuousMoEQuickTopmerge(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_dim1(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickTopmerge(
+        layer = research.conditional.moe_layers.cont_moe_designs.send_result_only_to_top1_token.ContinuousMoETopmerge(
             dm,
             dff,
             n_experts=4,
@@ -196,7 +203,7 @@ class ContinuousMoEQuickTopmerge(GeneralTestCase):
 
 class ContinuousMoEQuickNosoftmax(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickNosoftmax(
+        layer = research.conditional.moe_layers.cont_moe_designs.no_softmax_on_weights.ContinuousMoENosoftmax(
             dm,
             dff,
             n_experts=4,
@@ -209,7 +216,7 @@ class ContinuousMoEQuickNosoftmax(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_dim1(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickNosoftmax(
+        layer = research.conditional.moe_layers.cont_moe_designs.no_softmax_on_weights.ContinuousMoENosoftmax(
             dm,
             dff,
             n_experts=4,
@@ -224,7 +231,7 @@ class ContinuousMoEQuickNosoftmax(GeneralTestCase):
 
 class ContinuousMoEQuickAdaTemp(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickAdaTemp(
+        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
             dm,
             dff,
             n_experts=4,
@@ -239,7 +246,7 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_dim1(self):
-        layer = research.conditional.archive.continuous_moe_alternatives.ContinuousMoEQuickAdaTemp(
+        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
             dm,
             dff,
             n_experts=4,
@@ -248,5 +255,131 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             temperature=1.0,
             expert_size=8,
             use_opt_einsum=True,
+            share_by_experts=True,
+            share_by_emit_merge=True,
+        )
+        shape_and_parameters(layer)
+
+    def test_single_temp(self):
+        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+            dm,
+            dff,
+            n_experts=16,
+            group_size=4,
+            sparsity_dim=1,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
+            share_by_experts=False,
+            share_by_emit_merge=False,
+        )
+        shape_and_parameters(layer)
+
+
+class ContinuousMoELayernorm(GeneralTestCase):
+    def test_basic(self):
+        layer = research.conditional.moe_layers.cont_moe_designs.add_layernorms.ContinuousMoELayernorm(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=0,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
+        )
+        shape_and_parameters(layer)
+
+    def test_dim1(self):
+        layer = research.conditional.moe_layers.cont_moe_designs.add_layernorms.ContinuousMoELayernorm(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=1,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
+        )
+        shape_and_parameters(layer)
+
+
+class ContinuousMoEFinal(GeneralTestCase):
+    def test_basic(self):
+        layer = research.conditional.moe_layers.cont_moe_designs.learn_temp_and_common_base.ContinuousMoEFinal(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=0,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
+            share_by_experts=True,
+            share_by_emit_merge=True,
+        )
+        shape_and_parameters(layer)
+
+    def test_dim1(self):
+        layer = research.conditional.moe_layers.cont_moe_designs.learn_temp_and_common_base.ContinuousMoEFinal(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=1,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
+            share_by_experts=True,
+            share_by_emit_merge=True,
+        )
+        shape_and_parameters(layer)
+
+    def test_single_temp(self):
+        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+            dm,
+            dff,
+            n_experts=16,
+            group_size=4,
+            sparsity_dim=1,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
+            share_by_experts=False,
+            share_by_emit_merge=False,
+        )
+        shape_and_parameters(layer)
+
+
+class ContinuousMoERandomGroups(GeneralTestCase):
+    def test_basic(self):
+        layer = research.conditional.moe_layers.cont_moe_designs.random_grouping.ContinuousMoERandomGroups(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=0,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
+            batch_size=16,
+            seqlen=16,
+            mix_whole_batch=False,
+        )
+        shape_and_parameters(layer)
+
+    def whole_batch(self):
+        layer = research.conditional.moe_layers.cont_moe_designs.random_grouping.ContinuousMoERandomGroups(
+            dm,
+            dff,
+            n_experts=4,
+            group_size=4,
+            sparsity_dim=0,
+            temperature=1.0,
+            expert_size=8,
+            use_opt_einsum=True,
+            batch_size=16,
+            seqlen=16,
+            mix_whole_batch=True,
         )
         shape_and_parameters(layer)

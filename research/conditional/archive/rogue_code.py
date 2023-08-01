@@ -2,11 +2,13 @@ import time
 from itertools import product
 
 import torch
+from plotly import express as px
 
+from lizrd.core import misc, nn
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
-    ContinuousMoEQuick,
 )
+from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 
 
 def get_parameter_size_in_gb(parameter):
@@ -80,7 +82,7 @@ def einsum_opt_v_normal():
         torch.cuda.empty_cache()
         memory_allocated = torch.cuda.memory_allocated() / (1024**3)
         print(f"memory_allocated after freeing: {memory_allocated}")
-        module = ContinuousMoEQuick(
+        module = ContinuousMoE(
             dm,
             dff,
             n_experts,
@@ -111,10 +113,6 @@ def einsum_opt_v_normal():
             )
             torch.cuda.empty_cache()
             del loss, activations
-
-
-def entropy(x):
-    return -torch.sum(x * torch.log(x + 1e-8), dim=-1)
 
 
 def set_highest_index_one(tensor: torch.Tensor) -> torch.Tensor:

@@ -38,6 +38,9 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--adam_beta1", type=float, default=0.9)
     parser.add_argument("--adam_beta2", type=float, default=0.999)
     parser.add_argument("--no_ff", action="store_true")
+    parser.add_argument("--loss_checkpoint_chungs", type=str, default=0)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
+    parser.add_argument("--auto_find_grad_accumulation", action="store_true")
 
     parser.add_argument("--n_experts", type=int, default=1)
     parser.add_argument("--group_size", type=int, default=1)
@@ -65,6 +68,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--activation_type", type=str, default="relu")
     parser.add_argument("--nystrom", action="store_true")
     parser.add_argument("--xfavor", action="store_true")
+    parser.add_argument("--flop_matched", action="store_true")
+    parser.add_argument("--mix_whole_batch", action="store_true")
 
     # experimental/legacy parameters
 
