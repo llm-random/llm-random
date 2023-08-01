@@ -134,7 +134,10 @@ class ConditionalTrainer:
         for tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
-            processed_batch, self.mixed_precision, self.mask_percent, self.vocab_size
+            batch=processed_batch,
+            model=self.model,
+            mixed_precision=self.mixed_precision,
+            vocab_size=self.vocab_size,
         )
         self._optimize(loss, should_apply_gradient=True)
         if self.logger is not None:
@@ -162,7 +165,10 @@ class ConditionalTrainer:
             layer.init_parameters()
             layer.to(torch.device("cuda"))
         loss = self._calculate_loss(
-            processed_batch, self.model, self.mixed_precision, self.vocab_size
+            batch=processed_batch,
+            model=self.model,
+            mixed_precision=self.mixed_precision,
+            vocab_size=self.vocab_size,
         )
         self._optimize(loss, should_apply_gradient=True)
         self.logger.report_scalar(title="max expert size", value=step, iteration=step)

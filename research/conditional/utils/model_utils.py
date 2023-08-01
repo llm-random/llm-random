@@ -145,7 +145,7 @@ def calculate_llm_loss(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
         model_output = model(input_tokens)
-
+    # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
     gt_tokens = gt_tokens.to(model_output.device)
     mask = mask.to(model_output.device)
 
