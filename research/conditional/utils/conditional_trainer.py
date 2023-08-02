@@ -59,10 +59,13 @@ class ConditionalTrainer:
         # since we sum gradients averaged over multiple smaller batches, we need to normalize here
         loss /= self.gradient_accumulation_steps
         # clear computation graph, store gradients
+        if self.gradient_accumulation_steps == 1:
+            self.optimizer.zero_grad()
         self.scaler.scale(loss).backward()
         if should_apply_gradient:
             self.scaler.step(self.optimizer)
-            self.optimizer.zero_grad()
+            if self.gradient_accumulation_steps > 1:
+                self.optimizer.zero_grad()
             self.scaler.update()
 
     def _train_step(
