@@ -1,8 +1,8 @@
 # torch==1.10.1  # previously: 1.10.2+cu113 ; but it doesn't work on entropy (and 1.10.2 has problems with torchvision)
 # torchvision==0.11.2
 
-torch==2.0.1
-torchvision==0.15.2
+torch==1.13.0
+torchvision==0.14.0
 protobuf==3.20.*
 numpy==1.22.1
 matplotlib==3.5.1
@@ -19,4 +19,6 @@ plotly-express==0.4.1
 performer-pytorch==1.1.4
 xformers=0.0.20
 neptune==1.3.2
+pyyaml==6.0
+fancy-einsum==0.0.3
 pyyaml==6.0

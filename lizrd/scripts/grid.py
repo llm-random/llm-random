@@ -56,6 +56,10 @@ if __name__ == "__main__":
     N_GPUS = 1
     CPUS_PER_GPU = 8
     CUDA_VISIBLE_DEVICES = None
+    PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
+        [str(arg) for arg in args if arg is not None], env=env
+    )
+    AUXILIARY_PROCESS_CALL_FUNCTION = None
 
     if len(sys.argv) > 1:
         path = sys.argv[1]
@@ -107,7 +111,7 @@ if __name__ == "__main__":
         if not INTERACTIVE_DEBUG:
             user_input = input(
                 f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-                f"\nSbatch settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
+                f"\nExperiment settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
             )
         else:
             user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
@@ -213,7 +217,6 @@ if __name__ == "__main__":
             if CUDA_VISIBLE_DEVICES is not None:
                 env = os.environ.copy()
                 env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
-            os.chdir(COPIED_CODE_PATH)
             subprocess_args = [
                 "singularity",
                 "run",
@@ -236,12 +239,8 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown runner: {runner}")
 
-        if not DRY_RUN:
-            print(
-                f"running experiment with command: {[str(s) for s in subprocess_args if s is not None]}"
-            )
-            subprocess.run([str(s) for s in subprocess_args if s is not None], env=env)
-            sleep(10)
+        if DRY_RUN:
+            print(" ".join(subprocess_args))
         else:
             print(f"running experiment {i} from {name}...")
             PROCESS_CALL_FUNCTION(subprocess_args, env)

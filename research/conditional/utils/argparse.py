@@ -19,6 +19,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
     parser.add_argument("--tags", nargs="*", type=str, default=None)
+    parser.add_argument("--project_name", type=str, default="pmtest/llm-efficiency")
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], default="bert"
     )
@@ -26,7 +27,6 @@ def introduce_parser_arguments(parser):
     # parameters usually changed for experiments
 
     parser.add_argument("--ff_mode", type=str, default="vanilla")
-    parser.add_argument("--project_name", type=str, default="pmtest/llm-efficiency")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--gradient_checkpointing", action="store_true")
@@ -41,6 +41,8 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--loss_checkpoint_chungs", type=str, default=0)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--auto_find_grad_accumulation", action="store_true")
+
+    # paremeters for specific experiments
 
     parser.add_argument("--n_experts", type=int, default=1)
     parser.add_argument("--group_size", type=int, default=1)
@@ -60,7 +62,6 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--kernel_r", type=int, default=256)
-    parser.add_argument("--fc_kernel_no_batch", action="store_true")
     parser.add_argument("--redraw_projections_interval", type=int, default=100)
     parser.add_argument("--no_kernel_norm", action="store_true")
     parser.add_argument("--no_average_attn", action="store_true")

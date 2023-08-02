@@ -17,7 +17,7 @@ def create_kernel_base(kernel_type, normalization):
 
 
 class FCKernelized(LoggingLayer):
-    def __init__(self, dmodel, dff, kernel_r, kernel_type="relu", no_batch=False, redraw_projections_interval=10,
+    def __init__(self, dmodel, dff, kernel_r, kernel_type="relu", redraw_projections_interval=10,
                  no_kernel_norm=False, no_average_attn=False, nystrom=False, xfavor=False,
                  use_bias=False, ortho_scaling=0):
         super().__init__()
@@ -25,7 +25,6 @@ class FCKernelized(LoggingLayer):
         self.nb_features = kernel_r
         self.dff = dff
         self.use_bias = use_bias
-        self.no_batch = no_batch
         self.redraw_projections_interval = redraw_projections_interval
         self.current_projection_count = 0
         self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
@@ -97,8 +96,8 @@ class FCKernelized(LoggingLayer):
     def linear_attention(self, q, k, v):
         if self.average_attn:
             with measure_time(self, "lin_attn_d"):
-                k_cumsum = k.sum(dim=-2)
-                D_inv = 1. / torch.einsum('...nd,...d->...n', q, k_cumsum.type_as(q))
+                sum = k.sum(dim=-2)
+                D_inv = 1. / torch.einsum('...nd,...d->...n', q, sum.type_as(q))
         with measure_time(self, "lin_attn_k_v"):
             context = torch.einsum('...nd,...ne->...de', k, v)
         with measure_time(self, "lin_attn_q"):

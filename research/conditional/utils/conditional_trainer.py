@@ -52,7 +52,7 @@ class ConditionalTrainer:
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
 
-    def _try_restore_weights(self):
+    def _restore_weights(self):
         if self.load_weights_path is not None:
             if os.path.exists(self.load_weights_path):
                 print(f"Loading weights from {self.load_weights_path}")
@@ -60,13 +60,13 @@ class ConditionalTrainer:
             else:
                 print(f"No weights found at {self.load_weights_path}, training from scratch")
 
-    def _check_save_weights(self, step):
+    def _save_weights(self, step):
         if self.save_weights_path is not None and step % self.save_weights_interval == 0:
             torch.save(self.model.state_dict(), self.save_weights_path)
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def train(self, n_steps: int):
-        self._try_restore_weights()
+        self._restore_weights()
         for step in range(n_steps + 1):
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
@@ -101,7 +101,7 @@ class ConditionalTrainer:
             self._log_loss(loss, step)
             self.layer_manager.log(step)
 
-        self._check_save_weights(step)
+        self._save_weights(step)
 
     def optimize_with_gradient_accumulation(self, processed_batch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""

@@ -355,16 +355,15 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "kernelized_fc":
         return_fn = lambda: FCKernelized(
-            args.dmodel,
-            args.dff,
-            args.kernel_r,
-            args.kernel_type,
-            args.fc_kernel_no_batch,
-            args.redraw_projections_interval,
-            args.no_kernel_norm,
-            args.no_average_attn,
-            args.nystrom,
-            args.xfavor
+            dmodel=args.dmodel,
+            dff=args.dff,
+            kernel_r=args.kernel_r,
+            kernel_type=args.kernel_type,
+            redraw_projections_interval=args.redraw_projections_interval,
+            no_kernel_norm=args.no_kernel_norm,
+            no_average_attn=args.no_average_attn,
+            nystrom=args.nystrom,
+            xfavor=args.xfavor
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
