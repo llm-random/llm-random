@@ -241,6 +241,7 @@ def TransformerBlock(dmodel, layers, gradient_checkpointing):
     return nn.Sequential(*residual_layers)
 
 
+@ash.check("... d -> ... d")
 class TransformerTower(nn.Module):
     def __init__(
         self,
