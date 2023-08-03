@@ -8,6 +8,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
+from lizrd.datasets.c4 import C4Dataset
 
 
 class ProcessedBERTExample(object):
@@ -395,7 +396,7 @@ class ProcessedDatasetWrapper:
                 )
             )
         elif dataset_type == "c4":
-            pass
+            self.dataset = C4Dataset()
         else:
             raise ValueError(f"Unknown dataset type in ProcessedDatasetWrapper: {dataset_type}")
 
