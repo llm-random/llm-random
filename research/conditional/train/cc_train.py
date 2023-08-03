@@ -80,7 +80,12 @@ def main(
     if rank is not None:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=args.learning_rate,
+        weight_decay=args.weight_decay,
+        betas=(args.adam_beta1, args.adam_beta2),
+    )
     logger = get_logger(args, model, VOCAB_SIZE) if rank is None or rank == 0 else None
 
     trainer = ConditionalTrainer(
@@ -97,6 +102,10 @@ def main(
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
         n_gpus=args.n_gpus,
+        save_weights_path=args.save_weights_path,
+        save_weights_interval=args.save_weights_interval,
+        load_weights_path=args.load_weights_path,
+        gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
     )

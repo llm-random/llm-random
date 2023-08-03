@@ -1,3 +1,4 @@
+import os.path
 import copy
 from typing import Optional, Literal
 
@@ -31,6 +32,10 @@ class ConditionalTrainer:
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
     hack_name: str = None
+    save_weights_path: str = None
+    save_weights_interval: int = 1000
+    load_weights_path: str = None
+    gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
 
@@ -46,7 +51,28 @@ class ConditionalTrainer:
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
 
+    def _restore_weights(self):
+        if self.load_weights_path is not None:
+            if os.path.exists(self.load_weights_path):
+                print(f"Loading weights from {self.load_weights_path}")
+                self.model.load_state_dict(
+                    torch.load(self.load_weights_path), strict=False
+                )
+            else:
+                print(
+                    f"No weights found at {self.load_weights_path}, training from scratch"
+                )
+
+    def _save_weights(self, step):
+        if (
+            self.save_weights_path is not None
+            and step % self.save_weights_interval == 0
+        ):
+            torch.save(self.model.state_dict(), self.save_weights_path)
+            print(f"Weights saved to {self.save_weights_path} (step {step})")
+
     def train(self, n_steps: int):
+        self._restore_weights()
         for step in range(n_steps + 1):
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
@@ -61,6 +87,10 @@ class ConditionalTrainer:
         # clear computation graph, store gradients
         self.scaler.scale(loss).backward()
         if should_apply_gradient:
+            if self.gradient_clipping is not None:
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
             self.scaler.step(self.optimizer)
             self.optimizer.zero_grad()
             self.scaler.update()
@@ -77,6 +107,7 @@ class ConditionalTrainer:
         if self.logger is not None:
             self._log_loss(loss, step)
             self.layer_manager.log(step)
+        self._save_weights(step)
 
     def optimize_with_gradient_accumulation(
         self, processed_batch: wikibookdata.ProcessedBatch
