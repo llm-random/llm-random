@@ -316,4 +316,3 @@ def resolve_activation_name(activation: str) -> torch.nn.Module:
         return torch.nn.Softmax()
     else:
         raise ValueError(f"Unrecognized activation: {activation}")
-

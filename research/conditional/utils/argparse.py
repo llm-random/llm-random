@@ -25,7 +25,6 @@ def introduce_parser_arguments(parser):
     )
 
     # parameters usually changed for experiments
-
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--learning_rate", type=float, default=3e-4)
@@ -34,7 +33,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--save_weights_interval", type=int, default=1000)
     parser.add_argument("--load_weights_path", type=str, default=None)
     parser.add_argument("--grad_clip", type=float, default=None)
-    parser.add_argument("--weight_decay", type=float, default=0.)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--adam_beta1", type=float, default=0.9)
     parser.add_argument("--adam_beta2", type=float, default=0.999)
     parser.add_argument("--no_ff", action="store_true")
@@ -71,6 +70,13 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--xfavor", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
+    parser.add_argument(
+        "--model_parallelism_fragmentation",
+        type=str,
+        default=None,
+        help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
+    )
+    parser.add_argument("--data_distributed", action="store_true")
 
     # experimental/legacy parameters
 
