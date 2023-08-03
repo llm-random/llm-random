@@ -36,18 +36,16 @@ class TokenChoiceFF(LoggingLayer):
 
         self.lin1_weights = torch.nn.ParameterList(
             [
-                nn.Parameter(get_init_weight((dmodel, expert_size), fan_in=dmodel))
+                get_init_weight((dmodel, expert_size), fan_in=dmodel)
                 for _ in range(n_experts)
             ]
         )
         self.lin2_weights = torch.nn.ParameterList(
             [
-                nn.Parameter(
                     get_init_weight(
                         (expert_size, dmodel),
                         fan_in=expert_size,
                     )
-                )
                 for _ in range(n_experts)
             ]
         )
