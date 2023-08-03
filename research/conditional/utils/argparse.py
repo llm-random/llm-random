@@ -24,7 +24,6 @@ def introduce_parser_arguments(parser):
     )
 
     # parameters usually changed for experiments
-
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--project_name", type=str, default="")
     parser.add_argument("--name", type=str, default="")

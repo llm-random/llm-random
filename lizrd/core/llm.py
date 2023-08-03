@@ -117,7 +117,7 @@ def LowRank(dinput, doutput, dlowrank):
     )
 
 
-# @ash.check("... d -> ... d")
+@ash.check("... d -> ... d")
 class Attention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(Attention, self).__init__()
@@ -165,7 +165,7 @@ class Attention(nn.Module):
         return output
 
 
-# @ash.check("... d -> ... d")
+@ash.check("... d -> ... d")
 class CausalAttention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(CausalAttention, self).__init__()
@@ -216,7 +216,7 @@ class CausalAttention(nn.Module):
         return output
 
 
-# @ash.check("... d -> ... d")
+@ash.check("... d -> ... d")
 def ResidualBlock(dmodel, layer, name):
     return Residual(
         nn.Sequential(
@@ -230,7 +230,7 @@ def ResidualBlock(dmodel, layer, name):
     )
 
 
-# @ash.check("... d -> ... d")
+@ash.check("... d -> ... d")
 def TransformerBlock(dmodel, layers, gradient_checkpointing):
     residual_layers = []
     for name, layer in layers:
@@ -323,7 +323,7 @@ def PredictionHead(embedding_dim, output_size):
     return nn.Linear(embedding_dim, output_size)
 
 
-# @ash.check("... -> ... out")
+@ash.check("... -> ... out")
 class LLM(nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()
