@@ -48,8 +48,6 @@ CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
 PUSH_TO_GIT = False
-ENTROPY_GPU_USAGE_FILES = [f"/home/simontwice/gpu_usage/{i}.txt" for i in range(8)]
-SOCKET_PATH = "/home/simontwice/gpu_usage/common_tmux_socket"
 COPIED_CODE_PATH = ""
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -240,6 +238,7 @@ if __name__ == "__main__":
             ]
         else:
             raise ValueError(f"Unknown runner: {runner}")
+
         if DRY_RUN:
             print(" ".join(subprocess_args))
         else:

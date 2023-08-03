@@ -35,8 +35,9 @@ from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weight
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
 )
-from research.conditional.archive.rogue_code import FeedForwardTimed
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.kernelized import FCKernelized
+from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
 def make_loss_function(
@@ -222,7 +223,7 @@ def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
     elif args.ff_mode == "vanilla_timed":
-        return_fn = lambda: FeedForwardTimed(args.dmodel, args.dff)
+        return_fn = lambda: FeedForwardTimed(args.dmodel, args.dff, args.activation_type, args.no_ff)
     elif args.ff_mode == "cont_moe" or args.ff_mode == "cont_moe_quick":
         return_fn = lambda: ContinuousMoE(
             dm=args.dmodel,
@@ -351,6 +352,18 @@ def get_ff_layer(args):
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(
             **get_expert_choice_args(args),
+        )
+    elif args.ff_mode == "kernelized_fc":
+        return_fn = lambda: FCKernelized(
+            dmodel=args.dmodel,
+            dff=args.dff,
+            kernel_r=args.kernel_r,
+            kernel_type=args.kernel_type,
+            redraw_projections_interval=args.redraw_projections_interval,
+            no_kernel_norm=args.no_kernel_norm,
+            no_average_attn=args.no_average_attn,
+            nystrom=args.nystrom,
+            xfavor=args.xfavor
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
