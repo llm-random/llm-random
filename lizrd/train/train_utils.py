@@ -61,21 +61,24 @@ def get_processed_dataset(
     dataset_type: Literal["wiki", "c4"] = "wiki",
     distributed: bool = False,
     use_dummy_dataset: bool = False,
-    dataset_split: str = "train"
+    dataset_split: str = "train",
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
 
-    if model_type == "bert":
-        processor = wikibookdata.BERTSentenceProcessor(
-            max_total_length=max_total_length,
-            mask_percent=mask_percent,
-        )
-    elif model_type == "gpt":
-        processor = wikibookdata.GPTSentenceProcessor(
-            max_total_length=max_total_length,
-        )
+    if dataset_type == "wiki":
+        if model_type == "bert":
+            processor = wikibookdata.BERTSentenceProcessor(
+                max_total_length=max_total_length,
+                mask_percent=mask_percent,
+            )
+        elif model_type == "gpt":
+            processor = wikibookdata.GPTSentenceProcessor(
+                max_total_length=max_total_length,
+            )
 
-    dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
+        dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
+    else:
+        dataset = None
     return wikibookdata.ProcessedDatasetWrapper(
         pdataset=dataset,
         device=device,
@@ -85,7 +88,8 @@ def get_processed_dataset(
         model_type=model_type,
         distributed=distributed,
         dataset_type=dataset_type,
-        dataset_split=dataset_split
+        dataset_split=dataset_split,
+        seq_length=max_total_length,
     )
 
 
@@ -239,7 +243,9 @@ class Trainer:
         if self.model_type == "bert":
             self.model.train()
             processed_batch = dataset.get_batch()
-            assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+            assert isinstance(
+                processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+            )
             x_set = processed_batch.masked_tokens
             y_token_set = processed_batch.tokens
             y_mask_set = processed_batch.mask_mask
@@ -262,7 +268,9 @@ class Trainer:
         else:
             self.model.train()
             processed_batch = dataset.get_batch()
-            assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+            assert isinstance(
+                processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+            )
             input = processed_batch.tokens
             target = processed_batch.target_tokens
             non_padded_mask = processed_batch.non_padded_mask
@@ -369,7 +377,9 @@ class Trainer:
                 total_mask_loss = 0.0
                 for _ in range(sample):
                     processed_batch = self.pdataset_eval.get_batch()
-                    assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+                    assert isinstance(
+                        processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+                    )
                     mask_loss = self._get_mask_loss(
                         x_set=processed_batch.masked_tokens,
                         y_token_set=processed_batch.tokens,
@@ -392,7 +402,9 @@ class Trainer:
                 total_loss = 0.0
                 for _ in range(sample):
                     processed_batch = self.pdataset_eval.get_batch()
-                    assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+                    assert isinstance(
+                        processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+                    )
                     input = processed_batch.tokens
                     target = processed_batch.target_tokens
                     non_padded_mask = processed_batch.non_padded_mask
@@ -429,7 +441,9 @@ class Trainer:
 
                 for _ in range(self.neuron_diff_n_batches):
                     processed_batch = self.neuron_diff_dataset.get_batch()
-                    assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+                    assert isinstance(
+                        processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+                    )
 
                     baseline = self._compute_loss(processed_batch).detach().cpu().item()
 
@@ -697,7 +711,9 @@ class RetrainTrainer(Trainer):
         if self.model_type == "bert":
             self.model.train()
             processed_batch = dataset.get_batch()
-            assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+            assert isinstance(
+                processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+            )
             x_set = processed_batch.masked_tokens
             y_token_set = processed_batch.tokens
             y_mask_set = processed_batch.mask_mask
@@ -720,7 +736,9 @@ class RetrainTrainer(Trainer):
         else:
             self.model.train()
             processed_batch = dataset.get_batch()
-            assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+            assert isinstance(
+                processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+            )
             input = processed_batch.tokens
             target = processed_batch.target_tokens
             non_padded_mask = processed_batch.non_padded_mask
