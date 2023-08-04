@@ -63,9 +63,8 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
 ) -> wikibookdata.ProcessedDatasetWrapper:
-    raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
-
     if dataset_type == "wiki":
+        raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
         if model_type == "bert":
             processor = wikibookdata.BERTSentenceProcessor(
                 max_total_length=max_total_length,

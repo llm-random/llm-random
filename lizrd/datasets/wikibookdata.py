@@ -356,50 +356,42 @@ class ProcessedDatasetWrapper:
         dataset_type: Literal["wiki", "c4"] = "wiki",
         dataset_split: str = "train"
     ):
-        if dataset_type == "wiki":
-            self.pdataset = pdataset
-            self.device = device
+        self.device = device
+        self.model_type = model_type
 
-            self.model_type = model_type
-
-            if self.model_type == "bert":
-                collate_fn = lambda batch: ProcessedBERTBatch(batch)
-            elif self.model_type == "gpt":
-                if self.dataset_type == "c4":
-                    collate_fn = lambda batch: ProcessedC4Batch(batch)
-                else:
-                    collate_fn = lambda batch: ProcessedGPTBatch(batch)
+        if self.model_type == "bert":
+            collate_fn = lambda batch: ProcessedBERTBatch(batch)
+        elif self.model_type == "gpt":
+            if self.dataset_type == "c4":
+                collate_fn = lambda batch: ProcessedC4Batch(batch)
             else:
-                raise ValueError(
-                    f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
-                )
-
-            if self.dataset_type == "wiki":
-                pdataset = ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed)
-            elif self.dataset_type == "c4":
-                pdataset = C4Dataset(seq_length, batch_size, dataset_split)
-            else:
-                raise ValueError(f"Unknown dataset type: {self.dataset_type}")
-
-            # using multiple workers is not compatible with DDP in the current setting
-            if distributed and num_workers > 0:
-                raise NotImplementedError(
-                    "Multiple workers are currently not supported when using multiple gpus."
-                )
-
-            self.dataloader = iter(
-                DataLoader(
-                    pdataset,
-                    num_workers=num_workers,
-                    batch_size=batch_size,
-                    collate_fn=collate_fn,
-                    shuffle=False,  # WikiBookDataset already shuffles
-                )
-            )
-        elif dataset_type == "c4":
-            self.dataset = C4Dataset(seq_length, batch_size, dataset_split)
+                collate_fn = lambda batch: ProcessedGPTBatch(batch)
         else:
-            raise ValueError(f"Unknown dataset type in ProcessedDatasetWrapper: {dataset_type}")
+            raise ValueError(
+                f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
+            )
+
+        if dataset_type == "wiki":
+            pdataset = ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed)
+        elif dataset_type == "c4":
+            pdataset = C4Dataset(seq_length, batch_size, dataset_split)
+        else:
+            raise ValueError(f"Unknown dataset type: {self.dataset_type}")
+
+        # using multiple workers is not compatible with DDP in the current setting
+        if distributed and num_workers > 0:
+            raise NotImplementedError(
+                "Multiple workers are currently not supported when using multiple gpus."
+            )
+        self.dataloader = iter(
+            DataLoader(
+                pdataset,
+                num_workers=num_workers,
+                batch_size=batch_size,
+                collate_fn=collate_fn,
+                shuffle=False,  # WikiBookDataset already shuffles
+            )
+        )
 
     def get_batch(self) -> ProcessedBatch:
         return next(self.dataloader).to_(self.device)
