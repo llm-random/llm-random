@@ -5,6 +5,7 @@ import torch
 from attr import define
 
 from lizrd.datasets import wikibookdata
+import lizrd.datasets.processed_batch
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
@@ -76,7 +77,7 @@ class ConditionalTrainer:
         if self.logger is not None:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
         loss = self.optimize_with_gradient_accumulation(processed_batch)
         if self.logger is not None:
             self._log_loss(loss, step)
@@ -133,7 +134,7 @@ class ConditionalTrainer:
         """
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
         for tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
@@ -160,7 +161,7 @@ class ConditionalTrainer:
         )
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
         for block_name, layer in self.layer_manager._layers:
             layer.expertsize = step + 1
             layer.init_parameters()

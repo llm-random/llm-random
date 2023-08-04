@@ -4,7 +4,7 @@ from transformers import GPT2TokenizerFast
 import numpy as np
 import torch
 
-from lizrd.datasets.wikibookdata import ProcessedBatch
+from lizrd.datasets.processed_batch import ProcessedBatch
 
 
 class C4Dataset(Dataset):

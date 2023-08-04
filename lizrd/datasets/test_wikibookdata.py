@@ -1,4 +1,5 @@
 from lizrd.datasets import wikibookdata
+import lizrd.datasets.processed_batch
 from lizrd.train.train_utils import get_processed_dataset
 from lizrd.support.test_utils import GeneralTestCase, skip_test
 import pickle
@@ -13,7 +14,7 @@ class TestWikibookdata(GeneralTestCase):
         processor = wikibookdata.SentencePairProcessor(max_total_length=max_len)
         dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
         processed_batch = dataset.get_batch(batch_size)
-        isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
         self.assertShape(processed_batch.swapped, (batch_size,))
         self.assertEqual(processed_batch.swapped.sum(), batch_size // 2)
         self.assertShape(processed_batch.masked_tokens, (batch_size, max_len))

@@ -1,6 +1,5 @@
 import random
 from typing import Literal
-from abc import ABC
 
 import numpy as np
 import torch
@@ -8,6 +7,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
+from lizrd.datasets.processed_batch import ProcessedBatch
 from lizrd.datasets.c4 import C4Dataset, ProcessedC4Batch
 
 
@@ -25,15 +25,6 @@ class ProcessedGPTExample(object):
         self.tokens = processor.tokenize_text(sentence)
         self.tokens, self.non_padded_mask = processor.pad_tokens(self.tokens)
         self.target_tokens = self.tokens[1:] + [processor.end_token_id]
-
-
-class ProcessedBatch(ABC):
-    def __init__(self, processed_examples):
-        pass
-
-    def __iter__(self):
-        all_attrs = vars(self).values()
-        return iter([attr for attr in all_attrs if hasattr(attr, "shape")])
 
 
 class ProcessedBERTBatch(ProcessedBatch):
