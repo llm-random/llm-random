@@ -5,8 +5,10 @@ import numpy as np
 import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
+from torch.utils.data.distributed import DistributedSampler
 from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
+
 from lizrd.datasets.processed_batch import ProcessedBatch
 from lizrd.datasets.c4 import C4Dataset, ProcessedC4Batch
 
@@ -354,7 +356,7 @@ class ProcessedDatasetWrapper:
         model_type: str = "bert",
         distributed: bool = False,
         dataset_type: Literal["wiki", "c4"] = "wiki",
-        dataset_split: str = "train"
+        dataset_split: str = "train",
     ):
         self.device = device
         self.model_type = model_type
@@ -372,7 +374,9 @@ class ProcessedDatasetWrapper:
             )
 
         if dataset_type == "wiki":
-            pdataset = ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed)
+            pdataset = ParallelCompatibleDataset(
+                pdataset, batch_size=batch_size, seed=seed
+            )
         elif dataset_type == "c4":
             pdataset = C4Dataset(seq_length, batch_size, dataset_split)
         else:
@@ -390,6 +394,9 @@ class ProcessedDatasetWrapper:
                 batch_size=batch_size,
                 collate_fn=collate_fn,
                 shuffle=False,  # WikiBookDataset already shuffles
+                sampler=DistributedSampler(pdataset)
+                if (distributed and dataset_type == "c4")
+                else None,
             )
         )
 
