@@ -34,20 +34,36 @@ def get_model(
     n_blocks: int,
     device: torch.device,
     gradient_checkpointing: bool = False,
+    model_fragmentation: Optional[list[int]] = None,
 ):
+    if model_fragmentation is None or device == torch.device("cpu"):
+        first_gpu = device
+        last_gpu = device
+    else:
+        first_gpu = torch.device("cuda:0")
+        last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
+
     embedding_layer = llm.EmbeddingLayer(
-        llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
+        llm.PositionalEmbedding(max_length, dm).to(first_gpu),
+        llm.TokenEmbedding(vocab_size, dm).to(first_gpu),
     )
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
-        n_blocks, dm, layer_dict, gradient_checkpointing
+        n_blocks,
+        dm,
+        layer_dict,
+        gradient_checkpointing,
+        device,
+        model_fragmentation=model_fragmentation,
     )
-    head = llm.PredictionHead(dm, vocab_size)
+
+    head = llm.PredictionHead(dm, vocab_size).to(last_gpu)
+
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
-    return model.to(device)
+    return model
 
 
 def get_processed_dataset(
@@ -59,7 +75,7 @@ def get_processed_dataset(
     seed: int,
     model_type: str = "bert",
     dataset_type: Literal["wiki", "c4"] = "wiki",
-    distributed: bool = False,
+    data_distributed: bool = False,
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
 ) -> wikibookdata.ProcessedDatasetWrapper:
@@ -85,7 +101,7 @@ def get_processed_dataset(
         num_workers=num_workers,
         seed=seed,
         model_type=model_type,
-        distributed=distributed,
+        data_distributed=data_distributed,
         dataset_type=dataset_type,
         dataset_split=dataset_split,
         seq_length=max_total_length,

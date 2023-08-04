@@ -49,7 +49,8 @@ class ProcessedBERTBatch(ProcessedBatch):
         matrix = np.array(list_of_token_lists)
         return torch.from_numpy(matrix)
 
-    def to_(self, device):
+    def to(self, device):
+        self.device = device
         self.tokens = self.tokens.to(device)
         self.masked_tokens = self.masked_tokens.to(device)
         self.mask_mask = self.mask_mask.to(device)
@@ -73,7 +74,8 @@ class ProcessedGPTBatch(ProcessedBatch):
         matrix = np.array(list_of_token_lists)
         return torch.from_numpy(matrix)
 
-    def to_(self, device):
+    def to(self, device):
+        self.device = device
         self.tokens = self.tokens.to(device)
         self.target_tokens = self.target_tokens.to(device)
         self.non_padded_mask = self.non_padded_mask.to(device)
@@ -354,7 +356,7 @@ class ProcessedDatasetWrapper:
         num_workers: int = 8,
         seed: int = 42,
         model_type: str = "bert",
-        distributed: bool = False,
+        data_distributed: bool = False,
         dataset_type: Literal["wiki", "c4"] = "wiki",
         dataset_split: str = "train",
     ):
@@ -383,7 +385,7 @@ class ProcessedDatasetWrapper:
             raise ValueError(f"Unknown dataset type: {self.dataset_type}")
 
         # using multiple workers is not compatible with DDP in the current setting
-        if distributed and num_workers > 0:
+        if data_distributed and num_workers > 0:
             raise NotImplementedError(
                 "Multiple workers are currently not supported when using multiple gpus."
             )
@@ -395,10 +397,10 @@ class ProcessedDatasetWrapper:
                 collate_fn=collate_fn,
                 shuffle=False,  # WikiBookDataset already shuffles
                 sampler=DistributedSampler(pdataset)
-                if (distributed and dataset_type == "c4")
+                if (data_distributed and dataset_type == "c4")
                 else None,
             )
         )
 
     def get_batch(self) -> ProcessedBatch:
-        return next(self.dataloader).to_(self.device)
+        return next(self.dataloader).to(self.device)
