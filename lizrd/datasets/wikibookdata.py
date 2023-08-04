@@ -362,7 +362,7 @@ class ProcessedDatasetWrapper:
         if self.model_type == "bert":
             collate_fn = lambda batch: ProcessedBERTBatch(batch)
         elif self.model_type == "gpt":
-            if self.dataset_type == "c4":
+            if dataset_type == "c4":
                 collate_fn = lambda batch: ProcessedC4Batch(batch)
             else:
                 collate_fn = lambda batch: ProcessedGPTBatch(batch)

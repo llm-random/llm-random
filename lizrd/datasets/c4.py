@@ -32,7 +32,7 @@ class C4Dataset(Dataset):
         )
         example["tokens"] = tokenized["input_ids"]
         example["non_padded_mask"] = tokenized["attention_mask"]
-        example["target_tokens"] = example["target"][1:] + [self.tokenizer.pad_token_id]
+        example["target_tokens"] = example["tokens"][1:] + [self.tokenizer.pad_token_id]
         return example
 
 
