@@ -396,9 +396,6 @@ class ProcessedDatasetWrapper:
                 batch_size=batch_size,
                 collate_fn=collate_fn,
                 shuffle=False,  # WikiBookDataset already shuffles
-                sampler=DistributedSampler(pdataset)
-                if (data_distributed and dataset_type == "c4")
-                else None,
             )
         )
 
