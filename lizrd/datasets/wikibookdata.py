@@ -8,7 +8,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
-from lizrd.datasets.c4 import C4Dataset
+from lizrd.datasets.c4 import C4Dataset, ProcessedC4Batch
 
 
 class ProcessedBERTExample(object):
@@ -357,11 +357,13 @@ class ProcessedDatasetWrapper:
         pdataset: ProcessedDataset,
         device: torch.device,
         batch_size: int,
+        seq_length: int,
         num_workers: int = 8,
         seed: int = 42,
         model_type: str = "bert",
         distributed: bool = False,
-        dataset_type: Literal["wiki", "c4"] = "wiki"
+        dataset_type: Literal["wiki", "c4"] = "wiki",
+        dataset_split: str = "train"
     ):
         if dataset_type == "wiki":
             self.pdataset = pdataset
@@ -372,13 +374,21 @@ class ProcessedDatasetWrapper:
             if self.model_type == "bert":
                 collate_fn = lambda batch: ProcessedBERTBatch(batch)
             elif self.model_type == "gpt":
-                collate_fn = lambda batch: ProcessedGPTBatch(batch)
+                if self.dataset_type == "c4":
+                    collate_fn = lambda batch: ProcessedC4Batch(batch)
+                else:
+                    collate_fn = lambda batch: ProcessedGPTBatch(batch)
             else:
                 raise ValueError(
                     f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
                 )
 
-            pdataset = ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed)
+            if self.dataset_type == "wiki":
+                pdataset = ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed)
+            elif self.dataset_type == "c4":
+                pdataset = C4Dataset(seq_length, batch_size, dataset_split)
+            else:
+                raise ValueError(f"Unknown dataset type: {self.dataset_type}")
 
             # using multiple workers is not compatible with DDP in the current setting
             if distributed and num_workers > 0:
@@ -396,7 +406,7 @@ class ProcessedDatasetWrapper:
                 )
             )
         elif dataset_type == "c4":
-            self.dataset = C4Dataset()
+            self.dataset = C4Dataset(seq_length, batch_size, dataset_split)
         else:
             raise ValueError(f"Unknown dataset type in ProcessedDatasetWrapper: {dataset_type}")
 

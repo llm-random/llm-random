@@ -1,6 +1,6 @@
 import copy
 from collections import defaultdict
-from typing import Callable, Optional
+from typing import Callable, Optional, Literal
 import os
 
 import numpy as np
@@ -57,8 +57,10 @@ def get_processed_dataset(
     num_workers: int,
     seed: int,
     model_type: str = "bert",
+    dataset_type: Literal["wiki", "c4"] = "wiki",
     distributed: bool = False,
     use_dummy_dataset: bool = False,
+    dataset_split: str = "train"
 ) -> wikibookdata.ProcessedDatasetWrapper:
     raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
 
@@ -81,6 +83,8 @@ def get_processed_dataset(
         seed=seed,
         model_type=model_type,
         distributed=distributed,
+        dataset_type=dataset_type,
+        dataset_split=dataset_split
     )
 
 

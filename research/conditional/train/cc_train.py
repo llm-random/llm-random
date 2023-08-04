@@ -54,6 +54,7 @@ def main(
         seed=args.data_seed if data_seeds is None else data_seeds[rank],
         model_type=args.model_type,
         distributed=distributed,
+        dataset_type=args.dataset_type,
     )
 
     ff_layer_fun = get_ff_layer(args)

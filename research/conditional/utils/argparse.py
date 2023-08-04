@@ -53,6 +53,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
+    parser.add_argument("--dataset_type", type=str, default="wiki")
 
     # experimental/legacy parameters
 
