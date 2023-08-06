@@ -25,7 +25,6 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
         self.cache("merge_logits", merge_logits)
         merge_logits /= self.temperature_merge
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature_merge)
-        self.cache("temperature_merge", self.temperature_merge)
         self.cache("merge_weights", merge_weights)
         emit_logits = misc.einsum(
             "B S c d, d e -> B S e c", x, self.controller_emit + self.controller_base
@@ -34,7 +33,6 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
         self.cache("emit_logits", emit_logits)
         emit_weights = stable_softmax_temperature(emit_logits, self.temperature_emit)
         self.cache("emit_weights", emit_weights)
-        self.cache("temperature_emit", self.temperature_emit)
         return merge_weights, emit_weights
 
     def init_parameters(self):
@@ -75,6 +73,6 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
 
     def log_light(self):
         log = super().log_light()
-        log["temperature_merge"] = self.cached_data["temperature_merge"]
-        log["temperature_emit"] = self.cached_data["temperature_emit"]
+        log["temperature_merge"] = self.temperature_merge.data.flatten().tolist()
+        log["temperature_emit"] = self.temperature_emit.data.flatten().tolist()
         return log
