@@ -50,14 +50,23 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
+        self.save_model_weights_path = self.save_weights_path + ".ckpt" if self.save_weights_path else None
+        self.save_opt_weights_path = self.save_weights_path + "_opt.ckpt" if self.save_weights_path else None
+        self.load_model_weights_path = self.load_weights_path + ".ckpt" if self.load_weights_path else None
+        self.load_opt_weights_path = self.load_weights_path + "_opt.ckpt" if self.load_weights_path else None
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
-            if os.path.exists(self.load_weights_path):
-                print(f"Loading weights from {self.load_weights_path}")
+            if os.path.exists(self.load_model_weights_path):
+                print(f"Loading weights from {self.load_model_weights_path}")
                 self.model.load_state_dict(
-                    torch.load(self.load_weights_path), strict=False
+                    torch.load(self.load_model_weights_path), strict=False
                 )
+                if os.path.exists(self.load_opt_weights_path):
+                    print(f"Loading adam stata from {self.load_opt_weights_path}")
+                    self.optimizer.load_state_dict(torch.load(self.load_opt_weights_path))
+                else:
+                    print(f"No adam weights found at {self.load_weights_path}")
             else:
                 print(
                     f"No weights found at {self.load_weights_path}, training from scratch"
@@ -65,11 +74,12 @@ class ConditionalTrainer:
 
     def _save_weights(self, step):
         if (
-            self.save_weights_path is not None
+            self.save_model_weights_path is not None
             and step % self.save_weights_interval == 0
         ):
-            torch.save(self.model.state_dict(), self.save_weights_path)
-            print(f"Weights saved to {self.save_weights_path} (step {step})")
+            torch.save(self.model.state_dict(), self.save_model_weights_path)
+            torch.save(self.optimizer.state_dict(), self.save_opt_weights_path)
+            print(f"Weights & optimizer stats saved to {self.save_weights_path} (step {step})")
 
     def train(self, n_steps: int):
         self._restore_weights()
