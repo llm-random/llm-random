@@ -108,6 +108,9 @@ def main(
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
+        lr_decay=args.lr_decay,
+        lr_warmup_steps=args.lr_warmup_steps,
+        lr_decay_interval=args.lr_decay_interval
     )
     trainer.train(args.n_steps)
 

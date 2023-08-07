@@ -2,6 +2,7 @@ import os.path
 import copy
 from typing import Optional, Literal
 
+import numpy as np
 import torch
 from attr import define
 
@@ -38,6 +39,9 @@ class ConditionalTrainer:
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
+    lr_decay: float = None
+    lr_warmup_steps: int = 0
+    lr_decay_interval: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -54,6 +58,12 @@ class ConditionalTrainer:
         self.save_opt_weights_path = self.save_weights_path + "_opt.ckpt" if self.save_weights_path else None
         self.load_model_weights_path = self.load_weights_path + ".ckpt" if self.load_weights_path else None
         self.load_opt_weights_path = self.load_weights_path + "_opt.ckpt" if self.load_weights_path else None
+        if self.lr_decay is None:
+            self.lr_decay_interval = np.Inf
+        self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+            self.optimizer, lr_lambda=lambda i: i/self.lr_warmup_steps if i < self.lr_warmup_steps else
+            self.lr_decay**(i//self.lr_decay_interval)
+        )
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -117,6 +127,7 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         loss = self.optimize_with_gradient_accumulation(processed_batch)
+        self.lr_scheduler.step(epoch=step)
         if self.logger is not None:
             self._log_loss(loss, step)
             self.layer_manager.log(step)
@@ -156,6 +167,7 @@ class ConditionalTrainer:
                 value=self.loss_accumulator / self.logging_interval_loss,
                 iteration=step,
             )
+            self.logger.report_scalar(title="lr", value=self.lr_scheduler.get_lr()[0], iteration=step)
             self.loss_accumulator = 0.0
 
     def _hack(self, hack_name, step):

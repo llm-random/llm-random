@@ -40,6 +40,9 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--loss_checkpoint_chungs", type=str, default=0)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--auto_find_grad_accumulation", action="store_true")
+    parser.add_argument("--lr_decay", type=float, default=None)
+    parser.add_argument("--lr_warmup_steps", type=int, default=0)
+    parser.add_argument("--lr_decay_interval", type=int, default=0)
 
     # paremeters for specific experiments
 
