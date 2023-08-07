@@ -316,3 +316,12 @@ def resolve_activation_name(activation: str) -> torch.nn.Module:
         return torch.nn.Softmax()
     else:
         raise ValueError(f"Unrecognized activation: {activation}")
+
+
+def propagate_store(module: torch.nn.Module, store=dict()):
+    """
+    This function propagates the cache from the module to all its children.
+    """
+    module.store = store
+    for child in module.children():
+        propagate_store(child, store)
