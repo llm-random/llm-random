@@ -110,7 +110,8 @@ def main(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         lr_decay=args.lr_decay,
         lr_warmup_steps=args.lr_warmup_steps,
-        lr_decay_interval=args.lr_decay_interval
+        lr_decay_interval=args.lr_decay_interval,
+        log_gradients_and_weights=args.log_gradients_and_weights,
     )
     trainer.train(args.n_steps)
 

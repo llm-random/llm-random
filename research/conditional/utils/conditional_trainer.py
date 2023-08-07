@@ -42,6 +42,7 @@ class ConditionalTrainer:
     lr_decay: float = None
     lr_warmup_steps: int = 0
     lr_decay_interval: int = 0
+    log_gradients_and_weights: bool = False
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -127,10 +128,11 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         loss = self.optimize_with_gradient_accumulation(processed_batch)
-        self.lr_scheduler.step(epoch=step)
+        self.lr_scheduler.step()
         if self.logger is not None:
             self._log_loss(loss, step)
             self.layer_manager.log(step)
+            self._log_heavy(step)
         self._save_weights(step)
 
     def optimize_with_gradient_accumulation(
@@ -167,8 +169,26 @@ class ConditionalTrainer:
                 value=self.loss_accumulator / self.logging_interval_loss,
                 iteration=step,
             )
-            self.logger.report_scalar(title="lr", value=self.lr_scheduler.get_lr()[0], iteration=step)
+            self.logger.report_scalar(title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step)
             self.loss_accumulator = 0.0
+
+    def _log_heavy(self, step):
+        g_metrics, w_metrics = {}, {}
+        if step % self.logging_interval_heavy == 0 and step > 0 and self.log_gradients_and_weights:
+            for name, value in self.model.named_parameters():
+                if value.grad is not None:
+                    norm = torch.linalg.norm(value.grad)
+                    g_metrics[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
+                if value.requires_grad:
+                    norm = torch.linalg.norm(value)
+                    w_metrics[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
+        g_metrics[f"weight_norms/grad_norm_total"] = torch.linalg.norm(torch.tensor(list(g_metrics.values())))
+        w_metrics[f"weight_norms/weight_norm_total"] = torch.linalg.norm(torch.tensor(list(w_metrics.values())))
+        self._log_dict({**g_metrics, **w_metrics}, step)
+
+    def _log_dict(self, metrics, step):
+        for k, v in metrics.items():
+            self.logger.report_scalar(title=k, value=v, iteration=step)
 
     def _hack(self, hack_name, step):
         if hack_name == "batch_size":
