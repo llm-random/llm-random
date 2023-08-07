@@ -182,9 +182,9 @@ class ConditionalTrainer:
                 if value.requires_grad:
                     norm = torch.linalg.norm(value)
                     w_metrics[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
-        g_metrics[f"weight_norms/grad_norm_total"] = torch.linalg.norm(torch.tensor(list(g_metrics.values())))
-        w_metrics[f"weight_norms/weight_norm_total"] = torch.linalg.norm(torch.tensor(list(w_metrics.values())))
-        self._log_dict({**g_metrics, **w_metrics}, step)
+            g_metrics[f"weight_norms/grad_norm_total"] = torch.linalg.norm(torch.tensor(list(g_metrics.values())))
+            w_metrics[f"weight_norms/weight_norm_total"] = torch.linalg.norm(torch.tensor(list(w_metrics.values())))
+            self._log_dict({**g_metrics, **w_metrics}, step)
 
     def _log_dict(self, metrics, step):
         for k, v in metrics.items():
