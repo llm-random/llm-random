@@ -18,4 +18,7 @@ for _ in tqdm.tqdm(range(100_000)):
 
 fig = px.histogram(lengths)
 # save figure to file as html
+print(f"Total number of tokens in these examples: {sum(lengths)}")
+print(f"Total number of rows in dataset: {len(d)}")
+print(f"Estimated number of tokens in dataset: {sum(lengths) * len(d) / len(lengths)}")
 fig.write_html("c4_lengths.html")

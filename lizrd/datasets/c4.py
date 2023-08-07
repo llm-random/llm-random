@@ -8,11 +8,15 @@ from lizrd.datasets.processed_batch import ProcessedBatch
 
 
 class C4Dataset(Dataset):
+    """
+    Explanation...
+    """
     def __init__(self, seq_length: int, batch_size: int, split: str = "train"):
         self.dataset = load_dataset("c4", "en", split=split)
         self.seq_length = seq_length
         self.tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
         self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.add_special_tokens("<sequence_sep>")
         print(f"Using C4 dataset consisting of {len(self.dataset)} samples")
         print(
             f"One epoch with batch {batch_size} will take {len(self.dataset) // batch_size} steps"
@@ -23,17 +27,26 @@ class C4Dataset(Dataset):
 
     def __getitem__(self, idx):
         example = dict()
-        text = self.dataset[idx]["text"]
-        tokenized = self.tokenizer(
-            text,
-            max_length=self.seq_length,
-            truncation=True,
-            padding="max_length",
-        )
+        tokenized = self.get_tokenized_sample(idx)
         example["tokens"] = tokenized["input_ids"]
         example["non_padded_mask"] = tokenized["attention_mask"]
         example["target_tokens"] = example["tokens"][1:] + [self.tokenizer.pad_token_id]
         return example
+
+    def get_tokenized_sample(self, idx):
+        pass
+
+    def get_one_example(self, idx, length):
+        result = dict()
+        text = self.dataset[idx]
+        ids = self.tokenizer(text)["input_ids"]
+        if len(ids > length):
+            return self.get_random_chunk(ids, length)
+        else:
+            return ids
+
+    def get_random_chunk(self, ids, length):
+        pass
 
 
 class ProcessedC4Batch(ProcessedBatch):
