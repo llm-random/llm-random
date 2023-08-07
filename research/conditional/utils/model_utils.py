@@ -155,8 +155,8 @@ def calculate_llm_loss(
         gt_tokens.reshape(-1).long(),
         reduction="none",
     )
-    mask_loss *= mask.reshape(-1)
-    loss = mask_loss.mean() / mask_percent
+    mask_loss = mask_loss[mask.reshape(-1) == 1]
+    loss = mask_loss.mean() #/ mask_percent
     return loss
 
 

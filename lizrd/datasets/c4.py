@@ -53,7 +53,7 @@ class ProcessedC4Batch(ProcessedBatch):
         matrix = np.array(list_of_token_lists)
         return torch.from_numpy(matrix)
 
-    def to_(self, device):
+    def to(self, device):
         self.tokens = self.tokens.to(device)
         self.target_tokens = self.target_tokens.to(device)
         self.non_padded_mask = self.non_padded_mask.to(device)

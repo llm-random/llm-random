@@ -43,6 +43,7 @@ class ConditionalTrainer:
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.loss_accumulator = 0.0
+        self.padding_accumulator = 0.0
         self._calculate_loss = make_loss_function(
             model=self.model_type,
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
@@ -106,12 +107,20 @@ class ConditionalTrainer:
         self.model.train()
         if self.logger is not None:
             self.layer_manager.prepare_for_logging(step)
-        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+
+        assert isinstance(
+            processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+        )
         loss = self.optimize_with_gradient_accumulation(processed_batch)
         if self.logger is not None:
-            self._log_loss(loss, step)
+            padding_mask = (
+                1 - processed_batch.non_padded_mask
+                if self.model_type == "gpt"
+                else processed_batch.masked_tokens
+            )
+            padding_fraction = padding_mask.sum() / padding_mask.numel()
+            self._log_train_stats(loss, padding_fraction, step)
             self.layer_manager.log(step)
         self._save_weights(step)
 
@@ -140,16 +149,23 @@ class ConditionalTrainer:
 
         return loss_value
 
-    def _log_loss(self, loss_value, step):
+    def _log_train_stats(self, loss_value, padding_fraction, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.loss_accumulator += loss_value
+        self.padding_accumulator += padding_fraction
         if step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
                 title="loss",
                 value=self.loss_accumulator / self.logging_interval_loss,
                 iteration=step,
             )
+            self.logger.report_scalar(
+                title="Average padding fraction in batch",
+                value=self.padding_accumulator / self.logging_interval_loss,
+                iteration=step,
+            )
             self.loss_accumulator = 0.0
+            self.padding_accumulator = 0.0
 
     def _hack(self, hack_name, step):
         if hack_name == "batch_size":
@@ -168,7 +184,9 @@ class ConditionalTrainer:
         """
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+        assert isinstance(
+            processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+        )
         for tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
@@ -198,7 +216,9 @@ class ConditionalTrainer:
         )
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+        assert isinstance(
+            processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+        )
         for block_name, layer in self.layer_manager._layers:
             layer.expertsize = step + 1
             layer.init_parameters()
