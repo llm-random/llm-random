@@ -105,6 +105,7 @@ class ConditionalTrainer:
         self.scaler.scale(loss).backward()
         if should_apply_gradient:
             if self.gradient_clipping is not None:
+                self.scaler.unscale_(self.optimizer)
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), self.gradient_clipping
                 )
