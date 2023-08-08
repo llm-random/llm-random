@@ -43,7 +43,7 @@ def main(
     )  # vocab size for gpt is 50257 + 1 for sequence_sep
     DEVICE = torch.device(
         f"cuda" if (torch.cuda.is_available() and rank is None) else "cpu"
-    )
+    )  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
 
     data_distributed = True if rank is not None else False
     if args.auto_find_grad_accumulation:
