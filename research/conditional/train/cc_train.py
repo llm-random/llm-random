@@ -39,7 +39,8 @@ def main(
         torch.cuda.set_device(rank)
 
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
-    DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
+    # DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
+    DEVICE = torch.device("cpu")
     data_distributed = True if rank is not None else False
     if args.auto_find_grad_accumulation:
         args.gradient_accumulation_steps = find_optimal_grad_accumulation(
@@ -77,6 +78,9 @@ def main(
         model_fragmentation=args.model_parallelism_fragmentation,
     )
 
+    print(f"Moving model to cuda:{rank}")
+    model = model.to(f"cuda:{rank}")
+    
     # make model data_distributed if necessary
     if rank is not None:
         model = DDP(model, device_ids=[rank])
