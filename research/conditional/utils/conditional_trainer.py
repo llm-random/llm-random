@@ -4,6 +4,7 @@ from typing import Optional, Literal
 
 import torch
 from attr import define
+from lizrd.core.misc import propagate_store
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
@@ -71,7 +72,17 @@ class ConditionalTrainer:
             torch.save(self.model.state_dict(), self.save_weights_path)
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
+    def _before_train_operations(self):
+        propagate_store(self.model)
+
+    def _after_step_operations(self):
+        self.model.store.clear()
+
     def train(self, n_steps: int):
+        """
+        Train the model for n_steps steps.
+        """
+        self._before_train_operations()
         self._restore_weights()
         for step in range(n_steps + 1):
             if self.hack_name is not None:
@@ -80,6 +91,7 @@ class ConditionalTrainer:
                 self._train_step(step)
             if step % 1000 == 0:
                 print(f"Step {step}")
+            self._after_step_operations()
 
     def _optimize(self, loss, should_apply_gradient=False):
         # since we sum gradients averaged over multiple smaller batches, we need to normalize here
