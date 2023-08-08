@@ -355,7 +355,10 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "token_choice":
         return_fn = lambda: TokenChoiceFF(
-            dmodel=args.dmodel, n_experts=args.n_experts, expert_size=args.effective_dff
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.effective_dff,
+            capacity_factor=args.capacity_factor,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

@@ -31,7 +31,7 @@ class TestTokenChoice(GeneralTestCase):
         lin = Sequential(
             Linear(dm, exp_size, bias=False), ReLU(), Linear(exp_size, dm, bias=False)
         )
-        token_choice_layer = TokenChoiceFF(dm, experts, exp_size)
+        token_choice_layer = TokenChoiceFF(dm, experts, exp_size, 5.0)
         token_choice_layer.lin1_weights[0].data = lin[0].weight.data.transpose(0, 1)
         token_choice_layer.lin2_weights[0].data = lin[2].weight.data.transpose(0, 1)
         ln = token_choice_layer.ln

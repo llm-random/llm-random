@@ -17,6 +17,7 @@ class TokenChoiceFF(LoggingLayer):
         dmodel: int,
         n_experts: int,
         expert_size: int,
+        capacity_factor: float,
     ):
         """
         Args:
@@ -33,6 +34,7 @@ class TokenChoiceFF(LoggingLayer):
         self.dmodel = dmodel
         self.n_experts = n_experts
         self.expert_size = expert_size
+        self.capacity_factor = capacity_factor
 
         self.lin1_weights = torch.nn.ParameterList(
             [
@@ -42,10 +44,10 @@ class TokenChoiceFF(LoggingLayer):
         )
         self.lin2_weights = torch.nn.ParameterList(
             [
-                    get_init_weight(
-                        (expert_size, dmodel),
-                        fan_in=expert_size,
-                    )
+                get_init_weight(
+                    (expert_size, dmodel),
+                    fan_in=expert_size,
+                )
                 for _ in range(n_experts)
             ]
         )
@@ -68,6 +70,8 @@ class TokenChoiceFF(LoggingLayer):
             # flatten batch_size x seq_len
             gate_out = gate_out.flatten(start_dim=0, end_dim=1)
 
+        capacity = int(self.capacity_factor * gate_out.shape[0] / self.n_experts)
+
         # perform softmax over experts for each token
         with measure_time(self, "softmax"):
             gate_out = torch.softmax(gate_out, dim=1)
@@ -85,9 +89,15 @@ class TokenChoiceFF(LoggingLayer):
                 for i in range(self.n_experts)
             ]
 
+        with measure_time(self, "drop_tokens"):
+            # drop tokens for each expert
+            for i in range(self.n_experts):
+                experts_lists[i] = experts_lists[i][:capacity]
+
         # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
         with measure_time(self, "flatten"):
             x = x.flatten(start_dim=0, end_dim=1)
+
         final_output = torch.zeros_like(x)
         for i in range(self.n_experts):
             expert_output = einsum(

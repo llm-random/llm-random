@@ -53,7 +53,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
-
+    parser.add_argument("--capacity_factor", type=float, default=1.25)
     # experimental/legacy parameters
 
     parser.add_argument("--hack_name", type=str, default=None)
