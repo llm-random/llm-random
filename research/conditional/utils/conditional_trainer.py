@@ -1,8 +1,10 @@
+import os.path
 import copy
 from typing import Optional, Literal
 
 import torch
 from attr import define
+from lizrd.core.misc import propagate_store
 
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
@@ -31,6 +33,10 @@ class ConditionalTrainer:
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
     hack_name: str = None
+    save_weights_path: str = None
+    save_weights_interval: int = 1000
+    load_weights_path: str = None
+    gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
 
@@ -46,7 +52,38 @@ class ConditionalTrainer:
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
 
+    def _restore_weights(self):
+        if self.load_weights_path is not None:
+            if os.path.exists(self.load_weights_path):
+                print(f"Loading weights from {self.load_weights_path}")
+                self.model.load_state_dict(
+                    torch.load(self.load_weights_path), strict=False
+                )
+            else:
+                print(
+                    f"No weights found at {self.load_weights_path}, training from scratch"
+                )
+
+    def _save_weights(self, step):
+        if (
+            self.save_weights_path is not None
+            and step % self.save_weights_interval == 0
+        ):
+            torch.save(self.model.state_dict(), self.save_weights_path)
+            print(f"Weights saved to {self.save_weights_path} (step {step})")
+
+    def _before_train_operations(self):
+        propagate_store(self.model)
+
+    def _after_step_operations(self):
+        self.model.store.clear()
+
     def train(self, n_steps: int):
+        """
+        Train the model for n_steps steps.
+        """
+        self._before_train_operations()
+        self._restore_weights()
         for step in range(n_steps + 1):
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
@@ -54,15 +91,23 @@ class ConditionalTrainer:
                 self._train_step(step)
             if step % 1000 == 0:
                 print(f"Step {step}")
+            self._after_step_operations()
 
     def _optimize(self, loss, should_apply_gradient=False):
         # since we sum gradients averaged over multiple smaller batches, we need to normalize here
         loss /= self.gradient_accumulation_steps
+        if self.gradient_accumulation_steps == 1:
+            self.optimizer.zero_grad()
         # clear computation graph, store gradients
         self.scaler.scale(loss).backward()
         if should_apply_gradient:
+            if self.gradient_clipping is not None:
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
             self.scaler.step(self.optimizer)
-            self.optimizer.zero_grad()
+            if self.gradient_accumulation_steps > 1:
+                self.optimizer.zero_grad()
             self.scaler.update()
 
     def _train_step(
@@ -72,19 +117,21 @@ class ConditionalTrainer:
         self.model.train()
         if self.logger is not None:
             self.layer_manager.prepare_for_logging(step)
-        processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         loss = self.optimize_with_gradient_accumulation(processed_batch)
         if self.logger is not None:
             self._log_loss(loss, step)
             self.layer_manager.log(step)
+        self._save_weights(step)
 
-    def optimize_with_gradient_accumulation(self, processed_batch):
+    def optimize_with_gradient_accumulation(
+        self, processed_batch: wikibookdata.ProcessedBatch
+    ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         loss_value = 0.0
         for i in range(self.gradient_accumulation_steps):
             batch_copy = copy.deepcopy(processed_batch)
-            for tensor in vars(batch_copy).values():
+            for tensor in batch_copy:
                 tensor.data = get_ith_chunk(
                     tensor.data, self.gradient_accumulation_steps, i
                 )
@@ -129,12 +176,14 @@ class ConditionalTrainer:
         This is a hack to easily determine the maximal batch size that can be used with given GPU memory and model size.
         """
         self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         for tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
-            processed_batch, self.mixed_precision, self.mask_percent, self.vocab_size
+            batch=processed_batch,
+            model=self.model,
+            mixed_precision=self.mixed_precision,
+            vocab_size=self.vocab_size,
         )
         self._optimize(loss, should_apply_gradient=True)
         if self.logger is not None:
@@ -156,14 +205,16 @@ class ConditionalTrainer:
             ]
         )
         self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
         for block_name, layer in self.layer_manager._layers:
             layer.expertsize = step + 1
             layer.init_parameters()
             layer.to(torch.device("cuda"))
         loss = self._calculate_loss(
-            processed_batch, self.model, self.mixed_precision, self.vocab_size
+            batch=processed_batch,
+            model=self.model,
+            mixed_precision=self.mixed_precision,
+            vocab_size=self.vocab_size,
         )
         self._optimize(loss, should_apply_gradient=True)
         self.logger.report_scalar(title="max expert size", value=step, iteration=step)

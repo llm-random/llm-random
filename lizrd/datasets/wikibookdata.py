@@ -33,6 +33,9 @@ class ProcessedBatch(ABC):
         all_attrs = vars(self).values()
         return iter([attr for attr in all_attrs if hasattr(attr, "shape")])
 
+    def to(self, device):
+        raise NotImplementedError
+
 
 class ProcessedBERTBatch(ProcessedBatch):
     def __init__(self, processed_examples):
@@ -54,7 +57,8 @@ class ProcessedBERTBatch(ProcessedBatch):
         matrix = np.array(list_of_token_lists)
         return torch.from_numpy(matrix)
 
-    def to_(self, device):
+    def to(self, device):
+        self.device = device
         self.tokens = self.tokens.to(device)
         self.masked_tokens = self.masked_tokens.to(device)
         self.mask_mask = self.mask_mask.to(device)
@@ -78,7 +82,8 @@ class ProcessedGPTBatch(ProcessedBatch):
         matrix = np.array(list_of_token_lists)
         return torch.from_numpy(matrix)
 
-    def to_(self, device):
+    def to(self, device):
+        self.device = device
         self.tokens = self.tokens.to(device)
         self.target_tokens = self.target_tokens.to(device)
         self.non_padded_mask = self.non_padded_mask.to(device)
@@ -358,7 +363,7 @@ class ProcessedDatasetWrapper:
         num_workers: int = 8,
         seed: int = 42,
         model_type: str = "bert",
-        distributed: bool = False,
+        data_distributed: bool = False,
     ):
         self.pdataset = pdataset
         self.device = device
@@ -377,7 +382,7 @@ class ProcessedDatasetWrapper:
         pdataset = ParallelCompatibleDataset(pdataset, batch_size=batch_size, seed=seed)
 
         # using multiple workers is not compatible with DDP in the current setting
-        if distributed and num_workers > 0:
+        if data_distributed and num_workers > 0:
             raise NotImplementedError(
                 "Multiple workers are currently not supported when using multiple gpus."
             )
@@ -393,4 +398,4 @@ class ProcessedDatasetWrapper:
         )
 
     def get_batch(self) -> ProcessedBatch:
-        return next(self.dataloader).to_(self.device)
+        return next(self.dataloader).to(self.device)
