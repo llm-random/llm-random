@@ -19,20 +19,29 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
     parser.add_argument("--tags", nargs="*", type=str, default=None)
+    parser.add_argument("--project_name", type=str, default="pmtest/llm-efficiency")
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], default="bert"
     )
 
     # parameters usually changed for experiments
-
     parser.add_argument("--ff_mode", type=str, default="vanilla")
-    parser.add_argument("--project_name", type=str, default="")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--gradient_checkpointing", action="store_true")
+    parser.add_argument("--save_weights_path", type=str, default=None)
+    parser.add_argument("--save_weights_interval", type=int, default=1000)
+    parser.add_argument("--load_weights_path", type=str, default=None)
+    parser.add_argument("--grad_clip", type=float, default=None)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--adam_beta1", type=float, default=0.9)
+    parser.add_argument("--adam_beta2", type=float, default=0.999)
+    parser.add_argument("--no_ff", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=str, default=0)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--auto_find_grad_accumulation", action="store_true")
+
+    # paremeters for specific experiments
 
     parser.add_argument("--n_experts", type=int, default=1)
     parser.add_argument("--group_size", type=int, default=1)
@@ -51,9 +60,25 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--use_opt_einsum", action="store_true")
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
+    parser.add_argument("--kernel_r", type=int, default=256)
+    parser.add_argument("--redraw_projections_interval", type=int, default=100)
+    parser.add_argument("--no_kernel_norm", action="store_true")
+    parser.add_argument("--no_average_attn", action="store_true")
+    parser.add_argument("--kernel_type", type=str, default="relu")
+    parser.add_argument("--activation_type", type=str, default="relu")
+    parser.add_argument("--nystrom", action="store_true")
+    parser.add_argument("--xfavor", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
+    parser.add_argument(
+        "--model_parallelism_fragmentation",
+        type=str,
+        default=None,
+        help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
+    )
+    parser.add_argument("--data_distributed", action="store_true")
+
     # experimental/legacy parameters
 
     parser.add_argument("--hack_name", type=str, default=None)
