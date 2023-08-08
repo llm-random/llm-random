@@ -107,11 +107,10 @@ class ConditionalTrainer:
         self.model.train()
         if self.logger is not None:
             self.layer_manager.prepare_for_logging(step)
-        processed_batch = self.train_dataloader.get_batch()
-
-        assert isinstance(
-            processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+        processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = (
+            self.train_dataloader.get_batch()
         )
+
         loss = self.optimize_with_gradient_accumulation(processed_batch)
         if self.logger is not None:
             padding_mask = (

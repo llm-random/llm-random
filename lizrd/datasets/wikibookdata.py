@@ -8,8 +8,8 @@ from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
 
-from lizrd.datasets.processed_batch import ProcessedBatch
-from lizrd.datasets.c4 import C4Dataset, ProcessedC4Batch
+from lizrd.datasets.processed_batch import ProcessedBERTBatch, ProcessedBatch, ProcessedGPTBatch
+from lizrd.datasets.c4 import C4Dataset
 
 
 class ProcessedBERTExample(object):
@@ -26,59 +26,6 @@ class ProcessedGPTExample(object):
         self.tokens = processor.tokenize_text(sentence)
         self.tokens, self.non_padded_mask = processor.pad_tokens(self.tokens)
         self.target_tokens = self.tokens[1:] + [processor.end_token_id]
-
-
-class ProcessedBERTBatch(ProcessedBatch):
-    def __init__(self, processed_examples):
-        super().__init__(processed_examples)
-        self.tokens = self._make_tensor(
-            [example.tokens for example in processed_examples]
-        )
-        self.mask_mask = self._make_tensor(
-            [example.mask_mask for example in processed_examples]
-        )
-        self.masked_tokens = self._make_tensor(
-            [example.masked_tokens for example in processed_examples]
-        )
-
-        assert self.tokens.shape == self.masked_tokens.shape
-        assert self.tokens.shape == self.mask_mask.shape
-
-    def _make_tensor(self, list_of_token_lists):
-        matrix = np.array(list_of_token_lists)
-        return torch.from_numpy(matrix)
-
-    def to(self, device):
-        self.device = device
-        self.tokens = self.tokens.to(device)
-        self.masked_tokens = self.masked_tokens.to(device)
-        self.mask_mask = self.mask_mask.to(device)
-        return self
-
-
-class ProcessedGPTBatch(ProcessedBatch):
-    def __init__(self, processed_examples):
-        super().__init__(processed_examples)
-        self.tokens = self._make_tensor(
-            [example.tokens for example in processed_examples]
-        )
-        self.target_tokens = self._make_tensor(
-            [example.target_tokens for example in processed_examples]
-        )
-        self.non_padded_mask = self._make_tensor(
-            [example.non_padded_mask for example in processed_examples]
-        )
-
-    def _make_tensor(self, list_of_token_lists):
-        matrix = np.array(list_of_token_lists)
-        return torch.from_numpy(matrix)
-
-    def to(self, device):
-        self.device = device
-        self.tokens = self.tokens.to(device)
-        self.target_tokens = self.target_tokens.to(device)
-        self.non_padded_mask = self.non_padded_mask.to(device)
-        return self
 
 
 @define
@@ -365,10 +312,7 @@ class ProcessedDatasetWrapper:
         if self.model_type == "bert":
             collate_fn = ProcessedBERTBatch
         elif self.model_type == "gpt":
-            if dataset_type == "c4":
-                collate_fn = ProcessedC4Batch
-            else:
-                collate_fn = ProcessedGPTBatch
+            collate_fn = ProcessedGPTBatch
         else:
             raise ValueError(
                 f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
