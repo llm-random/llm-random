@@ -363,12 +363,12 @@ class ProcessedDatasetWrapper:
         self.model_type = model_type
 
         if self.model_type == "bert":
-            collate_fn = lambda batch: ProcessedBERTBatch(batch)
+            collate_fn = ProcessedBERTBatch
         elif self.model_type == "gpt":
             if dataset_type == "c4":
-                collate_fn = lambda batch: ProcessedC4Batch(batch)
+                collate_fn = ProcessedC4Batch
             else:
-                collate_fn = lambda batch: ProcessedGPTBatch(batch)
+                collate_fn = ProcessedGPTBatch
         else:
             raise ValueError(
                 f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
@@ -383,11 +383,6 @@ class ProcessedDatasetWrapper:
         else:
             raise ValueError(f"Unknown dataset type: {self.dataset_type}")
 
-        # using multiple workers is not compatible with DDP in the current setting
-        if data_distributed and num_workers > 0:
-            raise NotImplementedError(
-                "Multiple workers are currently not supported when using multiple gpus."
-            )
         self.dataloader = iter(
             DataLoader(
                 pdataset,
