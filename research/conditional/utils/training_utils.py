@@ -49,7 +49,7 @@ def get_trainer(args, vocab_size, device, grad_acc_steps):
         batch_size=args.batch_size,
         seed=args.data_seed,
         model_type=args.model_type,
-        data_distributed=False,
+        distributed=False,
     )
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)

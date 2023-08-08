@@ -71,7 +71,7 @@ class TestEinMix(GeneralTestCase):
         output = layer(input)
         self.assertShape(output, (batch, seqlen, dout))
 
-    def test_two_ellipsis_2(self):
+    def test_two_ellipsis(self):
         batch, seqlen, whatever, dinp, dout = 5, 7, 3, 32, 64
         layer = misc.EinMix(
             "... d -> ... f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
@@ -134,7 +134,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         batch, seql, dm, heads, dff = 3, 32, 32, 4, 64
         vocab_size = 30522
         n_blocks = 2
-        device = torch.device("cpu")
+        device = "cpu"
         mask_percentage = 0.15
         n_chungs = 3
 
@@ -146,7 +146,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             batch_size=batch,
             seed=0,
             model_type="bert",
-            data_distributed=False,
+            distributed=False,
             use_dummy_dataset=True,
         )
 
@@ -237,45 +237,3 @@ class TestCheckpoint(GeneralTestCase):
             assert torch.isclose(
                 grad, grad_checkpointed
             ).all(), f"parameter {name} failed, log of difference is: {torch.log10((grad - grad_checkpointed).abs().max())}"
-
-
-class TestModelParallel(GeneralTestCase):
-    def test_get_current_device(self):
-        obj = llm.TransformerTower(0, 100, {})  # Replace with the name of your class
-
-        # Test when self.splits is None
-        obj.model_fragmentation = None
-        obj.device = torch.device("cuda")
-        assert obj.get_current_device(1) == (False, torch.device("cuda"))
-
-        # Test when self.device is 'cpu'
-        obj.model_fragmentation = [1, 2]
-        obj.device = torch.device("cpu")
-        assert obj.get_current_device(1) == (False, torch.device("cpu"))
-
-        # Test when split_num is greater than block_num:
-        obj.model_fragmentation = [3, 5]
-        obj.device = torch.device("cuda")
-        assert obj.get_current_device(2) == (False, torch.device("cuda:0"))
-
-        # Test when split_num is equal to block_num:
-        obj.model_fragmentation = [3, 5]
-        obj.device = torch.device("cuda")
-        assert obj.get_current_device(3) == (True, torch.device("cuda:1"))
-
-        obj.model_fragmentation = [3, 5]
-        obj.device = torch.device("cuda")
-        assert obj.get_current_device(5) == (True, torch.device("cuda:2"))
-
-        obj.model_fragmentation = [3, 5]
-        obj.device = torch.device("cuda")
-        assert obj.get_current_device(4) == (False, torch.device("cuda:1"))
-
-        obj.model_fragmentation = [2]
-        obj.device = torch.device("cuda")
-        assert obj.get_current_device(2) == (True, torch.device("cuda:1"))
-
-        # Test when none of the split_num is greater than block_num:
-        obj.model_fragmentation = [3, 5]
-        obj.device = torch.device("cuda")
-        assert obj.get_current_device(7) == (False, torch.device("cuda:2"))

@@ -35,10 +35,9 @@ from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weight
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
 )
+from research.conditional.archive.rogue_code import FeedForwardTimed
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
-from research.conditional.moe_layers.kernelized import FCKernelized
-from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
 def make_loss_function(
@@ -83,7 +82,6 @@ def chungized_llm_loss(
                 output = model.head(inputs[0])
                 gt = inputs[1]
                 mask = inputs[2]
-                gt = gt.to(output.device)
                 loss = F.cross_entropy(
                     output.reshape(-1, vocab_size),
                     gt.reshape(-1).long(),
@@ -94,6 +92,7 @@ def chungized_llm_loss(
         return custom_forward
 
     encoder_output = model.encoder(input_tokens)
+
     chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
     chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
     chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
@@ -147,9 +146,6 @@ def calculate_llm_loss(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
         model_output = model(input_tokens)
-    # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
-    gt_tokens = gt_tokens.to(model_output.device)
-    mask = mask.to(model_output.device)
 
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, vocab_size),
@@ -227,9 +223,7 @@ def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
     elif args.ff_mode == "vanilla_timed":
-        return_fn = lambda: FeedForwardTimed(
-            args.dmodel, args.dff, args.activation_type, args.no_ff
-        )
+        return_fn = lambda: FeedForwardTimed(args.dmodel, args.dff)
     elif args.ff_mode == "cont_moe" or args.ff_mode == "cont_moe_quick":
         return_fn = lambda: ContinuousMoE(
             dm=args.dmodel,
@@ -365,18 +359,6 @@ def get_ff_layer(args):
             n_experts=args.n_experts,
             expert_size=args.effective_dff,
             capacity_factor=args.capacity_factor,
-        )
-    elif args.ff_mode == "kernelized_fc":
-        return_fn = lambda: FCKernelized(
-            dmodel=args.dmodel,
-            dff=args.dff,
-            kernel_r=args.kernel_r,
-            kernel_type=args.kernel_type,
-            redraw_projections_interval=args.redraw_projections_interval,
-            no_kernel_norm=args.no_kernel_norm,
-            no_average_attn=args.no_average_attn,
-            nystrom=args.nystrom,
-            xfavor=args.xfavor,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

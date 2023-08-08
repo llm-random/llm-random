@@ -137,11 +137,7 @@ class ExpertChoiceFF(LoggingLayer):
 
         # add tokens that have been processed by more than one expert
         with measure_time(self, "add_tokens_many_experts"):
-            z = (
-                torch.zeros((batch_size * seq_len, self.dmodel))
-                .type(x.type())
-                .to(x.device)
-            )
+            z = torch.zeros((batch_size * seq_len, self.dmodel)).type(x.type())
             z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
             # reshape to (batch_size, seq_len, dmodel)

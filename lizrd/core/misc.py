@@ -4,7 +4,6 @@ import opt_einsum
 from lizrd.core import nn
 from lizrd.support import ash
 from torch.utils.checkpoint import checkpoint
-import torch.nn
 
 
 class Noop(nn.Module):
@@ -303,27 +302,3 @@ def get_dmodel_magnitudes(
     weights2 = torch.sqrt(einsum("m f -> m", lin2_weight**2))
 
     return (weights1 * weights2).flatten()
-
-
-def resolve_activation_name(activation: str) -> torch.nn.Module:
-    if activation == "relu":
-        return nn.ReLU()
-    elif activation == "gelu":
-        return torch.nn.GELU()
-    elif activation == "silu":
-        return torch.nn.SiLU()
-    elif activation == "softmax":
-        return torch.nn.Softmax()
-    else:
-        raise ValueError(f"Unrecognized activation: {activation}")
-
-
-def propagate_store(module: torch.nn.Module, store=None):
-    """
-    This function propagates the cache from the module to all its children.
-    """
-    if store is None:
-        store = dict()
-    module.store = store
-    for child in module.children():
-        propagate_store(child, store)

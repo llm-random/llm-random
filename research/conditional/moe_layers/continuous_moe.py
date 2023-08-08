@@ -8,8 +8,8 @@ from plotly import express as px
 
 from lizrd.core import misc, nn
 from lizrd.support.logging import make_histogram
-from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 from research.conditional.utils.layer_manager import LoggingLayer
+from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 
 
 @dataclasses.dataclass(eq=False, repr=False)
