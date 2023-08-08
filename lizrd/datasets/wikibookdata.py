@@ -302,7 +302,6 @@ class ProcessedDatasetWrapper:
         num_workers: int = 8,
         seed: int = 42,
         model_type: str = "bert",
-        data_distributed: bool = False,
         dataset_type: Literal["wiki", "c4"] = "wiki",
         dataset_split: str = "train",
     ):

@@ -60,7 +60,6 @@ def main(
         else args.batch_size,
         seed=args.data_seed if data_seeds is None else data_seeds[rank],
         model_type=args.model_type,
-        data_distributed=data_distributed,
         dataset_type=args.dataset_type,
     )
 
