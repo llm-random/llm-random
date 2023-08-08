@@ -36,7 +36,6 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from research.conditional.moe_layers.kernelized import FCKernelized
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -359,6 +358,8 @@ def get_ff_layer(args):
             **get_expert_choice_args(args),
         )
     elif args.ff_mode == "kernelized_fc":
+        from research.conditional.moe_layers.kernelized import FCKernelized
+
         return_fn = lambda: FCKernelized(
             dmodel=args.dmodel,
             dff=args.dff,
