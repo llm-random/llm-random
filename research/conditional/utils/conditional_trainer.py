@@ -1,6 +1,7 @@
 import os.path
 import copy
 from typing import Optional, Literal
+from types import SimpleNamespace as SN
 
 import numpy as np
 import torch
@@ -43,10 +44,12 @@ class ConditionalTrainer:
     lr_warmup_steps: int = 0
     lr_decay_interval: int = 0
     log_gradients_and_weights: bool = False
+    loss_log_intervals: tuple[int] = (1, 10, 100, 1000)
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
-        self.loss_accumulator = 0.0
+        self.loss_accumulators = {f"loss_interval/{i}": SN(acc=0., interval=i) for i in self.loss_log_intervals}
+        self.loss_accumulators["loss"] = SN(acc=0., interval=self.logging_interval_loss)
         self._calculate_loss = make_loss_function(
             model=self.model_type,
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
@@ -157,15 +160,16 @@ class ConditionalTrainer:
 
     def _log_loss(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
-        self.loss_accumulator += loss_value
-        if step % self.logging_interval_loss == 0 and step > 0:
-            self.logger.report_scalar(
-                title="loss",
-                value=self.loss_accumulator / self.logging_interval_loss,
-                iteration=step,
-            )
-            self.logger.report_scalar(title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step)
-            self.loss_accumulator = 0.0
+        self.logger.report_scalar(title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step)
+        for name, stats in self.loss_accumulators.items():
+            stats.acc += loss_value
+            if step % stats.interval == 0 and step > 0:
+                self.logger.report_scalar(
+                    title=name,
+                    value=stats.acc / stats.interval,
+                    iteration=step,
+                )
+                stats.acc = 0.0
 
     def _log_heavy(self, step):
         g_metrics, w_metrics = {}, {}
