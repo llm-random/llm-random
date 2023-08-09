@@ -161,7 +161,7 @@ class ConditionalTrainer:
         processed = step * batch_size * seq_len
         total = NUM_C4_TOKENS
         self.logger.report_scalar(
-                title="Percent of dataset that is processed",
+                title="Percent of dataset that is processed (assumuing no DDP)",
                 value=processed * 100 / total,
                 iteration=step,
             )

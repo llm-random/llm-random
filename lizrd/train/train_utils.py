@@ -75,7 +75,6 @@ def get_processed_dataset(
     seed: int,
     model_type: str = "bert",
     dataset_type: Literal["wiki", "c4"] = "wiki",
-    data_distributed: bool = False,
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
 ) -> wikibookdata.ProcessedDatasetWrapper:
@@ -101,7 +100,6 @@ def get_processed_dataset(
         num_workers=num_workers,
         seed=seed,
         model_type=model_type,
-        data_distributed=data_distributed,
         dataset_type=dataset_type,
         dataset_split=dataset_split,
         seq_length=max_total_length,
