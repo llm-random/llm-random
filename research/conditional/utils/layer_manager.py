@@ -68,6 +68,7 @@ class LoggingLayer(nn.Module):
         super().__init__()
         self.logging_switch = False
         self.cached_data = {}
+        self.store = None
 
     def report_stats(self):
         assert self.logging_switch
