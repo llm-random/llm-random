@@ -88,7 +88,19 @@ def chungized_llm_loss(
                     gt.reshape(-1).long(),
                     reduction="none",
                 )
-            return loss * mask.reshape(-1)
+
+                print(f"gt shape: {gt.shape}")
+                print(f"output shape: {output.shape}")
+                print(f"loss shape: {loss.shape}")
+                correct_tokens = gt.long() == output.argmax(dim=-1)
+                print(f"correct_tokens: {correct_tokens}")
+                print(f"correct_tokens shape: {correct_tokens.shape}")
+                correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+                correct_tokens = correct_tokens.sum()
+
+                total_tokens = mask.sum()
+
+            return loss * mask.reshape(-1), correct_tokens, total_tokens
 
         return custom_forward
 
@@ -99,16 +111,19 @@ def chungized_llm_loss(
 
     num_tokens = 0
     total_loss = 0
+    total_correct_tokens = 0
+    total_tokens = 0
     for chunged_input, chunged_gt, chunged_mask in zip(
         chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
     ):
-        partial_loss_output = checkpoint(
+        partial_loss_output, partial_correct_tokens, partial_total_tokens = checkpoint(
             make_custom_forward(vocab_size), chunged_input, chunged_gt, chunged_mask
         )
-
         num_tokens += partial_loss_output.shape[0]
         total_loss += partial_loss_output.sum()
-    return total_loss / num_tokens / mask_percent
+        total_correct_tokens += partial_correct_tokens
+        total_tokens += partial_total_tokens
+    return total_loss / num_tokens / mask_percent, total_correct_tokens, total_tokens
 
 
 def chungized_bert_loss(
@@ -157,7 +172,13 @@ def calculate_llm_loss(
     )
     mask_loss *= mask.reshape(-1)
     loss = mask_loss.mean() / mask_percent
-    return loss
+
+    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+    correct_tokens = correct_tokens.sum()
+    total_tokens = mask.sum()
+
+    return loss, correct_tokens, total_tokens
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
@@ -173,6 +194,18 @@ def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
 
 
 def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent):
+    return calculate_llm_loss(
+        input_tokens=batch.masked_tokens,
+        gt_tokens=batch.tokens,
+        mask=batch.mask_mask,
+        model=model,
+        mixed_precision=mixed_precision,
+        vocab_size=vocab_size,
+        mask_percent=mask_percent,
+    )
+
+
+def calculate_bert_accuracy(batch, model, mixed_precision, vocab_size, mask_percent):
     return calculate_llm_loss(
         input_tokens=batch.masked_tokens,
         gt_tokens=batch.tokens,

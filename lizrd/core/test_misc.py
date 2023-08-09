@@ -165,7 +165,11 @@ class TestChungizedCalculateLoss(GeneralTestCase):
 
         batch = dataset.get_batch()
 
-        loss_no_chung = calculate_bert_loss(
+        (
+            loss_no_chung,
+            correct_tokens_no_chung,
+            total_masked_tokens_no_chung,
+        ) = calculate_bert_loss(
             batch=batch,
             model=model,
             mixed_precision=False,
@@ -173,7 +177,11 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             mask_percent=mask_percentage,
         )
 
-        loss_chung = chungized_bert_loss(
+        (
+            loss_chung,
+            correct_tokens_chung,
+            total_masked_tokens_chung,
+        ) = chungized_bert_loss(
             batch=batch,
             model=model_chunged,
             mixed_precision=False,
@@ -186,6 +194,8 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         loss_chung.backward()
 
         assert torch.isclose(loss_no_chung, loss_chung)
+        assert correct_tokens_no_chung == correct_tokens_chung
+        assert total_masked_tokens_no_chung == total_masked_tokens_chung
 
         chunged_dict = {n: p for n, p in model_chunged.named_parameters()}
 
