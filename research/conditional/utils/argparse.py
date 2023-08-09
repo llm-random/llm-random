@@ -9,6 +9,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--dmodel", type=int, default=768)
     parser.add_argument("--dff", type=int, default=3072)
     parser.add_argument("--n_att_heads", type=int, default=8)
+    parser.add_argument("--n_heads", type=int, default=None)
     parser.add_argument("--n_blocks", type=int, default=4)
     parser.add_argument("--mixed_precision", action="store_true")
     parser.add_argument("--logging_interval_light", type=int, default=1000000)

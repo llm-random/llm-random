@@ -12,6 +12,7 @@ from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
+from lizrd.datasets.c4 import NUM_C4_TOKENS
 
 
 @define(slots=False)
@@ -43,7 +44,6 @@ class ConditionalTrainer:
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.loss_accumulator = 0.0
-        self.padding_accumulator = 0.0
         self._calculate_loss = make_loss_function(
             model=self.model_type,
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
@@ -113,13 +113,7 @@ class ConditionalTrainer:
 
         loss = self.optimize_with_gradient_accumulation(processed_batch)
         if self.logger is not None:
-            padding_mask = (
-                1 - processed_batch.non_padded_mask
-                if self.model_type == "gpt"
-                else processed_batch.masked_tokens
-            )
-            padding_fraction = padding_mask.sum() / padding_mask.numel()
-            self._log_train_stats(loss, padding_fraction, step)
+            self._log_train_stats(loss, step)
             self.layer_manager.log(step)
         self._save_weights(step)
 
@@ -148,23 +142,29 @@ class ConditionalTrainer:
 
         return loss_value
 
-    def _log_train_stats(self, loss_value, padding_fraction, step):
+    def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
+        if self.train_dataloader.dataset_type == "c4":
+            self._log_percent_dataset_processed(step)
         self.loss_accumulator += loss_value
-        self.padding_accumulator += padding_fraction
         if step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
                 title="loss",
                 value=self.loss_accumulator / self.logging_interval_loss,
                 iteration=step,
             )
-            self.logger.report_scalar(
-                title="Average padding fraction in batch",
-                value=self.padding_accumulator / self.logging_interval_loss,
+            self.loss_accumulator = 0.0
+
+    def _log_percent_dataset_processed(self, step):
+        batch_size = self.train_dataloader.batch_size
+        seq_len = self.train_dataloader.sequence_length
+        processed = step * batch_size * seq_len
+        total = NUM_C4_TOKENS
+        self.logger.report_scalar(
+                title="Percent of dataset that is processed",
+                value=processed * 100 / total,
                 iteration=step,
             )
-            self.loss_accumulator = 0.0
-            self.padding_accumulator = 0.0
 
     def _hack(self, hack_name, step):
         if hack_name == "batch_size":

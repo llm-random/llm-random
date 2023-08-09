@@ -307,6 +307,9 @@ class ProcessedDatasetWrapper:
     ):
         self.device = device
         self.model_type = model_type
+        self.dataset_type = dataset_type
+        self.batch_size = batch_size
+        self.sequence_length = seq_length
 
         if self.model_type == "bert":
             collate_fn = ProcessedBERTBatch
