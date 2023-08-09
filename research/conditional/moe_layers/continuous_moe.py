@@ -131,10 +131,10 @@ class ContinuousMoeBaseClass(LoggingLayer):
         if self.group_size == 1:
             return log
         merge_weights = torch.flatten(
-            self.cached_data["merge_weights"], start_dim=0, end_dim=-2
+            self.logging_cache["merge_weights"], start_dim=0, end_dim=-2
         )
         merge_logits = torch.flatten(
-            self.cached_data["merge_logits"], start_dim=0, end_dim=-2
+            self.logging_cache["merge_logits"], start_dim=0, end_dim=-2
         )
         sample_weight_distros = merge_weights[:5]
         sample_logits_distros = merge_logits[:5]

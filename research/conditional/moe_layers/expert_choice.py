@@ -156,11 +156,11 @@ class ExpertChoiceFF(LoggingLayer):
 
     def log_heavy(self):
         # calculate indexes choose counts
-        chosen_indexes = self.cached_data["topk_indices"].flatten()
+        chosen_indexes = self.logging_cache["topk_indices"].flatten()
         chosen_indexes = torch.cat(
             (
                 chosen_indexes,
-                torch.Tensor([self.cached_data["n_tokens"] - 1]).type(
+                torch.Tensor([self.logging_cache["n_tokens"] - 1]).type(
                     chosen_indexes.type()
                 ),
             )
@@ -168,17 +168,17 @@ class ExpertChoiceFF(LoggingLayer):
         indexes_choose_counts = chosen_indexes.bincount()
 
         # make bar plot of values cached in forward with measure_time
-        instr_names = list(self.cached_data["time"].keys())
-        instr_times = list(self.cached_data["time"].values())
+        instr_names = list(self.logging_cache["time"].keys())
+        instr_times = list(self.logging_cache["time"].values())
         times_fig = px.bar(x=instr_names, y=instr_times)
 
         return {
             "gradient of gate distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_topk_vals": make_histogram(
-                self.cached_data["gate_softmax_topk_vals"].flatten()
+                self.logging_cache["gate_softmax_topk_vals"].flatten()
             ),
             "gate_softmax_all_values": make_histogram(
-                self.cached_data["gate_softmax_all_values"].flatten()
+                self.logging_cache["gate_softmax_all_values"].flatten()
             ),
             "indexes_choose_counts": make_histogram(indexes_choose_counts),
             "instruction_times": times_fig,
