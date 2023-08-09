@@ -96,6 +96,7 @@ def main(
         seed=args.data_seed if data_seeds is None else data_seeds[rank],
         model_type=args.model_type,
         dataset_type=args.dataset_type,
+        log_example_batch=True if rank is None or rank == 0 else False,
     )
 
     trainer = ConditionalTrainer(
