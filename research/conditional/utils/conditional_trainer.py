@@ -42,6 +42,8 @@ class ConditionalTrainer:
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.loss_accumulator = 0.0
+        self.correct_tokens_accumulator = 0.0
+        self.total_tokens_accumulator = 0.0
         self._calculate_loss = make_loss_function(
             model=self.model_type,
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
@@ -106,9 +108,12 @@ class ConditionalTrainer:
         if self.logger is not None:
             self.layer_manager.prepare_for_logging(step)
         processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
-        loss = self.optimize_with_gradient_accumulation(processed_batch)
+        loss, correct_tokens, total_tokens = self.optimize_with_gradient_accumulation(
+            processed_batch
+        )
         if self.logger is not None:
             self._log_loss(loss, step)
+            self._log_accuracy(correct_tokens, total_tokens, step)
             self.layer_manager.log(step)
         self._save_weights(step)
 
@@ -117,13 +122,17 @@ class ConditionalTrainer:
     ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         loss_value = 0.0
+        correct_tokens_value = 0
+        total_tokens_value = 0
+
         for i in range(self.gradient_accumulation_steps):
             batch_copy = copy.deepcopy(processed_batch)
             for tensor in batch_copy:
                 tensor.data = get_ith_chunk(
                     tensor.data, self.gradient_accumulation_steps, i
                 )
-            loss = self._calculate_loss(
+
+            loss, correct_tokens, total_tokens = self._calculate_loss(
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
@@ -134,8 +143,10 @@ class ConditionalTrainer:
             should_apply_gradient = i == self.gradient_accumulation_steps - 1
             self._optimize(loss, should_apply_gradient=should_apply_gradient)
             loss_value += loss.item()
+            correct_tokens_value += correct_tokens
+            total_tokens_value += total_tokens
 
-        return loss_value
+        return loss_value, correct_tokens_value, total_tokens_value
 
     def _log_loss(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
@@ -147,6 +158,18 @@ class ConditionalTrainer:
                 iteration=step,
             )
             self.loss_accumulator = 0.0
+
+    def _log_accuracy(self, correct_tokens, total_tokens, step):
+        self.correct_tokens_accumulator += correct_tokens
+        self.total_tokens_accumulator += total_tokens
+        if step % self.logging_interval_loss == 0 and step > 0:
+            self.logger.report_scalar(
+                title="accuracy",
+                value=self.correct_tokens_accumulator / self.total_tokens_accumulator,
+                iteration=step,
+            )
+            self.correct_tokens_accumulator = 0.0
+            self.total_tokens_accumulator = 0.0
 
     def _hack(self, hack_name, step):
         if hack_name == "batch_size":
