@@ -74,6 +74,8 @@ def main(
         device=DEVICE,
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
+        post_norm=args.post_norm,
+        rezero=args.rezero
     )
 
     # make model data_distributed if necessary

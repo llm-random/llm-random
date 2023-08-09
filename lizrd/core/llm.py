@@ -216,8 +216,30 @@ class CausalAttention(nn.Module):
         return output
 
 
+class ReZero(nn.Module):
+    def __init__(self, fn, init=0.):
+        super().__init__()
+        self.rezero_g = nn.Parameter(torch.tensor(init))
+        self.fn = fn
+
+    def forward(self, x, **kwargs):
+        return self.fn(x, **kwargs) * self.rezero_g
+
+
 @ash.check("... d -> ... d")
-def ResidualBlock(dmodel, layer, name):
+def ResidualBlock(dmodel, layer, name, post_norm, rezero):
+    if rezero:
+        assert not post_norm  # incompatible
+        return Residual(ReZero(layer))
+    if post_norm:
+        return nn.Sequential(
+                OrderedDict(
+                    [
+                        (f"{name}", Residual(layer)),
+                        ("post_norm", nn.LayerNorm(dmodel)),
+                    ]
+                )
+        )
     return Residual(
         nn.Sequential(
             OrderedDict(
@@ -231,10 +253,10 @@ def ResidualBlock(dmodel, layer, name):
 
 
 @ash.check("... d -> ... d")
-def TransformerBlock(dmodel, layers, gradient_checkpointing):
+def TransformerBlock(dmodel, layers, gradient_checkpointing, post_norm=False, rezero=False):
     residual_layers = []
     for name, layer in layers:
-        block = ResidualBlock(dmodel, layer, name)
+        block = ResidualBlock(dmodel, layer, name, post_norm, rezero)
         residual_layers.append(block)
     if gradient_checkpointing:
         residual_layers = [Checkpoint(layer) for layer in residual_layers]
@@ -251,6 +273,8 @@ class TransformerTower(nn.Module):
         gradient_checkpointing: bool = False,
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
+        post_norm: bool = False,
+        rezero: bool = False,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -267,7 +291,7 @@ class TransformerTower(nn.Module):
             _, current_device = self.get_current_device(i_block)
             name_and_block = (
                 f"block_{i_block}",
-                TransformerBlock(dmodel, layers_info, gradient_checkpointing).to(
+                TransformerBlock(dmodel, layers_info, gradient_checkpointing, post_norm, rezero).to(
                     current_device
                 ),
             )

@@ -20,6 +20,7 @@ class ExpertChoiceFF(LoggingLayer):
         expert_size: int,
         topk_fraction: float,
         random_perm: bool = False,
+        group_granular_moe_by_batch: bool = False,
     ):
         """
         Args:
@@ -38,6 +39,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
         self.random_perm = random_perm
+        self.group_granular_moe_by_batch = group_granular_moe_by_batch
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
