@@ -5,7 +5,6 @@ from typing import Optional, Literal
 import torch
 from attr import define
 from lizrd.core.misc import propagate_store
-
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
