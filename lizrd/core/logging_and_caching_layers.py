@@ -1,11 +1,59 @@
 import re
-import time
-from contextlib import contextmanager
-
-import torch
 
 from lizrd.core import nn
 from lizrd.support.logging import get_current_logger
+
+
+class CachingLayer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.cache = {}
+
+    def cache_for_subsequent_layers(self, key, value):
+        self.cache[key] = value
+
+
+class LoggingLayer(CachingLayer):
+    def __init__(self):
+        super().__init__()
+        self.logging_switch = False
+        self.cached_data = {}
+
+    def report_stats(self):
+        assert self.logging_switch
+        self.logging_switch = False
+        data = self.cached_data
+        self.cached_data = {}
+        return data
+
+    def prepare_for_logging(self):
+        self.logging_switch = True
+
+    def cache_for_logging(self, key, value):
+        if self.logging_switch:
+            if type(value) == dict:
+                if key in self.cached_data:
+                    self.cached_data[key].update(value)
+                else:
+                    self.cached_data[key] = value
+            else:
+                self.cached_data[key] = value.clone().detach().cpu()
+
+    def log(self, verbosity_level):
+        if verbosity_level == 0:
+            return []
+        elif verbosity_level == 1:
+            return self.log_light()
+        elif verbosity_level == 2:
+            return self.log_heavy()
+        else:
+            raise Exception("Invalid verbosity level")
+
+    def log_light(self):
+        return {}
+
+    def log_heavy(self):
+        return {}
 
 
 class LayerManager:
@@ -61,66 +109,3 @@ class LayerManager:
                         self.logger.report_generic_info(
                             title=logging_name, iteration=step, data=data
                         )
-
-
-class LoggingLayer(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.logging_switch = False
-        self.cached_data = {}
-
-    def report_stats(self):
-        assert self.logging_switch
-        self.logging_switch = False
-        data = self.cached_data
-        self.cached_data = {}
-        return data
-
-    def prepare_for_logging(self):
-        self.logging_switch = True
-
-    def cache(self, key, value):
-        if self.logging_switch:
-            if type(value) == dict:
-                if key in self.cached_data:
-                    self.cached_data[key].update(value)
-                else:
-                    self.cached_data[key] = value
-            else:
-                self.cached_data[key] = value.clone().detach().cpu()
-
-    def log(self, verbosity_level):
-        if verbosity_level == 0:
-            return []
-        elif verbosity_level == 1:
-            return self.log_light()
-        elif verbosity_level == 2:
-            return self.log_heavy()
-        else:
-            raise Exception("Invalid verbosity level")
-
-    def log_light(self):
-        return {}
-
-    def log_heavy(self):
-        return {}
-
-
-@contextmanager
-def measure_time(obj: LoggingLayer, instruction_name: str):
-    """
-    This simple context manager is used to measure the time of a block of code.
-    Args:
-        obj: The LoggingLayer object that will be used to cache the time.
-        instruction_name: The name of the instruction that is being measured.
-    """
-    if obj.logging_switch and torch.cuda.is_available():
-        torch.cuda.synchronize()
-    start_time = time.time()
-
-    yield
-
-    if obj.logging_switch and torch.cuda.is_available():
-        torch.cuda.synchronize()
-    end_time = time.time()
-    obj.cache("time", {instruction_name: end_time - start_time})

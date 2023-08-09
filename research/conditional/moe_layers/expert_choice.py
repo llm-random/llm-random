@@ -5,11 +5,10 @@ from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
 from lizrd.core import nn
-from lizrd.core.misc import get_init_weight
+from lizrd.core.misc import get_init_weight, measure_time
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
-from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.utils.layer_manager import measure_time
+from lizrd.core.logging_and_caching_layers import LoggingLayer
 
 
 class ExpertChoiceFF(LoggingLayer):
@@ -75,15 +74,15 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "softmax"):
             gate_out = torch.softmax(gate_out, dim=1)
 
-        self.cache("gate_softmax_all_values", gate_out)
+        self.cache_for_logging("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
             topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
 
         # cache values for logging
-        self.cache("gate_softmax_topk_vals", topk_values)
-        self.cache("topk_indices", topk_indices)
-        self.cache("n_tokens", torch.Tensor([batch_size * seq_len]))
+        self.cache_for_logging("gate_softmax_topk_vals", topk_values)
+        self.cache_for_logging("topk_indices", topk_indices)
+        self.cache_for_logging("n_tokens", torch.Tensor([batch_size * seq_len]))
 
         # Randomly permute tokens for experts if random_perm is True
         # Note this is not total randomness, since topk values are already chosen

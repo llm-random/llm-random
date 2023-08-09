@@ -2,8 +2,8 @@ import torch.nn
 from plotly import express as px
 
 from lizrd.core import misc
-from lizrd.core.misc import resolve_activation_name
-from research.conditional.utils.layer_manager import LoggingLayer, measure_time
+from lizrd.core.misc import resolve_activation_name, measure_time
+from lizrd.core.logging_and_caching_layers import LoggingLayer
 from functools import partial
 from performer_pytorch.performer_pytorch import (
     gaussian_orthogonal_random_matrix,

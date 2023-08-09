@@ -1,7 +1,11 @@
+import time
+from contextlib import contextmanager
+
 import torch
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
 from lizrd.core import nn
+from lizrd.core.logging_and_caching_layers import LoggingLayer
 from lizrd.support import ash
 from torch.utils.checkpoint import checkpoint
 import torch.nn
@@ -327,3 +331,23 @@ def propagate_store(module: torch.nn.Module, store=None):
     module.store = store
     for child in module.children():
         propagate_store(child, store)
+
+
+@contextmanager
+def measure_time(obj: LoggingLayer, instruction_name: str):
+    """
+    This simple context manager is used to measure the time of a block of code.
+    Args:
+        obj: The LoggingLayer object that will be used to cache the time.
+        instruction_name: The name of the instruction that is being measured.
+    """
+    if obj.logging_switch and torch.cuda.is_available():
+        torch.cuda.synchronize()
+    start_time = time.time()
+
+    yield
+
+    if obj.logging_switch and torch.cuda.is_available():
+        torch.cuda.synchronize()
+    end_time = time.time()
+    obj.cache_for_logging("time", {instruction_name: end_time - start_time})
