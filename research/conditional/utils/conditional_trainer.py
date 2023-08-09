@@ -4,7 +4,7 @@ from typing import Optional, Literal
 
 import torch
 from attr import define
-from lizrd.core.misc import propagate_store
+from lizrd.core.misc import propagate_store, propagate_names
 from lizrd.datasets import wikibookdata
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
@@ -73,6 +73,7 @@ class ConditionalTrainer:
 
     def _before_train_operations(self):
         propagate_store(self.model)
+        propagate_names(self.model)
 
     def _after_step_operations(self):
         self.model.store.clear()

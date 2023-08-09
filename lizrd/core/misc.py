@@ -1,3 +1,4 @@
+import re
 import torch
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
@@ -327,3 +328,26 @@ def propagate_store(module: torch.nn.Module, store=None):
     module.store = store
     for child in module.children():
         propagate_store(child, store)
+
+
+def propagate_names(module: torch.nn.Module):
+    """
+    This function propagates the cache from the module to all its children.
+    """
+    for name, layer in module.named_modules():
+        should_be_named, clean_name = process_name(name)
+        if should_be_named:
+            layer.name = clean_name
+
+
+def process_name(name: str):
+    suffix = name.split(".")[-1]
+    if suffix not in ["feedforward", "attention"]:
+        return False, name
+    pattern = r"block_(\d+)"
+    match = re.search(pattern, name)
+    assert (
+        match
+    ), f"Could not find pattern {pattern} in name {name}. The naming convention of model layers is not as expected."
+    block_num = match.group(1)
+    return True, f"{block_num}_{suffix}"

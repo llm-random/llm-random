@@ -90,6 +90,10 @@ class LoggingLayer(nn.Module):
             else:
                 self.cached_data[key] = value.clone().detach().cpu()
 
+    def cache_for_propagation(self, key, value):
+        named_key = f"{self.name}_{key}"
+        self.store[named_key] = value
+
     def log(self, verbosity_level):
         if verbosity_level == 0:
             return []
