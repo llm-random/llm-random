@@ -145,7 +145,7 @@ class ConditionalTrainer:
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         if self.train_dataloader.dataset_type == "c4":
-            self._log_percent_dataset_processed(step)
+            self._log_fraction_dataset_processed(step)
         self.loss_accumulator += loss_value
         if step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
@@ -155,14 +155,14 @@ class ConditionalTrainer:
             )
             self.loss_accumulator = 0.0
 
-    def _log_percent_dataset_processed(self, step):
+    def _log_fraction_dataset_processed(self, step):
         batch_size = self.train_dataloader.batch_size
         seq_len = self.train_dataloader.sequence_length
         processed = step * batch_size * seq_len
         total = NUM_C4_TOKENS
         self.logger.report_scalar(
-                title="Percent of dataset that is processed (assumuing no DDP)",
-                value=processed * 100 / total,
+                title="Fraction of dataset that is processed (assumuing no DDP)",
+                value=processed / total,
                 iteration=step,
             )
 

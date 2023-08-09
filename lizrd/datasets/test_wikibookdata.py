@@ -1,6 +1,6 @@
 from lizrd.datasets import wikibookdata
 import lizrd.datasets.processed_batch
-from lizrd.train.train_utils import get_processed_dataset
+from lizrd.datasets.wikibookdata import get_processed_dataset
 from lizrd.support.test_utils import GeneralTestCase, skip_test
 import pickle
 

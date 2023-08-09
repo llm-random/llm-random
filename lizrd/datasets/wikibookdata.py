@@ -7,9 +7,16 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
+from lizrd.datasets import wikibookdata
+from neptune.utils import stringify_unsupported
 
-from lizrd.datasets.processed_batch import ProcessedBERTBatch, ProcessedBatch, ProcessedGPTBatch
+from lizrd.datasets.processed_batch import (
+    ProcessedBERTBatch,
+    ProcessedBatch,
+    ProcessedGPTBatch,
+)
 from lizrd.datasets.c4 import C4Dataset
+from lizrd.support.logging import get_current_logger
 
 
 class ProcessedBERTExample(object):
@@ -302,7 +309,7 @@ class ProcessedDatasetWrapper:
         num_workers: int = 8,
         seed: int = 42,
         model_type: str = "bert",
-        dataset_type: Literal["wiki", "c4"] = "wiki",
+        dataset_type: Literal["wikibook", "c4"] = "wikibook",
         dataset_split: str = "train",
     ):
         self.device = device
@@ -320,7 +327,7 @@ class ProcessedDatasetWrapper:
                 f"Unknown model type in ProcessedDatasetWrapper: {self.model_type}"
             )
 
-        if dataset_type == "wiki":
+        if dataset_type == "wikibook":
             pdataset = ParallelCompatibleDataset(
                 pdataset, batch_size=batch_size, seed=seed
             )
@@ -341,3 +348,62 @@ class ProcessedDatasetWrapper:
 
     def get_batch(self) -> ProcessedBatch:
         return next(self.dataloader).to(self.device)
+
+
+def get_processed_dataset(
+    batch_size: int,
+    max_total_length: int,
+    mask_percent: float,
+    device: torch.device,
+    num_workers: int,
+    seed: int,
+    model_type: Literal["bert", "gpt"] = "bert",
+    dataset_type: Literal["wikibook", "c4"] = "wikibook",
+    use_dummy_dataset: bool = False,
+    dataset_split: str = "train",
+) -> wikibookdata.ProcessedDatasetWrapper:
+    if dataset_type == "wikibook":
+        raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
+        if model_type == "bert":
+            processor = wikibookdata.BERTSentenceProcessor(
+                max_total_length=max_total_length,
+                mask_percent=mask_percent,
+            )
+        elif model_type == "gpt":
+            processor = wikibookdata.GPTSentenceProcessor(
+                max_total_length=max_total_length,
+            )
+
+        dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
+    else:
+        dataset = None
+
+    dataset_wrapper = wikibookdata.ProcessedDatasetWrapper(
+        pdataset=dataset,
+        device=device,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        seed=seed,
+        model_type=model_type,
+        dataset_type=dataset_type,
+        dataset_split=dataset_split,
+        seq_length=max_total_length,
+    )
+
+    # In case of GPT, log an example sequence for a possible inspection
+    if model_type == "gpt":
+        print("Logging example batch...")
+        run = get_current_logger().instance_logger
+        batch = dataset_wrapper.get_batch()
+
+        t = GPT2Tokenizer.from_pretrained("gpt2", additional_special_tokens=["<sequence_sep>"])
+        num_to_log = 5
+        for i in range(num_to_log):
+            run[f"example_sequence/seq{i}/text"] = t.decode(batch.tokens[i])
+            run[f"example_sequence/seq{i}/target_text"] = t.decode(
+                batch.target_tokens[i]
+            )
+        del batch, t
+        print("Logged example batch.")
+
+    return dataset_wrapper

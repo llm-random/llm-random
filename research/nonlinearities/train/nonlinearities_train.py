@@ -2,10 +2,10 @@ import argparse
 import torch
 
 from lizrd.core import misc
+from lizrd.datasets.wikibookdata import get_processed_dataset
 from lizrd.support.logging import get_logger
 from lizrd.train.train_utils import (
     get_model,
-    get_processed_dataset,
 )
 from research.nonlinearities.core.trainers import NonlinearityTrainer
 from research.nonlinearities.train.utils import (

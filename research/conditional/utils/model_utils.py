@@ -156,7 +156,7 @@ def calculate_llm_loss(
         reduction="none",
     )
     mask_loss = mask_loss[mask.reshape(-1) == 1]
-    loss = mask_loss.mean() #/ mask_percent
+    loss = mask_loss.mean() / mask_percent
     return loss
 
 

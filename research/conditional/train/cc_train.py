@@ -10,10 +10,10 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
+from lizrd.datasets.wikibookdata import get_processed_dataset
 from lizrd.support.logging import get_logger
 from lizrd.train.train_utils import (
     get_model,
-    get_processed_dataset,
 )
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
@@ -41,27 +41,13 @@ def main(
     VOCAB_SIZE = (
         30522 if args.model_type == "bert" else 50258
     )  # vocab size for gpt is 50257 + 1 for sequence_sep
-    DEVICE = torch.device(
-        f"cuda" if (torch.cuda.is_available() and rank is None) else "cpu"
-    )  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     data_distributed = True if rank is not None else False
     if args.auto_find_grad_accumulation:
         args.gradient_accumulation_steps = find_optimal_grad_accumulation(
             args=args, vocab_size=VOCAB_SIZE, device=DEVICE
         )
-    train_dataloader = get_processed_dataset(
-        max_total_length=args.cutoff,
-        mask_percent=args.mask_percent,
-        device=DEVICE,
-        num_workers=args.num_workers,
-        batch_size=args.batch_size // args.n_gpus
-        if data_distributed
-        else args.batch_size,
-        seed=args.data_seed if data_seeds is None else data_seeds[rank],
-        model_type=args.model_type,
-        dataset_type=args.dataset_type,
-    )
 
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
@@ -76,7 +62,11 @@ def main(
         attention_layer_fun=attention_layer_fun,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
-        device=DEVICE,
+        device=DEVICE
+        if rank is None
+        else torch.device(
+            "cpu"
+        ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
     )
@@ -94,6 +84,19 @@ def main(
         betas=(args.adam_beta1, args.adam_beta2),
     )
     logger = get_logger(args, model, VOCAB_SIZE) if rank is None or rank == 0 else None
+
+    train_dataloader = get_processed_dataset(
+        max_total_length=args.cutoff,
+        mask_percent=args.mask_percent,
+        device=DEVICE,
+        num_workers=args.num_workers,
+        batch_size=args.batch_size // args.n_gpus
+        if data_distributed
+        else args.batch_size,
+        seed=args.data_seed if data_seeds is None else data_seeds[rank],
+        model_type=args.model_type,
+        dataset_type=args.dataset_type,
+    )
 
     trainer = ConditionalTrainer(
         model=model,

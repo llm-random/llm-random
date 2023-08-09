@@ -79,7 +79,7 @@ def introduce_parser_arguments(parser):
         help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
     )
     parser.add_argument("--data_distributed", action="store_true")
-    parser.add_argument("--dataset_type", type=str, default="wiki")
+    parser.add_argument("--dataset_type", type=str, default="wikibook")
 
     # experimental/legacy parameters
 

@@ -1,6 +1,6 @@
 import copy
 from collections import defaultdict
-from typing import Callable, Optional, Literal
+from typing import Callable, Optional
 import os
 
 import numpy as np
@@ -64,46 +64,6 @@ def get_model(
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
     return model
-
-
-def get_processed_dataset(
-    batch_size: int,
-    max_total_length: int,
-    mask_percent: float,
-    device: torch.device,
-    num_workers: int,
-    seed: int,
-    model_type: str = "bert",
-    dataset_type: Literal["wiki", "c4"] = "wiki",
-    use_dummy_dataset: bool = False,
-    dataset_split: str = "train",
-) -> wikibookdata.ProcessedDatasetWrapper:
-    if dataset_type == "wiki":
-        raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
-        if model_type == "bert":
-            processor = wikibookdata.BERTSentenceProcessor(
-                max_total_length=max_total_length,
-                mask_percent=mask_percent,
-            )
-        elif model_type == "gpt":
-            processor = wikibookdata.GPTSentenceProcessor(
-                max_total_length=max_total_length,
-            )
-
-        dataset = wikibookdata.ProcessedDataset(raw_dataset, processor)
-    else:
-        dataset = None
-    return wikibookdata.ProcessedDatasetWrapper(
-        pdataset=dataset,
-        device=device,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        seed=seed,
-        model_type=model_type,
-        dataset_type=dataset_type,
-        dataset_split=dataset_split,
-        seq_length=max_total_length,
-    )
 
 
 @define(slots=False)
