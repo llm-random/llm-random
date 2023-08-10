@@ -22,7 +22,6 @@ from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
 )
-from research.conditional.utils.training_utils import find_optimal_grad_accumulation
 
 parser = argparse.ArgumentParser()
 introduce_parser_arguments(parser)
@@ -39,19 +38,13 @@ def main(
         init_process_group("nccl", rank=rank, world_size=args.n_gpus)
         torch.cuda.set_device(rank)
 
-    # vocab size for gpt is 50257 + 1 for sequence_sep
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
-
+    # vocab size for gpt is 50257 + 1 for sequence_sep
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     data_distributed = True if rank is not None else False
-    if args.auto_find_grad_accumulation:
-        args.gradient_accumulation_steps = find_optimal_grad_accumulation(
-            args=args, vocab_size=VOCAB_SIZE, device=DEVICE
-        )
-
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
     if args.model_parallelism_fragmentation is not None:

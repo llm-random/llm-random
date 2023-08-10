@@ -9,8 +9,20 @@ class ProcessedBatch(ABC):
         pass
 
     def __iter__(self):
-        all_attrs = vars(self).values()
-        return iter([attr for attr in all_attrs if hasattr(attr, "shape")])
+        all_attrs = vars(self).items()
+        return iter(
+            [(attr, value) for attr, value in all_attrs if hasattr(value, "shape")]
+        )
+
+    def to(self, device):
+        self.device = device
+        for attr, tensor in self:
+            setattr(self, attr, tensor.to(device))
+        return self
+
+    def _make_tensor(self, list_of_token_lists):
+        matrix = np.array(list_of_token_lists)
+        return torch.from_numpy(matrix)
 
 
 class ProcessedGPTBatch(ProcessedBatch):
@@ -25,16 +37,6 @@ class ProcessedGPTBatch(ProcessedBatch):
         self.non_padded_mask = torch.tensor(
             [example["non_padded_mask"] for example in processed_examples]
         )
-
-    def _make_tensor(self, list_of_token_lists):
-        matrix = np.array(list_of_token_lists)
-        return torch.from_numpy(matrix)
-
-    def to(self, device):
-        self.tokens = self.tokens.to(device)
-        self.target_tokens = self.target_tokens.to(device)
-        self.non_padded_mask = self.non_padded_mask.to(device)
-        return self
 
 
 class ProcessedBERTBatch(ProcessedBatch):
@@ -52,14 +54,3 @@ class ProcessedBERTBatch(ProcessedBatch):
 
         assert self.tokens.shape == self.masked_tokens.shape
         assert self.tokens.shape == self.mask_mask.shape
-
-    def _make_tensor(self, list_of_token_lists):
-        matrix = np.array(list_of_token_lists)
-        return torch.from_numpy(matrix)
-
-    def to(self, device):
-        self.device = device
-        self.tokens = self.tokens.to(device)
-        self.masked_tokens = self.masked_tokens.to(device)
-        self.mask_mask = self.mask_mask.to(device)
-        return self

@@ -141,7 +141,7 @@ class ConditionalTrainer:
 
         for i in range(self.gradient_accumulation_steps):
             batch_copy = copy.deepcopy(processed_batch)
-            for tensor in batch_copy:
+            for _, tensor in batch_copy:
                 tensor.data = get_ith_chunk(
                     tensor.data, self.gradient_accumulation_steps, i
                 )
