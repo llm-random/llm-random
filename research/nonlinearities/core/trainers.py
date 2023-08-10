@@ -47,7 +47,9 @@ class NonlinearityTrainer:
     ):
         self.model.train()
         processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+        assert isinstance(
+            processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+        )
         x_set = processed_batch.masked_tokens
         y_token_set = processed_batch.tokens
         y_mask_set = processed_batch.mask_mask

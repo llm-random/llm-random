@@ -5,7 +5,7 @@ from datasets import load_dataset
 from transformers import GPT2TokenizerFast
 
 
-NUM_C4_TOKENS = 173_648_052_806 # number of tokens in the C4 dataset
+NUM_C4_TOKENS = 173_648_052_806  # number of tokens in the C4 dataset
 
 
 class C4Dataset(Dataset):

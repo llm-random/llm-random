@@ -361,7 +361,7 @@ def get_processed_dataset(
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
-    log_example_batch = True
+    log_example_batch=True,
 ) -> wikibookdata.ProcessedDatasetWrapper:
     if dataset_type == "wikibook":
         raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
@@ -397,7 +397,9 @@ def get_processed_dataset(
         run = get_current_logger().instance_logger
         batch = dataset_wrapper.get_batch()
 
-        t = GPT2Tokenizer.from_pretrained("gpt2", additional_special_tokens=["<sequence_sep>"])
+        t = GPT2Tokenizer.from_pretrained(
+            "gpt2", additional_special_tokens=["<sequence_sep>"]
+        )
         num_to_log = 5
         for i in range(num_to_log):
             run[f"example_sequence/seq{i}/text"] = t.decode(batch.tokens[i])
