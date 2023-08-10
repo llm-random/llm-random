@@ -108,12 +108,10 @@ class ConditionalTrainer:
         if self.logger is not None:
             self.layer_manager.prepare_for_logging(step)
         processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
-        loss, correct_tokens, total_tokens = self.optimize_with_gradient_accumulation(
-            processed_batch
-        )
+        loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
         if self.logger is not None:
             self._log_loss(loss, step)
-            self._log_accuracy(correct_tokens, total_tokens, step)
+            self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
         self._save_weights(step)
 
@@ -123,7 +121,7 @@ class ConditionalTrainer:
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         loss_value = 0.0
         correct_tokens_value = 0
-        total_tokens_value = 0
+        total_masked_tokens_value = 0
 
         for i in range(self.gradient_accumulation_steps):
             batch_copy = copy.deepcopy(processed_batch)
@@ -132,7 +130,7 @@ class ConditionalTrainer:
                     tensor.data, self.gradient_accumulation_steps, i
                 )
 
-            loss, correct_tokens, total_tokens = self._calculate_loss(
+            loss, aux_info = self._calculate_loss(
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
@@ -143,10 +141,13 @@ class ConditionalTrainer:
             should_apply_gradient = i == self.gradient_accumulation_steps - 1
             self._optimize(loss, should_apply_gradient=should_apply_gradient)
             loss_value += loss.item()
-            correct_tokens_value += correct_tokens
-            total_tokens_value += total_tokens
+            correct_tokens_value += aux_info["correct_tokens"]
+            total_masked_tokens_value += aux_info["total_masked_tokens"]
 
-        return loss_value, correct_tokens_value, total_tokens_value
+        return loss_value, {
+            "correct_tokens": correct_tokens_value,
+            "total_masked_tokens": total_masked_tokens_value,
+        }
 
     def _log_loss(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
@@ -159,9 +160,9 @@ class ConditionalTrainer:
             )
             self.loss_accumulator = 0.0
 
-    def _log_accuracy(self, correct_tokens, total_tokens, step):
-        self.correct_tokens_accumulator += correct_tokens
-        self.total_tokens_accumulator += total_tokens
+    def _log_accuracy(self, aux_info, step):
+        self.correct_tokens_accumulator += aux_info["correct_tokens"]
+        self.total_tokens_accumulator += aux_info["total_masked_tokens"]
         if step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
                 title="accuracy",
