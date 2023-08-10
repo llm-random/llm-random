@@ -45,19 +45,6 @@ def main(
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     data_distributed = True if rank is not None else False
-    train_dataloader = get_processed_dataset(
-        max_total_length=args.cutoff,
-        mask_percent=args.mask_percent,
-        device=DEVICE,
-        num_workers=args.num_workers,
-        batch_size=args.batch_size // args.n_gpus
-        if data_distributed
-        else args.batch_size,
-        seed=args.data_seed if data_seeds is None else data_seeds[rank],
-        model_type=args.model_type,
-        data_distributed=data_distributed,
-    )
-
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
     if args.model_parallelism_fragmentation is not None:
