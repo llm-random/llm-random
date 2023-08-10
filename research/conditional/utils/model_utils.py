@@ -94,7 +94,7 @@ def chungized_llm_loss(
 
                 total_tokens = mask.sum()
 
-            return loss * mask.reshape(-1), correct_tokens, total_tokens
+            return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
 
         return custom_forward
 
