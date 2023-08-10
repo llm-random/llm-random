@@ -114,6 +114,7 @@ def main(
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
+        total_n_steps=args.n_steps, # needed for cosne lr decay
         n_gpus=args.n_gpus,
         save_weights_path=args.save_weights_path,
         save_weights_interval=args.save_weights_interval,

@@ -30,6 +30,7 @@ class ConditionalTrainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
+    total_n_steps: int
     _calculate_loss: Optional[callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -85,8 +86,9 @@ class ConditionalTrainer:
                 * (
                     1
                     + math.cos(
-                        math.pi * (i - self.lr_warmup_steps) / self.n_steps
-                        - self.lr_warmup_steps
+                        math.pi
+                        * (i - self.lr_warmup_steps)
+                        / (self.total_n_steps - self.lr_warmup_steps)
                     )
                 ),
             )
