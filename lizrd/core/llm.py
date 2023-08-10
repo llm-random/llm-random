@@ -7,6 +7,7 @@ import lizrd.core.nn as nn
 from lizrd.core import misc
 from lizrd.core.misc import Checkpoint
 from lizrd.support import ash
+from research.conditional.utils.layer_manager import LoggingLayer
 
 
 def decode_bias_string(bias):
@@ -118,7 +119,7 @@ def LowRank(dinput, doutput, dlowrank):
 
 
 @ash.check("... d -> ... d")
-class Attention(nn.Module):
+class Attention(LoggingLayer):
     def __init__(self, dmodel, heads, dhead=None):
         super(Attention, self).__init__()
         if dhead is None:
@@ -166,7 +167,7 @@ class Attention(nn.Module):
 
 
 @ash.check("... d -> ... d")
-class CausalAttention(nn.Module):
+class CausalAttention(LoggingLayer):
     def __init__(self, dmodel, heads, dhead=None):
         super(CausalAttention, self).__init__()
         if dhead is None:
