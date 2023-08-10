@@ -17,6 +17,7 @@ from lizrd.train.train_utils import (
 )
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
+from research.conditional.utils.misc_tools import set_seed
 from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
@@ -39,6 +40,9 @@ def main(
         torch.cuda.set_device(rank)
 
     # vocab size for gpt is 50257 + 1 for sequence_sep
+    if args.deterministic_experiment:
+        set_seed(args.torch_seed)
+
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
