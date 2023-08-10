@@ -5,7 +5,7 @@ from datasets import load_dataset
 from transformers import GPT2TokenizerFast
 
 
-NUM_C4_TOKENS = 173_648_052_806
+NUM_C4_TOKENS = 173_648_052_806 # number of tokens in the C4 dataset
 
 
 class C4Dataset(Dataset):
@@ -24,7 +24,7 @@ class C4Dataset(Dataset):
         self.tokenizer.pad_token = self.tokenizer.eos_token
         print(f"Using C4 dataset consisting of {NUM_C4_TOKENS} tokens")
         print(
-            f"One epoch with batch {batch_size} and sequence length 1024 will take {NUM_C4_TOKENS // (batch_size * 1024)} steps"
+            f"One epoch with batch {batch_size} and sequence length {seq_length} will take {NUM_C4_TOKENS // (batch_size * seq_length)} steps"
         )
 
     def __len__(self):
