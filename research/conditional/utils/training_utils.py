@@ -1,8 +1,9 @@
 import gc
 
 import torch
+from lizrd.datasets.wikibookdata import get_processed_dataset
 
-from lizrd.train.train_utils import get_processed_dataset, get_model
+from lizrd.train.train_utils import get_model
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.model_utils import get_ff_layer, get_attention_layer
 

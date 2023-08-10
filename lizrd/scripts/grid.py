@@ -167,11 +167,7 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
-            datasets_cache = os.getenv("HF_DATASETS_CACHE")
-            # raise error is HF_DATASETS_CACHE is not set
-            # it is needed to avoid exceeding disk quota
-            if datasets_cache is None:
-                raise ValueError("HF_DATASETS_CACHE needs to be set on Atena")
+            datasets_cache = "/net/tscratch/people/plgjkrajewski/.cache"
             subprocess_args = [
                 slurm_command,
                 f"--gpus={N_GPUS}",
@@ -194,6 +190,7 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.IDEAS:
+            datasets_cache = "/raid/NFS_SHARE/home/jakub.krajewski/.cache"
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{N_GPUS}",
@@ -205,6 +202,7 @@ if __name__ == "__main__":
                 get_grid_entrypoint(runner),
                 "singularity",
                 "run",
+                f"--env HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
@@ -214,12 +212,14 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
+            datasets_cache = "/home/jkrajewski/.cache"
             if CUDA_VISIBLE_DEVICES is not None:
                 env = os.environ.copy()
                 env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
             subprocess_args = [
                 "singularity",
                 "run",
+                f"--env HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,

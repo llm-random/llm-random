@@ -167,7 +167,7 @@ def calculate_llm_loss(
         gt_tokens.reshape(-1).long(),
         reduction="none",
     )
-    mask_loss *= mask.reshape(-1)
+    mask_loss = mask_loss[mask.reshape(-1) == 1]
     loss = mask_loss.mean() / mask_percent
 
     correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
@@ -207,7 +207,7 @@ def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent)
 
 def get_attention_layer(args):
     if args.model_type == "gpt":
-        attention_layer_fun = lambda: llm.CausalAttention(args.dmodel, args.n_att_heads)
+        attention_layer_fun = lambda: llm.CausalAttention(args.dmodel, args.n_att_heads, args.dhead)
     elif args.model_type == "bert":
         attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     else:

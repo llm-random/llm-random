@@ -6,11 +6,13 @@ import torch
 from attr import define
 from lizrd.core.misc import propagate_store
 from lizrd.datasets import wikibookdata
+import lizrd.datasets.processed_batch
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
+from lizrd.datasets.c4 import NUM_C4_TOKENS
 
 
 @define(slots=False)
@@ -118,10 +120,13 @@ class ConditionalTrainer:
         self.model.train()
         if self.logger is not None:
             self.layer_manager.prepare_for_logging(step)
-        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
+        processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = (
+            self.train_dataloader.get_batch()
+        )
+
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
         if self.logger is not None:
-            self._log_loss(loss, step)
+            self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
         self._save_weights(step)
@@ -160,8 +165,10 @@ class ConditionalTrainer:
             "total_masked_tokens": total_masked_tokens_value,
         }
 
-    def _log_loss(self, loss_value, step):
+    def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
+        if self.train_dataloader.dataset_type == "c4":
+            self._log_fraction_dataset_processed(step)
         self.loss_accumulator += loss_value
         if step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
@@ -170,6 +177,17 @@ class ConditionalTrainer:
                 iteration=step,
             )
             self.loss_accumulator = 0.0
+
+    def _log_fraction_dataset_processed(self, step):
+        batch_size = self.train_dataloader.batch_size
+        seq_len = self.train_dataloader.sequence_length
+        processed = step * batch_size * seq_len
+        total = NUM_C4_TOKENS
+        self.logger.report_scalar(
+                title="Fraction of dataset that is processed (assumuing no DDP)",
+                value=processed / total,
+                iteration=step,
+            )
 
     def _log_accuracy(self, aux_info, step):
         self.correct_tokens_accumulator += aux_info["correct_tokens"]
@@ -199,7 +217,7 @@ class ConditionalTrainer:
         This is a hack to easily determine the maximal batch size that can be used with given GPU memory and model size.
         """
         self.model.train()
-        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
+        processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = self.train_dataloader.get_batch()
         for tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
@@ -228,7 +246,7 @@ class ConditionalTrainer:
             ]
         )
         self.model.train()
-        processed_batch: wikibookdata.ProcessedBatch = self.train_dataloader.get_batch()
+        processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = self.train_dataloader.get_batch()
         for block_name, layer in self.layer_manager._layers:
             layer.expertsize = step + 1
             layer.init_parameters()
