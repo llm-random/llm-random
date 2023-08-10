@@ -38,9 +38,8 @@ def main(
         init_process_group("nccl", rank=rank, world_size=args.n_gpus)
         torch.cuda.set_device(rank)
 
-    VOCAB_SIZE = (
-        30522 if args.model_type == "bert" else 50258
-    )  # vocab size for gpt is 50257 + 1 for sequence_sep
+    # vocab size for gpt is 50257 + 1 for sequence_sep
+    VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     data_distributed = True if rank is not None else False
