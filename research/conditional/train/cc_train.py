@@ -42,6 +42,8 @@ def main(
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
 
+    args.objects_for_propagation = args.objects_for_propagation.split(",")
+
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
     DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
     data_distributed = True if rank is not None else False

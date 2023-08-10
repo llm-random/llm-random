@@ -1,6 +1,7 @@
 import re
 import time
 from contextlib import contextmanager
+from typing import List, Dict, Union
 
 import torch
 
@@ -68,7 +69,8 @@ class LoggingLayer(nn.Module):
         super().__init__()
         self.logging_switch = False
         self.cached_data = {}
-        self.store = None
+        self.store: Union[None, Dict[str, torch.Tensor]] = None
+        self.objects_for_propagation: List[str] = []
 
     def report_stats(self):
         assert self.logging_switch
