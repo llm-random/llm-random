@@ -18,6 +18,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--n_steps", type=int, default=90000)
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
+    parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--project_name", type=str, default="pmtest/llm-efficiency")
     parser.add_argument(

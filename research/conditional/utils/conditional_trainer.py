@@ -4,7 +4,7 @@ from typing import Optional, Literal
 
 import torch
 from attr import define
-
+from lizrd.core.misc import propagate_store
 from lizrd.datasets import wikibookdata
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
@@ -76,17 +76,31 @@ class ConditionalTrainer:
             torch.save(self.model.state_dict(), self.save_weights_path)
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
+    def _before_train_operations(self):
+        propagate_store(self.model)
+
+    def _after_step_operations(self):
+        self.model.store.clear()
+
     def train(self, n_steps: int):
+        """
+        Train the model for n_steps steps.
+        """
+        self._before_train_operations()
         self._restore_weights()
         for step in range(n_steps + 1):
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
             else:
                 self._train_step(step)
+
             if step % 1000 == 0:
                 print(f"Step {step}")
+
             if self.model_type == "gpt" and step % self.decoding_logging_steps == 0:
                 self._decode_samples(step)
+
+            self._after_step_operations()
 
     def _decode_samples(self, step):
         examples = [

@@ -70,3 +70,9 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
         self.controller_emit = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm * 2)
         )
+
+    def log_light(self):
+        log = super().log_light()
+        log["temperature_merge"] = self.temperature_merge.data.flatten().tolist()
+        log["temperature_emit"] = self.temperature_emit.data.flatten().tolist()
+        return log
