@@ -116,7 +116,7 @@ class ConditionalTrainer:
             ).to(self.train_dataloader.device)
             output_tokens = decode_single_example(
                 self.model,
-                128,
+                self.max_sequence_length,
                 tokens,
                 tokenizer._convert_token_to_id("<|endoftext|>"),
             )
