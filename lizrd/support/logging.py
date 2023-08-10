@@ -48,6 +48,12 @@ class AbstractLogger(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def report_text(
+        self, *, title: str, value: str, iteration: int, series: Optional[str] = None
+    ):
+        raise NotImplementedError()
+
+    @abstractmethod
     def report_plotly(
         self,
         *,
@@ -209,6 +215,18 @@ class NeptuneLogger(AbstractLogger):
             self.instance_logger[self._make_path(metric_name, series)].append(
                 value=metric["value"], step=metric["iteration"]
             )
+
+    def report_text(
+        self,
+        *,
+        title: str,
+        value: float,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        self.instance_logger[self._make_path(title, series)].append(
+            value=value, step=iteration
+        )
 
     def report_plotly(
         self,
