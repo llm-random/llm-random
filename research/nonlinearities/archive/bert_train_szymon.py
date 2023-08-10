@@ -10,6 +10,7 @@ from clearml import Task
 from torch.utils.tensorboard import SummaryWriter
 import time
 from lizrd.datasets import wikibookdata
+import lizrd.datasets.processed_batch
 from lizrd.support import profile
 from research.nonlinearities.core import research_bert
 
@@ -151,7 +152,7 @@ def get_model():
 def train_step(model, optimizer, pdataset, step=0):
     model.train()
     processed_batch = pdataset.get_batch(BATCH_SIZE)
-    assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+    assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
     x_set = processed_batch.masked_tokens
     y_class_set = processed_batch.swapped
     y_token_set = processed_batch.tokens
@@ -186,7 +187,9 @@ def eval_step(model, pdataset, step=0, sample=10):
         total_mask_loss = 0.0
         for sample_i in range(sample):
             processed_batch = pdataset.get_batch(BATCH_SIZE)
-            assert isinstance(processed_batch, wikibookdata.ProcessedBatch)
+            assert isinstance(
+                processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+            )
             x_set = processed_batch.masked_tokens
             y_class_set = processed_batch.swapped
             y_token_set = processed_batch.tokens
