@@ -182,10 +182,7 @@ class ConditionalTrainer:
         This is a hack to easily determine the maximal batch size that can be used with given GPU memory and model size.
         """
         self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(
-            processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
-        )
+        processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = self.train_dataloader.get_batch()
         for tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
         loss = self._calculate_loss(
@@ -214,10 +211,7 @@ class ConditionalTrainer:
             ]
         )
         self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        assert isinstance(
-            processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
-        )
+        processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = self.train_dataloader.get_batch()
         for block_name, layer in self.layer_manager._layers:
             layer.expertsize = step + 1
             layer.init_parameters()
