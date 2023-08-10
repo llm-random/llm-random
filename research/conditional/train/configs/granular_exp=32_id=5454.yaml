@@ -1,0 +1,45 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "5-05:00:00"
+n_gpus: 1
+cuda_visible: "3"
+
+# train params
+params:
+  # model
+  batch_size: 512
+  cutoff: 128
+  project_name: "pmtest/llm-efficiency"
+  name: "jk"
+  mixed_precision: true
+  tags:
+    - "mode_expert_choice"
+    - "granularity_grid_test"
+    - "more_decay"
+  use_neptune: true
+  n_steps: 150000
+  dmodel: 768
+  dff: 3072
+  n_blocks: 12
+  "^model_type":
+    - "bert"
+  "^ff_mode":
+    - "expert_choice"
+  "n_experts": 32
+  "^granularity_expert_config":
+    - true
+  "^total_experts_width":
+    - 98304
+  "^effective_dff":
+    - 3072
+  logging_interval_heavy: 1000
+  every_other_layer: false
+  logging_interval_loss: 1000
+  grad_clip: 0.5
+  lr_decay: 0.8
+  lr_warmup_steps: 0
+  lr_decay_interval: 10000
+  save_weights_path: "weights"
+  save_weights_interval: 1000
+  log_gradients_and_weights: true
+
