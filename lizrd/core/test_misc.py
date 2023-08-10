@@ -165,7 +165,10 @@ class TestChungizedCalculateLoss(GeneralTestCase):
 
         batch = dataset.get_batch()
 
-        (loss_no_chung, aux_info_no_chung,) = calculate_bert_loss(
+        (
+            loss_no_chung,
+            aux_info_no_chung,
+        ) = calculate_bert_loss(
             batch=batch,
             model=model,
             mixed_precision=False,
@@ -173,7 +176,10 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             mask_percent=mask_percentage,
         )
 
-        (loss_chung, aux_info_chung,) = chungized_bert_loss(
+        (
+            loss_chung,
+            aux_info_chung,
+        ) = chungized_bert_loss(
             batch=batch,
             model=model_chunged,
             mixed_precision=False,

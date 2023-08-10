@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader, IterableDataset
 from transformers import BertTokenizer, GPT2Tokenizer
 from attr import define
 from lizrd.datasets import wikibookdata
-from neptune.utils import stringify_unsupported
 
 from lizrd.datasets.processed_batch import (
     ProcessedBERTBatch,
