@@ -2,6 +2,7 @@ import os.path
 import copy
 from typing import Optional, Literal
 from types import SimpleNamespace as SN
+import math
 
 import numpy as np
 import torch
@@ -45,13 +46,19 @@ class ConditionalTrainer:
     lr_decay: float = None
     lr_warmup_steps: int = 0
     lr_decay_interval: int = 0
+    lr_decay_type: Literal["step", "cosine"] = "step"
     log_gradients_and_weights: bool = False
     loss_log_intervals: tuple[int] = (1, 10, 100, 1000)
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
-        self.loss_accumulators = {f"loss_interval/{i}": SN(acc=0., interval=i) for i in self.loss_log_intervals}
-        self.loss_accumulators["loss"] = SN(acc=0., interval=self.logging_interval_loss)
+        self.loss_accumulators = {
+            f"loss_interval/{i}": SN(acc=0.0, interval=i)
+            for i in self.loss_log_intervals
+        }
+        self.loss_accumulators["loss"] = SN(
+            acc=0.0, interval=self.logging_interval_loss
+        )
         self._calculate_loss = make_loss_function(
             model=self.model_type,
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
@@ -62,10 +69,27 @@ class ConditionalTrainer:
         )
         if self.lr_decay is None:
             self.lr_decay_interval = np.Inf
-        self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
-            self.optimizer, lr_lambda=lambda i: i/self.lr_warmup_steps if i < self.lr_warmup_steps else
-            self.lr_decay**(i//self.lr_decay_interval)
-        )
+        if self.lr_decay_type == "step":
+            self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.optimizer,
+                lr_lambda=lambda i: i / self.lr_warmup_steps
+                if i < self.lr_warmup_steps
+                else self.lr_decay ** (i // self.lr_decay_interval),
+            )
+        elif self.lr_decay_type == "cosine":
+            self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.optimizer,
+                lr_lambda=lambda i: i / self.lr_warmup_steps
+                if i < self.lr_warmup_steps
+                else 0.5
+                * (
+                    1
+                    + math.cos(
+                        math.pi * (i - self.lr_warmup_steps) / self.n_steps
+                        - self.lr_warmup_steps
+                    )
+                ),
+            )
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -85,9 +109,11 @@ class ConditionalTrainer:
             self.save_weights_path is not None
             and step % self.save_weights_interval == 0
         ):
-            checkpoint = {"model": self.model.state_dict(),
-                          "optimizer": self.optimizer.state_dict(),
-                          "scaler": self.scaler.state_dict()}
+            checkpoint = {
+                "model": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "scaler": self.scaler.state_dict(),
+            }
             torch.save(checkpoint, self.save_weights_path)
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
@@ -167,7 +193,9 @@ class ConditionalTrainer:
         self.logger.report_scalar(title="step", value=step, iteration=step)
         if self.train_dataloader.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
-        self.logger.report_scalar(title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step)
+        self.logger.report_scalar(
+            title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step
+        )
         for name, stats in self.loss_accumulators.items():
             stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
@@ -180,7 +208,11 @@ class ConditionalTrainer:
 
     def _log_heavy(self, step):
         g_metrics, w_metrics = {}, {}
-        if step % self.logging_interval_heavy == 0 and step > 0 and self.log_gradients_and_weights:
+        if (
+            step % self.logging_interval_heavy == 0
+            and step > 0
+            and self.log_gradients_and_weights
+        ):
             for name, value in self.model.named_parameters():
                 if value.grad is not None:
                     norm = torch.linalg.norm(value.grad)
@@ -188,8 +220,12 @@ class ConditionalTrainer:
                 if value.requires_grad:
                     norm = torch.linalg.norm(value)
                     w_metrics[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
-            g_metrics[f"weight_norms/grad_norm_total"] = torch.linalg.norm(torch.tensor(list(g_metrics.values())))
-            w_metrics[f"weight_norms/weight_norm_total"] = torch.linalg.norm(torch.tensor(list(w_metrics.values())))
+            g_metrics[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
+                torch.tensor(list(g_metrics.values()))
+            )
+            w_metrics[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
+                torch.tensor(list(w_metrics.values()))
+            )
             self._log_dict({**g_metrics, **w_metrics}, step)
 
     def _log_dict(self, metrics, step):
@@ -202,10 +238,10 @@ class ConditionalTrainer:
         processed = step * batch_size * seq_len
         total = NUM_C4_TOKENS
         self.logger.report_scalar(
-                title="Fraction of dataset that is processed (assumuing no DDP)",
-                value=processed / total,
-                iteration=step,
-            )
+            title="Fraction of dataset that is processed (assumuing no DDP)",
+            value=processed / total,
+            iteration=step,
+        )
 
     def _hack(self, hack_name, step):
         if hack_name == "batch_size":
