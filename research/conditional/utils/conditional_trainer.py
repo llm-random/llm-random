@@ -68,7 +68,7 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
-        if self.lr_decay is None:
+        if self.lr_decay == 1:
             self.lr_decay_interval = np.Inf
         if self.lr_decay_type == "step":
             self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
