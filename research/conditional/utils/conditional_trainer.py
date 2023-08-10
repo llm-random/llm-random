@@ -44,7 +44,7 @@ class ConditionalTrainer:
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
-    lr_decay: float = None
+    lr_decay: float = 1.0
     lr_warmup_steps: int = 0
     lr_decay_interval: int = 0
     lr_decay_type: Literal["step", "cosine"] = "step"
