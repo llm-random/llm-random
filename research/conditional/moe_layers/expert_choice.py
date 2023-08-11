@@ -188,7 +188,7 @@ class ExpertChoiceFF(LoggingLayer):
             "instruction_times": times_fig,
             **{
                 f"gating_heatmap_{i}": make_heatmap(
-                    self.cached_data["gate_softmax_all_values"], i
+                    self.cached_data["unflatten_gate_out"], i
                 )
                 for i in range(min(self.n_gating_heatmaps, self.n_experts))
             },
