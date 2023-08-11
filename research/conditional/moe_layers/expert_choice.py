@@ -7,7 +7,7 @@ from torch.nn import LayerNorm
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
-from lizrd.support.logging import make_histogram
+from lizrd.support.logging import make_histogram, make_heatmap
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 
@@ -20,6 +20,7 @@ class ExpertChoiceFF(LoggingLayer):
         expert_size: int,
         topk_fraction: float,
         random_perm: bool = False,
+        n_gating_heatmaps: int = 4,
     ):
         """
         Args:
@@ -38,6 +39,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
         self.random_perm = random_perm
+        self.n_gating_heatmaps = n_gating_heatmaps
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
@@ -69,6 +71,7 @@ class ExpertChoiceFF(LoggingLayer):
             # transform such that first dimension corresponds to experts
             gate_out = gate_out.permute(2, 0, 1)
             # flatten batch_size x seq_len
+            self.cache("unflatten_gate_out", gate_out)
             gate_out = gate_out.flatten(start_dim=1)
 
         # perform softmax over tokens for each expert
@@ -183,4 +186,10 @@ class ExpertChoiceFF(LoggingLayer):
             ),
             "indexes_choose_counts": make_histogram(indexes_choose_counts),
             "instruction_times": times_fig,
+            **{
+                f"gating_heatmap_{i}": make_heatmap(
+                    self.cached_data["gate_softmax_all_values"], i
+                )
+                for i in range(min(self.n_gating_heatmaps, self.n_experts))
+            },
         }
