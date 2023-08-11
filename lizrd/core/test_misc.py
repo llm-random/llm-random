@@ -147,7 +147,6 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             batch_size=batch,
             seed=0,
             model_type="bert",
-            data_distributed=False,
             use_dummy_dataset=True,
         )
 
@@ -191,7 +190,6 @@ class TestChungizedCalculateLoss(GeneralTestCase):
 
         loss_no_chung.backward()
         loss_chung.backward()
-
         assert torch.isclose(loss_no_chung, loss_chung)
         assert aux_info_no_chung["correct_tokens"] == aux_info_chung["correct_tokens"]
         assert (

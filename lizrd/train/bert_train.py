@@ -158,7 +158,9 @@ def eval_step(model, pdataset, step=0, sample=10):
         total_mask_loss = 0.0
         for sample_i in range(sample):
             processed_batch = pdataset.get_batch(BATCH_SIZE)
-            assert isinstance(processed_batch, lizrd.datasets.processed_batch.ProcessedBatch)
+            assert isinstance(
+                processed_batch, lizrd.datasets.processed_batch.ProcessedBatch
+            )
             x_set = processed_batch.masked_tokens
             y_class_set = processed_batch.swapped
             y_token_set = processed_batch.tokens
