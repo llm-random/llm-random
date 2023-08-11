@@ -7,7 +7,7 @@ from torch.nn import LayerNorm
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
-from lizrd.support.logging import make_histogram, make_heatmap
+from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 
@@ -193,3 +193,12 @@ class ExpertChoiceFF(LoggingLayer):
                 for i in range(min(self.n_gating_heatmaps, self.n_experts))
             },
         }
+
+
+def make_heatmap(tensor, expert_num, **kwargs):
+    logits_for_expert = tensor[expert_num]
+    batch_size, seq_len = logits_for_expert.shape
+    flatten_dist = logits_for_expert.flatten()
+    dist_for_expert = torch.softmax(flatten_dist.float(), dim=-1)
+    dist_for_expert = dist_for_expert.reshape(batch_size, seq_len)
+    return px.imshow(dist_for_expert.detach().cpu().numpy(), **kwargs)
