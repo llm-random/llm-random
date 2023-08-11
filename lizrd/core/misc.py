@@ -328,7 +328,7 @@ def propagate_store(module: torch.nn.Module, store=None):
     This function propagates the cache from the module to all its children.
     """
     if store is None:
-        store = dict()
+        store = list()
     module.store = store
     for child in module.children():
         propagate_store(child, store)
@@ -341,7 +341,8 @@ def propagate_names(module: torch.nn.Module):
     for name, layer in module.named_modules():
         should_be_named, clean_name = process_name(name)
         if should_be_named and isinstance(layer, LoggingLayer):
-            layer.name = clean_name
+            layer.block_number = clean_name["block_number"]
+            layer.layer_type = clean_name["layer_type"]
 
 
 def process_name(name: str):
@@ -354,7 +355,7 @@ def process_name(name: str):
         match
     ), f"Could not find pattern {pattern} in name {name}. The naming convention of model layers is not as expected."
     block_num = match.group(1)
-    return True, f"{block_num}_{suffix}"
+    return True, {"block_number": block_num, "layer_type": suffix}
 
 
 def propagate_object_names(module: torch.nn.Module, names: List[str]):

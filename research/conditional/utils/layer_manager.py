@@ -1,9 +1,10 @@
 import re
 import time
 from contextlib import contextmanager
-from typing import List, Dict, Union
+from typing import List, Union, Any
 
 import torch
+from attr import define
 
 from lizrd.core import nn
 from lizrd.support.logging import get_current_logger
@@ -68,8 +69,10 @@ class LoggingLayer(nn.Module):
     def __init__(self):
         super().__init__()
         self.logging_switch = False
+        self.layer_type: Union[str, None] = None
+        self.block_number: Union[int, None] = None
         self.cached_data = {}
-        self.store: Union[None, Dict[str, torch.Tensor]] = None
+        self.store: Union[list, None] = None
         self.objects_for_propagation: List[str] = []
 
     def report_stats(self):
@@ -93,8 +96,25 @@ class LoggingLayer(nn.Module):
                 self.cached_data[key] = value.clone().detach().cpu()
 
     def cache_for_propagation(self, key, value):
-        named_key = f"{self.name}_{key}"
-        self.store[named_key] = value
+        object = StoreObject(
+            layer_type=self.layer_type,
+            block_number=self.block_number,
+            key=key,
+            data=value,
+        )
+        self.store.append(object)
+
+    def get_from_store(self, key, block_number, layer_type):
+        for object in self.store:
+            if (
+                object.key == key
+                and object.block_number == block_number
+                and object.layer_type == layer_type
+            ):
+                return object.data
+        raise Exception(
+            f"Object with key {key} not cached by layer {layer_type}, block {block_number}"
+        )
 
     def log(self, verbosity_level):
         if verbosity_level == 0:
@@ -111,6 +131,14 @@ class LoggingLayer(nn.Module):
 
     def log_heavy(self):
         return {}
+
+
+@define
+class StoreObject:
+    layer_type: str
+    block_number: int
+    key: str
+    data: Union[torch.Tensor, Any]
 
 
 @contextmanager
