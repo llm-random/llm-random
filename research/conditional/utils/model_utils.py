@@ -36,7 +36,6 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from research.conditional.moe_layers.kernelized import FCKernelized
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -88,7 +87,14 @@ def chungized_llm_loss(
                     gt.reshape(-1).long(),
                     reduction="none",
                 )
-            return loss * mask.reshape(-1)
+
+                correct_tokens = gt.long() == output.argmax(dim=-1)
+                correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+                correct_tokens = correct_tokens.sum()
+
+                total_tokens = mask.sum()
+
+            return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
 
         return custom_forward
 
@@ -99,16 +105,22 @@ def chungized_llm_loss(
 
     num_tokens = 0
     total_loss = 0
+    total_correct_tokens = 0
+    total_masked_tokens = 0
     for chunged_input, chunged_gt, chunged_mask in zip(
         chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
     ):
-        partial_loss_output = checkpoint(
+        partial_loss_output, partial_correct_tokens, partial_masked_tokens = checkpoint(
             make_custom_forward(vocab_size), chunged_input, chunged_gt, chunged_mask
         )
-
         num_tokens += partial_loss_output.shape[0]
         total_loss += partial_loss_output.sum()
-    return total_loss / num_tokens / mask_percent
+        total_correct_tokens += partial_correct_tokens
+        total_masked_tokens += partial_masked_tokens
+    return total_loss / num_tokens / mask_percent, {
+        "correct_tokens": total_correct_tokens,
+        "total_masked_tokens": total_masked_tokens,
+    }
 
 
 def chungized_bert_loss(
@@ -155,9 +167,18 @@ def calculate_llm_loss(
         gt_tokens.reshape(-1).long(),
         reduction="none",
     )
-    mask_loss *= mask.reshape(-1)
+    mask_loss = mask_loss[mask.reshape(-1) == 1]
     loss = mask_loss.mean() / mask_percent
-    return loss
+
+    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+    correct_tokens = correct_tokens.sum()
+    total_masked_tokens = mask.sum()
+
+    return loss, {
+        "correct_tokens": correct_tokens,
+        "total_masked_tokens": total_masked_tokens,
+    }
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
@@ -186,7 +207,9 @@ def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent)
 
 def get_attention_layer(args):
     if args.model_type == "gpt":
-        attention_layer_fun = lambda: llm.CausalAttention(args.dmodel, args.n_att_heads)
+        attention_layer_fun = lambda: llm.CausalAttention(
+            args.dmodel, args.n_att_heads, args.dhead
+        )
     elif args.model_type == "bert":
         attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     else:
@@ -360,6 +383,8 @@ def get_ff_layer(args):
             **get_expert_choice_args(args),
         )
     elif args.ff_mode == "kernelized_fc":
+        from research.conditional.moe_layers.kernelized import FCKernelized
+
         return_fn = lambda: FCKernelized(
             dmodel=args.dmodel,
             dff=args.dff,

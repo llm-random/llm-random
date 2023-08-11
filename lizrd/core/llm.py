@@ -217,7 +217,7 @@ class CausalAttention(nn.Module):
 
 
 class ReZero(nn.Module):
-    def __init__(self, fn, init=0.):
+    def __init__(self, fn, init=0.0):
         super().__init__()
         self.rezero_g = nn.Parameter(torch.tensor(init))
         self.fn = fn
@@ -233,12 +233,12 @@ def ResidualBlock(dmodel, layer, name, post_norm, rezero):
         return Residual(ReZero(layer))
     if post_norm:
         return nn.Sequential(
-                OrderedDict(
-                    [
-                        (f"{name}", Residual(layer)),
-                        ("post_norm", nn.LayerNorm(dmodel)),
-                    ]
-                )
+            OrderedDict(
+                [
+                    (f"{name}", Residual(layer)),
+                    ("post_norm", nn.LayerNorm(dmodel)),
+                ]
+            )
         )
     return Residual(
         nn.Sequential(
@@ -253,7 +253,9 @@ def ResidualBlock(dmodel, layer, name, post_norm, rezero):
 
 
 @ash.check("... d -> ... d")
-def TransformerBlock(dmodel, layers, gradient_checkpointing, post_norm=False, rezero=False):
+def TransformerBlock(
+    dmodel, layers, gradient_checkpointing, post_norm=False, rezero=False
+):
     residual_layers = []
     for name, layer in layers:
         block = ResidualBlock(dmodel, layer, name, post_norm, rezero)
@@ -291,9 +293,9 @@ class TransformerTower(nn.Module):
             _, current_device = self.get_current_device(i_block)
             name_and_block = (
                 f"block_{i_block}",
-                TransformerBlock(dmodel, layers_info, gradient_checkpointing, post_norm, rezero).to(
-                    current_device
-                ),
+                TransformerBlock(
+                    dmodel, layers_info, gradient_checkpointing, post_norm, rezero
+                ).to(current_device),
             )
             self.blocks.append(name_and_block)
         self.blocks = nn.Sequential(OrderedDict(self.blocks))

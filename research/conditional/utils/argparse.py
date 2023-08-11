@@ -9,6 +9,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--dmodel", type=int, default=768)
     parser.add_argument("--dff", type=int, default=3072)
     parser.add_argument("--n_att_heads", type=int, default=8)
+    parser.add_argument("--dhead", type=int, default=None)
     parser.add_argument("--n_blocks", type=int, default=4)
     parser.add_argument("--mixed_precision", action="store_true")
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
@@ -18,6 +19,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--n_steps", type=int, default=90000)
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
+    parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--project_name", type=str, default="pmtest/llm-efficiency")
     parser.add_argument(
@@ -84,6 +86,7 @@ def introduce_parser_arguments(parser):
     )
     parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
+    parser.add_argument("--dataset_type", type=str, default="wikibook")
 
     # experimental/legacy parameters
 

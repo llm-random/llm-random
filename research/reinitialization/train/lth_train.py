@@ -7,11 +7,11 @@ from clearml import Task
 
 from lizrd.core import misc
 from lizrd.core import llm
+from lizrd.datasets.wikibookdata import get_processed_dataset
 from research.reinitialization.core import linears, linears_recycle
 from research.reinitialization.core.pruner import VariableProbabilityPruner
 from lizrd.train.train_utils import (
     get_model,
-    get_processed_dataset,
     LTHTrainer,
 )
 
