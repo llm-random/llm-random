@@ -8,7 +8,6 @@ from lizrd.core import nn
 from lizrd.support import ash
 from torch.utils.checkpoint import checkpoint
 import torch.nn
-
 from research.conditional.utils.layer_manager import LoggingLayer
 
 

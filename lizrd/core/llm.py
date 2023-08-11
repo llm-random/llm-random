@@ -157,7 +157,6 @@ class Attention(LoggingLayer):
         q = self.Q(x)
         k = self.K(x)
         v = self.V(x)
-
         if "attention_keys" in self.objects_for_propagation:
             self.cache_for_propagation("attention_keys", k)
         a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)

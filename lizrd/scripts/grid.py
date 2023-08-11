@@ -219,7 +219,6 @@ if __name__ == "__main__":
             subprocess_args = [
                 "singularity",
                 "run",
-                f"--env HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
