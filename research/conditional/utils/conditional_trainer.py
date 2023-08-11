@@ -1,5 +1,6 @@
 import os.path
 import copy
+import time
 from typing import Optional, Literal
 
 import torch
@@ -43,6 +44,9 @@ class ConditionalTrainer:
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
     decoding_logging_steps: int = 5_000
+    total_time_trainsteps: float = 0.0
+    total_time_decoding: float = 0.0
+    total_time_afterstep: float = 0.0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -89,18 +93,50 @@ class ConditionalTrainer:
         self._before_train_operations()
         self._restore_weights()
         for step in range(n_steps + 1):
+            t0 = time.time()
+
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
             else:
                 self._train_step(step)
 
+            t1 = time.time()
             if step % 1000 == 0:
                 print(f"Step {step}")
 
             if self.model_type == "gpt" and step % self.decoding_logging_steps == 0:
                 self._decode_samples(step)
 
+            t2 = time.time()
             self._after_step_operations()
+
+            t3 = time.time()
+
+            self.total_time_trainsteps += t1 - t0
+            self.total_time_decoding += t2 - t1
+            self.total_time_afterstep += t3 - t2
+
+            if step % 1000 == 0:
+                total_time = (
+                    self.total_time_trainsteps
+                    + self.total_time_decoding
+                    + self.total_time_afterstep
+                )
+                self.logger.report_scalar(
+                    title="time/trainstep_fraction",
+                    value=self.total_time_trainsteps / total_time,
+                    iteration=step,
+                )
+                self.logger.report_scalar(
+                    title="time/decoding_fraction",
+                    value=self.total_time_decoding / total_time,
+                    iteration=step,
+                )
+                self.logger.report_scalar(
+                    title="time/afterstep_fraction",
+                    value=self.total_time_afterstep / total_time,
+                    iteration=step,
+                )
 
     def _decode_samples(self, step):
         examples = [
