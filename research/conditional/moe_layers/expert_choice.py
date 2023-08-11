@@ -20,6 +20,7 @@ class ExpertChoiceFF(LoggingLayer):
         expert_size: int,
         topk_fraction: float,
         random_perm: bool = False,
+        n_gating_heatmaps: int = 4,
     ):
         """
         Args:
@@ -38,6 +39,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
         self.random_perm = random_perm
+        self.n_gating_heatmaps = n_gating_heatmaps
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
@@ -69,6 +71,7 @@ class ExpertChoiceFF(LoggingLayer):
             # transform such that first dimension corresponds to experts
             gate_out = gate_out.permute(2, 0, 1)
             # flatten batch_size x seq_len
+            self.cache("unflatten_gate_out", gate_out)
             gate_out = gate_out.flatten(start_dim=1)
 
         # perform softmax over tokens for each expert
@@ -183,4 +186,19 @@ class ExpertChoiceFF(LoggingLayer):
             ),
             "indexes_choose_counts": make_histogram(indexes_choose_counts),
             "instruction_times": times_fig,
+            **{
+                f"gating_heatmap_{i}": make_heatmap(
+                    self.cached_data["unflatten_gate_out"], i
+                )
+                for i in range(min(self.n_gating_heatmaps, self.n_experts))
+            },
         }
+
+
+def make_heatmap(tensor, expert_num, **kwargs):
+    logits_for_expert = tensor[expert_num]
+    batch_size, seq_len = logits_for_expert.shape
+    flatten_dist = logits_for_expert.flatten()
+    dist_for_expert = torch.softmax(flatten_dist.float(), dim=-1)
+    dist_for_expert = dist_for_expert.reshape(batch_size, seq_len)
+    return px.imshow(dist_for_expert.detach().cpu().numpy(), **kwargs)
