@@ -39,7 +39,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--adam_beta1", type=float, default=0.9)
     parser.add_argument("--adam_beta2", type=float, default=0.999)
     parser.add_argument("--no_ff", action="store_true")
-    parser.add_argument("--loss_checkpoint_chungs", type=str, default=0)
+    parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
 
     # paremeters for specific experiments
