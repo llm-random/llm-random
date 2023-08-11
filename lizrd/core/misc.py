@@ -1,4 +1,6 @@
 import re
+from typing import List
+
 import torch
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
@@ -6,6 +8,8 @@ from lizrd.core import nn
 from lizrd.support import ash
 from torch.utils.checkpoint import checkpoint
 import torch.nn
+
+from research.conditional.utils.layer_manager import LoggingLayer
 
 
 class Noop(nn.Module):
@@ -336,7 +340,7 @@ def propagate_names(module: torch.nn.Module):
     """
     for name, layer in module.named_modules():
         should_be_named, clean_name = process_name(name)
-        if should_be_named:
+        if should_be_named and isinstance(layer, LoggingLayer):
             layer.name = clean_name
 
 
@@ -351,3 +355,9 @@ def process_name(name: str):
     ), f"Could not find pattern {pattern} in name {name}. The naming convention of model layers is not as expected."
     block_num = match.group(1)
     return True, f"{block_num}_{suffix}"
+
+
+def propagate_object_names(module: torch.nn.Module, names: List[str]):
+    for _, layer in module.named_modules():
+        if isinstance(layer, LoggingLayer):
+            layer.objects_for_propagation = names

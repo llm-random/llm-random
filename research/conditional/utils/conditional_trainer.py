@@ -1,10 +1,10 @@
 import os.path
 import copy
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 import torch
 from attr import define
-from lizrd.core.misc import propagate_store, propagate_names
+from lizrd.core.misc import propagate_store, propagate_names, propagate_object_names
 from lizrd.datasets import wikibookdata
 import lizrd.datasets.processed_batch
 from lizrd.support.logging import AbstractLogger
@@ -40,6 +40,7 @@ class ConditionalTrainer:
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
+    objects_for_propagation: Optional[List[str]] = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -78,6 +79,7 @@ class ConditionalTrainer:
     def _before_train_operations(self):
         propagate_store(self.model)
         propagate_names(self.model)
+        propagate_object_names(self.model, self.objects_for_propagation)
 
     def _after_step_operations(self):
         self.model.store.clear()

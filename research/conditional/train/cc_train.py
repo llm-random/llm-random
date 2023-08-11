@@ -115,6 +115,7 @@ def main(
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
+        objects_for_propagation=args.objects_for_propagation,
     )
     trainer.train(args.n_steps)
 
