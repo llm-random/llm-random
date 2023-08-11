@@ -242,6 +242,7 @@ def get_expert_choice_args(args):
         "expert_size": expert_size,
         "topk_fraction": topk_fraction,
         "random_perm": args.expert_random_perm,
+        "softmax_over": args.softmax_over,
     }
 
 
