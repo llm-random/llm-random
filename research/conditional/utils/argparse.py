@@ -9,6 +9,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--dmodel", type=int, default=768)
     parser.add_argument("--dff", type=int, default=3072)
     parser.add_argument("--n_att_heads", type=int, default=8)
+    parser.add_argument("--dhead", type=int, default=None)
     parser.add_argument("--n_blocks", type=int, default=4)
     parser.add_argument("--mixed_precision", action="store_true")
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
@@ -40,7 +41,6 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--no_ff", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=str, default=0)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
-    parser.add_argument("--auto_find_grad_accumulation", action="store_true")
 
     # paremeters for specific experiments
 
@@ -78,6 +78,7 @@ def introduce_parser_arguments(parser):
         help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
     )
     parser.add_argument("--data_distributed", action="store_true")
+    parser.add_argument("--dataset_type", type=str, default="wikibook")
 
     # experimental/legacy parameters
 
