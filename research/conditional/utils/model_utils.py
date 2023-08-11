@@ -5,6 +5,9 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
+from research.conditional.moe_layers.cont_moe_designs.group_by_keys import (
+    ContinuousMoEGroupByKeys,
+)
 from research.conditional.moe_layers.cont_moe_designs.random_grouping import (
     ContinuousMoERandomGroups,
 )
@@ -376,6 +379,18 @@ def get_ff_layer(args):
             batch_size=args.batch_size,
             seqlen=args.cutoff,
             mix_whole_batch=args.mix_whole_batch,
+        )
+    elif args.ff_mode == "cont_moe_group_by_keys":
+        return_fn = lambda: ContinuousMoEGroupByKeys(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
         )
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(
