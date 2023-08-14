@@ -240,7 +240,8 @@ def get_expert_choice_args(args):
         "expert_size": expert_size,
         "topk_fraction": topk_fraction,
         "random_perm": args.expert_random_perm,
-        "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
+        "group_by_batch": args.group_granular_moe_by_batch,
+        "one_hot_impl": args.granuar_moe_one_hot_impl,
     }
 
 

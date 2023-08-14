@@ -86,6 +86,7 @@ def introduce_parser_arguments(parser):
     )
     parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
+    parser.add_argument("--granuar_moe_one_hot_impl", action="store_true")
     parser.add_argument("--dataset_type", type=str, default="wikibook")
 
     # experimental/legacy parameters

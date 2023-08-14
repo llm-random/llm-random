@@ -20,7 +20,8 @@ class ExpertChoiceFF(LoggingLayer):
         expert_size: int,
         topk_fraction: float,
         random_perm: bool = False,
-        group_granular_moe_by_batch: bool = False,
+        group_by_batch: bool = False,
+        one_hot_impl: bool = False,
         n_gating_heatmaps: int = 4,
     ):
         """
@@ -40,7 +41,8 @@ class ExpertChoiceFF(LoggingLayer):
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
         self.random_perm = random_perm
-        self.group_granular_moe_by_batch = group_granular_moe_by_batch
+        self.group_granular_moe_by_batch = group_by_batch
+        self.one_hot_impl = one_hot_impl
         self.n_gating_heatmaps = n_gating_heatmaps
 
         self.lin1_weight = nn.Parameter(
@@ -62,6 +64,7 @@ class ExpertChoiceFF(LoggingLayer):
         batch_size, seq_len = x.shape[0], x.shape[1]
 
         x, topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
+        x = self.extract_chosen_tokens(x, topk, topk_indices)
         x = self.feed_forward(x, topk)
         x = self.gating_postprocess(
             x, batch_size, topk, seq_len, topk_values, topk_indices
@@ -120,20 +123,30 @@ class ExpertChoiceFF(LoggingLayer):
                 torch.randperm(self.n_experts * topk)
             ].reshape((self.n_experts, topk))
 
+        return x, topk, topk_indices, topk_values
+
+    def extract_chosen_tokens(self, x: torch.Tensor, topk, topk_indices):
         # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
         with measure_time(self, "first_flatten"):
             x = x.flatten(start_dim=0, end_dim=1)
 
         # choose the right tokens from x for each expert
-        with measure_time(self, "index_select"):
-            x = torch.index_select(x, dim=0, index=topk_indices.flatten()).reshape(
-                (self.n_experts, topk, self.dmodel)
-            )
+        if self.one_hot_impl:
+            with measure_time(self, "one_hot"):
+                one_hot = F.one_hot(topk_indices, num_classes=x.shape[0]).type(x.dtype)
+                x = einsum(
+                    "n_tokens dmodel, n_exp topk n_tokens -> n_exp topk dmodel",
+                    x,
+                    one_hot,
+                )
+        else:
+            with measure_time(self, "index_select"):
+                x = torch.index_select(x, dim=0, index=topk_indices.flatten())
+                x = x.reshape(self.n_experts, topk, self.dmodel)
 
         with measure_time(self, "reshape"):
             x = x.reshape((self.n_experts, topk, self.dmodel))
-
-        return x, topk, topk_indices, topk_values
+        return x
 
     def feed_forward(self, x: torch.Tensor, topk: int) -> torch.Tensor:
         # feed through ff
