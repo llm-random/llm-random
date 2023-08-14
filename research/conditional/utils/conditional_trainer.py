@@ -1,8 +1,10 @@
 import os.path
 import copy
+from types import SimpleNamespace as SN
 import time
 from typing import Callable, Optional, Literal
 
+import numpy as np
 import torch
 from attr import define
 from lizrd.core.misc import propagate_store
@@ -45,6 +47,11 @@ class ConditionalTrainer:
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
+    lr_decay: float = None
+    lr_warmup_steps: int = 0
+    lr_decay_interval: int = 0
+    log_gradients_and_weights: bool = False
+    loss_log_intervals: tuple[int] = (1, 10, 100, 1000)
     decoding_logging_steps: int = 5_000
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
@@ -52,7 +59,13 @@ class ConditionalTrainer:
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
-        self.loss_accumulator = 0.0
+        self.loss_accumulators = {
+            f"loss_interval/{i}": SN(acc=0.0, interval=i)
+            for i in self.loss_log_intervals
+        }
+        self.loss_accumulators["loss"] = SN(
+            acc=0.0, interval=self.logging_interval_loss
+        )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self._calculate_loss = make_loss_function(
@@ -62,14 +75,23 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
+        if self.lr_decay is None:
+            self.lr_decay_interval = np.Inf
+        self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+            self.optimizer,
+            lr_lambda=lambda i: i / self.lr_warmup_steps
+            if i < self.lr_warmup_steps
+            else self.lr_decay ** (i // self.lr_decay_interval),
+        )
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
             if os.path.exists(self.load_weights_path):
                 print(f"Loading weights from {self.load_weights_path}")
-                self.model.load_state_dict(
-                    torch.load(self.load_weights_path), strict=False
-                )
+                checkpoint = torch.load(self.load_weights_path)
+                self.model.load_state_dict(checkpoint["model"], strict=False)
+                self.optimizer.load_state_dict(checkpoint["optimizer"])
+                self.scaler.load_state_dict(checkpoint["scaler"])
             else:
                 print(
                     f"No weights found at {self.load_weights_path}, training from scratch"
@@ -80,7 +102,12 @@ class ConditionalTrainer:
             self.save_weights_path is not None
             and step % self.save_weights_interval == 0
         ):
-            torch.save(self.model.state_dict(), self.save_weights_path)
+            checkpoint = {
+                "model": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "scaler": self.scaler.state_dict(),
+            }
+            torch.save(checkpoint, self.save_weights_path)
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
@@ -176,6 +203,7 @@ class ConditionalTrainer:
         self.scaler.scale(loss).backward()
         if should_apply_gradient:
             if self.gradient_clipping is not None:
+                self.scaler.unscale_(self.optimizer)
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), self.gradient_clipping
                 )
@@ -196,10 +224,12 @@ class ConditionalTrainer:
         )
 
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
+        self.lr_scheduler.step()
         if self.logger is not None:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
+            self._log_heavy(step)
         self._save_weights(step)
 
     def optimize_with_gradient_accumulation(
@@ -238,16 +268,46 @@ class ConditionalTrainer:
 
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
+        self.logger.report_scalar(
+            title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step
+        )
         if self.train_dataloader.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
-        self.loss_accumulator += loss_value
-        if step % self.logging_interval_loss == 0 and step > 0:
-            self.logger.report_scalar(
-                title="loss",
-                value=self.loss_accumulator / self.logging_interval_loss,
-                iteration=step,
+        for name, stats in self.loss_accumulators.items():
+            stats.acc += loss_value
+            if step % stats.interval == 0 and step > 0:
+                self.logger.report_scalar(
+                    title=name,
+                    value=stats.acc / stats.interval,
+                    iteration=step,
+                )
+                stats.acc = 0.0
+
+    def _log_heavy(self, step):
+        g_metrics, w_metrics = {}, {}
+        if (
+            step % self.logging_interval_heavy == 0
+            and step > 0
+            and self.log_gradients_and_weights
+        ):
+            for name, value in self.model.named_parameters():
+                if value.grad is not None:
+                    norm = torch.linalg.norm(value.grad)
+                    g_metrics[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
+                if value.requires_grad:
+                    norm = torch.linalg.norm(value)
+                    w_metrics[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
+            g_metrics[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
+                torch.tensor(list(g_metrics.values()))
             )
-            self.loss_accumulator = 0.0
+            w_metrics[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
+                torch.tensor(list(w_metrics.values()))
+            )
+            self._log_dict({**g_metrics, **w_metrics}, step)
+
+    def _log_dict(self, metrics, step):
+        for k, v in metrics.items():
+            self.logger.report_scalar(title=k, value=v, iteration=step)
 
     def _log_fraction_dataset_processed(self, step):
         batch_size = self.train_dataloader.batch_size
