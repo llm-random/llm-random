@@ -1,7 +1,7 @@
 import os.path
 import copy
 import time
-from typing import Optional, Literal
+from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
@@ -32,7 +32,7 @@ class ConditionalTrainer:
     logging_interval_light: int
     logging_interval_heavy: int
     max_sequence_length: int
-    _calculate_loss: Optional[callable] = None
+    _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
@@ -58,7 +58,6 @@ class ConditionalTrainer:
         self._calculate_loss = make_loss_function(
             model=self.model_type,
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
-            mask_percentage=self.mask_percent,
         )
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
