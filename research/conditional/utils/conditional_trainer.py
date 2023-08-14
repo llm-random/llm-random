@@ -1,7 +1,7 @@
 import os.path
 import copy
 import time
-from typing import Callable, Optional, Literal
+from typing import Callable, Optional, Literal, Dict
 
 import torch
 from attr import define
@@ -52,7 +52,7 @@ class ConditionalTrainer:
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
-        self.loss_accumulator = 0.0
+        self.loss_accumulator: Dict[str, float] = {"correct": 0.0, "legacy": 0.0}
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self._calculate_loss = make_loss_function(
@@ -196,8 +196,15 @@ class ConditionalTrainer:
         )
 
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
+
         if self.logger is not None:
-            self._log_train_stats(loss, step)
+            self._log_train_stats(loss, step, "correct")
+            if self.model_type == "bert":
+                mask_percent = self.mask_percent
+                numel = processed_batch.tokens.numel()
+                real_mask_percent = aux_info["total_masked_tokens"] / numel
+                legacy_loss = loss * real_mask_percent / mask_percent
+                self._log_train_stats(legacy_loss, step, "legacy")
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
         self._save_weights(step)
@@ -236,18 +243,23 @@ class ConditionalTrainer:
             "total_masked_tokens": total_masked_tokens_value,
         }
 
-    def _log_train_stats(self, loss_value, step):
-        self.logger.report_scalar(title="step", value=step, iteration=step)
+    def _log_train_stats(self, loss_value, step, series):
+        self.logger.report_scalar(
+            title="step",
+            value=step,
+            iteration=step,
+        )
         if self.train_dataloader.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
-        self.loss_accumulator += loss_value
+        self.loss_accumulator[series] += loss_value
         if step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
                 title="loss",
-                value=self.loss_accumulator / self.logging_interval_loss,
+                value=self.loss_accumulator[series] / self.logging_interval_loss,
                 iteration=step,
+                series=series,
             )
-            self.loss_accumulator = 0.0
+            self.loss_accumulator[series] = 0.0
 
     def _log_fraction_dataset_processed(self, step):
         batch_size = self.train_dataloader.batch_size
