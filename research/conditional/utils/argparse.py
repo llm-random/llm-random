@@ -71,6 +71,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--xfavor", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
+    parser.add_argument("--dff_parallel", type=int, default=128)
     parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,

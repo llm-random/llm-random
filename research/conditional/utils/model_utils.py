@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
+from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.random_grouping import (
     ContinuousMoERandomGroups,
 )
@@ -380,6 +381,11 @@ def get_ff_layer(args):
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(
             **get_expert_choice_args(args),
+        )
+    elif args.ff_mode == "expert_choice_with_parallel":
+        return_fn = lambda: Parallel(
+            ExpertChoiceFF(**get_expert_choice_args(args)),
+            llm.FeedForward(args.dmodel, args.dff_parallel),
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized

@@ -79,6 +79,17 @@ class Residual(nn.Module):
         return out + x
 
 
+@ash.check("... -> ... ")
+class Parallel(nn.Module):
+    def __init__(self, *layers):
+        super(Parallel, self).__init__()
+        self.layers = layers
+
+    def forward(self, x):
+        outs = [layer(x) for layer in self.layers]
+        return sum(outs)
+
+
 @ash.check("... dinp -> ... a b")
 class SplitLastAxis(nn.Module):
     def __init__(self, a, b):
