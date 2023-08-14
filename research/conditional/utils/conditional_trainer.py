@@ -1,11 +1,14 @@
 import os.path
 import copy
 from typing import Optional, Literal, List
+import time
+from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
 from lizrd.core.misc import propagate_store, propagate_names, propagate_object_names
 from lizrd.datasets import wikibookdata
+from lizrd.support.decoding import decode_single_example
 import lizrd.datasets.processed_batch
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
@@ -13,6 +16,7 @@ from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
 from lizrd.datasets.c4 import NUM_C4_TOKENS
+from transformers import GPT2Tokenizer
 
 
 @define(slots=False)
@@ -27,7 +31,8 @@ class ConditionalTrainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
-    _calculate_loss: Optional[callable] = None
+    max_sequence_length: int
+    _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
@@ -41,6 +46,10 @@ class ConditionalTrainer:
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
     objects_for_propagation: Optional[List[str]] = None
+    decoding_logging_steps: int = 5_000
+    total_time_trainsteps: float = 0.0
+    total_time_decoding: float = 0.0
+    total_time_afterstep: float = 0.0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -50,7 +59,6 @@ class ConditionalTrainer:
         self._calculate_loss = make_loss_function(
             model=self.model_type,
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
-            mask_percentage=self.mask_percent,
         )
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
@@ -91,13 +99,76 @@ class ConditionalTrainer:
         self._before_train_operations()
         self._restore_weights()
         for step in range(n_steps + 1):
+            t0 = time.time()
+
             if self.hack_name is not None:
                 self._hack(self.hack_name, step)
             else:
                 self._train_step(step)
+
+            t1 = time.time()
             if step % 1000 == 0:
                 print(f"Step {step}")
+
+            if self.model_type == "gpt" and step % self.decoding_logging_steps == 0:
+                self._decode_samples(step)
+
+            t2 = time.time()
             self._after_step_operations()
+
+            t3 = time.time()
+
+            self.total_time_trainsteps += t1 - t0
+            self.total_time_decoding += t2 - t1
+            self.total_time_afterstep += t3 - t2
+
+            if step % 1000 == 0:
+                total_time = (
+                    self.total_time_trainsteps
+                    + self.total_time_decoding
+                    + self.total_time_afterstep
+                )
+                self.logger.report_scalar(
+                    title="time/trainstep_fraction",
+                    value=self.total_time_trainsteps / total_time,
+                    iteration=step,
+                )
+                self.logger.report_scalar(
+                    title="time/decoding_fraction",
+                    value=self.total_time_decoding / total_time,
+                    iteration=step,
+                )
+                self.logger.report_scalar(
+                    title="time/afterstep_fraction",
+                    value=self.total_time_afterstep / total_time,
+                    iteration=step,
+                )
+
+    def _decode_samples(self, step):
+        examples = [
+            "1, 2, 3, 4, 5",
+            "Our Father, who art in heaven,",
+            "Warsaw -> Poland Paris -> France Berlin ->",
+            "Speech at a funeral of a fly: ",
+        ]
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        for example in examples:
+            tokens = torch.tensor(
+                tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))
+            ).to(self.train_dataloader.device)
+            output_tokens = decode_single_example(
+                self.model,
+                self.max_sequence_length,
+                tokens,
+                tokenizer._convert_token_to_id("<|endoftext|>"),
+            )
+            decoded_output = tokenizer.decode(output_tokens)
+            print(f"{example}: {decoded_output}")
+            self.logger.report_text(
+                title=f"decoding_sample/{example}",
+                value=decoded_output,
+                iteration=step,
+            )
 
     def _optimize(self, loss, should_apply_gradient=False):
         # since we sum gradients averaged over multiple smaller batches, we need to normalize here
