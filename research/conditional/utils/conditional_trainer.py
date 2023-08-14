@@ -96,7 +96,7 @@ class ConditionalTrainer:
         )
 
     def _after_step_operations(self):
-        self.model.store.clear()
+        self.model.forward_pass_cache.clear()
 
     def train(self, n_steps: int):
         """
