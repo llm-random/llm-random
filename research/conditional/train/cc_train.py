@@ -122,6 +122,7 @@ def main(
         lr_warmup_steps=args.lr_warmup_steps,
         lr_decay_interval=args.lr_decay_interval,
         log_gradients_and_weights=args.log_gradients_and_weights,
+        max_sequence_length=args.cutoff,
     )
     trainer.train(args.n_steps)
 
