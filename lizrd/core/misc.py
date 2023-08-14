@@ -330,7 +330,7 @@ def propagate_common_forward_pass_cache(
     """
     if forward_pass_cache is None:
         forward_pass_cache = list()
-    module.store = forward_pass_cache
+    module.forward_pass_cache = forward_pass_cache
     for child in module.children():
         propagate_common_forward_pass_cache(child, forward_pass_cache)
 
