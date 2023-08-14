@@ -60,9 +60,19 @@ class ExpertChoiceFF(LoggingLayer):
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len = x.shape[0], x.shape[1]
-        n_examples = batch_size * seq_len
-        topk = round(self.topk_fraction * n_examples)
 
+        x, topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
+        x = self.feed_forward(x, topk)
+        x = self.gating_postprocess(
+            x, batch_size, topk, seq_len, topk_values, topk_indices
+        )
+
+        with measure_time(self, "layer_norm"):
+            x = self.ln(x)
+
+        return x
+
+    def expert_gating(self, x: torch.Tensor, batch_size: int, seq_len: int):
         # expert embedding
         with measure_time(self, "expert_embedding"):
             gate_out = einsum(
@@ -74,16 +84,29 @@ class ExpertChoiceFF(LoggingLayer):
             gate_out = gate_out.permute(2, 0, 1)
             # flatten batch_size x seq_len
             self.cache("unflatten_gate_out", gate_out)
-            gate_out = gate_out.flatten(start_dim=1)
+
+            # each expert chooses k within dimension 1
+            if not self.group_granular_moe_by_batch:
+                gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+        topk = round(self.topk_fraction * gate_out.shape[1])
 
         # perform softmax over tokens for each expert
         with measure_time(self, "softmax"):
             gate_out = torch.softmax(gate_out, dim=1)
-
         self.cache("gate_softmax_all_values", gate_out)
+
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
             topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+
+        with measure_time(self, "indexing_change"):
+            if self.group_granular_moe_by_batch:
+                # change indexing to recall to batch_size x seq_len
+                row_number = torch.arange(seq_len).to(topk_indices.device)
+                topk_indices = topk_indices * seq_len + row_number
+                topk *= seq_len
+                topk_indices = topk_indices.reshape(self.n_experts, topk)
+                topk_values = topk_values.reshape(self.n_experts, topk)
 
         # cache values for logging
         self.cache("gate_softmax_topk_vals", topk_values)
@@ -110,6 +133,9 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "reshape"):
             x = x.reshape((self.n_experts, topk, self.dmodel))
 
+        return x, topk, topk_indices, topk_values
+
+    def feed_forward(self, x: torch.Tensor, topk: int) -> torch.Tensor:
         # feed through ff
         with measure_time(self, "ff"):
             # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, exp_size)
@@ -128,7 +154,11 @@ class ExpertChoiceFF(LoggingLayer):
                 self.lin2_weight,
             )
             ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.dmodel)
+        return x
 
+    def gating_postprocess(
+        self, x, batch_size, topk, seq_len, topk_values, topk_indices
+    ):
         # multiply by softmax
         with measure_time(self, "multiply_softmax"):
             ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
@@ -151,10 +181,6 @@ class ExpertChoiceFF(LoggingLayer):
 
             # reshape to (batch_size, seq_len, dmodel)
             x = z.reshape((batch_size, seq_len, self.dmodel))
-
-        with measure_time(self, "layer_norm"):
-            x = self.ln(x)
-
         return x
 
     def log_light(self):

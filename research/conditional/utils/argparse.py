@@ -47,6 +47,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--lr_decay_interval", type=int, default=0)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--residual_mode", type=str, default="pre_norm")
+    parser.add_argument("--detect_anomaly", action="store_true")
 
     # paremeters for specific experiments
 
