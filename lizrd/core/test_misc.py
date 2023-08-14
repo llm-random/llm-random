@@ -169,11 +169,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             loss_no_chung,
             aux_info_no_chung,
         ) = calculate_bert_loss(
-            batch=batch,
-            model=model,
-            mixed_precision=False,
-            vocab_size=vocab_size,
-            mask_percent=mask_percentage,
+            batch=batch, model=model, mixed_precision=False, vocab_size=vocab_size
         )
 
         (
@@ -184,7 +180,6 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             model=model_chunged,
             mixed_precision=False,
             vocab_size=vocab_size,
-            mask_percent=mask_percentage,
             n_chungs=n_chungs,
         )
 
