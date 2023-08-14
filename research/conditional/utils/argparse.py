@@ -26,7 +26,7 @@ def introduce_parser_arguments(parser):
         "--model_type", type=str, choices=["gpt", "bert"], default="bert"
     )
     parser.add_argument(
-        "--objects_for_propagation",
+        "--names_for_forward_pass_caching",
         type=str,
         default=None,
         help="comma-separated list of objects to propagate in forward pass (e.g. 'attention_keys,ff_activation')",

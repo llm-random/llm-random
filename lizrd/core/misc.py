@@ -322,7 +322,7 @@ def resolve_activation_name(activation: str) -> torch.nn.Module:
         raise ValueError(f"Unrecognized activation: {activation}")
 
 
-def propagate_store(module: torch.nn.Module, store=None):
+def propagate_common_forward_pass_cache(module: torch.nn.Module, store=None):
     """
     This function propagates the cache from the module to all its children.
     """
@@ -330,10 +330,10 @@ def propagate_store(module: torch.nn.Module, store=None):
         store = list()
     module.store = store
     for child in module.children():
-        propagate_store(child, store)
+        propagate_common_forward_pass_cache(child, store)
 
 
-def propagate_names(module: torch.nn.Module):
+def propagate_layer_infos(module: torch.nn.Module):
     """
     This function propagates the cache from the module to all its children.
     """
@@ -357,7 +357,7 @@ def process_name(name: str):
     return True, {"block_number": block_num, "layer_type": suffix}
 
 
-def propagate_object_names(module: torch.nn.Module, names: List[str]):
+def propagate_names_for_forward_pass_caching(module: torch.nn.Module, names: List[str]):
     for _, layer in module.named_modules():
         if isinstance(layer, LoggingLayer):
-            layer.objects_for_propagation = names
+            layer.names_for_forward_pass_caching = names

@@ -1,12 +1,15 @@
 import os.path
 import copy
-from typing import Optional, Literal, List
 import time
-from typing import Callable, Optional, Literal
+from typing import Callable, Optional, Literal, List
 
 import torch
 from attr import define
-from lizrd.core.misc import propagate_store, propagate_names, propagate_object_names
+from lizrd.core.misc import (
+    propagate_common_forward_pass_cache,
+    propagate_layer_infos,
+    propagate_names_for_forward_pass_caching,
+)
 from lizrd.datasets import wikibookdata
 from lizrd.support.decoding import decode_single_example
 import lizrd.datasets.processed_batch
@@ -16,6 +19,7 @@ from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
 from lizrd.datasets.c4 import NUM_C4_TOKENS
+
 from transformers import GPT2Tokenizer
 
 
@@ -45,7 +49,7 @@ class ConditionalTrainer:
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
-    objects_for_propagation: Optional[List[str]] = None
+    names_for_forward_pass_caching: Optional[List[str]] = None
     decoding_logging_steps: int = 5_000
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
@@ -85,9 +89,11 @@ class ConditionalTrainer:
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
-        propagate_store(self.model)
-        propagate_names(self.model)
-        propagate_object_names(self.model, self.objects_for_propagation)
+        propagate_common_forward_pass_cache(self.model)
+        propagate_layer_infos(self.model)
+        propagate_names_for_forward_pass_caching(
+            self.model, self.names_for_forward_pass_caching
+        )
 
     def _after_step_operations(self):
         self.model.store.clear()

@@ -68,32 +68,37 @@ class LayerManager:
 class LoggingLayer(nn.Module):
     def __init__(self):
         super().__init__()
-        self.logging_switch = False
+        # info about position in model
         self.layer_type: Union[str, None] = None
         self.block_number: Union[int, None] = None
-        self.cached_data = {}
-        self.store: Union[list, None] = None
-        self.objects_for_propagation: List[str] = []
+
+        # whether to log
+        self.logging_switch = False
+
+        # caches for logging and propagation
+        self.logging_cache = {}
+        self.forward_pass_cache: Union[list, None] = None
+        self.names_for_forward_pass_caching: List[str] = []
 
     def report_stats(self):
         assert self.logging_switch
         self.logging_switch = False
-        data = self.cached_data
-        self.cached_data = {}
+        data = self.logging_cache
+        self.logging_cache = {}
         return data
 
     def prepare_for_logging(self):
         self.logging_switch = True
 
-    def cache(self, key, value):
+    def cache_for_logging(self, key, value):
         if self.logging_switch:
             if type(value) == dict:
-                if key in self.cached_data:
-                    self.cached_data[key].update(value)
+                if key in self.logging_cache:
+                    self.logging_cache[key].update(value)
                 else:
-                    self.cached_data[key] = value
+                    self.logging_cache[key] = value
             else:
-                self.cached_data[key] = value.clone().detach().cpu()
+                self.logging_cache[key] = value.clone().detach().cpu()
 
     def cache_for_propagation(self, key, value):
         object = StoreObject(
@@ -102,10 +107,10 @@ class LoggingLayer(nn.Module):
             key=key,
             data=value,
         )
-        self.store.append(object)
+        self.forward_pass_cache.append(object)
 
     def get_from_store(self, key, block_number, layer_type):
-        for object in self.store:
+        for object in self.forward_pass_cache:
             if (
                 object.key == key
                 and object.block_number == block_number
@@ -158,4 +163,4 @@ def measure_time(obj: LoggingLayer, instruction_name: str):
     if obj.logging_switch and torch.cuda.is_available():
         torch.cuda.synchronize()
     end_time = time.time()
-    obj.cache("time", {instruction_name: end_time - start_time})
+    obj.cache_for_logging("time", {instruction_name: end_time - start_time})
