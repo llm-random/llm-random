@@ -47,10 +47,18 @@ def main(
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
+
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
+    if args.names_for_forward_pass_caching is not None:
+        args.names_for_forward_pass_caching = args.names_for_forward_pass_caching.split(
+            ","
+        )
+    else:
+        args.names_for_forward_pass_caching = []
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -115,6 +123,7 @@ def main(
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
+        names_for_forward_pass_caching=args.names_for_forward_pass_caching,
         max_sequence_length=args.cutoff,
     )
     trainer.train(args.n_steps)

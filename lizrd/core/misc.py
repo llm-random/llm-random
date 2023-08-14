@@ -1,3 +1,6 @@
+import re
+from typing import List
+
 import torch
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
@@ -5,6 +8,7 @@ from lizrd.core import nn
 from lizrd.support import ash
 from torch.utils.checkpoint import checkpoint
 import torch.nn
+from research.conditional.utils.layer_manager import LoggingLayer
 
 
 class Noop(nn.Module):
@@ -318,12 +322,42 @@ def resolve_activation_name(activation: str) -> torch.nn.Module:
         raise ValueError(f"Unrecognized activation: {activation}")
 
 
-def propagate_store(module: torch.nn.Module, store=None):
+def propagate_common_forward_pass_cache(module: torch.nn.Module, store=None):
     """
     This function propagates the cache from the module to all its children.
     """
     if store is None:
-        store = dict()
+        store = list()
     module.store = store
     for child in module.children():
-        propagate_store(child, store)
+        propagate_common_forward_pass_cache(child, store)
+
+
+def propagate_layer_infos(module: torch.nn.Module):
+    """
+    This function propagates the cache from the module to all its children.
+    """
+    for name, layer in module.named_modules():
+        should_be_named, clean_name = process_name(name)
+        if should_be_named and isinstance(layer, LoggingLayer):
+            layer.block_number = clean_name["block_number"]
+            layer.layer_type = clean_name["layer_type"]
+
+
+def process_name(name: str):
+    suffix = name.split(".")[-1]
+    if suffix not in ["feedforward", "attention"]:
+        return False, name
+    pattern = r"block_(\d+)"
+    match = re.search(pattern, name)
+    assert (
+        match
+    ), f"Could not find pattern {pattern} in name {name}. The naming convention of model layers is not as expected."
+    block_num = match.group(1)
+    return True, {"block_number": block_num, "layer_type": suffix}
+
+
+def propagate_names_for_forward_pass_caching(module: torch.nn.Module, names: List[str]):
+    for _, layer in module.named_modules():
+        if isinstance(layer, LoggingLayer):
+            layer.names_for_forward_pass_caching = names
