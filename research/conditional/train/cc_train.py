@@ -21,6 +21,7 @@ from research.conditional.utils.misc_tools import set_seed
 from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
+    get_residual_layer,
 )
 
 parser = argparse.ArgumentParser()
@@ -47,6 +48,7 @@ def main(
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
+    residual_fn = get_residual_layer(args)
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
@@ -65,8 +67,7 @@ def main(
         ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
-        post_norm=args.post_norm,
-        rezero=args.rezero,
+        residual_fn=residual_fn,
     )
 
     # make model data_distributed if necessary

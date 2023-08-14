@@ -217,6 +217,17 @@ def get_attention_layer(args):
     return attention_layer_fun
 
 
+def get_residual_layer(args):
+    if args.residual_mode == "pre_norm":
+        return partial(llm.PreNormBlock, dmodel=args.dmodel)
+    elif args.residual_mode == "post_norm":
+        return partial(llm.PostNormBlock, dmodel=args.dmodel)
+    elif args.residual_mode == "rezero":
+        return partial(llm.RezeroBlock, dmodel=args.dmodel)
+    else:
+        raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
+
+
 def get_expert_choice_args(args):
     if args.granularity_expert_config:
         if (args.expert_size is not None) or (args.topk_fraction is not None):

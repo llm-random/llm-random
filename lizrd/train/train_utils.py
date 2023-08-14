@@ -35,8 +35,7 @@ def get_model(
     device: torch.device,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
-    post_norm: bool = False,
-    rezero: bool = False,
+    residual_fn: Callable[[], torch.nn.Module] = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -59,8 +58,7 @@ def get_model(
         gradient_checkpointing,
         device,
         model_fragmentation=model_fragmentation,
-        post_norm=post_norm,
-        rezero=rezero,
+        residual_fn=residual_fn,
     )
 
     head = llm.PredictionHead(dm, vocab_size).to(last_gpu)

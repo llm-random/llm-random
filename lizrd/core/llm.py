@@ -1,11 +1,12 @@
 from collections import OrderedDict
 from typing import Literal, Callable, Optional
+from functools import partial
 
 import torch
 
 import lizrd.core.nn as nn
 from lizrd.core import misc
-from lizrd.core.misc import Checkpoint
+from lizrd.core.misc import Checkpoint, default
 from lizrd.support import ash
 
 
@@ -226,20 +227,22 @@ class ReZero(nn.Module):
         return self.fn(x, **kwargs) * self.rezero_g
 
 
-@ash.check("... d -> ... d")
-def ResidualBlock(dmodel, layer, name, post_norm, rezero):
-    if rezero:
-        assert not post_norm  # incompatible
-        return Residual(ReZero(layer))
-    if post_norm:
-        return nn.Sequential(
-            OrderedDict(
-                [
-                    (f"{name}", Residual(layer)),
-                    ("post_norm", nn.LayerNorm(dmodel)),
-                ]
-            )
+def RezeroBlock(dmodel, layer, name):
+    return Residual(ReZero(layer))
+
+
+def PostNormBlock(dmodel, layer, name):
+    return nn.Sequential(
+        OrderedDict(
+            [
+                (f"{name}", Residual(layer)),
+                ("post_norm", nn.LayerNorm(dmodel)),
+            ]
         )
+    )
+
+
+def PreNormBlock(dmodel, layer, name):
     return Residual(
         nn.Sequential(
             OrderedDict(
@@ -253,13 +256,9 @@ def ResidualBlock(dmodel, layer, name, post_norm, rezero):
 
 
 @ash.check("... d -> ... d")
-def TransformerBlock(
-    dmodel, layers, gradient_checkpointing, post_norm=False, rezero=False
-):
-    residual_layers = []
-    for name, layer in layers:
-        block = ResidualBlock(dmodel, layer, name, post_norm, rezero)
-        residual_layers.append(block)
+def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
+    residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
+    residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
     if gradient_checkpointing:
         residual_layers = [Checkpoint(layer) for layer in residual_layers]
     return nn.Sequential(*residual_layers)
@@ -275,8 +274,7 @@ class TransformerTower(nn.Module):
         gradient_checkpointing: bool = False,
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
-        post_norm: bool = False,
-        rezero: bool = False,
+        residual_fn: Optional[Callable] = None,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -294,7 +292,7 @@ class TransformerTower(nn.Module):
             name_and_block = (
                 f"block_{i_block}",
                 TransformerBlock(
-                    dmodel, layers_info, gradient_checkpointing, post_norm, rezero
+                    dmodel, layers_info, gradient_checkpointing, residual_fn
                 ).to(current_device),
             )
             self.blocks.append(name_and_block)
