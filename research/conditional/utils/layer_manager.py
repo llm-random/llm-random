@@ -67,27 +67,27 @@ class LoggingLayer(nn.Module):
     def __init__(self):
         super().__init__()
         self.logging_switch = False
-        self.cached_data = {}
+        self.logging_cache = {}
 
     def report_stats(self):
         assert self.logging_switch
         self.logging_switch = False
-        data = self.cached_data
-        self.cached_data = {}
+        data = self.logging_cache
+        self.logging_cache = {}
         return data
 
     def prepare_for_logging(self):
         self.logging_switch = True
 
-    def cache(self, key, value):
+    def cache_for_logging(self, key, value):
         if self.logging_switch:
             if type(value) == dict:
-                if key in self.cached_data:
-                    self.cached_data[key].update(value)
+                if key in self.logging_cache:
+                    self.logging_cache[key].update(value)
                 else:
-                    self.cached_data[key] = value
+                    self.logging_cache[key] = value
             else:
-                self.cached_data[key] = value.clone().detach().cpu()
+                self.logging_cache[key] = value.clone().detach().cpu()
 
     def log(self, verbosity_level):
         if verbosity_level == 0:
@@ -123,4 +123,4 @@ def measure_time(obj: LoggingLayer, instruction_name: str):
     if obj.logging_switch and torch.cuda.is_available():
         torch.cuda.synchronize()
     end_time = time.time()
-    obj.cache("time", {instruction_name: end_time - start_time})
+    obj.cache_for_logging("time", {instruction_name: end_time - start_time})
