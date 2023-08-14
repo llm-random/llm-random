@@ -322,15 +322,17 @@ def resolve_activation_name(activation: str) -> torch.nn.Module:
         raise ValueError(f"Unrecognized activation: {activation}")
 
 
-def propagate_common_forward_pass_cache(module: torch.nn.Module, store=None):
+def propagate_common_forward_pass_cache(
+    module: torch.nn.Module, forward_pass_cache=None
+):
     """
     This function propagates the cache from the module to all its children.
     """
-    if store is None:
-        store = list()
-    module.store = store
+    if forward_pass_cache is None:
+        forward_pass_cache = list()
+    module.store = forward_pass_cache
     for child in module.children():
-        propagate_common_forward_pass_cache(child, store)
+        propagate_common_forward_pass_cache(child, forward_pass_cache)
 
 
 def propagate_layer_infos(module: torch.nn.Module):
