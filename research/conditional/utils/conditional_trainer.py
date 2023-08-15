@@ -56,6 +56,7 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
+    use_lr_scheduler: bool = False
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -75,14 +76,15 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
-        if self.lr_decay is None:
-            self.lr_decay_interval = np.Inf
-        self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
-            self.optimizer,
-            lr_lambda=lambda i: i / self.lr_warmup_steps
-            if i < self.lr_warmup_steps
-            else self.lr_decay ** (i // self.lr_decay_interval),
-        )
+        if self.use_lr_scheduler:
+            if self.lr_decay is None:
+                self.lr_decay_interval = np.Inf
+            self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.optimizer,
+                lr_lambda=lambda i: i / self.lr_warmup_steps
+                if i < self.lr_warmup_steps
+                else self.lr_decay ** (i // self.lr_decay_interval),
+            )
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -224,7 +226,8 @@ class ConditionalTrainer:
         )
 
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
-        self.lr_scheduler.step()
+        if self.use_lr_scheduler:
+            self.lr_scheduler.step()
         if self.logger is not None:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
@@ -268,9 +271,10 @@ class ConditionalTrainer:
 
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
-        self.logger.report_scalar(
-            title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step
-        )
+        if self.use_lr_scheduler:
+            self.logger.report_scalar(
+                title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step
+            )
         if self.train_dataloader.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
