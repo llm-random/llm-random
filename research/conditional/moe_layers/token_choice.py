@@ -2,7 +2,6 @@ import plotly.express as px
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
-from torch.nn import LayerNorm
 
 from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
@@ -36,41 +35,37 @@ class TokenChoiceFF(LoggingLayer):
         self.expert_size = expert_size
         self.capacity_factor = capacity_factor
 
-        self.lin1_weights = torch.nn.ParameterList(
-            [
-                get_init_weight((dmodel, expert_size), fan_in=dmodel)
-                for _ in range(n_experts)
-            ]
+        self.lin1_weight = nn.Parameter(
+            get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
         )
-        self.lin2_weights = torch.nn.ParameterList(
-            [
-                get_init_weight(
-                    (expert_size, dmodel),
-                    fan_in=expert_size,
-                )
-                for _ in range(n_experts)
-            ]
+        self.lin2_weight = nn.Parameter(
+            get_init_weight(
+                (n_experts, expert_size, dmodel),
+                fan_in=int(n_experts * expert_size),
+            )
         )
+
         self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel)
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len, _ = x.shape
+        n_tokens = batch_size * seq_len
+        self.cache("n_tokens", torch.Tensor([n_tokens]))
+
+        x = x.flatten(start_dim=0, end_dim=1)
 
         with measure_time(self, "expert_embedding"):
             gate_out = einsum(
-                "batch_size seq_len dmodel, dmodel n_experts -> batch_size seq_len n_experts",
+                "n_tokens dmodel, dmodel n_experts -> n_tokens n_experts",
                 x,
                 self.gate,
             )
 
-            # flatten batch_size x seq_len
-            gate_out = gate_out.flatten(start_dim=0, end_dim=1)
-
-        capacity = int(self.capacity_factor * gate_out.shape[0] / self.n_experts)
+        assert gate_out.shape == (n_tokens, self.n_experts)
+        capacity = int(self.capacity_factor * n_tokens / self.n_experts)
 
         # perform softmax over experts for each token
         with measure_time(self, "softmax"):
@@ -80,70 +75,75 @@ class TokenChoiceFF(LoggingLayer):
 
         # choose expert for each token
         with measure_time(self, "max_indices"):
-            gate_values, experts_indices = torch.max(gate_out, dim=1)
+            expert_gate, expert_index = torch.max(gate_out, dim=1)
 
-        #  group tokens by expert it should be processed by
+        with measure_time(self, "create_expert_mask"):
+            expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
+
+        # TODO add random permutation
+        with measure_time(self, "calculate expert indexes"):
+            position_in_expert = torch.cumsum(expert_mask, dim=0) * expert_mask
+            in_capacity_tokens_mask = torch.lt(position_in_expert, capacity)
+            expert_mask *= in_capacity_tokens_mask
+
+        # mask out tokens that are not in capacity
+        expert_mask_flat = expert_mask.sum(dim=1)
+        expert_gate *= expert_mask_flat
+
+        self.cache("gate_softmax_values", expert_gate)
+        self.cache("max_indices", expert_index)
+        self.cache("position_in_expert", position_in_expert)
+
+        # group tokens indices by expert it should be processed by
         with measure_time(self, "experts_lists"):
-            experts_lists = [
-                torch.eq(experts_indices, i).nonzero(as_tuple=True)[0]
-                for i in range(self.n_experts)
+            indices_of_tokens_for_expert = [
+                single_expert_mask.nonzero(as_tuple=True)[0]
+                for single_expert_mask in expert_mask.transpose(0, 1)
             ]
 
-        with measure_time(self, "drop_tokens"):
-            # drop tokens for each expert
-            for i in range(self.n_experts):
-                experts_lists[i] = experts_lists[i][:capacity]
+        # create empty input and  assign only tokens to be processed
+        experts_input = torch.zeros(
+            self.n_experts, capacity, self.dmodel, dtype=x.dtype, device=x.device
+        )
+        with measure_time(self, "assign_tokens_to_input"):
+            for i, indices in enumerate(indices_of_tokens_for_expert):
+                experts_input[i, : len(indices)] = x[indices]
 
-        # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
-        with measure_time(self, "flatten"):
-            x = x.flatten(start_dim=0, end_dim=1)
-
-        final_output = torch.zeros_like(x)
-        for i in range(self.n_experts):
-            expert_output = einsum(
-                "list_size dmodel, dmodel expert_size -> list_size expert_size",
-                x[experts_lists[i]],
-                self.lin1_weights[i],
+        with measure_time(self, "process_by_experts"):
+            experts_output = einsum(
+                "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
+                experts_input,
+                self.lin1_weight,
             )
-            expert_output = F.relu(expert_output)
-            expert_output = einsum(
-                "list_size expert_size, expert_size dmodel -> list_size dmodel",
-                expert_output,
-                self.lin2_weights[i],
+
+            experts_output = einsum(
+                "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
+                experts_output,
+                self.lin2_weight,
             ).to(x.dtype)
-            final_output[experts_lists[i], :] = expert_output
 
-        self.cache("gate_softmax_values", gate_values)
-        self.cache("max_indices", experts_indices)
-        self.cache("n_tokens", torch.Tensor([batch_size * seq_len]))
+        output = torch.zeros_like(x)
 
-        # multiply final_output by softmax values
-        with measure_time(self, "multiply_softmax"):
-            final_output = einsum(
-                "n_size dmodel, n_size -> n_size dmodel", final_output, gate_values
+        with measure_time(self, "assign_tokens_to_output"):
+            for i in range(self.n_experts):
+                output[indices_of_tokens_for_expert[i]] = experts_output[
+                    i, : len(indices_of_tokens_for_expert[i])
+                ]
+
+        # multiply output by softmax values
+        with measure_time(self, "multiply_output_by_softmax"):
+            output = einsum(
+                "n_tokens dmodel, n_tokens -> n_tokens dmodel", output, expert_gate
             )
-        final_output = final_output.reshape((batch_size, seq_len, self.dmodel))
 
-        with measure_time(self, "layer_norm"):
-            final_output = self.ln(final_output)
+        output = output.reshape((batch_size, seq_len, self.dmodel))
 
-        return final_output
-
-    def log_light(self):
-        return dict()
+        return output
 
     def log_heavy(self):
-        # calculate indexes choose counts
-        chosen_indexes = self.cached_data["max_indices"].flatten()
-        chosen_indexes = torch.cat(
-            (
-                chosen_indexes,
-                torch.Tensor([self.cached_data["n_tokens"] - 1]).type(
-                    chosen_indexes.type()
-                ),
-            )
-        )  # make sure bincount takes into account the whole range of indexes
-        indexes_choose_counts = chosen_indexes.bincount()
+        # calculate token counts for each expert
+        position_in_expert_mask = self.cached_data["position_in_expert"].bool()
+        tokens_per_expert = position_in_expert_mask.sum(dim=0)
 
         # make bar plot of values cached in forward with measure_time
         instr_names = list(self.cached_data["time"].keys())
@@ -151,13 +151,10 @@ class TokenChoiceFF(LoggingLayer):
         times_fig = px.bar(x=instr_names, y=instr_times)
 
         return {
-            "gradient of gate distribution": make_histogram(self.gate.grad.flatten()),
-            "gate_softmax_values": make_histogram(
-                self.cached_data["gate_softmax_values"].flatten()
-            ),
+            "gradient_of_gate_distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_all_values": make_histogram(
                 self.cached_data["gate_softmax_all_values"].flatten()
             ),
-            "indexes_choose_counts": make_histogram(indexes_choose_counts),
+            "tokens_per_expert_counts": make_histogram(tokens_per_expert),
             "instruction_times": times_fig,
         }
