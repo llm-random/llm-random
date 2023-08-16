@@ -9,6 +9,8 @@ After cloning the repo, `cd` to repo directory and run `./start-dev.sh`. This wi
 
 Running `start-dev.sh` will install requirements. If you wish to setup your environment manually, `python3 -m pip install -r requirements.txt` should work. Be sure to use a virtualenv.
 
+test
+
 ## Usage
 Run a single local experiment with `python3 -m lizrd.train.bert_train TESTING`. The flag `TESTING` will disable ClearML, and run a smaller model.
 If you use ClearML, you must have clearml config in your home directory. Note that if you don't use srun.sbatch on entropy, you won't have access to GPU.
