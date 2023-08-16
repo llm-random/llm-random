@@ -22,6 +22,7 @@ class ExpertChoiceFF(LoggingLayer):
         topk_fraction: float,
         random_perm: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
+        group_granular_moe_by_batch: bool = False,
         n_gating_heatmaps: int = 4,
     ):
         """
@@ -41,6 +42,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
         self.random_perm = random_perm
+        self.group_granular_moe_by_batch = group_granular_moe_by_batch
         self.n_gating_heatmaps = n_gating_heatmaps
 
         self.lin1_weight = nn.Parameter(
