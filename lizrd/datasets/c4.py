@@ -4,6 +4,8 @@ from torch.utils.data import Dataset
 from datasets import load_dataset
 from transformers import GPT2TokenizerFast
 
+from lizrd.datasets.processor import ProcessedGPTExample
+
 
 NUM_C4_TOKENS = 173_648_052_806  # number of tokens in the C4 dataset
 
@@ -31,12 +33,11 @@ class C4Dataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        example = dict()
         tokenized = self.get_tokenized_sample(idx)
-        example["tokens"] = tokenized["input_ids"]
-        example["non_padded_mask"] = tokenized["attention_mask"]
-        example["target_tokens"] = example["tokens"][1:] + [self.tokenizer.pad_token_id]
-        return example
+        tokens = tokenized["input_ids"]
+        non_padded_mask = tokenized["attention_mask"]
+        target_tokens = tokens[1:] + [self.tokenizer.pad_token_id]
+        return ProcessedGPTExample(tokens, non_padded_mask, target_tokens)
 
     def get_tokenized_sample(self, idx):
         """
