@@ -41,6 +41,12 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--no_ff", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
+    parser.add_argument("--auto_find_grad_accumulation", action="store_true")
+    parser.add_argument("--lr_decay", type=float, default=None)
+    parser.add_argument("--lr_warmup_steps", type=int, default=0)
+    parser.add_argument("--lr_decay_interval", type=int, default=0)
+    parser.add_argument("--log_gradients_and_weights", action="store_true")
+    parser.add_argument("--residual_mode", type=str, default="pre_norm")
 
     # paremeters for specific experiments
 
@@ -79,6 +85,7 @@ def introduce_parser_arguments(parser):
         help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
     )
     parser.add_argument("--data_distributed", action="store_true")
+    parser.add_argument("--group_granular_moe_by_batch", action="store_true")
     parser.add_argument("--dataset_type", type=str, default="wikibook")
 
     # experimental/legacy parameters
