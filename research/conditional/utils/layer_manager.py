@@ -1,10 +1,9 @@
 import re
 import time
 from contextlib import contextmanager
-from typing import List, Union, Any
+from typing import Union
 
 import torch
-from attr import define
 
 from lizrd.core import nn
 from lizrd.support.logging import get_current_logger
@@ -78,7 +77,6 @@ class LoggingLayer(nn.Module):
         # caches for logging and propagation
         self.logging_cache = {}
         self.forward_pass_cache: Union[list, None] = None
-        self.names_for_forward_pass_caching: List[str] = []
 
     def report_stats(self):
         assert self.logging_switch
@@ -90,7 +88,7 @@ class LoggingLayer(nn.Module):
     def prepare_for_logging(self):
         self.logging_switch = True
 
-    def cache_for_logging(self, key, value):
+    def update_cache_for_logging(self, key, value):
         if self.logging_switch:
             if type(value) == dict:
                 if key in self.logging_cache:
@@ -100,26 +98,18 @@ class LoggingLayer(nn.Module):
             else:
                 self.logging_cache[key] = value.clone().detach().cpu()
 
-    def cache_for_propagation(self, key, value):
-        object = StoreObject(
-            layer_type=self.layer_type,
-            block_number=self.block_number,
-            key=key,
-            data=value,
-        )
-        self.forward_pass_cache.append(object)
+    def _combine_to_dict_key(key, layer_type, block_number):
+        return f"block_{block_number}_{layer_type}_{key}"
 
-    def get_from_store(self, key, block_number, layer_type):
-        for object in self.forward_pass_cache:
-            if (
-                object.key == key
-                and object.block_number == block_number
-                and object.layer_type == layer_type
-            ):
-                return object.data
-        raise Exception(
-            f"Object with key {key} not cached by layer {layer_type}, block {block_number}"
+    def update_forward_pass_cache(self, key, value):
+        combined_key = self._combine_to_dict_key(
+            key, self.layer_type, self.block_number
         )
+        self.forward_pass_cache[combined_key] = value
+
+    def get_from_forward_pass_cache(self, key, block_number, layer_type):
+        combined_key = self._combine_to_dict_key(key, layer_type, block_number)
+        return self.forward_pass_cache[combined_key]
 
     def log(self, verbosity_level):
         if verbosity_level == 0:
@@ -136,14 +126,6 @@ class LoggingLayer(nn.Module):
 
     def log_heavy(self):
         return {}
-
-
-@define
-class StoreObject:
-    layer_type: str
-    block_number: int
-    key: str
-    data: Union[torch.Tensor, Any]
 
 
 @contextmanager
@@ -163,4 +145,4 @@ def measure_time(obj: LoggingLayer, instruction_name: str):
     if obj.logging_switch and torch.cuda.is_available():
         torch.cuda.synchronize()
     end_time = time.time()
-    obj.cache_for_logging("time", {instruction_name: end_time - start_time})
+    obj.update_cache_for_logging("time", {instruction_name: end_time - start_time})

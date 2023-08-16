@@ -63,6 +63,9 @@ def get_model(
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
+    # forward_pass_cache is initialized during creation of encoder_tower
+    model.forward_pass_cache = encoder_tower.forward_pass_cache
+
     return model
 
 

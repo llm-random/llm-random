@@ -71,22 +71,22 @@ class ExpertChoiceFF(LoggingLayer):
             # transform such that first dimension corresponds to experts
             gate_out = gate_out.permute(2, 0, 1)
             # flatten batch_size x seq_len
-            self.cache_for_logging("unflatten_gate_out", gate_out)
+            self.update_cache_for_logging("unflatten_gate_out", gate_out)
             gate_out = gate_out.flatten(start_dim=1)
 
         # perform softmax over tokens for each expert
         with measure_time(self, "softmax"):
             gate_out = torch.softmax(gate_out, dim=1)
 
-        self.cache_for_logging("gate_softmax_all_values", gate_out)
+        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
             topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
 
         # cache values for logging
-        self.cache_for_logging("gate_softmax_topk_vals", topk_values)
-        self.cache_for_logging("topk_indices", topk_indices)
-        self.cache_for_logging("n_tokens", torch.Tensor([batch_size * seq_len]))
+        self.update_cache_for_logging("gate_softmax_topk_vals", topk_values)
+        self.update_cache_for_logging("topk_indices", topk_indices)
+        self.update_cache_for_logging("n_tokens", torch.Tensor([batch_size * seq_len]))
 
         # Randomly permute tokens for experts if random_perm is True
         # Note this is not total randomness, since topk values are already chosen
