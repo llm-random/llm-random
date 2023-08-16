@@ -28,6 +28,10 @@ from research.conditional.utils.model_utils import (
 parser = argparse.ArgumentParser()
 introduce_parser_arguments(parser)
 args = parser.parse_args()
+if args.granularity_expert_config:
+    print(
+        "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
+    )
 
 
 def log_batch(dataset_wrapper):

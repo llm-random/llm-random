@@ -50,7 +50,7 @@ def introduce_parser_arguments(parser):
 
     # paremeters for specific experiments
 
-    parser.add_argument("--n_experts", type=int, default=1)
+    parser.add_argument("--n_experts", type=int, required=False)
     parser.add_argument("--group_size", type=int, default=1)
     parser.add_argument("--sparsity_dim", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=1.0)
@@ -60,7 +60,11 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
-    parser.add_argument("--granularity_expert_config", action="store_true")
+    parser.add_argument(
+        "--granularity_expert_config",
+        action="store_true",
+        help="This argument is deprecated",
+    )
     parser.add_argument("--total_experts_width", type=int, required=False)
     parser.add_argument("--effective_dff", type=int, required=False)
     parser.add_argument("--softmax_over", type=str, required=False, default="tokens")
