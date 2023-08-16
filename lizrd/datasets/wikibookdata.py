@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader, IterableDataset
-from transformers import GPT2Tokenizer
 from lizrd.datasets import wikibookdata
 from lizrd.datasets.processor import BERTSentenceProcessor, GPTSentenceProcessor
 import lizrd.datasets.processor
@@ -17,7 +16,6 @@ from lizrd.datasets.processed_batch import (
 )
 from lizrd.datasets.c4 import C4Dataset
 import lizrd.datasets.processor
-from lizrd.support.logging import get_current_logger
 
 
 def process_wiki_text(document_text, chunk_length: int = 450):
@@ -218,7 +216,6 @@ def get_processed_dataset(
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
-    log_example_batch=True,
 ) -> wikibookdata.ProcessedDatasetWrapper:
     if dataset_type == "wikibook":
         raw_dataset = wikibookdata.WikiBookDataset(use_dummy_dataset=use_dummy_dataset)
@@ -247,23 +244,5 @@ def get_processed_dataset(
         dataset_split=dataset_split,
         seq_length=max_total_length,
     )
-
-    # In case of GPT, log an example sequence for a possible inspection
-    if model_type == "gpt" and log_example_batch:
-        print("Logging example batch...")
-        run = get_current_logger().instance_logger
-        batch = dataset_wrapper.get_batch()
-
-        t = GPT2Tokenizer.from_pretrained(
-            "gpt2", additional_special_tokens=["<sequence_sep>"]
-        )
-        num_to_log = 5
-        for i in range(num_to_log):
-            run[f"example_sequence/seq{i}/text"] = t.decode(batch.tokens[i])
-            run[f"example_sequence/seq{i}/target_text"] = t.decode(
-                batch.target_tokens[i]
-            )
-        del batch, t
-        print("Logged example batch.")
 
     return dataset_wrapper

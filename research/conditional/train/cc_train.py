@@ -8,10 +8,11 @@ import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
+from transformers import GPT2Tokenizer
 
 from lizrd.core import misc
 from lizrd.datasets.wikibookdata import get_processed_dataset
-from lizrd.support.logging import get_logger
+from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.train.train_utils import (
     get_model,
 )
@@ -27,6 +28,31 @@ from research.conditional.utils.model_utils import (
 parser = argparse.ArgumentParser()
 introduce_parser_arguments(parser)
 args = parser.parse_args()
+
+
+def log_batch(dataset_wrapper):
+    # In case of GPT, log an example sequence for a possible inspection
+
+    print("Logging example batch...")
+    batch = dataset_wrapper.get_batch()
+
+    t = GPT2Tokenizer.from_pretrained(
+        "gpt2", additional_special_tokens=["<sequence_sep>"]
+    )
+    num_to_log = 5
+    for i in range(min(num_to_log, len(batch.tokens))):
+        get_current_logger().report_text(
+            title=f"example_sequence/seq{i}/input_text",
+            value=t.decode(batch.tokens[i]),
+            iteration=0,
+        )
+        get_current_logger().report_text(
+            title=f"example_sequence/seq{i}/target_text",
+            value=t.decode(batch.target_tokens[i]),
+            iteration=0,
+        )
+    del batch, t
+    print("Logged example batch.")
 
 
 def main(
@@ -82,7 +108,6 @@ def main(
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
-    logger = get_logger(args, model, VOCAB_SIZE) if rank is None or rank == 0 else None
 
     train_dataloader = get_processed_dataset(
         max_total_length=args.cutoff,
@@ -95,8 +120,12 @@ def main(
         seed=args.data_seed if data_seeds is None else data_seeds[rank],
         model_type=args.model_type,
         dataset_type=args.dataset_type,
-        log_example_batch=True if rank is None or rank == 0 else False,
     )
+
+    logger = get_logger(args, model, VOCAB_SIZE) if rank is None or rank == 0 else None
+
+    if args.model_type == "gpt" and (rank is None or rank == 0):
+        log_batch(train_dataloader)
 
     trainer = ConditionalTrainer(
         model=model,
