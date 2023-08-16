@@ -1,6 +1,7 @@
 import argparse
 import os
 import random
+import subprocess
 from typing import Optional
 import socket
 
@@ -97,6 +98,10 @@ def main(
         dataset_type=args.dataset_type,
         log_example_batch=True if rank is None or rank == 0 else False,
     )
+
+    if cache_dir := os.getenv("HF_DATASETS_CACHE"):
+        # Fix permissions so that everyone can access the cache dir
+        subprocess.run(["chmod", "-R", "777", cache_dir])
 
     trainer = ConditionalTrainer(
         model=model,
