@@ -4,7 +4,6 @@ from types import SimpleNamespace as SN
 import time
 from typing import Callable, Optional, Literal
 
-import numpy as np
 import torch
 from attr import define
 from lizrd.core.misc import propagate_store
