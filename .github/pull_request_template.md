@@ -1,3 +1,7 @@
+# Description
+todo
+
+# Checklist
 Answer each question with "yes", and provide an explanation if the answer isn't what is expected.
 
 1. Is this PR focused on a single feature without the possibility of being divided into smaller PRs?
@@ -18,12 +22,14 @@ Answer each question with "yes", and provide an explanation if the answer isn't 
    - Answer:
 9. Is the PR name meaningful and descriptive?
    - Answer:
+10. Is PR description provided, or unnecessary?
+    - Answer:
   
 Other questions:
 
-10. Have you not made changes to the requirements or anything related to the Singularity image? If you have, did you generate and upload a new image to the clusters?
+11. Have you not made changes to the requirements or anything related to the Singularity image? If you have, did you generate and upload a new image to the clusters?
     - Answer:
-11. Is the change significant enough to notify all individuals working with this repository?
+12. Is the change significant enough to notify all individuals working with this repository?
     - Answer:
-12. Is there a need for a second reviewer?
+13. Is there a need for a second reviewer?
     - Answer:
