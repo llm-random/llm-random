@@ -4,6 +4,7 @@ $ python3 research/reinitialization/scripts/grid.py
 Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
+import argparse
 import datetime
 import json
 import os
@@ -23,6 +24,7 @@ from lizrd.scripts.grid_utils import (
     unpack_params,
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
+from research.conditional.train.cc_train import main as cc_train_main
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
@@ -232,13 +234,8 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.LOCAL:
-            subprocess_args = [
-                get_grid_entrypoint(runner),
-                "python3",
-                "-m",
-                RUNNER,
-                *runner_params,
-            ]
+            args = argparse.Namespace(**grid[0])
+            cc_train_main(None, args=args, run_in_the_same_process=True)
         else:
             raise ValueError(f"Unknown runner: {runner}")
 

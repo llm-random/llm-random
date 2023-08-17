@@ -25,10 +25,6 @@ from research.conditional.utils.model_utils import (
     get_residual_layer,
 )
 
-parser = argparse.ArgumentParser()
-introduce_parser_arguments(parser)
-args = parser.parse_args()
-
 
 def log_batch(dataset_wrapper):
     # In case of GPT, log an example sequence for a possible inspection
@@ -56,8 +52,20 @@ def log_batch(dataset_wrapper):
 
 
 def main(
-    rank: Optional[int], data_seeds: Optional[list[int]] = None, port: str = "29500"
+    rank: Optional[int],
+    data_seeds: Optional[list[int]] = None,
+    port: str = "29500",
+    args: Optional[argparse.Namespace] = None,
+    run_in_the_same_process: bool = False,
 ):
+    if run_in_the_same_process:  # TODO is it necessary?
+        args = vars(args)
+        parser = argparse.ArgumentParser()
+        introduce_parser_arguments(parser)
+        combined_args = vars(parser.parse_known_args()[0])
+        combined_args.update(args)
+        args = argparse.Namespace(**combined_args)
+
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
@@ -161,8 +169,12 @@ def main(
 
 if __name__ == "__main__":
     misc.print_available_gpus()
+    parser = argparse.ArgumentParser()
+    introduce_parser_arguments(parser)
+    args = parser.parse_args()
+
     if args.data_distributed == False:
-        main(None)
+        main(None, args=args)
     else:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
