@@ -4,6 +4,7 @@ import secrets
 import torch
 
 from lizrd.core import llm, misc
+from lizrd.datasets.wikibookdata import get_processed_dataset
 from lizrd.scripts.grid_utils import get_machine_backend, MachineBackend
 from research.reinitialization.core import linears, linears_loss, linears_plusminus
 from research.reinitialization.core import linears_recycle
@@ -11,7 +12,6 @@ from research.reinitialization.core import linears_noise
 from research.reinitialization.core.pruner import Pruner
 from lizrd.train.train_utils import (
     get_model,
-    get_processed_dataset,
     Trainer,
     RetrainTrainer,
 )

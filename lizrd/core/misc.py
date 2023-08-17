@@ -212,6 +212,10 @@ def get_default_device():
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
+def default(x, d):
+    return x if x is not None else d
+
+
 def print_available_gpus():
     if torch.cuda.is_available():
         count = torch.cuda.device_count()

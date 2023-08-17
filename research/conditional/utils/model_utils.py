@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Literal, Optional
+from typing import Literal
 import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
@@ -37,23 +37,16 @@ from research.conditional.moe_layers.continuous_moe import (
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
-from research.conditional.moe_layers.kernelized import FCKernelized
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
-def make_loss_function(
-    model: Literal["bert", "gpt"],
-    loss_checkpoint_chungs: int,
-    mask_percentage: Optional[float] = None,
-):
+def make_loss_function(model: Literal["bert", "gpt"], loss_checkpoint_chungs: int):
     if model == "bert":
-        assert mask_percentage is not None, "Mask percentage must be specified for BERT"
         if loss_checkpoint_chungs == 0:
-            return partial(calculate_bert_loss, mask_percent=mask_percentage)
+            return partial(calculate_bert_loss)
         else:
             return partial(
                 chungized_bert_loss,
-                mask_percent=mask_percentage,
                 n_chungs=loss_checkpoint_chungs,
             )
     elif model == "gpt":
@@ -73,9 +66,8 @@ def chungized_llm_loss(
     mixed_precision,
     vocab_size,
     n_chungs,
-    mask_percent,
 ):
-    def make_custom_forward(vocab_size):
+    def make_custom_forward():
         def custom_forward(*inputs):
             with torch.autocast(
                 device_type="cuda", enabled=mixed_precision, dtype=torch.float16
@@ -89,7 +81,14 @@ def chungized_llm_loss(
                     gt.reshape(-1).long(),
                     reduction="none",
                 )
-            return loss * mask.reshape(-1)
+
+                correct_tokens = gt.long() == output.argmax(dim=-1)
+                correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+                correct_tokens = correct_tokens.sum()
+
+                total_tokens = mask.sum()
+
+            return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
 
         return custom_forward
 
@@ -100,21 +99,25 @@ def chungized_llm_loss(
 
     num_tokens = 0
     total_loss = 0
+    total_correct_tokens = 0
+    total_masked_tokens = 0
     for chunged_input, chunged_gt, chunged_mask in zip(
         chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
     ):
-        partial_loss_output = checkpoint(
-            make_custom_forward(vocab_size), chunged_input, chunged_gt, chunged_mask
+        partial_loss_output, partial_correct_tokens, partial_masked_tokens = checkpoint(
+            make_custom_forward(), chunged_input, chunged_gt, chunged_mask
         )
-
         num_tokens += partial_loss_output.shape[0]
         total_loss += partial_loss_output.sum()
-    return total_loss / num_tokens / mask_percent
+        total_correct_tokens += partial_correct_tokens
+        total_masked_tokens += partial_masked_tokens
+    return total_loss / num_tokens, {
+        "correct_tokens": total_correct_tokens,
+        "total_masked_tokens": total_masked_tokens,
+    }
 
 
-def chungized_bert_loss(
-    batch, model, mixed_precision, vocab_size, mask_percent, n_chungs
-):
+def chungized_bert_loss(batch, model, mixed_precision, vocab_size, n_chungs):
     return chungized_llm_loss(
         input_tokens=batch.masked_tokens,
         gt_tokens=batch.tokens,
@@ -123,7 +126,6 @@ def chungized_bert_loss(
         mixed_precision=mixed_precision,
         vocab_size=vocab_size,
         n_chungs=n_chungs,
-        mask_percent=mask_percent,
     )
 
 
@@ -136,12 +138,11 @@ def chungized_gpt_loss(batch, model, mixed_precision, vocab_size, n_chungs):
         mixed_precision=mixed_precision,
         vocab_size=vocab_size,
         n_chungs=n_chungs,
-        mask_percent=1.0,
     )
 
 
 def calculate_llm_loss(
-    input_tokens, gt_tokens, mask, model, mixed_precision, vocab_size, mask_percent
+    input_tokens, gt_tokens, mask, model, mixed_precision, vocab_size
 ):
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
@@ -156,9 +157,18 @@ def calculate_llm_loss(
         gt_tokens.reshape(-1).long(),
         reduction="none",
     )
-    mask_loss *= mask.reshape(-1)
-    loss = mask_loss.mean() / mask_percent
-    return loss
+    mask_loss = mask_loss[mask.reshape(-1) == 1]
+    loss = mask_loss.mean()
+
+    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+    correct_tokens = correct_tokens.sum()
+    total_masked_tokens = mask.sum()
+
+    return loss, {
+        "correct_tokens": correct_tokens,
+        "total_masked_tokens": total_masked_tokens,
+    }
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
@@ -169,11 +179,10 @@ def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
         model=model,
         mixed_precision=mixed_precision,
         vocab_size=vocab_size,
-        mask_percent=1.0,
     )
 
 
-def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent):
+def calculate_bert_loss(batch, model, mixed_precision, vocab_size):
     return calculate_llm_loss(
         input_tokens=batch.masked_tokens,
         gt_tokens=batch.tokens,
@@ -181,18 +190,30 @@ def calculate_bert_loss(batch, model, mixed_precision, vocab_size, mask_percent)
         model=model,
         mixed_precision=mixed_precision,
         vocab_size=vocab_size,
-        mask_percent=mask_percent,
     )
 
 
 def get_attention_layer(args):
     if args.model_type == "gpt":
-        attention_layer_fun = lambda: llm.CausalAttention(args.dmodel, args.n_att_heads)
+        attention_layer_fun = lambda: llm.CausalAttention(
+            args.dmodel, args.n_att_heads, args.dhead
+        )
     elif args.model_type == "bert":
         attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     else:
         raise NotImplementedError(f"Model type {args.model_type} not implemented")
     return attention_layer_fun
+
+
+def get_residual_layer(args):
+    if args.residual_mode == "pre_norm":
+        return partial(llm.PreNormBlock, dmodel=args.dmodel)
+    elif args.residual_mode == "post_norm":
+        return partial(llm.PostNormBlock, dmodel=args.dmodel)
+    elif args.residual_mode == "rezero":
+        return partial(llm.RezeroBlock, dmodel=args.dmodel)
+    else:
+        raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
 
 def get_expert_choice_args(args):
@@ -220,6 +241,8 @@ def get_expert_choice_args(args):
         "expert_size": expert_size,
         "topk_fraction": topk_fraction,
         "random_perm": args.expert_random_perm,
+        "softmax_over": args.softmax_over,
+        "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
     }
 
 
@@ -367,6 +390,8 @@ def get_ff_layer(args):
             capacity_factor=args.capacity_factor,
         )
     elif args.ff_mode == "kernelized_fc":
+        from research.conditional.moe_layers.kernelized import FCKernelized
+
         return_fn = lambda: FCKernelized(
             dmodel=args.dmodel,
             dff=args.dff,

@@ -3,8 +3,9 @@ import torch
 
 from lizrd.core import llm, misc
 from lizrd.core.misc import Chungus, Checkpoint
+from lizrd.datasets.wikibookdata import get_processed_dataset
 from lizrd.support.test_utils import GeneralTestCase
-from lizrd.train.train_utils import get_processed_dataset, get_model
+from lizrd.train.train_utils import get_model
 from research.conditional.utils.model_utils import (
     calculate_bert_loss,
     chungized_bert_loss,
@@ -146,7 +147,6 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             batch_size=batch,
             seed=0,
             model_type="bert",
-            data_distributed=False,
             use_dummy_dataset=True,
         )
 
@@ -165,27 +165,32 @@ class TestChungizedCalculateLoss(GeneralTestCase):
 
         batch = dataset.get_batch()
 
-        loss_no_chung = calculate_bert_loss(
-            batch=batch,
-            model=model,
-            mixed_precision=False,
-            vocab_size=vocab_size,
-            mask_percent=mask_percentage,
+        (
+            loss_no_chung,
+            aux_info_no_chung,
+        ) = calculate_bert_loss(
+            batch=batch, model=model, mixed_precision=False, vocab_size=vocab_size
         )
 
-        loss_chung = chungized_bert_loss(
+        (
+            loss_chung,
+            aux_info_chung,
+        ) = chungized_bert_loss(
             batch=batch,
             model=model_chunged,
             mixed_precision=False,
             vocab_size=vocab_size,
-            mask_percent=mask_percentage,
             n_chungs=n_chungs,
         )
 
         loss_no_chung.backward()
         loss_chung.backward()
-
         assert torch.isclose(loss_no_chung, loss_chung)
+        assert aux_info_no_chung["correct_tokens"] == aux_info_chung["correct_tokens"]
+        assert (
+            aux_info_no_chung["total_masked_tokens"]
+            == aux_info_chung["total_masked_tokens"]
+        )
 
         chunged_dict = {n: p for n, p in model_chunged.named_parameters()}
 

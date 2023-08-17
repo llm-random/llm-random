@@ -8,24 +8,51 @@ import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
+from transformers import GPT2Tokenizer
 
 from lizrd.core import misc
-from lizrd.support.logging import get_logger
+from lizrd.datasets.wikibookdata import get_processed_dataset
+from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.train.train_utils import (
     get_model,
-    get_processed_dataset,
 )
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
+from research.conditional.utils.misc_tools import set_seed
 from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
+    get_residual_layer,
 )
-from research.conditional.utils.training_utils import find_optimal_grad_accumulation
 
 parser = argparse.ArgumentParser()
 introduce_parser_arguments(parser)
 args = parser.parse_args()
+
+
+def log_batch(dataset_wrapper):
+    # In case of GPT, log an example sequence for a possible inspection
+
+    print("Logging example batch...")
+    batch = dataset_wrapper.get_batch()
+
+    t = GPT2Tokenizer.from_pretrained(
+        "gpt2", additional_special_tokens=["<sequence_sep>"]
+    )
+    num_to_log = 5
+    for i in range(min(num_to_log, len(batch.tokens))):
+        get_current_logger().report_text(
+            title=f"example_sequence/seq{i}/input_text",
+            value=t.decode(batch.tokens[i]),
+            iteration=0,
+        )
+        get_current_logger().report_text(
+            title=f"example_sequence/seq{i}/target_text",
+            value=t.decode(batch.target_tokens[i]),
+            iteration=0,
+        )
+    del batch, t
+    print("Logged example batch.")
 
 
 def main(
@@ -38,28 +65,16 @@ def main(
         init_process_group("nccl", rank=rank, world_size=args.n_gpus)
         torch.cuda.set_device(rank)
 
+    if args.deterministic_experiment:
+        set_seed(args.torch_seed)
+    # vocab size for gpt is 50257 + 1 for sequence_sep
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
-    DEVICE = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-    data_distributed = True if rank is not None else False
-    if args.auto_find_grad_accumulation:
-        args.gradient_accumulation_steps = find_optimal_grad_accumulation(
-            args=args, vocab_size=VOCAB_SIZE, device=DEVICE
-        )
-    train_dataloader = get_processed_dataset(
-        max_total_length=args.cutoff,
-        mask_percent=args.mask_percent,
-        device=DEVICE,
-        num_workers=args.num_workers,
-        batch_size=args.batch_size // args.n_gpus
-        if data_distributed
-        else args.batch_size,
-        seed=args.data_seed if data_seeds is None else data_seeds[rank],
-        model_type=args.model_type,
-        data_distributed=data_distributed,
-    )
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
+    residual_fn = get_residual_layer(args)
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
@@ -71,13 +86,20 @@ def main(
         attention_layer_fun=attention_layer_fun,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
-        device=DEVICE,
+        device=DEVICE
+        if rank is None
+        else torch.device(
+            "cpu"
+        ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
+        residual_fn=residual_fn,
     )
 
     # make model data_distributed if necessary
     if rank is not None:
+        print(f"Moving model to cuda:{rank}")
+        model = model.to(f"cuda:{rank}")
         model = DDP(model, device_ids=[rank])
 
     optimizer = torch.optim.Adam(
@@ -86,7 +108,24 @@ def main(
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
+
+    train_dataloader = get_processed_dataset(
+        max_total_length=args.cutoff,
+        mask_percent=args.mask_percent,
+        device=DEVICE,
+        num_workers=args.num_workers,
+        batch_size=args.batch_size // args.n_gpus
+        if data_distributed
+        else args.batch_size,
+        seed=args.data_seed if data_seeds is None else data_seeds[rank],
+        model_type=args.model_type,
+        dataset_type=args.dataset_type,
+    )
+
     logger = get_logger(args, model, VOCAB_SIZE) if rank is None or rank == 0 else None
+
+    if args.model_type == "gpt" and (rank is None or rank == 0):
+        log_batch(train_dataloader)
 
     trainer = ConditionalTrainer(
         model=model,
@@ -108,6 +147,11 @@ def main(
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
+        lr_decay=args.lr_decay,
+        lr_warmup_steps=args.lr_warmup_steps,
+        lr_decay_interval=args.lr_decay_interval,
+        log_gradients_and_weights=args.log_gradients_and_weights,
+        max_sequence_length=args.cutoff,
     )
     trainer.train(args.n_steps)
 
