@@ -17,6 +17,7 @@ class TokenChoiceFF(LoggingLayer):
         n_experts: int,
         expert_size: int,
         capacity_factor: float,
+        aux_loss_weight: float,
     ):
         """
         Args:
@@ -34,6 +35,7 @@ class TokenChoiceFF(LoggingLayer):
         self.n_experts = n_experts
         self.expert_size = expert_size
         self.capacity_factor = capacity_factor
+        self.aux_loss_weight = aux_loss_weight
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
@@ -80,11 +82,22 @@ class TokenChoiceFF(LoggingLayer):
         with measure_time(self, "create_expert_mask"):
             expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
 
-        # TODO add random permutation
         with measure_time(self, "calculate expert indexes"):
             position_in_expert = torch.cumsum(expert_mask, dim=0) * expert_mask
             in_capacity_tokens_mask = torch.lt(position_in_expert, capacity)
             expert_mask *= in_capacity_tokens_mask
+
+        with measure_time(self, "calculate aux loss"):
+            position_in_expert_mask = position_in_expert.bool()
+            tokens_per_expert = position_in_expert_mask.sum(dim=0, dtype=gate_out.dtype)
+            aux_loss = calculate_auxillary_loss(
+                self.aux_loss_weight, gate_out, tokens_per_expert
+            )
+
+            if "aux_loss" not in self.store:
+                self.store["aux_loss"] = aux_loss
+            else:
+                self.store["aux_loss"] += aux_loss
 
         # mask out tokens that are not in capacity
         expert_mask_flat = expert_mask.sum(dim=1)
@@ -92,8 +105,8 @@ class TokenChoiceFF(LoggingLayer):
 
         self.cache("gate_softmax_values", expert_gate)
         self.cache("max_indices", expert_index)
-        self.cache("position_in_expert", position_in_expert)
-
+        self.cache("tokens_per_expert", tokens_per_expert)
+        self.cache("aux_loss", aux_loss)
         # group tokens indices by expert it should be processed by
         with measure_time(self, "experts_lists"):
             indices_of_tokens_for_expert = [
@@ -141,10 +154,6 @@ class TokenChoiceFF(LoggingLayer):
         return output
 
     def log_heavy(self):
-        # calculate token counts for each expert
-        position_in_expert_mask = self.cached_data["position_in_expert"].bool()
-        tokens_per_expert = position_in_expert_mask.sum(dim=0)
-
         # make bar plot of values cached in forward with measure_time
         instr_names = list(self.cached_data["time"].keys())
         instr_times = list(self.cached_data["time"].values())
@@ -155,6 +164,31 @@ class TokenChoiceFF(LoggingLayer):
             "gate_softmax_all_values": make_histogram(
                 self.cached_data["gate_softmax_all_values"].flatten()
             ),
-            "tokens_per_expert_counts": make_histogram(tokens_per_expert),
+            "tokens_per_expert_counts": make_histogram(
+                self.cached_data["tokens_per_expert"]
+            ),
             "instruction_times": times_fig,
+            "aux_loss": self.cached_data["aux_loss"],
         }
+
+
+def calculate_auxillary_loss(
+    alpha: float,
+    softmax_per_token: torch.Tensor,
+    no_tokens_in_each_expert: torch.Tensor,
+):
+    """
+    Calculates the auxillary loss for the token choice layer.
+
+    :param str alpha: aux loss weigth parameter
+    :param torch.Tensor softmax_per_token: tensor of shape (tokens, n_experts)
+    :param torch.Tensor tokens_in_each_expert: tensor of shape (n_experts)
+    """
+    no_tokens, no_experts = softmax_per_token.shape
+    assert no_experts == no_tokens_in_each_expert.shape[0]
+
+    per_expert_softmax_sum = torch.mean(softmax_per_token, dim=0)
+
+    dot_product = einsum("i,i->", per_expert_softmax_sum, no_tokens_in_each_expert)
+    aux_loss = alpha * no_experts * dot_product / (no_tokens**2)
+    return aux_loss

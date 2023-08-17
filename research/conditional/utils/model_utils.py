@@ -111,6 +111,12 @@ def chungized_llm_loss(
         total_loss += partial_loss_output.sum()
         total_correct_tokens += partial_correct_tokens
         total_masked_tokens += partial_masked_tokens
+
+    additional_loss = retrieve_additional_loss(model)
+
+    if additional_loss is not None:
+        total_loss += additional_loss
+
     return total_loss / num_tokens, {
         "correct_tokens": total_correct_tokens,
         "total_masked_tokens": total_masked_tokens,
@@ -164,6 +170,11 @@ def calculate_llm_loss(
     correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
     correct_tokens = correct_tokens.sum()
     total_masked_tokens = mask.sum()
+
+    additional_loss = retrieve_additional_loss(model)
+
+    if additional_loss is not None:
+        loss += additional_loss
 
     return loss, {
         "correct_tokens": correct_tokens,
@@ -244,6 +255,14 @@ def get_expert_choice_args(args):
         "softmax_over": args.softmax_over,
         "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
     }
+
+
+def retrieve_additional_loss(model: torch.nn.Module):
+    if not hasattr(model, "store"):
+        return None
+    if "aux_loss" in model.store:
+        return model.store["aux_loss"]
+    return None
 
 
 def get_ff_layer(args):
@@ -388,6 +407,7 @@ def get_ff_layer(args):
             n_experts=args.n_experts,
             expert_size=args.effective_dff,
             capacity_factor=args.capacity_factor,
+            aux_loss_weight=0.01,
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
