@@ -68,7 +68,7 @@ def main(
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
     # vocab size for gpt is 50257 + 1 for sequence_sep
-    VOCAB_SIZE = 30522 if args.model_type == "bert" else 50257
+    VOCAB_SIZE = 30522 if args.model_type == "bert" else 50258
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.detect_anomaly:
