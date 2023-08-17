@@ -146,7 +146,7 @@ class ConditionalTrainer:
             self.total_time_decoding += t2 - t1
             self.total_time_afterstep += t3 - t2
 
-            if step % 1000 == 0:
+            if step % 1000 == 0 and self.logger is not None:
                 total_time = (
                     self.total_time_trainsteps
                     + self.total_time_decoding
