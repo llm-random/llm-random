@@ -275,6 +275,10 @@ def get_expert_choice_with_parallel_args(args):
             expert_choice_params["n_experts"] * args.ff_parallel_compute_fraction
         )
         expert_choice_params["n_experts"] = n_experts
+    else:
+        raise ValueError(
+            f"Invalid ff_parallel_mode {args.ff_parallel_mode}. Possible values are modify_expert_size, modify_topk_fraction, modify_n_experts"
+        )
 
     dff_expert = calculate_effective_expert_dff(expert_size, n_experts, top_k_fraction)
     dff_parallel = args.effective_dff - dff_expert
