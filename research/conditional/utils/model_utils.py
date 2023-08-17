@@ -250,31 +250,36 @@ def get_expert_choice_args(args):
 
 def get_expert_choice_with_parallel_args(args):
     assert args.granularity_expert_config, "Must use granularity config"
-    raw_expert_choice_params = get_expert_choice_args(args)
+    expert_choice_params = get_expert_choice_args(args)
+    n_experts = expert_choice_params["n_experts"]
+    expert_size = expert_choice_params["expert_size"]
+    top_k_fraction = expert_choice_params["topk_fraction"]
 
-    def calculate_effective_expert_dff(expert_size, n_experts, topk_fraction):
-        return topk_fraction * n_experts * expert_size
+    def calculate_effective_expert_dff(_expert_size, _n_experts, _topk_fraction):
+        return _topk_fraction * _n_experts * _expert_size
 
     if args.ff_parallel_mode == "modify_expert_size":
         expert_size = int(
-            raw_expert_choice_params["expert_size"] * args.ff_parallel_factor
+            expert_choice_params["expert_size"] * args.ff_parallel_compute_fraction
         )
+        expert_choice_params["expert_size"] = expert_size
 
-    dff_parallel = calculate_effective_expert_dff(
-        expert_size=expert_size,
-        n_experts=raw_expert_choice_params["n_experts"],
-        topk_fraction=raw_expert_choice_params["topk_fraction"],
-    )
+    elif args.ff_parallel_mode == "modify_topk_fraction":
+        top_k_fraction = int(
+            expert_choice_params["topk_fraction"] * args.ff_parallel_compute_fraction
+        )
+        expert_choice_params["topk_fraction"] = top_k_fraction
 
-    # return {
-    #     "dmodel": args.dmodel,
-    #     "dff_parallel": dff_parallel,
-    #     "n_experts": args.n_experts,
-    #     "expert_size": expert_size,
-    #     "topk_fraction": topk_fraction,
-    #     "random_perm": args.expert_random_perm,
-    #     "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
-    # }
+    elif args.ff_parallel_mode == "modify_n_experts":
+        n_experts = int(
+            expert_choice_params["n_experts"] * args.ff_parallel_compute_fraction
+        )
+        expert_choice_params["n_experts"] = n_experts
+
+    dff_expert = calculate_effective_expert_dff(expert_size, n_experts, top_k_fraction)
+    dff_parallel = args.effective_dff - dff_expert
+    expert_choice_params["dff_parallel"] = int(dff_parallel)
+    return expert_choice_params
 
 
 def get_ff_layer(args):
@@ -415,8 +420,7 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "expert_choice_with_parallel":
         return_fn = lambda: ExpertChoiceFFWithParallel(
-            dff_parallel=args.dff_parallel,
-            **get_expert_choice_args(args),
+            **get_expert_choice_with_parallel_args(args),
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized

@@ -212,6 +212,7 @@ class ExpertChoiceFFWithParallel(LoggingLayer):
         expert_size: int,
         topk_fraction: float,
         random_perm: bool = False,
+        softmax_over: Literal["tokens", "experts"] = "tokens",
         group_granular_moe_by_batch: bool = False,
         n_gating_heatmaps: int = 4,
         dff_parallel: int = 768,
@@ -223,6 +224,7 @@ class ExpertChoiceFFWithParallel(LoggingLayer):
             expert_size=expert_size,
             topk_fraction=topk_fraction,
             random_perm=random_perm,
+            softmax_over=softmax_over,
             group_granular_moe_by_batch=group_granular_moe_by_batch,
             n_gating_heatmaps=n_gating_heatmaps,
         )

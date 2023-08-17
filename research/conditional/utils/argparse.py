@@ -78,7 +78,21 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--xfavor", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
-    parser.add_argument("--dff_parallel", type=int, default=128)
+    parser.add_argument(
+        "--ff_parallel_compute_fraction",
+        type=float,
+        default=0.5,
+        help="When using expert_choice_with_parallel layer this atrribute sets the fraction of compute that is done by "
+        "the FF layer parallel to experts",
+    )
+    parser.add_argument(
+        "--ff_parallel_mode",
+        type=str,
+        default="modify_expert_size",
+        help="When using expert_choice_with_parallel layer this atrribute sets which parameter of expert is modified "
+        "to keep the total compute constant. Possible values: modify_expert_size, modify_group_size, "
+        "modify_n_experts",
+    )
     parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,
