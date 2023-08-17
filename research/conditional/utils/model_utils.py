@@ -407,7 +407,7 @@ def get_ff_layer(args):
             n_experts=args.n_experts,
             expert_size=args.effective_dff,
             capacity_factor=args.capacity_factor,
-            aux_loss_weight=0.01,
+            aux_loss_weight=args.aux_loss_weight,
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
