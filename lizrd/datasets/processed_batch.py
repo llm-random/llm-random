@@ -28,14 +28,12 @@ class ProcessedBatch(ABC):
 class ProcessedGPTBatch(ProcessedBatch):
     def __init__(self, processed_examples):
         super().__init__(processed_examples)
-        self.tokens = torch.tensor(
-            [example["tokens"] for example in processed_examples]
-        )
+        self.tokens = torch.tensor([example.tokens for example in processed_examples])
         self.target_tokens = torch.tensor(
-            [example["target_tokens"] for example in processed_examples]
+            [example.target_tokens for example in processed_examples]
         )
         self.non_padded_mask = torch.tensor(
-            [example["non_padded_mask"] for example in processed_examples]
+            [example.non_padded_mask for example in processed_examples]
         )
 
 
