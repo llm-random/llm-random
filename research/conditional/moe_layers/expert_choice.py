@@ -1,3 +1,4 @@
+from typing import Literal
 import plotly.express as px
 import torch
 import torch.nn.functional as F
@@ -20,6 +21,7 @@ class ExpertChoiceFF(LoggingLayer):
         expert_size: int,
         topk_fraction: float,
         random_perm: bool = False,
+        softmax_over: Literal["tokens", "experts"] = "tokens",
         group_granular_moe_by_batch: bool = False,
         n_gating_heatmaps: int = 4,
     ):
@@ -56,6 +58,8 @@ class ExpertChoiceFF(LoggingLayer):
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
         self.ln = LayerNorm(dmodel)
+        assert softmax_over in ["tokens", "experts"]
+        self.softmax_over = softmax_over
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -76,9 +80,12 @@ class ExpertChoiceFF(LoggingLayer):
             self.cache("unflatten_gate_out", gate_out)
             gate_out = gate_out.flatten(start_dim=1)
 
-        # perform softmax over tokens for each expert
+        # perform softmax either over tokens for each expert or over experts for each token
         with measure_time(self, "softmax"):
-            gate_out = torch.softmax(gate_out, dim=1)
+            if self.softmax_over == "tokens":
+                gate_out = torch.softmax(gate_out, dim=1)
+            elif self.softmax_over == "experts":
+                gate_out = torch.softmax(gate_out, dim=0)
 
         self.cache("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert

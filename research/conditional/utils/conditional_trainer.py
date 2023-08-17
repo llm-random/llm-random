@@ -4,7 +4,6 @@ from types import SimpleNamespace as SN
 import time
 from typing import Callable, Optional, Literal
 
-import numpy as np
 import torch
 from attr import define
 from lizrd.core.misc import propagate_store
@@ -47,7 +46,7 @@ class ConditionalTrainer:
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
-    lr_decay: float = None
+    lr_decay: Optional[float] = None
     lr_warmup_steps: int = 0
     lr_decay_interval: int = 0
     log_gradients_and_weights: bool = False
@@ -56,7 +55,6 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
-    use_lr_scheduler: bool = False
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -76,15 +74,15 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
-        if self.use_lr_scheduler:
-            if self.lr_decay is None:
-                self.lr_decay_interval = np.Inf
+        if self.lr_decay is not None:
             self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
                 self.optimizer,
                 lr_lambda=lambda i: i / self.lr_warmup_steps
                 if i < self.lr_warmup_steps
                 else self.lr_decay ** (i // self.lr_decay_interval),
             )
+        else:
+            self.lr_scheduler = None
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -226,7 +224,7 @@ class ConditionalTrainer:
         )
 
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
-        if self.use_lr_scheduler:
+        if self.lr_scheduler is not None:
             self.lr_scheduler.step()
         if self.logger is not None:
             self._log_train_stats(loss, step)
@@ -271,7 +269,7 @@ class ConditionalTrainer:
 
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
-        if self.use_lr_scheduler:
+        if self.lr_scheduler is not None:
             self.logger.report_scalar(
                 title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step
             )
