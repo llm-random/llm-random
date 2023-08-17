@@ -249,37 +249,32 @@ def get_expert_choice_args(args):
 
 
 def get_expert_choice_with_parallel_args(args):
-    if args.granularity_expert_config:
-        if (args.expert_size is not None) or (args.topk_fraction is not None):
-            raise ValueError(
-                "Cannot specify expert_size or topk_fraction when using granularity config"
-            )
+    assert args.granularity_expert_config, "Must use granularity config"
+    raw_expert_choice_params = get_expert_choice_args(args)
 
-        # effective_dff_experts = args.total_experts_width / args.n_experts * experts_per_token
-        dff_parallel = int(args.effective_dff * args.ff_parallel_compute_fraction)
-        # dff_experts = args.effective_dff - dff_parallel
-        if args.ff_parallel_mode == "modify_experts_per_token":
-            expert_size = args.total_experts_width / args.n_experts
-            assert expert_size == int(expert_size)
-            expert_size = int(expert_size)
+    def calculate_effective_expert_dff(expert_size, n_experts, topk_fraction):
+        return topk_fraction * n_experts * expert_size
 
-            experts_per_token = args.effective_dff / expert_size
+    if args.ff_parallel_mode == "modify_expert_size":
+        expert_size = int(
+            raw_expert_choice_params["expert_size"] * args.ff_parallel_factor
+        )
 
-            topk_fraction = experts_per_token / args.n_experts
-            assert 0.0 <= topk_fraction <= 1.0
-    else:
-        expert_size = args.expert_size
-        topk_fraction = args.topk_fraction
+    dff_parallel = calculate_effective_expert_dff(
+        expert_size=expert_size,
+        n_experts=raw_expert_choice_params["n_experts"],
+        topk_fraction=raw_expert_choice_params["topk_fraction"],
+    )
 
-    return {
-        "dmodel": args.dmodel,
-        "dff_parallel": dff_parallel,
-        "n_experts": args.n_experts,
-        "expert_size": expert_size,
-        "topk_fraction": topk_fraction,
-        "random_perm": args.expert_random_perm,
-        "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
-    }
+    # return {
+    #     "dmodel": args.dmodel,
+    #     "dff_parallel": dff_parallel,
+    #     "n_experts": args.n_experts,
+    #     "expert_size": expert_size,
+    #     "topk_fraction": topk_fraction,
+    #     "random_perm": args.expert_random_perm,
+    #     "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
+    # }
 
 
 def get_ff_layer(args):
