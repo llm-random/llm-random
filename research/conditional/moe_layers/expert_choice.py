@@ -204,7 +204,7 @@ class ExpertChoiceFF(LoggingLayer):
         }
 
 
-class ExpertChoiceFFWithParallel(LoggingLayer):
+class ExpertChoiceFFWithParallelFF(LoggingLayer):
     def __init__(
         self,
         dmodel: int,

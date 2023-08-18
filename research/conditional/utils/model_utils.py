@@ -37,7 +37,7 @@ from research.conditional.moe_layers.continuous_moe import (
 )
 from research.conditional.moe_layers.expert_choice import (
     ExpertChoiceFF,
-    ExpertChoiceFFWithParallel,
+    ExpertChoiceFFWithParallelFF,
 )
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
@@ -424,8 +424,8 @@ def get_ff_layer(args):
         return_fn = lambda: ExpertChoiceFF(
             **get_expert_choice_args(args),
         )
-    elif args.ff_mode == "expert_choice_with_parallel":
-        return_fn = lambda: ExpertChoiceFFWithParallel(
+    elif args.ff_mode == "expert_choice_with_parallel_ff":
+        return_fn = lambda: ExpertChoiceFFWithParallelFF(
             **get_expert_choice_with_parallel_ff_args(args),
         )
     elif args.ff_mode == "kernelized_fc":
