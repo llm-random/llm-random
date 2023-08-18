@@ -24,6 +24,7 @@ class ExpertChoiceFF(LoggingLayer):
         softmax_over: Literal["tokens", "experts"] = "tokens",
         group_granular_moe_by_batch: bool = False,
         n_gating_heatmaps: int = 4,
+        include_layernorm: bool = True,
     ):
         """
         Args:
@@ -57,7 +58,10 @@ class ExpertChoiceFF(LoggingLayer):
         self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel)
+        if include_layernorm:
+            self.ln = LayerNorm(dmodel)
+        else:
+            self.ln = None
         assert softmax_over in ["tokens", "experts"]
         self.softmax_over = softmax_over
 
@@ -160,7 +164,8 @@ class ExpertChoiceFF(LoggingLayer):
             x = z.reshape((batch_size, seq_len, self.dmodel))
 
         with measure_time(self, "layer_norm"):
-            x = self.ln(x)
+            if self.ln is not None:
+                x = self.ln(x)
 
         return x
 

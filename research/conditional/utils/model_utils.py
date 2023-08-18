@@ -242,6 +242,7 @@ def get_expert_choice_args(args):
         "random_perm": args.expert_random_perm,
         "softmax_over": args.softmax_over,
         "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
+        "include_layernorm": not args.omit_expert_choice_layernorm,
     }
 
 
