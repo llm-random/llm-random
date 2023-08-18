@@ -1,5 +1,7 @@
 import random
 from typing import Literal
+import os
+import subprocess
 
 import numpy as np
 import torch
@@ -407,5 +409,9 @@ def get_processed_dataset(
             )
         del batch, t
         print("Logged example batch.")
+
+    if cache_dir := os.getenv("HF_DATASETS_CACHE"):
+        # Fix permissions so that everyone can access the cache dir
+        subprocess.run(["chmod", "-R", "777", cache_dir])
 
     return dataset_wrapper
