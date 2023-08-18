@@ -318,9 +318,12 @@ def resolve_activation_name(activation: str) -> torch.nn.Module:
         raise ValueError(f"Unrecognized activation: {activation}")
 
 
-def add_additional_attributes_to_layer(
-    layer: torch.nn.Module, i_block: int, layer_type: str, forward_pass_cache: dict
-):
-    layer.forward_pass_cache = forward_pass_cache
-    layer.block_number = i_block
-    layer.layer_type = layer_type
+def propagate_forward_pass_cache(module: torch.nn.Module, forward_pass_cache=None):
+    """
+    This function propagates the cache from the module to all its children.
+    """
+    if forward_pass_cache is None:
+        forward_pass_cache = dict()
+    module.forward_pass_cache = forward_pass_cache
+    for child in module.children():
+        propagate_forward_pass_cache(child, forward_pass_cache)

@@ -5,7 +5,7 @@ import torch
 
 import lizrd.core.nn as nn
 from lizrd.core import misc
-from lizrd.core.misc import Checkpoint, add_additional_attributes_to_layer
+from lizrd.core.misc import Checkpoint
 from lizrd.support import ash
 
 
@@ -260,17 +260,10 @@ class TransformerTower(nn.Module):
         )
         self.device = device
 
-        self.forward_pass_cache = dict()
-
         for i_block in range(n_blocks):
             layers_info = [
                 (name, layer_fun()) for name, layer_fun in layer_dict.items()
             ]
-
-            for name, layer in layers_info:
-                add_additional_attributes_to_layer(
-                    layer, i_block, name, self.forward_pass_cache
-                )
 
             _, current_device = self.get_current_device(i_block)
             name_and_block = (

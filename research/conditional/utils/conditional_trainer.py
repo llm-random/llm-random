@@ -5,6 +5,7 @@ from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
+from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.datasets import wikibookdata
 from lizrd.support.decoding import decode_single_example
 import lizrd.datasets.processed_batch
@@ -82,7 +83,7 @@ class ConditionalTrainer:
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
-        pass
+        propagate_forward_pass_cache(self.model)
 
     def _after_step_operations(self):
         self.model.forward_pass_cache.clear()
