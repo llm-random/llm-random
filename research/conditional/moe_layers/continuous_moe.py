@@ -73,9 +73,9 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
     def get_merge_and_emit_weights(self, x):
         merge_logits = misc.einsum("B S g d, d e -> B S e g", x, self.controller)
-        self.cache("merge_logits", merge_logits)
+        self.update_cache_for_logging("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
-        self.cache("merge_weights", merge_weights)
+        self.update_cache_for_logging("merge_weights", merge_weights)
         return merge_weights, merge_weights
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
@@ -131,10 +131,10 @@ class ContinuousMoeBaseClass(LoggingLayer):
         if self.group_size == 1:
             return log
         merge_weights = torch.flatten(
-            self.cached_data["merge_weights"], start_dim=0, end_dim=-2
+            self.logging_cache["merge_weights"], start_dim=0, end_dim=-2
         )
         merge_logits = torch.flatten(
-            self.cached_data["merge_logits"], start_dim=0, end_dim=-2
+            self.logging_cache["merge_logits"], start_dim=0, end_dim=-2
         )
         sample_weight_distros = merge_weights[:5]
         sample_logits_distros = merge_logits[:5]
