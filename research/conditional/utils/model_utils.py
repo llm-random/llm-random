@@ -266,10 +266,10 @@ def get_expert_choice_with_parallel_ff_args(args):
         expert_choice_params["expert_size"] = expert_size
 
     elif args.ff_parallel_mode == "modify_topk_fraction":
-        top_k_fraction = int(
-            expert_choice_params["topk_fraction"]
-            * (1 - args.ff_parallel_compute_fraction)
+        top_k_fraction = expert_choice_params["topk_fraction"] * (
+            1 - args.ff_parallel_compute_fraction
         )
+
         expert_choice_params["topk_fraction"] = top_k_fraction
 
     elif args.ff_parallel_mode == "modify_n_experts":
