@@ -47,12 +47,10 @@ def main(
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
-
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
-
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,

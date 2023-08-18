@@ -264,7 +264,6 @@ class TransformerTower(nn.Module):
             layers_info = [
                 (name, layer_fun()) for name, layer_fun in layer_dict.items()
             ]
-
             _, current_device = self.get_current_device(i_block)
             name_and_block = (
                 f"block_{i_block}",
