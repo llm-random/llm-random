@@ -90,8 +90,7 @@ class ExpertChoiceFF(LoggingLayer):
             )
             # transform such that first dimension corresponds to experts
             gate_out = gate_out.permute(2, 0, 1)
-            # flatten batch_size x seq_len
-            self.cache("unflatten_gate_out", gate_out)
+            # flatten batch_size x seq_lenging("unflatten_gate_out", gate_out)
 
             # each expert chooses k within dimension 1
             if not self.group_granular_moe_by_batch:
@@ -105,8 +104,7 @@ class ExpertChoiceFF(LoggingLayer):
             elif self.softmax_over == "experts":
                 gate_out = torch.softmax(gate_out, dim=0)
 
-        self.cache("gate_softmax_all_values", gate_out)
-
+        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
             topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
@@ -121,9 +119,9 @@ class ExpertChoiceFF(LoggingLayer):
                 topk_values = topk_values.reshape(self.n_experts, topk)
 
         # cache values for logging
-        self.cache("gate_softmax_topk_vals", topk_values)
-        self.cache("topk_indices", topk_indices)
-        self.cache("n_tokens", torch.Tensor([batch_size * seq_len]))
+        self.update_cache_for_logging("gate_softmax_topk_vals", topk_values)
+        self.update_cache_for_logging("topk_indices", topk_indices)
+        self.update_cache_for_logging("n_tokens", torch.Tensor([batch_size * seq_len]))
 
         # Randomly permute tokens for experts if random_perm is True
         # Note this is not total randomness, since topk values are already chosen
@@ -210,11 +208,11 @@ class ExpertChoiceFF(LoggingLayer):
 
     def log_heavy(self):
         # calculate indexes choose counts
-        chosen_indexes = self.cached_data["topk_indices"].flatten()
+        chosen_indexes = self.logging_cache["topk_indices"].flatten()
         chosen_indexes = torch.cat(
             (
                 chosen_indexes,
-                torch.Tensor([self.cached_data["n_tokens"] - 1]).type(
+                torch.Tensor([self.logging_cache["n_tokens"] - 1]).type(
                     chosen_indexes.type()
                 ),
             )
@@ -222,23 +220,23 @@ class ExpertChoiceFF(LoggingLayer):
         indexes_choose_counts = chosen_indexes.bincount()
 
         # make bar plot of values cached in forward with measure_time
-        instr_names = list(self.cached_data["time"].keys())
-        instr_times = list(self.cached_data["time"].values())
+        instr_names = list(self.logging_cache["time"].keys())
+        instr_times = list(self.logging_cache["time"].values())
         times_fig = px.bar(x=instr_names, y=instr_times)
 
         return {
             "gradient of gate distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_topk_vals": make_histogram(
-                self.cached_data["gate_softmax_topk_vals"].flatten()
+                self.logging_cache["gate_softmax_topk_vals"].flatten()
             ),
             "gate_softmax_all_values": make_histogram(
-                self.cached_data["gate_softmax_all_values"].flatten()
+                self.logging_cache["gate_softmax_all_values"].flatten()
             ),
             "indexes_choose_counts": make_histogram(indexes_choose_counts),
             "instruction_times": times_fig,
             **{
                 f"gating_heatmap_{i}": make_heatmap(
-                    self.cached_data["unflatten_gate_out"], i
+                    self.logging_cache["unflatten_gate_out"], i
                 )
                 for i in range(min(self.n_gating_heatmaps, self.n_experts))
             },
