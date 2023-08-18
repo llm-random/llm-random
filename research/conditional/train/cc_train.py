@@ -1,7 +1,6 @@
 import argparse
 import os
 import random
-import subprocess
 from typing import Optional
 import socket
 
