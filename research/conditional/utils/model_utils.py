@@ -248,7 +248,7 @@ def get_expert_choice_args(args):
     }
 
 
-def get_expert_choice_with_parallel_args(args):
+def get_expert_choice_with_parallel_ff_args(args):
     assert args.granularity_expert_config, "Must use granularity config"
     expert_choice_params = get_expert_choice_args(args)
     n_experts = expert_choice_params["n_experts"]
@@ -260,19 +260,21 @@ def get_expert_choice_with_parallel_args(args):
 
     if args.ff_parallel_mode == "modify_expert_size":
         expert_size = int(
-            expert_choice_params["expert_size"] * args.ff_parallel_compute_fraction
+            expert_choice_params["expert_size"]
+            * (1 - args.ff_parallel_compute_fraction)
         )
         expert_choice_params["expert_size"] = expert_size
 
     elif args.ff_parallel_mode == "modify_topk_fraction":
         top_k_fraction = int(
-            expert_choice_params["topk_fraction"] * args.ff_parallel_compute_fraction
+            expert_choice_params["topk_fraction"]
+            * (1 - args.ff_parallel_compute_fraction)
         )
         expert_choice_params["topk_fraction"] = top_k_fraction
 
     elif args.ff_parallel_mode == "modify_n_experts":
         n_experts = int(
-            expert_choice_params["n_experts"] * args.ff_parallel_compute_fraction
+            expert_choice_params["n_experts"] * (1 - args.ff_parallel_compute_fraction)
         )
         expert_choice_params["n_experts"] = n_experts
     else:
@@ -424,7 +426,7 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "expert_choice_with_parallel":
         return_fn = lambda: ExpertChoiceFFWithParallel(
-            **get_expert_choice_with_parallel_args(args),
+            **get_expert_choice_with_parallel_ff_args(args),
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
