@@ -223,7 +223,7 @@ if __name__ == "__main__":
                 "run",
                 f"--env",
                 f"HF_DATASETS_CACHE={datasets_cache}",
-                f"-B={CODE_PATH}:/sparsity",
+                f"-B={CODE_PATH}:/sparsity,{datasets_cache}:{datasets_cache}",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
