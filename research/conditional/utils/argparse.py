@@ -63,7 +63,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument(
         "--granularity_expert_config",
         action="store_true",
-        help="This argument is deprecated",
+        help="This argument is deprecated. Provide either (total_experts_width, n_experts, effective_dff) or (expert_size, n_experts, topk_fraction) instead.",
     )
     parser.add_argument("--total_experts_width", type=int, required=False)
     parser.add_argument("--effective_dff", type=int, required=False)
