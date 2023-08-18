@@ -1,4 +1,9 @@
-def introduce_parser_arguments(parser):
+import argparse
+
+
+def introduce_parser_arguments(
+    parser: argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
     parser.add_argument("--use_clearml", action="store_true")
