@@ -20,9 +20,9 @@ class ContinuousMoESeparateWeightedParameters(ContinuousMoeBaseClass):
         merge_logits = misc.einsum(
             "B S c d, d e -> B S e c", x, merge_combined_parameters
         )
-        self.cache("merge_logits", merge_logits)
+        self.update_cache_for_logging("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
-        self.cache("merge_weights", merge_weights)
+        self.update_cache_for_logging("merge_weights", merge_weights)
 
         emit_combined_parameters = (
             self.emit_parameters_matrix_weight * self.controller_emit
@@ -31,9 +31,9 @@ class ContinuousMoESeparateWeightedParameters(ContinuousMoeBaseClass):
         emit_logits = misc.einsum(
             "B S c d, d e -> B S e c", x, emit_combined_parameters
         )
-        self.cache("emit_logits", emit_logits)
+        self.update_cache_for_logging("emit_logits", emit_logits)
         emit_weights = stable_softmax_temperature(emit_logits, self.temperature)
-        self.cache("emit_weights", emit_weights)
+        self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
     def init_parameters(self):
