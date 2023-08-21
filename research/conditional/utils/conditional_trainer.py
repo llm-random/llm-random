@@ -6,7 +6,7 @@ from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
-from lizrd.core.misc import propagate_store
+from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.datasets import wikibookdata
 from lizrd.support.decoding import decode_single_example
 import lizrd.datasets.processed_batch
@@ -16,7 +16,6 @@ from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
 from lizrd.datasets.c4 import NUM_C4_TOKENS
-
 from transformers import GPT2Tokenizer
 
 
@@ -111,10 +110,10 @@ class ConditionalTrainer:
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
-        propagate_store(self.model)
+        propagate_forward_pass_cache(self.model)
 
     def _after_step_operations(self):
-        self.model.store.clear()
+        self.model.forward_pass_cache.clear()
 
     def train(self, n_steps: int):
         """

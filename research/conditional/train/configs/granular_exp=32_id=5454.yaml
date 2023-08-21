@@ -9,7 +9,7 @@ params:
   # model
   batch_size: 512
   cutoff: 128
-  project_name: "pmtest/llm-efficiency"
+  project_name: "pmtest/llm-random"
   name: "jk"
   mixed_precision: true
   tags:
