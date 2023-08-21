@@ -189,5 +189,5 @@ def calculate_auxillary_loss(
     per_expert_softmax_sum = torch.mean(softmax_per_token, dim=0)
 
     dot_product = einsum("i,i->", per_expert_softmax_sum, no_tokens_in_each_expert)
-    aux_loss = alpha * no_experts * dot_product / (no_tokens**2)
+    aux_loss = alpha * no_experts * dot_product / no_tokens
     return aux_loss
