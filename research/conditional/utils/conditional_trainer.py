@@ -204,7 +204,14 @@ class ConditionalTrainer:
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
         if self.logger is not None:
-            self._log_train_stats(loss, step)
+            if self.model_type == "bert":
+                mask_percent = self.mask_percent
+                numel = processed_batch.tokens.numel()
+                real_mask_percent = aux_info["total_masked_tokens"] / numel
+                aux_info["legacy_bert_bugged_loss_multiplier"] = (
+                    real_mask_percent / mask_percent
+                )
+            self._log_train_stats(loss, step, aux_info)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_heavy(step)
@@ -270,7 +277,7 @@ class ConditionalTrainer:
             torch.save(checkpoint, self.save_weights_path)
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
-    def _log_train_stats(self, loss_value, step):
+    def _log_train_stats(self, loss_value, step, aux_info):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         if self.lr_scheduler is not None:
             self.logger.report_scalar(
@@ -280,8 +287,12 @@ class ConditionalTrainer:
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
             if name == "legacy_bert_bugged_loss":
-                altered_loss_value = None
-            stats.acc += loss_value
+                bert_legacy_loss = (
+                    loss_value * aux_info["legacy_bert_bugged_loss_multiplier"]
+                )
+                stats.acc += bert_legacy_loss
+            else:
+                stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
                 self.logger.report_scalar(
                     title=name,
