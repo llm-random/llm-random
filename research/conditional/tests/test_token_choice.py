@@ -32,7 +32,7 @@ class TestTokenChoice(GeneralTestCase):
             Linear(dm, exp_size, bias=False), ReLU(), Linear(exp_size, dm, bias=False)
         )
         token_choice_layer = TokenChoiceFF(
-            dm, experts, exp_size, 5.0, aux_loss_weight=0.1
+            dm, experts, exp_size, 5.0, load_balancing_loss_weight=0.1
         )
         propagate_forward_pass_cache(token_choice_layer)
 

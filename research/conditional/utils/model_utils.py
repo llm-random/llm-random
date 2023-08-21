@@ -118,15 +118,15 @@ def chungized_llm_loss(
         total_correct_tokens += partial_correct_tokens
         total_masked_tokens += partial_masked_tokens
 
-    additional_loss = retrieve_additional_loss(model)
-
-    if additional_loss is not None:
-        total_loss += additional_loss
-
-    return total_loss / num_tokens, {
+    aux_info = {
         "correct_tokens": total_correct_tokens,
         "total_masked_tokens": total_masked_tokens,
     }
+
+    additional_losses = retrieve_additional_losses(model)
+    aux_info.update(additional_losses)
+
+    return total_loss / num_tokens, aux_info
 
 
 def chungized_bert_loss(batch, model, mixed_precision, vocab_size, n_chungs):
@@ -177,15 +177,15 @@ def calculate_llm_loss(
     correct_tokens = correct_tokens.sum()
     total_masked_tokens = mask.sum()
 
-    additional_loss = retrieve_additional_loss(model)
-
-    if additional_loss is not None:
-        loss += additional_loss
-
-    return loss, {
+    aux_info = {
         "correct_tokens": correct_tokens,
         "total_masked_tokens": total_masked_tokens,
     }
+
+    additional_losses = retrieve_additional_losses(model)
+    aux_info.update(additional_losses)
+
+    return loss, aux_info
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
@@ -263,12 +263,18 @@ def get_expert_choice_args(args):
     }
 
 
-def retrieve_additional_loss(model: torch.nn.Module):
-    if not hasattr(model, "store"):
-        return None
-    if "aux_loss" in model.store:
-        return model.store["aux_loss"]
-    return None
+def retrieve_additional_losses(model: torch.nn.Module):
+    losses = {}
+    if not hasattr(model, "forward_pass_cache"):
+        return losses
+
+    if "load_balancing_losses" in model.forward_pass_cache:
+        load_balancing_losses = model.forward_pass_cache["load_balancing_losses"]
+        load_balancing_losses = torch.stack(load_balancing_losses)
+        load_balancing_loss = torch.mean(load_balancing_losses)
+        losses["load_balancing_loss"] = load_balancing_loss
+
+    return losses
 
 
 def get_ff_layer(args):
@@ -437,7 +443,7 @@ def get_ff_layer(args):
             n_experts=args.n_experts,
             expert_size=args.effective_dff,
             capacity_factor=args.capacity_factor,
-            aux_loss_weight=args.aux_loss_weight,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized

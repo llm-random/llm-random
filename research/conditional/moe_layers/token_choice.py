@@ -17,7 +17,7 @@ class TokenChoiceFF(LoggingLayer):
         n_experts: int,
         expert_size: int,
         capacity_factor: float,
-        aux_loss_weight: float,
+        load_balancing_loss_weight: float,
     ):
         """
         Args:
@@ -25,7 +25,7 @@ class TokenChoiceFF(LoggingLayer):
             n_experts: number of experts
             expert_size: size of each expert
             capacity_factor: scalar that determines how many tokens can be assigned to each expert
-            aux_loss_weight: weight of the auxillary loss
+            load_balancing_loss_weight: weight of the auxillary loss
         """
         super().__init__()
 
@@ -33,7 +33,7 @@ class TokenChoiceFF(LoggingLayer):
         self.n_experts = n_experts
         self.expert_size = expert_size
         self.capacity_factor = capacity_factor
-        self.aux_loss_weight = aux_loss_weight
+        self.load_balancing_loss_weight = load_balancing_loss_weight
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
@@ -45,9 +45,7 @@ class TokenChoiceFF(LoggingLayer):
             )
         )
 
-        self.gate = nn.Parameter(
-            get_init_weight((dmodel, n_experts), fan_in=dmodel)
-        ).requires_grad_(True)
+        self.gate = nn.Parameter(get_init_weight((dmodel, n_experts), fan_in=dmodel))
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -88,14 +86,16 @@ class TokenChoiceFF(LoggingLayer):
         with measure_time(self, "calculate aux loss"):
             position_in_expert_mask = position_in_expert.bool()
             tokens_per_expert = position_in_expert_mask.sum(dim=0, dtype=gate_out.dtype)
-            aux_loss = calculate_auxillary_loss(
-                self.aux_loss_weight, gate_out, tokens_per_expert
+            load_balancing_loss = calculate_load_balancing_loss(
+                self.load_balancing_loss_weight, gate_out, tokens_per_expert
             )
 
-            if "aux_loss" not in self.forward_pass_cache:
-                self.forward_pass_cache["aux_loss"] = aux_loss
+            if "load_balancing_losses" not in self.forward_pass_cache:
+                self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
             else:
-                self.forward_pass_cache["aux_loss"] += aux_loss
+                self.forward_pass_cache["load_balancing_losses"].append(
+                    load_balancing_loss
+                )
 
         # mask out tokens that are not in capacity
         expert_mask_flat = expert_mask.sum(dim=1)
@@ -104,7 +104,7 @@ class TokenChoiceFF(LoggingLayer):
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
         self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
-        self.update_cache_for_logging("aux_loss", aux_loss)
+        self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
         # group tokens indices by expert it should be processed by
         with measure_time(self, "experts_lists"):
             indices_of_tokens_for_expert = [
@@ -167,17 +167,17 @@ class TokenChoiceFF(LoggingLayer):
                 self.logging_cache["tokens_per_expert"]
             ),
             "instruction_times": times_fig,
-            "aux_loss": self.logging_cache["aux_loss"],
+            "load_balancing_loss": self.logging_cache["load_balancing_loss"],
         }
 
 
-def calculate_auxillary_loss(
+def calculate_load_balancing_loss(
     alpha: float,
     softmax_per_token: torch.Tensor,
     no_tokens_in_each_expert: torch.Tensor,
 ):
     """
-    Calculates the auxillary loss for the token choice layer.
+    Calculates the load balancing loss for the token choice layer.
 
     :param str alpha: aux loss weigth parameter
     :param torch.Tensor softmax_per_token: tensor of shape (tokens, n_experts)
@@ -189,5 +189,5 @@ def calculate_auxillary_loss(
     per_expert_softmax_sum = torch.mean(softmax_per_token, dim=0)
 
     dot_product = einsum("i,i->", per_expert_softmax_sum, no_tokens_in_each_expert)
-    aux_loss = alpha * no_experts * dot_product / no_tokens
-    return aux_loss
+    load_balancing_loss = alpha * no_experts * dot_product / no_tokens
+    return load_balancing_loss
