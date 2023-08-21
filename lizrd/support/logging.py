@@ -108,11 +108,7 @@ class AbstractLogger(ABC):
                 title=title, series=series_std, value=std, iteration=iteration
             )
         else:
-            pass  # commented it out because it's too verbose and can't debug
-
-    #            print(
-    #                f"Could not log scalars for plotly figure of type {type(figure.data[0])}"
-    #            )
+            pass  # removed warning because it's too verbose and can't debug
 
     @staticmethod
     def get_log_x_scale_metric(value: float, iteration: int):

@@ -23,6 +23,7 @@ class ExpertChoiceFF(LoggingLayer):
         random_perm: bool = False,
         group_by_batch: bool = False,
         one_hot_impl: bool = False,
+        softmax_ungrouped: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
     ):
@@ -45,6 +46,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.random_perm = random_perm
         self.group_by_batch = group_by_batch
         self.one_hot_impl = one_hot_impl
+        self.softmax_ungrouped = softmax_ungrouped
         self.n_gating_heatmaps = n_gating_heatmaps
 
         assert (
@@ -65,6 +67,7 @@ class ExpertChoiceFF(LoggingLayer):
         ).requires_grad_(True)
         self.ln = LayerNorm(dmodel)
         assert softmax_over in ["tokens", "experts"]
+        assert not self.softmax_ungrouped or self.group_by_batch
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot
@@ -101,13 +104,12 @@ class ExpertChoiceFF(LoggingLayer):
                 x,
                 self.gate,
             )
-            # transform such that first dimension corresponds to experts
-            self.update_cache_for_logging("unflatten_gate_out", gate_out)
+        # transform such that first dimension corresponds to experts
+        self.update_cache_for_logging("unflatten_gate_out", gate_out)
 
-            # each expert chooses k within dimension 1
-            if not self.group_by_batch:
-                gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
-        topk = round(self.topk_fraction * gate_out.shape[1])
+        # each expert chooses k within dimension 1
+        if not self.group_by_batch and not self.softmax_ungrouped:
+            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 
         # perform softmax either over tokens for each expert or over experts for each token
         with measure_time(self, "softmax"):
@@ -115,6 +117,11 @@ class ExpertChoiceFF(LoggingLayer):
                 gate_out = torch.softmax(gate_out, dim=1)
             elif self.softmax_over == "experts":
                 gate_out = torch.softmax(gate_out, dim=0)
+
+        if self.softmax_ungrouped:
+            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+
+        topk = round(self.topk_fraction * gate_out.shape[1])
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
