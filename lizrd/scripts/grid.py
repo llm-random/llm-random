@@ -15,6 +15,7 @@ import yaml
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    get_train_main_function,
     multiply_grid,
     timestr_to_minutes,
     get_machine_backend,
@@ -134,7 +135,6 @@ if __name__ == "__main__":
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
-        param_set["tags"] = " ".join(param_set["tags"])
         param_set["n_gpus"] = N_GPUS
         env = None
 
@@ -150,8 +150,10 @@ if __name__ == "__main__":
                 else:
                     runner_params.append(f"--{k}")
                     if isinstance(v, list):
-                        v = " ".join([str(s) for s in v])
-                    runner_params.append(v)
+                        runner_params.extend([str(s) for s in v])
+                    else:
+                        runner_params.append(str(v))
+
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
@@ -232,13 +234,11 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.LOCAL:
-            subprocess_args = [
-                get_grid_entrypoint(runner),
-                "python3",
-                "-m",
-                RUNNER,
-                *runner_params,
-            ]
+            # We run the experiment directly, not through a grid entrypoint script
+            # because we want to be able to debug it
+            runner_main_function = get_train_main_function(RUNNER)
+            runner_main_function(None, runner_params=runner_params)
+            exit(0)
         else:
             raise ValueError(f"Unknown runner: {runner}")
 
