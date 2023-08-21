@@ -64,6 +64,10 @@ class ConditionalTrainer:
         self.loss_accumulators["loss"] = SN(
             acc=0.0, interval=self.logging_interval_loss
         )
+        if self.model_type == "bert":
+            self.loss_accumulators["legacy_bert_bugged_loss"] = SN(
+                acc=0.0, interval=self.logging_interval_loss
+            )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self._calculate_loss = make_loss_function(
@@ -82,32 +86,6 @@ class ConditionalTrainer:
             )
         else:
             self.lr_scheduler = None
-
-    def _restore_weights(self):
-        if self.load_weights_path is not None:
-            if os.path.exists(self.load_weights_path):
-                print(f"Loading weights from {self.load_weights_path}")
-                checkpoint = torch.load(self.load_weights_path)
-                self.model.load_state_dict(checkpoint["model"], strict=False)
-                self.optimizer.load_state_dict(checkpoint["optimizer"])
-                self.scaler.load_state_dict(checkpoint["scaler"])
-            else:
-                print(
-                    f"No weights found at {self.load_weights_path}, training from scratch"
-                )
-
-    def _save_weights(self, step):
-        if (
-            self.save_weights_path is not None
-            and step % self.save_weights_interval == 0
-        ):
-            checkpoint = {
-                "model": self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-                "scaler": self.scaler.state_dict(),
-            }
-            torch.save(checkpoint, self.save_weights_path)
-            print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
@@ -266,6 +244,32 @@ class ConditionalTrainer:
             "total_masked_tokens": total_masked_tokens_value,
         }
 
+    def _restore_weights(self):
+        if self.load_weights_path is not None:
+            if os.path.exists(self.load_weights_path):
+                print(f"Loading weights from {self.load_weights_path}")
+                checkpoint = torch.load(self.load_weights_path)
+                self.model.load_state_dict(checkpoint["model"], strict=False)
+                self.optimizer.load_state_dict(checkpoint["optimizer"])
+                self.scaler.load_state_dict(checkpoint["scaler"])
+            else:
+                print(
+                    f"No weights found at {self.load_weights_path}, training from scratch"
+                )
+
+    def _save_weights(self, step):
+        if (
+            self.save_weights_path is not None
+            and step % self.save_weights_interval == 0
+        ):
+            checkpoint = {
+                "model": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "scaler": self.scaler.state_dict(),
+            }
+            torch.save(checkpoint, self.save_weights_path)
+            print(f"Weights saved to {self.save_weights_path} (step {step})")
+
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         if self.lr_scheduler is not None:
@@ -275,6 +279,8 @@ class ConditionalTrainer:
         if self.train_dataloader.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
+            if name == "legacy_bert_bugged_loss":
+                altered_loss_value = None
             stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
                 self.logger.report_scalar(
