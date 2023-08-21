@@ -56,15 +56,15 @@ def main(
     data_seeds: Optional[list[int]] = None,
     port: str = "29500",
     args: Optional[argparse.Namespace] = None,
-    run_in_the_same_process: bool = False,
+    runner_params: Optional[list] = None,
 ):
-    if run_in_the_same_process:  # TODO is it necessary?
-        args = vars(args)
+    if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
-        combined_args = vars(parser.parse_known_args()[0])
-        combined_args.update(args)
-        args = argparse.Namespace(**combined_args)
+        runner_params = [str(e) for e in runner_params]
+        args, extra = parser.parse_known_args(runner_params)
+        if len(extra):
+            print("Unknown args:", extra)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"

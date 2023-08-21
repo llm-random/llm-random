@@ -235,7 +235,7 @@ if __name__ == "__main__":
             ]
         elif runner == MachineBackend.LOCAL:
             args = argparse.Namespace(**grid[0])
-            cc_train_main(None, args=args, run_in_the_same_process=True)
+            cc_train_main(None, runner_params=runner_params)
         else:
             raise ValueError(f"Unknown runner: {runner}")
 
