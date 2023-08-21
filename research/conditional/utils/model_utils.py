@@ -249,7 +249,6 @@ def get_expert_choice_args(args):
 
 
 def get_expert_choice_with_parallel_ff_args(args):
-    assert args.granularity_expert_config, "Must use granularity config"
     expert_choice_params = get_expert_choice_args(args)
     n_experts = expert_choice_params["n_experts"]
     expert_size = expert_choice_params["expert_size"]
