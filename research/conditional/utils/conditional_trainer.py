@@ -115,7 +115,11 @@ class ConditionalTrainer:
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
-        propagate_forward_pass_cache(self.model, self.cache_on_forward_pass)
+        propagate_forward_pass_cache(
+            self.model,
+            forward_pass_cache=None,
+            cache_on_forward_pass=self.cache_on_forward_pass,
+        )
 
     def _after_step_operations(self):
         self.model.forward_pass_cache.clear()

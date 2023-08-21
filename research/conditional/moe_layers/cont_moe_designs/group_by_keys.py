@@ -17,7 +17,7 @@ class ContinuousMoEGroupByKeys(ContinuousMoEMergeDifferentlyCommonBase):
     """
 
     def get_merge_and_emit_weights(self, x):
-        keys_from_prev_layer = self.get_from_store(
+        keys_from_prev_layer = self.get_from_forward_pass_cache(
             "attention_keys", self.block_number, "attention"
         )
         # shape of keys_from_prev_layer: (batch_size, sequence_length, n_heads, head_size)

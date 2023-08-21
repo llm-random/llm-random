@@ -52,6 +52,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--n_experts", type=int, default=1)
     parser.add_argument("--group_size", type=int, default=1)
     parser.add_argument("--sparsity_dim", type=int, default=1)
+    parser.add_argument("--cache_on_forward_pass", action="store_true")
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--expert_size", type=int, required=False)
     parser.add_argument("--topk_fraction", type=float, required=False)
