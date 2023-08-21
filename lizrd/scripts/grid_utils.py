@@ -3,7 +3,6 @@ import platform
 from enum import Enum
 from itertools import product
 from typing import List, Tuple
-from research.conditional.train.cc_train import main as cc_train_main
 
 
 class MachineBackend(Enum):
@@ -208,6 +207,8 @@ def list_to_clean_str(l: List[str]) -> str:
 
 
 def get_train_main_function(runner: str):
+    from research.conditional.train.cc_train import main as cc_train_main
+
     if runner == "research.conditional.train.cc_train":
         return cc_train_main
     else:
