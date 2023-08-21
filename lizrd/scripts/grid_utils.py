@@ -3,6 +3,7 @@ import platform
 from enum import Enum
 from itertools import product
 from typing import List, Tuple
+from research.conditional.train.cc_train import main as cc_train_main
 
 
 class MachineBackend(Enum):
@@ -28,7 +29,7 @@ def get_machine_backend() -> MachineBackend:
 
 
 def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
-    if machine_backend in [MachineBackend.ENTROPY, MachineBackend.LOCAL]:
+    if machine_backend in [MachineBackend.ENTROPY]:
         return "lizrd/scripts/grid_entrypoint.sh"
     elif machine_backend in [
         MachineBackend.ATHENA,
@@ -36,6 +37,8 @@ def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
         MachineBackend.ENTROPY_GPU,
     ]:
         return "lizrd/scripts/grid_entrypoint_athena.sh"
+    elif machine_backend in [MachineBackend.LOCAL]:
+        raise ValueError(f"Local machine should use main function directly. ")
     else:
         raise ValueError(f"Unknown machine backend: {machine_backend}")
 
@@ -202,3 +205,10 @@ def param_to_str(param) -> str:
 
 def list_to_clean_str(l: List[str]) -> str:
     return " ".join([str(s) for s in l if s is not None])
+
+
+def get_train_main_function(runner: str):
+    if runner == "research.conditional.train.cc_train":
+        return cc_train_main
+    else:
+        raise ValueError(f"Unknown runner: {runner}")
