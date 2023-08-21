@@ -135,7 +135,6 @@ if __name__ == "__main__":
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
-        param_set["tags"] = " ".join(param_set["tags"])
         param_set["n_gpus"] = N_GPUS
         env = None
 
@@ -151,8 +150,10 @@ if __name__ == "__main__":
                 else:
                     runner_params.append(f"--{k}")
                     if isinstance(v, list):
-                        v = " ".join([str(s) for s in v])
-                    runner_params.append(v)
+                        runner_params.extend([str(s) for s in v])
+                    else:
+                        runner_params.append(str(v))
+
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
