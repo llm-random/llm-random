@@ -24,10 +24,8 @@ class TokenChoiceFF(LoggingLayer):
             dmodel: dimension of the input
             n_experts: number of experts
             expert_size: size of each expert
-            topk_fraction: fraction of tokens that will be chosen for each expert
-            random_perm: randomly permute tokens for experts (ablation). Note that
-                network can still learn which tokens to choose,
-                but not which expert to choose for token
+            capacity_factor: scalar that determines how many tokens can be assigned to each expert
+            aux_loss_weight: weight of the auxillary loss
         """
         super().__init__()
 
@@ -55,7 +53,7 @@ class TokenChoiceFF(LoggingLayer):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len, _ = x.shape
         n_tokens = batch_size * seq_len
-        self.cache("n_tokens", torch.Tensor([n_tokens]))
+        self.update_cache_for_logging("n_tokens", torch.Tensor([n_tokens]))
 
         x = x.flatten(start_dim=0, end_dim=1)
 
@@ -73,7 +71,7 @@ class TokenChoiceFF(LoggingLayer):
         with measure_time(self, "softmax"):
             gate_out = torch.softmax(gate_out, dim=1)
 
-        self.cache("gate_softmax_all_values", gate_out)
+        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
 
         # choose expert for each token
         with measure_time(self, "max_indices"):
@@ -94,19 +92,19 @@ class TokenChoiceFF(LoggingLayer):
                 self.aux_loss_weight, gate_out, tokens_per_expert
             )
 
-            if "aux_loss" not in self.store:
-                self.store["aux_loss"] = aux_loss
+            if "aux_loss" not in self.forward_pass_cache:
+                self.forward_pass_cache["aux_loss"] = aux_loss
             else:
-                self.store["aux_loss"] += aux_loss
+                self.forward_pass_cache["aux_loss"] += aux_loss
 
         # mask out tokens that are not in capacity
         expert_mask_flat = expert_mask.sum(dim=1)
         expert_gate *= expert_mask_flat
 
-        self.cache("gate_softmax_values", expert_gate)
-        self.cache("max_indices", expert_index)
-        self.cache("tokens_per_expert", tokens_per_expert)
-        self.cache("aux_loss", aux_loss)
+        self.update_cache_for_logging("gate_softmax_values", expert_gate)
+        self.update_cache_for_logging("max_indices", expert_index)
+        self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
+        self.update_cache_for_logging("aux_loss", aux_loss)
         # group tokens indices by expert it should be processed by
         with measure_time(self, "experts_lists"):
             indices_of_tokens_for_expert = [
@@ -128,6 +126,7 @@ class TokenChoiceFF(LoggingLayer):
                 experts_input,
                 self.lin1_weight,
             )
+            experts_output = F.relu(experts_output)
 
             experts_output = einsum(
                 "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
@@ -155,20 +154,20 @@ class TokenChoiceFF(LoggingLayer):
 
     def log_heavy(self):
         # make bar plot of values cached in forward with measure_time
-        instr_names = list(self.cached_data["time"].keys())
-        instr_times = list(self.cached_data["time"].values())
+        instr_names = list(self.logging_cache["time"].keys())
+        instr_times = list(self.logging_cache["time"].values())
         times_fig = px.bar(x=instr_names, y=instr_times)
 
         return {
             "gradient_of_gate_distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_all_values": make_histogram(
-                self.cached_data["gate_softmax_all_values"].flatten()
+                self.logging_cache["gate_softmax_all_values"].flatten()
             ),
             "tokens_per_expert_counts": make_histogram(
-                self.cached_data["tokens_per_expert"]
+                self.logging_cache["tokens_per_expert"]
             ),
             "instruction_times": times_fig,
-            "aux_loss": self.cached_data["aux_loss"],
+            "aux_loss": self.logging_cache["aux_loss"],
         }
 
 
