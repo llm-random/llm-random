@@ -55,3 +55,19 @@ def stable_softmax_temperature(x, temperature, dim=-1):
 def entropy(x):
     ent = -torch.sum(x * torch.log(x + 1e-8), dim=-1)
     return ent
+
+
+def process_params(runner_params: list):
+    "This function is used to process the params to the runner: it splits the tags and converts everything to strings"
+    params = []
+    next_is_tags = False
+    for param in runner_params:
+        if next_is_tags:
+            params.extend(param.split(" "))
+            next_is_tags = False
+        else:
+            params.append(str(param))
+
+        if param == "--tags":
+            next_is_tags = True
+    return params

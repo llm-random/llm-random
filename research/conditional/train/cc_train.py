@@ -18,7 +18,7 @@ from lizrd.train.train_utils import (
 )
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
-from research.conditional.utils.misc_tools import set_seed
+from research.conditional.utils.misc_tools import process_params, set_seed
 from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
@@ -61,7 +61,7 @@ def main(
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
-        runner_params = [str(e) for e in runner_params]
+        runner_params = process_params(runner_params)
         args, extra = parser.parse_known_args(runner_params)
         if len(extra):
             print("Unknown args:", extra)

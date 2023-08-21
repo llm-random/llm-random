@@ -233,8 +233,11 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.LOCAL:
+            # We run the experiment directly, not through a grid entrypoint script
+            # because we want to be able to debug it
             runner_main_function = get_train_main_function(RUNNER)
             runner_main_function(None, runner_params=runner_params)
+            exit(0)
         else:
             raise ValueError(f"Unknown runner: {runner}")
 
