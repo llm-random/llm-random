@@ -1,11 +1,12 @@
 from collections import OrderedDict
 from typing import Literal, Callable, Optional
+from functools import partial
 
 import torch
 
 import lizrd.core.nn as nn
 from lizrd.core import misc
-from lizrd.core.misc import Checkpoint
+from lizrd.core.misc import Checkpoint, default
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -157,8 +158,9 @@ class Attention(LoggingLayer):
         q = self.Q(x)
         k = self.K(x)
         v = self.V(x)
-        if "attention_keys" in self.names_for_forward_pass_caching:
-            self.cache_for_propagation("attention_keys", k)
+        if hasattr(self, "cache_on_forward_pass"):
+            if self.cache_on_forward_pass:
+                self.update_forward_pass_cache("attention_keys", k)
         a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
         a = a * (1 / self.dhead**0.5)
         a = torch.softmax(a, dim=-1)
@@ -207,8 +209,9 @@ class CausalAttention(LoggingLayer):
         k = self.K(x)
         v = self.V(x)
 
-        if "attention_keys" in self.names_for_forward_pass_caching:
-            self.cache_for_propagation("attention_keys", k)
+        if hasattr(self, "cache_on_forward_pass"):
+            if self.cache_on_forward_pass:
+                self.update_forward_pass_cache("attention_keys", k)
         a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
         a = a * (1 / self.dhead**0.5)
         a.masked_fill_(
@@ -220,8 +223,32 @@ class CausalAttention(LoggingLayer):
         return output
 
 
-@ash.check("... d -> ... d")
-def ResidualBlock(dmodel, layer, name):
+class ReZero(nn.Module):
+    def __init__(self, fn, init=0.0):
+        super().__init__()
+        self.rezero_g = nn.Parameter(torch.tensor(init))
+        self.fn = fn
+
+    def forward(self, x, **kwargs):
+        return self.fn(x, **kwargs) * self.rezero_g
+
+
+def RezeroBlock(dmodel, layer, name):
+    return Residual(ReZero(layer))
+
+
+def PostNormBlock(dmodel, layer, name):
+    return nn.Sequential(
+        OrderedDict(
+            [
+                (f"{name}", Residual(layer)),
+                ("post_norm", nn.LayerNorm(dmodel)),
+            ]
+        )
+    )
+
+
+def PreNormBlock(dmodel, layer, name):
     return Residual(
         nn.Sequential(
             OrderedDict(
@@ -235,11 +262,9 @@ def ResidualBlock(dmodel, layer, name):
 
 
 @ash.check("... d -> ... d")
-def TransformerBlock(dmodel, layers, gradient_checkpointing):
-    residual_layers = []
-    for name, layer in layers:
-        block = ResidualBlock(dmodel, layer, name)
-        residual_layers.append(block)
+def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
+    residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
+    residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
     if gradient_checkpointing:
         residual_layers = [Checkpoint(layer) for layer in residual_layers]
     return nn.Sequential(*residual_layers)
@@ -255,6 +280,7 @@ class TransformerTower(nn.Module):
         gradient_checkpointing: bool = False,
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
+        residual_fn: Optional[Callable] = None,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -271,9 +297,9 @@ class TransformerTower(nn.Module):
             _, current_device = self.get_current_device(i_block)
             name_and_block = (
                 f"block_{i_block}",
-                TransformerBlock(dmodel, layers_info, gradient_checkpointing).to(
-                    current_device
-                ),
+                TransformerBlock(
+                    dmodel, layers_info, gradient_checkpointing, residual_fn
+                ).to(current_device),
             )
             self.blocks.append(name_and_block)
         self.blocks = nn.Sequential(OrderedDict(self.blocks))

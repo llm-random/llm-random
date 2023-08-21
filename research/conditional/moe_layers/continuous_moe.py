@@ -73,9 +73,9 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
     def get_merge_and_emit_weights(self, x):
         merge_logits = misc.einsum("B S g d, d e -> B S e g", x, self.controller)
-        self.cache_for_logging("merge_logits", merge_logits)
+        self.update_cache_for_logging("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
-        self.cache_for_logging("merge_weights", merge_weights)
+        self.update_cache_for_logging("merge_weights", merge_weights)
         return merge_weights, merge_weights
 
     def merge_map_emit(self, x, merge_weights, emit_weights):

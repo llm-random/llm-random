@@ -8,6 +8,9 @@ from lizrd.core import llm
 from research.conditional.moe_layers.cont_moe_designs.group_by_keys import (
     ContinuousMoEGroupByKeys,
 )
+from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
+    ContinuousMoECommonWeightedParameters,
+)
 from research.conditional.moe_layers.cont_moe_designs.random_grouping import (
     ContinuousMoERandomGroups,
 )
@@ -34,6 +37,9 @@ from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weight
 )
 from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights import (
     ContinuousMoEMergeDifferentlySimple,
+)
+from research.conditional.moe_layers.cont_moe_designs.separate_weighted_parameter_matrices import (
+    ContinuousMoESeparateWeightedParameters,
 )
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
@@ -207,6 +213,17 @@ def get_attention_layer(args):
     return attention_layer_fun
 
 
+def get_residual_layer(args):
+    if args.residual_mode == "pre_norm":
+        return partial(llm.PreNormBlock, dmodel=args.dmodel)
+    elif args.residual_mode == "post_norm":
+        return partial(llm.PostNormBlock, dmodel=args.dmodel)
+    elif args.residual_mode == "rezero":
+        return partial(llm.RezeroBlock, dmodel=args.dmodel)
+    else:
+        raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
+
+
 def get_expert_choice_args(args):
     if args.granularity_expert_config:
         if (args.expert_size is not None) or (args.topk_fraction is not None):
@@ -232,6 +249,8 @@ def get_expert_choice_args(args):
         "expert_size": expert_size,
         "topk_fraction": topk_fraction,
         "random_perm": args.expert_random_perm,
+        "softmax_over": args.softmax_over,
+        "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
     }
 
 
@@ -369,6 +388,30 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "cont_moe_group_by_keys":
         return_fn = lambda: ContinuousMoEGroupByKeys(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_common_weighted_parameters":
+        return_fn = lambda: ContinuousMoECommonWeightedParameters(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_separate_weighted_parameters":
+        return_fn = lambda: ContinuousMoESeparateWeightedParameters(
             dm=args.dmodel,
             dff=args.dff,
             n_experts=args.n_experts,
