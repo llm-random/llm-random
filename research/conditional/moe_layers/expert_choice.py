@@ -201,17 +201,10 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "multiply_softmax"):
             x = x.reshape(self.n_experts, topk, seq_len, self.dmodel)
             x = einsum(
-                "n_exp topk seq_len dmodel, n_exp topk seq_len "
-                "-> n_exp seq_len topk dmodel",
-                x,
-                topk_values,
-            )
-
-        with measure_time(self, "one_hot_many_expert_sum"):
-            x = einsum(
-                "n_exp seq_len topk dmodel, n_exp topk seq_len batch_size "
+                "n_exp topk seq_len dmodel, n_exp topk seq_len, n_exp topk seq_len batch_size  "
                 "-> batch_size seq_len dmodel",
                 x,
+                topk_values,
                 one_hot,
             )
         return x
