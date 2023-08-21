@@ -249,7 +249,6 @@ def get_expert_choice_args(args):
         "group_by_batch": args.group_granular_moe_by_batch,
         "one_hot_impl": args.granuar_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
-        "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
     }
 
 
