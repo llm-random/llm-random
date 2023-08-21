@@ -104,7 +104,6 @@ class ExpertChoiceFF(LoggingLayer):
                 x,
                 self.gate,
             )
-        # transform such that first dimension corresponds to experts
         self.update_cache_for_logging("unflatten_gate_out", gate_out)
 
         # each expert chooses k within dimension 1
@@ -208,7 +207,7 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "multiply_softmax"):
             x = x.reshape(self.n_experts, topk, seq_len, self.dmodel)
             x = einsum(
-                "n_exp topk seq_len dmodel, n_exp topk seq_len, n_exp topk seq_len batch_size  "
+                "n_exp topk seq_len dmodel, n_exp topk seq_len, n_exp topk seq_len batch_size "
                 "-> batch_size seq_len dmodel",
                 x,
                 topk_values,
