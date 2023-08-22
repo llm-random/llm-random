@@ -86,12 +86,17 @@ def introduce_parser_arguments(parser):
     )
     parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
-    parser.add_argument("--granuar_moe_one_hot_impl", action="store_true")
+    parser.add_argument("--granular_moe_one_hot_impl", action="store_true")
     parser.add_argument("--dataset_type", type=str, default="wikibook")
     parser.add_argument(
         "--softmax_ungrouped",
         action="store_true",
         help="in grouped ExpertChoice, run softmax over non-grouped tokens",
+    )
+    parser.add_argument(
+        "--use_full_einsum",
+        action="store_true",
+        help="in grouped ExpertChoice, use squash all linears with einsum",
     )
 
     # experimental/legacy parameters

@@ -24,6 +24,7 @@ class ExpertChoiceFF(LoggingLayer):
         group_by_batch: bool = False,
         one_hot_impl: bool = False,
         softmax_ungrouped: bool = False,
+        use_full_einsum: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
     ):
@@ -48,10 +49,14 @@ class ExpertChoiceFF(LoggingLayer):
         self.one_hot_impl = one_hot_impl
         self.softmax_ungrouped = softmax_ungrouped
         self.n_gating_heatmaps = n_gating_heatmaps
+        self.use_full_einsum = use_full_einsum
 
         assert (
             not self.one_hot_impl or self.group_by_batch
         ), "Not implemented, would require a lot of memory"
+        assert softmax_over in ["tokens", "experts"]
+        assert not self.softmax_ungrouped or self.group_by_batch
+        assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
@@ -66,8 +71,6 @@ class ExpertChoiceFF(LoggingLayer):
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
         self.ln = LayerNorm(dmodel)
-        assert softmax_over in ["tokens", "experts"]
-        assert not self.softmax_ungrouped or self.group_by_batch
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot
@@ -85,11 +88,14 @@ class ExpertChoiceFF(LoggingLayer):
         batch_size, seq_len = x.shape[0], x.shape[1]
 
         topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
-        x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
-        x = self.feed_forward(x, topk)
-        x = self.gating_postprocess(
-            x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
-        )
+        if self.use_full_einsum:
+            x = self.full_einsum(x, topk_indices, topk_values, batch_size)
+        else:
+            x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
+            x = self.feed_forward(x, topk)
+            x = self.gating_postprocess(
+                x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
+            )
 
         with measure_time(self, "layer_norm"):
             x = self.ln(x)
@@ -167,6 +173,45 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "reshape"):
             x = x.reshape((self.n_experts, topk, self.dmodel))
         return x, one_hot
+
+    def extract_with_linear(
+        self, x: torch.Tensor, topk_indices: torch.Tensor, batch_size, weight
+    ):
+        with measure_time(self, "gate_preprocess_with_linear"):
+            one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
+            x = einsum(
+                "batch_size seq_len dmodel, n_exp topk seq_len batch_size, "
+                "n_exp dmodel exp_size "
+                "-> n_exp topk seq_len exp_size",
+                x,
+                one_hot,
+                weight,
+            )
+            return x, one_hot
+
+    def gating_postprocess_onehot_with_linear(self, x, topk_values, one_hot, weight):
+        with measure_time(self, "gating_postprocess_with_linear"):
+            return einsum(
+                "n_exp topk seq_len exp_size, n_exp topk seq_len, "
+                "n_exp topk seq_len batch_size, n_exp exp_size dmodel"
+                "-> batch_size seq_len dmodel",
+                x,
+                topk_values,
+                one_hot,
+                weight,
+            )
+
+    def full_einsum(
+        self, x: torch.Tensor, topk_indices: torch.Tensor, topk_values, batch_size
+    ):
+        x, one_hot = self.extract_with_linear(
+            x, topk_indices, batch_size, self.lin1_weight
+        )
+        x = F.relu(x)
+        x = self.gating_postprocess_onehot_with_linear(
+            x, topk_values, one_hot, self.lin2_weight
+        )
+        return x
 
     def extract_chosen_tokens_select(
         self, x: torch.Tensor, topk, topk_indices: torch.Tensor, batch_size
