@@ -42,6 +42,7 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.expert_double_choice import ExpertDoubleChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -411,6 +412,13 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "expert_choice":
         return_fn = lambda: ExpertChoiceFF(
+            **get_expert_choice_args(args),
+        )
+    elif args.ff_mode == "expert_double_choice":
+        return_fn = lambda: ExpertDoubleChoiceFF(
+            gating_on_start=args.gating_on_start,
+            nonlinearity_first=args.nonlinearity_first_in_granular,
+            second_ln=args.second_ln_in_granular,
             **get_expert_choice_args(args),
         )
     elif args.ff_mode == "kernelized_fc":

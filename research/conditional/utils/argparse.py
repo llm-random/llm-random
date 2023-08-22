@@ -87,6 +87,21 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
     parser.add_argument("--granuar_moe_one_hot_impl", action="store_true")
+    parser.add_argument(
+        "--second_ln_in_granular",
+        action="store_true",
+        help="use layer norm after both linear layers in granular moe when using double routing",
+    )
+    parser.add_argument(
+        "--nonlinearity_first_in_granular",
+        action="store_true",
+        help="use nonlinearity before gate joining granular moe when using double routing",
+    )
+    parser.add_argument(
+        "--gating_on_start",
+        action="store_true",
+        help="When using double routing, both gatings are done at the start of the FF block",
+    )
     parser.add_argument("--dataset_type", type=str, default="wikibook")
     parser.add_argument(
         "--softmax_ungrouped",

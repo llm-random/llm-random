@@ -65,6 +65,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
+
         self.ln = LayerNorm(dmodel)
         assert softmax_over in ["tokens", "experts"]
         assert not self.softmax_ungrouped or self.group_by_batch
@@ -84,7 +85,9 @@ class ExpertChoiceFF(LoggingLayer):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len = x.shape[0], x.shape[1]
 
-        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
+        topk, topk_indices, topk_values = self.expert_gating(
+            x, batch_size, seq_len, self.gate
+        )
         x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
         x = self.feed_forward(x, topk)
         x = self.gating_postprocess(
@@ -96,13 +99,13 @@ class ExpertChoiceFF(LoggingLayer):
 
         return x
 
-    def expert_gating(self, x: torch.Tensor, batch_size: int, seq_len: int):
+    def expert_gating(self, x: torch.Tensor, batch_size: int, seq_len: int, gate):
         # expert embedding
         with measure_time(self, "expert_embedding"):
             gate_out = einsum(
                 "batch_size seq_len dmodel, dmodel n_experts -> n_experts batch_size seq_len ",
                 x,
-                self.gate,
+                gate,
             )
         self.update_cache_for_logging("unflatten_gate_out", gate_out)
 
@@ -165,7 +168,7 @@ class ExpertChoiceFF(LoggingLayer):
                 one_hot,
             )
         with measure_time(self, "reshape"):
-            x = x.reshape((self.n_experts, topk, self.dmodel))
+            x = x.reshape((self.n_experts, topk, x.shape[-1]))
         return x, one_hot
 
     def extract_chosen_tokens_select(
@@ -177,26 +180,30 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "index_select"):
             x = torch.index_select(x, dim=0, index=topk_indices.flatten())
         with measure_time(self, "reshape"):
-            x = x.reshape((self.n_experts, topk, self.dmodel))
+            x = x.reshape((self.n_experts, topk, x.shape[-1]))
         return x, None
 
+    def feed_linear(
+        self, x: torch.Tensor, weight: torch.Tensor, name: str
+    ) -> torch.Tensor:
+        with measure_time(self, name):
+            return einsum(
+                "n_exp topk dmodel_1, n_exp dmodel_1 dmodel_2 -> n_exp topk dmodel_2",
+                x,
+                weight,
+            )
+
+    def nonlinearity(self, x: torch.Tensor) -> torch.Tensor:
+        with measure_time(self, "nonlinearity"):
+            return F.relu(x)
+
     def feed_forward(self, x: torch.Tensor, topk: int) -> torch.Tensor:
-        # feed through ff
         with measure_time(self, "ff"):
             # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, exp_size)
-            x = einsum(
-                "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
-                x,
-                self.lin1_weight,
-            )
-            x = F.relu(x)
-
+            x = self.feed_linear(x, self.lin1_weight, "ff_1")
+            x = self.nonlinearity(x)
             # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
-            x = einsum(
-                "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
-                x,
-                self.lin2_weight,
-            )
+            x = self.feed_linear(x, self.lin2_weight, "ff_2")
             ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.dmodel)
         return x
 
@@ -205,7 +212,7 @@ class ExpertChoiceFF(LoggingLayer):
     ):
         topk //= seq_len
         with measure_time(self, "multiply_softmax"):
-            x = x.reshape(self.n_experts, topk, seq_len, self.dmodel)
+            x = x.reshape(self.n_experts, topk, seq_len, x.shape[-1])
             x = einsum(
                 "n_exp topk seq_len dmodel, n_exp topk seq_len, n_exp topk seq_len batch_size "
                 "-> batch_size seq_len dmodel",
@@ -232,7 +239,7 @@ class ExpertChoiceFF(LoggingLayer):
         # add tokens that have been processed by more than one expert
         with measure_time(self, "add_tokens_many_experts"):
             z = (
-                torch.zeros((batch_size * seq_len, self.dmodel))
+                torch.zeros((batch_size * seq_len, x.shape[-1]))
                 .type(x.type())
                 .to(x.device)
             )
@@ -240,7 +247,7 @@ class ExpertChoiceFF(LoggingLayer):
             z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
             # reshape to (batch_size, seq_len, dmodel)
-            x = z.reshape((batch_size, seq_len, self.dmodel))
+            x = z.reshape((batch_size, seq_len, x.shape[-1]))
         return x
 
     def log_light(self):
