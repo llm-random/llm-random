@@ -74,48 +74,53 @@ def chungized_llm_loss(
 ):
     def make_custom_forward():
         def custom_forward(*inputs):
-            with torch.autocast(
-                device_type="cuda", enabled=mixed_precision, dtype=torch.float16
-            ):
-                output = model.head(inputs[0])
-                gt = inputs[1]
-                mask = inputs[2]
-                gt = gt.to(output.device)
-                loss = F.cross_entropy(
-                    output.reshape(-1, vocab_size),
-                    gt.reshape(-1).long(),
-                    reduction="none",
-                )
+            output = model.head(inputs[0])
+            gt = inputs[1]
+            mask = inputs[2]
+            gt = gt.to(output.device)
+            loss = F.cross_entropy(
+                output.reshape(-1, vocab_size),
+                gt.reshape(-1).long(),
+                reduction="none",
+            )
 
-                correct_tokens = gt.long() == output.argmax(dim=-1)
-                correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-                correct_tokens = correct_tokens.sum()
+            correct_tokens = gt.long() == output.argmax(dim=-1)
+            correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+            correct_tokens = correct_tokens.sum()
 
-                total_tokens = mask.sum()
+            total_tokens = mask.sum()
 
             return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
 
         return custom_forward
 
-    encoder_output = model.encoder(input_tokens)
-    chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
-    chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
-    chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
-
-    num_tokens = 0
-    total_loss = 0
-    total_correct_tokens = 0
-    total_masked_tokens = 0
-    for chunged_input, chunged_gt, chunged_mask in zip(
-        chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+    with torch.autocast(
+        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
-        partial_loss_output, partial_correct_tokens, partial_masked_tokens = checkpoint(
-            make_custom_forward(), chunged_input, chunged_gt, chunged_mask
-        )
-        num_tokens += partial_loss_output.shape[0]
-        total_loss += partial_loss_output.sum()
-        total_correct_tokens += partial_correct_tokens
-        total_masked_tokens += partial_masked_tokens
+        encoder_output = model.encoder(input_tokens)
+        chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
+        chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
+        chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
+
+        num_tokens = 0
+        total_loss = 0
+        total_correct_tokens = 0
+        total_masked_tokens = 0
+        for chunged_input, chunged_gt, chunged_mask in zip(
+            chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+        ):
+            (
+                partial_loss_output,
+                partial_correct_tokens,
+                partial_masked_tokens,
+            ) = checkpoint(
+                make_custom_forward(), chunged_input, chunged_gt, chunged_mask
+            )
+            num_tokens += partial_loss_output.shape[0]
+            total_loss += partial_loss_output.sum()
+            total_correct_tokens += partial_correct_tokens
+            total_masked_tokens += partial_masked_tokens
+
     return total_loss / num_tokens, {
         "correct_tokens": total_correct_tokens,
         "total_masked_tokens": total_masked_tokens,
@@ -153,22 +158,22 @@ def calculate_llm_loss(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
         model_output = model(input_tokens)
-    # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
-    gt_tokens = gt_tokens.to(model_output.device)
-    mask = mask.to(model_output.device)
+        # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
+        gt_tokens = gt_tokens.to(model_output.device)
+        mask = mask.to(model_output.device)
 
-    mask_loss = F.cross_entropy(
-        model_output.reshape(-1, vocab_size),
-        gt_tokens.reshape(-1).long(),
-        reduction="none",
-    )
-    mask_loss = mask_loss[mask.reshape(-1) == 1]
-    loss = mask_loss.mean()
+        mask_loss = F.cross_entropy(
+            model_output.reshape(-1, vocab_size),
+            gt_tokens.reshape(-1).long(),
+            reduction="none",
+        )
+        mask_loss = mask_loss[mask.reshape(-1) == 1]
+        loss = mask_loss.mean()
 
-    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
-    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-    correct_tokens = correct_tokens.sum()
-    total_masked_tokens = mask.sum()
+        correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+        correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+        correct_tokens = correct_tokens.sum()
+        total_masked_tokens = mask.sum()
 
     return loss, {
         "correct_tokens": correct_tokens,
