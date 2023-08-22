@@ -118,14 +118,12 @@ def chungized_llm_loss(
         total_correct_tokens += partial_correct_tokens
         total_masked_tokens += partial_masked_tokens
 
-    aux_info = {
-        "correct_tokens": total_correct_tokens,
-        "total_masked_tokens": total_masked_tokens,
-    }
+        aux_info = {
+            "correct_tokens": total_correct_tokens,
+            "total_masked_tokens": total_masked_tokens,
+        }
 
-    additional_losses = retrieve_additional_losses(model)
-    aux_info.update(additional_losses)
-
+    aux_info["losses"] = retrieve_additional_losses(model)
     return total_loss / num_tokens, aux_info
 
 
@@ -182,8 +180,7 @@ def calculate_llm_loss(
         "total_masked_tokens": total_masked_tokens,
     }
 
-    additional_losses = retrieve_additional_losses(model)
-    aux_info.update(additional_losses)
+    aux_info["losses"] = retrieve_additional_losses(model)
 
     return loss, aux_info
 
