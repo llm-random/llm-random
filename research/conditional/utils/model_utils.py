@@ -462,7 +462,6 @@ def get_ff_layer(args):
         parallel_ff_args = get_expert_choice_with_parallel_ff_args(args)[
             "parallel_ff_args"
         ]
-        print(f"parallel_ff_args: {parallel_ff_args}")
         return_fn = lambda: Parallel(
             ExpertChoiceFF(**expert_choice_kwargs),
             llm.FeedForward(*parallel_ff_args),
