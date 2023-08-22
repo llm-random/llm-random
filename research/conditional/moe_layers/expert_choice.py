@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from lizrd.core import nn, llm
+from lizrd.core import nn
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
@@ -202,36 +202,6 @@ class ExpertChoiceFF(LoggingLayer):
                 for i in range(min(self.n_gating_heatmaps, self.n_experts))
             },
         }
-
-
-class ExpertChoiceFFWithParallelFF(LoggingLayer):
-    def __init__(
-        self,
-        dmodel: int,
-        n_experts: int,
-        expert_size: int,
-        topk_fraction: float,
-        random_perm: bool = False,
-        softmax_over: Literal["tokens", "experts"] = "tokens",
-        group_granular_moe_by_batch: bool = False,
-        n_gating_heatmaps: int = 4,
-        dff_parallel: int = 768,
-    ):
-        super().__init__()
-        self.expert_choice_layer = ExpertChoiceFF(
-            dmodel=dmodel,
-            n_experts=n_experts,
-            expert_size=expert_size,
-            topk_fraction=topk_fraction,
-            random_perm=random_perm,
-            softmax_over=softmax_over,
-            group_granular_moe_by_batch=group_granular_moe_by_batch,
-            n_gating_heatmaps=n_gating_heatmaps,
-        )
-        self.ff_layer = llm.FeedForward(dmodel, dff_parallel)
-
-    def forward(self, x: torch.Tensor):
-        return self.expert_choice_layer(x) + self.ff_layer(x)
 
 
 def make_heatmap(tensor, expert_num, **kwargs):

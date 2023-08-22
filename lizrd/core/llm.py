@@ -84,7 +84,7 @@ class Residual(nn.Module):
 class Parallel(nn.Module):
     def __init__(self, *layers):
         super(Parallel, self).__init__()
-        self.layers = layers
+        self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
         return x + sum(layer(x) for layer in self.layers)
