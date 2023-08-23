@@ -55,6 +55,7 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
+    is_process_logging: bool = True
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -137,7 +138,7 @@ class ConditionalTrainer:
             if (
                 self.model_type == "gpt"
                 and step % self.decoding_logging_steps == 0
-                and self.logger is not None
+                and self.is_process_logging
             ):
                 self._decode_samples(step)
 
@@ -150,7 +151,7 @@ class ConditionalTrainer:
             self.total_time_decoding += t2 - t1
             self.total_time_afterstep += t3 - t2
 
-            if step % 1000 == 0 and self.logger is not None:
+            if step % 1000 == 0 and self.is_process_logging:
                 total_time = (
                     self.total_time_trainsteps
                     + self.total_time_decoding
@@ -221,7 +222,7 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
-        if self.logger is not None:
+        if self.is_process_logging:
             self.layer_manager.prepare_for_logging(step)
         processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = (
             self.train_dataloader.get_batch()
@@ -230,7 +231,7 @@ class ConditionalTrainer:
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
-        if self.logger is not None:
+        if self.is_process_logging:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
@@ -366,7 +367,7 @@ class ConditionalTrainer:
             vocab_size=self.vocab_size,
         )
         self._optimize(loss, should_apply_gradient=True)
-        if self.logger is not None:
+        if self.is_process_logging:
             self.logger.report_scalar(
                 title="max batch size", value=step * self.n_gpus, iteration=step
             )
