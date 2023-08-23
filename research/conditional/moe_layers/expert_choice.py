@@ -88,7 +88,9 @@ class ExpertChoiceFF(LoggingLayer):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len = x.shape[0], x.shape[1]
 
-        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len, self.gate)
+        topk, topk_indices, topk_values = self.expert_gating(
+            x, batch_size, seq_len, self.gate
+        )
         if self.use_full_einsum:
             x = self.full_einsum(x, topk_indices, topk_values, batch_size)
         else:

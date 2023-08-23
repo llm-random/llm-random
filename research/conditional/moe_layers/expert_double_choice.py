@@ -12,7 +12,9 @@ class ExpertDoubleChoiceFF(ExpertChoiceFF):
         self,
         gating_on_start: bool = False,
         second_ln: bool = False,
-        nonlinearity_first: bool = False, *args, **kwargs
+        nonlinearity_first: bool = False,
+        *args,
+        **kwargs
     ):
         super().__init__(*args, **kwargs)
 
