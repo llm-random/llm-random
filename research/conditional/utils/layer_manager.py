@@ -1,6 +1,7 @@
 import re
 import time
 from contextlib import contextmanager
+from typing import Union
 
 import torch
 
@@ -66,28 +67,49 @@ class LayerManager:
 class LoggingLayer(nn.Module):
     def __init__(self):
         super().__init__()
+        # info about position in model
+        self.layer_type: Union[str, None] = None
+        self.block_number: Union[int, None] = None
+
+        # whether to log
         self.logging_switch = False
-        self.cached_data = {}
+
+        # caches for logging and propagation
+        self.logging_cache = {}
+        self.forward_pass_cache: Union[list, None] = None
 
     def report_stats(self):
         assert self.logging_switch
         self.logging_switch = False
-        data = self.cached_data
-        self.cached_data = {}
+        data = self.logging_cache
+        self.logging_cache = {}
         return data
 
     def prepare_for_logging(self):
         self.logging_switch = True
 
-    def cache(self, key, value):
+    def update_cache_for_logging(self, key, value):
         if self.logging_switch:
             if type(value) == dict:
-                if key in self.cached_data:
-                    self.cached_data[key].update(value)
+                if key in self.logging_cache:
+                    self.logging_cache[key].update(value)
                 else:
-                    self.cached_data[key] = value
+                    self.logging_cache[key] = value
             else:
-                self.cached_data[key] = value.clone().detach().cpu()
+                self.logging_cache[key] = value.clone().detach().cpu()
+
+    def _combine_to_dict_key(key, layer_type, block_number):
+        return f"block_{block_number}_{layer_type}_{key}"
+
+    def update_forward_pass_cache(self, key, value):
+        combined_key = self._combine_to_dict_key(
+            key, self.layer_type, self.block_number
+        )
+        self.forward_pass_cache[combined_key] = value
+
+    def get_from_forward_pass_cache(self, key, block_number, layer_type):
+        combined_key = self._combine_to_dict_key(key, layer_type, block_number)
+        return self.forward_pass_cache[combined_key]
 
     def log(self, verbosity_level):
         if verbosity_level == 0:
@@ -123,4 +145,4 @@ def measure_time(obj: LoggingLayer, instruction_name: str):
     if obj.logging_switch and torch.cuda.is_available():
         torch.cuda.synchronize()
     end_time = time.time()
-    obj.cache("time", {instruction_name: end_time - start_time})
+    obj.update_cache_for_logging("time", {instruction_name: end_time - start_time})

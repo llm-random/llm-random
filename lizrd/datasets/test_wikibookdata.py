@@ -1,7 +1,7 @@
 from lizrd.datasets import wikibookdata
 import lizrd.datasets.processed_batch
 from lizrd.datasets.wikibookdata import get_processed_dataset
-from lizrd.support.test_utils import GeneralTestCase, skip_test
+from lizrd.support.test_utils import GeneralTestCase, skip_test, heavy_test
 import pickle
 
 
@@ -22,6 +22,7 @@ class TestWikibookdata(GeneralTestCase):
         self.assertShape(processed_batch.special_token_mask, (batch_size, max_len))
         self.assertShape(processed_batch.special_token_mask, (batch_size, max_len))
 
+    @heavy_test
     def test_consistency(self):
         ds = get_processed_dataset(32, 128, 0.15, "cpu", 2, 1)
         batch = ds.get_batch()
@@ -32,6 +33,7 @@ class TestWikibookdata(GeneralTestCase):
         self.assertTensorEqual(batch.tokens, saved_batch.tokens)
         self.assertTensorEqual(batch.mask_mask, saved_batch.mask_mask)
 
+    @heavy_test
     def test_integration(self):
         bs = 32
         max_len = 128

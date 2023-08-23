@@ -25,10 +25,6 @@ from research.conditional.utils.model_utils import (
     get_residual_layer,
 )
 
-parser = argparse.ArgumentParser()
-introduce_parser_arguments(parser)
-args = parser.parse_args()
-
 
 def log_batch(dataset_wrapper):
     # In case of GPT, log an example sequence for a possible inspection
@@ -56,8 +52,19 @@ def log_batch(dataset_wrapper):
 
 
 def main(
-    rank: Optional[int], data_seeds: Optional[list[int]] = None, port: str = "29500"
+    rank: Optional[int],
+    data_seeds: Optional[list[int]] = None,
+    port: str = "29500",
+    args: Optional[argparse.Namespace] = None,
+    runner_params: Optional[list] = None,
 ):
+    if runner_params is not None:
+        parser = argparse.ArgumentParser()
+        introduce_parser_arguments(parser)
+        args, extra = parser.parse_known_args(runner_params)
+        if len(extra):
+            print("Unknown args:", extra)
+
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
@@ -165,8 +172,12 @@ def main(
 
 if __name__ == "__main__":
     misc.print_available_gpus()
+    parser = argparse.ArgumentParser()
+    introduce_parser_arguments(parser)
+    args = parser.parse_args()
+
     if args.data_distributed == False:
-        main(None)
+        main(None, args=args)
     else:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
