@@ -6,7 +6,7 @@ from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
-from lizrd.core.misc import propagate_store
+from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.datasets import wikibookdata
 from lizrd.support.decoding import decode_single_example
 import lizrd.datasets.processed_batch
@@ -16,7 +16,6 @@ from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
 from lizrd.datasets.c4 import NUM_C4_TOKENS
-
 from transformers import GPT2Tokenizer
 
 
@@ -65,6 +64,10 @@ class ConditionalTrainer:
         self.loss_accumulators["loss"] = SN(
             acc=0.0, interval=self.logging_interval_loss
         )
+        if self.model_type == "bert":
+            self.loss_accumulators["legacy_bert_bugged_loss"] = SN(
+                acc=0.0, interval=self.logging_interval_loss
+            )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self._calculate_loss = make_loss_function(
@@ -111,10 +114,10 @@ class ConditionalTrainer:
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
-        propagate_store(self.model)
+        propagate_forward_pass_cache(self.model)
 
     def _after_step_operations(self):
-        self.model.store.clear()
+        self.model.forward_pass_cache.clear()
 
     def train(self, n_steps: int):
         """
@@ -227,7 +230,14 @@ class ConditionalTrainer:
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
         if self.logger is not None:
-            self._log_train_stats(loss, step)
+            if self.model_type == "bert":
+                mask_percent = self.mask_percent
+                numel = processed_batch.tokens.numel()
+                real_mask_percent = aux_info["total_masked_tokens"] / numel
+                aux_info["legacy_bert_bugged_loss_multiplier"] = (
+                    real_mask_percent / mask_percent
+                )
+            self._log_train_stats(loss, step, aux_info)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_heavy(step)
@@ -267,7 +277,7 @@ class ConditionalTrainer:
             "total_masked_tokens": total_masked_tokens_value,
         }
 
-    def _log_train_stats(self, loss_value, step):
+    def _log_train_stats(self, loss_value, step, aux_info):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         if self.lr_scheduler is not None:
             self.logger.report_scalar(
@@ -276,7 +286,13 @@ class ConditionalTrainer:
         if self.train_dataloader.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
-            stats.acc += loss_value
+            if name == "legacy_bert_bugged_loss":
+                bert_legacy_loss = (
+                    loss_value * aux_info["legacy_bert_bugged_loss_multiplier"]
+                )
+                stats.acc += bert_legacy_loss
+            else:
+                stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
                 self.logger.report_scalar(
                     title=name,
