@@ -7,6 +7,7 @@ Remember to set RUNNER and PARAMS in the script or add an argument parser.
 import datetime
 import json
 import os
+import shutil
 import subprocess
 import sys
 from time import sleep
@@ -60,8 +61,8 @@ if __name__ == "__main__":
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
         [str(arg) for arg in args if arg is not None], env=env
     )
-    AUXILIARY_PROCESS_CALL_FUNCTION = None
 
+    path = None
     if len(sys.argv) > 1:
         path = sys.argv[1]
         if path.endswith(".json"):
@@ -121,8 +122,9 @@ if __name__ == "__main__":
             exit(1)
 
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
+    should_copy_code = not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL)
 
-    if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
+    if should_copy_code:
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
@@ -138,6 +140,13 @@ if __name__ == "__main__":
     for i, param_set in enumerate(grid):
         name = param_set["name"]
         param_set["n_gpus"] = N_GPUS
+        if path is not None:
+            if should_copy_code:
+                path_filename = path.split("/")[-1]
+                param_set["config_path"] = COPIED_CODE_PATH + "/" + path_filename
+                shutil.copyfile(src=path, dst=param_set["config_path"])
+            else:
+                param_set["config_path"] = path
         env = None
 
         runner_params = []

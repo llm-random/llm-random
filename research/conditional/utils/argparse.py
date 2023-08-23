@@ -1,6 +1,9 @@
 def introduce_parser_arguments(parser):
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
+    parser.add_argument(
+        "--config_path", type=str, required=False, help="path to the grid config file"
+    )
     parser.add_argument("--use_clearml", action="store_true")
     parser.add_argument("--use_neptune", action="store_true")
     parser.add_argument("--batch_size", type=int, default=600)

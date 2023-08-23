@@ -271,6 +271,11 @@ def get_logger(args, model, VOCAB_SIZE):
         run["args"] = vars(args)
         run["working_directory"] = os.getcwd()
         run["git_branch"] = os.getcwd().split("/")[-1]
+        if args.config_path is not None:
+            run["config_path"] = args.config_path
+            run["config"].upload(args.config_path)
+        else:
+            run["config_path"] = "Config missing"
 
         args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
         return NeptuneLogger(run, args)
