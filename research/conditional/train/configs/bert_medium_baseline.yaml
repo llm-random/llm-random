@@ -1,0 +1,40 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "5-05:00:00"
+n_gpus: 1
+cuda_visible: "3"
+
+# train params
+params:
+  # model
+  model_type: "bert"
+  dataset_type: "wikibook"
+  dmodel: 512
+  dff: 2048
+  heads: 8,
+  n_blocks: 8
+  cutoff: 256
+  batch_size: 512
+
+  n_steps: 150000
+  grad_clip: 0.5
+  lr_decay: 0.8
+  lr_warmup_steps: 0
+  lr_decay_interval: 10000
+
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  save_weights_path: "weights"
+  save_weights_interval: 1000
+  log_gradients_and_weights: false
+
+  use_neptune: true
+  project_name: "pmtest/llm-random"
+  name: "bert_medium_baseline"
+  mixed_precision: true
+  tags:
+    - "bert"
+    - "baseline"
+    - "medium"
+  hack_name: batch_size
+
