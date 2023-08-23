@@ -65,6 +65,11 @@ def main(
         if len(extra):
             print("Unknown args:", extra)
 
+    if args.granularity_expert_config:
+        print(
+            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
+        )
+
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
