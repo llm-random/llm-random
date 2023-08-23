@@ -108,6 +108,11 @@ def introduce_parser_arguments(parser):
         action="store_true",
         help="in grouped ExpertChoice, run softmax over non-grouped tokens",
     )
+    parser.add_argument(
+        "--use_full_einsum",
+        action="store_true",
+        help="in grouped ExpertChoice, use squash all linears with einsum",
+    )
 
     # experimental/legacy parameters
 

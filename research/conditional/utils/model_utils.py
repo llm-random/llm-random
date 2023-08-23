@@ -249,8 +249,9 @@ def get_expert_choice_args(args):
         "random_perm": args.expert_random_perm,
         "group_by_batch": args.group_granular_moe_by_batch,
         "softmax_ungrouped": args.softmax_ungrouped,
-        "one_hot_impl": args.granuar_moe_one_hot_impl,
+        "one_hot_impl": args.granular_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
+        "use_full_einsum": args.use_full_einsum,
     }
 
 
