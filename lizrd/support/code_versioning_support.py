@@ -6,6 +6,67 @@ import os
 from lizrd.support.misc import generate_random_string
 
 
+def run_subprocess(command, error_message, branch=None):
+    try:
+        output = subprocess.check_output(command, shell=True).strip().decode("utf-8")
+        return output
+    except subprocess.CalledProcessError as e:
+        if branch:
+            # Try to revert changes and return to original branch
+            try:
+                subprocess.check_output("git reset --hard", shell=True)
+                subprocess.check_output(f"git checkout {branch}", shell=True)
+                subprocess.check_output(
+                    'git stash pop "stash_for_experiment_versioning"', shell=True
+                )
+            except subprocess.CalledProcessError as err:
+                # If reverting fails, raise another exception
+                raise Exception(
+                    f"Failed to revert changes, error occurred during {command}: {str(err)}"
+                )
+        raise Exception(f"{error_message}: {str(e)}")
+
+
+def version_code_and_copy(name_for_branch, remote_url):
+    # Record current branch
+    branch = run_subprocess(
+        "git rev-parse --abbrev-ref HEAD", "Failed to get current branch"
+    )
+
+    # Stash any uncommitted changes with a custom message
+    run_subprocess(
+        'git stash save "stash_for_experiment_versioning"',
+        "Failed to stash changes",
+        branch,
+    )
+
+    # Stage all changes
+    run_subprocess("git add .", "Failed to stage changes", branch)
+
+    # Commit changes
+    run_subprocess(
+        'git commit --no-verify -m "commit before experiment"', "Commit failed", branch
+    )
+
+    # Push changes
+    run_subprocess(
+        f"git push --no-verify A {name_for_branch}", "Failed to push changes", branch
+    )
+
+    # Return to original branch and apply stashed changes (using stash name)
+    run_subprocess(
+        f"git git reset --hard", "Failed to reset git back to before changes", branch
+    )
+    run_subprocess(
+        f"git checkout {branch}", "Failed to checkout original branch", branch
+    )
+    run_subprocess(
+        'git stash pop "stash_for_experiment_versioning"',
+        "Failed to apply stashed changes to original branch",
+        branch,
+    )
+
+
 def copy_and_version_code(
     name_for_branch,
     newdir_name,
