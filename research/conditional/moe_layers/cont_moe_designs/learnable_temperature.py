@@ -88,17 +88,13 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
             log[f"merge_logits/sample_{i}"] = fig
 
         ent = entropy(merge_weights)
-        max_entropy = np.log(self.n_experts)
+        max_entropy = np.log(self.group_size)
         normalised_ent = ent / max_entropy
         log["merge_weights/normalised_entropy"] = make_histogram(
             normalised_ent, title="merge logits entropy (normalised to [0,1])"
         )
 
-        log[
-            "merge_weights/merge_temperature"
-        ] = self.temperature_merge.data.flatten().tolist()
-        log[
-            "merge_weights/emit_temperature"
-        ] = self.temperature_emit.data.flatten().tolist()
+        log["merge_temperature"] = self.temperature_merge.data.flatten().tolist()
+        log["emit_temperature"] = self.temperature_emit.data.flatten().tolist()
 
         return log

@@ -171,10 +171,9 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
-            datasets_cache = "/net/tscratch/people/plgjkrajewski/.cache"
             subprocess_args = [
                 slurm_command,
-                f"--gpus={N_GPUS}",
+                f"--gres=gpu:{N_GPUS}",
                 "--partition=plgrid-gpu-a100",
                 f"--cpus-per-gpu={CPUS_PER_GPU}",
                 "--account=plgplggllmeffi-gpu-a100",
@@ -185,7 +184,6 @@ if __name__ == "__main__":
                 "run",
                 "--bind=/net:/net",
                 f"--env",
-                f"HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,

@@ -41,8 +41,12 @@ from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weight
 from research.conditional.moe_layers.cont_moe_designs.separate_weighted_parameter_matrices import (
     ContinuousMoESeparateWeightedParameters,
 )
+from research.conditional.moe_layers.cont_moe_designs.softmax_over_experts_for_emit import (
+    ContinuousMoESoftmaxOverExperts,
+)
 from research.conditional.moe_layers.cont_moe_designs.uniform_routing import (
     ContinuousMoEUniformRouting,
+    ContinuousMoEUniformRoutingSoftmaxOverExpert,
 )
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
@@ -427,6 +431,30 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "cont_moe_uniform_routing":
         return_fn = lambda: ContinuousMoEUniformRouting(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_uniform_softmax_over_experts":
+        return_fn = lambda: ContinuousMoEUniformRoutingSoftmaxOverExpert(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_softmax_over_experts":
+        return_fn = lambda: ContinuousMoESoftmaxOverExperts(
             dm=args.dmodel,
             dff=args.dff,
             n_experts=args.n_experts,

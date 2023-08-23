@@ -142,8 +142,8 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-            if self.model_type == "gpt" and step % self.decoding_logging_steps == 0:
-                self._decode_samples(step)
+            # if self.model_type == "gpt" and step % self.decoding_logging_steps == 0:
+            #     self._decode_samples(step)
 
             t2 = time.time()
             self._after_step_operations()
