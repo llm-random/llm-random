@@ -216,18 +216,18 @@ def get_residual_layer(args):
 
 
 def get_expert_choice_args(args):
-    option1 = (
+    set_arguments_option1 = (
         args.total_experts_width is not None
         and args.effective_dff is not None
         and args.n_experts is not None
     ) and (args.expert_size is None and args.topk_fraction is None)
-    option2 = (
+    set_arguments_option2 = (
         args.expert_size is not None
         and args.topk_fraction is not None
         and args.n_experts is not None
     ) and (args.effective_dff is None and args.total_experts_width is None)
 
-    if not option1 and not option2:
+    if not set_arguments_option1 and not set_arguments_option2:
         raise AssertionError(
             "You must specify either total_experts_width, effective_dff, and n_experts or expert_size, topk_fraction, and n_experts"
         )
