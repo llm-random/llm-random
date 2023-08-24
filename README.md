@@ -54,7 +54,7 @@ By directories:
  
 # License
 
-This project is licensed under the terms of the Apache License, Version 2.0 license.
+This project is licensed under the terms of the Apache License, Version 2.0.
 
     Copyright 2023 LLM-Random Authors
     
