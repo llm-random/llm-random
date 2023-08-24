@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
 
-    if not INTERACTIVE_DEBUG:
+    if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
@@ -131,7 +131,9 @@ if __name__ == "__main__":
             name_for_branch, name_for_branch, PUSH_TO_GIT
         )
     else:
-        print(f"Running in debug mode, skip copying code to a new directory.")
+        print(
+            f"Running in debug mode or locally, skip copying code to a new directory."
+        )
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
@@ -172,7 +174,7 @@ if __name__ == "__main__":
             datasets_cache = "/net/tscratch/people/plgjkrajewski/.cache"
             subprocess_args = [
                 slurm_command,
-                f"--gpus={N_GPUS}",
+                f"--gres=gpu:{N_GPUS}",
                 "--partition=plgrid-gpu-a100",
                 f"--cpus-per-gpu={CPUS_PER_GPU}",
                 "--account=plgplggllmeffi-gpu-a100",

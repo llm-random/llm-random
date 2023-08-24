@@ -65,6 +65,11 @@ def main(
         if len(extra):
             print("Unknown args:", extra)
 
+    if args.granularity_expert_config:
+        print(
+            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
+        )
+
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
@@ -129,7 +134,10 @@ def main(
         dataset_type=args.dataset_type,
     )
 
-    logger = get_logger(args, model, VOCAB_SIZE) if rank is None or rank == 0 else None
+    logger = get_logger(args, model, VOCAB_SIZE)
+
+    # in case of data parallelism, only gpu:0 should log
+    is_process_logging = True if rank is None or rank == 0 else False
 
     if args.model_type == "gpt" and (rank is None or rank == 0):
         log_batch(train_dataloader)
@@ -159,6 +167,7 @@ def main(
         lr_decay_interval=args.lr_decay_interval,
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
+        is_process_logging=is_process_logging,
     )
     trainer.train(args.n_steps)
 

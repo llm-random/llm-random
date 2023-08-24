@@ -249,6 +249,6 @@ def get_processed_dataset(
 
     if cache_dir := os.getenv("HF_DATASETS_CACHE"):
         # Fix permissions so that everyone can access the cache dir
-        subprocess.run(["chmod", "-R", "777", cache_dir])
+        subprocess.run(["chmod", "-fR", "777", cache_dir])
 
     return dataset_wrapper
