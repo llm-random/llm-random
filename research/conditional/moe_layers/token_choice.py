@@ -174,7 +174,7 @@ class TokenChoiceFF(LoggingLayer):
 def calculate_load_balancing_loss(
     alpha: float,
     softmax_per_token: torch.Tensor,
-    no_tokens_in_each_expert: torch.Tensor,
+    n_tokens_in_each_expert: torch.Tensor,
 ):
     """
     Calculates the load balancing loss for the token choice layer.
@@ -183,11 +183,11 @@ def calculate_load_balancing_loss(
     :param torch.Tensor softmax_per_token: tensor of shape (tokens, n_experts)
     :param torch.Tensor tokens_in_each_expert: tensor of shape (n_experts)
     """
-    no_tokens, no_experts = softmax_per_token.shape
-    assert no_experts == no_tokens_in_each_expert.shape[0]
+    n_tokens, n_experts = softmax_per_token.shape
+    assert n_experts == n_tokens_in_each_expert.shape[0]
 
     per_expert_softmax_sum = torch.mean(softmax_per_token, dim=0)
 
-    dot_product = einsum("i,i->", per_expert_softmax_sum, no_tokens_in_each_expert)
-    load_balancing_loss = alpha * no_experts * dot_product / no_tokens
+    dot_product = einsum("i,i->", per_expert_softmax_sum, n_tokens_in_each_expert)
+    load_balancing_loss = alpha * n_experts * dot_product / n_tokens
     return load_balancing_loss
