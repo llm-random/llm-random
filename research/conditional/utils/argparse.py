@@ -1,4 +1,9 @@
-def introduce_parser_arguments(parser):
+import argparse
+
+
+def introduce_parser_arguments(
+    parser: argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
     parser.add_argument("--use_clearml", action="store_true")
@@ -21,7 +26,7 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--torch_seed", type=int, default=42)
     parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--tags", nargs="*", type=str, default=None)
-    parser.add_argument("--project_name", type=str, default="pmtest/llm-efficiency")
+    parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], default="bert"
     )
@@ -49,7 +54,7 @@ def introduce_parser_arguments(parser):
 
     # paremeters for specific experiments
 
-    parser.add_argument("--n_experts", type=int, default=1)
+    parser.add_argument("--n_experts", type=int, required=False)
     parser.add_argument("--group_size", type=int, default=1)
     parser.add_argument("--sparsity_dim", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=1.0)
@@ -59,7 +64,11 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
-    parser.add_argument("--granularity_expert_config", action="store_true")
+    parser.add_argument(
+        "--granularity_expert_config",
+        action="store_true",
+        help="This argument is deprecated. Provide either (total_experts_width, n_experts, effective_dff) or (expert_size, n_experts, topk_fraction) instead.",
+    )
     parser.add_argument("--total_experts_width", type=int, required=False)
     parser.add_argument("--effective_dff", type=int, required=False)
     parser.add_argument("--softmax_over", type=str, required=False, default="tokens")

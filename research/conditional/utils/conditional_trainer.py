@@ -54,6 +54,7 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
+    is_process_logging: bool = True
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -64,6 +65,10 @@ class ConditionalTrainer:
         self.loss_accumulators["loss"] = SN(
             acc=0.0, interval=self.logging_interval_loss
         )
+        if self.model_type == "bert":
+            self.loss_accumulators["legacy_bert_bugged_loss"] = SN(
+                acc=0.0, interval=self.logging_interval_loss
+            )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self._calculate_loss = make_loss_function(
@@ -133,7 +138,11 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-            if self.model_type == "gpt" and step % self.decoding_logging_steps == 0:
+            if (
+                self.model_type == "gpt"
+                and step % self.decoding_logging_steps == 0
+                and self.is_process_logging
+            ):
                 self._decode_samples(step)
 
             t2 = time.time()
@@ -145,7 +154,7 @@ class ConditionalTrainer:
             self.total_time_decoding += t2 - t1
             self.total_time_afterstep += t3 - t2
 
-            if step % 1000 == 0:
+            if step % 1000 == 0 and self.is_process_logging:
                 total_time = (
                     self.total_time_trainsteps
                     + self.total_time_decoding
@@ -216,7 +225,7 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
-        if self.logger is not None:
+        if self.is_process_logging:
             self.layer_manager.prepare_for_logging(step)
         processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = (
             self.train_dataloader.get_batch()
@@ -225,8 +234,15 @@ class ConditionalTrainer:
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
-        if self.logger is not None:
-            self._log_train_stats(loss, step)
+        if self.is_process_logging:
+            if self.model_type == "bert":
+                mask_percent = self.mask_percent
+                numel = processed_batch.tokens.numel()
+                real_mask_percent = aux_info["total_masked_tokens"] / numel
+                aux_info["legacy_bert_bugged_loss_multiplier"] = (
+                    real_mask_percent / mask_percent
+                )
+            self._log_train_stats(loss, step, aux_info)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_heavy(step)
@@ -266,7 +282,7 @@ class ConditionalTrainer:
             "total_masked_tokens": total_masked_tokens_value,
         }
 
-    def _log_train_stats(self, loss_value, step):
+    def _log_train_stats(self, loss_value, step, aux_info):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         if self.lr_scheduler is not None:
             self.logger.report_scalar(
@@ -275,7 +291,13 @@ class ConditionalTrainer:
         if self.train_dataloader.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
-            stats.acc += loss_value
+            if name == "legacy_bert_bugged_loss":
+                bert_legacy_loss = (
+                    loss_value * aux_info["legacy_bert_bugged_loss_multiplier"]
+                )
+                stats.acc += bert_legacy_loss
+            else:
+                stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
                 self.logger.report_scalar(
                     title=name,
@@ -361,7 +383,7 @@ class ConditionalTrainer:
             vocab_size=self.vocab_size,
         )
         self._optimize(loss, should_apply_gradient=True)
-        if self.logger is not None:
+        if self.is_process_logging:
             self.logger.report_scalar(
                 title="max batch size", value=step * self.n_gpus, iteration=step
             )

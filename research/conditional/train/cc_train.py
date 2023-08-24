@@ -25,10 +25,6 @@ from research.conditional.utils.model_utils import (
     get_residual_layer,
 )
 
-parser = argparse.ArgumentParser()
-introduce_parser_arguments(parser)
-args = parser.parse_args()
-
 
 def log_batch(dataset_wrapper):
     # In case of GPT, log an example sequence for a possible inspection
@@ -56,8 +52,24 @@ def log_batch(dataset_wrapper):
 
 
 def main(
-    rank: Optional[int], data_seeds: Optional[list[int]] = None, port: str = "29500"
+    rank: Optional[int],
+    data_seeds: Optional[list[int]] = None,
+    port: str = "29500",
+    args: Optional[argparse.Namespace] = None,
+    runner_params: Optional[list] = None,
 ):
+    if runner_params is not None:
+        parser = argparse.ArgumentParser()
+        introduce_parser_arguments(parser)
+        args, extra = parser.parse_known_args(runner_params)
+        if len(extra):
+            print("Unknown args:", extra)
+
+    if args.granularity_expert_config:
+        print(
+            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
+        )
+
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
@@ -122,7 +134,10 @@ def main(
         dataset_type=args.dataset_type,
     )
 
-    logger = get_logger(args, model, VOCAB_SIZE) if rank is None or rank == 0 else None
+    logger = get_logger(args, model, VOCAB_SIZE)
+
+    # in case of data parallelism, only gpu:0 should log
+    is_process_logging = True if rank is None or rank == 0 else False
 
     if args.model_type == "gpt" and (rank is None or rank == 0):
         log_batch(train_dataloader)
@@ -152,6 +167,7 @@ def main(
         lr_decay_interval=args.lr_decay_interval,
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
+        is_process_logging=is_process_logging,
     )
     trainer.train(args.n_steps)
 
@@ -161,8 +177,12 @@ def main(
 
 if __name__ == "__main__":
     misc.print_available_gpus()
+    parser = argparse.ArgumentParser()
+    introduce_parser_arguments(parser)
+    args = parser.parse_args()
+
     if args.data_distributed == False:
-        main(None)
+        main(None, args=args)
     else:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
