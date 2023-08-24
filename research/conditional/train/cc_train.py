@@ -83,6 +83,9 @@ def main(
     VOCAB_SIZE = 30522 if args.model_type == "bert" else 50258
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    if args.detect_anomaly:
+        torch.autograd.set_detect_anomaly(True)
+
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)

@@ -51,6 +51,7 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_decay_interval", type=int, default=0)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--residual_mode", type=str, default="pre_norm")
+    parser.add_argument("--detect_anomaly", action="store_true")
 
     # paremeters for specific experiments
 
@@ -94,7 +95,18 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
+    parser.add_argument("--granular_moe_one_hot_impl", action="store_true")
     parser.add_argument("--dataset_type", type=str, default="wikibook")
+    parser.add_argument(
+        "--softmax_ungrouped",
+        action="store_true",
+        help="in grouped ExpertChoice, run softmax over non-grouped tokens",
+    )
+    parser.add_argument(
+        "--use_full_einsum",
+        action="store_true",
+        help="in grouped ExpertChoice, use squash all linears with einsum",
+    )
 
     # experimental/legacy parameters
 
