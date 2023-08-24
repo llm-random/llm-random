@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
+from lizrd.core.llm import Parallel
+from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -267,6 +269,49 @@ def get_expert_choice_args(args):
     }
 
 
+def get_expert_choice_with_parallel_ff_args(args):
+    expert_choice_params = get_expert_choice_args(args)
+    n_experts = expert_choice_params["n_experts"]
+    expert_size = expert_choice_params["expert_size"]
+    top_k_fraction = expert_choice_params["topk_fraction"]
+
+    def calculate_effective_expert_dff(_expert_size, _n_experts, _topk_fraction):
+        return _topk_fraction * _n_experts * _expert_size
+
+    if args.ff_parallel_mode == "modify_expert_size":
+        expert_size = int(
+            expert_choice_params["expert_size"]
+            * (1 - args.ff_parallel_compute_fraction)
+        )
+        expert_choice_params["expert_size"] = expert_size
+
+    elif args.ff_parallel_mode == "modify_topk_fraction":
+        top_k_fraction = expert_choice_params["topk_fraction"] * (
+            1 - args.ff_parallel_compute_fraction
+        )
+
+        expert_choice_params["topk_fraction"] = top_k_fraction
+
+    elif args.ff_parallel_mode == "modify_n_experts":
+        n_experts = int(
+            expert_choice_params["n_experts"] * (1 - args.ff_parallel_compute_fraction)
+        )
+        expert_choice_params["n_experts"] = n_experts
+    else:
+        raise ValueError(
+            f"Invalid ff_parallel_mode {args.ff_parallel_mode}. Possible values are modify_expert_size, modify_topk_fraction, modify_n_experts"
+        )
+
+    dff_expert = int(
+        calculate_effective_expert_dff(expert_size, n_experts, top_k_fraction)
+    )
+    dff_parallel = args.effective_dff - dff_expert
+    return {
+        "expert_choice_kwargs": expert_choice_params,
+        "parallel_ff_args": (args.dmodel, dff_parallel),
+    }
+
+
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
@@ -426,6 +471,17 @@ def get_ff_layer(args):
     elif args.ff_mode == "expert_choice":
         ff_args = get_expert_choice_args(args)
         return_fn = partial(ExpertChoiceFF, **ff_args)
+    elif args.ff_mode == "expert_choice_with_parallel_ff":
+        expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
+            "expert_choice_kwargs"
+        ]
+        parallel_ff_args = get_expert_choice_with_parallel_ff_args(args)[
+            "parallel_ff_args"
+        ]
+        return_fn = lambda: Parallel(
+            ExpertChoiceFF(**expert_choice_kwargs),
+            llm.FeedForward(*parallel_ff_args),
+        )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
 
