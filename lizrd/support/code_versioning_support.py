@@ -76,6 +76,7 @@ def version_code(name_for_branch, remote_name, remote_url):
     except GitCommandError as e:
         # Handle exceptions, framed inside a GitCommandError
         raise Exception(f"Failed to push changes, error occurred during {str(e)}")
+
     finally:
         # Return to original branch and reset changes - all previously unstaged changes will be as they were before
         repo.git.checkout(current_branch)
