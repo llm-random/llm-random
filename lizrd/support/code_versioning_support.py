@@ -1,132 +1,6 @@
-import subprocess
 import shutil
 import os
-
-
-def get_stash_id(stash_message):
-    # Get the list of stashes:
-    stash_list = (
-        subprocess.check_output(["git", "stash", "list"]).decode("utf-8").split("\n")
-    )
-    # Parse the output and check if our stash_message exists
-    for stash in stash_list:
-        if stash_message in stash:
-            # Stash details are in form stash@{N}: On <branch_name>: <stash_message>
-            # We need to get 'stash@{N}' from this.
-            return stash.split(":")[0].strip()
-    raise Exception("No stash found with given stash message")
-
-
-def run_subprocess(command, error_message, branch_to_return_to=None):
-    try:
-        output = subprocess.check_output(command, shell=True).strip().decode("utf-8")
-        return output
-    except subprocess.CalledProcessError as e:
-        if branch_to_return_to:
-            # Try to revert changes and return to original branch
-            try:
-                subprocess.check_output(
-                    f"git checkout {branch_to_return_to}", shell=True
-                )
-                subprocess.check_output("git reset HEAD~1", shell=True)
-            except subprocess.CalledProcessError as err:
-                # If reverting fails, raise another exception
-                raise Exception(
-                    f"POTENTIALLY CHANGE-MAKING ERROR: Failed to revert changes, error occurred during {command}: {str(err)}. The staging process has been interrupted and the system did not manage to return to its original state."
-                )
-        raise Exception(f"{error_message}: {str(e)}")
-
-
-def add_remote_if_not_present(
-    remote_name: str = "cemetery", url: str = "git@github.com:Simontwice/sparsity.git"
-):
-    try:
-        # Check if the remote exists
-        remotes = (
-            subprocess.check_output(["git", "remote"])
-            .strip()
-            .decode("utf-8")
-            .split("\n")
-        )
-
-        if remote_name not in remotes:
-            # Ask and ddd remote if it does not exist
-            response = input(
-                f"The remote {remote_name} does not exist. Do you want to add it? Y/n "
-            )
-
-            # If yes, try to add the remote
-            if response.lower() in ["", "y", "yes"]:
-                subprocess.check_call(["git", "remote", "add", remote_name, url])
-            else:
-                raise Exception(
-                    f"Remote {remote_name} does not exist and was chosen not to be added. The experiment will not be run"
-                )
-            # Check if the URL is correct
-            remote_url = (
-                subprocess.check_output(["git", "remote", "get-url", remote_name])
-                .decode("utf-8")
-                .strip()
-            )
-            if remote_url != url:
-                raise Exception(
-                    f"Wrong url under the remote repo {remote_name}: {remote_url}. Should be: {url} instead"
-                )
-
-        # Check if the URL is correct if the remote already exists
-        remote_url = (
-            subprocess.check_output(["git", "remote", "get-url", remote_name])
-            .decode("utf-8")
-            .strip()
-        )
-        if remote_url != url:
-            raise Exception(
-                f"Wrong url under the remote repo {remote_name}: {remote_url}"
-            )
-
-    except subprocess.CalledProcessError as e:
-        raise Exception("Failed to handle git remote: " + str(e))
-
-
-def version_code(name_for_branch, remote_name, remote_url):
-    # Record current branch
-    current_branch = run_subprocess(
-        "git rev-parse --abbrev-ref HEAD", "Failed to get current branch"
-    )
-
-    # Add remote if it does not exist
-    add_remote_if_not_present(remote_name, remote_url)
-
-    # Stage all changes
-    run_subprocess("git add .", "Failed to stage changes")
-
-    # Commit changes
-    run_subprocess(
-        f'git commit --no-verify -m "commit before experiment"', "Commit failed"
-    )
-
-    # Check out a new branch
-    run_subprocess(
-        f"git checkout -b {name_for_branch}",
-        "Failed to create new branch",
-        current_branch,
-    )
-
-    # Push changes
-    run_subprocess(
-        f"git push --no-verify -u {remote_name} {name_for_branch}",
-        "Failed to push changes",
-        current_branch,
-    )
-
-    run_subprocess(
-        f"git checkout {current_branch}",
-        "Failed to return to original branch",
-        current_branch,
-    )
-
-    # Return to original state
-    run_subprocess(f"git reset HEAD~1", "Failed to reset changes", current_branch)
+from git import Repo, GitCommandError
 
 
 def version_and_copy_code(
@@ -146,26 +20,21 @@ def version_and_copy_code(
     :param remote_name:
     :param remote_url:
     :return: None
+
+    TODO/questions:
+        the diff is huge at the cemetery repo, is there a way to make it smaller? Maybe by syncing main at the cemetery repo with main at the original repo? ((github auto sync main to fork))
+        can we sync everything except the git files between the two repos? Will the commiting/pushing work as it should? How to handle gpu_entropy? ((masz na kartce))
+
     """
     # Version code
     version_code(name_for_branch, remote_name, remote_url)
 
     # Copy code
-
-    # Find git root directory
     root_dir = find_git_root()
     newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
 
-    # Set up ignore patterns
-    with open(os.path.join(root_dir, ".versioningignore")) as f:
-        versioning_ignore_patterns = f.read().splitlines()
-        versioning_ignore_patterns = [
-            pattern
-            for pattern in versioning_ignore_patterns
-            if pattern != "" and pattern[0] != "#"
-        ]
-        versioning_ignore_patterns = [p.strip() for p in versioning_ignore_patterns]
-    versioning_ignore_patterns = shutil.ignore_patterns(*versioning_ignore_patterns)
+    ignore_patterns_file = os.path.join(root_dir, ".versioningignore")
+    versioning_ignore_patterns = make_ignore_patterns(ignore_patterns_file)
 
     print(f"Copying code to {newdir_path}...")
     # Copy the project root directory to a new directory, ignoring files described in versioning_ignore_patterns
@@ -174,6 +43,88 @@ def version_and_copy_code(
 
     # Change to the new directory
     os.chdir(newdir_path)
+
+
+def version_code(name_for_branch, remote_name, remote_url):
+    repo = Repo(find_git_root())
+
+    # Record current branch
+    current_branch = repo.active_branch.name
+
+    # Add remote if it does not exist
+    check_remote(repo, remote_name, remote_url)
+
+    # rebase on newest version of main
+    try:
+        rebase_on_new_main(name_for_branch, current_branch, repo)
+    except GitCommandError:
+        raise Exception("Failed to rebase on newest version of main. Aborting...")
+
+    # Stage all changes
+    repo.git.add(u=True)
+
+    # Commit changes
+    repo.git.commit(m="commit before experiment")
+
+    try:
+        # Create new branch and checkout
+        repo.git.checkout(b=name_for_branch)
+
+        # Push changes to the remote
+        repo.git.push(remote_name, name_for_branch)
+
+    except GitCommandError as e:
+        # Handle exceptions, framed inside a GitCommandError
+        raise Exception(f"Failed to push changes, error occurred during {str(e)}")
+    finally:
+        # Return to original branch and reset changes - all previously unstaged changes will be as they were before
+        repo.git.checkout(current_branch)
+        repo.git.reset("--mixed", "HEAD~1")
+
+
+def rebase_on_new_main(name_for_branch, current_branch, repo):
+    # Check for changes in the current workspace
+    should_unstash = False
+    if repo.is_dirty():
+        should_unstash = True
+        # Changes exist, so let's stash them
+        repo.git.stash()
+    # try to checkout main and pull
+    try:
+        # Switch to the 'main' branch
+        repo.git.checkout("main")
+        repo.git.checkout("-b", name_for_branch)
+        # Perform git pull
+        repo.git.pull()
+
+        if should_unstash:
+            # Unstash the changes
+            repo.git.stash("pop")
+
+    except GitCommandError:
+        # In case of conflict or any other git error, reset back to the initial state
+        repo.git.reset("--hard", "HEAD")
+        # Reset back to the initial recorded state
+        repo.git.checkout(current_branch)
+        if should_unstash:
+            # Unstash the changes
+            repo.git.stash("pop")
+        raise GitCommandError(
+            "An error occurred. There are conflicts between newest main and your local changes. Resolve them locally (e.g. by merging the newest main to your current branch) and try again. \nResetting back to initial state..."
+        )
+
+
+def check_remote(repo, remote_name, remote_url):
+    for remote in repo.remotes:
+        if remote.name == remote_name:
+            if remote.url == remote_url:
+                return
+            else:
+                raise Exception(
+                    f"Wrong url under remote repo {remote_name}: {repo.remotes[remote_name].url.strip()}, should be {remote_url}"
+                )
+    repo.create_remote(remote_name, url=remote_url)
+    return
 
 
 def find_git_root():
@@ -186,3 +137,15 @@ def find_git_root():
         if parent_dir == current_dir:
             raise Exception("Not in a Git repository.")
         current_dir = parent_dir
+
+
+def make_ignore_patterns(filepath):
+    # Set up ignore patterns
+    with open(filepath) as f:
+        patterns = f.read().splitlines()
+        patterns = [
+            pattern for pattern in patterns if pattern != "" and pattern[0] != "#"
+        ]
+        patterns = [p.strip() for p in patterns]
+        patterns = shutil.ignore_patterns(*patterns)
+    return patterns

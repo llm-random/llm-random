@@ -48,8 +48,6 @@ DRY_RUN = False
 CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
-PUSH_TO_GIT = False
-COPIED_CODE_PATH = ""
 if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
@@ -79,7 +77,6 @@ if __name__ == "__main__":
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
         RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
         INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
-        PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
         NODELIST = grid_args.get("nodelist", NODELIST)
         N_GPUS = grid_args.get("n_gpus", N_GPUS)
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
