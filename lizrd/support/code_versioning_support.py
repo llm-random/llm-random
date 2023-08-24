@@ -14,17 +14,6 @@ def version_and_copy_code(
     Then copies all code to a new directory.
     Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
     If not met, the user needs to set up ssh keys.
-
-    :param name_for_branch:
-    :param newdir_name:
-    :param remote_name:
-    :param remote_url:
-    :return: None
-
-    TODO/questions:
-        the diff is huge at the cemetery repo, is there a way to make it smaller? Maybe by syncing main at the cemetery repo with main at the original repo? ((github auto sync main to fork))
-        can we sync everything except the git files between the two repos? Will the commiting/pushing work as it should? How to handle gpu_entropy? ((masz na kartce))
-
     """
     # Version code
     version_code(name_for_branch, remote_name, remote_url)
