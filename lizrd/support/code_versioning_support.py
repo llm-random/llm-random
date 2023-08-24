@@ -1,87 +1,162 @@
-import re
 import subprocess
 import shutil
 import os
 
-from lizrd.support.misc import generate_random_string
+
+def get_stash_id(stash_message):
+    # Get the list of stashes:
+    stash_list = (
+        subprocess.check_output(["git", "stash", "list"]).decode("utf-8").split("\n")
+    )
+    # Parse the output and check if our stash_message exists
+    for stash in stash_list:
+        if stash_message in stash:
+            # Stash details are in form stash@{N}: On <branch_name>: <stash_message>
+            # We need to get 'stash@{N}' from this.
+            return stash.split(":")[0].strip()
+    raise Exception("No stash found with given stash message")
 
 
-def run_subprocess(command, error_message, branch=None):
+def run_subprocess(command, error_message, branch_to_return_to=None):
     try:
         output = subprocess.check_output(command, shell=True).strip().decode("utf-8")
         return output
     except subprocess.CalledProcessError as e:
-        if branch:
+        if branch_to_return_to:
             # Try to revert changes and return to original branch
             try:
-                subprocess.check_output("git reset --hard", shell=True)
-                subprocess.check_output(f"git checkout {branch}", shell=True)
                 subprocess.check_output(
-                    'git stash pop "stash_for_experiment_versioning"', shell=True
+                    f"git checkout {branch_to_return_to}", shell=True
                 )
+                subprocess.check_output("git reset --hard HEAD~1", shell=True)
             except subprocess.CalledProcessError as err:
                 # If reverting fails, raise another exception
                 raise Exception(
-                    f"Failed to revert changes, error occurred during {command}: {str(err)}"
+                    f"POTENTIALLY CHANGE-MAKING ERROR: Failed to revert changes, error occurred during {command}: {str(err)}. The staging process has been interrupted and the system did not manage to return to its original state."
                 )
         raise Exception(f"{error_message}: {str(e)}")
 
 
-def version_code_and_copy(name_for_branch, remote_url):
+def add_remote_if_not_present(
+    remote_name: str = "cemetery", url: str = "git@github.com:Simontwice/sparsity.git"
+):
+    try:
+        # Check if the remote exists
+        remotes = (
+            subprocess.check_output(["git", "remote"])
+            .strip()
+            .decode("utf-8")
+            .split("\n")
+        )
+
+        if remote_name not in remotes:
+            # Ask and ddd remote if it does not exist
+            response = input(
+                f"The remote {remote_name} does not exist. Do you want to add it? Y/n "
+            )
+
+            # If yes, try to add the remote
+            if response.lower() in ["", "y", "yes"]:
+                subprocess.check_call(["git", "remote", "add", remote_name, url])
+            else:
+                raise Exception(
+                    f"Remote {remote_name} does not exist and was chosen not to be added. The experiment will not be run"
+                )
+            # Check if the URL is correct
+            remote_url = (
+                subprocess.check_output(["git", "remote", "get-url", remote_name])
+                .decode("utf-8")
+                .strip()
+            )
+            if remote_url != url:
+                raise Exception(
+                    f"Wrong url under the remote repo {remote_name}: {remote_url}. Should be: {url} instead"
+                )
+
+        # Check if the URL is correct if the remote already exists
+        remote_url = (
+            subprocess.check_output(["git", "remote", "get-url", remote_name])
+            .decode("utf-8")
+            .strip()
+        )
+        if remote_url != url:
+            raise Exception(
+                f"Wrong url under the remote repo {remote_name}: {remote_url}"
+            )
+
+    except subprocess.CalledProcessError as e:
+        raise Exception("Failed to handle git remote: " + str(e))
+
+
+def version_code(name_for_branch, remote_name, remote_url):
     # Record current branch
-    branch = run_subprocess(
+    current_branch = run_subprocess(
         "git rev-parse --abbrev-ref HEAD", "Failed to get current branch"
     )
 
-    # Stash any uncommitted changes with a custom message
-    run_subprocess(
-        'git stash save "stash_for_experiment_versioning"',
-        "Failed to stash changes",
-        branch,
-    )
+    # Add remote if it does not exist
+    add_remote_if_not_present(remote_name, remote_url)
 
     # Stage all changes
-    run_subprocess("git add .", "Failed to stage changes", branch)
+    run_subprocess("git add .", "Failed to stage changes")
 
     # Commit changes
     run_subprocess(
-        'git commit --no-verify -m "commit before experiment"', "Commit failed", branch
+        f'git commit --no-verify -m "commit before experiment"', "Commit failed"
+    )
+
+    # Check out a new branch
+    run_subprocess(
+        f"git checkout -b {name_for_branch}",
+        "Failed to create new branch",
+        current_branch,
     )
 
     # Push changes
     run_subprocess(
-        f"git push --no-verify A {name_for_branch}", "Failed to push changes", branch
+        f"git push --no-verify -u {remote_name} {name_for_branch}",
+        "Failed to push changes",
+        current_branch,
     )
 
-    # Return to original branch and apply stashed changes (using stash name)
     run_subprocess(
-        f"git git reset --hard", "Failed to reset git back to before changes", branch
+        f"git checkout {current_branch}",
+        "Failed to return to original branch",
+        current_branch,
     )
+
+    # Return to original state
     run_subprocess(
-        f"git checkout {branch}", "Failed to checkout original branch", branch
-    )
-    run_subprocess(
-        'git stash pop "stash_for_experiment_versioning"',
-        "Failed to apply stashed changes to original branch",
-        branch,
+        f"git reset --hard HEAD~1", "Failed to reset changes", current_branch
     )
 
 
-def copy_and_version_code(
-    name_for_branch,
+def version_and_copy_code(
     newdir_name,
-    push_to_git,
+    name_for_branch,
+    remote_name="cemetery",
     remote_url="git@github.com:Simontwice/sparsity.git",
 ):
-    """Copies the current code to a new directory, and pushes the code to a remote repo.
-    NOTE: it is assumed that this function is called from inside the project.
+    """
+    Stashes the current code, adds all changes, commits them, pushes them to a remote repo, and returns to the original branch.
+    Then copies all code to a new directory.
     Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
-    If not met, the user needs to set up ssh keys."""
+    If not met, the user needs to set up ssh keys.
+
+    :param name_for_branch:
+    :param newdir_name:
+    :param remote_name:
+    :param remote_url:
+    :return: None
+    """
+    # Version code
+    version_code(name_for_branch, remote_name, remote_url)
+
+    # Copy code
 
     # Find git root directory
     root_dir = find_git_root()
     newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
-    random_string = generate_random_string(10)
 
     # Set up ignore patterns
     with open(os.path.join(root_dir, ".versioningignore")) as f:
@@ -91,10 +166,7 @@ def copy_and_version_code(
             for pattern in versioning_ignore_patterns
             if pattern != "" and pattern[0] != "#"
         ]
-        versioning_ignore_patterns = [p.strip() for p in versioning_ignore_patterns] + [
-            ".git"
-        ]
-
+        versioning_ignore_patterns = [p.strip() for p in versioning_ignore_patterns]
     versioning_ignore_patterns = shutil.ignore_patterns(*versioning_ignore_patterns)
 
     print(f"Copying code to {newdir_path}...")
@@ -104,92 +176,6 @@ def copy_and_version_code(
 
     # Change to the new directory
     os.chdir(newdir_path)
-
-    if push_to_git:
-        tmp_dir = f"{root_dir}/tmp/{random_string}"
-        tmp_git_dir = f"{tmp_dir}/.git"
-        subprocess.run(
-            ["mkdir", "-p", tmp_dir],
-            capture_output=True,
-            text=True,
-        )
-        subprocess.run(
-            ["cp", "-r", f".git", tmp_dir],
-            capture_output=True,
-            text=True,
-        )
-        subprocess.run(
-            ["ln", "-s", tmp_git_dir, ".git"], capture_output=True, text=True
-        )
-        print(f"Creating branch {name_for_branch}")
-        # Push the code to the remote repo
-        push_code_to_url(name_for_branch, remote_url)
-        print(
-            f"Code pushed successfully to {remote_url} under branch {name_for_branch}"
-        )
-        subprocess.run(["rm", "-rf", tmp_dir], capture_output=True, text=True)
-        subprocess.run(["rm", ".git"], capture_output=True, text=True)
-    return newdir_path
-
-
-def push_code_to_url(
-    branch_name,
-    remote_url,
-):
-    remote_url = remote_url.strip()
-
-    # Check if remote_url is already among remote repos
-    check_remote = subprocess.run(
-        ["git", "remote", "-v"], capture_output=True, text=True
-    )
-    check_remote_output = check_remote.stdout
-    remote_present = False
-    lines = check_remote_output.split("\n")
-    remote_name = "code_image_cemetery"
-    for line in lines:
-        line = line.strip()
-        if line == "":
-            continue
-        nickname, url, _ = re.split("[\t ]", line)
-        if url == remote_url:
-            remote_name = nickname
-            remote_present = True
-            break
-
-    if not remote_present:
-        # Add the repo as a remote
-        run_subprocess_verbose(
-            ["git", "remote", "add", "code_image_cemetery", remote_url]
-        )
-
-    # Pull (this is a fix for >fatal: you are on a branch yet to be born)
-    run_subprocess_verbose(["git", "pull"])
-
-    # Create a new branch
-    run_subprocess_verbose(["git", "checkout", "-b", branch_name])
-
-    # Stage the changes
-    run_subprocess_verbose(["git", "add", "."])
-
-    # Commit the changes
-    run_subprocess_verbose(
-        ["git", "commit", "--no-verify", "-m", "Committing local changes"]
-    )
-
-    # Push the current code to the remote repo
-    run_subprocess_verbose(["git", "push", remote_name, branch_name])
-
-
-def run_subprocess_verbose(argument_list):
-    prc = subprocess.run(
-        argument_list,
-        capture_output=True,
-        text=True,
-    )
-
-    if prc.returncode != 0:
-        print(f"Error: {prc.stderr}")
-        raise Exception("Error: Git operation was not successful")
 
 
 def find_git_root():

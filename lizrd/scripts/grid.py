@@ -23,7 +23,7 @@ from lizrd.scripts.grid_utils import (
     get_grid_entrypoint,
     unpack_params,
 )
-from lizrd.support.code_versioning_support import copy_and_version_code
+from lizrd.support.code_versioning_support import version_and_copy_code
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
@@ -122,13 +122,13 @@ if __name__ == "__main__":
 
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
 
-    if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
+    if not (INTERACTIVE_DEBUG or False):
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        COPIED_CODE_PATH = copy_and_version_code(
-            name_for_branch, name_for_branch, PUSH_TO_GIT
+        version_and_copy_code(
+            name_for_branch, name_for_branch
         )
     else:
         print(
