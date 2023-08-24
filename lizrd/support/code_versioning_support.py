@@ -83,9 +83,9 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
     try:
         # Switch to the 'main' branch
         repo.git.checkout("main")
-        repo.git.checkout("-b", name_for_branch)
         # Perform git pull
         repo.git.pull()
+        repo.git.checkout("-b", name_for_branch)
 
         if should_unstash:
             # Unstash the changes
