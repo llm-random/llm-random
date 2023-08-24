@@ -1,4 +1,9 @@
-def introduce_parser_arguments(parser):
+import argparse
+
+
+def introduce_parser_arguments(
+    parser: argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
     # core hyperparameters, fixed for all experiments; needs a good reason to change
 
     parser.add_argument("--use_clearml", action="store_true")
@@ -52,10 +57,11 @@ def introduce_parser_arguments(parser):
         default=0.01,
         help="Whether to use auxiliary loss in loss calculations",
     )
+    parser.add_argument("--detect_anomaly", action="store_true")
 
     # paremeters for specific experiments
 
-    parser.add_argument("--n_experts", type=int, default=1)
+    parser.add_argument("--n_experts", type=int, required=False)
     parser.add_argument("--group_size", type=int, default=1)
     parser.add_argument("--sparsity_dim", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=1.0)
@@ -65,7 +71,11 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
-    parser.add_argument("--granularity_expert_config", action="store_true")
+    parser.add_argument(
+        "--granularity_expert_config",
+        action="store_true",
+        help="This argument is deprecated. Provide either (total_experts_width, n_experts, effective_dff) or (expert_size, n_experts, topk_fraction) instead.",
+    )
     parser.add_argument("--total_experts_width", type=int, required=False)
     parser.add_argument("--effective_dff", type=int, required=False)
     parser.add_argument("--softmax_over", type=str, required=False, default="tokens")
@@ -85,6 +95,24 @@ def introduce_parser_arguments(parser):
     parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
     parser.add_argument(
+        "--ff_parallel_compute_fraction",
+        type=float,
+        default=0.5,
+        help="This argument is used only if ff_mode is set to expert_choice_with_parallel_ff. In this setting computations "
+        "are done both by experts and dense layer and then the results are added. This argument is used to set the "
+        "fraction of compute (flops) that is done by FF compared to the whole compute in the layer. For example, "
+        "if this argument is 0.5, then half of the compute (flops) is done by FF and half by experts",
+    )
+    parser.add_argument(
+        "--ff_parallel_mode",
+        type=str,
+        default="modify_expert_size",
+        help="This argument is used only if ff_mode is set to expert_choice_with_parallel_ff. In this setting computations "
+        "are done both by experts and dense layer and then the results are added. This argument is used to set how the "
+        "parameters of the experts are modified to adjust compute used bu experts. Possible values: modify_expert_size, "
+        "modify_topk_fraction, modify_n_experts",
+    )
+    parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,
         default=None,
@@ -92,7 +120,18 @@ def introduce_parser_arguments(parser):
     )
     parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
+    parser.add_argument("--granular_moe_one_hot_impl", action="store_true")
     parser.add_argument("--dataset_type", type=str, default="wikibook")
+    parser.add_argument(
+        "--softmax_ungrouped",
+        action="store_true",
+        help="in grouped ExpertChoice, run softmax over non-grouped tokens",
+    )
+    parser.add_argument(
+        "--use_full_einsum",
+        action="store_true",
+        help="in grouped ExpertChoice, use squash all linears with einsum",
+    )
 
     # experimental/legacy parameters
 

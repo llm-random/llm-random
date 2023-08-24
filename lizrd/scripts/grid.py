@@ -15,6 +15,7 @@ import yaml
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    get_train_main_function,
     multiply_grid,
     timestr_to_minutes,
     get_machine_backend,
@@ -121,7 +122,7 @@ if __name__ == "__main__":
 
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
 
-    if not INTERACTIVE_DEBUG:
+    if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
@@ -130,11 +131,12 @@ if __name__ == "__main__":
             name_for_branch, name_for_branch, PUSH_TO_GIT
         )
     else:
-        print(f"Running in debug mode, skip copying code to a new directory.")
+        print(
+            f"Running in debug mode or locally, skip copying code to a new directory."
+        )
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
-        param_set["tags"] = " ".join(param_set["tags"])
         param_set["n_gpus"] = N_GPUS
         env = None
 
@@ -150,8 +152,10 @@ if __name__ == "__main__":
                 else:
                     runner_params.append(f"--{k}")
                     if isinstance(v, list):
-                        v = " ".join([str(s) for s in v])
-                    runner_params.append(v)
+                        runner_params.extend([str(s) for s in v])
+                    else:
+                        runner_params.append(str(v))
+
         if runner == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
@@ -170,7 +174,7 @@ if __name__ == "__main__":
             datasets_cache = "/net/tscratch/people/plgjkrajewski/.cache"
             subprocess_args = [
                 slurm_command,
-                f"--gpus={N_GPUS}",
+                f"--gres=gpu:{N_GPUS}",
                 "--partition=plgrid-gpu-a100",
                 f"--cpus-per-gpu={CPUS_PER_GPU}",
                 "--account=plgplggllmeffi-gpu-a100",
@@ -232,13 +236,11 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.LOCAL:
-            subprocess_args = [
-                get_grid_entrypoint(runner),
-                "python3",
-                "-m",
-                RUNNER,
-                *runner_params,
-            ]
+            # We run the experiment directly, not through a grid entrypoint script
+            # because we want to be able to debug it
+            runner_main_function = get_train_main_function(RUNNER)
+            runner_main_function(None, runner_params=runner_params)
+            exit(0)
         else:
             raise ValueError(f"Unknown runner: {runner}")
 

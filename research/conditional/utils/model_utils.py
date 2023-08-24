@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
+from lizrd.core.llm import Parallel
+from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -230,32 +232,91 @@ def get_residual_layer(args):
 
 
 def get_expert_choice_args(args):
-    if args.granularity_expert_config:
-        if (args.expert_size is not None) or (args.topk_fraction is not None):
-            raise ValueError(
-                "Cannot specify expert_size or topk_fraction when using granularity config"
-            )
+    set_arguments_option1 = (
+        args.total_experts_width is not None
+        and args.effective_dff is not None
+        and args.n_experts is not None
+    ) and (args.expert_size is None and args.topk_fraction is None)
+    set_arguments_option2 = (
+        args.expert_size is not None
+        and args.topk_fraction is not None
+        and args.n_experts is not None
+    ) and (args.effective_dff is None and args.total_experts_width is None)
 
+    if not set_arguments_option1 and not set_arguments_option2:
+        raise AssertionError(
+            "You must specify either total_experts_width, effective_dff, and n_experts or expert_size, topk_fraction, and n_experts"
+        )
+
+    if args.total_experts_width is not None:
         expert_size = args.total_experts_width / args.n_experts
         assert expert_size == int(expert_size)
-        expert_size = int(expert_size)
+        args.expert_size = int(expert_size)
 
         experts_per_token = args.effective_dff / expert_size
 
         topk_fraction = experts_per_token / args.n_experts
         assert 0.0 <= topk_fraction <= 1.0
+        args.topk_fraction = topk_fraction
     else:
-        expert_size = args.expert_size
-        topk_fraction = args.topk_fraction
+        experts_per_token = args.topk_fraction * args.n_experts
+        args.effective_dff = experts_per_token * args.expert_size
+        args.total_experts_width = args.expert_size * args.n_experts
 
     return {
         "dmodel": args.dmodel,
         "n_experts": args.n_experts,
-        "expert_size": expert_size,
-        "topk_fraction": topk_fraction,
+        "expert_size": args.expert_size,
+        "topk_fraction": args.topk_fraction,
         "random_perm": args.expert_random_perm,
+        "group_by_batch": args.group_granular_moe_by_batch,
+        "softmax_ungrouped": args.softmax_ungrouped,
+        "one_hot_impl": args.granular_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
-        "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
+        "use_full_einsum": args.use_full_einsum,
+    }
+
+
+def get_expert_choice_with_parallel_ff_args(args):
+    expert_choice_params = get_expert_choice_args(args)
+    n_experts = expert_choice_params["n_experts"]
+    expert_size = expert_choice_params["expert_size"]
+    top_k_fraction = expert_choice_params["topk_fraction"]
+
+    def calculate_effective_expert_dff(_expert_size, _n_experts, _topk_fraction):
+        return _topk_fraction * _n_experts * _expert_size
+
+    if args.ff_parallel_mode == "modify_expert_size":
+        expert_size = int(
+            expert_choice_params["expert_size"]
+            * (1 - args.ff_parallel_compute_fraction)
+        )
+        expert_choice_params["expert_size"] = expert_size
+
+    elif args.ff_parallel_mode == "modify_topk_fraction":
+        top_k_fraction = expert_choice_params["topk_fraction"] * (
+            1 - args.ff_parallel_compute_fraction
+        )
+
+        expert_choice_params["topk_fraction"] = top_k_fraction
+
+    elif args.ff_parallel_mode == "modify_n_experts":
+        n_experts = int(
+            expert_choice_params["n_experts"] * (1 - args.ff_parallel_compute_fraction)
+        )
+        expert_choice_params["n_experts"] = n_experts
+    else:
+        raise ValueError(
+            f"Invalid ff_parallel_mode {args.ff_parallel_mode}. Possible values are modify_expert_size, modify_topk_fraction, modify_n_experts"
+        )
+
+    dff_expert = int(
+        calculate_effective_expert_dff(expert_size, n_experts, top_k_fraction)
+    )
+    dff_parallel = args.effective_dff - dff_expert
+    return {
+        "expert_choice_kwargs": expert_choice_params,
+        "parallel_ff_args": (args.dmodel, dff_parallel),
     }
 
 
@@ -430,8 +491,18 @@ def get_ff_layer(args):
             flop_matched=args.flop_matched,
         )
     elif args.ff_mode == "expert_choice":
-        return_fn = lambda: ExpertChoiceFF(
-            **get_expert_choice_args(args),
+        ff_args = get_expert_choice_args(args)
+        return_fn = partial(ExpertChoiceFF, **ff_args)
+    elif args.ff_mode == "expert_choice_with_parallel_ff":
+        expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
+            "expert_choice_kwargs"
+        ]
+        parallel_ff_args = get_expert_choice_with_parallel_ff_args(args)[
+            "parallel_ff_args"
+        ]
+        return_fn = lambda: Parallel(
+            ExpertChoiceFF(**expert_choice_kwargs),
+            llm.FeedForward(*parallel_ff_args),
         )
     elif args.ff_mode == "token_choice":
         return_fn = lambda: TokenChoiceFF(

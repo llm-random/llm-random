@@ -60,6 +60,71 @@ class TestExpertChoice(GeneralTestCase):
             output = layer(input)
         self.assertTensorAlmostEqual(output, input)
 
+    def test_onehot_full_equivalence(self):
+        """
+        Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
+        """
+        batch, dm = 2, 2
+        experts = 2
+        exp_size = 6
+        seql = 2
+        topk_fraction = 0.5
+        layer = ExpertChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            one_hot_impl=True,
+            group_by_batch=True,
+        )
+        layer_einsum = ExpertChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            group_by_batch=True,
+            use_full_einsum=True,
+            one_hot_impl=True,
+        )
+        layer_einsum.lin1_weight.data = layer.lin1_weight.data
+        layer_einsum.lin2_weight.data = layer.lin2_weight.data
+        layer_einsum.gate.data = layer.gate.data
+        layer_einsum.ln = layer.ln
+
+        input = torch.rand((batch, seql, dm))
+
+        output = layer.forward(input)
+        output_onehot = layer_einsum.forward(input)
+
+        self.assertTensorAlmostEqual(output, output_onehot)
+
+    def test_onehot_equivalence(self):
+        """
+        Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
+        """
+        batch, dm = 2, 2
+        experts = 2
+        exp_size = 6
+        seql = 2
+        topk_fraction = 0.5
+        layer = ExpertChoiceFF(
+            dm, experts, exp_size, topk_fraction, group_by_batch=True
+        )
+        layer_onehot = ExpertChoiceFF(
+            dm, experts, exp_size, topk_fraction, one_hot_impl=True, group_by_batch=True
+        )
+        layer_onehot.lin1_weight.data = layer.lin1_weight.data
+        layer_onehot.lin2_weight.data = layer.lin2_weight.data
+        layer_onehot.gate.data = layer.gate.data
+        layer_onehot.ln = layer.ln
+
+        input = torch.rand((batch, seql, dm))
+
+        output = layer.forward(input)
+        output_onehot = layer_onehot.forward(input)
+
+        self.assertTensorAlmostEqual(output, output_onehot)
+
     def test_equivalence_linear(self):
         """
         Test that the ExpertChoiceFF layer with one expert is equivalent to a linear layer.
