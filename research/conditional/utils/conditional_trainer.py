@@ -71,6 +71,7 @@ class ConditionalTrainer:
             )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
+        self.auxiliary_losses_accumulator = dict()
         self._calculate_loss = make_loss_function(
             model=self.model_type,
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
@@ -246,15 +247,17 @@ class ConditionalTrainer:
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_heavy(step)
+            self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
     def optimize_with_gradient_accumulation(
         self, processed_batch: wikibookdata.ProcessedBatch
     ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
-        loss_value = 0.0
+        total_cross_entropy_loss = 0.0
         correct_tokens_value = 0
         total_masked_tokens_value = 0
+        losses = {}
 
         for i in range(self.gradient_accumulation_steps):
             batch_copy = copy.deepcopy(processed_batch)
@@ -263,7 +266,7 @@ class ConditionalTrainer:
                     tensor.data, self.gradient_accumulation_steps, i
                 )
 
-            loss, aux_info = self._calculate_loss(
+            cross_entropy_loss, aux_info = self._calculate_loss(
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
@@ -272,14 +275,25 @@ class ConditionalTrainer:
 
             # clear computation graph, store gradients, only apply gradients at the end
             should_apply_gradient = i == self.gradient_accumulation_steps - 1
-            self._optimize(loss, should_apply_gradient=should_apply_gradient)
-            loss_value += loss.item()
+
+            loss_to_optimize = cross_entropy_loss
+            for key, value in aux_info["losses"].items():
+                loss_to_optimize += value
+
+            self._optimize(
+                loss_to_optimize, should_apply_gradient=should_apply_gradient
+            )
+            total_cross_entropy_loss += cross_entropy_loss.item()
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
 
-        return loss_value, {
+            for key, value in aux_info["losses"].items():
+                losses[key] = losses.get(key, 0) + value
+
+        return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
+            "losses": losses,
         }
 
     def _log_train_stats(self, loss_value, step, aux_info):
@@ -354,6 +368,21 @@ class ConditionalTrainer:
             )
             self.correct_tokens_accumulator = 0.0
             self.total_tokens_accumulator = 0.0
+
+    def _log_auxiliary_losses(self, losses, step):
+        for name, loss in losses.items():
+            self.auxiliary_losses_accumulator[name] = (
+                self.auxiliary_losses_accumulator.get(name, 0) + loss
+            )
+
+        if step % self.logging_interval_loss == 0 and step > 0:
+            for name, loss in losses.items():
+                self.logger.report_scalar(
+                    title=f"{name}",
+                    value=loss / self.logging_interval_loss,
+                    iteration=step,
+                )
+            self.auxiliary_losses_accumulator.clear()
 
     def _hack(self, hack_name, step):
         if hack_name == "batch_size":

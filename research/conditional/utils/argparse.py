@@ -51,6 +51,12 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_decay_interval", type=int, default=0)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--residual_mode", type=str, default="pre_norm")
+    parser.add_argument(
+        "--load_balancing_loss_weight",
+        type=float,
+        default=0.01,
+        help="Whether to use auxiliary loss in loss calculations",
+    )
     parser.add_argument("--detect_anomaly", action="store_true")
 
     # paremeters for specific experiments
@@ -87,6 +93,7 @@ def introduce_parser_arguments(
     parser.add_argument("--xfavor", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
+    parser.add_argument("--capacity_factor", type=float, default=1.25)
     parser.add_argument(
         "--ff_parallel_compute_fraction",
         type=float,
