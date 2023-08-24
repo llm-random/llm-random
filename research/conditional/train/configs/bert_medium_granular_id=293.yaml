@@ -1,0 +1,45 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "5-05:00:00"
+n_gpus: 1
+cuda_visible: "4"
+
+# train params
+params:
+  # model
+  model_type: "bert"
+  dataset_type: "wikibook"
+  dmodel: 512
+  n_att_heads: 8
+  n_blocks: 8
+  cutoff: 256
+  batch_size: 512
+  loss_checkpoint_chungs: 64
+
+  n_steps: 150000
+  grad_clip: 0.5
+  lr_decay: 0.8
+  lr_warmup_steps: 0
+  lr_decay_interval: 10000
+
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  save_weights_path: "weights.ckpt"
+  save_weights_interval: 1000
+
+  use_neptune: true
+  project_name: "pmtest/llm-random"
+  name: "bert_medium_granular_32"
+  mixed_precision: true
+  tags:
+    - "bert"
+    - "medium"
+    - "granular"
+    - "32_experts"
+
+  ff_mode: "expert_choice"
+  n_experts: 32
+  granularity_expert_config: true
+  total_experts_width: 65536
+  effective_dff: 2048
+
