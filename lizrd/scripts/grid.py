@@ -127,9 +127,7 @@ if __name__ == "__main__":
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        version_and_copy_code(
-            name_for_branch, name_for_branch
-        )
+        version_and_copy_code(name_for_branch, name_for_branch)
     else:
         print(
             f"Running in debug mode or locally, skip copying code to a new directory."

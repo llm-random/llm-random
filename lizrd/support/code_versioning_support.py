@@ -28,7 +28,7 @@ def run_subprocess(command, error_message, branch_to_return_to=None):
                 subprocess.check_output(
                     f"git checkout {branch_to_return_to}", shell=True
                 )
-                subprocess.check_output("git reset --hard HEAD~1", shell=True)
+                subprocess.check_output("git reset HEAD~1", shell=True)
             except subprocess.CalledProcessError as err:
                 # If reverting fails, raise another exception
                 raise Exception(
@@ -126,9 +126,7 @@ def version_code(name_for_branch, remote_name, remote_url):
     )
 
     # Return to original state
-    run_subprocess(
-        f"git reset --hard HEAD~1", "Failed to reset changes", current_branch
-    )
+    run_subprocess(f"git reset HEAD~1", "Failed to reset changes", current_branch)
 
 
 def version_and_copy_code(
