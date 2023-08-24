@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
+from lizrd.core.llm import Parallel
+from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -42,6 +44,7 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -116,10 +119,14 @@ def chungized_llm_loss(
         total_loss += partial_loss_output.sum()
         total_correct_tokens += partial_correct_tokens
         total_masked_tokens += partial_masked_tokens
-    return total_loss / num_tokens, {
-        "correct_tokens": total_correct_tokens,
-        "total_masked_tokens": total_masked_tokens,
-    }
+
+        aux_info = {
+            "correct_tokens": total_correct_tokens,
+            "total_masked_tokens": total_masked_tokens,
+            "losses": retrieve_additional_losses(model),
+        }
+
+    return total_loss / num_tokens, aux_info
 
 
 def chungized_bert_loss(batch, model, mixed_precision, vocab_size, n_chungs):
@@ -170,10 +177,13 @@ def calculate_llm_loss(
     correct_tokens = correct_tokens.sum()
     total_masked_tokens = mask.sum()
 
-    return loss, {
+    aux_info = {
         "correct_tokens": correct_tokens,
         "total_masked_tokens": total_masked_tokens,
+        "losses": retrieve_additional_losses(model),
     }
+
+    return loss, aux_info
 
 
 def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
@@ -259,9 +269,69 @@ def get_expert_choice_args(args):
         "expert_size": args.expert_size,
         "topk_fraction": args.topk_fraction,
         "random_perm": args.expert_random_perm,
+        "group_by_batch": args.group_granular_moe_by_batch,
+        "softmax_ungrouped": args.softmax_ungrouped,
+        "one_hot_impl": args.granular_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
-        "group_granular_moe_by_batch": args.group_granular_moe_by_batch,
+        "use_full_einsum": args.use_full_einsum,
     }
+
+
+def get_expert_choice_with_parallel_ff_args(args):
+    expert_choice_params = get_expert_choice_args(args)
+    n_experts = expert_choice_params["n_experts"]
+    expert_size = expert_choice_params["expert_size"]
+    top_k_fraction = expert_choice_params["topk_fraction"]
+
+    def calculate_effective_expert_dff(_expert_size, _n_experts, _topk_fraction):
+        return _topk_fraction * _n_experts * _expert_size
+
+    if args.ff_parallel_mode == "modify_expert_size":
+        expert_size = int(
+            expert_choice_params["expert_size"]
+            * (1 - args.ff_parallel_compute_fraction)
+        )
+        expert_choice_params["expert_size"] = expert_size
+
+    elif args.ff_parallel_mode == "modify_topk_fraction":
+        top_k_fraction = expert_choice_params["topk_fraction"] * (
+            1 - args.ff_parallel_compute_fraction
+        )
+
+        expert_choice_params["topk_fraction"] = top_k_fraction
+
+    elif args.ff_parallel_mode == "modify_n_experts":
+        n_experts = int(
+            expert_choice_params["n_experts"] * (1 - args.ff_parallel_compute_fraction)
+        )
+        expert_choice_params["n_experts"] = n_experts
+    else:
+        raise ValueError(
+            f"Invalid ff_parallel_mode {args.ff_parallel_mode}. Possible values are modify_expert_size, modify_topk_fraction, modify_n_experts"
+        )
+
+    dff_expert = int(
+        calculate_effective_expert_dff(expert_size, n_experts, top_k_fraction)
+    )
+    dff_parallel = args.effective_dff - dff_expert
+    return {
+        "expert_choice_kwargs": expert_choice_params,
+        "parallel_ff_args": (args.dmodel, dff_parallel),
+    }
+
+
+def retrieve_additional_losses(model: torch.nn.Module):
+    losses = {}
+    if not hasattr(model, "forward_pass_cache"):
+        return losses
+
+    if "load_balancing_losses" in model.forward_pass_cache:
+        load_balancing_losses = model.forward_pass_cache["load_balancing_losses"]
+        load_balancing_losses = torch.stack(load_balancing_losses)
+        load_balancing_loss = torch.mean(load_balancing_losses)
+        losses["load_balancing_loss"] = load_balancing_loss
+
+    return losses
 
 
 def get_ff_layer(args):
@@ -423,6 +493,25 @@ def get_ff_layer(args):
     elif args.ff_mode == "expert_choice":
         ff_args = get_expert_choice_args(args)
         return_fn = partial(ExpertChoiceFF, **ff_args)
+    elif args.ff_mode == "expert_choice_with_parallel_ff":
+        expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
+            "expert_choice_kwargs"
+        ]
+        parallel_ff_args = get_expert_choice_with_parallel_ff_args(args)[
+            "parallel_ff_args"
+        ]
+        return_fn = lambda: Parallel(
+            ExpertChoiceFF(**expert_choice_kwargs),
+            llm.FeedForward(*parallel_ff_args),
+        )
+    elif args.ff_mode == "token_choice":
+        return_fn = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.effective_dff,
+            capacity_factor=args.capacity_factor,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+        )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
 
