@@ -7,7 +7,7 @@ def version_and_copy_code(
     newdir_name,
     name_for_branch,
     remote_name="cemetery",
-    remote_url="git@github.com:Simontwice/sparsity.git",
+    remote_url="git@github.com:Simontwice/llm-random-cemetery.git",
 ):
     """
     Stashes the current code, adds all changes, commits them, pushes them to a remote repo, and returns to the original branch.
