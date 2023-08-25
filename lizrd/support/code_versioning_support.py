@@ -1,5 +1,7 @@
 import shutil
 import os
+import subprocess
+
 from git import Repo, GitCommandError
 
 
@@ -49,20 +51,23 @@ def version_code(name_for_branch, remote_name, remote_url):
     except GitCommandError:
         raise Exception("Failed to rebase on newest version of main. Aborting...")
 
-    # Stage all changes
-    repo.git.add(u=True)
+    try:
+        # Stage all changes
+        repo.git.add(u=True)
 
-    # Commit changes
-    repo.git.commit(m="commit before experiment")
+        # Commit changes
+        repo.index.commit(message="commit before experiment", skip_hooks=True)
+
+    except GitCommandError:
+        repo.git.checkout(current_branch)
+        raise Exception("Failed to commit. Aborting...")
 
     try:
-        # Create new branch and checkout
-        repo.git.checkout(b=name_for_branch)
-
         # Push changes to the remote
         repo.git.push(remote_name, name_for_branch)
 
     except GitCommandError as e:
+        repo.git.checkout(current_branch)
         # Handle exceptions, framed inside a GitCommandError
         raise Exception(f"Failed to push changes, error occurred during {str(e)}")
 
@@ -83,13 +88,31 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
     try:
         # Switch to the 'main' branch
         repo.git.checkout("main")
-        repo.git.checkout("-b", name_for_branch)
         # Perform git pull
         repo.git.pull()
 
+        repo.git.checkout(b=name_for_branch)
+
         if should_unstash:
-            # Unstash the changes
-            repo.git.stash("pop")
+            try:
+                # Use 'subprocess' module to call git stash pop
+                subprocess.run(["git", "stash", "pop"], check=True)
+            except subprocess.CalledProcessError as err:
+                print(
+                    "Error encountered while popping git stash.",
+                    err,
+                    "Trying to merge, favoring stash...",
+                )
+                try:
+                    subprocess.run(["git", "checkout", "--theirs", "."], check=True)
+                except subprocess.CalledProcessError as err:
+                    print(
+                        "Error encountered while resolving conflicts in favor of stash.",
+                        err,
+                    )
+                    raise GitCommandError(
+                        "Rebasing on new main failed, conflicts occurred. Could not resolve them automatically. "
+                    )
 
     except GitCommandError:
         # In case of conflict or any other git error, reset back to the initial state
