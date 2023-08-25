@@ -129,7 +129,7 @@ class CodeVersioningDaemon:
             try:
                 stash_id = self.find_stash_by_message(self.stash_message)
                 self.repo.git.stash("apply", stash_id)
-            except subprocess.CalledProcessError as e:
+            except GitCommandError as e:
                 print(
                     "Error encountered while applying stashed changes.",
                     e,
@@ -137,7 +137,7 @@ class CodeVersioningDaemon:
                 )
                 try:
                     subprocess.run(["git", "checkout", "--theirs", "."], check=True)
-                except subprocess.CalledProcessError as e:
+                except GitCommandError as e:
                     print(
                         "Error encountered while resolving conflicts in favor of stash.",
                         e,
