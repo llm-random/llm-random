@@ -136,7 +136,6 @@ def version_and_copy_code(
     """
     # Create versioning daemon
     version_daemon = CodeVersioningDaemon(remote_name, remote_url, name_for_branch)
-    version_daemon.find_stash_by_message("wip")
     # Version code
     version_daemon.version_code()
 
