@@ -57,6 +57,8 @@ def version_code(name_for_branch, remote_name, remote_url):
 
     repo.git.push(remote_name, name_for_branch)
 
+    repo.git.checkout(current_branch)
+
 
 def rebase_on_new_main(name_for_branch, current_branch, repo):
     # Check for changes in the current workspace
