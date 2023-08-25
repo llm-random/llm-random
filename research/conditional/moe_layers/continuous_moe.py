@@ -163,3 +163,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
 class ContinuousMoE(ContinuousMoeBaseClass):
     pass
+
+class B(ContinuousMoeBaseClass):
+    pass

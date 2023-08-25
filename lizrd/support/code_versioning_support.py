@@ -63,6 +63,8 @@ class CodeVersioningDaemon:
 
             self.repo.git.add(u=True)
             self.repo.git.commit(m="Versioning code", no_verify=True)
+            self.revert_status = 7.5
+
             self.repo.git.push(self.remote_name, self.name_for_branch)
             self.revert_status = 8
 
@@ -89,6 +91,8 @@ class CodeVersioningDaemon:
                 print(
                     f"[CHANGES NEEDED AT USER'S SIDE] Merging of latest main branch into current branch failed. Please merge manually and try again."
                 )
+            elif self.revert_status == 7.5:
+                pass
             self.clean_up_new_branch()
             self.reset_to_original_branch_and_commit()
 
