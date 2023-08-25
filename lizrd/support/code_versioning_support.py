@@ -92,8 +92,6 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
         repo.git.pull()
         repo.git.checkout(b=name_for_branch)
 
-        repo.git.checkout(b=name_for_branch)
-
         if should_unstash:
             try:
                 # Use 'subprocess' module to call git stash pop
