@@ -22,10 +22,12 @@ class CodeVersioningDaemon:
     def version_code(self):
         try:
             # Record current branch
-            self.current_branch = self.repo.active_branch.name
+            self.original_branch = self.repo.active_branch.name
 
             # reject if there are unpushed commits
-            commits_behind = list(self.repo.iter_commits("origin..HEAD"))
+            commits_behind = list(
+                self.repo.iter_commits(f"origin/{self.original_branch}..HEAD")
+            )
             if len(commits_behind) > 0:
                 raise Exception(
                     f"Unpushed commits detected. Push them first. Aborting..."
@@ -58,7 +60,7 @@ class CodeVersioningDaemon:
             self.repo.git.push(self.remote_name, self.name_for_branch)
             self.revert_status = 8
 
-            self.repo.git.checkout(self.current_branch)
+            self.repo.git.checkout(self.original_branch)
         except GitCommandError:
             self.handle_failure()
             raise Exception("Failed to version code. Aborting...")
