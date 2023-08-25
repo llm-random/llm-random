@@ -83,15 +83,44 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
     if repo.is_dirty():
         should_unstash = True
         # Changes exist, so let's stash them
-        repo.git.stash()
+        try:
+            repo.git.stash()
+        except GitCommandError:
+            raise GitCommandError(
+                "Failed to stash changes. Not sure what to do. Aborting..."
+            )
+
     # try to checkout main and pull
     try:
         # Switch to the 'main' branch
         repo.git.checkout("main")
+    except GitCommandError:
+        repo.git.stash("pop")
+        raise GitCommandError(
+            "Failed to checkout main. Make sure you have a main branch."
+        )
+    try:
         # Perform git pull
         repo.git.pull()
+    except GitCommandError:
+        repo.git.reset("--hard", "HEAD")
+        repo.git.checkout(current_branch)
+        if should_unstash:
+            repo.git.stash("pop")
+        raise GitCommandError(
+            "Failed to pull from main. Make sure you have a main branch."
+        )
+    try:
         repo.git.checkout(b=name_for_branch)
 
+    except GitCommandError:
+        repo.git.reset("--hard", "HEAD")
+        repo.git.checkout(current_branch)
+        if should_unstash:
+            repo.git.stash("pop")
+        raise GitCommandError("Failed to create new branch.")
+
+    try:
         if should_unstash:
             try:
                 # Use 'subprocess' module to call git stash pop
