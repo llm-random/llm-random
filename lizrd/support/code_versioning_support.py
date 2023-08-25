@@ -92,7 +92,7 @@ class CodeVersioningDaemon:
                     f"[CHANGES NEEDED AT USER'S SIDE] Merging of latest main branch into current branch failed. Please merge manually and try again."
                 )
             elif self.revert_status == 7.5:
-                pass
+                self.repo.git.reset("--hard", "HEAD~1")
             self.clean_up_new_branch()
             self.reset_to_original_branch_and_commit()
 
