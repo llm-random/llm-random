@@ -48,6 +48,7 @@ DRY_RUN = False
 CODE_PATH = os.getcwd()
 INTERACTIVE_DEBUG = False
 RUNS_MULTIPLIER = 1
+CODE_VERSIONED = False
 if __name__ == "__main__":
     runner = get_machine_backend()
     SINGULARITY_IMAGE = None
@@ -119,7 +120,8 @@ if __name__ == "__main__":
 
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
 
-    if not (INTERACTIVE_DEBUG or False):
+    if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
+        CODE_VERSIONED = True
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
@@ -133,7 +135,8 @@ if __name__ == "__main__":
     for i, param_set in enumerate(grid):
         name = param_set["name"]
         param_set["n_gpus"] = N_GPUS
-        param_set["git_branch"] = name_for_branch
+        if CODE_VERSIONED:
+            param_set["git_branch"] = name_for_branch
         env = None
 
         runner_params = []
