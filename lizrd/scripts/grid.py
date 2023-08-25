@@ -133,6 +133,7 @@ if __name__ == "__main__":
     for i, param_set in enumerate(grid):
         name = param_set["name"]
         param_set["n_gpus"] = N_GPUS
+        param_set["git_branch"] = name_for_branch
         env = None
 
         runner_params = []
