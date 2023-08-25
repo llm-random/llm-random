@@ -23,7 +23,7 @@ from lizrd.scripts.grid_utils import (
     get_grid_entrypoint,
     unpack_params,
 )
-from lizrd.support.code_versioning_support import version_and_copy_code
+from lizrd.support.code_versioning_support2 import version_and_copy_code
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
