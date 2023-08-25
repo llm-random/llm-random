@@ -127,7 +127,7 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
                 subprocess.run(["git", "stash", "pop"], check=True)
             except subprocess.CalledProcessError as err:
                 print(
-                    "Error encountered while popping git stash.",
+                    "Error encountered while applying stashed changes.",
                     err,
                     "Trying to merge, favoring stash...",
                 )
