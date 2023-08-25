@@ -95,7 +95,8 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
         # Switch to the 'main' branch
         repo.git.checkout("main")
     except GitCommandError:
-        repo.git.stash("pop")
+        if should_unstash:
+            repo.git.stash("pop")
         raise GitCommandError(
             "Failed to checkout main. Make sure you have a main branch."
         )
@@ -103,6 +104,7 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
         # Perform git pull
         repo.git.pull()
     except GitCommandError:
+        assert repo.active_branch.name == "main"
         repo.git.reset("--hard", "HEAD")
         repo.git.checkout(current_branch)
         if should_unstash:
@@ -114,6 +116,7 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
         repo.git.checkout(b=name_for_branch)
 
     except GitCommandError:
+        assert repo.active_branch.name == "main"
         repo.git.reset("--hard", "HEAD")
         repo.git.checkout(current_branch)
         if should_unstash:
