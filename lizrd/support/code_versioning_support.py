@@ -61,7 +61,8 @@ class CodeVersioningDaemon:
             self.unstash_if_necessary()
             self.revert_status = 7
 
-            self.repo.commit("Versioning code")
+            self.repo.git.add(u=True)
+            self.repo.git.commit(m="Versioning code")
             self.repo.git.push(self.remote_name, self.name_for_branch)
             self.revert_status = 8
 
