@@ -90,6 +90,7 @@ def rebase_on_new_main(name_for_branch, current_branch, repo):
         repo.git.checkout("main")
         # Perform git pull
         repo.git.pull()
+        repo.git.checkout(b=name_for_branch)
 
         repo.git.checkout(b=name_for_branch)
 
