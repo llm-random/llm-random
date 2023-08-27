@@ -3,8 +3,6 @@ import os
 import subprocess
 from typing import Union
 
-from git import Repo, GitCommandError
-
 
 class CodeVersioningDaemon:
     def __init__(self, remote_name, remote_url, name_for_branch):
@@ -217,3 +215,16 @@ def make_ignore_patterns(filepath):
         patterns = [p.strip() for p in patterns]
         patterns = shutil.ignore_patterns(*patterns)
     return patterns
+
+
+if __name__ == "__main__":
+    import argparse
+    from git import Repo, GitCommandError
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("newdir_name", type=str, default="")
+    parser.add_argument("name_for_branch", type=str, default="")
+    args = parser.parse_args()
+    version_and_copy_code(
+        newdir_name=args.newdir_name, name_for_branch=args.name_for_branch
+    )

@@ -23,7 +23,6 @@ from lizrd.scripts.grid_utils import (
     get_grid_entrypoint,
     unpack_params,
 )
-from lizrd.support.code_versioning_support import version_and_copy_code
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
@@ -126,7 +125,46 @@ if __name__ == "__main__":
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        version_and_copy_code(name_for_branch, name_for_branch)
+        try:
+            if runner == MachineBackend.ATHENA:
+                subprocess.check_output(
+                    [
+                        "srun",
+                        "--partition=plgrid-gpu-a100",
+                        "--account=plgplggllmeffi-gpu-a100",
+                        f"--time={TIME}",
+                        get_grid_entrypoint(runner),
+                        "singularity",
+                        "exec",
+                        "--bind=/net:/net",
+                        f"-B={CODE_PATH}:/sparsity",
+                        "--nv",
+                        SINGULARITY_IMAGE,
+                        "python3",
+                        "lizrd/support/code_versioning_support.py",
+                        "--newdir_name",
+                        name_for_branch,
+                        "--name_for_branch",
+                        name_for_branch,
+                    ]
+                )
+            else:
+                output = subprocess.check_output(
+                    [
+                        "singularity",
+                        "exec",
+                        SINGULARITY_IMAGE,
+                        "python3",
+                        "lizrd/support/code_versioning_support.py",
+                        "--newdir_name",
+                        name_for_branch,
+                        "--name_for_branch",
+                        name_for_branch,
+                    ]
+                )
+        except subprocess.CalledProcessError as e:
+            print(f"An error occurred: {e.output}")
+            raise Exception("Failed to version code. Aborting...")
     else:
         print(
             f"Running in debug mode or locally, skip copying code to a new directory."

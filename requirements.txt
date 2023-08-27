@@ -24,3 +24,4 @@ fancy-einsum==0.0.3
 pyyaml==6.0
 clearml-agent
 clearml
+GitPython==3.1.17
