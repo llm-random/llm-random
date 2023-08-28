@@ -27,6 +27,17 @@ def get_machine_backend() -> MachineBackend:
         return MachineBackend.LOCAL
 
 
+def get_cache_path(runner: MachineBackend) -> str:
+    if runner == MachineBackend.ATHENA:
+        return "/net/tscratch/people/plgjkrajewski/.cache"
+    elif runner == MachineBackend.IDEAS:
+        return "/raid/NFS_SHARE/llm-random/.cache"
+    elif runner == MachineBackend.ENTROPY_GPU:
+        return "/home/jkrajewski/.cache"
+    else:
+        return "/tmp/.cache"
+
+
 def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
     if machine_backend in [MachineBackend.ENTROPY]:
         return "lizrd/scripts/grid_entrypoint.sh"

@@ -15,6 +15,7 @@ import yaml
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    get_cache_path,
     get_train_main_function,
     multiply_grid,
     timestr_to_minutes,
@@ -52,6 +53,8 @@ PUSH_TO_GIT = False
 COPIED_CODE_PATH = ""
 if __name__ == "__main__":
     runner = get_machine_backend()
+    CACHE_PATH = os.getenv("CACHE_PATH", get_cache_path(runner))
+    HF_DATASETS_CACHE = os.getenv("HF_DATASETS_CACHE", CACHE_PATH)
     SINGULARITY_IMAGE = None
     NODELIST = None
     N_GPUS = 1
@@ -171,7 +174,6 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
-            datasets_cache = "/net/tscratch/people/plgjkrajewski/.cache"
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{N_GPUS}",
@@ -185,8 +187,8 @@ if __name__ == "__main__":
                 "run",
                 "--bind=/net:/net",
                 f"--env",
-                f"HF_DATASETS_CACHE={datasets_cache}",
-                f"-B={CODE_PATH}:/sparsity",
+                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
+                f"-B={CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
@@ -195,7 +197,6 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.IDEAS:
-            datasets_cache = "/raid/NFS_SHARE/home/jakub.krajewski/.cache"
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{N_GPUS}",
@@ -208,8 +209,8 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={datasets_cache}",
-                f"-B={CODE_PATH}:/sparsity",
+                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
+                f"-B={CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
@@ -218,7 +219,6 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
-            datasets_cache = "/home/jkrajewski/.cache"
             if CUDA_VISIBLE_DEVICES is not None:
                 env = os.environ.copy()
                 env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
@@ -226,8 +226,8 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={datasets_cache}",
-                f"-B={CODE_PATH}:/sparsity,{datasets_cache}:{datasets_cache}",
+                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
+                f"-B={CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
