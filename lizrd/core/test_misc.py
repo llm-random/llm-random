@@ -4,7 +4,7 @@ import torch
 from lizrd.core import llm, misc
 from lizrd.core.misc import Chungus, Checkpoint
 from lizrd.datasets.wikibookdata import get_processed_dataset
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, heavy_test
 from lizrd.train.train_utils import get_model
 from research.conditional.utils.model_utils import (
     calculate_bert_loss,
@@ -129,6 +129,7 @@ class TestChungus(GeneralTestCase):
 
 
 class TestChungizedCalculateLoss(GeneralTestCase):
+    @heavy_test
     def test_outputs_and_grads(self):
         torch.manual_seed(0)
 

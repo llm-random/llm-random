@@ -174,7 +174,7 @@ if __name__ == "__main__":
             datasets_cache = "/net/tscratch/people/plgjkrajewski/.cache"
             subprocess_args = [
                 slurm_command,
-                f"--gpus={N_GPUS}",
+                f"--gres=gpu:{N_GPUS}",
                 "--partition=plgrid-gpu-a100",
                 f"--cpus-per-gpu={CPUS_PER_GPU}",
                 "--account=plgplggllmeffi-gpu-a100",
