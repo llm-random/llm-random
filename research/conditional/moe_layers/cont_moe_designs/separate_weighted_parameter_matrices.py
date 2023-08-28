@@ -1,54 +1,44 @@
 import dataclasses
 
 import torch
-
 from lizrd.core import misc, nn
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
 
 
 @dataclasses.dataclass(eq=False, repr=False)
-class ContinuousMoEFinal(ContinuousMoeBaseClass):
+class ContinuousMoESeparateWeightedParameters(ContinuousMoeBaseClass):
     """
-    learnable temperature,
-    either shared by experts or not,
-    either shared for merge and emit or not
+    Both the merge and emit logits are computed as base + merge/emit. The init variance is set so the sum of base + merge/emit is as usual
     """
-
-    share_by_experts: bool = True
-    share_by_emit_merge: bool = True
 
     def get_merge_and_emit_weights(self, x):
+        merge_combined_parameters = (
+            self.merge_parameters_matrix_weight * self.controller_merge
+            + (1 - self.merge_parameters_matrix_weight) * self.controller_base
+        )
         merge_logits = misc.einsum(
-            "B S c d, d e -> B S e c", x, self.controller_merge + self.controller_base
+            "B S c d, d e -> B S e c", x, merge_combined_parameters
         )
         self.update_cache_for_logging("merge_logits", merge_logits)
-        merge_weights = stable_softmax_temperature(merge_logits, self.temperature_merge)
+        merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
         self.update_cache_for_logging("merge_weights", merge_weights)
+
+        emit_combined_parameters = (
+            self.emit_parameters_matrix_weight * self.controller_emit
+            + (1 - self.emit_parameters_matrix_weight) * self.controller_base
+        )
         emit_logits = misc.einsum(
-            "B S c d, d e -> B S e c", x, self.controller_emit + self.controller_base
+            "B S c d, d e -> B S e c", x, emit_combined_parameters
         )
         self.update_cache_for_logging("emit_logits", emit_logits)
-        emit_weights = stable_softmax_temperature(emit_logits, self.temperature_emit)
+        emit_weights = stable_softmax_temperature(emit_logits, self.temperature)
         self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
     def init_parameters(self):
-        if self.share_by_experts:
-            if self.share_by_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.ones(1))
-                self.temperature_merge = self.temperature_emit
-            else:
-                self.temperature_emit = nn.Parameter(torch.ones(1))
-                self.temperature_merge = nn.Parameter(torch.ones(1))
-        else:
-            if self.share_by_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
-                self.temperature_merge = self.temperature_emit
-            else:
-                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
-                self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
-
+        self.emit_parameters_matrix_weight = nn.Parameter(torch.Tensor([0.5]))
+        self.merge_parameters_matrix_weight = nn.Parameter(torch.Tensor([0.5]))
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
@@ -71,6 +61,6 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
 
     def log_light(self):
         log = super().log_light()
-        log["temperature_merge"] = self.temperature_merge.data.flatten().tolist()
-        log["temperature_emit"] = self.temperature_emit.data.flatten().tolist()
+        log["emit_parameters_matrix_weight"] = self.emit_parameters_matrix_weight
+        log["merge_parameters_matrix_weight"] = self.merge_parameters_matrix_weight
         return log

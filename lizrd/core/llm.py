@@ -80,6 +80,16 @@ class Residual(nn.Module):
         return out + x
 
 
+@ash.check("... -> ... ")
+class Parallel(nn.Module):
+    def __init__(self, *layers):
+        super(Parallel, self).__init__()
+        self.layers = nn.ModuleList(layers)
+
+    def forward(self, x):
+        return x + sum(layer(x) for layer in self.layers)
+
+
 @ash.check("... dinp -> ... a b")
 class SplitLastAxis(nn.Module):
     def __init__(self, a, b):
@@ -288,6 +298,11 @@ class TransformerTower(nn.Module):
             layers_info = [
                 (name, layer_fun()) for name, layer_fun in layer_dict.items()
             ]
+
+            for name, layer in layers_info:
+                layer.layer_type = name
+                layer.block_number = i_block
+
             _, current_device = self.get_current_device(i_block)
             name_and_block = (
                 f"block_{i_block}",

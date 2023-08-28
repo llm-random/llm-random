@@ -23,13 +23,13 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
 
     def get_merge_and_emit_weights(self, x):
         merge_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
-        self.cache("merge_logits", merge_logits)
+        self.update_cache_for_logging("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature_merge)
-        self.cache("merge_weights", merge_weights)
+        self.update_cache_for_logging("merge_weights", merge_weights)
         emit_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
-        self.cache("emit_logits", emit_logits)
+        self.update_cache_for_logging("emit_logits", emit_logits)
         emit_weights = stable_softmax_temperature(emit_logits, self.temperature_emit)
-        self.cache("emit_weights", emit_weights)
+        self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
     def init_parameters(self):
@@ -67,10 +67,10 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
         if self.group_size == 1:
             return log
         merge_weights = torch.flatten(
-            self.cached_data["merge_weights"], start_dim=0, end_dim=-2
+            self.logging_cache["merge_weights"], start_dim=0, end_dim=-2
         )
         merge_logits = torch.flatten(
-            self.cached_data["merge_logits"], start_dim=0, end_dim=-2
+            self.logging_cache["merge_logits"], start_dim=0, end_dim=-2
         )
         sample_weight_distros = merge_weights[:5]
         sample_logits_distros = merge_logits[:5]
