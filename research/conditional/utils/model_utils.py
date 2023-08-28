@@ -158,22 +158,23 @@ def calculate_llm_loss(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
         model_output = model(input_tokens)
-        # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
-        gt_tokens = gt_tokens.to(model_output.device)
-        mask = mask.to(model_output.device)
 
-        mask_loss = F.cross_entropy(
-            model_output.reshape(-1, vocab_size),
-            gt_tokens.reshape(-1).long(),
-            reduction="none",
-        )
-        mask_loss = mask_loss[mask.reshape(-1) == 1]
-        loss = mask_loss.mean()
+    # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
+    gt_tokens = gt_tokens.to(model_output.device)
+    mask = mask.to(model_output.device)
 
-        correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
-        correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-        correct_tokens = correct_tokens.sum()
-        total_masked_tokens = mask.sum()
+    mask_loss = F.cross_entropy(
+        model_output.reshape(-1, vocab_size),
+        gt_tokens.reshape(-1).long(),
+        reduction="none",
+    )
+    mask_loss = mask_loss[mask.reshape(-1) == 1]
+    loss = mask_loss.mean()
+
+    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+    correct_tokens = correct_tokens.sum()
+    total_masked_tokens = mask.sum()
 
     return loss, {
         "correct_tokens": correct_tokens,
