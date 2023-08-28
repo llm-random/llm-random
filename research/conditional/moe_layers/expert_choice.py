@@ -5,12 +5,16 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from lizrd.core import nn
+from lizrd.core import nn, llm
 from lizrd.core.misc import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
+
+
+def calculate_effective_expert_dff(_expert_size, _n_experts, _topk_fraction):
+    return _topk_fraction * _n_experts * _expert_size
 
 
 class ExpertChoiceFF(LoggingLayer):
@@ -25,6 +29,8 @@ class ExpertChoiceFF(LoggingLayer):
         one_hot_impl: bool = False,
         softmax_ungrouped: bool = False,
         use_full_einsum: bool = False,
+        parallel_ff_compute_fraction: float = 0.125,
+        parallel_ff_tokens_cap_fraction: float = 0.25,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
     ):
@@ -48,8 +54,25 @@ class ExpertChoiceFF(LoggingLayer):
         self.group_by_batch = group_by_batch
         self.one_hot_impl = one_hot_impl
         self.softmax_ungrouped = softmax_ungrouped
+        self.parallel_ff_compute_fraction = parallel_ff_compute_fraction
+        self.parallel_ff_tokens_cap_fraction = parallel_ff_tokens_cap_fraction
         self.n_gating_heatmaps = n_gating_heatmaps
         self.use_full_einsum = use_full_einsum
+
+        if self.parallel_ff_compute_fraction is not None:
+            cap_factor = 1 / self.parallel_ff_tokens_cap_fraction
+            parallel_ff_dim = int(
+                calculate_effective_expert_dff(
+                    self.expert_size, self.n_experts, self.topk_fraction
+                )
+                * self.parallel_ff_compute_fraction
+                * cap_factor
+            )
+            self.parallel_ff = llm.FeedForward(self.dmodel, parallel_ff_dim)
+
+            self.expert_size = int(
+                self.expert_size * (1 - self.parallel_ff_compute_fraction)
+            )
 
         assert (
             not self.one_hot_impl or self.group_by_batch
@@ -59,18 +82,20 @@ class ExpertChoiceFF(LoggingLayer):
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
 
         self.lin1_weight = nn.Parameter(
-            get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
+            get_init_weight(
+                (self.n_experts, self.dmodel, self.expert_size), fan_in=self.dmodel
+            )
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
-                (n_experts, expert_size, dmodel),
-                fan_in=int(n_experts * expert_size * topk_fraction),
+                (self.n_experts, self.expert_size, self.dmodel),
+                fan_in=int(self.n_experts * self.expert_size * self.topk_fraction),
             )
         )
         self.gate = nn.Parameter(
-            get_init_weight((dmodel, n_experts), fan_in=dmodel)
+            get_init_weight((self.dmodel, self.n_experts), fan_in=self.dmodel)
         ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel)
+        self.ln = LayerNorm(self.dmodel)
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot

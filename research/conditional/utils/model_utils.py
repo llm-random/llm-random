@@ -288,9 +288,6 @@ def get_expert_choice_with_parallel_ff_args(args):
     expert_size = expert_choice_params["expert_size"]
     top_k_fraction = expert_choice_params["topk_fraction"]
 
-    def calculate_effective_expert_dff(_expert_size, _n_experts, _topk_fraction):
-        return _topk_fraction * _n_experts * _expert_size
-
     if args.ff_parallel_mode == "modify_expert_size":
         expert_size = int(
             expert_choice_params["expert_size"]
