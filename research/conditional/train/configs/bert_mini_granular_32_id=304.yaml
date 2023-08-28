@@ -29,11 +29,11 @@ params:
 
   use_neptune: true
   project_name: "pmtest/llm-random"
-  name: "bert_tiny_granular_32"
+  name: "bert_mini_granular_32"
   mixed_precision: true
   tags:
     - "bert"
-    - "tiny"
+    - "mini"
     - "granular"
     - "32_experts"
 
