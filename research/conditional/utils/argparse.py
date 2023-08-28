@@ -95,22 +95,25 @@ def introduce_parser_arguments(
     parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
     parser.add_argument(
-        "--ff_parallel_compute_fraction",
+        "--parallel_ff_compute_fraction",
         type=float,
-        default=0.5,
+        default=None,
         help="This argument is used only if ff_mode is set to expert_choice_with_parallel_ff. In this setting computations "
         "are done both by experts and dense layer and then the results are added. This argument is used to set the "
         "fraction of compute (flops) that is done by FF compared to the whole compute in the layer. For example, "
         "if this argument is 0.5, then half of the compute (flops) is done by FF and half by experts",
     )
     parser.add_argument(
-        "--ff_parallel_mode",
+        "--parallel_ff_mode",
         type=str,
-        default="modify_expert_size",
+        default=None,
         help="This argument is used only if ff_mode is set to expert_choice_with_parallel_ff. In this setting computations "
         "are done both by experts and dense layer and then the results are added. This argument is used to set how the "
         "parameters of the experts are modified to adjust compute used bu experts. Possible values: modify_expert_size, "
         "modify_topk_fraction, modify_n_experts",
+    )
+    parser.add_argument(
+        "--parallel_ff_tokens_cap_fraction", type=float, default=None, help="To fill"
     )
     parser.add_argument(
         "--model_parallelism_fragmentation",

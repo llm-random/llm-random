@@ -112,9 +112,12 @@ class ExpertChoiceFF(LoggingLayer):
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
-        batch_size, seq_len = x.shape[0], x.shape[1]
 
+        x_clone = x.clone()
+
+        batch_size, seq_len = x.shape[0], x.shape[1]
         topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
+
         if self.use_full_einsum:
             x = self.full_einsum(x, topk_indices, topk_values, batch_size)
         else:
@@ -124,12 +127,9 @@ class ExpertChoiceFF(LoggingLayer):
                 x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
             )
 
-        with measure_time(self, "layer_norm"):
-            x = self.ln(x)
-
         if self.parallel_ff_mode is not None:
             if self.parallel_ff_mode == "all":
-                x = x + self.parallel_ff(x)
+                x = x + self.parallel_ff(x_clone)
             if self.parallel_ff_mode == "unselected":
                 all_indices = torch.arange(batch_size * seq_len, device=x.device)
                 combined = torch.cat((all_indices, topk_indices.flatten()))
@@ -139,24 +139,31 @@ class ExpertChoiceFF(LoggingLayer):
                     self.parallel_ff_tokens_cap_fraction * batch_size * seq_len
                 )
                 if len(unselected) > cap_size:
-                    random_indices = torch.randperm(len(unselected), device=x.device)[
-                        :cap_size
-                    ]
+                    random_indices = torch.randperm(
+                        len(unselected), device=x_clone.device
+                    )[:cap_size]
                     unselected = torch.index_select(unselected, 0, random_indices)
-                    unselected_tokens = torch.index_select(x, dim=0, index=unselected)
-
-                unselected_processed = self.feed_forward(unselected_tokens)
+                dudu = x_clone.flatten(start_dim=0, end_dim=1)
+                unselected_tokens = torch.index_select(
+                    x_clone.flatten(start_dim=0, end_dim=1),
+                    dim=0,
+                    index=unselected,
+                )
+                unselected_processed = self.parallel_ff(unselected_tokens)
 
                 z = (
                     torch.zeros((batch_size * seq_len, self.dmodel))
-                    .type(x.type())
-                    .to(x.device)
+                    .type(unselected_processed.type())
+                    .to(unselected_processed.device)
                 )
                 z.index_add_(
                     dim=0, index=unselected.to(int), source=unselected_processed
                 )
 
-                x = x + z
+                x = x + z.reshape(batch_size, seq_len, self.dmodel)
+
+        with measure_time(self, "layer_norm"):
+            x = self.ln(x)
 
         return x
 

@@ -43,7 +43,10 @@ from research.conditional.moe_layers.cont_moe_designs.separate_weighted_paramete
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
 )
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.expert_choice import (
+    ExpertChoiceFF,
+    calculate_effective_expert_dff,
+)
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
@@ -279,6 +282,9 @@ def get_expert_choice_args(args):
         "one_hot_impl": args.granular_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
         "use_full_einsum": args.use_full_einsum,
+        "parallel_ff_mode": args.parallel_ff_mode,
+        "parallel_ff_compute_fraction": args.parallel_ff_compute_fraction,
+        "parallel_ff_tokens_cap_fraction": args.parallel_ff_tokens_cap_fraction,
     }
 
 
