@@ -54,7 +54,6 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
-    cache_on_forward_pass: bool = False
     is_process_logging: bool = True
 
     def __attrs_post_init__(self):
@@ -117,11 +116,7 @@ class ConditionalTrainer:
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
-        propagate_forward_pass_cache(
-            self.model,
-            forward_pass_cache=None,
-            cache_on_forward_pass=self.cache_on_forward_pass,
-        )
+        propagate_forward_pass_cache(self.model)
 
     def _after_step_operations(self):
         self.model.forward_pass_cache.clear()

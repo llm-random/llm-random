@@ -8,7 +8,6 @@ import lizrd.core.nn as nn
 from lizrd.core import misc
 from lizrd.core.misc import Checkpoint, default
 from lizrd.support import ash
-from research.conditional.utils.layer_manager import LoggingLayer
 
 
 def decode_bias_string(bias):
@@ -130,7 +129,7 @@ def LowRank(dinput, doutput, dlowrank):
 
 
 @ash.check("... d -> ... d")
-class Attention(LoggingLayer):
+class Attention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(Attention, self).__init__()
         if dhead is None:
@@ -168,9 +167,7 @@ class Attention(LoggingLayer):
         q = self.Q(x)
         k = self.K(x)
         v = self.V(x)
-        if hasattr(self, "cache_on_forward_pass"):
-            if self.cache_on_forward_pass:
-                self.update_forward_pass_cache("attention_keys", k)
+
         a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
         a = a * (1 / self.dhead**0.5)
         a = torch.softmax(a, dim=-1)
@@ -180,7 +177,7 @@ class Attention(LoggingLayer):
 
 
 @ash.check("... d -> ... d")
-class CausalAttention(LoggingLayer):
+class CausalAttention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(CausalAttention, self).__init__()
         if dhead is None:
@@ -219,9 +216,6 @@ class CausalAttention(LoggingLayer):
         k = self.K(x)
         v = self.V(x)
 
-        if hasattr(self, "cache_on_forward_pass"):
-            if self.cache_on_forward_pass:
-                self.update_forward_pass_cache("attention_keys", k)
         a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
         a = a * (1 / self.dhead**0.5)
         a.masked_fill_(
@@ -304,9 +298,11 @@ class TransformerTower(nn.Module):
             layers_info = [
                 (name, layer_fun()) for name, layer_fun in layer_dict.items()
             ]
+
             for name, layer in layers_info:
                 layer.layer_type = name
                 layer.block_number = i_block
+
             _, current_device = self.get_current_device(i_block)
             name_and_block = (
                 f"block_{i_block}",

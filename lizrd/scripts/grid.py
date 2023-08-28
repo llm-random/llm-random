@@ -171,6 +171,7 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
+            datasets_cache = "/net/tscratch/people/plgjkrajewski/.cache"
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{N_GPUS}",
@@ -184,6 +185,7 @@ if __name__ == "__main__":
                 "run",
                 "--bind=/net:/net",
                 f"--env",
+                f"HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,
@@ -193,6 +195,7 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.IDEAS:
+            datasets_cache = "/raid/NFS_SHARE/home/jakub.krajewski/.cache"
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{N_GPUS}",
@@ -205,6 +208,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"--env",
+                f"HF_DATASETS_CACHE={datasets_cache}",
                 f"-B={CODE_PATH}:/sparsity",
                 "--nv",
                 SINGULARITY_IMAGE,

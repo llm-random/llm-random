@@ -170,7 +170,6 @@ def main(
         lr_decay_interval=args.lr_decay_interval,
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
-        cache_on_forward_pass=args.cache_on_forward_pass,
         is_process_logging=is_process_logging,
     )
     trainer.train(args.n_steps)
