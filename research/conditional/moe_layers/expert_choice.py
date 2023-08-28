@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 import plotly.express as px
 import torch
 import torch.nn.functional as F
@@ -29,8 +29,9 @@ class ExpertChoiceFF(LoggingLayer):
         one_hot_impl: bool = False,
         softmax_ungrouped: bool = False,
         use_full_einsum: bool = False,
-        parallel_ff_compute_fraction: float = 0.125,
-        parallel_ff_tokens_cap_fraction: float = 0.25,
+        parallel_ff_mode: Optional[Literal["unselected", "all"]] = "unselected",
+        parallel_ff_compute_fraction: Optional[float] = 0.125,
+        parallel_ff_tokens_cap_fraction: Optional[float] = 0.25,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
     ):
@@ -54,6 +55,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.group_by_batch = group_by_batch
         self.one_hot_impl = one_hot_impl
         self.softmax_ungrouped = softmax_ungrouped
+        self.parallel_ff_mode = parallel_ff_mode
         self.parallel_ff_compute_fraction = parallel_ff_compute_fraction
         self.parallel_ff_tokens_cap_fraction = parallel_ff_tokens_cap_fraction
         self.n_gating_heatmaps = n_gating_heatmaps
@@ -124,6 +126,24 @@ class ExpertChoiceFF(LoggingLayer):
 
         with measure_time(self, "layer_norm"):
             x = self.ln(x)
+
+        if self.parallel_ff_mode is not None:
+            if self.parallel_ff_mode == "all":
+                x = x + self.parallel_ff(x)
+            if self.parallel_ff_mode == "unselected":
+                all_indices = torch.arange(batch_size * seq_len, device=x.device)
+                combined = torch.cat((all_indices, topk_indices.flatten()))
+                uniques, counts = combined.unique(return_counts=True)
+                unselected = uniques[counts == 1]
+                cap_size = int(
+                    self.parallel_ff_tokens_cap_fraction * batch_size * seq_len
+                )
+                if len(unselected) > cap_size:
+                    random_indices = torch.randperm(len(unselected), device=x.device)[
+                        :cap_size
+                    ]
+                    unselected = torch.index_select(unselected, 0, random_indices)
+                    moo = 3
 
         return x
 
