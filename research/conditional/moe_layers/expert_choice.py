@@ -143,7 +143,6 @@ class ExpertChoiceFF(LoggingLayer):
                         :cap_size
                     ]
                     unselected = torch.index_select(unselected, 0, random_indices)
-                    moo = 3
 
         return x
 
