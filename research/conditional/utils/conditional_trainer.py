@@ -134,12 +134,7 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-            if (
-                self.model_type == "gpt"
-                and step % self.decoding_logging_steps == 0
-                and step > 0
-            ):
-                self._decode_samples(step)
+            self._decode_samples(step)
 
             t2 = time.time()
             self._after_step_operations()
@@ -357,14 +352,14 @@ class ConditionalTrainer:
         processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = (
             self.train_dataloader.get_batch()
         )
-        for tensor in processed_batch:
-            tensor[1].data = tensor[1][:1].repeat(step + 1, 1).data
-        loss = self._calculate_loss(
+        for name, tensor in processed_batch:
+            tensor.data = tensor[:1].repeat(step + 1, 1).data
+        loss, _aux_info = self._calculate_loss(
             batch=processed_batch,
             model=self.model,
             mixed_precision=self.mixed_precision,
             vocab_size=self.vocab_size,
-        )[0]
+        )
         self._optimize(loss, should_apply_gradient=True)
         if self.logger is not None:
             self.logger.report_scalar(
