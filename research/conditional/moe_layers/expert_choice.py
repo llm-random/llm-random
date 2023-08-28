@@ -29,9 +29,9 @@ class ExpertChoiceFF(LoggingLayer):
         one_hot_impl: bool = False,
         softmax_ungrouped: bool = False,
         use_full_einsum: bool = False,
-        parallel_ff_mode: Optional[Literal["unselected", "all"]] = "unselected",
-        parallel_ff_compute_fraction: Optional[float] = 0.125,
-        parallel_ff_tokens_cap_fraction: Optional[float] = 0.25,
+        parallel_ff_mode: Optional[Literal["unselected", "all"]] = None,
+        parallel_ff_compute_fraction: Optional[float] = None,
+        parallel_ff_tokens_cap_fraction: Optional[float] = None,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
     ):
@@ -143,6 +143,20 @@ class ExpertChoiceFF(LoggingLayer):
                         :cap_size
                     ]
                     unselected = torch.index_select(unselected, 0, random_indices)
+                    unselected_tokens = torch.index_select(x, dim=0, index=unselected)
+
+                unselected_processed = self.feed_forward(unselected_tokens)
+
+                z = (
+                    torch.zeros((batch_size * seq_len, self.dmodel))
+                    .type(x.type())
+                    .to(x.device)
+                )
+                z.index_add_(
+                    dim=0, index=unselected.to(int), source=unselected_processed
+                )
+
+                x = x + z
 
         return x
 
