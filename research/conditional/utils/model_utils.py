@@ -77,10 +77,8 @@ def chungized_llm_loss(
 ):
     def make_custom_forward():
         def custom_forward(*inputs):
-            with torch.autocast(
-                device_type="cuda", enabled=mixed_precision, dtype=torch.float16
-            ):
-                output = model.head(inputs[0])
+            output = model.head(inputs[0])
+            with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
                 gt = inputs[1]
                 mask = inputs[2]
                 gt = gt.to(output.device)
@@ -100,25 +98,32 @@ def chungized_llm_loss(
 
         return custom_forward
 
-    encoder_output = model.encoder(input_tokens)
-    chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
-    chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
-    chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
-
-    num_tokens = 0
-    total_loss = 0
-    total_correct_tokens = 0
-    total_masked_tokens = 0
-    for chunged_input, chunged_gt, chunged_mask in zip(
-        chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+    with torch.autocast(
+        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
-        partial_loss_output, partial_correct_tokens, partial_masked_tokens = checkpoint(
-            make_custom_forward(), chunged_input, chunged_gt, chunged_mask
-        )
-        num_tokens += partial_loss_output.shape[0]
-        total_loss += partial_loss_output.sum()
-        total_correct_tokens += partial_correct_tokens
-        total_masked_tokens += partial_masked_tokens
+        encoder_output = model.encoder(input_tokens)
+        chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
+        chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
+        chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
+
+        num_tokens = 0
+        total_loss = 0
+        total_correct_tokens = 0
+        total_masked_tokens = 0
+        for chunged_input, chunged_gt, chunged_mask in zip(
+            chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+        ):
+            (
+                partial_loss_output,
+                partial_correct_tokens,
+                partial_masked_tokens,
+            ) = checkpoint(
+                make_custom_forward(), chunged_input, chunged_gt, chunged_mask
+            )
+            num_tokens += partial_loss_output.shape[0]
+            total_loss += partial_loss_output.sum()
+            total_correct_tokens += partial_correct_tokens
+            total_masked_tokens += partial_masked_tokens
 
         aux_info = {
             "correct_tokens": total_correct_tokens,
@@ -160,6 +165,7 @@ def calculate_llm_loss(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
         model_output = model(input_tokens)
+
     # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
     gt_tokens = gt_tokens.to(model_output.device)
     mask = mask.to(model_output.device)

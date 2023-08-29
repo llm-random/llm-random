@@ -403,9 +403,9 @@ class ConditionalTrainer:
         processed_batch: lizrd.datasets.processed_batch.ProcessedBatch = (
             self.train_dataloader.get_batch()
         )
-        for tensor in processed_batch:
+        for name, tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
-        loss = self._calculate_loss(
+        loss, _aux_info = self._calculate_loss(
             batch=processed_batch,
             model=self.model,
             mixed_precision=self.mixed_precision,

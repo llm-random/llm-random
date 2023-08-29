@@ -1,4 +1,5 @@
 import copy
+import os
 import platform
 from enum import Enum
 from itertools import product
@@ -27,25 +28,28 @@ def get_machine_backend() -> MachineBackend:
         return MachineBackend.LOCAL
 
 
-def get_common_directory(runner: MachineBackend) -> str:
-    if runner == MachineBackend.ATHENA:
+def get_common_directory(machine_backend: MachineBackend) -> str:
+    if machine_backend == MachineBackend.ATHENA:
         return "/net/pr2/projects/plgrid/plggllmeffi"
-    elif runner == MachineBackend.IDEAS:
+    elif machine_backend == MachineBackend.IDEAS:
         return "/raid/NFS_SHARE/llm-random"
-    elif runner == MachineBackend.ENTROPY_GPU:
+    elif machine_backend == MachineBackend.ENTROPY_GPU:
         return "/common/llm-random"
     else:
-        return "~"
+        return os.getenv("HOME")
 
 
-def get_cache_path(runner: MachineBackend) -> str:
-    common_dir = get_common_directory(runner)
-    return f"{common_dir}/.cache"
+def get_cache_path(machine_backend: MachineBackend) -> str:
+    if machine_backend in [MachineBackend.LOCAL]:
+        return f"{os.getenv('HOME')}/.cache/huggingface/datasets"
+    else:
+        common_dir = get_common_directory(machine_backend)
+        return f"{common_dir}/.cache"
 
 
-def get_sparsity_image(runner: MachineBackend) -> str:
+def get_sparsity_image(machine_backend: MachineBackend) -> str:
     image_name = "sparsity_2023.08.29_09.26.31.sif"
-    common_dir = get_common_directory(runner)
+    common_dir = get_common_directory(machine_backend)
     return f"{common_dir}/images/{image_name}"
 
 
