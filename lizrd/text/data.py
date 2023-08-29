@@ -5,16 +5,21 @@ import numpy as np
 import torch
 
 
+@dataclass
+class LLMExample(object):
+    input_ids: List[int]
+    target_ids: List[int]
+    should_calculate_loss: List[int]
+
+
 class LLMBatch:
-    def __init__(self, processed_examples):
-        self.input_ids = self._make_tensor(
-            [example.tokens for example in processed_examples]
-        )
+    def __init__(self, examples: List[LLMExample]):
+        self.input_ids = self._make_tensor([example.input_ids for example in examples])
         self.target_ids = self._make_tensor(
-            [example.mask_mask for example in processed_examples]
+            [example.target_ids for example in examples]
         )
         self.should_calculate_loss = self._make_tensor(
-            [example.masked_tokens for example in processed_examples]
+            [example.should_calculate_loss for example in examples]
         )
 
         assert self.input_ids.shape == self.target_ids.shape
@@ -44,10 +49,3 @@ class LLMBatch:
     def _make_tensor(self, list_of_token_lists: List[List[int]]) -> torch.Tensor:
         matrix = np.array(list_of_token_lists)
         return torch.from_numpy(matrix)
-
-
-@dataclass
-class ProcessedGPTExample(object):
-    input_ids: List[int]
-    target_ids: List[int]
-    should_calculate_loss: List[int]
