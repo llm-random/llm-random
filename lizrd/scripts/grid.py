@@ -161,22 +161,26 @@ if __name__ == "__main__":
                     ]
                 )
             else:
-                print(SINGULARITY_IMAGE)
-                output = subprocess.check_output(
-                    [
-                        "singularity",
-                        "run",
-                        SINGULARITY_IMAGE,
-                        "python3",
-                        "lizrd/support/code_versioning_support.py",
-                        "--code_path",
-                        code_path,
-                        "--newdir_name",
-                        name_for_branch,
-                        "--name_for_branch",
-                        name_for_branch,
-                    ]
-                )
+                args = [
+                    "srun",
+                    f"--gres=gpu:0",
+                    f"--job-name=versioning",
+                    f"--time=00:01:00",
+                    get_grid_entrypoint(runner),
+                    "singularity",
+                    "run",
+                    f"--env",
+                    f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
+                    f"-B={CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
+                    SINGULARITY_IMAGE,
+                    "python3",
+                    "-m",
+                    "lizrd.support.code_versioning_support",
+                    code_path,
+                    name_for_branch,
+                ]
+                print(" ".join(args))
+                output = subprocess.check_output(args)
         except subprocess.CalledProcessError as e:
             print(f"An error occurred: {e.output}")
             raise Exception("Failed to version code. Aborting...")

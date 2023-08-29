@@ -44,9 +44,10 @@ class CodeVersioningDaemon:
             self.repo.git.checkout(b=self.name_for_branch)
             self.revert_status = 2
 
-            self.repo.git.checkout("main")
+            self.repo.git.checkout("main", "-f")
             self.revert_status = 3
 
+            self.repo.git.clean("-f", "-d")
             self.repo.git.pull()
             self.revert_status = 4
 
@@ -177,6 +178,9 @@ def version_code(
     version_daemon = CodeVersioningDaemon(remote_name, remote_url, name_for_branch)
     # Version code
     version_daemon.version_code()
+    print(
+        f"Versioned successfully to git branch {name_for_branch} on remote repo {remote_name}"
+    )
 
 
 def copy_code(newdir_name):
@@ -222,7 +226,7 @@ if __name__ == "__main__":
     from git import Repo, GitCommandError
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("code_path", type=str, required=True)
+    parser.add_argument("code_path", type=str, default="")
     parser.add_argument("name_for_branch", type=str, default="")
     args = parser.parse_args()
     version_code(code_path=args.code_path, name_for_branch=args.name_for_branch)
