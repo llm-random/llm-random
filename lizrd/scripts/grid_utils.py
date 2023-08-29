@@ -27,15 +27,26 @@ def get_machine_backend() -> MachineBackend:
         return MachineBackend.LOCAL
 
 
-def get_cache_path(runner: MachineBackend) -> str:
+def get_common_directory(runner: MachineBackend) -> str:
     if runner == MachineBackend.ATHENA:
-        return "/net/tscratch/people/plgjkrajewski/.cache"
+        return "/net/pr2/projects/plgrid/plggllmeffi"
     elif runner == MachineBackend.IDEAS:
-        return "/raid/NFS_SHARE/llm-random/.cache"
+        return "/raid/NFS_SHARE/llm-random"
     elif runner == MachineBackend.ENTROPY_GPU:
-        return "/home/jkrajewski/.cache"
+        return "/common/llm-random"
     else:
-        return "/tmp/.cache"
+        return "~"
+
+
+def get_cache_path(runner: MachineBackend) -> str:
+    common_dir = get_common_directory(runner)
+    return f"{common_dir}/.cache"
+
+
+def get_sparsity_image(runner: MachineBackend) -> str:
+    image_name = "sparsity_2023.08.29_09.26.31.sif"
+    common_dir = get_common_directory(runner)
+    return f"{common_dir}/images/{image_name}"
 
 
 def get_grid_entrypoint(machine_backend: MachineBackend) -> str:

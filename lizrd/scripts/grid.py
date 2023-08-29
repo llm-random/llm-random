@@ -16,6 +16,7 @@ import yaml
 from lizrd.scripts.grid_utils import (
     create_grid,
     get_cache_path,
+    get_sparsity_image,
     get_train_main_function,
     multiply_grid,
     timestr_to_minutes,
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     runner = get_machine_backend()
     CACHE_PATH = os.getenv("CACHE_PATH", get_cache_path(runner))
     HF_DATASETS_CACHE = os.getenv("HF_DATASETS_CACHE", CACHE_PATH)
-    SINGULARITY_IMAGE = None
+    SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE", get_sparsity_image(runner))
     NODELIST = None
     N_GPUS = 1
     CPUS_PER_GPU = 8
