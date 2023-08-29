@@ -1,8 +1,8 @@
 from lizrd.support.test_utils import GeneralTestCase
 from lizrd.text.data import LLMBatch
-from .datasets import WikiBookDataset, C4Dataset
-from .packers import GPTPacker, BERTPacker
-from .tokenizers import GPTTokenizer, BertTokenizer
+from .datasets import WikiBookDataset
+from .packers import GPTPacker
+from .tokenizers import GPTTokenizer
 
 from torch.utils.data import DataLoader
 
