@@ -54,8 +54,7 @@ PUSH_TO_GIT = False
 COPIED_CODE_PATH = ""
 if __name__ == "__main__":
     runner = get_machine_backend()
-    CACHE_PATH = os.getenv("CACHE_PATH", get_cache_path(runner))
-    HF_DATASETS_CACHE = os.getenv("HF_DATASETS_CACHE", CACHE_PATH)
+    HF_DATASETS_CACHE = os.getenv("HF_DATASETS_CACHE", get_cache_path(runner))
     SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE", get_sparsity_image(runner))
     NODELIST = None
     N_GPUS = 1
