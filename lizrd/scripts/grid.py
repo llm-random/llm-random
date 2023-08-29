@@ -125,6 +125,7 @@ if __name__ == "__main__":
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
 
     if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
+        breakpoint()
         code_path = os.getcwd()
         if (
             not os.path.isdir(code_path + "/.git")
@@ -150,7 +151,7 @@ if __name__ == "__main__":
                         f"--time={TIME}",
                         get_grid_entrypoint(runner),
                         "singularity",
-                        "exec",
+                        "run",
                         "--bind=/net:/net",
                         f"-B={CODE_PATH}:/sparsity",
                         "--nv",
@@ -166,10 +167,11 @@ if __name__ == "__main__":
                     ]
                 )
             else:
+                print(SINGULARITY_IMAGE)
                 output = subprocess.check_output(
                     [
                         "singularity",
-                        "exec",
+                        "run",
                         SINGULARITY_IMAGE,
                         "python3",
                         "lizrd/support/code_versioning_support.py",
