@@ -66,7 +66,7 @@ class WikiBookDataset(AbstractDataset):
         return document["text"]
 
 
-class C4(AbstractDataset):
+class C4Dataset(AbstractDataset):
     def __init__(self, seed: Optional[int] = None, split: str = "train"):
         self.dataset = load_dataset("c4", "en", split=split)
         self.rng = random.Random(seed)

@@ -10,7 +10,7 @@ from lizrd.datasets.processor import MaskingReplacementConfig
 
 from lizrd.text.datasets import AbstractDataset
 from lizrd.text.data import LLMExample as LLMExample
-from lizrd.text.tokenization import AbstractTokenizer, BertTokenizer
+from lizrd.text.tokenizers import AbstractTokenizer, BertTokenizer
 
 
 def take_circular(iterable, start, stop):
@@ -206,7 +206,7 @@ class GPTPacker(
             ) > 10 * self.sequence_length:
                 break
 
-        sample_start = self.py_rng.randint(0, len(target_ids) - 1)
+        sample_start = self.py_rng.randint(0, len(buffer) - 1)
         sample_end = sample_start + self.sequence_length
 
         input_ids = list(take_circular(buffer, sample_start, sample_end))
