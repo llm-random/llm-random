@@ -54,8 +54,8 @@ PUSH_TO_GIT = False
 COPIED_CODE_PATH = ""
 if __name__ == "__main__":
     runner = get_machine_backend()
-    HF_DATASETS_CACHE = os.getenv("HF_DATASETS_CACHE", get_cache_path(runner))
-    SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE", get_sparsity_image(runner))
+    HF_DATASETS_CACHE = get_cache_path(runner)
+    SINGULARITY_IMAGE = get_sparsity_image(runner)
     NODELIST = None
     N_GPUS = 1
     CPUS_PER_GPU = 8
@@ -80,6 +80,7 @@ if __name__ == "__main__":
         GRES = grid_args.get("gres", GRES)
         DRY_RUN = grid_args.get("dry_run", DRY_RUN)
         SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
+        HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", HF_DATASETS_CACHE)
         RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
         INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
         PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
@@ -87,12 +88,6 @@ if __name__ == "__main__":
         N_GPUS = grid_args.get("n_gpus", N_GPUS)
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
         CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
-
-    if SINGULARITY_IMAGE is None:
-        print(
-            "Getting SINGULARITY_IMAGE from environment variable SINGULARITY_IMAGE..."
-        )
-        SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE")
 
     if SINGULARITY_IMAGE is None and runner != MachineBackend.LOCAL:
         raise ValueError("Singularity image is not specified (in JSON or env variable)")
