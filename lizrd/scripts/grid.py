@@ -23,6 +23,7 @@ from lizrd.scripts.grid_utils import (
     get_grid_entrypoint,
     unpack_params,
 )
+from lizrd.support.code_versioning_support import copy_code
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
@@ -120,11 +121,21 @@ if __name__ == "__main__":
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
 
     if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
-        CODE_VERSIONED = True
+        code_path = os.getcwd()
+        if (
+            not os.path.isdir(code_path + "/.git")
+            or not os.path.basename(code_path) == "sparsity"
+        ):
+            raise ValueError(
+                "The working directory must be a git repo called sparsity. Where are you calling this code from?"
+            )
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
+        print("Copying code to a new directory...")
+        copy_code(newdir_name=name_for_branch)
+        CODE_VERSIONED = True
         try:
             if runner == MachineBackend.ATHENA:
                 subprocess.check_output(
@@ -142,6 +153,8 @@ if __name__ == "__main__":
                         SINGULARITY_IMAGE,
                         "python3",
                         "lizrd/support/code_versioning_support.py",
+                        "--code_path",
+                        code_path,
                         "--newdir_name",
                         name_for_branch,
                         "--name_for_branch",
@@ -156,6 +169,8 @@ if __name__ == "__main__":
                         SINGULARITY_IMAGE,
                         "python3",
                         "lizrd/support/code_versioning_support.py",
+                        "--code_path",
+                        code_path,
                         "--newdir_name",
                         name_for_branch,
                         "--name_for_branch",

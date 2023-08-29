@@ -160,8 +160,8 @@ class CodeVersioningDaemon:
         raise GitCommandError(f"Could not find stash with message {stash_message}")
 
 
-def version_and_copy_code(
-    newdir_name,
+def version_code(
+    code_path,
     name_for_branch,
     remote_name="cemetery",
     remote_url="git@github.com:Simontwice/llm-random-cemetery.git",
@@ -172,23 +172,23 @@ def version_and_copy_code(
     Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
     If not met, the user needs to set up ssh keys.
     """
+    os.chdir(code_path)
     # Create versioning daemon
     version_daemon = CodeVersioningDaemon(remote_name, remote_url, name_for_branch)
     # Version code
     version_daemon.version_code()
 
+
+def copy_code(newdir_name):
     # Copy code
     root_dir = find_git_root()
-    newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
-
+    newdir_path = f"{os.path.dirname(root_dir)}/code_cemetery_sparsity/{newdir_name}"
     ignore_patterns_file = os.path.join(root_dir, ".versioningignore")
     versioning_ignore_patterns = make_ignore_patterns(ignore_patterns_file)
-
     print(f"Copying code to {newdir_path}...")
     # Copy the project root directory to a new directory, ignoring files described in versioning_ignore_patterns
     shutil.copytree(root_dir, newdir_path, ignore=versioning_ignore_patterns)
     print(f"Code copied successfully to {newdir_path}")
-
     # Change to the new directory
     os.chdir(newdir_path)
 
@@ -222,9 +222,7 @@ if __name__ == "__main__":
     from git import Repo, GitCommandError
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("newdir_name", type=str, default="")
+    parser.add_argument("code_path", type=str, required=True)
     parser.add_argument("name_for_branch", type=str, default="")
     args = parser.parse_args()
-    version_and_copy_code(
-        newdir_name=args.newdir_name, name_for_branch=args.name_for_branch
-    )
+    version_code(code_path=args.code_path, name_for_branch=args.name_for_branch)
