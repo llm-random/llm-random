@@ -2,13 +2,14 @@ from abc import ABC, abstractmethod
 import itertools
 import random
 from typing import Callable, Iterator, List, Optional, Tuple
+from attr import define
 
 import numpy as np
 from torch.utils.data import IterableDataset
 from lizrd.datasets.processor import MaskingReplacementConfig
 
 from lizrd.text.datasets import AbstractDataset
-from lizrd.datasets.processed_batch import GeneralExample
+from lizrd.text.data import LLMExample as LLMExample
 from lizrd.text.tokenization import AbstractTokenizer, BertTokenizer
 
 
@@ -38,12 +39,12 @@ class AbstractPacker(ABC, IterableDataset):
             py_rng = random.Random()
         self.py_rng = py_rng
 
-    def __iter__(self) -> Iterator[GeneralExample]:
+    def __iter__(self) -> Iterator[LLMExample]:
         while True:
             yield self.get_sample()
 
     @abstractmethod
-    def get_sample(self) -> GeneralExample:
+    def get_sample(self) -> LLMExample:
         raise NotImplementedError()
 
     @property
@@ -51,6 +52,21 @@ class AbstractPacker(ABC, IterableDataset):
         if self._tokenizer is None:
             self._tokenizer = self.tokenizer_maker()
         return self._tokenizer
+
+
+@define
+class MaskingReplacementConfig:
+    mask_percentage: float = 0.15
+    replace_with_mask: float = 0.8
+    replace_with_random: float = 0.1
+    replace_with_original: float = 0.1
+
+    def __attrs_post_init__(self):
+        assert (
+            self.replace_with_mask
+            + self.replace_with_random
+            + self.replace_with_original
+        ) == 1.0
 
 
 class BERTPacker(
@@ -73,11 +89,8 @@ class BERTPacker(
             py_rng=py_rng,
         )
         self.mask_replace_config = mask_replace_config
-        # TODO: fix mask_id and sep_id
-        self.mask_id = 0
-        self.sep_id = 1
 
-    def get_sample(self) -> GeneralExample:
+    def get_sample(self) -> LLMExample:
         """
         Sample examples from the dataset until we reach the desired sequence length.
         """
@@ -86,13 +99,16 @@ class BERTPacker(
         calculate_loss: List[int] = []
         document_lengths: List[int] = []
 
+        sep_id = self.tokenizer.sequence_separator_id
+        assert sep_id is not None
+
         while True:
             document = self.dataset.get_document()
             tokens = self.tokenizer.text_to_ids(document)
             masked_input, is_mask = self._mask_text(tokens)
 
-            target_ids.extend(tokens + [self.sep_id])
-            input_ids.extend(masked_input + [self.sep_id])
+            target_ids.extend(tokens + [sep_id])
+            input_ids.extend(masked_input + [sep_id])
             calculate_loss.extend(is_mask + [0])
 
             document_lengths.append(len(tokens) + 1)
@@ -110,9 +126,12 @@ class BERTPacker(
         input_ids = list(take_circular(input_ids, sample_start, sample_end))
         calculate_loss = list(take_circular(calculate_loss, sample_start, sample_end))
 
-        return GeneralExample(input_ids, target_ids, calculate_loss)
+        return LLMExample(input_ids, target_ids, calculate_loss)
 
     def _mask_text(self, tokens: List[int]) -> Tuple[List[int], List[int]]:
+        mask_id = self.tokenizer.mask_id
+        assert mask_id is not None
+
         is_mask = self.np_rng.binomial(
             1, self.mask_replace_config.mask_percentage, len(tokens)
         )
@@ -126,7 +145,7 @@ class BERTPacker(
             size=len(tokens),
         ).nonzero()[1]
         replacements = (
-            (how_to_mask == 0) * self.mask_id
+            (how_to_mask == 0) * mask_id
             + (how_to_mask == 1) * self._get_valid_random_tokens(len(tokens))
             + (how_to_mask == 2) * tokens
         )
@@ -162,13 +181,14 @@ class GPTPacker(
             np_rng=np_rng,
             py_rng=py_rng,
         )
-        # TODO: fix mask_id and sep_id
-        self.eot_id = 2
 
-    def get_sample(self) -> GeneralExample:
+    def get_sample(self) -> LLMExample:
         """
         Sample examples from the dataset until we reach the desired sequence length.
         """
+        eot_id = self.tokenizer.eot_id
+        assert eot_id is not None
+
         buffer: List[int] = []
         calculate_loss: List[int] = []
         document_lengths: List[int] = []
@@ -176,7 +196,7 @@ class GPTPacker(
         while True:
             document = self.dataset.get_document()
             tokens = self.tokenizer.text_to_ids(document)
-            buffer.extend(tokens + [self.eot_id])
+            buffer.extend(tokens + [eot_id])
 
             document_lengths.append(len(tokens) + 1)
             if (
@@ -193,4 +213,4 @@ class GPTPacker(
         target_ids = list(take_circular(buffer, sample_start + 1, sample_end + 1))
         calculate_loss = [1] * len(target_ids)
 
-        return GeneralExample(input_ids, target_ids, calculate_loss)
+        return LLMExample(input_ids, target_ids, calculate_loss)
