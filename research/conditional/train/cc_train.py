@@ -11,11 +11,12 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import GPT2Tokenizer
 
 from lizrd.core import misc
-from lizrd.datasets.wikibookdata import get_processed_dataset
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.train.train_utils import (
     get_model,
 )
+from lizrd.text import tokenizers
+from research.datasets import get_processed_dataset
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.misc_tools import set_seed
@@ -79,8 +80,11 @@ def main(
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
-    # vocab size for gpt is 50257 + 1 for sequence_sep
-    VOCAB_SIZE = 30522 if args.model_type == "bert" else 50258
+    VOCAB_SIZE = (
+        tokenizers.BertTokenizer.vocab_size
+        if args.model_type == "bert"
+        else tokenizers.GPTTokenizer.vocab_size
+    )
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     data_distributed = True if rank is not None else False
@@ -122,8 +126,7 @@ def main(
     )
 
     train_dataloader = get_processed_dataset(
-        max_total_length=args.cutoff,
-        mask_percent=args.mask_percent,
+        sequence_length=args.cutoff,
         device=DEVICE,
         num_workers=args.num_workers,
         batch_size=args.batch_size // args.n_gpus

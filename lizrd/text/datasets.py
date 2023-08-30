@@ -3,9 +3,20 @@ import random
 from typing import Optional
 
 from datasets import load_dataset
+import numpy as np
 
 
 class AbstractDataset:
+    def __init__(self, seed: Optional[int] = None):
+        self.set_rng(seed)
+
+    def set_rng(self, seed: Optional[int] = None):
+        np_rng = np.random.default_rng(seed)
+        py_rng = random.Random(seed)
+
+        self.np_rng = np_rng
+        self.py_rng = py_rng
+
     @abstractmethod
     def get_document(self) -> str:
         raise NotImplementedError()
@@ -18,6 +29,7 @@ class WikiBookDataset(AbstractDataset):
         use_dummy_dataset: bool = False,
         split: str = "train",
     ):
+        super().__init__(seed=seed)
         assert split in ["train", "eval"]
         self.split = split
 
@@ -29,8 +41,6 @@ class WikiBookDataset(AbstractDataset):
             if not use_dummy_dataset
             else self.dataset_wiki
         )
-        self.seed = seed
-        self.rng = random.Random(seed)
 
         self.bookcorpus_chance = len(self.dataset_book) / len(self.dataset_wiki)
 
@@ -51,25 +61,30 @@ class WikiBookDataset(AbstractDataset):
             raise ValueError("split must be either 'train' or 'eval'")
 
     def _get_document(self) -> str:
-        selector = self.rng.random()
+        selector = self.py_rng.random()
         if selector < self.bookcorpus_chance:
             return self._get_random_book_example()
         else:
             return self._get_random_wiki_example()
 
     def _get_random_book_example(self) -> str:
-        document = self.dataset_book[self.rng.randint(0, len(self.dataset_book) - 1)]
+        document = self.dataset_book[self.py_rng.randint(0, len(self.dataset_book) - 1)]
         return document["text"]
 
     def _get_random_wiki_example(self) -> str:
-        document = self.dataset_wiki[self.rng.randint(0, len(self.dataset_wiki) - 1)]
+        # TODO: What N should we use
+        N = 1
+        rnd = self.py_rng.randint(0, len(self.dataset_wiki) - 1 - N)
+        document = self.dataset_wiki[rnd : rnd + N]
         return document["text"]
 
 
 class C4Dataset(AbstractDataset):
+    total_gpt2_tokens = 173_648_052_806  # number of tokens in the C4 dataset when using GPT2TokenizerFast TODO: Check this statement
+
     def __init__(self, seed: Optional[int] = None, split: str = "train"):
+        super().__init__(seed=seed)
         self.dataset = load_dataset("c4", "en", split=split)
-        self.rng = random.Random(seed)
 
     def get_document(self) -> str:
-        return self.dataset["train"][self.rng.randint(0, len(self.dataset) - 1)]
+        return self.dataset["train"][self.py_rng.randint(0, len(self.dataset) - 1)]

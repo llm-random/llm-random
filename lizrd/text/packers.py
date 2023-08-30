@@ -6,7 +6,6 @@ from attr import define
 
 import numpy as np
 from torch.utils.data import IterableDataset
-from lizrd.datasets.processor import MaskingReplacementConfig
 
 from lizrd.text.datasets import AbstractDataset
 from lizrd.text.data import LLMExample as LLMExample
@@ -24,20 +23,23 @@ class AbstractPacker(ABC, IterableDataset):
         sequence_length: int,
         dataset: AbstractDataset,
         tokenizer_maker: Callable[[], AbstractTokenizer],
-        np_rng: Optional[np.random.Generator] = None,
-        py_rng: Optional[random.Random] = None,
+        seed: Optional[int] = None,
     ):
         super().__init__()
         self._tokenizer = None
         self.dataset = dataset
         self.tokenizer_maker = tokenizer_maker
         self.sequence_length = sequence_length
-        if np_rng is None:
-            np_rng = np.random.default_rng()
+        self.set_rng(seed)
+
+    def set_rng(self, seed: Optional[int] = None):
+        np_rng = np.random.default_rng(seed)
+        py_rng = random.Random(seed)
+
         self.np_rng = np_rng
-        if py_rng is None:
-            py_rng = random.Random()
         self.py_rng = py_rng
+
+        self.dataset.set_rng(seed)
 
     def __iter__(self) -> Iterator[LLMExample]:
         while True:
@@ -78,15 +80,13 @@ class BERTPacker(
         dataset: AbstractDataset,
         tokenizer_maker: Callable[[], AbstractTokenizer],
         mask_replace_config: MaskingReplacementConfig = MaskingReplacementConfig(),
-        np_rng: Optional[np.random.Generator] = None,
-        py_rng: Optional[random.Random] = None,
+        seed: Optional[int] = None,
     ):
         super().__init__(
             sequence_length,
             dataset,
             tokenizer_maker,
-            np_rng=np_rng,
-            py_rng=py_rng,
+            seed=seed,
         )
         self.mask_replace_config = mask_replace_config
 
@@ -112,11 +112,7 @@ class BERTPacker(
             calculate_loss.extend(is_mask + [0])
 
             document_lengths.append(len(tokens) + 1)
-            if (
-                sum(document_lengths) - max(document_lengths)
-            ) > self.sequence_length and sum(
-                document_lengths
-            ) > 10 * self.sequence_length:
+            if (sum(document_lengths) - max(document_lengths)) > self.sequence_length:
                 break
 
         sample_start = self.py_rng.randint(0, len(target_ids) - 1)
@@ -171,15 +167,13 @@ class GPTPacker(
         sequence_length: int,
         dataset: AbstractDataset,
         tokenizer_maker: Callable[[], AbstractTokenizer],
-        np_rng: Optional[np.random.Generator] = None,
-        py_rng: Optional[random.Random] = None,
+        seed: Optional[int] = None,
     ):
         super().__init__(
             sequence_length,
             dataset,
             tokenizer_maker,
-            np_rng=np_rng,
-            py_rng=py_rng,
+            seed=seed,
         )
 
     def get_sample(self) -> LLMExample:
@@ -199,11 +193,7 @@ class GPTPacker(
             buffer.extend(tokens + [eot_id])
 
             document_lengths.append(len(tokens) + 1)
-            if (
-                sum(document_lengths) - max(document_lengths)
-            ) > self.sequence_length and sum(
-                document_lengths
-            ) > 10 * self.sequence_length:
+            if (sum(document_lengths) - max(document_lengths)) > self.sequence_length:
                 break
 
         sample_start = self.py_rng.randint(0, len(buffer) - 1)

@@ -1,10 +1,10 @@
 from functools import partial
-from typing import Literal
 import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
+from lizrd.text.data import LLMBatch
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -45,33 +45,24 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
-def make_loss_function(model: Literal["bert", "gpt"], loss_checkpoint_chungs: int):
-    if model == "bert":
-        if loss_checkpoint_chungs == 0:
-            return partial(calculate_bert_loss)
-        else:
-            return partial(
-                chungized_bert_loss,
-                n_chungs=loss_checkpoint_chungs,
-            )
-    elif model == "gpt":
-        if loss_checkpoint_chungs == 0:
-            return calculate_gpt_loss
-        else:
-            return partial(chungized_gpt_loss, n_chungs=loss_checkpoint_chungs)
+def make_loss_function(loss_checkpoint_chungs: int):
+    if loss_checkpoint_chungs == 0:
+        return calculate_llm_loss
     else:
-        raise ValueError(f"Model type {model} not implemented")
+        return partial(chungized_llm_loss, n_chungs=loss_checkpoint_chungs)
 
 
 def chungized_llm_loss(
-    input_tokens,
-    gt_tokens,
-    mask,
-    model,
-    mixed_precision,
-    vocab_size,
-    n_chungs,
+    batch: LLMBatch,
+    model: torch.nn.Module,
+    mixed_precision: bool,
+    vocab_size: int,
+    n_chungs: int,
 ):
+    input_tokens = batch.input_ids
+    gt_tokens = batch.target_ids
+    mask = batch.should_calculate_loss
+
     def make_custom_forward():
         def custom_forward(*inputs):
             with torch.autocast(
@@ -122,33 +113,16 @@ def chungized_llm_loss(
     }
 
 
-def chungized_bert_loss(batch, model, mixed_precision, vocab_size, n_chungs):
-    return chungized_llm_loss(
-        input_tokens=batch.masked_tokens,
-        gt_tokens=batch.tokens,
-        mask=batch.mask_mask,
-        model=model,
-        mixed_precision=mixed_precision,
-        vocab_size=vocab_size,
-        n_chungs=n_chungs,
-    )
-
-
-def chungized_gpt_loss(batch, model, mixed_precision, vocab_size, n_chungs):
-    return chungized_llm_loss(
-        input_tokens=batch.tokens,
-        gt_tokens=batch.target_tokens,
-        mask=batch.non_padded_mask,
-        model=model,
-        mixed_precision=mixed_precision,
-        vocab_size=vocab_size,
-        n_chungs=n_chungs,
-    )
-
-
 def calculate_llm_loss(
-    input_tokens, gt_tokens, mask, model, mixed_precision, vocab_size
+    batch: LLMBatch,
+    model: torch.nn.Module,
+    mixed_precision: bool,
+    vocab_size: int,
 ):
+    input_tokens = batch.input_ids
+    gt_tokens = batch.target_ids
+    mask = batch.should_calculate_loss
+
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
@@ -174,28 +148,6 @@ def calculate_llm_loss(
         "correct_tokens": correct_tokens,
         "total_masked_tokens": total_masked_tokens,
     }
-
-
-def calculate_gpt_loss(batch, model, mixed_precision, vocab_size):
-    return calculate_llm_loss(
-        input_tokens=batch.tokens,
-        gt_tokens=batch.target_tokens,
-        mask=batch.non_padded_mask,
-        model=model,
-        mixed_precision=mixed_precision,
-        vocab_size=vocab_size,
-    )
-
-
-def calculate_bert_loss(batch, model, mixed_precision, vocab_size):
-    return calculate_llm_loss(
-        input_tokens=batch.masked_tokens,
-        gt_tokens=batch.tokens,
-        mask=batch.mask_mask,
-        model=model,
-        mixed_precision=mixed_precision,
-        vocab_size=vocab_size,
-    )
 
 
 def get_attention_layer(args):

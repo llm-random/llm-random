@@ -1,8 +1,8 @@
 from typing import List
 
-from attr import dataclass
 import numpy as np
 import torch
+from attr import dataclass
 
 
 @dataclass
@@ -25,14 +25,25 @@ class LLMBatch:
         assert self.input_ids.shape == self.target_ids.shape
         assert self.input_ids.shape == self.should_calculate_loss.shape
 
+    def pin_memory(self):
+        """Pin memroy for faster transfer to GPU as described in https://pytorch.org/docs/stable/data.html#memory-pinning"""
+        self.input_ids = self.input_ids.pin_memory()
+        self.target_ids = self.target_ids.pin_memory()
+        self.should_calculate_loss = self.should_calculate_loss.pin_memory()
+        return self
+
     def __iter__(self):
         all_attrs = vars(self).items()
         return iter(
-            [(attr, value) for attr, value in all_attrs if hasattr(value, "shape")]
+            [
+                (attr, value)
+                for attr, value in all_attrs
+                if isinstance(value, torch.Tensor)
+            ]
         )
 
     @property
-    def device(self):
+    def device(self) -> torch.device:
         assert (
             self.input_ids.device
             == self.target_ids.device
@@ -40,7 +51,7 @@ class LLMBatch:
         )
         return self.input_ids.device
 
-    def to(self, device):
+    def to(self, device) -> "LLMBatch":
         self.input_ids = self.input_ids.to(device)
         self.target_ids = self.target_ids.to(device)
         self.should_calculate_loss = self.should_calculate_loss.to(device)
