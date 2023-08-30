@@ -117,6 +117,7 @@ class ConditionalTrainer:
 
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
+        print("Forward pass cache propagated")
 
     def _after_step_operations(self):
         self.model.forward_pass_cache.clear()

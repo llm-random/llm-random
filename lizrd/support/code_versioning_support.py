@@ -35,7 +35,7 @@ class CodeVersioningDaemon:
             )
             if len(commits_behind) > 0:
                 raise Exception(
-                    f"Unpushed commits detected. Push them first. Aborting..."
+                    f"Either branch is does not track any remote branch [you haven't pushed anything yet] OR unpushed commits have been detected. Either way, push first. Aborting..."
                 )
 
             self.check_if_cemetery_exists()

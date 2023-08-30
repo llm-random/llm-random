@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
 
-    if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
+    if not (INTERACTIVE_DEBUG or False):
         CODE_VERSIONED = True
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
