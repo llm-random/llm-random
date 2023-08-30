@@ -25,7 +25,9 @@ class ExpertChoiceFF(LoggingLayer):
         one_hot_impl: bool = False,
         softmax_ungrouped: bool = False,
         use_full_einsum: bool = False,
-        softmax_over: Literal["tokens", "experts"] = "tokens",
+        normalize_token_update: bool = False,
+        softmax_over: Literal["tokens", "experts", "experts_tokens"] = "tokens",
+        additional_norm: Literal["none", "layer_norm", "rezero"] = "layer_norm",
         n_gating_heatmaps: int = 4,
     ):
         """
@@ -50,13 +52,22 @@ class ExpertChoiceFF(LoggingLayer):
         self.softmax_ungrouped = softmax_ungrouped
         self.n_gating_heatmaps = n_gating_heatmaps
         self.use_full_einsum = use_full_einsum
+        self.normalize_token_update = normalize_token_update
+        self.additional_norm = additional_norm
 
+        assert softmax_over in ["tokens", "experts", "experts_tokens"]
+        assert additional_norm in ["none", "layer_norm", "rezero"]
         assert (
             not self.one_hot_impl or self.group_by_batch
         ), "Not implemented, would require a lot of memory"
-        assert softmax_over in ["tokens", "experts"]
         assert not self.softmax_ungrouped or self.group_by_batch
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
+        assert (
+            not self.normalize_token_update or not self.one_hot_impl
+        )  # Not implemented
+        assert (
+            not self.additional_norm == "rezero" or not self.one_hot_impl
+        )  # Not implemented
 
         self.lin1_weight = nn.Parameter(
             get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
@@ -70,7 +81,10 @@ class ExpertChoiceFF(LoggingLayer):
         self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel)
+        if self.additional_norm == "layer_norm":
+            self.ln = LayerNorm(dmodel)
+        elif self.additional_norm == "rezero":
+            self.rezero_k = nn.Parameter(torch.zeros(self.n_experts))
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot
@@ -97,8 +111,9 @@ class ExpertChoiceFF(LoggingLayer):
                 x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
             )
 
-        with measure_time(self, "layer_norm"):
-            x = self.ln(x)
+        if self.additional_norm == "layer_norm":
+            with measure_time(self, "layer_norm"):
+                x = self.ln(x)
 
         return x
 
@@ -122,6 +137,15 @@ class ExpertChoiceFF(LoggingLayer):
                 gate_out = torch.softmax(gate_out, dim=1)
             elif self.softmax_over == "experts":
                 gate_out = torch.softmax(gate_out, dim=0)
+            elif self.softmax_over == "experts_tokens":
+                # its a slow implementation but allows us to check different versions easily
+                gate_out = torch.reshape(
+                    gate_out, (self.n_experts * batch_size, seq_len)
+                )
+                gate_out = torch.softmax(gate_out, dim=0)
+                gate_out = torch.reshape(
+                    gate_out, (self.n_experts, batch_size, seq_len)
+                )
 
         if self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
@@ -263,6 +287,9 @@ class ExpertChoiceFF(LoggingLayer):
     def gating_postprocess_select(
         self, x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
     ):
+        if self.additional_norm == "rezero":
+            x *= self.rezero_k
+
         # multiply by softmax
         with measure_time(self, "multiply_softmax"):
             ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
@@ -286,6 +313,18 @@ class ExpertChoiceFF(LoggingLayer):
 
             # reshape to (batch_size, seq_len, dmodel)
             x = z.reshape((batch_size, seq_len, self.dmodel))
+
+            if self.normalize_token_update:
+                z_up = torch.zeros((batch_size * seq_len)).type(x.type()).to(x.device)
+
+                z_up.index_add_(
+                    dim=0, index=topk_indices.flatten().to(int), source=topk_values
+                )
+
+                # reshape to (batch_size, seq_len, dmodel)
+                z_up = z.reshape((batch_size, seq_len, self.dmodel))
+                z_up = torch.clamp(z_up, min=1e-3)
+                x = x / z_up
         return x
 
     def log_light(self):

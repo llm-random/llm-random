@@ -132,6 +132,12 @@ def introduce_parser_arguments(
         action="store_true",
         help="in grouped ExpertChoice, use squash all linears with einsum",
     )
+    parser.add_argument(
+        "--granular_normalize_token_update",
+        action="store_true",
+        help="in grouped ExpertChoice, all weights of softmax updates to token are normalized to sum to 1",
+    )
+    parser.add_argument("--granular_additional_norm", type=str, default="layer_norm")
 
     # experimental/legacy parameters
 

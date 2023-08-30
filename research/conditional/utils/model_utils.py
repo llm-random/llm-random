@@ -279,6 +279,8 @@ def get_expert_choice_args(args):
         "one_hot_impl": args.granular_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
         "use_full_einsum": args.use_full_einsum,
+        "normalize_token_update": args.granular_normalize_token_update,
+        "additional_norm": args.granular_additional_norm,
     }
 
 
