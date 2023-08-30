@@ -10,8 +10,10 @@ class TestIntegrated(GeneralTestCase):
         from configs defined in research/conditional/train/configs/test/*.yaml
         """
 
-        pathlist = Path("../train/configs/test/").glob("**/*.yaml")
-        for path in pathlist:
+        configs = (Path(__file__).parent.resolve() / "../train/configs/test/").glob(
+            "**/*.yaml"
+        )
+        for path in configs:
             print(f"Running training loop with config from {str(path)}")
             exit_code = subprocess.call(
                 ["python3", "-m", "lizrd.scripts.grid", str(path)]
