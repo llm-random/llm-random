@@ -62,6 +62,7 @@ if __name__ == "__main__":
     working_dir = os.getcwd()
     base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
     _ = rsync_to_remote(args.host, working_dir + "/research")
+    _ = rsync_to_remote(args.host, working_dir + "/.versioningignore")
     set_up_permissions(args.host)
     # WRITE base_dir to temp file
     with open("base_dir.txt", "w") as f:
