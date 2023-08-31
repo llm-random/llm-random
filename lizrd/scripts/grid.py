@@ -63,7 +63,6 @@ if __name__ == "__main__":
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
         [str(arg) for arg in args if arg is not None], env=env
     )
-    AUXILIARY_PROCESS_CALL_FUNCTION = None
 
     if len(sys.argv) > 1:
         path = sys.argv[1]
@@ -72,7 +71,7 @@ if __name__ == "__main__":
         elif path.endswith(".yaml"):
             grid_args = yaml.safe_load(open(sys.argv[1]))
         else:
-            raise ValueError("grid path must be .json or .yaml")
+            raise ValueError("config path must be .json or .yaml")
 
         RUNNER = grid_args.get("runner", RUNNER)
         PARAMS = grid_args.get("params", PARAMS)
