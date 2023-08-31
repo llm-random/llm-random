@@ -6,6 +6,7 @@ Remember to set RUNNER and PARAMS in the script or add an argument parser.
 
 import datetime
 import os
+import pprint
 import subprocess
 import sys
 from time import sleep
@@ -37,7 +38,7 @@ if __name__ == "__main__":
         raise ValueError("No config path specified. Aborting...")
 
     if path.endswith(".yaml"):
-        configs = yaml.safe_load(open(sys.argv[1]))
+        configs = yaml.safe_load_all(open(sys.argv[1]))
     else:
         raise ValueError("config path point to a .yaml")
 
@@ -45,7 +46,9 @@ if __name__ == "__main__":
     total_no_experiments = 0
     total_minutes = 0
 
-    for grid_args in configs:
+    for i, grid_args in enumerate(configs):
+        print(f"\nProcessing config {i}...")
+        pprint.pprint(grid_args)
         RUNNER = grid_args["runner"]
         PARAMS = grid_args["params"]
         TIME = grid_args.get("time", "1-00:00:00")
@@ -70,6 +73,7 @@ if __name__ == "__main__":
         if NODELIST is not None:
             NODELIST = "--nodelist=" + NODELIST
 
+        PARAMS["temp_args"] = dict()
         for name, param in zip(
             [
                 "gres",
@@ -103,8 +107,8 @@ if __name__ == "__main__":
     if not runner == MachineBackend.LOCAL:
         if not INTERACTIVE_DEBUG:
             user_input = input(
-                f"Will run {no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours"
-                f"\nExperiment settings: \n{RUNNER=} \n{TIME=} \n{N_GPUS=} \nContinue? [Y/n] "
+                f"Will run {total_no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
+                f"Continue? [Y/n]"
             )
         else:
             user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
