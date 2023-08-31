@@ -17,14 +17,15 @@ def go_to_llm_random():
 
 def rsync_to_remote(host, local_dir):
     try:
-        with Connection(host) as c:
-            base_dir = get_base_directory(c)
-            proxy_command = get_proxy_command(c)
-            rsync_command = f"rsync -zrlp -e {proxy_command} {local_dir} {c.user}@{c.host}:{base_dir}"
-            c.local(
+        with Connection(host) as connection:
+            base_dir = get_base_directory(connection)
+            proxy_command = get_proxy_command(connection)
+            rsync_command = f"rsync -zrlp -e {proxy_command} {local_dir} {connection.user}@{connection.host}:{base_dir}"
+            print(f"Syncing {local_dir} to {connection.host}:{base_dir}...")
+            connection.local(
                 rsync_command,
-                echo=True,
             )
+            print("Sync complete.")
             return base_dir
     except Exception as e:
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
