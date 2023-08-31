@@ -97,7 +97,7 @@ class CodeVersioningDaemon:
                 self.repo.git.reset("--hard", "HEAD~1")
             self.clean_up_new_branch()
             self.reset_to_original_branch_and_commit()
-            raise Exception("Failed to version code. Aborting...")
+        raise Exception("Failed to version code. Aborting...")
 
     def clean_up_new_branch(self):
         self.repo.git.checkout("main", "-f")
