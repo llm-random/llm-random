@@ -5,7 +5,6 @@ Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
 import datetime
-import json
 import os
 import subprocess
 import sys
@@ -67,12 +66,10 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1:
         path = sys.argv[1]
-        if path.endswith(".json"):
-            grid_args = json.load(open(sys.argv[1]))
-        elif path.endswith(".yaml"):
-            grid_args = yaml.safe_load(open(sys.argv[1]))
+        if path.endswith(".yaml"):
+            grid_args = yaml.safe_load_all(open(sys.argv[1]))
         else:
-            raise ValueError("grid path must be .json or .yaml")
+            raise ValueError("grid path must be .yaml")
 
         RUNNER = grid_args.get("runner", RUNNER)
         PARAMS = grid_args.get("params", PARAMS)
