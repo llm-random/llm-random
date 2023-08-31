@@ -19,7 +19,7 @@ def rsync_to_remote(host, local_dir):
         with Connection(host) as c:
             base_dir = get_base_directory(c)
             rsync_command = (
-                f"rsync -rlp -e ssh {local_dir} {c.user}@{c.host}:{base_dir}"
+                f"rsync -zrlp -e ssh {local_dir} {c.user}@{c.host}:{base_dir}"
             )
             c.local(rsync_command)
             return base_dir
