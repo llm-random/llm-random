@@ -45,6 +45,7 @@ def run_grid_remotely(host, config):
 
 
 def set_up_permissions(host):
+    # if it turns out at some point that we need to add more permissions for files, we can add them here
     pass
 
 
