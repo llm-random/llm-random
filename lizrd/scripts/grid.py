@@ -89,6 +89,9 @@ if __name__ == "__main__":
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
         CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
 
+    else:
+        raise ValueError("No config path specified. Aborting...")
+
     if SINGULARITY_IMAGE is None and runner != MachineBackend.LOCAL:
         raise ValueError("Singularity image is not specified (in JSON or env variable)")
 
