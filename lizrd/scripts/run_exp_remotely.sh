@@ -13,7 +13,7 @@ python3 -m lizrd.scripts.sync_with_remote --host $1
 run_grid_remotely() {
   host=$1
   config=$2
-  script="cd ~/sparsity && find . -name $config -exec python3 -m lizrd.scripts.grid '{}' \;"
+  script="cd ~/llm-random && find . -name $config -exec python3 -m lizrd.scripts.grid '{}' \;"
   ssh $host "$script"
 }
 

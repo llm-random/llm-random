@@ -38,7 +38,7 @@ def run_remote_script(host, script):
 
 def run_grid_remotely(host, config):
     script = (
-        f"cd ~/sparsity && find -name {config}"
+        f"cd ~/llm-random && find -name {config}"
         + " -exec python3 -m lizrd.scripts.grid {} \;"
     )
     run_remote_script(host, script)
