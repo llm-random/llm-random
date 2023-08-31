@@ -14,7 +14,7 @@ run_grid_remotely() {
   host=$1
   config=$2
   echo $base_dir
-  script="cd $base_dir && export PYTHONPATH="${PYTHONPATH}:$(pwd)" && python3 -m lizrd.scripts.grid $config"
+  script="cd $base_dir && python3 -m lizrd.scripts.grid $config"
   ssh $host "$script"
 }
 
