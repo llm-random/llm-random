@@ -8,7 +8,9 @@ set -e
 
 source venv/bin/activate
 # run your python script
-base_dir=$(python3 -m lizrd.scripts.sync_with_remote --host $1)
+python3 -m lizrd.scripts.sync_with_remote --host $1
+base_dir=$(cat base_dir.txt)
+rm base_dir.txt
 
 run_grid_remotely() {
   host=$1

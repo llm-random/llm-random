@@ -21,7 +21,10 @@ def rsync_to_remote(host, local_dir):
             rsync_command = (
                 f"rsync -zrlp -e ssh {local_dir} {c.user}@{c.host}:{base_dir}"
             )
-            c.local(rsync_command)
+            c.local(
+                rsync_command,
+                echo=True,
+            )
             return base_dir
     except Exception as e:
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
@@ -62,4 +65,6 @@ if __name__ == "__main__":
     base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
     _ = rsync_to_remote(args.host, working_dir + "/research")
     set_up_permissions(args.host)
-    print(base_dir)
+    # WRITE base_dir to temp file
+    with open("base_dir.txt", "w") as f:
+        f.write(base_dir)
