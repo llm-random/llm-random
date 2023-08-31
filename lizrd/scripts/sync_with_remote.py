@@ -14,33 +14,36 @@ def go_to_sparsity():
     os.chdir(git_root)
 
 
-def rsync_to_remote(host, local_dir, remote_dir):
+def rsync_to_remote(host, local_dir, remote_dir_suffix):
     try:
         with Connection(host) as c:
+            base_dir, remote_dir = get_base_directory(c, remote_dir_suffix)
             rsync_command = (
                 f"rsync -rlp -e ssh {local_dir} {c.user}@{c.host}:{remote_dir}"
             )
             c.local(rsync_command)
-            print(f"Successfully synced {local_dir} to {remote_dir} on {host}")
+            return base_dir
     except Exception as e:
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
+
+
+def get_base_directory(c, remote_dir_suffix):
+    if c.host == "athena.cyfronet.pl":
+        base_dir = (
+            f"/net/pr2/projects/plgrid/plggllmeffi/{c.user.lstrip('plg')}/llm-random"
+        )
+    else:
+        base_dir = f"~/llm-random"
+    remote_dir = f"{base_dir}/{remote_dir_suffix}"
+    return base_dir, remote_dir
 
 
 def run_remote_script(host, script):
     try:
         with Connection(host) as c:
             result = c.run(script)
-            print(f"Successfully ran script ({result.command})")
     except Exception as e:
         raise Exception(f"An error occurred while running the script: {str(e)}")
-
-
-def run_grid_remotely(host, config):
-    script = (
-        f"cd ~/llm-random && find -name {config}"
-        + " -exec python3 -m lizrd.scripts.grid {} \;"
-    )
-    run_remote_script(host, script)
 
 
 def set_up_permissions(host):
@@ -57,6 +60,7 @@ if __name__ == "__main__":
 
     go_to_sparsity()
     working_dir = os.getcwd()
-    rsync_to_remote(args.host, working_dir + "/lizrd", "~/llm-random/lizrd ")
-    rsync_to_remote(args.host, working_dir + "/research", "~/llm-random/research ")
+    base_dir = rsync_to_remote(args.host, working_dir + "/lizrd", "lizrd")
+    _ = rsync_to_remote(args.host, working_dir + "/research", "research")
     set_up_permissions(args.host)
+    print(base_dir)
