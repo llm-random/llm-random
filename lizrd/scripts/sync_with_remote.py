@@ -10,8 +10,7 @@ def go_to_sparsity():
     repo = Repo(git_root)
     assert repo.remotes.origin.url in [
         "git@github.com:llm-random/llm-random.git",
-        "git@github.com:sebastianjaszczur/sparsity.git",
-    ], "You're not in the right repo! Move to the sparsity folder, and make sure your origin is the llm-random repo. Aborting..."
+    ], "You're not in the right repo! Move to the llm-random folder, and make sure your origin is the llm-random repo. Aborting..."
     os.chdir(git_root)
 
 
@@ -58,6 +57,6 @@ if __name__ == "__main__":
 
     go_to_sparsity()
     working_dir = os.getcwd()
-    rsync_to_remote(args.host, working_dir + "/lizrd", "~/sparsity/lizrd ")
-    rsync_to_remote(args.host, working_dir + "/research", "~/sparsity/research ")
+    rsync_to_remote(args.host, working_dir + "/lizrd", "~/llm-random/lizrd ")
+    rsync_to_remote(args.host, working_dir + "/research", "~/llm-random/research ")
     set_up_permissions(args.host)
