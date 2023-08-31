@@ -25,7 +25,7 @@ from lizrd.scripts.grid_utils import (
     get_grid_entrypoint,
     unpack_params,
 )
-from lizrd.support.code_versioning_support import copy_and_version_code
+from lizrd.support.code_copying_support import copy_code
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
@@ -122,12 +122,10 @@ if __name__ == "__main__":
 
     if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
         exp_name = next(iter(grid))["name"]
-        name_for_branch = (
+        newdir_name = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        COPIED_CODE_PATH = copy_and_version_code(
-            name_for_branch, name_for_branch, PUSH_TO_GIT
-        )
+        copy_code(newdir_name)
     else:
         print(
             f"Running in debug mode or locally, skip copying code to a new directory."

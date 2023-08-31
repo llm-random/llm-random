@@ -2,7 +2,8 @@ import os
 from fabric import Connection
 from argparse import ArgumentParser
 from git import Repo
-from lizrd.support.code_versioning_support import find_git_root
+from lizrd.support.code_versioning_support import find_git_root, version_code
+from lizrd.support.misc import generate_random_string
 
 
 def go_to_sparsity():
@@ -61,5 +62,8 @@ if __name__ == "__main__":
     working_dir = os.getcwd()
     base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
     _ = rsync_to_remote(args.host, working_dir + "/research")
+    _ = rsync_to_remote(args.host, working_dir + "/.versioningignore")
     set_up_permissions(args.host)
+    name_for_branch = "exp_hash_" + generate_random_string(10)
+    version_code(name_for_branch)
     print(base_dir)
