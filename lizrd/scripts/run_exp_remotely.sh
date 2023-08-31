@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# needs to be called from sparsity folder to ac
 set -e
 
 source venv/bin/activate
