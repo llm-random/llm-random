@@ -16,11 +16,11 @@ def go_to_llm_random():
 
 def rsync_to_remote(host, local_dir):
     try:
-        with Connection(host) as c:
-            base_dir = get_base_directory(c)
-            proxy_command = get_proxy_command(c)
-            rsync_command = f"rsync -zrlp -e {proxy_command} {local_dir} {c.user}@{c.host}:{base_dir}"
-            c.local(
+        with Connection(host) as connection:
+            base_dir = get_base_directory(connection)
+            proxy_command = get_proxy_command(connection)
+            rsync_command = f"rsync -zrlp -e {proxy_command} {local_dir} {connection.user}@{connection.host}:{base_dir}"
+            connection.local(
                 rsync_command,
                 echo=True,
             )
@@ -29,17 +29,19 @@ def rsync_to_remote(host, local_dir):
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
 
 
-def get_base_directory(c):
-    if c.host == "athena.cyfronet.pl":
-        base_dir = f"/net/pr2/projects/plgrid/plggllmeffi/{c.user[3:]}/llm-random"
+def get_base_directory(connection):
+    if connection.host == "athena.cyfronet.pl":
+        base_dir = (
+            f"/net/pr2/projects/plgrid/plggllmeffi/{connection.user[3:]}/llm-random"
+        )
     else:
         base_dir = f"~/llm-random"
     return base_dir
 
 
-def get_proxy_command(c):
-    if c.host == "4124gs01":
-        cc = Connection(c.ssh_config["proxyjump"])
+def get_proxy_command(connection):
+    if connection.host == "4124gs01":
+        cc = Connection(connection.ssh_config["proxyjump"])
         proxy_command = f"'ssh -A -J {cc.user}@{cc.host}'"
     else:
         proxy_command = "ssh"
