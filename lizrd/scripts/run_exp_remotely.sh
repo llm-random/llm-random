@@ -13,9 +13,13 @@ base_dir=$(python3 -m lizrd.scripts.sync_with_remote --host $1)
 run_grid_remotely() {
   host=$1
   config=$2
-  echo $base_dir
-  script="cd $base_dir && python3 -m lizrd.scripts.grid $config"
-  ssh $host "$script"
+  session_name="mysession"
+
+  script="cd $base_dir && tmux new-session -d -s $session_name bash"
+  script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid $config' C-m"
+  script+="; tmux attach -t $session_name"
+
+  ssh -t $host "$script"
 }
 
 # run your bash function
