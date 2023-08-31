@@ -14,12 +14,12 @@ def go_to_sparsity():
     os.chdir(git_root)
 
 
-def rsync_to_remote(host, local_dir, remote_dir_suffix):
+def rsync_to_remote(host, local_dir):
     try:
         with Connection(host) as c:
-            base_dir, remote_dir = get_base_directory(c, remote_dir_suffix)
+            base_dir = get_base_directory(c)
             rsync_command = (
-                f"rsync -rlp -e ssh {local_dir} {c.user}@{c.host}:{remote_dir}"
+                f"rsync -rlp -e ssh {local_dir} {c.user}@{c.host}:{base_dir}"
             )
             c.local(rsync_command)
             return base_dir
@@ -27,15 +27,14 @@ def rsync_to_remote(host, local_dir, remote_dir_suffix):
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
 
 
-def get_base_directory(c, remote_dir_suffix):
+def get_base_directory(c):
     if c.host == "athena.cyfronet.pl":
         base_dir = (
             f"/net/pr2/projects/plgrid/plggllmeffi/{c.user.lstrip('plg')}/llm-random"
         )
     else:
         base_dir = f"~/llm-random"
-    remote_dir = f"{base_dir}/{remote_dir_suffix}"
-    return base_dir, remote_dir
+    return base_dir
 
 
 def run_remote_script(host, script):
@@ -60,7 +59,7 @@ if __name__ == "__main__":
 
     go_to_sparsity()
     working_dir = os.getcwd()
-    base_dir = rsync_to_remote(args.host, working_dir + "/lizrd", "lizrd")
-    _ = rsync_to_remote(args.host, working_dir + "/research", "research")
+    base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
+    _ = rsync_to_remote(args.host, working_dir + "/research")
     set_up_permissions(args.host)
     print(base_dir)
