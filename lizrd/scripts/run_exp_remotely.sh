@@ -2,7 +2,7 @@
 # INSTRUCTIONS:
 # 1. needs to be called from llm-random folder
 # 2. needs to be called with the host as the first argument (as configured in ~/.ssh/config, e.g. gpu_entropy)
-# 3. needs to be called with the config file as the second argument (e.g. "my_config.yaml")
+# 3. needs to be called with the path to config file as the second argument (e.g. "runs/my_config.yaml")
 # EXAMPLE USAGE: bash lizrd/scripts/run_exp_remotely.sh atena quick.json
 set -e
 
@@ -11,6 +11,7 @@ source venv/bin/activate
 python3 -m lizrd.scripts.sync_and_version --host $1
 base_dir=$(cat base_dir.txt)
 rm base_dir.txt
+
 run_grid_remotely() {
   host=$1
   config=$2
