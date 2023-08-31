@@ -19,9 +19,8 @@ def rsync_to_remote(host, local_dir):
     try:
         with Connection(host) as c:
             base_dir = get_base_directory(c)
-            rsync_command = (
-                f"rsync -zrlp -e ssh {local_dir} {c.user}@{c.host}:{base_dir}"
-            )
+            proxy_command = get_proxy_command(c)
+            rsync_command = f"rsync -zrlp -e {proxy_command} {local_dir} {c.user}@{c.host}:{base_dir}"
             c.local(
                 rsync_command,
                 echo=True,
@@ -37,6 +36,15 @@ def get_base_directory(c):
     else:
         base_dir = f"~/llm-random"
     return base_dir
+
+
+def get_proxy_command(c):
+    if c.host == "4124gs01":
+        cc = Connection(c.ssh_config["proxyjump"])
+        proxy_command = f"'ssh -A -J {cc.user}@{cc.host}'"
+    else:
+        proxy_command = "ssh"
+    return proxy_command
 
 
 def run_remote_script(host, script):
