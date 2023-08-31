@@ -15,7 +15,7 @@ def introduce_parser_arguments(
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
 
-    # core model hyperparameters, almost always specified in baseline configs
+    # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--model_type", type=str, choices=["gpt", "bert"])
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int)
@@ -31,7 +31,7 @@ def introduce_parser_arguments(
     parser.add_argument("--standard_ff_first", action="store_true")
     parser.add_argument("--no_ff", action="store_true")
 
-    # core training hyperparameters, almost always specified in baseline configs
+    # CORE training hyperparameters, almost always specified in baseline configs
 
     parser.add_argument("--n_steps", type=int)
     parser.add_argument("--learning_rate", type=float)
@@ -64,7 +64,7 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--data_distributed", action="store_true")
 
-    # core data hyperparameters, almost always specified in baseline configs
+    # CORE data hyperparameters, almost always specified in baseline configs
 
     parser.add_argument("--dataset_type", type=str, default="wikibook")
     parser.add_argument("--batch_size", type=int, default=600)
@@ -106,6 +106,8 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
+
+    ## used by all MoE
 
     parser.add_argument("--topk_fraction", type=float, required=False)
     parser.add_argument("--expert_random_perm", action="store_true")
