@@ -22,7 +22,10 @@ def rsync_to_remote(host, local_dir):
             rsync_command = (
                 f"rsync -zrlp -e ssh {local_dir} {c.user}@{c.host}:{base_dir}"
             )
-            c.local(rsync_command)
+            c.local(
+                rsync_command,
+                echo=True,
+            )
             return base_dir
     except Exception as e:
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
@@ -30,9 +33,7 @@ def rsync_to_remote(host, local_dir):
 
 def get_base_directory(c):
     if c.host == "athena.cyfronet.pl":
-        base_dir = (
-            f"/net/pr2/projects/plgrid/plggllmeffi/{c.user.lstrip('plg')}/llm-random"
-        )
+        base_dir = f"/net/pr2/projects/plgrid/plggllmeffi/{c.user[3:]}/llm-random"
     else:
         base_dir = f"~/llm-random"
     return base_dir
@@ -63,6 +64,9 @@ if __name__ == "__main__":
     base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
     _ = rsync_to_remote(args.host, working_dir + "/research")
     _ = rsync_to_remote(args.host, working_dir + "/.versioningignore")
+    # WRITE base_dir to temp file
+    with open("base_dir.txt", "w") as f:
+        f.write(base_dir)
     set_up_permissions(args.host)
     name_for_branch = "exp_hash_" + generate_random_string(10)
     version_code(name_for_branch)
