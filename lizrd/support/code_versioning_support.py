@@ -18,7 +18,8 @@ def copy_and_version_code(
     If not met, the user needs to set up ssh keys."""
 
     # Find git root directory
-    root_dir = find_git_root()
+    root_dir = os.getcwd()
+    assert root_dir.endswith("llm-random")
     newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
     random_string = generate_random_string(10)
 
