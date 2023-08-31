@@ -5,7 +5,7 @@ from git import Repo
 from lizrd.support.code_versioning_support import find_git_root
 
 
-def go_to_sparsity():
+def go_to_llm_random():
     git_root = find_git_root()
     repo = Repo(git_root)
     assert repo.remotes.origin.url in [
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     # create parser
     args = parser.parse_args()
 
-    go_to_sparsity()
+    go_to_llm_random()
     working_dir = os.getcwd()
     base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
     _ = rsync_to_remote(args.host, working_dir + "/research")
