@@ -32,9 +32,7 @@ def rsync_to_remote(host, local_dir):
 
 def get_base_directory(c):
     if c.host == "athena.cyfronet.pl":
-        base_dir = (
-            f"/net/pr2/projects/plgrid/plggllmeffi/{c.user.lstrip('plg')}/llm-random"
-        )
+        base_dir = f"/net/pr2/projects/plgrid/plggllmeffi/{c.user[3:]}/llm-random"
     else:
         base_dir = f"~/llm-random"
     return base_dir
