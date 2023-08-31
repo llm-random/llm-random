@@ -61,8 +61,10 @@ class CodeVersioningDaemon:
             self.revert_status = 7
 
             self.repo.git.add(u=True)
-            self.repo.git.commit(m="Versioning code", no_verify=True)
-            self.revert_status = 7.5
+            # check if there are any changes to commit
+            if len(self.repo.index.diff("HEAD")) > 0:
+                self.repo.git.commit(m="Versioning code", no_verify=True)
+                self.revert_status = 7.5
 
             self.repo.git.push(self.remote_name, self.name_for_branch)
             self.revert_status = 8
@@ -72,6 +74,7 @@ class CodeVersioningDaemon:
 
             self.unstash_if_necessary()
             self.repo.git.branch("-D", self.name_for_branch)
+            print(f"Code versioned successfully to branch {self.name_for_branch}")
 
         except GitCommandError:
             self.handle_failure()
