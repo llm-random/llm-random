@@ -39,7 +39,7 @@ if __name__ == "__main__":
     if path.endswith(".yaml"):
         configs = yaml.safe_load(open(sys.argv[1]))
     else:
-        raise ValueError("config path must be a .yaml")
+        raise ValueError("config path point to a .yaml")
 
     grid = []
     total_no_experiments = 0
