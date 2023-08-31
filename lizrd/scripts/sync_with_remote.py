@@ -11,7 +11,7 @@ def go_to_sparsity():
     assert repo.remotes.origin.url in [
         "git@github.com:llm-random/llm-random.git",
         "git@github.com:sebastianjaszczur/sparsity.git",
-    ], "You're not in the right repo! Move to sparsity. Aborting..."
+    ], "You're not in the right repo! Move to the sparsity folder, and make sure your origin is the llm-random repo. Aborting..."
     os.chdir(git_root)
 
 
