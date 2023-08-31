@@ -18,11 +18,11 @@ def introduce_parser_arguments(
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--model_type", type=str, choices=["gpt", "bert"])
     parser.add_argument("--ff_mode", type=str, default="vanilla")
-    parser.add_argument("--n_blocks", type=int)
-    parser.add_argument("--dmodel", type=int)
-    parser.add_argument("--dff", type=int)
-    parser.add_argument("--n_att_heads", type=int)
-    parser.add_argument("--dhead", type=int)
+    parser.add_argument("--n_blocks", type=int, required=True)
+    parser.add_argument("--dmodel", type=int, required=True)
+    parser.add_argument("--dff", type=int, required=True)
+    parser.add_argument("--n_att_heads", type=int, required=True)
+    parser.add_argument("--dhead", type=int, default=None)
 
     # other model hyperparameters
     parser.add_argument("--activation_type", type=str, default="relu")
@@ -33,8 +33,8 @@ def introduce_parser_arguments(
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
-    parser.add_argument("--n_steps", type=int)
-    parser.add_argument("--learning_rate", type=float)
+    parser.add_argument("--n_steps", type=int, required=True)
+    parser.add_argument("--learning_rate", type=float, required=True)
 
     # other training hyperparameters
 
@@ -66,9 +66,11 @@ def introduce_parser_arguments(
 
     # CORE data hyperparameters, almost always specified in baseline configs
 
-    parser.add_argument("--dataset_type", type=str, default="wikibook")
-    parser.add_argument("--batch_size", type=int, default=600)
-    parser.add_argument("--cutoff", type=int, default=128)
+    parser.add_argument(
+        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
+    )
+    parser.add_argument("--batch_size", type=int, required=True)
+    parser.add_argument("--cutoff", type=int, required=True)
 
     # other data hyperparameters
     parser.add_argument("--num_workers", type=int, default=8)
@@ -99,9 +101,9 @@ def introduce_parser_arguments(
     ## used often by Continuous MoE
 
     parser.add_argument("--n_experts", type=int, required=False)
-    parser.add_argument("--group_size", type=int, default=1)
-    parser.add_argument("--sparsity_dim", type=int, default=1)
-    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--group_size", type=int, required=False)
+    parser.add_argument("--sparsity_dim", type=int, required=False)
+    parser.add_argument("--temperature", type=float, required=False)
     parser.add_argument("--expert_size", type=int, required=False)
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
