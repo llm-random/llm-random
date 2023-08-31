@@ -8,7 +8,7 @@ set -e
 
 source venv/bin/activate
 # run your python script
-python3 -m lizrd.scripts.sync_and_version --host $1
+python3 -m lizrd.support.sync_with_remote --host $1
 base_dir=$(cat base_dir.txt)
 rm base_dir.txt
 
