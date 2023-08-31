@@ -78,4 +78,3 @@ if __name__ == "__main__":
     set_up_permissions(args.host)
     name_for_branch = "exp_hash_" + generate_random_string(10)
     version_code(name_for_branch)
-    print(base_dir)
