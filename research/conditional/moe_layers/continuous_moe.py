@@ -152,9 +152,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
             log[f"merge_logits/sample_{i}"] = fig
 
         ent = entropy(merge_weights)
-        max_entropy = (
-            np.log(self.n_experts) + np.finfo(np.float32).eps
-        )  # add eps to avoid log(0)
+        max_entropy = np.log(self.group_size)
         normalised_ent = ent / max_entropy
         log["merge_weights/normalised_entropy"] = make_histogram(
             normalised_ent, title="merge logits entropy (normalised to [0,1])"
