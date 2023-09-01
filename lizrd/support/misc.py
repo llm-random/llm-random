@@ -38,6 +38,15 @@ def load_with_inheritance(filepath, is_parent=False):
     for config in configs:
         if "parent" in config:
             parent_config = load_with_inheritance(config["parent"], is_parent=True)[0]
-            config = parent_config.update(config)
+            config = recursive_update(parent_config, config)
 
     return configs
+
+
+def recursive_update(base_dict, update_dict):
+    for key, value in base_dict.items():
+        if key not in update_dict:
+            update_dict[key] = value
+        elif isinstance(value, dict):
+            update_dict[key] = recursive_update(value, update_dict.get(key, {}))
+    return update_dict

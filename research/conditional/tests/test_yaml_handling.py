@@ -9,9 +9,11 @@ class TestYaml(GeneralTestCase):
         """
         path_to_yaml = "research/conditional/train/configs/test/test.yaml"
         configs = load_with_inheritance(path_to_yaml)
-        assert len(configs) == 2 + 20
-        configs = list[configs]
+        configs = list(configs)
         for config in configs:
-            assert config["params"]["dhead"] == 100
+            print(config)
+        assert len(configs) == 2
+        assert configs[0]["params"]["dhead"] == 21
+        assert configs[1]["params"]["dhead"] == 210
         assert configs[0]["runs_multiplier"] == 20
         assert configs[1]["runs_multiplier"] == 1
