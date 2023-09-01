@@ -41,6 +41,7 @@ if __name__ == "__main__":
         configs = yaml.safe_load_all(open(sys.argv[1]))
     else:
         raise ValueError("config path point to a .yaml")
+    grid_args["params"]["path_to_config"] = sys.argv[1]
 
     grid = []
     total_no_experiments = 0
