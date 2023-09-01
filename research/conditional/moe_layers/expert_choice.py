@@ -63,9 +63,6 @@ class ExpertChoiceFF(LoggingLayer):
         assert not self.softmax_ungrouped or self.group_by_batch
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
         assert (
-            not self.normalize_token_update or not self.one_hot_impl
-        )  # Not implemented
-        assert (
             not self.additional_norm == "rezero" or not self.one_hot_impl
         )  # Not implemented
 
@@ -84,7 +81,7 @@ class ExpertChoiceFF(LoggingLayer):
         if self.additional_norm == "layer_norm":
             self.ln = LayerNorm(dmodel)
         elif self.additional_norm == "rezero":
-            self.rezero_k = nn.Parameter(torch.zeros(self.n_experts))
+            self.rezero_k = nn.Parameter(torch.zeros(self.n_experts, 1, 1))
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot
@@ -101,7 +98,7 @@ class ExpertChoiceFF(LoggingLayer):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len = x.shape[0], x.shape[1]
 
-        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
+        topk, topk_indices, topk_values, normalizer = self.expert_gating(x, batch_size, seq_len)
         if self.use_full_einsum:
             x = self.full_einsum(x, topk_indices, topk_values, batch_size)
         else:
@@ -110,6 +107,9 @@ class ExpertChoiceFF(LoggingLayer):
             x = self.gating_postprocess(
                 x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
             )
+
+        if normalizer is not None:
+            x /= torch.clamp(normalizer, 1e-5)
 
         if self.additional_norm == "layer_norm":
             with measure_time(self, "layer_norm"):
@@ -157,6 +157,13 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "topk"):
             topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
 
+        normalizer = None
+        with measure_time(self, "calc_normalizer"):
+            if self.normalize_token_update:
+                mask = torch.zeros(*gate_out.shape).to(gate_out.device)
+                mask.scatter_(1, topk_indices, 1.)
+                normalizer = (mask * gate_out).sum(dim=0).reshape(batch_size, seq_len, 1)
+
         with measure_time(self, "indexing_change"):
             if self.group_by_batch and not self.one_hot_impl:
                 topk *= seq_len
@@ -180,7 +187,7 @@ class ExpertChoiceFF(LoggingLayer):
                 torch.randperm(self.n_experts * topk)
             ].reshape((self.n_experts, topk))
 
-        return topk, topk_indices, topk_values
+        return topk, topk_indices, topk_values, normalizer
 
     def extract_chosen_tokens_onehot(
         self, x: torch.Tensor, topk, topk_indices: torch.Tensor, batch_size
@@ -313,18 +320,6 @@ class ExpertChoiceFF(LoggingLayer):
 
             # reshape to (batch_size, seq_len, dmodel)
             x = z.reshape((batch_size, seq_len, self.dmodel))
-
-            if self.normalize_token_update:
-                z_up = torch.zeros((batch_size * seq_len)).type(x.type()).to(x.device)
-
-                z_up.index_add_(
-                    dim=0, index=topk_indices.flatten().to(int), source=topk_values
-                )
-
-                # reshape to (batch_size, seq_len, dmodel)
-                z_up = z.reshape((batch_size, seq_len, self.dmodel))
-                z_up = torch.clamp(z_up, min=1e-3)
-                x = x / z_up
         return x
 
     def log_light(self):
