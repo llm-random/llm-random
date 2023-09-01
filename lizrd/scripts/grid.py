@@ -11,8 +11,6 @@ import subprocess
 import sys
 from time import sleep
 
-import yaml
-
 from lizrd.scripts.grid_utils import (
     create_grid,
     get_cache_path,
@@ -26,6 +24,7 @@ from lizrd.scripts.grid_utils import (
     unpack_params,
 )
 from lizrd.support.code_versioning_support import copy_and_version_code
+from lizrd.support.misc import load_with_inheritance
 
 if __name__ == "__main__":
     runner = get_machine_backend()
@@ -38,10 +37,12 @@ if __name__ == "__main__":
         raise ValueError("No config path specified. Aborting...")
 
     if path.endswith(".yaml"):
-        configs = yaml.safe_load_all(open(sys.argv[1]))
+        configs = load_with_inheritance(open(sys.argv[1]))
     else:
         raise ValueError("config path point to a .yaml")
-    grid_args["params"]["path_to_config"] = sys.argv[1]
+
+    for config in configs:
+        config["params"]["path_to_config"] = sys.argv[1]
 
     grid = []
     total_no_experiments = 0

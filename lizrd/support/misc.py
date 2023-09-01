@@ -3,6 +3,8 @@ import random
 import string
 from typing import Optional, List
 
+import yaml
+
 
 def tags_to_name(tags: Optional[List[str]]) -> str:
     return "_".join(tags) if tags else ""
@@ -24,3 +26,19 @@ def count_parameters(model, args, VOCAB_SIZE):
 def generate_random_string(length: int) -> str:
     letters = string.ascii_lowercase
     return "".join(random.choice(letters) for i in range(length))
+
+
+def load_with_inheritance(file_name, is_parent=False):
+    with open(file_name, "r") as f:
+        configs = list(yaml.safe_load_all(f))
+
+    if is_parent and len(configs) > 1:
+        raise Exception("Parent yaml can only include one configuration!")
+
+    for config in configs:
+        if "parent" in config:
+            parent_config = load_with_inheritance(config["parent"], is_parent=True)
+            parent_config.update(config)
+            return parent_config
+
+    return configs
