@@ -37,12 +37,13 @@ if __name__ == "__main__":
         raise ValueError("No config path specified. Aborting...")
 
     if path.endswith(".yaml"):
-        configs = load_with_inheritance(sys.argv[1])
+        configs, all_config_paths = load_with_inheritance(sys.argv[1])
     else:
         raise ValueError("config path point to a .yaml")
 
     for config in configs:
-        config["params"]["path_to_config"] = sys.argv[1]
+        config["params"]["path_to_entry_config"] = sys.argv[1]
+        config["params"]["all_config_paths"] = all_config_paths
 
     grid = []
     total_no_experiments = 0

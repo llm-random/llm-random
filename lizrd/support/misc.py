@@ -1,7 +1,7 @@
 import datetime
 import random
 import string
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import yaml
 
@@ -28,7 +28,13 @@ def generate_random_string(length: int) -> str:
     return "".join(random.choice(letters) for i in range(length))
 
 
-def load_with_inheritance(filepath, is_parent=False):
+def load_with_inheritance(
+    filepath: str, all_config_paths: set[str] = None, is_parent=False
+) -> Tuple[List[dict], set[str]]:
+    if all_config_paths is None:
+        all_config_paths = set()
+    all_config_paths.add(filepath)
+
     with open(filepath, "r") as f:
         configs = list(yaml.safe_load_all(f))
 
@@ -37,10 +43,14 @@ def load_with_inheritance(filepath, is_parent=False):
 
     for config in configs:
         if "parent" in config:
-            parent_config = load_with_inheritance(config["parent"], is_parent=True)[0]
+            parent_config_list, additional_paths = load_with_inheritance(
+                config["parent"], all_config_paths, is_parent=True
+            )
+            parent_config = parent_config_list[0]
+            all_config_paths.update(additional_paths)
             config = recursive_update(parent_config, config)
 
-    return configs
+    return configs, all_config_paths
 
 
 def recursive_update(base_dict, update_dict):

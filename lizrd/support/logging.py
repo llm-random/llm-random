@@ -268,7 +268,8 @@ def get_logger(args, model, VOCAB_SIZE):
         )
         run["args"] = vars(args)
         run["working_directory"] = os.getcwd()
-        run["config"].upload(args.path_to_config)
+        run["config"].upload(args.path_to_entry_config)
+        run["all_configs"].upload_files(args.all_config_paths)
 
         args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
         return NeptuneLogger(run, args)
