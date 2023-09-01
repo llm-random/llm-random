@@ -1,0 +1,40 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "0-02:00:00"
+n_gpus: 1
+interactive_debug: false
+
+# train params
+params:
+  # model
+  model_type: "gpt"
+  dataset_type: "c4"
+  dmodel: 256
+  dff: 1024
+  n_att_heads: 4
+  n_blocks: 4
+  cutoff: 256
+  batch_size: 256
+  loss_checkpoint_chungs: 64
+
+  n_steps: 150000
+  grad_clip: 0.5
+  learning_rate: 0.0001
+  lr_decay: 0.9999777
+  lr_warmup_steps: 7500
+  lr_decay_interval: 1
+
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  save_weights_path: "weights"
+  save_weights_interval: 1000
+
+  use_neptune: true
+  project_name: "pmtest/llm-random"
+  name: "gpt_mini_baseline"
+  mixed_precision: true
+  tags:
+    - "bert"
+    - "baseline"
+    - "mini"
+
