@@ -98,7 +98,9 @@ class ExpertChoiceFF(LoggingLayer):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len = x.shape[0], x.shape[1]
 
-        topk, topk_indices, topk_values, normalizer = self.expert_gating(x, batch_size, seq_len)
+        topk, topk_indices, topk_values, normalizer = self.expert_gating(
+            x, batch_size, seq_len
+        )
         if self.use_full_einsum:
             x = self.full_einsum(x, topk_indices, topk_values, batch_size)
         else:
@@ -161,8 +163,10 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "calc_normalizer"):
             if self.normalize_token_update:
                 mask = torch.zeros(*gate_out.shape).to(gate_out.device)
-                mask.scatter_(1, topk_indices, 1.)
-                normalizer = (mask * gate_out).sum(dim=0).reshape(batch_size, seq_len, 1)
+                mask.scatter_(1, topk_indices, 1.0)
+                normalizer = (
+                    (mask * gate_out).sum(dim=0).reshape(batch_size, seq_len, 1)
+                )
 
         with measure_time(self, "indexing_change"):
             if self.group_by_batch and not self.one_hot_impl:
