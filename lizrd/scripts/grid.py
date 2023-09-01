@@ -5,7 +5,6 @@ Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
 import datetime
-import json
 import os
 import subprocess
 import sys
@@ -15,6 +14,8 @@ import yaml
 
 from lizrd.scripts.grid_utils import (
     create_grid,
+    get_cache_path,
+    get_sparsity_image,
     get_train_main_function,
     multiply_grid,
     timestr_to_minutes,
@@ -52,7 +53,8 @@ PUSH_TO_GIT = False
 COPIED_CODE_PATH = ""
 if __name__ == "__main__":
     runner = get_machine_backend()
-    SINGULARITY_IMAGE = None
+    HF_DATASETS_CACHE = get_cache_path(runner)
+    SINGULARITY_IMAGE = get_sparsity_image(runner)
     NODELIST = None
     N_GPUS = 1
     CPUS_PER_GPU = 8
@@ -60,36 +62,32 @@ if __name__ == "__main__":
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
         [str(arg) for arg in args if arg is not None], env=env
     )
-    AUXILIARY_PROCESS_CALL_FUNCTION = None
 
-    if len(sys.argv) > 1:
+    try:
         path = sys.argv[1]
-        if path.endswith(".json"):
-            grid_args = json.load(open(sys.argv[1]))
-        elif path.endswith(".yaml"):
-            grid_args = yaml.safe_load(open(sys.argv[1]))
-        else:
-            raise ValueError("grid path must be .json or .yaml")
+    except IndexError:
+        raise ValueError("config path must be specified as the first argument")
 
-        RUNNER = grid_args.get("runner", RUNNER)
-        PARAMS = grid_args.get("params", PARAMS)
-        TIME = grid_args.get("time", TIME)
-        GRES = grid_args.get("gres", GRES)
-        DRY_RUN = grid_args.get("dry_run", DRY_RUN)
-        SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
-        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
-        INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
-        PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
-        NODELIST = grid_args.get("nodelist", NODELIST)
-        N_GPUS = grid_args.get("n_gpus", N_GPUS)
-        CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
-        CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
+    if path.endswith(".yaml"):
+        grid_args = yaml.safe_load(open(sys.argv[1]))
+    else:
+        raise ValueError("config path point to a .yaml")
+    grid_args["params"]["path_to_config"] = sys.argv[1]
 
-    if SINGULARITY_IMAGE is None:
-        print(
-            "Getting SINGULARITY_IMAGE from environment variable SINGULARITY_IMAGE..."
-        )
-        SINGULARITY_IMAGE = os.getenv("SINGULARITY_IMAGE")
+    RUNNER = grid_args.get("runner", RUNNER)
+    PARAMS = grid_args.get("params", PARAMS)
+    TIME = grid_args.get("time", TIME)
+    GRES = grid_args.get("gres", GRES)
+    DRY_RUN = grid_args.get("dry_run", DRY_RUN)
+    SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
+    HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", HF_DATASETS_CACHE)
+    RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
+    INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
+    PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
+    NODELIST = grid_args.get("nodelist", NODELIST)
+    N_GPUS = grid_args.get("n_gpus", N_GPUS)
+    CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
+    CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
 
     if SINGULARITY_IMAGE is None and runner != MachineBackend.LOCAL:
         raise ValueError("Singularity image is not specified (in JSON or env variable)")
@@ -171,7 +169,6 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
-            datasets_cache = "/net/tscratch/people/plgjkrajewski/.cache"
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{N_GPUS}",
@@ -185,8 +182,8 @@ if __name__ == "__main__":
                 "run",
                 "--bind=/net:/net",
                 f"--env",
-                f"HF_DATASETS_CACHE={datasets_cache}",
-                f"-B={CODE_PATH}:/sparsity",
+                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
+                f"-B={CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
@@ -195,7 +192,6 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.IDEAS:
-            datasets_cache = "/raid/NFS_SHARE/home/jakub.krajewski/.cache"
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{N_GPUS}",
@@ -208,8 +204,8 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={datasets_cache}",
-                f"-B={CODE_PATH}:/sparsity",
+                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
+                f"-B={CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",
@@ -218,7 +214,6 @@ if __name__ == "__main__":
                 *runner_params,
             ]
         elif runner == MachineBackend.ENTROPY_GPU:
-            datasets_cache = "/home/jkrajewski/.cache"
             if CUDA_VISIBLE_DEVICES is not None:
                 env = os.environ.copy()
                 env.update({"CUDA_VISIBLE_DEVICES": CUDA_VISIBLE_DEVICES})
@@ -226,8 +221,8 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={datasets_cache}",
-                f"-B={CODE_PATH}:/sparsity,{datasets_cache}:{datasets_cache}",
+                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
+                f"-B={CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
                 "--nv",
                 SINGULARITY_IMAGE,
                 "python3",

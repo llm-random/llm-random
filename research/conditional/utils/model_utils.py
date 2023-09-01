@@ -78,20 +78,21 @@ def chungized_llm_loss(
     def make_custom_forward():
         def custom_forward(*inputs):
             output = model.head(inputs[0])
-            gt = inputs[1]
-            mask = inputs[2]
-            gt = gt.to(output.device)
-            loss = F.cross_entropy(
-                output.reshape(-1, vocab_size),
-                gt.reshape(-1).long(),
-                reduction="none",
-            )
+            with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
+                gt = inputs[1]
+                mask = inputs[2]
+                gt = gt.to(output.device)
+                loss = F.cross_entropy(
+                    output.reshape(-1, vocab_size),
+                    gt.reshape(-1).long(),
+                    reduction="none",
+                )
 
-            correct_tokens = gt.long() == output.argmax(dim=-1)
-            correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-            correct_tokens = correct_tokens.sum()
+                correct_tokens = gt.long() == output.argmax(dim=-1)
+                correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+                correct_tokens = correct_tokens.sum()
 
-            total_tokens = mask.sum()
+                total_tokens = mask.sum()
 
             return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
 
