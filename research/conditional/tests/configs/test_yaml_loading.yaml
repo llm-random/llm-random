@@ -1,4 +1,4 @@
-parent: research/conditional/train/configs/test/test2.yaml
+parent: research/conditional/tests/configs/test_yaml_loading2.yaml
 runs_multiplier: 20
 params:
   n_experts: 32
@@ -7,7 +7,7 @@ params:
 ---
 
 
-parent: research/conditional/train/configs/test/test2.yaml
+parent: research/conditional/tests/configs/test_yaml_loading2.yaml
 runs_multiplier: 1
 params:
   ^mixed_precision: [true,false]

@@ -15,7 +15,7 @@ params:
   tags:
     - "test"
   use_neptune: true
-  n_steps: 10
+  n_steps: 2
   dmodel: 256
   dff: 1024
   n_blocks: 2

@@ -7,7 +7,7 @@ class TestYaml(GeneralTestCase):
         """
         Test if the yaml config with multiple configs and inheritance is loaded correctly
         """
-        path_to_yaml = "research/conditional/train/configs/test/test.yaml"
+        path_to_yaml = "research/conditional/tests/configs/test_yaml_loading.yaml"
         configs = load_with_inheritance(path_to_yaml)
         configs = list(configs)
         for config in configs:
