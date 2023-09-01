@@ -31,6 +31,7 @@ if __name__ == "__main__":
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
         [str(arg) for arg in args if arg is not None], env=env
     )
+
     try:
         path = sys.argv[1]
     except IndexError:
@@ -55,14 +56,13 @@ if __name__ == "__main__":
         RUNNER = grid_args["runner"]
         PARAMS = grid_args["params"]
         TIME = grid_args.get("time", "1-00:00:00")
-        GRES = grid_args.get("gres", "gpu:titanv:1")
+        GRES = grid_args.get("gres", "gpu:1")
         DRY_RUN = grid_args.get("dry_run", False)
         SINGULARITY_IMAGE = grid_args.get(
             "singularity_image", get_sparsity_image(runner)
         )
         HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", get_cache_path(runner))
         RUNS_MULTIPLIER = grid_args.get("runs_multiplier", 1)
-        INTERACTIVE_DEBUG = grid_args.get("interactive_debug", False)
         NODELIST = grid_args.get("nodelist", None)
         N_GPUS = grid_args.get("n_gpus", 1)
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", 8)
@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
         if SINGULARITY_IMAGE is None and runner != MachineBackend.LOCAL:
             raise ValueError(
-                "Singularity image is not specified (in JSON or env variable)"
+                "Singularity image is not specified (in yaml or env variable)"
             )
 
         if NODELIST is not None:
@@ -86,16 +86,28 @@ if __name__ == "__main__":
                 "cpus_per_gpu",
                 "nodelist",
                 "cuda_visible",
+                "hf_datasets_cache",
+                "singularity_image",
             ],
-            [GRES, TIME, N_GPUS, RUNNER, CPUS_PER_GPU, NODELIST, CUDA_VISIBLE_DEVICES],
+            [
+                GRES,
+                TIME,
+                N_GPUS,
+                RUNNER,
+                CPUS_PER_GPU,
+                NODELIST,
+                CUDA_VISIBLE_DEVICES,
+                HF_DATASETS_CACHE,
+                SINGULARITY_IMAGE,
+            ],
         ):
             PARAMS["temp_args"][name] = param
 
-        partial_grid = create_grid(PARAMS)
-        partial_grid = multiply_grid(partial_grid, RUNS_MULTIPLIER)
-        grid.extend(partial_grid)
+        single_exp_grid = create_grid(PARAMS)
+        single_exp_grid = multiply_grid(single_exp_grid, RUNS_MULTIPLIER)
+        grid.extend(single_exp_grid)
 
-        no_experiments = len(partial_grid)
+        no_experiments = len(single_exp_grid)
         total_no_experiments += no_experiments
 
         minutes_per_exp = timestr_to_minutes(TIME)
@@ -107,32 +119,36 @@ if __name__ == "__main__":
             f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
         )
 
+    interactive_options = [
+        grid_args.get("interactive_debug", False) for grid_args in configs
+    ]
+
+    assert (
+        len(set(interactive_options)) == 1
+    ), f"`interactive_debug` must be the same for all configs"
+
+    interactive_debug_session = interactive_options[0]
+
     if not runner == MachineBackend.LOCAL:
-        if not INTERACTIVE_DEBUG:
+        if not interactive_debug_session:
             user_input = input(
                 f"Will run {total_no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
                 f"Continue? [Y/n]"
             )
         else:
-            user_input = input(f"Will run an INTERACTIVE experiment. \nContinue? [Y/n]")
+            user_input = input(
+                f"Will run an INTERACTIVE experiment, which will be the first one from the supplied configs. \nContinue? [Y/n]"
+            )
         if user_input.lower() not in ("", "y", "Y"):
             print("Aborting...")
             exit(1)
 
-    slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
-    assert all(
-        [
-            grid_args.get("INTERACTIVE_DEBUG", False) == INTERACTIVE_DEBUG
-            for grid_args in configs
-        ]
-    ), "`interactive_debug` must be the same for all configs"
-
-    if not (INTERACTIVE_DEBUG or runner == MachineBackend.LOCAL):
+    if not (interactive_debug_session or runner == MachineBackend.LOCAL):
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        COPIED_CODE_PATH = copy_and_version_code(
+        copied_code_path = copy_and_version_code(
             name_for_branch, name_for_branch, False
         )
     else:
@@ -140,9 +156,20 @@ if __name__ == "__main__":
             f"Running in debug mode or locally, skip copying code to a new directory."
         )
 
+    slurm_command = "srun" if interactive_debug_session else "sbatch"
+
     for i, param_set in enumerate(grid):
         name = param_set["name"]
-        param_set["n_gpus"] = param_set["temp_args"]["n_gpus"]
+        for argname in [
+            "n_gpus",
+            "cpus_per_gpu",
+            "cuda_visible",
+            "nodelist",
+            "singularity_image",
+            "hf_datasets_cache",
+        ]:
+            param_set[argname] = param_set["temp_args"][argname]
+
         env = None
 
         runner_params = []
@@ -168,13 +195,13 @@ if __name__ == "__main__":
                 slurm_command,
                 "--partition=common",
                 "--qos=16gpu7d",
-                f"--gres={param_set['temp_args']['gres']}",
+                f"--gres={param_set['gres']}",
                 f"--job-name={name}",
-                f"--time={param_set['temp_args']['time']}",
+                f"--time={param_set['time']}",
                 get_grid_entrypoint(runner),
                 "python3",
                 "-m",
-                param_set["temp_args"]["runner"],
+                param_set["runner"],
                 *runner_params,
             ]
         elif runner == MachineBackend.ATHENA:
@@ -191,10 +218,10 @@ if __name__ == "__main__":
                 "run",
                 "--bind=/net:/net",
                 f"--env",
-                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
-                f"-B={COPIED_CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
+                f"HF_DATASETS_CACHE={param_set['hf_datasets_cache']}",
+                f"-B={copied_code_path}:/sparsity,{param_set['hf_datasets_cache']}:{param_set['hf_datasets_cache']}",
                 "--nv",
-                SINGULARITY_IMAGE,
+                param_set["singularity_image"],
                 "python3",
                 "-m",
                 param_set["temp_args"]["runner"],
@@ -213,10 +240,10 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
-                f"-B={COPIED_CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
+                f"HF_DATASETS_CACHE={param_set['hf_datasets_cache']}",
+                f"-B={copied_code_path}:/sparsity,{param_set['hf_datasets_cache']}:{param_set['hf_datasets_cache']}",
                 "--nv",
-                SINGULARITY_IMAGE,
+                param_set["singularity_image"],
                 "python3",
                 "-m",
                 param_set["temp_args"]["runner"],
@@ -232,10 +259,10 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={HF_DATASETS_CACHE}",
-                f"-B={COPIED_CODE_PATH}:/sparsity,{HF_DATASETS_CACHE}:{HF_DATASETS_CACHE}",
+                f"HF_DATASETS_CACHE={param_set['hf_datasets_cache']}",
+                f"-B={copied_code_path}:/sparsity,{param_set['hf_datasets_cache']}:{param_set['hf_datasets_cache']}",
                 "--nv",
-                SINGULARITY_IMAGE,
+                param_set["singularity_image"],
                 "python3",
                 "-m",
                 param_set["temp_args"]["runner"],
@@ -258,5 +285,5 @@ if __name__ == "__main__":
             print(f"running experiment {i} from {name}...")
             PROCESS_CALL_FUNCTION(subprocess_args, env)
             sleep(5)
-        if INTERACTIVE_DEBUG:
+        if interactive_debug_session:
             break
