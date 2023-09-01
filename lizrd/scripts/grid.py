@@ -72,6 +72,7 @@ if __name__ == "__main__":
         grid_args = yaml.safe_load(open(sys.argv[1]))
     else:
         raise ValueError("config path point to a .yaml")
+    grid_args["params"]["path_to_config"] = sys.argv[1]
 
     RUNNER = grid_args.get("runner", RUNNER)
     PARAMS = grid_args.get("params", PARAMS)
