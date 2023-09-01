@@ -2,7 +2,7 @@ import os
 from fabric import Connection
 from argparse import ArgumentParser
 from git import Repo
-from lizrd.support.code_versioning_support import find_git_root, version_code
+from lizrd.support.code_versioning import find_git_root, version_code
 from lizrd.support.misc import generate_random_string
 
 

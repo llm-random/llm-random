@@ -25,7 +25,7 @@ from lizrd.scripts.grid_utils import (
     get_grid_entrypoint,
     unpack_params,
 )
-from lizrd.support.code_copying_support import copy_code
+from lizrd.support.code_copying import copy_code
 
 RUNNER = "research.reinitialization.train.reinit_train"
 
