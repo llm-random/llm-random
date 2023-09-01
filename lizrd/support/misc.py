@@ -28,8 +28,8 @@ def generate_random_string(length: int) -> str:
     return "".join(random.choice(letters) for i in range(length))
 
 
-def load_with_inheritance(file_name, is_parent=False):
-    with open(file_name, "r") as f:
+def load_with_inheritance(filepath, is_parent=False):
+    with open(filepath, "r") as f:
         configs = list(yaml.safe_load_all(f))
 
     if is_parent and len(configs) > 1:
@@ -37,8 +37,7 @@ def load_with_inheritance(file_name, is_parent=False):
 
     for config in configs:
         if "parent" in config:
-            parent_config = load_with_inheritance(config["parent"], is_parent=True)
-            parent_config.update(config)
-            return parent_config
+            parent_config = load_with_inheritance(config["parent"], is_parent=True)[0]
+            config = parent_config.update(config)
 
     return configs

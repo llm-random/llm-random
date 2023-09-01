@@ -37,7 +37,7 @@ if __name__ == "__main__":
         raise ValueError("No config path specified. Aborting...")
 
     if path.endswith(".yaml"):
-        configs = load_with_inheritance(open(sys.argv[1]))
+        configs = load_with_inheritance(sys.argv[1])
     else:
         raise ValueError("config path point to a .yaml")
 
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     slurm_command = "srun" if INTERACTIVE_DEBUG else "sbatch"
     assert all(
         [
-            grid_args.get("INTERACTIVE_DEBUG") == INTERACTIVE_DEBUG
+            grid_args.get("INTERACTIVE_DEBUG", False) == INTERACTIVE_DEBUG
             for grid_args in configs
         ]
     ), "`interactive_debug` must be the same for all configs"
