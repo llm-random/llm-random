@@ -1,0 +1,33 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "5-05:00:00"
+n_gpus: 0
+cuda_visible: ""
+
+# train params
+params:
+  # model
+  batch_size: 16
+  cutoff: 128
+  project_name: "pmtest/llm-random-tests"
+  name: "baseline_test"
+  mixed_precision: true
+  tags:
+    - "test"
+  use_neptune: true
+  n_steps: 10
+  dmodel: 256
+  dff: 1024
+  n_blocks: 2
+  "^model_type":
+    - "bert"
+  "^ff_mode":
+    - "vanilla"
+  "n_experts": 32
+  logging_interval_heavy: 5
+  logging_interval_loss: 1
+  grad_clip: 0.5
+  lr_decay: 0.8
+  lr_warmup_steps: 0
+  lr_decay_interval: 10000
+
