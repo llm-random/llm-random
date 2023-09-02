@@ -257,7 +257,7 @@ def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
     CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", None)
 
     if NODELIST is not None:
-        NODELIST.append("--nodelist=")
+        NODELIST = "--nodelist=" + NODELIST
 
     setup_args = {}
     for name, param in zip(
