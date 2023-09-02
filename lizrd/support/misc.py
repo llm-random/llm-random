@@ -31,6 +31,12 @@ def generate_random_string(length: int) -> str:
 def load_with_inheritance(
     filepath: str, all_config_paths: set[str] = None, is_parent=False
 ) -> Tuple[List[dict], set[str]]:
+    """
+    Load configs from a yaml file, with inheritance.
+    This means that every config can include a "parent" field, which points to another yaml file.
+    Parent yamls are loaded first, and then the child config is recursively updated with the parent config.
+    Parent yaml can only include one configuration.
+    """
     if all_config_paths is None:
         all_config_paths = set()
     all_config_paths.add(filepath)
