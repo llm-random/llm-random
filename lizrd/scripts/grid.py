@@ -27,7 +27,7 @@ from lizrd.support.code_versioning_support import copy_and_version_code
 from lizrd.support.misc import load_with_inheritance
 
 if __name__ == "__main__":
-    runner = get_machine_backend()
+    CLUSTER_NAME = get_machine_backend()
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
         [str(arg) for arg in args if arg is not None], env=env
     )
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     for config in configs:
         config["params"]["path_to_entry_config"] = sys.argv[1]
-        config["params"]["all_config_paths"] = "<SEP>".join(all_config_paths)
+        config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
     grid = []
     total_no_experiments = 0
@@ -53,30 +53,26 @@ if __name__ == "__main__":
     for i, grid_args in enumerate(configs):
         print(f"\nProcessing config {i}...")
         pprint.pprint(grid_args)
+
+        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", 1)  ######
+        TIME = grid_args.get("time", "1-00:00:00")  ######
+
         RUNNER = grid_args["runner"]
         PARAMS = grid_args["params"]
-        TIME = grid_args.get("time", "1-00:00:00")
         GRES = grid_args.get("gres", "gpu:1")
         DRY_RUN = grid_args.get("dry_run", False)
         SINGULARITY_IMAGE = grid_args.get(
-            "singularity_image", get_sparsity_image(runner)
+            "singularity_image", get_sparsity_image(CLUSTER_NAME)
         )
-        HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", get_cache_path(runner))
-        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", 1)
+        HF_DATASETS_CACHE = grid_args.get(
+            "hf_datasets_cache", get_cache_path(CLUSTER_NAME)
+        )
         NODELIST = grid_args.get("nodelist", None)
         N_GPUS = grid_args.get("n_gpus", 1)
         CPUS_PER_GPU = grid_args.get("cpus_per_gpu", 8)
         CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", None)
 
-        if SINGULARITY_IMAGE is None and runner != MachineBackend.LOCAL:
-            raise ValueError(
-                "Singularity image is not specified (in yaml or env variable)"
-            )
-
-        if NODELIST is not None:
-            NODELIST = "--nodelist=" + NODELIST
-
-        PARAMS["temp_args"] = dict()
+        PARAMS["setup_args"] = dict()
         for name, param in zip(
             [
                 "gres",
@@ -101,7 +97,7 @@ if __name__ == "__main__":
                 SINGULARITY_IMAGE,
             ],
         ):
-            PARAMS["temp_args"][name] = param
+            PARAMS["setup_args"][name] = param
 
         single_exp_grid = create_grid(PARAMS)
         single_exp_grid = multiply_grid(single_exp_grid, RUNS_MULTIPLIER)
@@ -114,22 +110,22 @@ if __name__ == "__main__":
         total_minutes_from_this_grid = no_experiments * minutes_per_exp
         total_minutes += total_minutes_from_this_grid
 
-    if len(grid) > 1 and runner == MachineBackend.LOCAL and not DRY_RUN:
+    if CLUSTER_NAME == MachineBackend.LOCAL and len(grid) > 1:
         raise ValueError(
             f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
         )
 
-    interactive_options = [
+    interactive_options_per_config = [
         grid_args.get("interactive_debug", False) for grid_args in configs
     ]
 
     assert (
-        len(set(interactive_options)) == 1
+            len(set(interactive_options_per_config)) == 1
     ), f"`interactive_debug` must be the same for all configs"
 
-    interactive_debug_session = interactive_options[0]
+    interactive_debug_session = interactive_options_per_config[0]
 
-    if not runner == MachineBackend.LOCAL:
+    if not CLUSTER_NAME == MachineBackend.LOCAL:
         if not interactive_debug_session:
             user_input = input(
                 f"Will run {total_no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
@@ -143,14 +139,12 @@ if __name__ == "__main__":
             print("Aborting...")
             exit(1)
 
-    if not (interactive_debug_session or runner == MachineBackend.LOCAL):
+    if not (interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL):
         exp_name = next(iter(grid))["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        copied_code_path = copy_and_version_code(
-            name_for_branch, name_for_branch, False
-        )
+        copy_and_version_code(name_for_branch, name_for_branch, False)
     else:
         print(
             f"Running in debug mode or locally, skip copying code to a new directory."
@@ -160,21 +154,17 @@ if __name__ == "__main__":
 
     for i, param_set in enumerate(grid):
         name = param_set["name"]
-        for argname in [
-            "n_gpus",
-            "cpus_per_gpu",
-            "cuda_visible",
-            "nodelist",
-            "singularity_image",
-            "hf_datasets_cache",
-        ]:
-            param_set[argname] = param_set["temp_args"][argname]
+        param_set["n_gpus"] = param_set["setup_args"]["n_gpus"]
+        if param_set["setup_args"].get("nodelist", None) is not None:
+            param_set["setup_args"]["nodelist"] = (
+                "--nodelist=" + param_set["setup_args"]["nodelist"]
+            )
 
         env = None
-
         runner_params = []
+
         for k_packed, v_packed in param_set.items():
-            if k_packed == "temp_args":
+            if k_packed == "setup_args":
                 continue
             for k, v in zip(*unpack_params(k_packed, v_packed)):
                 if isinstance(v, bool):
@@ -190,100 +180,95 @@ if __name__ == "__main__":
                     else:
                         runner_params.append(str(v))
 
-        if runner == MachineBackend.ENTROPY:
+        if CLUSTER_NAME == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
                 "--partition=common",
                 "--qos=16gpu7d",
-                f"--gres={param_set['gres']}",
+                f"--gres={param_set['setup_args']['gres']}",
                 f"--job-name={name}",
-                f"--time={param_set['time']}",
-                get_grid_entrypoint(runner),
+                f"--time={param_set['setup_args']['time']}",
+                get_grid_entrypoint(CLUSTER_NAME),
                 "python3",
                 "-m",
-                param_set["runner"],
+                param_set['setup_args']["runner"],
                 *runner_params,
             ]
-        elif runner == MachineBackend.ATHENA:
+        elif CLUSTER_NAME == MachineBackend.ATHENA:
             subprocess_args = [
                 slurm_command,
-                f"--gres=gpu:{param_set['temp_args']['n_gpus']}",
+                f"--gres=gpu:{param_set['setup_args']['n_gpus']}",
                 "--partition=plgrid-gpu-a100",
-                f"--cpus-per-gpu={param_set['temp_args']['cpus_per_gpu']}",
+                f"--cpus-per-gpu={param_set['setup_args']['cpus_per_gpu']}",
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={name}",
-                f"--time={param_set['temp_args']['time']}",
-                get_grid_entrypoint(runner),
+                f"--time={param_set['setup_args']['time']}",
+                get_grid_entrypoint(CLUSTER_NAME),
                 "singularity",
                 "run",
                 "--bind=/net:/net",
                 f"--env",
-                f"HF_DATASETS_CACHE={param_set['hf_datasets_cache']}",
-                f"-B={copied_code_path}:/sparsity,{param_set['hf_datasets_cache']}:{param_set['hf_datasets_cache']}",
+                f"HF_DATASETS_CACHE={param_set['setup_args']['hf_datasets_cache']}",
+                f"-B={os.getcwd()}:/sparsity,{param_set['setup_args']['hf_datasets_cache']}:{param_set['setup_args']['hf_datasets_cache']}",
                 "--nv",
-                param_set["singularity_image"],
+                param_set['setup_args']["singularity_image"],
                 "python3",
                 "-m",
-                param_set["temp_args"]["runner"],
+                param_set['setup_args']['runner'],
                 *runner_params,
             ]
-        elif runner == MachineBackend.IDEAS:
+        elif CLUSTER_NAME == MachineBackend.IDEAS:
             subprocess_args = [
                 slurm_command,
-                f"--gres=gpu:{param_set['temp_args']['n_gpus']}",
-                f"--cpus-per-gpu={param_set['temp_args']['cpus_per_gpu']}",
+                f"--gres=gpu:{param_set['setup_args']['n_gpus']}",
+                f"--cpus-per-gpu={param_set['setup_args']['cpus_per_gpu']}",
                 f"--job-name={name}",
-                f"--time={param_set['temp_args']['time']}",
+                f"--time={param_set['setup_args']['time']}",
                 "--mem=32G",
-                param_set["temp_args"]["nodelist"],
-                get_grid_entrypoint(runner),
+                param_set["setup_args"]["nodelist"],
+                get_grid_entrypoint(CLUSTER_NAME),
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={param_set['hf_datasets_cache']}",
-                f"-B={copied_code_path}:/sparsity,{param_set['hf_datasets_cache']}:{param_set['hf_datasets_cache']}",
+                f"HF_DATASETS_CACHE={param_set['setup_args']['hf_datasets_cache']}",
+                f"-B={os.getcwd()}:/sparsity,{param_set['setup_args']['hf_datasets_cache']}:{param_set['setup_args']['hf_datasets_cache']}",
                 "--nv",
-                param_set["singularity_image"],
+                param_set['setup_args']["singularity_image"],
                 "python3",
                 "-m",
-                param_set["temp_args"]["runner"],
+                param_set['setup_args']['runner'],
                 *runner_params,
             ]
-        elif runner == MachineBackend.ENTROPY_GPU:
-            if param_set["temp_args"]["cuda_visible"] is not None:
+        elif CLUSTER_NAME == MachineBackend.ENTROPY_GPU:
+            if param_set["setup_args"]["cuda_visible"] is not None:
                 env = os.environ.copy()
                 env.update(
-                    {"CUDA_VISIBLE_DEVICES": param_set["temp_args"]["cuda_visible"]}
+                    {"CUDA_VISIBLE_DEVICES": param_set["setup_args"]["cuda_visible"]}
                 )
             subprocess_args = [
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={param_set['hf_datasets_cache']}",
-                f"-B={copied_code_path}:/sparsity,{param_set['hf_datasets_cache']}:{param_set['hf_datasets_cache']}",
+                f"HF_DATASETS_CACHE={param_set['setup_args']['hf_datasets_cache']}",
+                f"-B={os.getcwd()}:/sparsity,{param_set['setup_args']['hf_datasets_cache']}:{param_set['setup_args']['hf_datasets_cache']}",
                 "--nv",
-                param_set["singularity_image"],
+                param_set['setup_args']["singularity_image"],
                 "python3",
                 "-m",
-                param_set["temp_args"]["runner"],
+                param_set['setup_args']['runner'],
                 *runner_params,
             ]
-        elif runner == MachineBackend.LOCAL:
+        elif CLUSTER_NAME == MachineBackend.LOCAL:
             # We run the experiment directly, not through a grid entrypoint script
             # because we want to be able to debug it
-            runner_main_function = get_train_main_function(
-                param_set["temp_args"]["runner"]
-            )
+            runner_main_function = get_train_main_function(CLUSTER_NAME)
             runner_main_function(None, runner_params=runner_params)
             exit(0)
         else:
-            raise ValueError(f"Unknown runner: {runner}")
-
-        if DRY_RUN:
-            print(" ".join(subprocess_args))
-        else:
-            print(f"running experiment {i} from {name}...")
-            PROCESS_CALL_FUNCTION(subprocess_args, env)
-            sleep(5)
+            raise ValueError(f"Unknown cluster name: {CLUSTER_NAME}")
+        print(f"running experiment {i} from {name}...")
+        PROCESS_CALL_FUNCTION(subprocess_args, env)
+        sleep(5)
         if interactive_debug_session:
+            print("Ran only the first experiment in interactive mode. Aborting...")
             break
