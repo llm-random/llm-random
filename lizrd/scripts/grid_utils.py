@@ -232,7 +232,7 @@ def list_to_clean_str(l: List[str]) -> str:
     return " ".join([str(s) for s in l if s is not None])
 
 
-def get_train_main_function(runner: MachineBackend):
+def get_train_main_function(runner: str):
     from research.conditional.train.cc_train import main as cc_train_main
 
     if runner == "research.conditional.train.cc_train":

@@ -120,7 +120,7 @@ if __name__ == "__main__":
     ]
 
     assert (
-            len(set(interactive_options_per_config)) == 1
+        len(set(interactive_options_per_config)) == 1
     ), f"`interactive_debug` must be the same for all configs"
 
     interactive_debug_session = interactive_options_per_config[0]
@@ -191,7 +191,7 @@ if __name__ == "__main__":
                 get_grid_entrypoint(CLUSTER_NAME),
                 "python3",
                 "-m",
-                param_set['setup_args']["runner"],
+                param_set["setup_args"]["runner"],
                 *runner_params,
             ]
         elif CLUSTER_NAME == MachineBackend.ATHENA:
@@ -211,10 +211,10 @@ if __name__ == "__main__":
                 f"HF_DATASETS_CACHE={param_set['setup_args']['hf_datasets_cache']}",
                 f"-B={os.getcwd()}:/sparsity,{param_set['setup_args']['hf_datasets_cache']}:{param_set['setup_args']['hf_datasets_cache']}",
                 "--nv",
-                param_set['setup_args']["singularity_image"],
+                param_set["setup_args"]["singularity_image"],
                 "python3",
                 "-m",
-                param_set['setup_args']['runner'],
+                param_set["setup_args"]["runner"],
                 *runner_params,
             ]
         elif CLUSTER_NAME == MachineBackend.IDEAS:
@@ -233,10 +233,10 @@ if __name__ == "__main__":
                 f"HF_DATASETS_CACHE={param_set['setup_args']['hf_datasets_cache']}",
                 f"-B={os.getcwd()}:/sparsity,{param_set['setup_args']['hf_datasets_cache']}:{param_set['setup_args']['hf_datasets_cache']}",
                 "--nv",
-                param_set['setup_args']["singularity_image"],
+                param_set["setup_args"]["singularity_image"],
                 "python3",
                 "-m",
-                param_set['setup_args']['runner'],
+                param_set["setup_args"]["runner"],
                 *runner_params,
             ]
         elif CLUSTER_NAME == MachineBackend.ENTROPY_GPU:
@@ -252,16 +252,18 @@ if __name__ == "__main__":
                 f"HF_DATASETS_CACHE={param_set['setup_args']['hf_datasets_cache']}",
                 f"-B={os.getcwd()}:/sparsity,{param_set['setup_args']['hf_datasets_cache']}:{param_set['setup_args']['hf_datasets_cache']}",
                 "--nv",
-                param_set['setup_args']["singularity_image"],
+                param_set["setup_args"]["singularity_image"],
                 "python3",
                 "-m",
-                param_set['setup_args']['runner'],
+                param_set["setup_args"]["runner"],
                 *runner_params,
             ]
         elif CLUSTER_NAME == MachineBackend.LOCAL:
             # We run the experiment directly, not through a grid entrypoint script
             # because we want to be able to debug it
-            runner_main_function = get_train_main_function(CLUSTER_NAME)
+            runner_main_function = get_train_main_function(
+                param_set["setup_args"]["runner"]
+            )
             runner_main_function(None, runner_params=runner_params)
             exit(0)
         else:
