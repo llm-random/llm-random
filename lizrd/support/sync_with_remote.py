@@ -63,7 +63,9 @@ def set_up_permissions(host):
         c.run("chmod +x lizrd/scripts/grid_entrypoint_athena.sh")
         print("The permissions for the script have been changed successfully.")
     except Exception as e:
-        raise Exception(f"The permissions change for the script failed. Error: {str(e)}")
+        raise Exception(
+            f"The permissions change for the script failed. Error: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
