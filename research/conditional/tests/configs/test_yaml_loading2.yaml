@@ -1,3 +1,0 @@
-params:
-  n_experts: 32
-  dhead: 210
