@@ -58,10 +58,12 @@ def run_remote_script(host, script):
 
 
 def set_up_permissions(host):
-    c = Connection("host")
     try:
-        c.run("chmod +x lizrd/scripts/grid_entrypoint_athena.sh")
-        print("The permissions for the script have been changed successfully.")
+        with Connection(host) as connection:
+            path = f"{get_base_directory(connection)}/lizrd/scripts/grid_entrypoint_athena.sh"
+            print(f"Changing permissions for {path}...")
+            connection.run(f"chmod +x {path}")
+            print("The permissions for the script have been changed successfully.")
     except Exception as e:
         raise Exception(
             f"The permissions change for the script failed. Error: {str(e)}"
