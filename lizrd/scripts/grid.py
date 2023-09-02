@@ -111,14 +111,12 @@ if __name__ == "__main__":
 
     slurm_command = "srun" if interactive_debug_session else "sbatch"
 
-    for i, (param_set, setup_args) in enumerate(grid):
-        job_name = param_set["name"]
-        param_set["n_gpus"] = setup_args["n_gpus"]
-        if setup_args.get("nodelist", None) is not None:
-            setup_args["nodelist"] = "--nodelist=" + setup_args["nodelist"]
+    for i, (runner_args, setup_args) in enumerate(grid):
+        job_name = runner_args["name"]
+        runner_args["n_gpus"] = setup_args["n_gpus"]
 
         env = None
-        runner_params = translate_to_argparse(param_set)
+        runner_params = translate_to_argparse(runner_args)
 
         if CLUSTER_NAME == MachineBackend.ENTROPY:
             subprocess_args = [
