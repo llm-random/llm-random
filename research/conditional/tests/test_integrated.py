@@ -1,6 +1,5 @@
-from pathlib import Path
-
 from lizrd.support.test_utils import GeneralTestCase
+from pathlib import Path
 import subprocess
 
 
@@ -10,6 +9,7 @@ class TestIntegrated(GeneralTestCase):
         Test if the training loop runs without crashing, using dummy data
         from configs defined in research/conditional/train/configs/test/*.yaml
         """
+
         configs = (Path(__file__).parent.resolve() / "../train/configs/test/").glob(
             "**/*.yaml"
         )

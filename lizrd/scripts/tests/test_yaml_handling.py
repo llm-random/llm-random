@@ -7,13 +7,13 @@ class TestYaml(GeneralTestCase):
         """
         Test if the yaml config with multiple configs and inheritance is loaded correctly
         """
-        path_to_yaml = "lizrd/scripts/tests/configs/test_yaml_loading.yaml"
+        path_to_yaml = "lizrd/scripts/tests/configs/test_inheritance.yaml"
         configs, paths = load_with_inheritance(path_to_yaml)
         configs = list(configs)
         assert paths == {
-            "lizrd/scripts/tests/configs/test_yaml_loading.yaml",
-            "lizrd/scripts/tests/configs/test_yaml_loading2.yaml",
-            "lizrd/scripts/tests/configs/test_yaml_loading3.yaml",
+            "lizrd/scripts/tests/configs/test_inheritance.yaml",
+            "lizrd/scripts/tests/configs/2.yaml",
+            "lizrd/scripts/tests/configs/3.yaml",
         }
         for config in configs:
             print(config)
