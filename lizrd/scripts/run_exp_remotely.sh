@@ -12,10 +12,13 @@ python3 -m lizrd.support.sync_with_remote --host $1
 base_dir=$(cat base_dir.txt)
 rm base_dir.txt
 
+
+
 run_grid_remotely() {
   host=$1
   config=$2
-  session_name="mysession"
+  session_name=$(date "+%Y_%m_%d_%H_%M_%S")
+
 
   script="cd $base_dir && tmux new-session -d -s $session_name bash"
   script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid $config' C-m"

@@ -14,6 +14,7 @@ def introduce_parser_arguments(
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
+    parser.add_argument("--path_to_config", type=str, default=None)
 
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--model_type", type=str, choices=["gpt", "bert"])

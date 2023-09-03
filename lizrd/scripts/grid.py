@@ -5,7 +5,6 @@ Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
 import datetime
-import json
 import os
 import subprocess
 import sys
@@ -63,31 +62,32 @@ if __name__ == "__main__":
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
         [str(arg) for arg in args if arg is not None], env=env
     )
-    AUXILIARY_PROCESS_CALL_FUNCTION = None
 
-    if len(sys.argv) > 1:
+    try:
         path = sys.argv[1]
-        if path.endswith(".json"):
-            grid_args = json.load(open(sys.argv[1]))
-        elif path.endswith(".yaml"):
-            grid_args = yaml.safe_load(open(sys.argv[1]))
-        else:
-            raise ValueError("grid path must be .json or .yaml")
+    except IndexError:
+        raise ValueError("config path must be specified as the first argument")
 
-        RUNNER = grid_args.get("runner", RUNNER)
-        PARAMS = grid_args.get("params", PARAMS)
-        TIME = grid_args.get("time", TIME)
-        GRES = grid_args.get("gres", GRES)
-        DRY_RUN = grid_args.get("dry_run", DRY_RUN)
-        SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
-        HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", HF_DATASETS_CACHE)
-        RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
-        INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
-        PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
-        NODELIST = grid_args.get("nodelist", NODELIST)
-        N_GPUS = grid_args.get("n_gpus", N_GPUS)
-        CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
-        CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
+    if path.endswith(".yaml"):
+        grid_args = yaml.safe_load(open(sys.argv[1]))
+    else:
+        raise ValueError("config path point to a .yaml")
+    grid_args["params"]["path_to_config"] = sys.argv[1]
+
+    RUNNER = grid_args.get("runner", RUNNER)
+    PARAMS = grid_args.get("params", PARAMS)
+    TIME = grid_args.get("time", TIME)
+    GRES = grid_args.get("gres", GRES)
+    DRY_RUN = grid_args.get("dry_run", DRY_RUN)
+    SINGULARITY_IMAGE = grid_args.get("singularity_image", SINGULARITY_IMAGE)
+    HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", HF_DATASETS_CACHE)
+    RUNS_MULTIPLIER = grid_args.get("runs_multiplier", RUNS_MULTIPLIER)
+    INTERACTIVE_DEBUG = grid_args.get("interactive_debug", INTERACTIVE_DEBUG)
+    PUSH_TO_GIT = grid_args.get("push_to_git", PUSH_TO_GIT)
+    NODELIST = grid_args.get("nodelist", NODELIST)
+    N_GPUS = grid_args.get("n_gpus", N_GPUS)
+    CPUS_PER_GPU = grid_args.get("cpus_per_gpu", CPUS_PER_GPU)
+    CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", CUDA_VISIBLE_DEVICES)
 
     if SINGULARITY_IMAGE is None and runner != MachineBackend.LOCAL:
         raise ValueError("Singularity image is not specified (in JSON or env variable)")
