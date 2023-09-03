@@ -45,21 +45,6 @@ class CodeVersioningDaemon:
             self.repo.git.checkout(b=self.name_for_branch)
             self.revert_status = 2
 
-            self.repo.git.checkout("main")
-            self.revert_status = 3
-
-            self.repo.git.pull()
-            self.revert_status = 4
-
-            self.repo.git.checkout(self.name_for_branch)
-            self.revert_status = 5
-
-            self.repo.git.merge("main")
-            self.revert_status = 6
-
-            self.unstash_if_necessary()
-            self.revert_status = 7
-
             self.repo.git.add(u=True)
             # check if there are any changes to commit
             if len(self.repo.index.diff("HEAD")) > 0:
@@ -86,14 +71,7 @@ class CodeVersioningDaemon:
         elif self.revert_status == 1:
             self.unstash_if_necessary()
         else:
-            if self.revert_status == 4:
-                self.repo.git.checkout("main", "-f")
-                self.repo.git.reset("--hard", "HEAD")
-            elif self.revert_status == 6:
-                print(
-                    f"[CHANGES NEEDED AT USER'S SIDE] Merging of latest main branch into current branch failed. Please merge manually and try again."
-                )
-            elif self.revert_status == 7.5:
+            if self.revert_status == 7.5:
                 self.repo.git.reset("--hard", "HEAD~1")
             self.clean_up_new_branch()
             self.reset_to_original_branch_and_commit()
