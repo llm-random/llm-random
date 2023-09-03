@@ -5,7 +5,7 @@ from git import Repo
 from lizrd.support.code_versioning_support import find_git_root
 
 
-def go_to_llm_random():
+def cd_to_root_dir():
     git_root = find_git_root()
     repo = Repo(git_root)
     assert repo.remotes.origin.url in [
@@ -77,12 +77,12 @@ if __name__ == "__main__":
     # create parser
     args = parser.parse_args()
 
-    go_to_llm_random()
-    working_dir = os.getcwd()
-    base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
-    _ = rsync_to_remote(args.host, working_dir + "/research")
-    _ = rsync_to_remote(args.host, working_dir + "/.versioningignore")
+    cd_to_root_dir()
+    root_dir = os.getcwd()
+    base_dir = rsync_to_remote(args.host, root_dir + "/lizrd")
+    _ = rsync_to_remote(args.host, root_dir + "/research")
+    _ = rsync_to_remote(args.host, root_dir + "/.versioningignore")
     set_up_permissions(args.host)
-    # WRITE base_dir to temp file
+    # WRITE root_dir to temp file for run_exp_remotely.sh
     with open("base_dir.txt", "w") as f:
         f.write(base_dir)
