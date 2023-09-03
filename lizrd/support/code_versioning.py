@@ -21,7 +21,11 @@ class CodeVersioningDaemon:
 
     def version_code(self):
         """
-        Versions the code by stashing uncommited changes, creating a branch copy that is up to date with main, unstashing them and pushing it to a remote repo.
+        Versions the code by stashing uncommited changes, creating a branch copy, unstashing there, committing, and pushing to a remote repo.
+        Returns to the original branch, leaving the code in the same state as before versioning.
+        Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
+        If not met, the user needs to set up ssh keys.
+
         """
         try:
             # Record current branch
@@ -115,7 +119,7 @@ class CodeVersioningDaemon:
                 except GitCommandError as e:
                     # Error encountered while resolving conflicts in favor of stash.
                     raise GitCommandError(
-                        "Unstashing changes on rebased branch failed; conflicts occurred. Could not resolve them automatically."
+                        "Unstashing changes on failed; conflicts occurred. Could not resolve them automatically."
                     )
 
     def find_stash_by_message(self, stash_message):
@@ -133,11 +137,6 @@ def version_code(
     remote_name="cemetery",
     remote_url="git@github.com:Simontwice/llm-random-cemetery.git",
 ):
-    """
-    Stashes the current code, adds all changes, commits them, pushes them to a remote repo, and returns to the original branch.
-    Prerequisite: the user needs to be able to push to the remote repo from the command line without entering a password.
-    If not met, the user needs to set up ssh keys.
-    """
     # Create versioning daemon
     version_daemon = CodeVersioningDaemon(remote_name, remote_url, name_for_branch)
     # Version code
