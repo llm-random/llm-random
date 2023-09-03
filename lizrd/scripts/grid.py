@@ -55,9 +55,8 @@ if __name__ == "__main__":
 
     interactive_debug_session = interactive_options_per_config[0]
 
-    grid = (
-        []
-    )  # list of pairs: a dictionary of training_args and a dictionary of setup_args
+    # list of pairs: a dictionary of training_args and a dictionary of setup_args
+    grid = []
     total_no_experiments = 0
     total_minutes = 0
 
@@ -111,12 +110,12 @@ if __name__ == "__main__":
 
     slurm_command = "srun" if interactive_debug_session else "sbatch"
 
-    for i, (runner_args, setup_args) in enumerate(grid):
-        job_name = runner_args["name"]
-        runner_args["n_gpus"] = setup_args["n_gpus"]
+    for i, (training_args, setup_args) in enumerate(grid):
+        job_name = training_args["name"]
+        training_args["n_gpus"] = setup_args["n_gpus"]
 
         env = None
-        runner_params = translate_to_argparse(runner_args)
+        runner_params = translate_to_argparse(training_args)
 
         if CLUSTER_NAME == MachineBackend.ENTROPY:
             subprocess_args = [
