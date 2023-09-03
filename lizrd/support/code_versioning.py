@@ -38,28 +38,20 @@ class CodeVersioningDaemon:
                 )
 
             self.check_if_cemetery_exists()
-
             self.stash_if_necessary()
             self.revert_status = 1
-
             self.repo.git.checkout(b=self.name_for_branch)
-            self.revert_status = 2
-
             self.repo.git.add(u=True)
             # check if there are any changes to commit
             if len(self.repo.index.diff("HEAD")) > 0:
                 self.repo.git.commit(m="Versioning code", no_verify=True)
-                self.revert_status = 7.5
-
             self.repo.git.push(self.remote_name, self.name_for_branch)
-            self.revert_status = 8
-
             self.repo.git.checkout(self.original_branch)
-            self.revert_status = 9
-
             self.unstash_if_necessary()
             self.repo.git.branch("-D", self.name_for_branch)
-            print(f"Code versioned successfully to branch {self.name_for_branch}")
+            print(
+                f"Code versioned successfully to branch {self.name_for_branch}.\nState of the code is the same as before versioning."
+            )
 
         except GitCommandError:
             self.handle_failure()
@@ -71,8 +63,6 @@ class CodeVersioningDaemon:
         elif self.revert_status == 1:
             self.unstash_if_necessary()
         else:
-            if self.revert_status == 7.5:
-                self.repo.git.reset("--hard", "HEAD~1")
             self.clean_up_new_branch()
             self.reset_to_original_branch_and_commit()
         raise Exception("Failed to version code. Aborting...")
@@ -84,7 +74,9 @@ class CodeVersioningDaemon:
     def reset_to_original_branch_and_commit(self):
         self.repo.git.checkout(self.original_branch, "-f")
         self.repo.head.reset(
-            self.original_branch_commit_hash, index=True, working_tree=True
+            self.original_branch_commit_hash,
+            index=True,
+            working_tree=True,
         )
         self.unstash_if_necessary()
 
