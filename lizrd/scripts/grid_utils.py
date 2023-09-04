@@ -259,34 +259,18 @@ def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
     if NODELIST is not None:
         NODELIST = "--nodelist=" + NODELIST
 
-    setup_args = {}
-    for name, param in zip(
-        [
-            "gres",
-            "time",
-            "n_gpus",
-            "runner",
-            "cpus_per_gpu",
-            "nodelist",
-            "cuda_visible",
-            "hf_datasets_cache",
-            "singularity_image",
-            "runs_multiplier",
-        ],
-        [
-            GRES,
-            TIME,
-            N_GPUS,
-            RUNNER,
-            CPUS_PER_GPU,
-            NODELIST,
-            CUDA_VISIBLE_DEVICES,
-            HF_DATASETS_CACHE,
-            SINGULARITY_IMAGE,
-            RUNS_MULTIPLIER,
-        ],
-    ):
-        setup_args[name] = param
+    setup_args = {
+        "gres": GRES,
+        "time": TIME,
+        "n_gpus": N_GPUS,
+        "runner": RUNNER,
+        "cpus_per_gpu": CPUS_PER_GPU,
+        "nodelist": NODELIST,
+        "cuda_visible": CUDA_VISIBLE_DEVICES,
+        "hf_datasets_cache": HF_DATASETS_CACHE,
+        "singularity_image": SINGULARITY_IMAGE,
+        "runs_multiplier": RUNS_MULTIPLIER,
+    }
     return setup_args
 
 

@@ -25,6 +25,7 @@ from lizrd.scripts.grid_utils import (
 from lizrd.support.code_versioning_support import copy_and_version_code
 from lizrd.support.misc import load_with_inheritance
 
+
 if __name__ == "__main__":
     CLUSTER_NAME = get_machine_backend()
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
@@ -57,25 +58,25 @@ if __name__ == "__main__":
 
     # list of pairs: a dictionary of training_args and a dictionary of setup_args
     grid = []
-    total_no_experiments = 0
+    total_n_experiments = 0
     total_minutes = 0
 
-    for i, grid_args in enumerate(configs):
+    for i, config in enumerate(configs):
         print(f"\nProcessing config {i}...")
-        pprint.pprint(grid_args)
-        single_exp_training_args_grid = create_grid(grid_args["params"])
+        pprint.pprint(config)
+        single_exp_training_args_grid = create_grid(config["params"])
 
-        setup_args = get_setup_args_with_defaults(grid_args, CLUSTER_NAME)
+        setup_args = get_setup_args_with_defaults(config, CLUSTER_NAME)
         single_exp_training_args_grid = multiply_grid(
             single_exp_training_args_grid, setup_args["runs_multiplier"]
         )
-        no_experiments = len(single_exp_training_args_grid)
+        n_experiments = len(single_exp_training_args_grid)
 
-        grid += list(zip(single_exp_training_args_grid, [setup_args] * no_experiments))
+        grid += list(zip(single_exp_training_args_grid, [setup_args] * n_experiments))
 
-        total_no_experiments += no_experiments
+        total_n_experiments += n_experiments
         minutes_per_exp = timestr_to_minutes(setup_args["time"])
-        total_minutes_from_this_grid = no_experiments * minutes_per_exp
+        total_minutes_from_this_grid = n_experiments * minutes_per_exp
         total_minutes += total_minutes_from_this_grid
 
     if CLUSTER_NAME == MachineBackend.LOCAL and len(grid) > 1:
@@ -86,7 +87,7 @@ if __name__ == "__main__":
     if not CLUSTER_NAME == MachineBackend.LOCAL:
         if not interactive_debug_session:
             user_input = input(
-                f"Will run {total_no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
+                f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
                 f"Continue? [Y/n]"
             )
         else:
@@ -98,7 +99,8 @@ if __name__ == "__main__":
             exit(1)
 
     if not (interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL):
-        exp_name = grid[0][0]["name"]
+        first_exp_training_args, _ = grid[0]
+        exp_name = first_exp_training_args["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )

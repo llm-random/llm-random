@@ -61,8 +61,8 @@ def load_with_inheritance(
 
 def recursive_update(base_dict, update_dict):
     for key, value in base_dict.items():
-        if key not in update_dict:
-            update_dict[key] = value
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             update_dict[key] = recursive_update(value, update_dict.get(key, {}))
+        elif key not in update_dict:
+            update_dict[key] = value
     return update_dict
