@@ -4,18 +4,6 @@ import argparse
 def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
-    # Logging parameters
-    parser.add_argument("--use_clearml", action="store_true")
-    parser.add_argument("--use_neptune", action="store_true")
-    parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
-    parser.add_argument("--name", type=str, default="")
-    parser.add_argument("--tags", nargs="*", type=str, default=None)
-    parser.add_argument("--logging_interval_light", type=int, default=1000000)
-    parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
-    parser.add_argument("--logging_interval_loss", type=int, default=1000)
-    parser.add_argument("--log_gradients_and_weights", action="store_true")
-    parser.add_argument("--path_to_config", type=str, default=None)
-
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--model_type", type=str, choices=["gpt", "bert"])
     parser.add_argument("--ff_mode", type=str, default="vanilla")
@@ -48,8 +36,16 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
 
-    # hardware
-    parser.add_argument("--n_gpus", type=int, default=1)
+    # CORE data hyperparameters, almost always specified in baseline configs
+
+    parser.add_argument(
+        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
+    )
+    parser.add_argument("--batch_size", type=int, required=True)
+    parser.add_argument("--cutoff", type=int, required=True)
+
+    # other data hyperparameters
+    parser.add_argument("--num_workers", type=int, default=8)
 
     # training tricks for memory and speed
     parser.add_argument("--gradient_checkpointing", action="store_true")
@@ -65,17 +61,6 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--detect_anomaly", action="store_true")
 
-    # CORE data hyperparameters, almost always specified in baseline configs
-
-    parser.add_argument(
-        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
-    )
-    parser.add_argument("--batch_size", type=int, required=True)
-    parser.add_argument("--cutoff", type=int, required=True)
-
-    # other data hyperparameters
-    parser.add_argument("--num_workers", type=int, default=8)
-
     # other parameters usually not changed for experiments
 
     parser.add_argument("--mask_loss_weight", type=float, default=1.0)
@@ -83,20 +68,26 @@ def introduce_parser_arguments(
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
 
+    # hardware
+    parser.add_argument("--n_gpus", type=int, default=1)
+
+    # Logging parameters
+    parser.add_argument("--use_clearml", action="store_true")
+    parser.add_argument("--use_neptune", action="store_true")
+    parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
+    parser.add_argument("--name", type=str, default="")
+    parser.add_argument("--tags", nargs="*", type=str, default=None)
+    parser.add_argument("--logging_interval_light", type=int, default=1000000)
+    parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
+    parser.add_argument("--logging_interval_loss", type=int, default=1000)
+    parser.add_argument("--log_gradients_and_weights", action="store_true")
+    parser.add_argument("--path_to_config", type=str, default=None)
+
     # model versioning
 
     parser.add_argument("--save_weights_path", type=str, default=None)
     parser.add_argument("--save_weights_interval", type=int, default=1000)
     parser.add_argument("--load_weights_path", type=str, default=None)
-
-    # parameters usually changed for experiments
-
-    parser.add_argument(
-        "--load_balancing_loss_weight",
-        type=float,
-        default=0.01,
-        help="Whether to use auxiliary loss in loss calculations",
-    )
 
     # paremeters for specific experiments
     ## used often by Continuous MoE
@@ -110,8 +101,14 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
 
-    ## used by all MoE
+    ## used by MoE (some specific, some common)
 
+    parser.add_argument(
+        "--load_balancing_loss_weight",
+        type=float,
+        default=0.01,
+        help="Whether to use auxiliary loss in loss calculations",
+    )
     parser.add_argument("--topk_fraction", type=float, required=False)
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument(
