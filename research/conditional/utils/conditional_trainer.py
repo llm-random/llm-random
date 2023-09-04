@@ -141,6 +141,7 @@ class ConditionalTrainer:
 
             if (
                 self.model_type == "gpt"
+                and self.decoding_logging_steps > 0
                 and step % self.decoding_logging_steps == 0
                 and self.is_process_logging
             ):
