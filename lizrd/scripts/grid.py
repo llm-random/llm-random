@@ -57,7 +57,7 @@ if __name__ == "__main__":
     single_exp_training_args_grid = multiply_grid(
         single_exp_training_args_grid, setup_args["runs_multiplier"]
     )
-    no_experiments = len(single_exp_training_args_grid)
+    n_experiments = len(single_exp_training_args_grid)
 
     grid += list(zip(single_exp_training_args_grid, [setup_args] * no_experiments))
 
