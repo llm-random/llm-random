@@ -1,5 +1,5 @@
 runner: "research.conditional.train.cc_train"
-time: "0-02:00:00"
+time: "2-00:00:00"
 n_gpus: 1
 interactive_debug: true
 
@@ -16,7 +16,7 @@ params:
   batch_size: 256
   loss_checkpoint_chungs: 64
 
-  n_steps: 150000
+  n_steps: 500000
   grad_clip: 0.5
   learning_rate: 0.0001
   lr_decay: 0.9999777
@@ -30,10 +30,10 @@ params:
 
   use_neptune: true
   project_name: "pmtest/llm-random"
-  name: "gpt_medium_baseline"
+  name: "gpt_small_dense_baseline"
   mixed_precision: true
   tags:
     - "gpt"
-    - "baseline"
-    - "medium"
+    - "dense_baseline"
+    - "small"
 
