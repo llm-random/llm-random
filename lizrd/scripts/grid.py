@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # list of pairs: a dictionary of training_args and a dictionary of setup_args
     grid = []
-    total_no_experiments = 0
+    total_n_experiments = 0
     total_minutes = 0
 
     pprint.pprint(config)
@@ -59,11 +59,11 @@ if __name__ == "__main__":
     )
     n_experiments = len(single_exp_training_args_grid)
 
-    grid += list(zip(single_exp_training_args_grid, [setup_args] * no_experiments))
+    grid += list(zip(single_exp_training_args_grid, [setup_args] * n_experiments))
 
-    total_no_experiments += no_experiments
+    total_n_experiments += n_experiments
     minutes_per_exp = timestr_to_minutes(setup_args["time"])
-    total_minutes_from_this_grid = no_experiments * minutes_per_exp
+    total_minutes_from_this_grid = n_experiments * minutes_per_exp
     total_minutes += total_minutes_from_this_grid
 
     if CLUSTER_NAME == MachineBackend.LOCAL and len(grid) > 1:
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     if not CLUSTER_NAME == MachineBackend.LOCAL:
         if not interactive_debug_session:
             user_input = input(
-                f"Will run {total_no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
+                f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
                 f"Continue? [Y/n]"
             )
         else:
