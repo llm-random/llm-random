@@ -72,10 +72,8 @@ class WikiBookDataset(AbstractDataset):
         return document["text"]
 
     def _get_random_wiki_example(self) -> str:
-        # TODO: What N should we use
-        N = 1
-        rnd = self.py_rng.randint(0, len(self.dataset_wiki) - 1 - N)
-        document = self.dataset_wiki[rnd : rnd + N]
+        rnd = self.py_rng.randint(0, len(self.dataset_wiki) - 1)
+        document = self.dataset_wiki[rnd:rnd]
         return document["text"]
 
 

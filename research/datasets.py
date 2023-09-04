@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Literal
 
 import torch
@@ -13,6 +14,14 @@ class DataloaderWrapper:
 
     def get_batch(self) -> data.LLMBatch:
         return next(self.generator).to(self.device)
+
+
+def worker_init_fn(seed, worker_id):
+    worker_info = torch.utils.data.get_worker_info()
+    packer: packers.AbstractPacker = (
+        worker_info.dataset
+    )  # the dataset copy in this worker process
+    packer.set_rng(seed + worker_id)
 
 
 def get_processed_dataset(
@@ -60,7 +69,7 @@ def get_processed_dataset(
         num_workers=num_workers,
         batch_size=batch_size,
         collate_fn=data.LLMBatch,
-        worker_init_fn=lambda worker_id: packer.set_rng(seed + worker_id),
+        worker_init_fn=partial(worker_init_fn, seed),
         shuffle=False,
         pin_memory=True,
     )
