@@ -41,7 +41,7 @@ if __name__ == "__main__":
     else:
         raise ValueError("config path point to a .yaml")
 
-    config["params"]["path_to_config"] = sys.argv[1]
+    config["params"]["path_to_config"] = path
 
     interactive_debug_session = config.get("interactive_debug", False)
 
