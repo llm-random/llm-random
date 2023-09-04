@@ -28,10 +28,12 @@ class ConditionalTrainer:
     mixed_precision: bool
     logger: Optional[AbstractLogger]
     model_type: Literal["bert", "gpt"]
+    dataset_type: Literal["wikibook", "c4"]
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
     max_sequence_length: int
+    batch_size: int
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -283,10 +285,8 @@ class ConditionalTrainer:
             self.logger.report_scalar(
                 title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step
             )
-        # TODO: Fix this if
-        if False:
-            if self.train_dataloader.dataset_type == "c4":
-                self._log_fraction_dataset_processed(step)
+        if self.dataset_type == "c4":
+            self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
             if name == "legacy_bert_bugged_loss":
                 bert_legacy_loss = (
@@ -330,17 +330,13 @@ class ConditionalTrainer:
             self.logger.report_scalar(title=k, value=v, iteration=step)
 
     def _log_fraction_dataset_processed(self, step):
-        # TODO: Fix this function
-        if False:
-            batch_size = self.train_dataloader.batch_size
-            seq_len = self.train_dataloader.sequence_length
-            processed = step * batch_size * seq_len
-            total = C4Dataset.total_gpt2_tokens
-            self.logger.report_scalar(
-                title="Fraction of dataset that is processed (assumuing no DDP)",
-                value=processed / total,
-                iteration=step,
-            )
+        processed = step * self.batch_size * self.max_sequence_length
+        total = C4Dataset.total_gpt2_tokens
+        self.logger.report_scalar(
+            title="Fraction of dataset that is processed (assumuing no DDP)",
+            value=processed / total,
+            iteration=step,
+        )
 
     def _log_accuracy(self, aux_info, step):
         self.correct_tokens_accumulator += aux_info["correct_tokens"]

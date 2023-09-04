@@ -9,7 +9,7 @@ def introduce_parser_arguments(
     parser.add_argument("--use_clearml", action="store_true")
     parser.add_argument("--use_neptune", action="store_true")
     parser.add_argument("--batch_size", type=int, default=600)
-    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--num_workers", type=int, default=16)
     parser.add_argument("--cutoff", type=int, default=128)
     parser.add_argument("--dmodel", type=int, default=768)
     parser.add_argument("--dff", type=int, default=3072)

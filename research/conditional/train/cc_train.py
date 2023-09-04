@@ -142,13 +142,13 @@ def main(
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
 
-    # if args.model_type == "gpt" and (rank is None or rank == 0):
-    #     log_batch(
-    #         train_dataloader,
-    #         tokenizer_maker=tokenizers.GPTTokenizer
-    #         if args.model_type == "gpt"
-    #         else tokenizers.BertTokenizer,
-    #     )
+    if args.model_type == "gpt" and (rank is None or rank == 0):
+        log_batch(
+            train_dataloader,
+            tokenizer_maker=tokenizers.GPTTokenizer
+            if args.model_type == "gpt"
+            else tokenizers.BertTokenizer,
+        )
 
     trainer = ConditionalTrainer(
         model=model,
@@ -158,6 +158,8 @@ def main(
         mask_percent=args.mask_percent,
         mixed_precision=args.mixed_precision,
         logger=logger,
+        dataset_type=args.dataset_type,
+        batch_size=args.batch_size,
         hack_name=args.hack_name,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,

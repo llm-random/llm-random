@@ -9,7 +9,9 @@ from attr import dataclass
 class LLMExample(object):
     input_ids: List[int]
     target_ids: List[int]
-    should_calculate_loss: List[int]
+    should_calculate_loss: List[
+        int
+    ]  # e.g. in BERT loss is not calculated over non-masked tokens
 
 
 class LLMBatch:
