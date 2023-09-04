@@ -22,8 +22,9 @@ from lizrd.scripts.grid_utils import (
     get_setup_args_with_defaults,
     translate_to_argparse,
 )
-from lizrd.support.code_versioning_support import copy_and_version_code
 from lizrd.support.misc import load_with_inheritance
+from lizrd.support.code_copying import copy_code
+
 
 if __name__ == "__main__":
     CLUSTER_NAME = get_machine_backend()
@@ -99,10 +100,10 @@ if __name__ == "__main__":
 
     if not (interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL):
         exp_name = grid[0][0]["name"]
-        name_for_branch = (
+        newdir_name = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
-        copy_and_version_code(name_for_branch, name_for_branch, False)
+        copy_code(newdir_name)
     else:
         print(
             f"Running in debug mode or locally, skip copying code to a new directory."
