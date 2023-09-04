@@ -9,9 +9,8 @@ import os
 import pprint
 import subprocess
 import sys
-from time import sleep
-
 import yaml
+from time import sleep
 
 from lizrd.scripts.grid_utils import (
     create_grid,
@@ -89,6 +88,8 @@ if __name__ == "__main__":
             user_input = input(
                 f"Will run {total_no_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
                 f"Continue? [Y/n]"
+                f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
+                f"Continue? [Y/n]"
             )
         else:
             user_input = input(
@@ -99,7 +100,8 @@ if __name__ == "__main__":
             exit(1)
 
     if not (interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL):
-        exp_name = grid[0][0]["name"]
+        first_exp_training_args, _ = grid[0]
+        exp_name = first_exp_training_args["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )

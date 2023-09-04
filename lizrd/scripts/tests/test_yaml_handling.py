@@ -7,7 +7,7 @@ class TestYaml(GeneralTestCase):
         """
         Test if the yaml config with multiple configs and inheritance is loaded correctly
         """
-        path_to_yaml = "lizrd/scripts/tests/configs/test_yaml_loading.yaml"
+        path_to_yaml = "lizrd/scripts/tests/configs/multiple_yamls.yaml"
         configs = yaml.safe_load_all(open(path_to_yaml))
         configs = list(configs)
         for config in configs:
