@@ -88,8 +88,6 @@ if __name__ == "__main__":
             user_input = input(
                 f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
                 f"Continue? [Y/n]"
-                f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
-                f"Continue? [Y/n]"
             )
         else:
             user_input = input(
