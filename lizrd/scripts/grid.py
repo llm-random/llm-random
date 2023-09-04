@@ -43,7 +43,7 @@ if __name__ == "__main__":
         raise ValueError("config path point to a .yaml")
 
     for config in configs:
-        config["params"]["path_to_config"] = sys.argv[1]
+        config["params"]["path_to_config"] = path
 
     interactive_options_per_config = [
         config.get("interactive_debug", False) for config in configs
@@ -60,12 +60,12 @@ if __name__ == "__main__":
     total_n_experiments = 0
     total_minutes = 0
 
-    for i, configs in enumerate(configs):
+    for i, config in enumerate(configs):
         print(f"\nProcessing config {i}...")
-        pprint.pprint(configs)
-        single_exp_training_args_grid = create_grid(configs["params"])
+        pprint.pprint(config)
+        single_exp_training_args_grid = create_grid(config["params"])
 
-        setup_args = get_setup_args_with_defaults(configs, CLUSTER_NAME)
+        setup_args = get_setup_args_with_defaults(config, CLUSTER_NAME)
         single_exp_training_args_grid = multiply_grid(
             single_exp_training_args_grid, setup_args["runs_multiplier"]
         )
