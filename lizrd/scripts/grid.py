@@ -37,34 +37,46 @@ if __name__ == "__main__":
         raise ValueError("No config path specified. Aborting...")
 
     if path.endswith(".yaml"):
-        config = yaml.safe_load(open(path))
+        with open(path) as f:
+            configs = list(yaml.safe_load_all(f))
     else:
         raise ValueError("config path point to a .yaml")
 
-    config["params"]["path_to_config"] = path
+    for config in configs:
+        config["params"]["path_to_config"] = path
 
-    interactive_debug_session = config.get("interactive_debug", False)
+    interactive_options_per_config = [
+        config.get("interactive_debug", False) for config in configs
+    ]
+
+    assert (
+        len(set(interactive_options_per_config)) == 1
+    ), f"`interactive_debug` must be the same for all configs"
+
+    interactive_debug_session = interactive_options_per_config[0]
 
     # list of pairs: a dictionary of training_args and a dictionary of setup_args
     grid = []
     total_n_experiments = 0
     total_minutes = 0
 
-    pprint.pprint(config)
-    single_exp_training_args_grid = create_grid(config["params"])
+    for i, config in enumerate(configs):
+        print(f"\nProcessing config {i}...")
+        pprint.pprint(config)
+        single_exp_training_args_grid = create_grid(config["params"])
 
-    setup_args = get_setup_args_with_defaults(config, CLUSTER_NAME)
-    single_exp_training_args_grid = multiply_grid(
-        single_exp_training_args_grid, setup_args["runs_multiplier"]
-    )
-    n_experiments = len(single_exp_training_args_grid)
+        setup_args = get_setup_args_with_defaults(config, CLUSTER_NAME)
+        single_exp_training_args_grid = multiply_grid(
+            single_exp_training_args_grid, setup_args["runs_multiplier"]
+        )
+        n_experiments = len(single_exp_training_args_grid)
 
-    grid += list(zip(single_exp_training_args_grid, [setup_args] * n_experiments))
+        grid += list(zip(single_exp_training_args_grid, [setup_args] * n_experiments))
 
-    total_n_experiments += n_experiments
-    minutes_per_exp = timestr_to_minutes(setup_args["time"])
-    total_minutes_from_this_grid = n_experiments * minutes_per_exp
-    total_minutes += total_minutes_from_this_grid
+        total_n_experiments += n_experiments
+        minutes_per_exp = timestr_to_minutes(setup_args["time"])
+        total_minutes_from_this_grid = n_experiments * minutes_per_exp
+        total_minutes += total_minutes_from_this_grid
 
     if CLUSTER_NAME == MachineBackend.LOCAL and len(grid) > 1:
         raise ValueError(
