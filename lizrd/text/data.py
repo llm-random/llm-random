@@ -26,7 +26,7 @@ class LLMBatch:
         assert self.input_ids.shape == self.should_calculate_loss.shape
 
     def pin_memory(self):
-        """Pin memroy for faster transfer to GPU as described in https://pytorch.org/docs/stable/data.html#memory-pinning"""
+        """Pin memory for faster transfer to GPU as described in https://pytorch.org/docs/stable/data.html#memory-pinning"""
         self.input_ids = self.input_ids.pin_memory()
         self.target_ids = self.target_ids.pin_memory()
         self.should_calculate_loss = self.should_calculate_loss.pin_memory()
