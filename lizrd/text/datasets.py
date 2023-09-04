@@ -80,11 +80,11 @@ class WikiBookDataset(AbstractDataset):
 
 
 class C4Dataset(AbstractDataset):
-    total_gpt2_tokens = 173_648_052_806  # number of tokens in the C4 dataset when using GPT2TokenizerFast TODO: Check this statement
+    total_gpt2_tokens = 173_648_052_806  # number of tokens in the C4 dataset when using GPT2TokenizerFast
 
     def __init__(self, seed: Optional[int] = None, split: str = "train"):
         super().__init__(seed=seed)
         self.dataset = load_dataset("c4", "en", split=split)
 
     def get_document(self) -> str:
-        return self.dataset["train"][self.py_rng.randint(0, len(self.dataset) - 1)]
+        return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]
