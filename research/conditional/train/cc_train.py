@@ -1,14 +1,13 @@
 import argparse
 import os
 import random
-from typing import Optional
+from typing import Callable, Optional
 import socket
 
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
-from transformers import GPT2Tokenizer
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
@@ -16,7 +15,7 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
-from research.datasets import get_processed_dataset
+from research.datasets import DataloaderWrapper, get_processed_dataset
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.misc_tools import set_seed
@@ -27,28 +26,29 @@ from research.conditional.utils.model_utils import (
 )
 
 
-def log_batch(dataset_wrapper):
+def log_batch(
+    wrapper: DataloaderWrapper,
+    tokenizer_maker: Callable[[], tokenizers.AbstractTokenizer],
+):
     # In case of GPT, log an example sequence for a possible inspection
 
     print("Logging example batch...")
-    batch = dataset_wrapper.get_batch()
+    batch = wrapper.get_batch()
+    hf_tokenizer = tokenizer_maker().tokenizer
 
-    t = GPT2Tokenizer.from_pretrained(
-        "gpt2", additional_special_tokens=["<sequence_sep>"]
-    )
     num_to_log = 5
-    for i in range(min(num_to_log, len(batch.tokens))):
+    for i in range(min(num_to_log, len(batch.input_ids))):
         get_current_logger().report_text(
             title=f"example_sequence/seq{i}/input_text",
-            value=t.decode(batch.tokens[i]),
+            value=hf_tokenizer.decode(batch.input_ids[i]),
             iteration=0,
         )
         get_current_logger().report_text(
             title=f"example_sequence/seq{i}/target_text",
-            value=t.decode(batch.target_tokens[i]),
+            value=hf_tokenizer.decode(batch.target_ids[i]),
             iteration=0,
         )
-    del batch, t
+
     print("Logged example batch.")
 
 
@@ -142,8 +142,13 @@ def main(
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
 
-    if args.model_type == "gpt" and (rank is None or rank == 0):
-        log_batch(train_dataloader)
+    # if args.model_type == "gpt" and (rank is None or rank == 0):
+    #     log_batch(
+    #         train_dataloader,
+    #         tokenizer_maker=tokenizers.GPTTokenizer
+    #         if args.model_type == "gpt"
+    #         else tokenizers.BertTokenizer,
+    #     )
 
     trainer = ConditionalTrainer(
         model=model,
