@@ -239,3 +239,57 @@ def get_train_main_function(runner: str):
         return cc_train_main
     else:
         raise ValueError(f"Unknown runner: {runner}")
+
+
+def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
+    RUNS_MULTIPLIER = grid_args.get("runs_multiplier", 1)  ######
+    TIME = grid_args.get("time", "1-00:00:00")  ######
+    RUNNER = grid_args["runner"]
+    GRES = grid_args.get("gres", "gpu:1")
+    DRY_RUN = grid_args.get("dry_run", False)
+    SINGULARITY_IMAGE = grid_args.get(
+        "singularity_image", get_sparsity_image(CLUSTER_NAME)
+    )
+    HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", get_cache_path(CLUSTER_NAME))
+    NODELIST = grid_args.get("nodelist", None)
+    N_GPUS = grid_args.get("n_gpus", 1)
+    CPUS_PER_GPU = grid_args.get("cpus_per_gpu", 8)
+    CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", None)
+
+    if NODELIST is not None:
+        NODELIST = "--nodelist=" + NODELIST
+
+    setup_args = {
+        "gres": GRES,
+        "time": TIME,
+        "n_gpus": N_GPUS,
+        "runner": RUNNER,
+        "cpus_per_gpu": CPUS_PER_GPU,
+        "nodelist": NODELIST,
+        "cuda_visible": CUDA_VISIBLE_DEVICES,
+        "hf_datasets_cache": HF_DATASETS_CACHE,
+        "singularity_image": SINGULARITY_IMAGE,
+        "runs_multiplier": RUNS_MULTIPLIER,
+    }
+    return setup_args
+
+
+def translate_to_argparse(param_set: dict):
+    runner_params = []
+
+    for k_packed, v_packed in param_set.items():
+        for k, v in zip(*unpack_params(k_packed, v_packed)):
+            if isinstance(v, bool):
+                if v:
+                    runner_params.append(f"--{k}")
+                else:
+                    pass  # simply don't add it if v == False
+                continue
+            else:
+                runner_params.append(f"--{k}")
+                if isinstance(v, list):
+                    runner_params.extend([str(s) for s in v])
+                else:
+                    runner_params.append(str(v))
+
+    return runner_params
