@@ -86,7 +86,8 @@ if __name__ == "__main__":
             exit(1)
 
     if not (interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL):
-        exp_name = grid[0][0]["name"]
+        first_exp_training_args, _ = grid[0]
+        exp_name = first_exp_training_args["name"]
         name_for_branch = (
             f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
         )
