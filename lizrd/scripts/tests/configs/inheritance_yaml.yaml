@@ -1,0 +1,10 @@
+runs_multiplier: 20
+params:
+  n_experts: 32
+  dhead: 21
+
+---
+runs_multiplier: 233
+parent: lizrd/scripts/tests/configs/inheritance_yaml2.yaml
+params:
+  ^mixed_precision: [true,false]
