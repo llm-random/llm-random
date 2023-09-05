@@ -83,9 +83,9 @@ if __name__ == "__main__":
     base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
     _ = rsync_to_remote(args.host, working_dir + "/research")
     _ = rsync_to_remote(args.host, working_dir + "/.versioningignore")
-    # WRITE base_dir to temp file
+    # WRITE root_dir to temp file for run_exp_remotely.sh
     with open("base_dir.txt", "w") as f:
         f.write(base_dir)
     set_up_permissions(args.host)
-    name_for_branch = "exp_hash_" + generate_random_string(10)
+    name_for_branch = "exp_" + generate_random_string(10)
     version_code(name_for_branch)
