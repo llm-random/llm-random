@@ -45,35 +45,34 @@ class WikiBookDataset(AbstractDataset):
         self.bookcorpus_chance = len(self.dataset_book) / len(self.dataset_wiki)
 
     def get_document(self) -> str:
-        document = None
-        while document is None or not self._belongs_to_split(document):
-            document = self._get_document()
-        return document
-
-    def _belongs_to_split(self, document: str) -> bool:
-        eval_percentage = 5
-
-        if self.split == "train":
-            return hash(document) % 100 >= eval_percentage
-        elif self.split == "eval":
-            return hash(document) % 100 < eval_percentage
-        else:
-            raise ValueError("split must be either 'train' or 'eval'")
-
-    def _get_document(self) -> str:
         selector = self.py_rng.random()
         if selector < self.bookcorpus_chance:
             return self._get_random_book_example()
         else:
             return self._get_random_wiki_example()
 
+    def _belongs_to_split(self, document_id: int) -> bool:
+        eval_percentage = 5
+
+        if self.split == "train":
+            return hash(document_id) % 100 >= eval_percentage
+        elif self.split == "eval":
+            return hash(document_id) % 100 < eval_percentage
+        else:
+            raise ValueError("split must be either 'train' or 'eval'")
+
     def _get_random_book_example(self) -> str:
-        document = self.dataset_book[self.py_rng.randint(0, len(self.dataset_book) - 1)]
+        doc_id = None
+        while doc_id is None or not self._belongs_to_split(doc_id):
+            doc_id = self.py_rng.randint(0, len(self.dataset_book) - 1)
+        document = self.dataset_book[doc_id]
         return document["text"]
 
     def _get_random_wiki_example(self) -> str:
-        rnd = self.py_rng.randint(0, len(self.dataset_wiki) - 1)
-        document = self.dataset_wiki[rnd:rnd]
+        doc_id = None
+        while doc_id is None or not self._belongs_to_split(doc_id):
+            doc_id = self.py_rng.randint(0, len(self.dataset_book) - 1)
+        document = self.dataset_wiki[doc_id]
         return document["text"]
 
 
