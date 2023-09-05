@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import random
 import string
 from typing import Optional, List, Tuple
@@ -49,6 +50,8 @@ def load_with_inheritance(
 
     for config in configs:
         if "parent" in config:
+            assert "parent_hash" in config
+            assert get_yaml_md5(config["parent"]) == config["parent_hash"]
             parent_config_list, additional_paths = load_with_inheritance(
                 config["parent"], all_config_paths, is_parent=True
             )
@@ -66,3 +69,15 @@ def recursive_update(base_dict, update_dict):
         elif key not in update_dict:
             update_dict[key] = value
     return update_dict
+
+
+def get_yaml_md5(yaml_path):
+    with open(yaml_path, "r") as file:
+        data = yaml.safe_load(file)
+        yaml_str = yaml.dump(data).encode()
+
+        md5_hash = hashlib.md5()
+        md5_hash.update(yaml_str)
+        digest = md5_hash.hexdigest()
+
+    return digest
