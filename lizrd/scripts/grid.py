@@ -45,7 +45,7 @@ if __name__ == "__main__":
         raise ValueError("config path point to a .yaml")
 
     for config in configs:
-        config["params"]["path_to_entry_config"] = sys.argv[1]
+        config["params"]["path_to_entry_config"] = path
         config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
     interactive_options_per_config = [

@@ -6,6 +6,6 @@ params:
 ---
 runs_multiplier: 233
 parent: lizrd/scripts/tests/configs/inheritance_yaml2.yaml
-parent_hash: f8f426db38dec294d8c16e097248f815
+md5_parent_hash: 8fc05fdd54415d82df1142997c332dc5
 params:
   ^mixed_precision: [true,false]
