@@ -152,10 +152,12 @@ class BERTPacker(
 
     def _get_valid_random_tokens(self, tokens_count):
         assert isinstance(self.tokenizer, BertTokenizer)
-        special_tokens = 999
+        NUMBER_OF_SPECIAL_TOKENS = 999
         return (
-            self.np_rng.choice(self.tokenizer.vocab_size - special_tokens, tokens_count)
-            + special_tokens
+            self.np_rng.choice(
+                self.tokenizer.VOCAB_SIZE - NUMBER_OF_SPECIAL_TOKENS, tokens_count
+            )
+            + NUMBER_OF_SPECIAL_TOKENS
         )
 
 

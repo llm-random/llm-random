@@ -4,10 +4,10 @@ from transformers import BertTokenizerFast, GPT2TokenizerFast
 
 
 class AbstractTokenizer(ABC):
+    VOCAB_SIZE: int
     sequence_separator_id: Optional[int]
     mask_id: Optional[int]
     eot_id: Optional[int]
-    vocab_size: int
 
     @abstractmethod
     def text_to_ids(self, text: str) -> List[int]:
@@ -21,7 +21,7 @@ def disable_tokenizer_warnings(hf_tokenizer):
 
 
 class BertTokenizer(AbstractTokenizer):
-    vocab_size = 30522
+    VOCAB_SIZE = 30522
 
     def __init__(self):
         self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
@@ -37,7 +37,7 @@ class BertTokenizer(AbstractTokenizer):
 
 
 class GPTTokenizer(AbstractTokenizer):
-    vocab_size = 50257
+    VOCAB_SIZE = 50257
 
     def __init__(self):
         self.tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")

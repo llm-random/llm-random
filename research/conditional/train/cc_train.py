@@ -81,9 +81,9 @@ def main(
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
     VOCAB_SIZE = (
-        tokenizers.BertTokenizer.vocab_size
+        tokenizers.BertTokenizer.VOCAB_SIZE
         if args.model_type == "bert"
-        else tokenizers.GPTTokenizer.vocab_size
+        else tokenizers.GPTTokenizer.VOCAB_SIZE
     )
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
