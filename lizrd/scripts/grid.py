@@ -24,6 +24,7 @@ from lizrd.scripts.grid_utils import (
     translate_to_argparse,
 )
 from lizrd.support.code_copying import copy_code
+from lizrd.support.misc import load_with_inheritance
 
 if __name__ == "__main__":
     CLUSTER_NAME = get_machine_backend()
@@ -37,13 +38,13 @@ if __name__ == "__main__":
         raise ValueError("No config path specified. Aborting...")
 
     if path.endswith(".yaml"):
-        with open(path) as f:
-            configs = list(yaml.safe_load_all(f))
+        configs, all_config_paths = load_with_inheritance(path)
     else:
         raise ValueError("config path point to a .yaml")
 
     for config in configs:
-        config["params"]["path_to_config"] = path
+        config["params"]["path_to_entry_config"] = path
+        config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
     interactive_options_per_config = [
         config.get("interactive_debug", False) for config in configs
@@ -97,7 +98,7 @@ if __name__ == "__main__":
             print("Aborting...")
             exit(1)
 
-    if not (interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL):
+    if CLUSTER_NAME != MachineBackend.LOCAL:
         first_exp_training_args, _ = grid[0]
         exp_name = first_exp_training_args["name"]
         newdir_name = (
@@ -105,13 +106,16 @@ if __name__ == "__main__":
         )
         copy_code(newdir_name)
     else:
-        print(
-            f"Running in debug mode or locally, skip copying code to a new directory."
-        )
+        print(f"Running locally, skip copying code to a new directory.")
 
     slurm_command = "srun" if interactive_debug_session else "sbatch"
 
     for i, (training_args, setup_args) in enumerate(grid):
+        full_config_path = f"full_config{i}.yaml"
+        with open(full_config_path, "w") as f:
+            yaml.dump({**training_args, **setup_args}, f)
+        training_args["all_config_paths"] += f",{full_config_path}"
+
         job_name = training_args["name"]
         training_args["n_gpus"] = setup_args["n_gpus"]
 

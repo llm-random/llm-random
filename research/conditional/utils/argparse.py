@@ -8,7 +8,8 @@ def introduce_parser_arguments(
 
     parser.add_argument("--use_clearml", action="store_true")
     parser.add_argument("--use_neptune", action="store_true")
-    parser.add_argument("--path_to_config", type=str, default=None)
+    parser.add_argument("--path_to_entry_config", type=str, default=None)
+    parser.add_argument("--all_config_paths", type=str, default=None)
     parser.add_argument("--batch_size", type=int, default=600)
     parser.add_argument("--num_workers", type=int, default=16)
     parser.add_argument("--cutoff", type=int, default=128)
