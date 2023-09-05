@@ -117,7 +117,6 @@ if __name__ == "__main__":
 
         env = None
         runner_params = translate_to_argparse(training_args)
-
         if CLUSTER_NAME == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
