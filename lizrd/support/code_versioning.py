@@ -143,7 +143,7 @@ class CodeVersioningAgent:
 def version_code(
     name_for_branch,
     remote_name="cemetery",
-    remote_url="git@github.com:Simontwice/llm-random-cemetery.git",
+    remote_url="git@github.com:llm-random/llm-random-cemetery.git",
 ):
     # Create versioning daemon
     version_daemon = CodeVersioningAgent(remote_name, remote_url, name_for_branch)
