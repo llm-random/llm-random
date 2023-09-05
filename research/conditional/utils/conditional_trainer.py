@@ -13,7 +13,7 @@ import lizrd.datasets.processed_batch
 from lizrd.support.logging import AbstractLogger
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.misc_tools import get_ith_chunk
+from research.conditional.utils.misc_tools import get_ith_chunk, TemperatureScheduler
 from research.conditional.utils.model_utils import make_loss_function
 from lizrd.datasets.c4 import NUM_C4_TOKENS
 from transformers import GPT2Tokenizer
@@ -23,6 +23,7 @@ from transformers import GPT2Tokenizer
 class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
+    n_steps: int
     train_dataloader: wikibookdata.ProcessedDatasetWrapper
     vocab_size: int
     mixed_precision: bool
@@ -56,6 +57,7 @@ class ConditionalTrainer:
     total_time_afterstep: float = 0.0
     cache_on_forward_pass: bool = False
     is_process_logging: bool = True
+    steps_until_anneal: Optional[int] = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -89,6 +91,13 @@ class ConditionalTrainer:
             )
         else:
             self.lr_scheduler = None
+        if self.steps_until_anneal is not None:
+            assert self.steps_until_anneal < self.n_steps
+            self.temperature_scheduler = TemperatureScheduler(
+                self.model,
+                self.steps_until_anneal,
+                self.n_steps,
+            )
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -125,6 +134,8 @@ class ConditionalTrainer:
 
     def _after_step_operations(self):
         self.model.forward_pass_cache.clear()
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
 
     def train(self, n_steps: int):
         """
@@ -238,8 +249,6 @@ class ConditionalTrainer:
         )
 
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
         if self.is_process_logging:
             if self.model_type == "bert":
                 mask_percent = self.mask_percent

@@ -17,7 +17,7 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.argparse import introduce_parser_arguments
+from research.conditional.utils._argparse import introduce_parser_arguments
 from research.conditional.utils.misc_tools import set_seed
 from research.conditional.utils.model_utils import (
     get_ff_layer,
@@ -117,7 +117,7 @@ def main(
         model = model.to(f"cuda:{rank}")
         model = DDP(model, device_ids=[rank])
 
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
@@ -172,6 +172,8 @@ def main(
         max_sequence_length=args.cutoff,
         cache_on_forward_pass=args.cache_on_forward_pass,
         is_process_logging=is_process_logging,
+        n_steps=args.n_steps,
+        steps_until_anneal=args.steps_until_anneal,
     )
     trainer.train(args.n_steps)
 

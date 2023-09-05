@@ -140,5 +140,6 @@ def introduce_parser_arguments(
     parser.add_argument("--hack_name", type=str, default=None)
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
+    parser.add_argument("--steps_until_anneal", type=int, default=None)
 
     return parser
