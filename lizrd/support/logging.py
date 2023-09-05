@@ -108,9 +108,7 @@ class AbstractLogger(ABC):
                 title=title, series=series_std, value=std, iteration=iteration
             )
         else:
-            print(
-                f"Could not log scalars for plotly figure of type {type(figure.data[0])}"
-            )
+            pass  # removed warning because it's too verbose and can't debug
 
     @staticmethod
     def get_log_x_scale_metric(value: float, iteration: int):
@@ -270,7 +268,7 @@ def get_logger(args, model, VOCAB_SIZE):
         )
         run["args"] = vars(args)
         run["working_directory"] = os.getcwd()
-        run["git_branch"] = os.getcwd().split("/")[-1]
+        run["config"].upload(args.path_to_config)
 
         args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
         return NeptuneLogger(run, args)
