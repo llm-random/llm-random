@@ -6,7 +6,7 @@ from lizrd.support.code_versioning import find_git_root, version_code
 from lizrd.support.misc import generate_random_string
 
 
-def go_to_llm_random():
+def cd_to_root_dir():
     git_root = find_git_root()
     repo = Repo(git_root)
     assert repo.remotes.origin.url in [
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # create parser
     args = parser.parse_args()
 
-    go_to_llm_random()
+    cd_to_root_dir()
     working_dir = os.getcwd()
     base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
     _ = rsync_to_remote(args.host, working_dir + "/research")

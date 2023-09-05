@@ -1,14 +1,23 @@
 import os
 import subprocess
+from enum import Enum
 from typing import Union
 
 from git import Repo, GitCommandError
 
+# make enum from status to str
 
-class CodeVersioningDaemon:
+
+class RevertState(Enum):
+    UNMODIFIED = 0
+    JUST_STASHED = 1
+    DEFAULT = 2
+
+
+class CodeVersioningAgent:
     def __init__(self, remote_name, remote_url, name_for_branch):
-        self.remote_name: str = remote_name
-        self.remote_url: str = remote_url
+        self.remote_cemetery_name: str = remote_name
+        self.remote_cemetery_url: str = remote_url
         self.name_for_branch: str = name_for_branch
         self.original_branch: Union[str, None] = None
         self.current_branch: Union[str, None] = None
@@ -41,7 +50,7 @@ class CodeVersioningDaemon:
                     f"Either branch is does not track any remote branch [you haven't pushed anything yet] OR unpushed commits have been detected. Either way, push first. Aborting..."
                 )
 
-            self.check_if_cemetery_exists()
+            self.check_and_set_remote_cemetery_repo()
             self.stash_if_necessary()
             self.revert_status = 1
             self.repo.git.checkout(b=self.name_for_branch)
@@ -49,7 +58,7 @@ class CodeVersioningDaemon:
             # check if there are any changes to commit
             if len(self.repo.index.diff("HEAD")) > 0:
                 self.repo.git.commit(m="Versioning code", no_verify=True)
-            self.repo.git.push(self.remote_name, self.name_for_branch)
+            self.repo.git.push(self.remote_cemetery_name, self.name_for_branch)
             self.repo.git.checkout(self.original_branch)
             self.unstash_if_necessary()
             self.repo.git.branch("-D", self.name_for_branch)
@@ -62,9 +71,9 @@ class CodeVersioningDaemon:
             raise Exception("Failed to version code. Aborting...")
 
     def handle_failure(self):
-        if self.revert_status == 0:
+        if self.revert_status == RevertState.UNMODIFIED:
             pass
-        elif self.revert_status == 1:
+        elif self.revert_status == RevertState.JUST_STASHED:
             self.unstash_if_necessary()
         else:
             self.clean_up_new_branch()
@@ -84,17 +93,16 @@ class CodeVersioningDaemon:
         )
         self.unstash_if_necessary()
 
-    def check_if_cemetery_exists(self):
+    def check_and_set_remote_cemetery_repo(self):
         for remote in self.repo.remotes:
-            if remote.name == self.remote_name:
-                if remote.url == self.remote_url:
+            if remote.name == self.remote_cemetery_name:
+                if remote.url == self.remote_cemetery_url:
                     return
                 else:
                     raise Exception(
-                        f"Wrong url under remote repo {self.remote_name}: {self.repo.remotes[self.remote_name].url.strip()}, should be {self.remote_url}"
+                        f"Wrong url under remote repo {self.remote_cemetery_name}: {self.repo.remotes[self.remote_cemetery_name].url.strip()}, should be {self.remote_cemetery_url}"
                     )
-        self.repo.create_remote(self.remote_name, url=self.remote_url)
-        return
+        self.repo.create_remote(self.remote_cemetery_name, url=self.remote_cemetery_url)
 
     def stash_if_necessary(self):
         if self.repo.is_dirty():
@@ -138,7 +146,7 @@ def version_code(
     remote_url="git@github.com:Simontwice/llm-random-cemetery.git",
 ):
     # Create versioning daemon
-    version_daemon = CodeVersioningDaemon(remote_name, remote_url, name_for_branch)
+    version_daemon = CodeVersioningAgent(remote_name, remote_url, name_for_branch)
     # Version code
     version_daemon.version_code()
 

@@ -3,12 +3,13 @@ import shutil
 
 
 def copy_code(newdir_name):
+    cemetery_path = "llm_random_cemetery"
     # Copy code
     root_dir = os.getcwd()
-    assert root_dir.endswith(
-        "llm-random"
+    assert (
+        os.path.basename(root_dir) == "llm-random"
     ), "You need to be in the llm-random directory to copy code."
-    newdir_path = f"{os.path.dirname(root_dir)}/sparsity_code_cemetery/{newdir_name}"
+    newdir_path = f"{os.path.dirname(root_dir)}/{cemetery_path}/{newdir_name}"
 
     ignore_patterns_file = os.path.join(root_dir, ".versioningignore")
     versioning_ignore_patterns = make_ignore_patterns(ignore_patterns_file)
