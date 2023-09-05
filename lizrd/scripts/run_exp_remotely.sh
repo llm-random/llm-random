@@ -1,9 +1,9 @@
 #!/bin/bash
 # INSTRUCTIONS:
-# 1. needs to be called from llm-random folder
+# 1. needs to be called from somewhere in llm-random directory
 # 2. needs to be called with the host as the first argument (as configured in ~/.ssh/config, e.g. gpu_entropy)
 # 3. needs to be called with the path to config file as the second argument (e.g. "runs/my_config.yaml")
-# EXAMPLE USAGE: bash lizrd/scripts/run_exp_remotely.sh atena quick.json
+# EXAMPLE USAGE: bash lizrd/scripts/run_exp_remotely.sh atena lizrd/configs/quick.json
 set -e
 
 source venv/bin/activate
