@@ -24,7 +24,7 @@ class TestWikibookdata(GeneralTestCase):
 
     @heavy_test
     def test_consistency(self):
-        ds = get_processed_dataset(32, 128, 0.15, "cpu", 2, 1)
+        ds = get_processed_dataset(32, 128, 0.15, "cpu", 2, 1, use_dummy_dataset=True)
         batch = ds.get_batch()
         # compare batch with saved batch
         with open("lizrd/datasets/test_batch.pkl", "rb") as f:
