@@ -206,3 +206,63 @@ class GPTPacker(
         calculate_loss = [1] * len(target_ids)
 
         return LLMExample(input_ids, target_ids, calculate_loss)
+
+
+class BlankPacker(
+    AbstractPacker,
+):
+    def __init__(
+        self,
+        sequence_length: int,
+        dataset: AbstractDataset,
+        tokenizer_maker: Callable[[], AbstractTokenizer],
+        seed: Optional[int] = None,
+    ):
+        super().__init__(
+            sequence_length,
+            dataset,
+            tokenizer_maker,
+            seed=seed,
+        )
+        self.n_blanks = 3
+
+    def get_sample(self) -> LLMExample:
+        """
+        Sample examples from the dataset until we reach the desired sequence length.
+        """
+        eot_id = self.tokenizer.eot_id
+        assert eot_id is not None
+
+        buffer: List[int] = []
+        calculate_loss: List[int] = []
+        document_lengths: List[int] = []
+
+        while True:
+            document = self.dataset.get_document()
+            tokens = self.tokenizer.text_to_ids(document)
+            buffer.extend(tokens + [eot_id])
+
+            blank_insertion = self.py_rng.randint(1, len(tokens) - 1)
+            input_tokens = (
+                tokens[:blank_insertion]
+                + [self.tokenizer.blank_id] * self.n_blanks
+                + tokens[blank_insertion:]
+            )
+            output_tokens = (
+                tokens[:blank_insertion]
+                + [tokens[blank_insertion]] * self.n_blanks
+                + tokens[blank_insertion:]
+            )
+
+            document_lengths.append(len(tokens) + 1)
+            if (sum(document_lengths) - max(document_lengths)) > self.sequence_length:
+                break
+
+        sample_start = self.py_rng.randint(0, len(buffer) - 1)
+        sample_end = sample_start + self.sequence_length
+
+        input_ids = list(take_circular(buffer, sample_start, sample_end))
+        target_ids = list(take_circular(buffer, sample_start + 1, sample_end + 1))
+        calculate_loss = [1] * len(target_ids)
+
+        return LLMExample(input_ids, target_ids, calculate_loss)
