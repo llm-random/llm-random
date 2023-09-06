@@ -111,7 +111,7 @@ if __name__ == "__main__":
     slurm_command = "srun" if interactive_debug_session else "sbatch"
 
     for i, (training_args, setup_args) in enumerate(grid):
-        full_config_path = f"full_config{i}.yaml"
+        full_config_path = f"/tmp/full_config{i}.yaml"
         with open(full_config_path, "w") as f:
             yaml.dump({**training_args, **setup_args}, f)
         training_args["all_config_paths"] += f",{full_config_path}"
