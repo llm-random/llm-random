@@ -6,8 +6,7 @@ In root directory run `./start-dev.sh`. This will create a virtual environment, 
 
 
 ## Experiments config
-As a template use baseline configuration, which is in `research/conditional/train/configs/test/test_baseline.yaml`.
-Basing on this template create new experiment config and put it in `lizrd/scripts/run_configs`.
+Use the baseline configuration as a template, which is in `research/conditional/train/configs/test/test_baseline.yaml`. Based on this template, create a new experiment config and put it in `lizrd/scripts/run_configs`.
 
 ## Run exeperiment
 
