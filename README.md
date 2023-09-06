@@ -1,28 +1,21 @@
-# LiZRD - Library for Zipping through Research Designs
-
-Name suggestions are very welcome.
+# llm-random
 
 
 ## Getting started
-After cloning the repo, `cd` to repo directory and run `./start-dev.sh`. This will create a virtual environment, install requirements and setup git hooks.
+In root directory run `./start-dev.sh`. This will create a virtual environment, install requirements and setup git hooks.
 
-## Installing requirements
 
-Running `start-dev.sh` will install requirements. If you wish to setup your environment manually, `python3 -m pip install -r requirements.txt` should work. Be sure to use a virtualenv.
+## Experiments config
+As a template use baseline configuration, which is in `research/conditional/train/configs/test/test_baseline.yaml`.
+Basing on this template create new experiment config and put it in `lizrd/scripts/run_configs`.
 
-## Usage
-Run a single local experiment with `python3 -m lizrd.train.bert_train TESTING`. The flag `TESTING` will disable ClearML, and run a smaller model.
-If you use ClearML, you must have clearml config in your home directory. Note that if you don't use srun.sbatch on entropy, you won't have access to GPU.
+## Run exeperiment
 
-To run a single experiment on entropy, write your shell script based on `run_train.sh`, and run it either by:
-`srun --partition=common --qos=24gpu7d --gres=gpu:titanv:1 run_time.sh`
-or `sbatch lizrd/scripts/run_train.sh`.
+### Locally
+`python -m lizrd.scripts.grid path/to/config`
 
-To run multiple experiment, modify gen_run_trains.py and run:
-`python3 -m lizrd.scripts.gen_run_trains.py --prefix=SWPB --real --sleep=70`
-
-To just generate configs without scheduling jobs, run:
-`python3 -m lizrd.scripts.gen_run_trains.py --prefix=SWP --test --sleep=0`
+### Remotely
+`bash lizrd/scripts/run_exp_remotely.sh <remote_cluster_name> lizrd/scripts/run_configs/<your_config>`
 
 ## Code description
 
