@@ -22,7 +22,7 @@ run_grid_remotely() {
 
   script="cd $base_dir && tmux new-session -d -s $session_name bash"
   script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid $config' C-m"
-  script+="; tmux attach-session -t $session_name"
+  script+="; tmux attach -t $session_name"
   script+="; echo 'done'"
 
   ssh -t $host "$script"
