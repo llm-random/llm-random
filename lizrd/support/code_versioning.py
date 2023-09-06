@@ -47,7 +47,7 @@ class CodeVersioningAgent:
             ), "Branch is not tracking any remote branch. Aborting..."
             assert (
                 self.repo.active_branch.tracking_branch().remote_name == "origin"
-            ), "Branch is not tracking any remote branch. Aborting..."
+            ), "Branch is not ta branch located at origin. Aborting..."
 
             # reject if there are unpushed commits
             commits_behind = list(
