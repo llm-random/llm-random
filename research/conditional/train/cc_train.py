@@ -121,7 +121,7 @@ def main(
         model = model.to(f"cuda:{rank}")
         model = DDP(model, device_ids=[rank])
 
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
         weight_decay=args.weight_decay,

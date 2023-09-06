@@ -30,7 +30,7 @@ def get_machine_backend() -> MachineBackend:
 
 def get_common_directory(machine_backend: MachineBackend) -> str:
     if machine_backend == MachineBackend.ATHENA:
-        return "/net/pr2/projects/plgrid/plggllmeffi"
+        return "/net/tscratch/people/plgjkrajewski"
     elif machine_backend == MachineBackend.IDEAS:
         return "/raid/NFS_SHARE/llm-random"
     elif machine_backend == MachineBackend.ENTROPY_GPU:
@@ -47,8 +47,11 @@ def get_cache_path(machine_backend: MachineBackend) -> str:
         return f"{common_dir}/.cache"
 
 
-def get_sparsity_image(machine_backend: MachineBackend) -> str:
-    image_name = "sparsity_2023.08.29_09.26.31.sif"
+def get_singularity_image(machine_backend: MachineBackend) -> str:
+    if machine_backend == MachineBackend.ATHENA:
+        image_name = "sparsity_pytorch_2.0.sif"
+    else:
+        image_name = "sparsity_2023.08.29_09.26.31.sif"
     common_dir = get_common_directory(machine_backend)
     return f"{common_dir}/images/{image_name}"
 
@@ -248,7 +251,7 @@ def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
     GRES = grid_args.get("gres", "gpu:1")
     DRY_RUN = grid_args.get("dry_run", False)
     SINGULARITY_IMAGE = grid_args.get(
-        "singularity_image", get_sparsity_image(CLUSTER_NAME)
+        "singularity_image", get_singularity_image(CLUSTER_NAME)
     )
     HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", get_cache_path(CLUSTER_NAME))
     NODELIST = grid_args.get("nodelist", None)
