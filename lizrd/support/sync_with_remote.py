@@ -1,8 +1,41 @@
+from contextlib import contextmanager
+import copy
+import getpass
 import os
+import subprocess
+from typing import Generator
 from fabric import Connection
 from argparse import ArgumentParser
 from git import Repo
+import paramiko.ssh_exception
 from lizrd.support.code_versioning_support import find_git_root
+
+_HOSTS_TO_PASSPHRASES = {}
+
+
+@contextmanager
+def ConnectWithPassphrase(*args, **kwargs) -> Generator[Connection, None, None]:
+    """Connect to a remote host using a passphrase if the key is encrypted. The passphrase is preserved for subsequent connections to the same host."""
+    try:
+        connection = Connection(*args, **kwargs)
+        connection.run('echo "Connection successful."')
+        yield connection
+    except paramiko.ssh_exception.PasswordRequiredException as e:
+        if connection.host not in _HOSTS_TO_PASSPHRASES:
+            passphrase = getpass.getpass(
+                f"SSH key encrypted, provide the passphrase ({connection.host}): "
+            )
+            _HOSTS_TO_PASSPHRASES[connection.host] = passphrase
+        else:
+            passphrase = _HOSTS_TO_PASSPHRASES[connection.host]
+        kwargs["connect_kwargs"] = copy.deepcopy(
+            kwargs.get("connect_kwargs", {})
+        )  # avoid modifying the original connect_kwargs
+        kwargs["connect_kwargs"]["passphrase"] = passphrase
+        connection = Connection(*args, **kwargs)
+        yield connection
+    finally:
+        connection.close()
 
 
 def cd_to_root_dir():
@@ -16,7 +49,7 @@ def cd_to_root_dir():
 
 def rsync_to_remote(host, local_dir):
     try:
-        with Connection(host) as connection:
+        with ConnectWithPassphrase(host) as connection:
             base_dir = get_base_directory(connection)
             proxy_command = get_proxy_command(connection)
             rsync_command = f"rsync -zrlp -e {proxy_command} {local_dir} {connection.user}@{connection.host}:{base_dir}"
@@ -42,8 +75,8 @@ def get_base_directory(connection):
 
 def get_proxy_command(connection):
     if connection.host == "4124gs01":
-        cc = Connection(connection.ssh_config["proxyjump"])
-        proxy_command = f"'ssh -A -J {cc.user}@{cc.host}'"
+        with ConnectWithPassphrase(connection.ssh_config["proxyjump"]) as cc:
+            proxy_command = f"'ssh -A -J {cc.user}@{cc.host}'"
     else:
         proxy_command = "ssh"
     return proxy_command
@@ -51,7 +84,7 @@ def get_proxy_command(connection):
 
 def run_remote_script(host, script):
     try:
-        with Connection(host) as c:
+        with ConnectWithPassphrase(host) as c:
             result = c.run(script)
     except Exception as e:
         raise Exception(f"An error occurred while running the script: {str(e)}")
@@ -59,7 +92,7 @@ def run_remote_script(host, script):
 
 def set_up_permissions(host):
     try:
-        with Connection(host) as connection:
+        with ConnectWithPassphrase(host) as connection:
             path = f"{get_base_directory(connection)}/lizrd/scripts/grid_entrypoint_athena.sh"
             print(f"Changing permissions for {path}...")
             connection.run(f"chmod +x {path}")
