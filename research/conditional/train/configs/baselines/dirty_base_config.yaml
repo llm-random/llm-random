@@ -1,0 +1,29 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "48:00:00"
+n_gpus: 1
+interactive_debug: false
+
+# train params
+params:
+  # model
+  model_type: "bert"
+  dataset_type: "wikibook"
+  dmodel: 768
+  dff: 3072
+  n_att_heads: 8
+  n_blocks: 4
+  cutoff: 128
+  batch_size: 600
+
+  n_steps: 90000
+  learning_rate: 0.0003
+  lr_decay_interval: 0
+
+  logging_interval_heavy: 1000
+  logging_interval_loss: 1000
+
+  use_neptune: true
+  project_name: "pmtest/llm-random"
+  mixed_precision: true
+

@@ -9,8 +9,10 @@ set -e
 source venv/bin/activate
 # run your python script
 python3 -m lizrd.support.sync_and_version --host $1
-base_dir=$(cat base_dir.txt)
-rm base_dir.txt
+base_dir=$(cat /tmp/base_dir.txt)
+git_branch=$(cat /tmp/git_branch.txt)
+rm /tmp/base_dir.txt
+rm /tmp/git_branch.txt
 
 
 

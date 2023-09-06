@@ -37,12 +37,21 @@ if __name__ == "__main__":
     except IndexError:
         raise ValueError("No config path specified. Aborting...")
 
+    try:
+        code_mirror_git_branch = sys.argv[2]
+    except IndexError:
+        code_mirror_git_branch = ""
+        assert (
+            CLUSTER_NAME == MachineBackend.LOCAL
+        ), f"No git branch with mirrored code specified. If you are calling grid.py directly on a cluster (not recommneded), supply any string as the second argument. Aborting..."
+
     if path.endswith(".yaml"):
         configs, all_config_paths = load_with_inheritance(path)
     else:
         raise ValueError("config path point to a .yaml")
 
     for config in configs:
+        config["params"]["git_branch"] = code_mirror_git_branch
         config["params"]["path_to_entry_config"] = path
         config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
@@ -79,11 +88,6 @@ if __name__ == "__main__":
         total_minutes_from_this_grid = n_experiments * minutes_per_exp
         total_minutes += total_minutes_from_this_grid
 
-    if CLUSTER_NAME == MachineBackend.LOCAL and len(grid) > 1:
-        raise ValueError(
-            f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
-        )
-
     if not CLUSTER_NAME == MachineBackend.LOCAL:
         if not interactive_debug_session:
             user_input = input(
@@ -111,7 +115,7 @@ if __name__ == "__main__":
     slurm_command = "srun" if interactive_debug_session else "sbatch"
 
     for i, (training_args, setup_args) in enumerate(grid):
-        full_config_path = f"full_config{i}.yaml"
+        full_config_path = f"/tmp/full_config{i}.yaml"
         with open(full_config_path, "w") as f:
             yaml.dump({**training_args, **setup_args}, f)
         training_args["all_config_paths"] += f",{full_config_path}"
@@ -208,6 +212,8 @@ if __name__ == "__main__":
         print(f"running experiment {i} from {job_name}...")
         PROCESS_CALL_FUNCTION(subprocess_args, env)
         sleep(5)
-        if interactive_debug_session:
-            print("Ran only the first experiment in interactive mode. Aborting...")
+        if interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL:
+            print(
+                "Ran only the first experiment in (interactive mode or local run). Aborting..."
+            )
             break
