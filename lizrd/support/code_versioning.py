@@ -68,6 +68,7 @@ class CodeVersioningAgent:
                 self.repo.git.commit(m="Versioning code", no_verify=True)
             self.repo.git.push(self.remote_cemetery_name, self.name_for_branch)
             self.repo.git.checkout(self.original_branch)
+            self.repo.git.branch("-D", self.name_for_branch)
             self.unstash_if_necessary()
             print(
                 f"Code versioned successfully to branch {self.name_for_branch}.\nState of the code is the same as before versioning."
