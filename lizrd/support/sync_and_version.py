@@ -2,13 +2,14 @@ from contextlib import contextmanager
 import copy
 import getpass
 import os
-import subprocess
 from typing import Generator
 from fabric import Connection
 from argparse import ArgumentParser
 from git import Repo
 import paramiko.ssh_exception
-from lizrd.support.code_versioning_support import find_git_root
+
+from lizrd.support.code_versioning import find_git_root, version_code
+from lizrd.support.misc import generate_random_string
 
 _HOSTS_TO_PASSPHRASES = {}
 
@@ -121,11 +122,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cd_to_root_dir()
-    root_dir = os.getcwd()
-    base_dir = rsync_to_remote(args.host, root_dir + "/lizrd")
-    _ = rsync_to_remote(args.host, root_dir + "/research")
-    _ = rsync_to_remote(args.host, root_dir + "/.versioningignore")
-    set_up_permissions(args.host)
+    working_dir = os.getcwd()
+    base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
+    _ = rsync_to_remote(args.host, working_dir + "/research")
+    _ = rsync_to_remote(args.host, working_dir + "/.versioningignore")
     # WRITE root_dir to temp file for run_exp_remotely.sh
     with open("base_dir.txt", "w") as f:
         f.write(base_dir)
+    set_up_permissions(args.host)
+    name_for_branch = "exp_" + generate_random_string(10)
+    version_code(name_for_branch)
