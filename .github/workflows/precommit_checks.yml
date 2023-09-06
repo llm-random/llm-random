@@ -40,3 +40,5 @@ jobs:
       if: success() || failure()
       run: |
         python -m unittest discover
+      env:
+        NEPTUNE_API_TOKEN: ${{ vars.NEPTUNE_API_TOKEN }}
