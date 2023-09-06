@@ -11,7 +11,7 @@ import paramiko.ssh_exception
 from lizrd.support.code_versioning import find_git_root, version_code
 from lizrd.support.misc import generate_random_string
 
-_HOSTS_TO_PASSPHRASES = {}
+_SSH_HOSTS_TO_PASSPHRASES = {}
 
 
 @contextmanager
@@ -22,13 +22,13 @@ def ConnectWithPassphrase(*args, **kwargs) -> Generator[Connection, None, None]:
         connection.run('echo "Connection successful."')
         yield connection
     except paramiko.ssh_exception.PasswordRequiredException as e:
-        if connection.host not in _HOSTS_TO_PASSPHRASES:
+        if connection.host not in _SSH_HOSTS_TO_PASSPHRASES:
             passphrase = getpass.getpass(
                 f"SSH key encrypted, provide the passphrase ({connection.host}): "
             )
-            _HOSTS_TO_PASSPHRASES[connection.host] = passphrase
+            _SSH_HOSTS_TO_PASSPHRASES[connection.host] = passphrase
         else:
-            passphrase = _HOSTS_TO_PASSPHRASES[connection.host]
+            passphrase = _SSH_HOSTS_TO_PASSPHRASES[connection.host]
         kwargs["connect_kwargs"] = copy.deepcopy(
             kwargs.get("connect_kwargs", {})
         )  # avoid modifying the original connect_kwargs
@@ -91,14 +91,6 @@ def get_proxy_command(connection):
     else:
         proxy_command = "ssh"
     return proxy_command
-
-
-def run_remote_script(host, script):
-    try:
-        with ConnectWithPassphrase(host) as c:
-            result = c.run(script)
-    except Exception as e:
-        raise Exception(f"An error occurred while running the script: {str(e)}")
 
 
 def set_up_permissions(host):
