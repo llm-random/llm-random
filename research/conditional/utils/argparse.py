@@ -5,7 +5,9 @@ def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
-    parser.add_argument("--model_type", type=str, choices=["gpt", "bert"])
+    parser.add_argument(
+        "--model_type", type=str, choices=["gpt", "bert"], required=True
+    )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
@@ -93,11 +95,11 @@ def introduce_parser_arguments(
     # paremeters for specific experiments
     ## used often by Continuous MoE
 
-    parser.add_argument("--n_experts", type=int, required=False)
-    parser.add_argument("--group_size", type=int, required=False)
-    parser.add_argument("--sparsity_dim", type=int, required=False)
-    parser.add_argument("--temperature", type=float, required=False)
-    parser.add_argument("--expert_size", type=int, required=False)
+    parser.add_argument("--n_experts", type=int)
+    parser.add_argument("--group_size", type=int)
+    parser.add_argument("--sparsity_dim", type=int)
+    parser.add_argument("--temperature", type=float)
+    parser.add_argument("--expert_size", type=int)
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
@@ -110,16 +112,16 @@ def introduce_parser_arguments(
         default=0.01,
         help="Whether to use auxiliary loss in loss calculations",
     )
-    parser.add_argument("--topk_fraction", type=float, required=False)
+    parser.add_argument("--topk_fraction", type=float)
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument(
         "--granularity_expert_config",
         action="store_true",
         help="This argument is deprecated. Provide either (total_experts_width, n_experts, effective_dff) or (expert_size, n_experts, topk_fraction) instead.",
     )
-    parser.add_argument("--total_experts_width", type=int, required=False)
-    parser.add_argument("--effective_dff", type=int, required=False)
-    parser.add_argument("--softmax_over", type=str, required=False, default="tokens")
+    parser.add_argument("--total_experts_width", type=int)
+    parser.add_argument("--effective_dff", type=int)
+    parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
 
     parser.add_argument("--kernel_r", type=int, default=256)
