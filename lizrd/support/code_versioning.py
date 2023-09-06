@@ -78,7 +78,7 @@ class CodeVersioningAgent:
                 f"Git command error encountered. Trying to revert changes... Git error message: {e}"
             )
             self.handle_failure()
-            raise Exception("Failed to version code. Aborting...")
+            raise Exception("Changes successfully reverted. Aborting...")
 
     def handle_failure(self):
         if self.revert_status == RevertState.UNMODIFIED:
