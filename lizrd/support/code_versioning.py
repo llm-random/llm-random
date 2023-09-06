@@ -41,6 +41,14 @@ class CodeVersioningAgent:
             self.original_branch = self.repo.active_branch.name
             self.original_branch_commit_hash = self.repo.head.object.hexsha
 
+            # check if the branch is tracking any remote branch at origin
+            assert (
+                self.repo.active_branch.tracking_branch() is not None
+            ), "Branch is not tracking any remote branch. Aborting..."
+            assert (
+                self.repo.active_branch.tracking_branch().remote_name == "origin"
+            ), "Branch is not tracking any remote branch. Aborting..."
+
             # reject if there are unpushed commits
             commits_behind = list(
                 self.repo.iter_commits(f"origin/{self.original_branch}..HEAD")
@@ -60,15 +68,18 @@ class CodeVersioningAgent:
                 self.repo.git.commit(m="Versioning code", no_verify=True)
             self.repo.git.push(self.remote_cemetery_name, self.name_for_branch)
             self.repo.git.checkout(self.original_branch)
-            self.unstash_if_necessary()
             self.repo.git.branch("-D", self.name_for_branch)
+            self.unstash_if_necessary()
             print(
                 f"Code versioned successfully to branch {self.name_for_branch}.\nState of the code is the same as before versioning."
             )
 
-        except GitCommandError:
+        except GitCommandError as e:
+            print(
+                f"Git command error encountered. Trying to revert changes... Git error message: {e}"
+            )
             self.handle_failure()
-            raise Exception("Failed to version code. Aborting...")
+            raise Exception("Changes successfully reverted. Aborting...")
 
     def handle_failure(self):
         if self.revert_status == RevertState.UNMODIFIED:

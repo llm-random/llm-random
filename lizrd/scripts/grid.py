@@ -37,12 +37,21 @@ if __name__ == "__main__":
     except IndexError:
         raise ValueError("No config path specified. Aborting...")
 
+    try:
+        code_mirror_git_branch = sys.argv[2]
+    except IndexError:
+        code_mirror_git_branch = ""
+        assert (
+            CLUSTER_NAME == MachineBackend.LOCAL
+        ), f"No git branch with mirrored code specified. If you are calling grid.py directly on a cluster (not recommneded), supply any string as the second argument. Aborting..."
+
     if path.endswith(".yaml"):
         configs, all_config_paths = load_with_inheritance(path)
     else:
         raise ValueError("config path point to a .yaml")
 
     for config in configs:
+        config["params"]["git_branch"] = code_mirror_git_branch
         config["params"]["path_to_entry_config"] = path
         config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
