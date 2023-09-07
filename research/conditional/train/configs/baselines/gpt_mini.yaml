@@ -1,6 +1,6 @@
 # grid args
 runner: "research.conditional.train.cc_train"
-time: "0-02:00:00"
+time: "48:00:00"
 n_gpus: 1
 interactive_debug: false
 
@@ -17,17 +17,17 @@ params:
   batch_size: 256
   loss_checkpoint_chungs: 64
 
-  n_steps: 500000
+  n_steps: 270000
   grad_clip: 0.5
-  learning_rate: 0.0001
   lr_decay: 0.9999777
-  lr_warmup_steps: 7500
+  lr_warmup_steps: 10000
   lr_decay_interval: 1
 
-  logging_interval_heavy: 5000
+  logging_interval_heavy: 1000
   logging_interval_loss: 1000
-  save_weights_path: "weights"
-  save_weights_interval: 1000
+
+  save_weights_path: "weights_gpt_dense_mini"
+  save_weights_interval: 50000
 
   use_neptune: true
   project_name: "pmtest/llm-random"
@@ -36,5 +36,5 @@ params:
   tags:
     - "gpt"
     - "dense_baseline"
-    - "mini"
+    - "small"
 

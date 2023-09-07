@@ -80,13 +80,22 @@ class TemperatureScheduler:
     def update_model_temperature(self):
         for module in self.model.modules():
             if hasattr(module, "temperature"):
+                print(f"Updating temperature of {module}...")
+                print(f"Previous temperature: {module.temperature}")
+                print(
+                    f"Current temperature: {module.temperature * self.current_multiplier/self.previous_multiplier}"
+                )
                 # contmoe
-                module.temperature *= self.current_multiplier / self.previous_multiplier
+                module.temperature = (
+                    module.temperature
+                    * self.current_multiplier
+                    / self.previous_multiplier
+                )
             elif hasattr(module, "temperature_merge"):
                 # learnable temperature
-                module.temperature_merge *= (
+                module.temperature_merge = module.temperature_merge * (
                     self.current_multiplier / self.previous_multiplier
                 )
-                module.temperature_emit *= (
+                module.temperature_emit *= module.temperature_emit * (
                     self.current_multiplier / self.previous_multiplier
                 )
