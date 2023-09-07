@@ -1,6 +1,6 @@
 # This workflow will install Python dependencies, run tests and black
 
-name: Python application
+name: Run unittest, black and autoflake
 
 on:
   push:
