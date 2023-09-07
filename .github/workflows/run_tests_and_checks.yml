@@ -42,7 +42,7 @@ jobs:
       if: success() || failure()
       run: |
         black --version
-        black --check . 
+        black --diff . 
 
     - name: Unused imports and variables check
       if: success() || failure()
