@@ -36,7 +36,7 @@ jobs:
       if: success() || failure()
       run: |
         python -m autoflake --remove-all-unused-imports -r . --exclude venv,archived_code -c --quiet
-    - name: Test with unittest
+    - name: Run unittest
       if: success() || failure()
       run: |
         python -m unittest discover
