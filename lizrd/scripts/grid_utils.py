@@ -30,7 +30,7 @@ def get_machine_backend() -> MachineBackend:
 
 def get_common_directory(machine_backend: MachineBackend) -> str:
     if machine_backend == MachineBackend.ATHENA:
-        return "/net/tscratch/people/plgjkrajewski"
+        return "/net/pr2/projects/plgrid/plggllmeffi"
     elif machine_backend == MachineBackend.IDEAS:
         return "/raid/NFS_SHARE/llm-random"
     elif machine_backend == MachineBackend.ENTROPY_GPU:
@@ -48,10 +48,7 @@ def get_cache_path(machine_backend: MachineBackend) -> str:
 
 
 def get_singularity_image(machine_backend: MachineBackend) -> str:
-    if machine_backend == MachineBackend.ATHENA:
-        image_name = "sparsity_pytorch_2.0.sif"
-    else:
-        image_name = "sparsity_2023.08.29_09.26.31.sif"
+    image_name = "sparsity_2023.08.29_09.26.31.sif"
     common_dir = get_common_directory(machine_backend)
     return f"{common_dir}/images/{image_name}"
 
