@@ -28,6 +28,9 @@ params:
   grad_clip: 0.5
   lr_decay: 0.8
   lr_warmup_steps: 0
-  lr_decay_interval: 10
+  lr_decay_interval: 10000
+  n_att_heads: 4
+  learning_rate: 0.0001
+  dataset_type: wikibook
   use_dummy_dataset: true
 

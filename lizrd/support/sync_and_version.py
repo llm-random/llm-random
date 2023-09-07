@@ -1,9 +1,43 @@
+import subprocess
+from contextlib import contextmanager
+import copy
+import getpass
 import os
+from typing import Generator
 from fabric import Connection
 from argparse import ArgumentParser
 from git import Repo
+import paramiko.ssh_exception
+
 from lizrd.support.code_versioning import find_git_root, version_code
 from lizrd.support.misc import generate_random_string
+
+_SSH_HOSTS_TO_PASSPHRASES = {}
+
+
+@contextmanager
+def ConnectWithPassphrase(*args, **kwargs) -> Generator[Connection, None, None]:
+    """Connect to a remote host using a passphrase if the key is encrypted. The passphrase is preserved for subsequent connections to the same host."""
+    try:
+        connection = Connection(*args, **kwargs)
+        connection.run('echo "Connection successful."')
+        yield connection
+    except paramiko.ssh_exception.PasswordRequiredException as e:
+        if connection.host not in _SSH_HOSTS_TO_PASSPHRASES:
+            passphrase = getpass.getpass(
+                f"SSH key encrypted, provide the passphrase ({connection.host}): "
+            )
+            _SSH_HOSTS_TO_PASSPHRASES[connection.host] = passphrase
+        else:
+            passphrase = _SSH_HOSTS_TO_PASSPHRASES[connection.host]
+        kwargs["connect_kwargs"] = copy.deepcopy(
+            kwargs.get("connect_kwargs", {})
+        )  # avoid modifying the original connect_kwargs
+        kwargs["connect_kwargs"]["passphrase"] = passphrase
+        connection = Connection(*args, **kwargs)
+        yield connection
+    finally:
+        connection.close()
 
 
 def cd_to_root_dir():
@@ -17,16 +51,26 @@ def cd_to_root_dir():
 
 def rsync_to_remote(host, local_dir):
     try:
-        with Connection(host) as connection:
+        with ConnectWithPassphrase(host) as connection:
             base_dir = get_base_directory(connection)
             proxy_command = get_proxy_command(connection)
-            rsync_command = f"rsync -zrlp -e {proxy_command} {local_dir} {connection.user}@{connection.host}:{base_dir}"
-            print(f"Syncing {local_dir} to {connection.host}:{base_dir}...")
-            connection.local(
-                rsync_command,
-            )
-            print("Sync complete.")
-            return base_dir
+        rsync_command = [
+            "rsync",
+            "--compress",
+            "--recursive",
+            "--links",
+            "--perms",
+            "--human-readable",
+            "--stats",
+            f"--rsh={proxy_command}",
+            "--exclude=*.pyc",
+            local_dir,
+            f"{host}:{base_dir}",
+        ]
+        print(f"Syncing {local_dir} to {host}:{base_dir}...")
+        subprocess.run(rsync_command)
+        print("Sync complete.")
+        return base_dir
     except Exception as e:
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
 
@@ -43,24 +87,16 @@ def get_base_directory(connection):
 
 def get_proxy_command(connection):
     if connection.host == "4124gs01":
-        cc = Connection(connection.ssh_config["proxyjump"])
-        proxy_command = f"'ssh -A -J {cc.user}@{cc.host}'"
+        with ConnectWithPassphrase(connection.ssh_config["proxyjump"]) as cc:
+            proxy_command = f"'ssh -A -J {cc.user}@{cc.host}'"
     else:
         proxy_command = "ssh"
     return proxy_command
 
 
-def run_remote_script(host, script):
-    try:
-        with Connection(host) as c:
-            result = c.run(script)
-    except Exception as e:
-        raise Exception(f"An error occurred while running the script: {str(e)}")
-
-
 def set_up_permissions(host):
     try:
-        with Connection(host) as connection:
+        with ConnectWithPassphrase(host) as connection:
             path = f"{get_base_directory(connection)}/lizrd/scripts/grid_entrypoint_athena.sh"
             print(f"Changing permissions for {path}...")
             connection.run(f"chmod +x {path}")

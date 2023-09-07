@@ -2,7 +2,7 @@ import datetime
 import hashlib
 import random
 import string
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Set
 
 import yaml
 
@@ -30,8 +30,8 @@ def generate_random_string(length: int) -> str:
 
 
 def load_with_inheritance(
-    filepath: str, all_config_paths: set[str] = None, is_parent=False
-) -> Tuple[List[dict], set[str]]:
+    filepath: str, all_config_paths: Set[str] = None, is_parent=False
+) -> Tuple[List[dict], Set[str]]:
     """
     Load configs from a yaml file, with inheritance.
     This means that every config can include a "parent" field, which points to another yaml file.
