@@ -79,11 +79,6 @@ if __name__ == "__main__":
         total_minutes_from_this_grid = n_experiments * minutes_per_exp
         total_minutes += total_minutes_from_this_grid
 
-    if CLUSTER_NAME == MachineBackend.LOCAL and len(grid) > 1:
-        raise ValueError(
-            f"Running more than one experiment locally is not supported (you are trying to run {len(grid)} experiments). Aborting..."
-        )
-
     if not CLUSTER_NAME == MachineBackend.LOCAL:
         if not interactive_debug_session:
             user_input = input(
@@ -208,6 +203,8 @@ if __name__ == "__main__":
         print(f"running experiment {i} from {job_name}...")
         PROCESS_CALL_FUNCTION(subprocess_args, env)
         sleep(5)
-        if interactive_debug_session:
-            print("Ran only the first experiment in interactive mode. Aborting...")
+        if interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL:
+            print(
+                "Ran only the first experiment in (interactive mode or local run). Aborting..."
+            )
             break
