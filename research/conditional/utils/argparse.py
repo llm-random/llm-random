@@ -106,6 +106,7 @@ def introduce_parser_arguments(
 
     ## used by MoE (some specific, some common)
 
+    parser.add_argument("--steps_until_anneal", type=int)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
