@@ -29,14 +29,21 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         python -m pip install -U multiprocess
         black --version
-    - name: Black code style check
+    # - name: Black code style check
+    #   if: success() || failure()
+    #   uses: psf/black@stable
+    #   with:
+    #     options: "--check --verbose"
+    #     src: "."
+    #     jupyter: true
+    #     version: "23.1.0"
+  
+    - name: Black check
       if: success() || failure()
-      uses: psf/black@stable
-      with:
-        options: "--check --verbose"
-        src: "."
-        jupyter: true
-        version: "23.1.0"
+      run: |
+        black --version
+        black --check . 
+
     - name: Unused imports and variables check
       if: success() || failure()
       run: |
