@@ -85,6 +85,7 @@ def introduce_parser_arguments(
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
+    parser.add_argument("--git_branch", type=str, default=None)
 
     # model versioning
 
@@ -106,6 +107,7 @@ def introduce_parser_arguments(
 
     ## used by MoE (some specific, some common)
 
+    parser.add_argument("--steps_until_anneal", type=int)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,

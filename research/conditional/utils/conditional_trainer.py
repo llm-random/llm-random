@@ -12,7 +12,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.text.data import LLMBatch
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.misc_tools import get_ith_chunk
+from research.conditional.utils.misc_tools import get_ith_chunk, TemperatureScheduler
 from research.conditional.utils.model_utils import make_loss_function
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
@@ -57,6 +57,8 @@ class ConditionalTrainer:
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
+    steps_until_anneal: Optional[int] = None
+    n_steps: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -89,6 +91,14 @@ class ConditionalTrainer:
             )
         else:
             self.lr_scheduler = None
+        if self.steps_until_anneal is not None:
+            assert self.steps_until_anneal < self.n_steps
+            self.temperature_scheduler = TemperatureScheduler(
+                self.model,
+                self.steps_until_anneal,
+                self.n_steps,
+            )
+            print("Using temperature scheduler")
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -119,8 +129,12 @@ class ConditionalTrainer:
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
 
-    def _after_step_operations(self):
+    def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
+        if self.steps_until_anneal is not None:
+            self.temperature_scheduler.step(step)
 
     def train(self, n_steps: int):
         """
@@ -149,7 +163,7 @@ class ConditionalTrainer:
                 self._decode_samples(step)
 
             t2 = time.time()
-            self._after_step_operations()
+            self._after_step_operations(step)
 
             t3 = time.time()
 
