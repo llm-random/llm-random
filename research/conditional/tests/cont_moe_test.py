@@ -12,7 +12,12 @@ import research.conditional.moe_layers.ffs
 import research.conditional.moe_layers.cont_moe_designs.learnable_temperature
 from lizrd.support.test_utils import GeneralTestCase
 
-(batch, seq_len, dm, dff,) = (
+(
+    batch,
+    seq_len,
+    dm,
+    dff,
+) = (
     16,
     16,
     32,
