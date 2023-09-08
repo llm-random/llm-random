@@ -37,6 +37,7 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_decay", type=float, default=None)
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
+    parser.add_argument("--steps_until_anneal", type=int)
 
     # CORE data hyperparameters, almost always specified in baseline configs
 
@@ -90,7 +91,7 @@ def introduce_parser_arguments(
     # model versioning
 
     parser.add_argument("--save_weights_path", type=str, default=None)
-    parser.add_argument("--save_weights_interval", type=int, default=1000)
+    parser.add_argument("--save_weights_interval", type=int, default=10000)
     parser.add_argument("--load_weights_path", type=str, default=None)
 
     # paremeters for specific experiments
@@ -107,7 +108,6 @@ def introduce_parser_arguments(
 
     ## used by MoE (some specific, some common)
 
-    parser.add_argument("--steps_until_anneal", type=int)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
