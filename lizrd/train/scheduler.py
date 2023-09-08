@@ -12,7 +12,7 @@ def get_scheduler(args):
     elif args.scheduler == "cosine":
         return CosineScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
-            lr=args.lr,
+            lr=args.learning_rate,
             final_lr_step=args.final_lr_step,
             final_lr_fraction=args.final_lr_fraction,
         )
