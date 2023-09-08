@@ -25,9 +25,11 @@ params:
   logging_interval_heavy: 2
   logging_interval_loss: 1
   grad_clip: 0.5
-  scheduler: cosine
+  scheduler: constant
   lr_warmup_steps: 100
-  n_att_heads: 4
   learning_rate: 0.0001
+  final_lr_step: 900
+  final_lr_fraction: 0.1
+  n_att_heads: 4
   dataset_type: wikibook
   use_dummy_dataset: true
