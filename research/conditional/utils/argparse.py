@@ -26,6 +26,7 @@ def introduce_parser_arguments(
 
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument("--learning_rate", type=float, required=True)
+    parser.add_argument("--scheduler", type=str, required=True)
 
     # other training hyperparameters
 
