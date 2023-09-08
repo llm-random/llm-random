@@ -141,6 +141,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
         log["merge_weights/normalised_entropy"] = make_histogram(
             normalised_ent, title="merge logits entropy (normalised to [0,1])"
         )
+        log["temperature"] = self.temperature
 
         return log
 
