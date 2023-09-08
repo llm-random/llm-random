@@ -41,6 +41,11 @@ class CodeVersioningAgent:
             self.original_branch = self.repo.active_branch.name
             self.original_branch_commit_hash = self.repo.head.object.hexsha
 
+            # check if the branch is tracking any remote branch at origin
+            assert (
+                self.repo.active_branch.tracking_branch() is not None
+                and self.repo.active_branch.tracking_branch().remote_name == "origin"
+            ), "Branch is not a remote branch at origin. Aborting..."
             # reject if there are unpushed commits
             commits_behind = list(
                 self.repo.iter_commits(f"origin/{self.original_branch}..HEAD")

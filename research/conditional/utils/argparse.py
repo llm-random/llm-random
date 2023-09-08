@@ -165,6 +165,11 @@ def introduce_parser_arguments(
         action="store_true",
         help="in grouped ExpertChoice, use squash all linears with einsum",
     )
+    parser.add_argument(
+        "--use_dummy_dataset",
+        action="store_true",
+        help="whether to use dummy dataset (for debugging or tests)",
+    )
 
     # experimental/legacy parameters
 
