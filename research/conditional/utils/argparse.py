@@ -26,6 +26,9 @@ def introduce_parser_arguments(
 
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument("--learning_rate", type=float, required=True)
+    parser.add_argument("--scheduler", type=str, required=True)
+    parser.add_argument("--final_lr_step", type=int, required=False)
+    parser.add_argument("--final_lr_fraction", type=float, required=False)
 
     # other training hyperparameters
 
@@ -85,6 +88,7 @@ def introduce_parser_arguments(
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
+    parser.add_argument("--git_branch", type=str, default=None)
 
     # model versioning
 

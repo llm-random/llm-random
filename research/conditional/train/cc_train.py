@@ -11,11 +11,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
+from lizrd.support.misc import generate_random_string
 from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
 from research.datasets import DataloaderWrapper, get_processed_dataset
+from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.misc_tools import set_seed
@@ -98,6 +100,15 @@ def main(
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
+    if args.save_weights_path is not None:
+        assert (
+            "." not in args.save_weights_path
+        ), f"Do not add .pt or .pth to save_weights_path! It is added automatically, along with step number."
+        random_string = generate_random_string(10)
+        args.save_weights_path = os.path.join(args.save_weights_path, random_string)
+        args.save_weights_path = os.path.abspath(args.save_weights_path)
+        os.makedirs(args.save_weights_path, exist_ok=True)
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -127,6 +138,8 @@ def main(
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
+
+    scheduler = get_scheduler(args)
 
     train_dataloader = get_processed_dataset(
         sequence_length=args.cutoff,
@@ -164,6 +177,7 @@ def main(
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
+        lr_scheduler=scheduler,
         hack_name=args.hack_name,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
@@ -176,9 +190,6 @@ def main(
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        lr_decay=args.lr_decay,
-        lr_warmup_steps=args.lr_warmup_steps,
-        lr_decay_interval=args.lr_decay_interval,
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
