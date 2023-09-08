@@ -11,6 +11,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
+from lizrd.support.misc import generate_random_string
 from lizrd.train.train_utils import (
     get_model,
 )
@@ -99,6 +100,15 @@ def main(
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
+    if args.save_weights_path is not None:
+        assert (
+            "." not in args.save_weights_path
+        ), f"Do not add .pt or .pth to save_weights_path! It is added automatically, along with step number."
+        random_string = generate_random_string(10)
+        args.save_weights_path = os.path.join(args.save_weights_path, random_string)
+        args.save_weights_path = os.path.abspath(args.save_weights_path)
+        os.makedirs(args.save_weights_path, exist_ok=True)
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
