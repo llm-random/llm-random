@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import copy
 import getpass
 import os
+import datetime
 from typing import Generator
 from fabric import Connection
 from argparse import ArgumentParser
@@ -120,8 +121,14 @@ if __name__ == "__main__":
     _ = rsync_to_remote(args.host, working_dir + "/research")
     _ = rsync_to_remote(args.host, working_dir + "/.versioningignore")
     # WRITE root_dir to temp file for run_exp_remotely.sh
-    with open("base_dir.txt", "w") as f:
+    with open("/tmp/base_dir.txt", "w") as f:
         f.write(base_dir)
     set_up_permissions(args.host)
-    name_for_branch = "exp_" + generate_random_string(10)
+    name_for_branch = (
+        "exp_"
+        + f"{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+        + generate_random_string(10)
+    )
+    with open("/tmp/git_branch.txt", "w") as f:
+        f.write(name_for_branch)
     version_code(name_for_branch)
