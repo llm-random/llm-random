@@ -10,6 +10,7 @@ from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.text.data import LLMBatch
+from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk, TemperatureScheduler
@@ -34,6 +35,7 @@ class ConditionalTrainer:
     logging_interval_heavy: int
     max_sequence_length: int
     batch_size: int
+    lr_scheduler: AbstractLRScheduler
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -47,9 +49,6 @@ class ConditionalTrainer:
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
-    lr_decay: Optional[float] = None
-    lr_warmup_steps: int = 0
-    lr_decay_interval: int = 0
     log_gradients_and_weights: bool = False
     loss_log_intervals: tuple[int] = (1, 10, 100, 1000)
     decoding_logging_steps: int = 5_000
@@ -82,15 +81,6 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
-        if self.lr_decay is not None:
-            self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
-                self.optimizer,
-                lr_lambda=lambda i: i / self.lr_warmup_steps
-                if i < self.lr_warmup_steps
-                else self.lr_decay ** (i // self.lr_decay_interval),
-            )
-        else:
-            self.lr_scheduler = None
         if self.steps_until_anneal is not None:
             assert self.steps_until_anneal < self.n_steps
             self.temperature_scheduler = TemperatureScheduler(
@@ -132,8 +122,6 @@ class ConditionalTrainer:
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
         if self.steps_until_anneal is not None:
             self.temperature_scheduler.step(step)
 
@@ -248,8 +236,7 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
 
         loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         if self.is_process_logging:
             if self.model_type == "bert":
                 mask_percent = self.mask_percent
@@ -311,10 +298,9 @@ class ConditionalTrainer:
 
     def _log_train_stats(self, loss_value, step, aux_info):
         self.logger.report_scalar(title="step", value=step, iteration=step)
-        if self.lr_scheduler is not None:
-            self.logger.report_scalar(
-                title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step
-            )
+        self.logger.report_scalar(
+            title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
+        )
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
