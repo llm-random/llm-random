@@ -13,8 +13,8 @@ params:
   name: "f-bench"
   logging_interval_heavy: 5000
   logging_interval_loss: 1000
-  save_weights_path: "weights" # <- do sprawdzenia
-  save_weights_interval: 1000 # <- do sprawdzenia (zapisywać na koniec też)
+  save_weights_path: "model_ckpt"
+  save_weights_interval: 25_000
 
   # shallower bass
   cutoff: 256
