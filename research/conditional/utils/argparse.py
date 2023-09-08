@@ -85,6 +85,7 @@ def introduce_parser_arguments(
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
+    parser.add_argument("--git_branch", type=str, default=None)
 
     # model versioning
 
@@ -163,6 +164,11 @@ def introduce_parser_arguments(
         "--use_full_einsum",
         action="store_true",
         help="in grouped ExpertChoice, use squash all linears with einsum",
+    )
+    parser.add_argument(
+        "--use_dummy_dataset",
+        action="store_true",
+        help="whether to use dummy dataset (for debugging or tests)",
     )
 
     # experimental/legacy parameters

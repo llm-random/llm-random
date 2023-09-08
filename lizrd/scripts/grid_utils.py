@@ -42,6 +42,8 @@ def get_common_directory(machine_backend: MachineBackend) -> str:
 def get_cache_path(machine_backend: MachineBackend) -> str:
     if machine_backend in [MachineBackend.LOCAL]:
         return f"{os.getenv('HOME')}/.cache/huggingface/datasets"
+    elif machine_backend == MachineBackend.ATHENA:
+        return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
     else:
         common_dir = get_common_directory(machine_backend)
         return f"{common_dir}/.cache"

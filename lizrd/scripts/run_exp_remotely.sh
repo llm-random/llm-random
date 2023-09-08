@@ -9,8 +9,10 @@ set -e
 source venv/bin/activate
 # run your python script
 python3 -m lizrd.support.sync_and_version --host $1
-base_dir=$(cat base_dir.txt)
-rm base_dir.txt
+base_dir=$(cat /tmp/base_dir.txt)
+git_branch=$(cat /tmp/git_branch.txt)
+rm /tmp/base_dir.txt
+rm /tmp/git_branch.txt
 
 
 
@@ -21,7 +23,7 @@ run_grid_remotely() {
   echo "Running grid search on $host with config $config"
 
   script="cd $base_dir && tmux new-session -d -s $session_name bash"
-  script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid $config' C-m"
+  script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid --config_path=$config --git_branch=$git_branch' C-m"
   script+="; tmux attach -t $session_name"
   script+="; echo 'done'" #black magic: without it, interactive sessions like "srun" cannot be detached from without killing the session
 
