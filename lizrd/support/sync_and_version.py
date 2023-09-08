@@ -84,7 +84,8 @@ def connection_to_athena_nick(connection):
         "plgludziej": "ludziej",
         "plgsimontwice": "simontwice",
     }
-    return d[connection.user]
+    user = connection.user
+    return d[user] if user in d else user
 
 
 def get_base_directory(connection):
