@@ -42,24 +42,32 @@ class ConstantScheduler(BaseScheduler):
 
 
 class CosineScheduler(BaseScheduler):
-    def __init__(self, lr_warmup_steps: int, lr: float, final_lr_step: int):
+    def __init__(
+        self,
+        lr_warmup_steps: int,
+        lr: float,
+        final_lr_step: int,
+        final_lr_fraction: float,
+    ):
         self.lr_warmup_steps = lr_warmup_steps
         self.lr = lr
         self.final_lr_step = final_lr_step
+        self.final_lr_fraction = final_lr_fraction
 
     def get_lr(self, step: int):
         if step < self.lr_warmup_steps:
             return self.lr * (step + 1) / self.lr_warmup_steps
+        # cosine schedule that ends at final_lr_fraction * lr, then constant
         elif step < self.final_lr_step:
-            return (
-                self.lr
-                * (
-                    1
-                    + math.cos(
-                        math.pi * (step - self.lr_warmup_steps) / self.final_lr_step
-                    )
+            return self.final_lr_fraction * self.lr + 0.5 * (
+                1 - self.final_lr_fraction
+            ) * self.lr * (
+                1
+                + math.cos(
+                    math.pi
+                    * (step - self.lr_warmup_steps)
+                    / (self.final_lr_step - self.lr_warmup_steps)
                 )
-                / 2
             )
         else:
-            return self.lr
+            return self.lr * self.final_lr_fraction
