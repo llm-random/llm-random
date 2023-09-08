@@ -81,6 +81,7 @@ class C4Dataset(AbstractDataset):
 
     def __init__(self, seed: Optional[int] = None, split: str = "train"):
         super().__init__(seed=seed)
+        assert split in ["train", "validation"]
         self.dataset = load_dataset("c4", "en", split=split)
 
     def get_document(self) -> str:
