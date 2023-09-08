@@ -50,6 +50,11 @@ class CosineScheduler(BaseScheduler):
         final_lr_step: int,
         final_lr_fraction: float,
     ):
+        assert isinstance(lr_warmup_steps, int)
+        assert isinstance(lr, float)
+        assert isinstance(final_lr_step, int)
+        assert isinstance(final_lr_fraction, float)
+
         self.lr_warmup_steps = lr_warmup_steps
         self.lr = lr
         self.final_lr_step = final_lr_step
