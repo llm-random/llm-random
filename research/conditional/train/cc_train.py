@@ -121,7 +121,7 @@ def main(
         model = model.to(f"cuda:{rank}")
         model = DDP(model, device_ids=[rank])
 
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
@@ -138,6 +138,7 @@ def main(
         seed=args.data_seed if data_seeds is None else data_seeds[rank],
         model_type=args.model_type,
         dataset_type=args.dataset_type,
+        use_dummy_dataset=args.use_dummy_dataset,
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)

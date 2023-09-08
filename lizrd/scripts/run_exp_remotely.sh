@@ -18,11 +18,12 @@ run_grid_remotely() {
   host=$1
   config=$2
   session_name=$(date "+%Y_%m_%d_%H_%M_%S")
-
+  echo "Running grid search on $host with config $config"
 
   script="cd $base_dir && tmux new-session -d -s $session_name bash"
   script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid $config' C-m"
   script+="; tmux attach -t $session_name"
+  script+="; echo 'done'" #black magic: without it, interactive sessions like "srun" cannot be detached from without killing the session
 
   ssh -t $host "$script"
 }
