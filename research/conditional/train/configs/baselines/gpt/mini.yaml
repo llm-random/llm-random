@@ -1,0 +1,8 @@
+parent: research/conditional/train/configs/baselines/common.yaml
+md5_parent_hash: d41d8cd98f00b204e9800998ecf8427e # <- ustalić
+
+params:
+  dmodel: 256
+  dff: 1024
+  n_blocks: 4
+  n_att_heads: 4
