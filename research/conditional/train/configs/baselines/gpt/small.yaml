@@ -1,5 +1,5 @@
 parent: research/conditional/train/configs/baselines/common.yaml
-md5_parent_hash: f10b3c37dd5f7aa8e7282a671a5b37e3
+md5_parent_hash: 07160dfb7bc619d49d83caa40cb658af
 
 params:
   dmodel: 512

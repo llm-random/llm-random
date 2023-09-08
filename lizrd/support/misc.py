@@ -51,7 +51,9 @@ def load_with_inheritance(
     for config in configs:
         if "parent" in config:
             assert "md5_parent_hash" in config
-            assert get_yaml_md5(config["parent"]) == config["md5_parent_hash"]
+            assert (
+                get_yaml_md5(config["parent"]) == config["md5_parent_hash"]
+            ), f"md5 hash of parent yaml {config['parent']} does not match the one specified in the child yaml"
             parent_config_list, additional_paths = load_with_inheritance(
                 config["parent"], all_config_paths, is_parent=True
             )
