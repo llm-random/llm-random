@@ -105,6 +105,7 @@ def main(
         ), f"Do not add .pt or .pth to save_weights_path! It is added automatically, along with step number."
         random_string = generate_random_string(10)
         args.save_weights_path = os.path.join(args.save_weights_path, random_string)
+        args.save_weights_path = os.path.abspath(args.save_weights_path)
         os.makedirs(args.save_weights_path, exist_ok=True)
 
     model = get_model(
