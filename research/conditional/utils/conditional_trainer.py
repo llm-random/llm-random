@@ -114,6 +114,7 @@ class ConditionalTrainer:
                 )
 
     def _save_weights(self, step):
+        print("Saving weights... ")
         if (
             self.save_weights_path is not None
             and step % self.save_weights_interval == 0
@@ -123,7 +124,7 @@ class ConditionalTrainer:
                 "optimizer": self.optimizer.state_dict(),
                 "scaler": self.scaler.state_dict(),
             }
-            torch.save(checkpoint, self.save_weights_path)
+            torch.save(checkpoint, os.path.join(self.save_weights_path, f"{step}.pth"))
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
