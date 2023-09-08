@@ -7,7 +7,6 @@ from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
-from traitlets import default
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
