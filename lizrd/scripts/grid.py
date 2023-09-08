@@ -3,12 +3,11 @@ Script to grid search in recycle layers. Run this script from the root of the pr
 $ python3 research/reinitialization/scripts/grid.py
 Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
-
+import argparse
 import datetime
 import os
 import pprint
 import subprocess
-import sys
 import yaml
 from time import sleep
 
@@ -27,23 +26,23 @@ from lizrd.support.code_copying import copy_code
 from lizrd.support.misc import load_with_inheritance
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config_path", type=str)
+    parser.add_argument("--git_branch", type=str, default="")
+    args = parser.parse_args()
     CLUSTER_NAME = get_machine_backend()
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
         [str(arg) for arg in args if arg is not None], env=env
     )
 
-    try:
-        path = sys.argv[1]
-    except IndexError:
-        raise ValueError("No config path specified. Aborting...")
-
-    if path.endswith(".yaml"):
-        configs, all_config_paths = load_with_inheritance(path)
+    if args.config_path.endswith(".yaml"):
+        configs, all_config_paths = load_with_inheritance(args.config_path)
     else:
         raise ValueError("config path point to a .yaml")
 
     for config in configs:
-        config["params"]["path_to_entry_config"] = path
+        config["params"]["git_branch"] = args.git_branch
+        config["params"]["path_to_entry_config"] = args.config_path
         config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
     interactive_options_per_config = [
@@ -145,7 +144,7 @@ if __name__ == "__main__":
                 "--bind=/net:/net",
                 f"--env",
                 f"HF_DATASETS_CACHE={setup_args['hf_datasets_cache']}",
-                f"-B={os.getcwd()}:/sparsity,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
+                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
                 "--nv",
                 setup_args["singularity_image"],
                 "python3",
@@ -167,7 +166,7 @@ if __name__ == "__main__":
                 "run",
                 f"--env",
                 f"HF_DATASETS_CACHE={setup_args['hf_datasets_cache']}",
-                f"-B={os.getcwd()}:/sparsity,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
+                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
                 "--nv",
                 setup_args["singularity_image"],
                 "python3",
@@ -184,7 +183,7 @@ if __name__ == "__main__":
                 "run",
                 f"--env",
                 f"HF_DATASETS_CACHE={setup_args['hf_datasets_cache']}",
-                f"-B={os.getcwd()}:/sparsity,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
+                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
                 "--nv",
                 setup_args["singularity_image"],
                 "python3",
