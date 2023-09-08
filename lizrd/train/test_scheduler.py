@@ -49,7 +49,9 @@ class TestSchedulers(GeneralTestCase):
             elif step == 9:
                 assert math.isclose(optim.param_groups[0]["lr"], 0.1, abs_tol=1e-6)
             elif step == 50:
-                assert math.isclose(optim.param_groups[0]["lr"], 0.055, abs_tol=1e-6)
+                assert math.isclose(
+                    optim.param_groups[0]["lr"], 0.01 + (0.1 - 0.01) / 2, abs_tol=1e-6
+                )  # this is half of the distance between high and low lr
             elif step == 90:
                 assert math.isclose(optim.param_groups[0]["lr"], 0.01, abs_tol=1e-6)
             elif step == 99:

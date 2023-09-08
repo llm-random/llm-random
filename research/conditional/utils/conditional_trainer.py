@@ -10,7 +10,7 @@ from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.text.data import LLMBatch
-from lizrd.train.scheduler import BaseLRScheduler
+from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
@@ -35,7 +35,7 @@ class ConditionalTrainer:
     logging_interval_heavy: int
     max_sequence_length: int
     batch_size: int
-    lr_scheduler: BaseLRScheduler
+    lr_scheduler: AbstractLRScheduler
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None

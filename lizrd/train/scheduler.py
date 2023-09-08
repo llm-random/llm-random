@@ -20,7 +20,7 @@ def get_scheduler(args):
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 
 
-class BaseLRScheduler(ABC):
+class AbstractLRScheduler(ABC):
     def get_lr(self, step):
         raise NotImplementedError
 
@@ -30,7 +30,7 @@ class BaseLRScheduler(ABC):
             param_group["lr"] = new_lr
 
 
-class ConstantScheduler(BaseLRScheduler):
+class ConstantScheduler(AbstractLRScheduler):
     def __init__(self, lr_warmup_steps: int, lr: float):
         self.lr_warmup_steps = lr_warmup_steps
         self.lr = lr
@@ -42,7 +42,7 @@ class ConstantScheduler(BaseLRScheduler):
             return self.lr
 
 
-class CosineScheduler(BaseLRScheduler):
+class CosineScheduler(AbstractLRScheduler):
     def __init__(
         self,
         lr_warmup_steps: int,
