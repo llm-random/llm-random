@@ -49,7 +49,6 @@ class TestSchedulers(GeneralTestCase):
             elif step == 9:
                 assert math.isclose(optim.param_groups[0]["lr"], 0.1, abs_tol=1e-6)
             elif step == 50:
-                print(optim.param_groups[0]["lr"])
                 assert math.isclose(optim.param_groups[0]["lr"], 0.055, abs_tol=1e-6)
             elif step == 90:
                 assert math.isclose(optim.param_groups[0]["lr"], 0.01, abs_tol=1e-6)
