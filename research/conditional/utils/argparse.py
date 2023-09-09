@@ -72,6 +72,7 @@ def introduce_parser_arguments(
     parser.add_argument("--mask_percent", type=float, default=0.15)
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--torch_seed", type=int, default=42)
+    parser.add_argument("--decoding_logging_steps", type=int, default=5000)
 
     # hardware
     parser.add_argument("--n_gpus", type=int, default=1)

@@ -193,6 +193,7 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
+        decoding_logging_steps=args.decoding_logging_steps,
     )
     trainer.train(args.n_steps)
 
