@@ -1,4 +1,3 @@
-import subprocess
 from contextlib import contextmanager
 import copy
 import getpass
@@ -55,23 +54,15 @@ def rsync_to_remote(host, local_dir):
         with ConnectWithPassphrase(host) as connection:
             base_dir = get_base_directory(connection)
             proxy_command = get_proxy_command(connection)
-        rsync_command = [
-            "rsync",
-            "--compress",
-            "--recursive",
-            "--links",
-            "--perms",
-            "--human-readable",
-            "--stats",
-            f"--rsh={proxy_command}",
-            "--exclude=*.pyc",
-            local_dir,
-            f"{host}:{base_dir}",
-        ]
-        print(f"Syncing {local_dir} to {host}:{base_dir}...")
-        subprocess.run(rsync_command)
-        print("Sync complete.")
-        return base_dir
+            rsync_command = (
+                f"rsync -zrlp -e {proxy_command} {local_dir} {host}:{base_dir}"
+            )
+            print(f"Syncing {local_dir} to {host}:{base_dir}...")
+            connection.local(
+                rsync_command,
+            )
+            print("Sync complete.")
+            return base_dir
     except Exception as e:
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
 
