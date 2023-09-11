@@ -63,8 +63,8 @@ def rsync_to_remote(host, local_dir):
             "--perms",
             "--human-readable",
             "--stats",
-            "--exclude=*.pyc",
             f"--rsh={proxy_command}",
+            "--exclude=*.pyc",
             local_dir,
             f"{host}:{base_dir}",
         ]
