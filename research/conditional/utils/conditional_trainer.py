@@ -268,18 +268,18 @@ class ConditionalTrainer:
                 extra_losses[name] += loss_value
         if self.is_process_logging:
             self.logger.report_scalar(
-                title="loss/eval",
+                title="eval/total_loss",
                 value=total_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title="accuracy/eval",
+                title="eval/accuracy",
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
             for name, loss_value in extra_losses:
                 self.logger.report_scalar(
-                    title=f"{name}/eval",
+                    title=f"eval/{name}",
                     value=loss_value / self.n_eval_batches,
                     iteration=step,
                 )
