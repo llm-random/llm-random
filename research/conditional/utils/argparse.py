@@ -105,8 +105,8 @@ def introduce_parser_arguments(
     parser.add_argument("--sparsity_dim", type=int)
     parser.add_argument("--temperature", type=float)
     parser.add_argument("--expert_size", type=int)
-    parser.add_argument("--share_by_experts", action="store_true")
-    parser.add_argument("--share_by_emit_merge", action="store_true")
+    parser.add_argument("--separate_temp_for_experts", action="store_true")
+    parser.add_argument("--separate_temp_for_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
 
     ## used by MoE (some specific, some common)

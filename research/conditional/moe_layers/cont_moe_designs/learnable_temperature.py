@@ -18,8 +18,8 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
     either shared for merge and emit or not
     """
 
-    share_by_experts: bool = True
-    share_by_emit_merge: bool = True
+    separate_temp_for_experts: bool = False
+    separate_temp_for_emit_merge: bool = False
 
     def get_merge_and_emit_weights(self, x):
         merge_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
@@ -33,20 +33,20 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
         return merge_weights, emit_weights
 
     def init_parameters(self):
-        if self.share_by_experts:
-            if self.share_by_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.ones(1))
-                self.temperature_merge = self.temperature_emit
-            else:
-                self.temperature_emit = nn.Parameter(torch.ones(1))
-                self.temperature_merge = nn.Parameter(torch.ones(1))
-        else:
-            if self.share_by_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
-                self.temperature_merge = self.temperature_emit
-            else:
+        if self.separate_temp_for_experts:
+            if self.separate_temp_for_emit_merge:
                 self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
                 self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
+            else:
+                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
+                self.temperature_merge = self.temperature_emit
+        else:
+            if self.separate_temp_for_emit_merge:
+                self.temperature_emit = nn.Parameter(torch.ones(1))
+                self.temperature_merge = nn.Parameter(torch.ones(1))
+            else:
+                self.temperature_emit = nn.Parameter(torch.ones(1))
+                self.temperature_merge = self.temperature_emit
 
         self.lin1 = nn.Parameter(
             misc.get_init_weight(

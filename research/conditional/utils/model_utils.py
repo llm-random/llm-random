@@ -381,8 +381,8 @@ def get_ff_layer(args):
             expert_size=args.expert_size,
             use_opt_einsum=args.use_opt_einsum,
             flop_matched=args.flop_matched,
-            share_by_experts=args.share_by_experts,
-            share_by_emit_merge=args.share_by_emit_merge,
+            separate_temp_for_experts=args.separate_temp_for_experts,
+            separate_temp_for_emit_merge=args.separate_temp_for_emit_merge,
         )
     elif args.ff_mode == "cont_moe_ln":
         return_fn = lambda: ContinuousMoELayernorm(
