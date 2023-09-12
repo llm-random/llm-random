@@ -91,6 +91,7 @@ def introduce_parser_arguments(
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
     parser.add_argument("--git_branch", type=str, default=None)
+    parser.add_argument("--decoding_logging_steps", type=int, default=5_000)
 
     # model versioning
 
