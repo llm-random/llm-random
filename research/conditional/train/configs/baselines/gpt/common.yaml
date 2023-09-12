@@ -1,0 +1,6 @@
+parent: research/conditional/train/configs/baselines/common.yaml
+md5_parent_hash: 07160dfb7bc619d49d83caa40cb658af
+
+params:
+  model_type: gpt
+  dataset_type: c4

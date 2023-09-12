@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os.path
 import copy
 from types import SimpleNamespace as SN
@@ -10,6 +11,7 @@ from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.text.data import LLMBatch
+from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
@@ -24,6 +26,7 @@ class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
+    eval_dataloader: DataloaderWrapper
     vocab_size: int
     mixed_precision: bool
     logger: Optional[AbstractLogger]
@@ -32,8 +35,11 @@ class ConditionalTrainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
+    n_eval_steps: int
+    n_eval_batches: int
     max_sequence_length: int
     batch_size: int
+    lr_scheduler: AbstractLRScheduler
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -47,9 +53,6 @@ class ConditionalTrainer:
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
-    lr_decay: Optional[float] = None
-    lr_warmup_steps: int = 0
-    lr_decay_interval: int = 0
     log_gradients_and_weights: bool = False
     loss_log_intervals: tuple[int] = (1, 10, 100, 1000)
     decoding_logging_steps: int = 5_000
@@ -80,15 +83,6 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
-        if self.lr_decay is not None:
-            self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
-                self.optimizer,
-                lr_lambda=lambda i: i / self.lr_warmup_steps
-                if i < self.lr_warmup_steps
-                else self.lr_decay ** (i // self.lr_decay_interval),
-            )
-        else:
-            self.lr_scheduler = None
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -104,6 +98,7 @@ class ConditionalTrainer:
                 )
 
     def _save_weights(self, step):
+        print("Saving weights... ")
         if (
             self.save_weights_path is not None
             and step % self.save_weights_interval == 0
@@ -113,7 +108,7 @@ class ConditionalTrainer:
                 "optimizer": self.optimizer.state_dict(),
                 "scaler": self.scaler.state_dict(),
             }
-            torch.save(checkpoint, self.save_weights_path)
+            torch.save(checkpoint, os.path.join(self.save_weights_path, f"{step}.pth"))
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
@@ -147,6 +142,9 @@ class ConditionalTrainer:
                 and self.is_process_logging
             ):
                 self._decode_samples(step)
+
+            if step % self.n_eval_steps == 0:
+                self._eval_step(step)
 
             t2 = time.time()
             self._after_step_operations()
@@ -232,9 +230,10 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
 
-        loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
+        loss, aux_info = self.calculate_loss_and_maybe_optimize(
+            processed_batch, should_optimize=True
+        )
         if self.is_process_logging:
             if self.model_type == "bert":
                 mask_percent = self.mask_percent
@@ -250,7 +249,44 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def optimize_with_gradient_accumulation(self, processed_batch: LLMBatch):
+    def _eval_step(self, step):
+        self.model.eval()
+        total_loss = 0.0
+        total_correct_tokens = 0
+        total_masked_tokens = 0
+        extra_losses = defaultdict(float)
+        for _ in range(self.n_eval_batches):
+            processed_batch = self.eval_dataloader.get_batch()
+            with torch.no_grad():
+                loss, aux_info = self.calculate_loss_and_maybe_optimize(
+                    processed_batch, should_optimize=False
+                )
+            total_loss += loss
+            total_correct_tokens += aux_info["correct_tokens"]
+            total_masked_tokens += aux_info["total_masked_tokens"]
+            for name, loss_value in aux_info["losses"].items():
+                extra_losses[name] += loss_value
+        if self.is_process_logging:
+            self.logger.report_scalar(
+                title="eval/total_loss",
+                value=total_loss / self.n_eval_batches,
+                iteration=step,
+            )
+            self.logger.report_scalar(
+                title="eval/accuracy",
+                value=total_correct_tokens / total_masked_tokens,
+                iteration=step,
+            )
+            for name, loss_value in extra_losses:
+                self.logger.report_scalar(
+                    title=f"eval/{name}",
+                    value=loss_value / self.n_eval_batches,
+                    iteration=step,
+                )
+
+    def calculate_loss_and_maybe_optimize(
+        self, processed_batch: LLMBatch, should_optimize: bool
+    ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         total_cross_entropy_loss = 0.0
         correct_tokens_value = 0
@@ -278,9 +314,10 @@ class ConditionalTrainer:
             for key, value in aux_info["losses"].items():
                 loss_to_optimize += value
 
-            self._optimize(
-                loss_to_optimize, should_apply_gradient=should_apply_gradient
-            )
+            if should_optimize:
+                self._optimize(
+                    loss_to_optimize, should_apply_gradient=should_apply_gradient
+                )
             total_cross_entropy_loss += cross_entropy_loss.item()
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
@@ -296,10 +333,9 @@ class ConditionalTrainer:
 
     def _log_train_stats(self, loss_value, step, aux_info):
         self.logger.report_scalar(title="step", value=step, iteration=step)
-        if self.lr_scheduler is not None:
-            self.logger.report_scalar(
-                title="lr", value=self.lr_scheduler.get_last_lr()[0], iteration=step
-            )
+        self.logger.report_scalar(
+            title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
+        )
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():

@@ -26,6 +26,9 @@ def introduce_parser_arguments(
 
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument("--learning_rate", type=float, required=True)
+    parser.add_argument("--scheduler", type=str, required=True)
+    parser.add_argument("--final_lr_step", type=int, required=False)
+    parser.add_argument("--final_lr_fraction", type=float, required=False)
 
     # other training hyperparameters
 
@@ -82,9 +85,13 @@ def introduce_parser_arguments(
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
+    parser.add_argument("--n_eval_steps", type=int, default=1000)
+    parser.add_argument("--n_eval_batches", type=int, default=10)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
+    parser.add_argument("--git_branch", type=str, default=None)
+    parser.add_argument("--decoding_logging_steps", type=int, default=5_000)
 
     # model versioning
 
@@ -163,6 +170,11 @@ def introduce_parser_arguments(
         "--use_full_einsum",
         action="store_true",
         help="in grouped ExpertChoice, use squash all linears with einsum",
+    )
+    parser.add_argument(
+        "--use_dummy_dataset",
+        action="store_true",
+        help="whether to use dummy dataset (for debugging or tests)",
     )
 
     # experimental/legacy parameters

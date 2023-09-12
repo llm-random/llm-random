@@ -15,7 +15,7 @@ params:
   tags:
     - "test"
   use_neptune: true
-  n_steps: 3
+  n_steps: 10
   dmodel: 64
   dff: 256
   n_blocks: 2
@@ -26,10 +26,9 @@ params:
   logging_interval_heavy: 2
   logging_interval_loss: 1
   grad_clip: 0.5
-  lr_decay: 0.8
-  lr_warmup_steps: 0
-  lr_decay_interval: 10000
+  scheduler: constant
+  lr_warmup_steps: 4
   n_att_heads: 4
   learning_rate: 0.0001
   dataset_type: wikibook
-
+  use_dummy_dataset: true

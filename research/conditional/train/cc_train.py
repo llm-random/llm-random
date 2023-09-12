@@ -11,11 +11,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
+from lizrd.support.misc import generate_random_string
 from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
 from research.datasets import DataloaderWrapper, get_processed_dataset
+from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.misc_tools import set_seed
@@ -98,6 +100,15 @@ def main(
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
+    if args.save_weights_path is not None:
+        assert (
+            "." not in args.save_weights_path
+        ), f"Do not add .pt or .pth to save_weights_path! It is added automatically, along with step number."
+        random_string = generate_random_string(10)
+        args.save_weights_path = os.path.join(args.save_weights_path, random_string)
+        args.save_weights_path = os.path.abspath(args.save_weights_path)
+        os.makedirs(args.save_weights_path, exist_ok=True)
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -121,23 +132,39 @@ def main(
         model = model.to(f"cuda:{rank}")
         model = DDP(model, device_ids=[rank])
 
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
 
-    train_dataloader = get_processed_dataset(
-        sequence_length=args.cutoff,
-        device=DEVICE,
-        num_workers=args.num_workers,
-        batch_size=args.batch_size // args.n_gpus
+    scheduler = get_scheduler(args)
+
+    common_dataloaders_kwargs = {
+        "sequence_length": args.cutoff,
+        "device": DEVICE,
+        "num_workers": args.num_workers,
+        "batch_size": args.batch_size // args.n_gpus
         if data_distributed
         else args.batch_size,
-        seed=args.data_seed if data_seeds is None else data_seeds[rank],
-        model_type=args.model_type,
-        dataset_type=args.dataset_type,
+        "seed": args.data_seed if data_seeds is None else data_seeds[rank],
+        "model_type": args.model_type,
+        "dataset_type": args.dataset_type,
+        "use_dummy_dataset": args.use_dummy_dataset,
+    }
+    train_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs, dataset_split="train"
+    )
+    eval_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs,
+        dataset_split="eval"
+        if args.dataset_type == "wikibook"
+        else (
+            "train"
+            if args.dataset_type == "c4" and args.use_dummy_dataset
+            else "validation"
+        ),
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
@@ -157,17 +184,21 @@ def main(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
+        eval_dataloader=eval_dataloader,
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
         mixed_precision=args.mixed_precision,
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
+        lr_scheduler=scheduler,
         hack_name=args.hack_name,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
+        n_eval_steps=args.n_eval_steps,
+        n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
         save_weights_path=args.save_weights_path,
         save_weights_interval=args.save_weights_interval,
@@ -175,12 +206,10 @@ def main(
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        lr_decay=args.lr_decay,
-        lr_warmup_steps=args.lr_warmup_steps,
-        lr_decay_interval=args.lr_decay_interval,
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
+        decoding_logging_steps=args.decoding_logging_steps,
     )
     trainer.train(args.n_steps)
 
