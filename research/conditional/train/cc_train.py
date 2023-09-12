@@ -158,7 +158,13 @@ def main(
     )
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
-        dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
+        dataset_split="eval"
+        if args.dataset_type == "wikibook"
+        else (
+            "train"
+            if args.dataset_type == "c4" and args.use_dummy_dataset
+            else "validation"
+        ),
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
