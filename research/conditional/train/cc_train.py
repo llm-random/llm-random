@@ -158,7 +158,13 @@ def main(
     )
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
-        dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
+        dataset_split="eval"
+        if args.dataset_type == "wikibook"
+        else (
+            "train"
+            if args.dataset_type == "c4" and args.use_dummy_dataset
+            else "validation"
+        ),
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
@@ -203,6 +209,7 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
+        decoding_logging_steps=args.decoding_logging_steps,
     )
     trainer.train(args.n_steps)
 
