@@ -1,5 +1,6 @@
 import dataclasses
 from typing import Union
+import itertools
 
 import einops
 import numpy as np
@@ -83,24 +84,32 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return merge_weights, merge_weights
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        with measure_time(self, "merge_map_emit__merge_and_process"):
-            x = misc.einsum(
-                "B S c d, B S e c, d e f -> B S e f",
-                x,
-                merge_weights,
-                self.lin1,
-                use_opt_einsum=self.use_opt_einsum,
-            )
-        with measure_time(self, "merge_map_emit__relu"):
-            x = torch.relu_(x)
-        with measure_time(self, "merge_map_emit__process_and_emit"):
-            x = misc.einsum(
-                "B S e f, d e f, B S e c -> B S c d",
-                x,
-                self.lin2,
-                emit_weights,
-                use_opt_einsum=self.use_opt_einsum,
-            )
+        # Reorder the dimensions so that the calculations are faster
+        input_order = "B S g d"
+        original_x = x.clone()
+        for output_order in itertools.permutations(["B", "g", "S", "d"]):
+            output_order = " ".join(output_order)
+            x = einops.rearrange(original_x, f"{input_order} -> {output_order}").clone()
+            with measure_time(
+                self, f"merge_map_emit__merge_and_process_{output_order}"
+            ):
+                x = misc.einsum(
+                    f"{output_order}, B S e c, d e f -> B S e f",
+                    x,
+                    merge_weights,
+                    self.lin1,
+                    use_opt_einsum=self.use_opt_einsum,
+                )
+            with measure_time(self, f"merge_map_emit__relu_{output_order}"):
+                x = torch.relu_(x)
+            with measure_time(self, f"merge_map_emit__process_and_emit_{output_order}"):
+                x = misc.einsum(
+                    "B S e f, d e f, B S e c -> B S c d",
+                    x,
+                    self.lin2,
+                    emit_weights,
+                    use_opt_einsum=self.use_opt_einsum,
+                )
         return x
 
     def reshape_into_original(self, x):
