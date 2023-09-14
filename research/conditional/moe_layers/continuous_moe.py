@@ -9,7 +9,7 @@ from plotly import express as px
 from lizrd.core import misc, nn
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
-from research.conditional.utils.layer_manager import LoggingLayer
+from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 
 
 @dataclasses.dataclass(eq=False, repr=False)
@@ -49,10 +49,14 @@ class ContinuousMoeBaseClass(LoggingLayer):
         self.init_parameters()
 
     def forward(self, x):
-        x = self.reshape_into_token_groups(x)
-        merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
-        x = self.merge_map_emit(x, merge_weights, emit_weights)
-        x = self.reshape_into_original(x)
+        with measure_time(self, "reshape_into_token_groups"):
+            x = self.reshape_into_token_groups(x)
+        with measure_time(self, "get_merge_and_emit_weights"):
+            merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
+        with measure_time(self, "merge_map_emit"):
+            x = self.merge_map_emit(x, merge_weights, emit_weights)
+        with measure_time(self, "reshape_into_original"):
+            x = self.reshape_into_original(x)
         return x
 
     def reshape_into_token_groups(self, x):
@@ -79,21 +83,24 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return merge_weights, merge_weights
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        x = misc.einsum(
-            "B S c d, B S e c, d e f -> B S e f",
-            x,
-            merge_weights,
-            self.lin1,
-            use_opt_einsum=self.use_opt_einsum,
-        )
-        x = torch.relu_(x)
-        x = misc.einsum(
-            "B S e f, d e f, B S e c -> B S c d",
-            x,
-            self.lin2,
-            emit_weights,
-            use_opt_einsum=self.use_opt_einsum,
-        )
+        with measure_time(self, "merge_map_emit__merge_and_process"):
+            x = misc.einsum(
+                "B S c d, B S e c, d e f -> B S e f",
+                x,
+                merge_weights,
+                self.lin1,
+                use_opt_einsum=self.use_opt_einsum,
+            )
+        with measure_time(self, "merge_map_emit__relu"):
+            x = torch.relu_(x)
+        with measure_time(self, "merge_map_emit__process_and_emit"):
+            x = misc.einsum(
+                "B S e f, d e f, B S e c -> B S c d",
+                x,
+                self.lin2,
+                emit_weights,
+                use_opt_einsum=self.use_opt_einsum,
+            )
         return x
 
     def reshape_into_original(self, x):
