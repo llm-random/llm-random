@@ -111,6 +111,9 @@ def introduce_parser_arguments(
 
     ## used by MoE (some specific, some common)
 
+    parser.add_argument("--steps_until_anneal", type=int)
+    parser.add_argument("--entropy_loss_weight", type=float, default=0.0)
+    parser.add_argument("--no_entropy_loss_until", type=int, default=0)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,

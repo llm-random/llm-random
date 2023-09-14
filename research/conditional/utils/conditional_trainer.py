@@ -13,7 +13,7 @@ from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.misc_tools import get_ith_chunk
+from research.conditional.utils.misc_tools import get_ith_chunk, TemperatureScheduler
 from research.conditional.utils.model_utils import make_loss_function
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
@@ -56,6 +56,10 @@ class ConditionalTrainer:
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
+    steps_until_anneal: Optional[int] = None
+    n_steps: int = 0
+    entropy_loss_weight: float = 0.0
+    no_entropy_loss_until: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -79,6 +83,15 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
+        if self.steps_until_anneal is not None:
+            assert self.steps_until_anneal < self.n_steps
+            self.temperature_scheduler = TemperatureScheduler(
+                self.model,
+                self.steps_until_anneal,
+                self.n_steps,
+            )
+        else:
+            self.temperature_scheduler = None
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -109,8 +122,10 @@ class ConditionalTrainer:
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
 
-    def _after_step_operations(self):
+    def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
+        if self.temperature_scheduler is not None:
+            self.temperature_scheduler.step(step)
 
     def train(self, n_steps: int):
         """
@@ -139,7 +154,7 @@ class ConditionalTrainer:
             #     self._decode_samples(step)
 
             t2 = time.time()
-            self._after_step_operations()
+            self._after_step_operations(step)
 
             t3 = time.time()
 
@@ -222,7 +237,7 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
 
-        loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch)
+        loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch, step)
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         if self.is_process_logging:
             if self.model_type == "bert":
@@ -239,7 +254,7 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def optimize_with_gradient_accumulation(self, processed_batch: LLMBatch):
+    def optimize_with_gradient_accumulation(self, processed_batch: LLMBatch, step: int):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         total_cross_entropy_loss = 0.0
         correct_tokens_value = 0
@@ -265,6 +280,11 @@ class ConditionalTrainer:
 
             loss_to_optimize = cross_entropy_loss
             for key, value in aux_info["losses"].items():
+                if key == "contmoe_merge_weights_entropy":
+                    if step > self.no_entropy_loss_until:
+                        value *= self.entropy_loss_weight
+                    else:
+                        value = 0.0
                 loss_to_optimize += value
 
             self._optimize(

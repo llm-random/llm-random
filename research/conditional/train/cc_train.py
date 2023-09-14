@@ -194,6 +194,9 @@ def main(
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
         decoding_logging_steps=args.decoding_logging_steps,
+        steps_until_anneal=args.steps_until_anneal,
+        n_steps=args.n_steps,
+        entropy_loss_weight=args.entropy_loss_weight,
     )
     trainer.train(args.n_steps)
 

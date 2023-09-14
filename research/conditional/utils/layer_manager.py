@@ -76,7 +76,7 @@ class LoggingLayer(nn.Module):
 
         # caches for logging and propagation
         self.logging_cache = {}
-        self.forward_pass_cache: Union[list, None] = None
+        self.forward_pass_cache: Union[dict, None] = None
 
     def report_stats(self):
         assert self.logging_switch
@@ -98,7 +98,7 @@ class LoggingLayer(nn.Module):
             else:
                 self.logging_cache[key] = value.clone().detach().cpu()
 
-    def _combine_to_dict_key(key, layer_type, block_number):
+    def _combine_to_dict_key(self, key, layer_type, block_number):
         return f"block_{block_number}_{layer_type}_{key}"
 
     def update_forward_pass_cache(self, key, value):

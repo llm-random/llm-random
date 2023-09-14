@@ -54,12 +54,22 @@ def rsync_to_remote(host, local_dir):
         with ConnectWithPassphrase(host) as connection:
             base_dir = get_base_directory(connection)
             proxy_command = get_proxy_command(connection)
-            rsync_command = (
-                f"rsync -zrlp -e {proxy_command} {local_dir} {host}:{base_dir}"
-            )
+            rsync_command = [
+                "rsync",
+                "--compress",
+                "--recursive",
+                "--links",
+                "--perms",
+                "--human-readable",
+                "--stats",
+                f"--rsh={proxy_command}",
+                "--exclude=*.pyc",
+                local_dir,
+                f"{host}:{base_dir}",
+            ]
             print(f"Syncing {local_dir} to {host}:{base_dir}...")
             connection.local(
-                rsync_command,
+                " ".join(rsync_command),
             )
             print("Sync complete.")
             return base_dir
