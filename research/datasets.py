@@ -41,9 +41,8 @@ def get_processed_dataset(
             split=dataset_split,
         )
     elif dataset_type == "c4":
-        if use_dummy_dataset:
-            print("WARNING: Dummy dataset not supported for C4 dataset")
         dataset = datasets.C4Dataset(
+            use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
         )
     else:

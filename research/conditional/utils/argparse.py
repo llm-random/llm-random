@@ -85,10 +85,13 @@ def introduce_parser_arguments(
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
+    parser.add_argument("--n_eval_steps", type=int, default=1000)
+    parser.add_argument("--n_eval_batches", type=int, default=10)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
     parser.add_argument("--git_branch", type=str, default=None)
+    parser.add_argument("--decoding_logging_steps", type=int, default=5_000)
 
     # model versioning
 
