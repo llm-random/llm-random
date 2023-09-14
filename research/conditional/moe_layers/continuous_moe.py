@@ -165,6 +165,12 @@ class ContinuousMoeBaseClass(LoggingLayer):
             normalised_ent, title="merge logits entropy (normalised to [0,1])"
         )
 
+        # make bar plot of values cached in forward with measure_time
+        instr_names = list(self.logging_cache["time"].keys())
+        instr_times = list(self.logging_cache["time"].values())
+        times_fig = px.bar(x=instr_names, y=instr_times)
+        log["forward_pass_times"] = times_fig
+
         return log
 
 
