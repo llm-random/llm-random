@@ -93,7 +93,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
             use_opt_einsum=self.use_opt_einsum,
         )
         x = torch.relu_(x)
-        self.process_emit_profiling(x, merge_weights, emit_weights)
         x = misc.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             x,
@@ -138,7 +137,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
         outpt_order = "B s e f"
         copied_x = x.clone()
 
-        with measure_time(self, f"merge_and_process_default"):
+        with measure_time(self, f"mp_default"):
             perm_x = misc.einsum(
                 f"{input_order_1}, {input_order_2}, {input_order_3} -> {outpt_order}",
                 copied_x,
@@ -147,15 +146,21 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 use_opt_einsum=self.use_opt_einsum,
             )
             del perm_x
-
-        for inp1 in itertools.permutations([input_order_1.split(" ")]):
-            for inp2 in itertools.permutations([input_order_2.split(" ")]):
-                for inp3 in itertools.permutations([input_order_3.split(" ")]):
-                    for outp in itertools.permutations([outpt_order.split(" ")]):
+        for inp1 in itertools.permutations(input_order_1.split(" ")):
+            for inp2 in itertools.permutations(input_order_2.split(" ")):
+                for inp3 in itertools.permutations(input_order_3.split(" ")):
+                    for outp in [
+                        outpt_order
+                    ]:  # itertools.permutations(outpt_order.split(" ")):
                         inp1 = " ".join(inp1)
                         inp2 = " ".join(inp2)
                         inp3 = " ".join(inp3)
                         outp = " ".join(outp)
+
+                        inp1_clean = inp1.replace(" ", "_")
+                        inp2_clean = inp2.replace(" ", "_")
+                        inp3_clean = inp3.replace(" ", "_")
+                        outp_clean = outp.replace(" ", "_")
 
                         perm_2 = einops.rearrange(
                             merge_weights, f"{input_order_2} -> {inp2}"
@@ -164,53 +169,21 @@ class ContinuousMoeBaseClass(LoggingLayer):
                             self.lin1, f"{input_order_3} -> {inp3}"
                         ).contiguous()
 
-                        with measure_time(
-                            self,
-                            f"merge_and_process_{inp1.replace(' ','_')}__{inp2.replace(' ','_')}__{inp3.replace(' ','_')}__{outp.replace(' ','_')}",
-                        ):
+                        logging_name = f"merge_and_process_{inp1_clean}__{inp2_clean}__{inp3_clean}__{outp_clean}"
+                        with measure_time(self, logging_name):
                             perm_1 = einops.rearrange(
                                 copied_x, f"{input_order_1} -> {inp1}"
                             ).contiguous()
+                            # with measure_time(self, logging_name):
+
                             perm_1 = misc.einsum(
                                 f"{inp1},{inp2},{inp3}->{outp}",
                                 perm_1,
-                                merge_weights,
-                                self.lin1,
+                                perm_2,
+                                perm_3,
                                 use_opt_einsum=self.use_opt_einsum,
                             )
                         del perm_1, perm_2, perm_3
-
-    def process_emit_profiling(self, x, merge_weights, emit_weights):
-        pass
-        # # Reorder the dimensions so that the calculations are faster
-        # input_order_1 = "B S e f"
-        # input_order_2 = "d e f"
-        # input_order_3 = "B S e c"
-        # output_order = "B S c d"
-        # copied_x = x.clone()
-        #
-        # with measure_time(self, f"merge_and_process_{'_'.join(input_order)}"):
-        #     perm_x = misc.einsum(
-        #         "B S e f, d e f, B S e c -> B S c d",
-        #         copied_x,
-        #         self.lin2,
-        #         emit_weights,
-        #         use_opt_einsum=self.use_opt_einsum,
-        #     )
-        #     del perm_x
-        #
-        # for output_order in itertools.permutations(input_order.split(" ")):
-        #     perm_x = einops.rearrange(
-        #         copied_x, f"{input_order} -> {' '.join(output_order)}"
-        #     )
-        #     with measure_time(self, f"merge_and_process_{'_'.join(output_order)}"):
-        #         perm_x = misc.einsum(
-        #             "B S e f, d e f, B S e c -> B S c d",
-        #             perm_x,
-        #             self.lin2,
-        #             emit_weights,
-        #             use_opt_einsum=self.use_opt_einsum,
-        #         )
 
     def log_light(self):
         return {}
@@ -257,6 +230,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 merge_maps.append(instr_time)
                 merge_map_names.append(instr_name)
 
+        print(merge_maps, merge_map_names)
         merge_best_id = np.argmin(merge_maps)
         merge_best = merge_maps[merge_best_id]
         merge_best_signature = merge_map_names[merge_best_id]
@@ -266,10 +240,14 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
         log[f"merge_and_process/best_{merge_best_signature}"] = merge_best
         log[f"merge_and_process/worst_{merge_worst_signature}"] = merge_worst
-        default_time = self.logging_cache["time"]["merge_and_process_default"]
+        default_time = self.logging_cache["time"]["mp_default"]
         log[f"merge_and_process/default_time"] = default_time
         log[f"merge_and_process/best_to_default_ratio"] = merge_best / default_time
         log[f"merge_and_process/best_to_worst_ratio"] = merge_best / merge_worst
+
+        times_fig = px.bar(x=instr_names, y=instr_times)
+        log["forward_pass_times"] = times_fig
+
         # log process_and_emit time
         # log["process_and_emit_time"] = self.logging_cache["time"][
         #     "process_and_emit_B_S_g_d"
