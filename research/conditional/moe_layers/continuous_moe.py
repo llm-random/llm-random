@@ -87,22 +87,21 @@ class ContinuousMoeBaseClass(LoggingLayer):
         # Reorder the dimensions so that the calculations are faster
         input_order = "B S g d"
         original_x = x.clone()
-        for output_order in itertools.permutations(["B", "g", "S", "d"]):
-            output_order = " ".join(output_order)
-            x = einops.rearrange(original_x, f"{input_order} -> {output_order}").clone()
-            with measure_time(
-                self, f"merge_map_emit__merge_and_process_{output_order}"
-            ):
+        for output_order in itertools.permutations(["B", "S", "g", "d"]):
+            x = einops.rearrange(
+                original_x, f"{input_order} -> {' '.join(output_order)}"
+            ).clone()
+            with measure_time(self, f"merge_and_process_{'_'.join(output_order)}"):
                 x = misc.einsum(
-                    f"{output_order}, B S e c, d e f -> B S e f",
+                    f"{' '.join(output_order)}, B S e c, d e f -> B S e f",
                     x,
                     merge_weights,
                     self.lin1,
                     use_opt_einsum=self.use_opt_einsum,
                 )
-            with measure_time(self, f"merge_map_emit__relu_{output_order}"):
+            with measure_time(self, f"relu_{'_'.join(output_order)}"):
                 x = torch.relu_(x)
-            with measure_time(self, f"merge_map_emit__process_and_emit_{output_order}"):
+            with measure_time(self, f"process_and_emit_{'_'.join(output_order)}"):
                 x = misc.einsum(
                     "B S e f, d e f, B S e c -> B S c d",
                     x,
@@ -177,6 +176,37 @@ class ContinuousMoeBaseClass(LoggingLayer):
         # make bar plot of values cached in forward with measure_time
         instr_names = list(self.logging_cache["time"].keys())
         instr_times = list(self.logging_cache["time"].values())
+        merge_maps = []
+        merge_map_names = []
+        for instr_name, instr_time in zip(instr_names, instr_times):
+            if "merge_and_process" in instr_name:
+                merge_maps.append(instr_time)
+                merge_map_names.append(instr_name)
+
+        merge_best_id = np.argmin(merge_maps)
+        merge_best = merge_maps[merge_best_id]
+        merge_best_signature = merge_map_names[merge_best_id]
+        merge_worst_id = np.argmax(merge_maps)
+        merge_worst = merge_maps[merge_worst_id]
+        merge_worst_signature = merge_map_names[merge_worst_id]
+
+        log[f"merge_and_process/best_{merge_best_signature}"] = merge_best
+        log[f"merge_and_process/worst_{merge_worst_signature}"] = merge_worst
+        default_time = self.logging_cache["time"]["merge_and_process_B_S_g_d"]
+        log[f"merge_and_process/default_time"] = default_time
+        log[f"merge_and_process/best_to_default_ratio"] = merge_best / default_time
+        log[f"merge_and_process/best_to_worst_ratio"] = merge_best / merge_worst
+        # log process_and_emit time
+        log["process_and_emit_time"] = self.logging_cache["time"][
+            "process_and_emit_B_S_g_d"
+        ]
+        log["best_merge_to_emit_ratio"] = (
+            merge_best / self.logging_cache["time"]["process_and_emit_B_S_g_d"]
+        )
+        log["worst_merge_to_emit_ratio"] = (
+            merge_worst / self.logging_cache["time"]["process_and_emit_B_S_g_d"]
+        )
+
         times_fig = px.bar(x=instr_names, y=instr_times)
         log["forward_pass_times"] = times_fig
 
