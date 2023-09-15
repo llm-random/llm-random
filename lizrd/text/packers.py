@@ -243,13 +243,13 @@ class BlankPacker(
         calculate_loss: List[int] = []
         document_lengths: List[int] = []
 
-        # change it so the blank can come first in both example and sequence
+        # TODO: change it so the blank can come first in both example and sequence
         while True:
             document = self.dataset.get_document()
             tokens = self.tokenizer.text_to_ids(document)
             tokens.append(eot_id)
 
-            blank_insertion_point = self.py_rng.randint(1, len(tokens) - 1)
+            blank_insertion_point = self.py_rng.randint(0, len(tokens) - 1)
             input_tokens = (
                 tokens[:blank_insertion_point]
                 + [blank_id] * self.n_blanks
@@ -265,15 +265,7 @@ class BlankPacker(
                 + [1] * self.n_blanks
                 + [0] * (len(tokens) - blank_insertion_point)
             )
-            # for i in range(self.n_blanks + 1):
-            #     n_th_blank_mask[i].extend(
-            #         [0] * (blank_insertion_point + i - 1)
-            #         + ([1])
-            #         + [0] * (self.n_blanks - i + len(tokens) - blank_insertion_point)
-            #     )
 
-            # blank_insertion_point + i - 1 + 1 + self.n_blanks - i + len(tokens) - blank_insertion_point
-            # len(tokens) + blanks
             buffer_input.extend(input_tokens)
             buffer_output.extend(output_tokens)
             blank_mask_buffer.extend(blank_mask)
@@ -289,10 +281,16 @@ class BlankPacker(
             sample_start = self.py_rng.randint(0, len(buffer_input) - 1)
             sample_end = sample_start + self.sequence_length
             blanks_at_beginning = blank_mask_buffer[sample_start] == 1
-            # fix bug
-            blanks_at_end = sum(
-                take_circular(blank_mask_buffer, sample_end - self.n_blanks, sample_end)
-            ) not in (0, self.n_blanks)
+
+            blanks_at_end = (
+                blank_mask_buffer[(sample_end - 1) % len(blank_mask_buffer)] == 1
+                and sum(
+                    take_circular(
+                        blank_mask_buffer, sample_end - self.n_blanks, sample_end
+                    )
+                )
+                != self.n_blanks
+            )
 
             illegal_blanks_position = blanks_at_beginning or blanks_at_end
 

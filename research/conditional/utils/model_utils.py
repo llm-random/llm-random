@@ -180,11 +180,15 @@ def calculate_llm_loss(
             )
 
             # TODO: test this as well
-            print(input_tokens.shape)
-            print(blank_start.shape)
+            # print(input_tokens.shape)
+            # print(blank_start.shape)
             nth_blank_mask = F.pad(blank_start[:, 1:], (0, 1), "constant", 0)
-            print(nth_blank_mask.shape)
+            # print(nth_blank_mask.shape)
             for i in range(n_blanks + 1):
+                if i == 0:
+                    assert not input_tokens[nth_blank_mask == 1].eq(blank_id).any()
+                else:
+                    assert input_tokens[nth_blank_mask == 1].eq(blank_id).all()
                 nth_blank_loss = (nth_blank_mask.reshape(-1) * mask_loss).mean()
                 blanks_losses[f"blank_{i}_loss"] = nth_blank_loss
                 nth_blank_mask = F.pad(nth_blank_mask, (1, 0), "constant", 0)[:, :-1]
@@ -199,7 +203,7 @@ def calculate_llm_loss(
         "correct_tokens": correct_tokens,
         "total_masked_tokens": total_masked_tokens,
         "losses": retrieve_additional_losses(model),
-        **blanks_losses,
+        "blanks_losses": blanks_losses,
     }
 
     return loss, aux_info

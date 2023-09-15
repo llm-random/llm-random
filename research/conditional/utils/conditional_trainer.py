@@ -138,13 +138,13 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-            if (
-                self.model_type == "gpt"
-                and self.decoding_logging_steps > 0
-                and step % self.decoding_logging_steps == 0
-                and self.is_process_logging
-            ):
-                self._decode_samples(step)
+            # if (
+            #     self.model_type == "gpt"
+            #     and self.decoding_logging_steps > 0
+            #     and step % self.decoding_logging_steps == 0
+            #     and self.is_process_logging
+            # ):
+            #     self._decode_samples(step)
 
             if step % self.n_eval_steps == 0:
                 self._eval_step(step)
@@ -332,6 +332,7 @@ class ConditionalTrainer:
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
+            "blanks_losses": aux_info["blanks_losses"],
         }
 
     def _log_train_stats(self, loss_value, step, aux_info):
@@ -356,6 +357,24 @@ class ConditionalTrainer:
                     iteration=step,
                 )
                 stats.acc = 0.0
+        for name, value in aux_info["blanks_losses"].items():
+            self.logger.report_scalar(
+                title=name,
+                value=value,
+                iteration=step,
+            )
+        if self.n_blanks > 0:
+            for x in range(self.n_blanks + 1):
+                for y in range(x):
+                    # log diff
+                    self.logger.report_scalar(
+                        title=f"blank_loss_diff_{x}_{y}",
+                        value=(
+                            aux_info["blanks_losses"][f"blank_{x}_loss"]
+                            - aux_info["blanks_losses"][f"blank_{y}_loss"]
+                        ),
+                        iteration=step,
+                    )
 
     def _log_heavy(self, step):
         g_metrics, w_metrics = {}, {}
