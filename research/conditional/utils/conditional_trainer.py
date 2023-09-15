@@ -60,6 +60,8 @@ class ConditionalTrainer:
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
+    n_blanks: int = 0
+    blank_id: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -79,6 +81,7 @@ class ConditionalTrainer:
         self.auxiliary_losses_accumulator = dict()
         self._calculate_loss = make_loss_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
+            n_blanks=self.n_blanks,
         )
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy

@@ -34,6 +34,7 @@ def get_processed_dataset(
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
+    n_blanks: int = 0,
 ):
     if dataset_type == "wikibook":
         dataset = datasets.WikiBookDataset(
@@ -55,11 +56,19 @@ def get_processed_dataset(
             tokenizer_maker=tokenizers.BertTokenizer,
         )
     elif model_type == "gpt":
-        packer = packers.GPTPacker(
-            sequence_length=sequence_length,
-            dataset=dataset,
-            tokenizer_maker=tokenizers.GPTTokenizer,
-        )
+        if n_blanks == 0:
+            packer = packers.GPTPacker(
+                sequence_length=sequence_length,
+                dataset=dataset,
+                tokenizer_maker=tokenizers.GPTTokenizer,
+            )
+        else:
+            packer = packers.BlankPacker(
+                sequence_length=sequence_length,
+                dataset=dataset,
+                tokenizer_maker=tokenizers.GPTTokenizer,
+                n_blanks=n_blanks,
+            )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
