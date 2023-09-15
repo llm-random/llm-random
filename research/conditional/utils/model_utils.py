@@ -168,7 +168,7 @@ def calculate_llm_loss(
                 (
                     F.conv1d(
                         is_blank[:, None, :].float(),
-                        torch.Tensor([-1.0, 1.0, 0.0], device=is_blank.device).reshape(
+                        torch.tensor([-1.0, 1.0, 0.0], device=is_blank.device).reshape(
                             1, 1, -1
                         ),
                         padding="same",
