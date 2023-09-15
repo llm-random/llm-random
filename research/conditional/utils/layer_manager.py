@@ -145,5 +145,5 @@ def measure_time(obj: LoggingLayer, instruction_name: str):
     if obj.logging_switch and torch.cuda.is_available():
         torch.cuda.synchronize()
     end_time = time.time()
-    print(f"{instruction_name}: {end_time-start_time}")
+    print(f"{end_time-start_time}")
     obj.update_cache_for_logging("time", {instruction_name: end_time - start_time})

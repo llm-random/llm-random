@@ -146,9 +146,12 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 use_opt_einsum=self.use_opt_einsum,
             )
             del perm_x
-        for inp1 in itertools.permutations(input_order_1.split(" ")):
-            for inp2 in itertools.permutations(input_order_2.split(" ")):
-                for inp3 in itertools.permutations(input_order_3.split(" ")):
+        inp1s = itertools.permutations(input_order_1.split(" "))
+        inp2s = itertools.permutations(input_order_2.split(" "))
+        inp3s = itertools.permutations(input_order_3.split(" "))
+        for inp1 in inp1s:
+            for inp2 in inp2s:
+                for inp3 in inp3s:
                     for outp in [
                         outpt_order
                     ]:  # itertools.permutations(outpt_order.split(" ")):
