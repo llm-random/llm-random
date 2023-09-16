@@ -1,5 +1,4 @@
 import dataclasses
-import time
 from typing import Union
 import itertools
 
@@ -147,25 +146,23 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 use_opt_einsum=self.use_opt_einsum,
             )
             del perm_x
-        inp1s = list(itertools.permutations(input_order_1.split(" ")))
-        inp2s = list(itertools.permutations(input_order_2.split(" ")))
-        inp3s = list(itertools.permutations(input_order_3.split(" ")))
-        start = time.time()
-        for inp1 in inp1s:
-            for inp2 in inp2s:
-                for inp3 in inp3s:
-                    for outp in [
-                        outpt_order
-                    ]:  # itertools.permutations(outpt_order.split(" ")):
-                        inp1 = " ".join(inp1)
-                        inp2 = " ".join(inp2)
-                        inp3 = " ".join(inp3)
-                        outp = " ".join(outp)
+        inp1s = itertools.permutations(input_order_1.split())
+        inp2s = itertools.permutations(input_order_2.split())
+        inp3s = itertools.permutations(input_order_3.split())
+        outps = itertools.permutations(outpt_order.split())
+        for inp1_ in inp1s:
+            for inp2_ in inp2s:
+                for inp3_ in inp3s:
+                    for outp_ in outps:
+                        inp1 = " ".join(inp1_)
+                        inp2 = " ".join(inp2_)
+                        inp3 = " ".join(inp3_)
+                        outp = " ".join(outp_)
 
-                        inp1_clean = "".join(inp1.split(" "))
-                        inp2_clean = "".join(inp2.split(" "))
-                        inp3_clean = "".join(inp3.split(" "))
-                        outp_clean = "".join(outp.split(" "))
+                        inp1_clean = "_".join(inp1_)
+                        inp2_clean = "_".join(inp2_)
+                        inp3_clean = "_".join(inp3_)
+                        outp_clean = "_".join(outp_)
 
                         perm_2 = einops.rearrange(
                             merge_weights, f"{input_order_2} -> {inp2}"
@@ -174,13 +171,12 @@ class ContinuousMoeBaseClass(LoggingLayer):
                             self.lin1, f"{input_order_3} -> {inp3}"
                         ).contiguous()
 
-                        logging_name = f"merge_and_processx{inp1_clean}{inp2_clean}{inp3_clean}{outp_clean}"
+                        logging_name = f"merge_and_process{inp1_clean}{inp2_clean}{inp3_clean}{outp_clean}"
+                        # with measure_time(self, logging_name):
+                        perm_1 = einops.rearrange(
+                            copied_x, f"{input_order_1} -> {inp1}"
+                        ).contiguous()
                         with measure_time(self, logging_name):
-                            perm_1 = einops.rearrange(
-                                copied_x, f"{input_order_1} -> {inp1}"
-                            ).contiguous()
-                            # with measure_time(self, logging_name):
-
                             perm_1 = misc.einsum(
                                 f"{inp1},{inp2},{inp3}->{outp}",
                                 perm_1,
@@ -189,9 +185,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
                                 use_opt_einsum=self.use_opt_einsum,
                             )
                         del perm_1, perm_2, perm_3
-                        end = time.time()
-                        print(f"{logging_name}: {end - start}")
-                        start = end
 
     def log_light(self):
         return {}
@@ -238,8 +231,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 merge_maps.append(instr_time)
                 merge_map_names.append(instr_name)
 
-        print(merge_maps, merge_map_names)
-        print(len(merge_maps))
+        # print(merge_maps, merge_map_names)
         merge_best_id = np.argmin(merge_maps)
         merge_best = merge_maps[merge_best_id]
         merge_best_signature = merge_map_names[merge_best_id]
