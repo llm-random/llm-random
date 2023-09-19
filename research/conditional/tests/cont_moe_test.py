@@ -9,7 +9,7 @@ import research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weig
 import research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base
 import research.conditional.moe_layers.continuous_moe
 import research.conditional.moe_layers.ffs
-import research.conditional.moe_layers.cont_moe_designs.learnable_temperature
+import research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive
 from lizrd.support.test_utils import GeneralTestCase
 
 (
@@ -231,7 +231,7 @@ class ContinuousMoEQuickNosoftmax(GeneralTestCase):
 
 class ContinuousMoEQuickAdaTemp(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive.ContinuousMoEAdaTempPositive(
             dm,
             dff,
             n_experts=4,
@@ -246,7 +246,7 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_dim1(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive.ContinuousMoEAdaTempPositive(
             dm,
             dff,
             n_experts=4,
@@ -261,7 +261,7 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_single_temp(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive.ContinuousMoEAdaTempPositive(
             dm,
             dff,
             n_experts=16,
@@ -336,7 +336,7 @@ class ContinuousMoEFinal(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_single_temp(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive.ContinuousMoEAdaTempPositive(
             dm,
             dff,
             n_experts=16,

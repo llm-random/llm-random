@@ -11,7 +11,7 @@ from research.conditional.utils.misc_tools import stable_softmax_temperature, en
 
 
 @dataclasses.dataclass(eq=False, repr=False)
-class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
+class ContinuousMoEAdaTempPositive(ContinuousMoeBaseClass):
     """
     learnable temperature,
     either shared by experts or not,
@@ -24,28 +24,28 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
     def get_merge_and_emit_weights(self, x):
         merge_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
         self.update_cache_for_logging("merge_logits", merge_logits)
-        merge_weights = stable_softmax_temperature(merge_logits, self.temperature_merge)
+        merge_weights = stable_softmax_temperature(merge_logits, torch.exp(self.temperature_merge))
         self.update_cache_for_logging("merge_weights", merge_weights)
         emit_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
         self.update_cache_for_logging("emit_logits", emit_logits)
-        emit_weights = stable_softmax_temperature(emit_logits, self.temperature_emit)
+        emit_weights = stable_softmax_temperature(emit_logits, torch.exp(self.temperature_emit))
         self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
     def init_parameters(self):
         if self.separate_temp_for_experts:
             if self.separate_temp_for_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
-                self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
+                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 1))
+                self.temperature_merge = nn.Parameter(torch.zeros(self.n_experts, 1))
             else:
-                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
+                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 1))
                 self.temperature_merge = self.temperature_emit
         else:
             if self.separate_temp_for_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.ones(1))
-                self.temperature_merge = nn.Parameter(torch.ones(1))
+                self.temperature_emit = nn.Parameter(torch.zeros(1))
+                self.temperature_merge = nn.Parameter(torch.zeros(1))
             else:
-                self.temperature_emit = nn.Parameter(torch.ones(1))
+                self.temperature_emit = nn.Parameter(torch.zeros(1))
                 self.temperature_merge = self.temperature_emit
 
         self.lin1 = nn.Parameter(
