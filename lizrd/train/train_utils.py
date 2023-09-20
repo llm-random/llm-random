@@ -36,6 +36,11 @@ def get_model(
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
+    n_blanks: int = 0,
+    blank_id: int = 0,
+    blanks_residual: bool = False,
+    blanks_add_embedding: bool = False,
+    blanks_learnable_weights: bool = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -44,10 +49,18 @@ def get_model(
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
-    embedding_layer = llm.EmbeddingLayer(
-        llm.PositionalEmbedding(max_length, dm).to(first_gpu),
-        llm.TokenEmbedding(vocab_size, dm).to(first_gpu),
-    )
+    if n_blanks > 0 and blanks_add_embedding:
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm).to(first_gpu),
+            llm.BlankEmbedding(
+                vocab_size, dm, blank_token_id=blank_id, n_blanks=n_blanks
+            ).to(first_gpu),
+        )
+    else:
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm).to(first_gpu),
+            llm.TokenEmbedding(vocab_size, dm).to(first_gpu),
+        )
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
@@ -61,9 +74,21 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    head = llm.PredictionHead(dm, vocab_size).to(last_gpu)
+    if n_blanks > 0 and blanks_residual:
+        head = llm.BlankDiffPredictionHead(
+            dm,
+            vocab_size,
+            blank_token_id=blank_id,
+            n_blanks=n_blanks,
+            learnable_weights=blanks_learnable_weights,
+        ).to(last_gpu)
+    else:
+        head = llm.PredictionHead(dm, vocab_size).to(last_gpu)
 
-    model = llm.LLM(embedding_layer, encoder_tower, head)
+    if n_blanks > 0:
+        model = llm.BlankLLM(embedding_layer, encoder_tower, head)
+    else:
+        model = llm.LLM(embedding_layer, encoder_tower, head)
 
     return model
 

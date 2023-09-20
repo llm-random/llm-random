@@ -16,7 +16,11 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from research.datasets import (
+    DataloaderWrapper,
+    get_processed_dataset,
+    get_tokenizer_maker,
+)
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
@@ -124,6 +128,11 @@ def main(
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
+        n_blanks=args.n_blanks,
+        blank_id=50257,
+        blanks_add_embedding=args.blanks_add_embedding,
+        blanks_residual=args.blanks_residual,
+        blanks_learnable_weights=args.blanks_learnable_weights,
     )
 
     # make model data_distributed if necessary
@@ -141,6 +150,8 @@ def main(
 
     scheduler = get_scheduler(args)
 
+    tokenizer_maker = get_tokenizer_maker(args.model_type, args.tokenizer)
+
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
         "device": DEVICE,
@@ -152,6 +163,7 @@ def main(
         "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
+        "tokenizer_maker": tokenizer_maker,
     }
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs, dataset_split="train", n_blanks=args.n_blanks

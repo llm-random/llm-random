@@ -7,6 +7,7 @@ from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
+from lizrd.core.llm import BlankDiffPredictionHead
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
@@ -357,18 +358,37 @@ class ConditionalTrainer:
                     iteration=step,
                 )
                 stats.acc = 0.0
-        for name, value in aux_info["blanks_losses"].items():
+        if self.n_blanks > 0 and len(aux_info["blanks_losses"]) > 0:
+            if isinstance(self.model.head, BlankDiffPredictionHead):
+                self.logger.report_scalar(
+                    title=f"blank_head/preblank_weight",
+                    value=abs(self.model.head.preblank_weight.item()),
+                    iteration=step,
+                )
+                self.logger.report_scalar(
+                    title=f"blank_head/blank_weight",
+                    value=abs(self.model.head.blank_weight.item()),
+                    iteration=step,
+                )
+
             self.logger.report_scalar(
-                title=name,
-                value=value,
+                title=f"sanity/blank_0_loss - loss (should be around 0 or slightly positive due to blanks)",
+                value=(aux_info["blanks_losses"]["blank_0_loss"] - loss_value),
                 iteration=step,
             )
-        if self.n_blanks > 0:
+
+            for name, value in aux_info["blanks_losses"].items():
+                self.logger.report_scalar(
+                    title=name,
+                    value=value,
+                    iteration=step,
+                )
             for x in range(self.n_blanks + 1):
                 for y in range(x):
                     # log diff
+                    name = f"blank_{x}_loss - blank_{y}_loss"
                     self.logger.report_scalar(
-                        title=f"blank_loss_diff_{x}_{y}",
+                        title=name,
                         value=(
                             aux_info["blanks_losses"][f"blank_{x}_loss"]
                             - aux_info["blanks_losses"][f"blank_{y}_loss"]

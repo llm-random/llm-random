@@ -7,6 +7,10 @@ from torch.utils.checkpoint import checkpoint
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
+from research.blanks.utils import (
+    iterate_through_nth_blanks_masks,
+    get_first_blanks_in_series,
+)
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -160,39 +164,28 @@ def calculate_llm_loss(
 
     blanks_losses = {}
     if n_blanks > 0:
+        assert blank_id is not None
         with torch.no_grad():
             is_blank = input_tokens.eq(blank_id)
-            # is_blank.shape = (B, S)
-            # TODO: test if this does what we want
-            blank_start = (
-                (
-                    F.conv1d(
-                        is_blank[:, None, :].float(),
-                        torch.tensor([-1.0, 1.0, 0.0], device=is_blank.device).reshape(
-                            1, 1, -1
-                        ),
-                        padding="same",
-                    )
-                    == 1
-                )
-                .float()
-                .squeeze_(1)
-            )
+            total_blanks_count = is_blank.sum()
+            if total_blanks_count > 0:
+                blank_start = get_first_blanks_in_series(is_blank)
 
-            # TODO: test this as well
-            # print(input_tokens.shape)
-            # print(blank_start.shape)
-            nth_blank_mask = F.pad(blank_start[:, 1:], (0, 1), "constant", 0)
-            # print(nth_blank_mask.shape)
-            for i in range(n_blanks + 1):
-                if i == 0:
-                    assert not input_tokens[nth_blank_mask == 1].eq(blank_id).any()
-                else:
-                    assert input_tokens[nth_blank_mask == 1].eq(blank_id).all()
-                nth_blank_loss = (nth_blank_mask.reshape(-1) * mask_loss).mean()
-                blanks_losses[f"blank_{i}_loss"] = nth_blank_loss
-                nth_blank_mask = F.pad(nth_blank_mask, (1, 0), "constant", 0)[:, :-1]
-            # add loss difference between n-th and 0-th blank
+                for n, nth_blank_mask in enumerate(
+                    iterate_through_nth_blanks_masks(
+                        blank_start, n_blanks, include_preblank=True
+                    )
+                ):
+                    nth_blanks_count = nth_blank_mask.sum()
+                    assert nth_blanks_count * n_blanks == total_blanks_count
+                    if n == 0:
+                        assert not input_tokens[nth_blank_mask == 1].eq(blank_id).any()
+                    else:
+                        assert input_tokens[nth_blank_mask == 1].eq(blank_id).all()
+                    nth_blank_loss = (nth_blank_mask.reshape(-1) * mask_loss).sum()
+                    blanks_losses[f"blank_{n}_loss"] = (
+                        nth_blank_loss / nth_blanks_count if nth_blanks_count > 0 else 0
+                    )
 
     correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
     correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
