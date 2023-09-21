@@ -59,6 +59,7 @@ class CodeVersioningAgent:
             self.stash_if_necessary()
             self.revert_status = 1
             self.repo.git.checkout(b=self.name_for_branch)
+            self.unstash_if_necessary()
             self.repo.git.add(u=True)
             # check if there are any changes to commit
             if len(self.repo.index.diff("HEAD")) > 0:

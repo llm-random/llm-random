@@ -10,6 +10,7 @@ import research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weig
 import research.conditional.moe_layers.continuous_moe
 import research.conditional.moe_layers.ffs
 import research.conditional.moe_layers.cont_moe_designs.learnable_temperature
+import research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive
 from lizrd.support.test_utils import GeneralTestCase
 
 (

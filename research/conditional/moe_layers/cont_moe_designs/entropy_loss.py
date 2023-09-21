@@ -24,7 +24,11 @@ class ContinuousMoEEntropyLoss(ContinuousMoeBaseClass):
         return x
 
     def get_entropy(self, merge_weights, emit_weights):
-        entropy_merge = entropy(merge_weights).mean() / torch.log(self.group_size)
-        entropy_emit = entropy(emit_weights).mean() / torch.log(self.group_size)
+        entropy_merge = entropy(merge_weights).mean() / torch.log(
+            torch.Tensor([self.group_size])
+        )
+        entropy_emit = entropy(emit_weights).mean() / torch.log(
+            torch.Tensor([self.group_size])
+        )
         mean_entropy = 0.5 * (entropy_merge + entropy_emit)
         return mean_entropy
