@@ -34,7 +34,7 @@ def get_common_directory(machine_backend: MachineBackend) -> str:
     elif machine_backend == MachineBackend.IDEAS:
         return "/raid/NFS_SHARE/llm-random"
     elif machine_backend == MachineBackend.ENTROPY_GPU:
-        return "/common/llm-random"
+        return f"/common/llm-random/"
     else:
         return os.getenv("HOME")
 
@@ -46,7 +46,8 @@ def get_cache_path(machine_backend: MachineBackend) -> str:
         return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
     else:
         common_dir = get_common_directory(machine_backend)
-        return f"{common_dir}/.cache"
+        user = os.environ.get("USER")
+        return f"{common_dir}/{user}/.cache"
 
 
 def get_singularity_image(machine_backend: MachineBackend) -> str:

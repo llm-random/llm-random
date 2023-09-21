@@ -9,9 +9,16 @@ from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
-from research.conditional.moe_layers.cont_moe_designs.entropy_loss import ContinuousMoEEntropyLoss
-from research.conditional.moe_layers.cont_moe_designs.learnable_temperature import ContinuousMoEAdaTemp
-from research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive import ContinuousMoEAdaTempPositive
+from research.conditional.moe_layers.cont_moe_designs.entropy_loss import (
+    ContinuousMoEEntropyLoss,
+)
+from research.conditional.moe_layers.cont_moe_designs.learnable_temperature import (
+    ContinuousMoEAdaTemp,
+)
+from research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive import (
+    ContinuousMoEAdaTempPositive,
+)
+
 # from research.conditional.moe_layers.cont_moe_designs.entropy_loss import (
 #     ContinuousMoEEntropyLoss,
 # )

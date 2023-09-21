@@ -68,9 +68,7 @@ def rsync_to_remote(host, local_dir):
                 f"{host}:{base_dir}",
             ]
             print(f"Syncing {local_dir} to {host}:{base_dir}...")
-            connection.local(
-                " ".join(rsync_command), echo=True, warn=True
-            )
+            connection.local(" ".join(rsync_command), echo=True, warn=True)
             print("Sync complete.")
             return base_dir
     except Exception as e:

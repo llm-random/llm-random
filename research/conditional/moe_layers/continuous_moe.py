@@ -72,9 +72,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return x
 
     def get_merge_and_emit_weights(self, x):
-        print(
-            f"x shape, controller shape, signature of einsum: {x.shape}, {self.controller.shape}, 'B S g d, d e -> B S e g'"
-        )
         merge_logits = misc.einsum("B S g d, d e -> B S e g", x, self.controller)
         self.update_cache_for_logging("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
@@ -82,9 +79,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return merge_weights, merge_weights
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        print(
-            f"x shape, merge weights shape, lin1 shape, signature of einsum: {x.shape}, {merge_weights.shape}, {self.lin1.shape}, 'B S c d, B S e c, d e f -> B S e f'"
-        )
         with measure_time(self, "merge_process"):
             x = misc.einsum(
                 "B S c d, B S e c, d e f -> B S e f",
@@ -106,23 +100,27 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return x
 
     def separate_map_emit(self, x, merge_weights, emit_weights):
-        input_shape = x.shape
-        with measure_time(self, "merge"):
-            x = misc.einsum("B S c d, B S e c -> B S e d", x, merge_weights)
+        # input_shape = x.shape
+        x = misc.einsum("B S c d, B S e c -> B S e d", x, merge_weights)
         S = x.shape[1]
         x = einops.rearrange(x, "a b c d -> c (a b) d")
-        # print(f"x shape, lin1 shape: {x.shape}, {self.lin1.shape}")
-        with measure_time(self, "map1_bmm"):
+        with measure_time(self, "operation_1"):
             x = torch.bmm(x, self.lin1)
         with measure_time(self, "relu"):
             x = torch.relu_(x)
-
-        with measure_time(self, "map2_bmm"):
+        with measure_time(self, "operation_2"):
             x = torch.bmm(x, self.lin2)
+        # with measure_time(self, "operation_1_again"):
+        #     x = torch.bmm(x, self.lin1)
+        # with measure_time(self, "operation_1_again_again"):
+        #     x = torch.bmm(x, self.lin1)
+        # with measure_time(self, "operation_2_again"):
+        #     x = torch.bmm(x, self.lin2)
+        # with measure_time(self, "operation_2_again_again"):
+        #     x = torch.bmm(x, self.lin2)
         x = einops.rearrange(x, "c (a b) d -> a b c d", b=S)
-        with measure_time(self, "emit"):
-            x = misc.einsum("B S e d, B S e c -> B S c d", x, emit_weights)
-        assert x.shape == input_shape
+        x = misc.einsum("B S e d, B S e c -> B S c d", x, emit_weights)
+        # assert x.shape == input_shape
         return x
 
     def reshape_into_original(self, x):
@@ -136,17 +134,23 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
     def init_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
-        self.lin1 = nn.Parameter(
-            misc.get_init_weight(
-                ( self.n_experts, self.dm, self.expert_size), fan_in=self.dm
-            )
-        )
 
         self.lin2 = nn.Parameter(
             misc.get_init_weight(
                 (self.n_experts, self.expert_size, self.dm), fan_in=self.expert_size
             )
         )
+        self.lin3 = nn.Parameter(
+            misc.get_init_weight(
+                (self.n_experts, self.expert_size, self.dm), fan_in=self.expert_size
+            )
+        )
+        self.lin1 = nn.Parameter(
+            misc.get_init_weight(
+                (self.n_experts, self.dm, self.expert_size), fan_in=self.dm
+            )
+        )
+
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
             misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
