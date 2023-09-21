@@ -126,6 +126,8 @@ def main(
         residual_fn=residual_fn,
     )
 
+    print(model)
+
     # make model data_distributed if necessary
     if rank is not None:
         print(f"Moving model to cuda:{rank}")

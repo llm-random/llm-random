@@ -1,11 +1,12 @@
 import dataclasses
+import os
 from typing import Union
 
 import einops
 import numpy as np
 import torch
 from plotly import express as px
-
+from torch.profiler import profile, record_function, ProfilerActivity
 from lizrd.core import misc, nn
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
@@ -100,27 +101,25 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return x
 
     def separate_map_emit(self, x, merge_weights, emit_weights):
-        # input_shape = x.shape
         x = misc.einsum("B S c d, B S e c -> B S e d", x, merge_weights)
         S = x.shape[1]
         x = einops.rearrange(x, "a b c d -> c (a b) d")
-        with measure_time(self, "operation_1"):
-            x = torch.bmm(x, self.lin1)
-        with measure_time(self, "relu"):
-            x = torch.relu_(x)
-        with measure_time(self, "operation_2"):
-            x = torch.bmm(x, self.lin2)
-        # with measure_time(self, "operation_1_again"):
-        #     x = torch.bmm(x, self.lin1)
-        # with measure_time(self, "operation_1_again_again"):
-        #     x = torch.bmm(x, self.lin1)
-        # with measure_time(self, "operation_2_again"):
-        #     x = torch.bmm(x, self.lin2)
-        # with measure_time(self, "operation_2_again_again"):
-        #     x = torch.bmm(x, self.lin2)
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            record_shapes=True,
+            profile_memory=True,
+            use_cuda=True,
+        ) as prof:
+            with record_function("cont_moe"):
+                x = torch.bmm(x, self.lin1)
+                x = torch.relu_(x)
+                x = torch.bmm(x, self.lin2)
+        print(prof.key_averages().table(sort_by="cuda_time_total"))
+        with open("profiling.txt", "w") as f:
+            f.write(prof.key_averages().table())
+            print(f"the full path to the file is {os.path.abspath(f.name)}")
         x = einops.rearrange(x, "c (a b) d -> a b c d", b=S)
         x = misc.einsum("B S e d, B S e c -> B S c d", x, emit_weights)
-        # assert x.shape == input_shape
         return x
 
     def reshape_into_original(self, x):
@@ -190,12 +189,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
         log["merge_weights/normalised_entropy"] = make_histogram(
             normalised_ent, title="merge logits entropy (normalised to [0,1])"
         )
-
-        # make bar plot of values cached in forward with measure_time
-        instr_names = list(self.logging_cache["time"].keys())
-        instr_times = list(self.logging_cache["time"].values())
-        times_fig = px.bar(x=instr_names, y=instr_times)
-        log["operation_times"] = times_fig
 
         return log
 

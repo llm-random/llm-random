@@ -294,9 +294,17 @@ class TransformerTower(nn.Module):
         )
         self.device = device
 
+        print(f"model blocks: {n_blocks}")
+
         for i_block in range(n_blocks):
             layers_info = [
                 (name, layer_fun()) for name, layer_fun in layer_dict.items()
+            ]
+
+            # delete all attention TODO:revert
+
+            layers_info = [
+                layer_info for layer_info in layers_info if layer_info[0] != "attention"
             ]
 
             for name, layer in layers_info:
