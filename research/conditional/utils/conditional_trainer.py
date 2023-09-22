@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os.path
 import copy
 from types import SimpleNamespace as SN
@@ -25,6 +26,7 @@ class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
+    eval_dataloader: DataloaderWrapper
     vocab_size: int
     mixed_precision: bool
     logger: Optional[AbstractLogger]
@@ -33,6 +35,8 @@ class ConditionalTrainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
+    n_eval_steps: int
+    n_eval_batches: int
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
@@ -56,7 +60,7 @@ class ConditionalTrainer:
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
-    steps_until_anneal: Optional[int] = None
+    temperature_scheduler: Optional[TemperatureScheduler] = None
     n_steps: int = 0
     entropy_loss_weight: float = 0.0
     no_entropy_loss_until: int = 0
@@ -83,15 +87,6 @@ class ConditionalTrainer:
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
         )
-        if self.steps_until_anneal is not None:
-            assert self.steps_until_anneal < self.n_steps
-            self.temperature_scheduler = TemperatureScheduler(
-                self.model,
-                self.steps_until_anneal,
-                self.n_steps,
-            )
-        else:
-            self.temperature_scheduler = None
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -107,9 +102,10 @@ class ConditionalTrainer:
                 )
 
     def _save_weights(self, step):
+        print("Saving weights... ")
         if (
             self.save_weights_path is not None
-            and (step + 1) % self.save_weights_interval == 0
+            and step % self.save_weights_interval == 0
         ):
             checkpoint = {
                 "model": self.model.state_dict(),
@@ -145,13 +141,16 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-            # if (
-            #     self.model_type == "gpt"
-            #     and self.decoding_logging_steps > 0
-            #     and step % self.decoding_logging_steps == 0
-            #     and self.is_process_logging
-            # ):
-            #     self._decode_samples(step)
+            if (
+                self.model_type == "gpt"
+                and self.decoding_logging_steps > 0
+                and step % self.decoding_logging_steps == 0
+                and self.is_process_logging
+            ):
+                self._decode_samples(step)
+
+            if step % self.n_eval_steps == 0:
+                self._eval_step(step)
 
             t2 = time.time()
             self._after_step_operations(step)
@@ -237,8 +236,11 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
 
-        loss, aux_info = self.optimize_with_gradient_accumulation(processed_batch, step)
+        loss, aux_info = self.calculate_loss_and_maybe_optimize(
+            processed_batch, should_optimize=True, step=step
+        )
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
+
         if self.is_process_logging:
             if self.model_type == "bert":
                 mask_percent = self.mask_percent
@@ -254,7 +256,44 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def optimize_with_gradient_accumulation(self, processed_batch: LLMBatch, step: int):
+    def _eval_step(self, step):
+        self.model.eval()
+        total_loss = 0.0
+        total_correct_tokens = 0
+        total_masked_tokens = 0
+        extra_losses = defaultdict(float)
+        for _ in range(self.n_eval_batches):
+            processed_batch = self.eval_dataloader.get_batch()
+            with torch.no_grad():
+                loss, aux_info = self.calculate_loss_and_maybe_optimize(
+                    processed_batch, should_optimize=False, step=-1
+                )
+            total_loss += loss
+            total_correct_tokens += aux_info["correct_tokens"]
+            total_masked_tokens += aux_info["total_masked_tokens"]
+            for name, loss_value in aux_info["losses"].items():
+                extra_losses[name] += loss_value
+        if self.is_process_logging:
+            self.logger.report_scalar(
+                title="eval/total_loss",
+                value=total_loss / self.n_eval_batches,
+                iteration=step,
+            )
+            self.logger.report_scalar(
+                title="eval/accuracy",
+                value=total_correct_tokens / total_masked_tokens,
+                iteration=step,
+            )
+            for name, loss_value in extra_losses:
+                self.logger.report_scalar(
+                    title=f"eval/{name}",
+                    value=loss_value / self.n_eval_batches,
+                    iteration=step,
+                )
+
+    def calculate_loss_and_maybe_optimize(
+        self, processed_batch: LLMBatch, should_optimize: bool, step: int
+    ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         total_cross_entropy_loss = 0.0
         correct_tokens_value = 0
@@ -287,9 +326,10 @@ class ConditionalTrainer:
                         value = 0.0
                 loss_to_optimize += value
 
-            self._optimize(
-                loss_to_optimize, should_apply_gradient=should_apply_gradient
-            )
+            if should_optimize:
+                self._optimize(
+                    loss_to_optimize, should_apply_gradient=should_apply_gradient
+                )
             total_cross_entropy_loss += cross_entropy_loss.item()
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]

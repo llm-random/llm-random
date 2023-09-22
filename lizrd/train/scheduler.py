@@ -3,6 +3,8 @@ import math
 
 from torch.optim import Optimizer
 
+from research.conditional.utils.misc_tools import TemperatureScheduler
+
 
 def get_scheduler(args):
     if args.scheduler == "constant":
@@ -18,6 +20,19 @@ def get_scheduler(args):
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
+
+
+def get_temperature_scheduler(args, model):
+    if args.steps_until_temperature_anneal is not None:
+        assert args.steps_until_temperature_anneal < args.n_steps
+        temperature_scheduler = TemperatureScheduler(
+            model,
+            args.n_steps,
+            args.steps_until_temperature_anneal,
+        )
+    else:
+        temperature_scheduler = None
+    return temperature_scheduler
 
 
 class AbstractLRScheduler(ABC):

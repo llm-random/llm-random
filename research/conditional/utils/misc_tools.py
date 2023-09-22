@@ -47,6 +47,10 @@ def generate_shuffler_unshuffler(batch_size, seqlen, mix_whole_batch=False):
     return shuffle_tensor, unshuffle_tensor
 
 
+def straight_through_tensor(forward_tensor, backward_tensor):
+    return (backward_tensor - backward_tensor.detach()) + forward_tensor.detach()
+
+
 def stable_softmax_temperature(
     x: torch.Tensor, temperature: Union[torch.Tensor, float], dim=-1
 ):
@@ -65,17 +69,17 @@ def entropy(x):
 @define
 class TemperatureScheduler:
     model: torch.nn.Module
-    steps_until_anneal: int
     total_steps: int
+    steps_until_temperature_anneal: int
     previous_multiplier: float = 1.0
     current_multiplier: float = 1.0
 
     def step(self, current_step):
-        if current_step > self.steps_until_anneal:
+        if current_step > self.steps_until_temperature_anneal:
             # Anneal linearly from step N to end
             fraction = 1 - (
-                (current_step - self.steps_until_anneal)
-                / (self.total_steps - self.steps_until_anneal)
+                (current_step - self.steps_until_temperature_anneal)
+                / (self.total_steps - self.steps_until_temperature_anneal)
             )
             self.previous_multiplier = self.current_multiplier
             self.current_multiplier = fraction
