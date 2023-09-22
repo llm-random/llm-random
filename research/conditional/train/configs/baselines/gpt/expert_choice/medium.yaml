@@ -8,7 +8,7 @@ params:
   group_granular_moe_by_batch: true
   use_full_einsum: true
   granular_moe_one_hot_impl: true
-  decoding_logging_steps: 0
+  decoding_interval: 0
 
   # params of expert choice
   effective_dff: 2048
