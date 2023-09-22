@@ -35,7 +35,7 @@ class ConditionalTrainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
-    n_eval_steps: int
+    eval_interval: int
     n_eval_batches: int
     max_sequence_length: int
     batch_size: int
@@ -55,7 +55,7 @@ class ConditionalTrainer:
     gradient_accumulation_steps: int = 1
     log_gradients_and_weights: bool = False
     loss_log_intervals: tuple[int] = (1, 10, 100, 1000)
-    decoding_logging_steps: int = 5_000
+    decoding_interval: int = 5_000
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
@@ -143,13 +143,13 @@ class ConditionalTrainer:
 
             if (
                 self.model_type == "gpt"
-                and self.decoding_logging_steps > 0
-                and step % self.decoding_logging_steps == 0
+                and self.decoding_interval > 0
+                and step % self.decoding_interval == 0
                 and self.is_process_logging
             ):
                 self._decode_samples(step)
 
-            if step % self.n_eval_steps == 0:
+            if step % self.eval_interval == 0:
                 self._eval_step(step)
 
             t2 = time.time()
@@ -284,7 +284,7 @@ class ConditionalTrainer:
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
-            for name, loss_value in extra_losses:
+            for name, loss_value in extra_losses.items():
                 self.logger.report_scalar(
                     title=f"eval/{name}",
                     value=loss_value / self.n_eval_batches,
