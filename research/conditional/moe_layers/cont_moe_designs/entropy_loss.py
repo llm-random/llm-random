@@ -35,6 +35,6 @@ class ContinuousMoEEntropyLoss(ContinuousMoeBaseClass):
         return self.mean_entropy
 
     def log_heavy(self):
-        log = self.super().log_heavy()
+        log = super().log_heavy()
         log["mean_entropy"] = self.mean_entropy
         return log

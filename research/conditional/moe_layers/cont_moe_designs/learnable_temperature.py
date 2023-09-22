@@ -60,7 +60,7 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
         )
 
     def log_heavy(self):
-        log = self.super().log_heavy()
+        log = super().log_heavy()
         log[
             "merge_weights/merge_temperature"
         ] = self.temperature_merge.data.flatten().tolist()
