@@ -1,9 +1,10 @@
 from abc import ABC
 import math
 
-from torch.optim import Optimizer
+import torch
+from attr import define
 
-from research.conditional.utils.misc_tools import TemperatureScheduler
+from torch.optim import Optimizer
 
 
 def get_scheduler(args):
@@ -23,12 +24,12 @@ def get_scheduler(args):
 
 
 def get_temperature_scheduler(args, model):
-    if args.steps_until_temperature_anneal is not None:
-        assert args.steps_until_temperature_anneal < args.n_steps
-        temperature_scheduler = TemperatureScheduler(
+    if args.steps_until_start_temperature_anneal is not None:
+        assert args.steps_until_start_temperature_anneal < args.n_steps
+        temperature_scheduler = AbstractTemperatureScheduler(
             model,
             args.n_steps,
-            args.steps_until_temperature_anneal,
+            args.steps_until_start_temperature_anneal,
         )
     else:
         temperature_scheduler = None
@@ -92,3 +93,77 @@ class CosineScheduler(AbstractLRScheduler):
             )
         else:
             return self.lr * self.final_lr_fraction
+
+
+@define
+class AbstractTemperatureScheduler:
+    model: torch.nn.Module
+    steps_until_start_temperature_anneal: int
+    steps_until_finish_temperature_anneal: int
+    previous_multiplier: float = 1.0
+    current_multiplier: float = 1.0
+
+    def step(self, current_step):
+        if (
+            current_step > self.steps_until_start_temperature_anneal
+            and current_step <= self.steps_until_finish_temperature_anneal
+        ):
+            self.previous_multiplier = self.current_multiplier
+            self.current_multiplier = self.get_multiplier(current_step)
+            self.update_model_temperature()
+
+    def update_model_temperature(self):
+        for module in self.model.modules():
+            if hasattr(module, "temperature"):
+                module.temperature = (
+                    module.temperature
+                    * self.current_multiplier
+                    / self.previous_multiplier
+                )
+            elif hasattr(module, "temperature_merge"):
+                # learnable temperature
+                module.temperature_merge *= (
+                    self.current_multiplier / self.previous_multiplier
+                )
+
+                module.temperature_emit *= (
+                    self.current_multiplier / self.previous_multiplier
+                )
+
+    def get_multiplier(self, current_step):
+        raise NotImplementedError
+
+
+class LinearTempScheduler(AbstractTemperatureScheduler):
+    def get_multiplier(self, current_step):
+        fraction = 1 - (
+            (current_step - self.steps_until_start_temperature_anneal)
+            / (
+                self.steps_until_finish_temperature_anneal
+                - self.steps_until_start_temperature_anneal
+            )
+        )
+        return max(0, fraction)
+
+
+class CosineTempScheduler(AbstractTemperatureScheduler):
+    def get_multiplier(self, current_step):
+        if (
+            current_step <= self.steps_until_start_temperature_anneal
+            or current_step > self.steps_until_finish_temperature_anneal
+        ):
+            return 1.0
+        else:
+            fraction = 0.5 * (
+                1
+                + math.cos(
+                    math.pi
+                    * (current_step - self.steps_until_start_temperature_anneal)
+                    / (
+                        self.steps_until_finish_temperature_anneal
+                        - self.steps_until_start_temperature_anneal
+                    )
+                )
+            )
+            print(f"current step: {current_step}, fraction: {fraction}")
+            return max(0.0, fraction)

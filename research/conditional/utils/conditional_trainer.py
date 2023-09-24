@@ -11,10 +11,10 @@ from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.text.data import LLMBatch
-from lizrd.train.scheduler import AbstractLRScheduler
+from lizrd.train.scheduler import AbstractLRScheduler, AbstractTemperatureScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.misc_tools import get_ith_chunk, TemperatureScheduler
+from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
@@ -60,7 +60,7 @@ class ConditionalTrainer:
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
-    temperature_scheduler: Optional[TemperatureScheduler] = None
+    temperature_scheduler: Optional[AbstractTemperatureScheduler] = None
     n_steps: int = 0
     entropy_loss_weight: float = 0.0
     no_entropy_loss_until: int = 0
@@ -102,7 +102,6 @@ class ConditionalTrainer:
                 )
 
     def _save_weights(self, step):
-        print("Saving weights... ")
         if (
             self.save_weights_path is not None
             and step % self.save_weights_interval == 0

@@ -3,7 +3,6 @@ from typing import Union
 
 import numpy as np
 import torch
-from attr import define
 
 
 def set_seed(seed):
@@ -64,46 +63,3 @@ def stable_softmax_temperature(
 def entropy(x):
     ent = -torch.sum(x * torch.log(x + 1e-8), dim=-1)
     return ent
-
-
-@define
-class TemperatureScheduler:
-    model: torch.nn.Module
-    total_steps: int
-    steps_until_temperature_anneal: int
-    previous_multiplier: float = 1.0
-    current_multiplier: float = 1.0
-
-    def step(self, current_step):
-        if current_step > self.steps_until_temperature_anneal:
-            # Anneal linearly from step N to end
-            fraction = 1 - (
-                (current_step - self.steps_until_temperature_anneal)
-                / (self.total_steps - self.steps_until_temperature_anneal)
-            )
-            self.previous_multiplier = self.current_multiplier
-            self.current_multiplier = fraction
-            self.update_model_temperature()
-
-    def update_model_temperature(self):
-        for module in self.model.modules():
-            if hasattr(module, "temperature"):
-                print(f"Updating temperature of {module}...")
-                print(f"Previous temperature: {module.temperature}")
-                print(
-                    f"Current temperature: {module.temperature * self.current_multiplier/self.previous_multiplier}"
-                )
-                # contmoe
-                module.temperature = (
-                    module.temperature
-                    * self.current_multiplier
-                    / self.previous_multiplier
-                )
-            elif hasattr(module, "temperature_merge"):
-                # learnable temperature
-                module.temperature_merge = module.temperature_merge * (
-                    self.current_multiplier / self.previous_multiplier
-                )
-                module.temperature_emit *= module.temperature_emit * (
-                    self.current_multiplier / self.previous_multiplier
-                )
