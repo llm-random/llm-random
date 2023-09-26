@@ -63,6 +63,11 @@ class LayerManager:
                             title=logging_name, iteration=step, data=data
                         )
 
+    def manage_misc(self, step, **kwargs):
+        for block_name, layer in self._layers:
+            if hasattr(layer, "manage_misc"):
+                layer.manage_misc(step, **kwargs)
+
 
 class LoggingLayer(nn.Module):
     def __init__(self):
@@ -126,6 +131,9 @@ class LoggingLayer(nn.Module):
 
     def log_heavy(self):
         return {}
+
+    def manage_misc(self, step, **kwargs):
+        pass
 
 
 @contextmanager

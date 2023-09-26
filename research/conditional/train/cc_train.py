@@ -214,6 +214,7 @@ def main(
         temperature_scheduler=temperature_scheduler,
         n_steps=args.n_steps,
         entropy_loss_weight=args.entropy_loss_weight,
+        steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
     )
     trainer.train(args.n_steps)
 

@@ -91,7 +91,7 @@ def introduce_parser_arguments(
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
     parser.add_argument("--git_branch", type=str, default=None)
-    parser.add_argument("--decoding_interval", type=int, default=5_000)
+    parser.add_argument("--decoding_interval", type=int, default=0)
 
     # model versioning
 
@@ -113,8 +113,10 @@ def introduce_parser_arguments(
 
     ## used by MoE (some specific, some common)
 
+    parser.add_argument("--temperature_scheduler", type=str, default=None)
     parser.add_argument("--steps_until_start_temperature_anneal", type=int)
     parser.add_argument("--steps_until_finish_temperature_anneal", type=int)
+    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=-1)
     parser.add_argument("--entropy_loss_weight", type=float, default=0.0)
     parser.add_argument("--no_entropy_loss_until", type=int, default=0)
     parser.add_argument(

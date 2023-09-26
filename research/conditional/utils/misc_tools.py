@@ -53,6 +53,9 @@ def straight_through_tensor(forward_tensor, backward_tensor):
 def stable_softmax_temperature(
     x: torch.Tensor, temperature: Union[torch.Tensor, float], dim=-1
 ):
+    if type(temperature) == float and temperature == 0.0:
+        return torch.nn.functional.one_hot(torch.argmax(x, dim=dim))
+
     x = x / temperature
     x = x - x.max(dim=dim, keepdim=True)[0]
     x = torch.exp(x)

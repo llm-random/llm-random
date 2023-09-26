@@ -24,13 +24,28 @@ def get_scheduler(args):
 
 
 def get_temperature_scheduler(args, model):
-    if args.steps_until_start_temperature_anneal is not None:
-        assert args.steps_until_start_temperature_anneal < args.n_steps
-        temperature_scheduler = AbstractTemperatureScheduler(
-            model,
-            args.n_steps,
-            args.steps_until_start_temperature_anneal,
-        )
+    if args.temperature_scheduler is not None:
+        assert (
+            args.steps_until_start_temperature_anneal
+            < args.steps_until_finish_temperature_anneal
+        ), f"start step: {args.steps_until_start_temperature_anneal}, finish step: {args.steps_until_finish_temperature_anneal}"
+        scheduler_name = args.temperature_scheduler
+        if scheduler_name == "constant":
+            return None
+        if scheduler_name == "linear":
+            return LinearTempScheduler(
+                model,
+                steps_until_start_temperature_anneal=args.steps_until_start_temperature_anneal,
+                steps_until_finish_temperature_anneal=args.steps_until_finish_temperature_anneal,
+            )
+        elif scheduler_name == "cosine":
+            return CosineTempScheduler(
+                model,
+                steps_until_start_temperature_anneal=args.steps_until_start_temperature_anneal,
+                steps_until_finish_temperature_anneal=args.steps_until_finish_temperature_anneal,
+            )
+        else:
+            raise ValueError(f"Unknown temperature scheduler: {scheduler_name}")
     else:
         temperature_scheduler = None
     return temperature_scheduler

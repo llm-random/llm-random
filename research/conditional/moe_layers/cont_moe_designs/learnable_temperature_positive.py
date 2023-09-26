@@ -36,17 +36,29 @@ class ContinuousMoEAdaTempPositive(ContinuousMoeBaseClass):
     def init_parameters(self):
         if self.separate_temp_for_experts:
             if self.separate_temp_for_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 1))
-                self.temperature_merge = nn.Parameter(torch.zeros(self.n_experts, 1))
+                self.temperature_emit = nn.Parameter(
+                    torch.zeros(self.n_experts, 1), requires_grad=False
+                )
+                self.temperature_merge = nn.Parameter(
+                    torch.zeros(self.n_experts, 1), requires_grad=False
+                )
             else:
-                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 1))
+                self.temperature_emit = nn.Parameter(
+                    torch.zeros(self.n_experts, 1), requires_grad=False
+                )
                 self.temperature_merge = self.temperature_emit
         else:
             if self.separate_temp_for_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.zeros(1))
-                self.temperature_merge = nn.Parameter(torch.zeros(1))
+                self.temperature_emit = nn.Parameter(
+                    torch.zeros(1), requires_grad=False
+                )
+                self.temperature_merge = nn.Parameter(
+                    torch.zeros(1), requires_grad=False
+                )
             else:
-                self.temperature_emit = nn.Parameter(torch.zeros(1))
+                self.temperature_emit = nn.Parameter(
+                    torch.zeros(1), requires_grad=False
+                )
                 self.temperature_merge = self.temperature_emit
 
         self.lin1 = nn.Parameter(
@@ -72,3 +84,12 @@ class ContinuousMoEAdaTempPositive(ContinuousMoeBaseClass):
             "merge_weights/emit_temperature"
         ] = self.temperature_emit.data.flatten().tolist()
         return log
+
+    def manage_misc(self, step, **kwargs):
+        if step < kwargs["steps_until_start_temperature_learn"]:
+            return
+        else:
+            for param in [self.temperature_merge, self.temperature_emit]:
+                if param.requires_grad == False:
+                    param.requires_grad = True
+                    print("temperature is now learnable")

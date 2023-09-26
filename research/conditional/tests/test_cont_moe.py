@@ -241,8 +241,8 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             temperature=1.0,
             expert_size=8,
             use_opt_einsum=True,
-            share_by_experts=True,
-            share_by_emit_merge=True,
+            separate_temp_for_emit_merge=True,
+            separate_temp_for_experts=True,
         )
         shape_and_parameters(layer)
 
@@ -256,8 +256,8 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             temperature=1.0,
             expert_size=8,
             use_opt_einsum=True,
-            share_by_experts=True,
-            share_by_emit_merge=True,
+            separate_temp_for_emit_merge=False,
+            separate_temp_for_experts=False,
         )
         shape_and_parameters(layer)
 
@@ -271,8 +271,8 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
             temperature=1.0,
             expert_size=8,
             use_opt_einsum=True,
-            share_by_experts=False,
-            share_by_emit_merge=False,
+            separate_temp_for_emit_merge=False,
+            separate_temp_for_experts=False,
         )
         shape_and_parameters(layer)
 
@@ -346,8 +346,8 @@ class ContinuousMoEFinal(GeneralTestCase):
             temperature=1.0,
             expert_size=8,
             use_opt_einsum=True,
-            share_by_experts=False,
-            share_by_emit_merge=False,
+            separate_temp_for_emit_merge=False,
+            separate_temp_for_experts=False,
         )
         shape_and_parameters(layer)
 
