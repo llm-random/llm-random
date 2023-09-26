@@ -21,6 +21,7 @@ from lizrd.support.loss import (
     RunningLossDict,
     LossWeightDict,
 )
+import research.blanks.model
 from research.reinitialization.core.pruner import BasePruner
 from research.reinitialization.core.scheduler import BaseScheduler
 
@@ -41,6 +42,8 @@ def get_model(
     blanks_residual: bool = False,
     blanks_add_embedding: bool = False,
     blanks_learnable_weights: bool = False,
+    blank_initial_weight: float = 1.0,
+    blanks_straight_through: bool = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -52,7 +55,7 @@ def get_model(
     if n_blanks > 0 and blanks_add_embedding:
         embedding_layer = llm.EmbeddingLayer(
             llm.PositionalEmbedding(max_length, dm).to(first_gpu),
-            llm.BlankEmbedding(
+            research.blanks.model.BlankEmbedding(
                 vocab_size, dm, blank_token_id=blank_id, n_blanks=n_blanks
             ).to(first_gpu),
         )
@@ -75,18 +78,20 @@ def get_model(
     )
 
     if n_blanks > 0 and blanks_residual:
-        head = llm.BlankDiffPredictionHead(
+        head = research.blanks.model.BlankDiffPredictionHead(
             dm,
             vocab_size,
             blank_token_id=blank_id,
             n_blanks=n_blanks,
             learnable_weights=blanks_learnable_weights,
+            initial_blank_weight=blank_initial_weight,
+            use_straight_through=blanks_straight_through,
         ).to(last_gpu)
     else:
         head = llm.PredictionHead(dm, vocab_size).to(last_gpu)
 
     if n_blanks > 0:
-        model = llm.BlankLLM(embedding_layer, encoder_tower, head)
+        model = research.blanks.model.BlankLLM(embedding_layer, encoder_tower, head)
     else:
         model = llm.LLM(embedding_layer, encoder_tower, head)
 

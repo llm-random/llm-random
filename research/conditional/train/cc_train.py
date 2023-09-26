@@ -133,6 +133,9 @@ def main(
         blanks_add_embedding=args.blanks_add_embedding,
         blanks_residual=args.blanks_residual,
         blanks_learnable_weights=args.blanks_learnable_weights,
+        #
+        blank_initial_weight=args.blank_initial_weight,
+        blanks_straight_through=args.blanks_use_straight_through,
     )
 
     # make model data_distributed if necessary
