@@ -16,15 +16,11 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
-from research.datasets import (
-    DataloaderWrapper,
-    get_processed_dataset,
-    get_tokenizer_maker,
-)
+from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
-from lizrd.support.misc import set_seed
+from research.conditional.utils.misc_tools import set_seed
 from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
@@ -128,14 +124,6 @@ def main(
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
-        n_blanks=args.n_blanks,
-        blank_id=50257,
-        blanks_add_embedding=args.blanks_add_embedding,
-        blanks_residual=args.blanks_residual,
-        blanks_learnable_weights=args.blanks_learnable_weights,
-        #
-        blank_initial_weight=args.blank_initial_weight,
-        blanks_straight_through=args.blanks_use_straight_through,
     )
 
     # make model data_distributed if necessary
@@ -153,8 +141,6 @@ def main(
 
     scheduler = get_scheduler(args)
 
-    tokenizer_maker = get_tokenizer_maker(args.model_type, args.tokenizer)
-
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
         "device": DEVICE,
@@ -166,20 +152,13 @@ def main(
         "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
-        "tokenizer_maker": tokenizer_maker,
     }
     train_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs, dataset_split="train", n_blanks=args.n_blanks
+        **common_dataloaders_kwargs, dataset_split="train"
     )
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
-        dataset_split="eval"
-        if args.dataset_type == "wikibook"
-        else (
-            "train"
-            if args.dataset_type == "c4" and args.use_dummy_dataset
-            else "validation"
-        ),
+        dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
@@ -224,8 +203,6 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
-        decoding_logging_steps=args.decoding_logging_steps,
-        n_blanks=args.n_blanks,
     )
     trainer.train(args.n_steps)
 
