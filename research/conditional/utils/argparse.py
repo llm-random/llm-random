@@ -8,7 +8,6 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
-    parser.add_argument("--tokenizer", type=str, choices=["gpt", "bert"], required=True)
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
@@ -92,7 +91,6 @@ def introduce_parser_arguments(
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
     parser.add_argument("--git_branch", type=str, default=None)
-    parser.add_argument("--decoding_logging_steps", type=int, default=5_000)
 
     # model versioning
 
@@ -183,13 +181,5 @@ def introduce_parser_arguments(
     parser.add_argument("--hack_name", type=str, default=None)
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
-
-    # blanx
-    parser.add_argument("--n_blanks", type=int, default=0)
-    parser.add_argument("--blanks_add_embedding", action="store_true")
-    parser.add_argument("--blanks_residual", action="store_true")
-    parser.add_argument("--blanks_learnable_weights", action="store_true")
-    parser.add_argument("--blank_initial_weight", type=float, default=1.0)
-    parser.add_argument("--blanks_use_straight_through", action="store_true")
 
     return parser

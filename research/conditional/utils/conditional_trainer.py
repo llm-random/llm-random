@@ -7,7 +7,6 @@ from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
-from research.blanks.model import BlankDiffPredictionHead
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
@@ -15,7 +14,7 @@ from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.utils.layer_manager import LayerManager
-from lizrd.support.misc import get_ith_chunk
+from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
@@ -61,8 +60,6 @@ class ConditionalTrainer:
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
-    n_blanks: int = 0
-    blank_id: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -82,7 +79,6 @@ class ConditionalTrainer:
         self.auxiliary_losses_accumulator = dict()
         self._calculate_loss = make_loss_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
-            n_blanks=self.n_blanks,
         )
         self.layer_manager = LayerManager(
             self.model, self.logging_interval_light, self.logging_interval_heavy
@@ -139,13 +135,13 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-            # if (
-            #     self.model_type == "gpt"
-            #     and self.decoding_logging_steps > 0
-            #     and step % self.decoding_logging_steps == 0
-            #     and self.is_process_logging
-            # ):
-            #     self._decode_samples(step)
+            if (
+                self.model_type == "gpt"
+                and self.decoding_logging_steps > 0
+                and step % self.decoding_logging_steps == 0
+                and self.is_process_logging
+            ):
+                self._decode_samples(step)
 
             if step % self.n_eval_steps == 0:
                 self._eval_step(step)
@@ -333,7 +329,6 @@ class ConditionalTrainer:
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
-            "blanks_losses": aux_info["blanks_losses"],
         }
 
     def _log_train_stats(self, loss_value, step, aux_info):
@@ -358,43 +353,6 @@ class ConditionalTrainer:
                     iteration=step,
                 )
                 stats.acc = 0.0
-        if self.n_blanks > 0 and len(aux_info["blanks_losses"]) > 0:
-            if isinstance(self.model.head, BlankDiffPredictionHead):
-                self.logger.report_scalar(
-                    title=f"blank_head/preblank_weight",
-                    value=abs(self.model.head.preblank_weight.item()),
-                    iteration=step,
-                )
-                self.logger.report_scalar(
-                    title=f"blank_head/blank_weight",
-                    value=abs(self.model.head.blank_weight.item()),
-                    iteration=step,
-                )
-
-            self.logger.report_scalar(
-                title=f"sanity/blank_0_loss - loss (should be around 0 or slightly positive due to blanks)",
-                value=(aux_info["blanks_losses"]["blank_0_loss"] - loss_value),
-                iteration=step,
-            )
-
-            for name, value in aux_info["blanks_losses"].items():
-                self.logger.report_scalar(
-                    title=name,
-                    value=value,
-                    iteration=step,
-                )
-            for x in range(self.n_blanks + 1):
-                for y in range(x):
-                    # log diff
-                    name = f"blank_{x}_loss - blank_{y}_loss"
-                    self.logger.report_scalar(
-                        title=name,
-                        value=(
-                            aux_info["blanks_losses"][f"blank_{x}_loss"]
-                            - aux_info["blanks_losses"][f"blank_{y}_loss"]
-                        ),
-                        iteration=step,
-                    )
 
     def _log_heavy(self, step):
         g_metrics, w_metrics = {}, {}

@@ -1,5 +1,4 @@
 from functools import partial
-from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
@@ -7,10 +6,6 @@ from torch.utils.checkpoint import checkpoint
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
-from research.blanks.utils import (
-    iterate_through_nth_blanks_masks,
-    get_first_blanks_in_series,
-)
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -52,14 +47,10 @@ from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
-def make_loss_function(loss_checkpoint_chungs: int, n_blanks: int = 0):
+def make_loss_function(loss_checkpoint_chungs: int):
     if loss_checkpoint_chungs == 0:
-        return partial(calculate_llm_loss, n_blanks=n_blanks)
+        return calculate_llm_loss
     else:
-        if n_blanks > 0:
-            raise NotImplementedError(
-                "Loss checkpointing not supported for blanks (yet)"
-            )
         return partial(chungized_llm_loss, n_chungs=loss_checkpoint_chungs)
 
 
@@ -134,75 +125,6 @@ def chungized_llm_loss(
 
 
 def calculate_llm_loss(
-    batch: LLMBatch,
-    model: torch.nn.Module,
-    mixed_precision: bool,
-    vocab_size: int,
-    n_blanks: int = 0,
-    blank_id: Optional[int] = 50257,
-):
-    input_tokens = batch.input_ids
-    gt_tokens = batch.target_ids
-    mask = batch.should_calculate_loss
-
-    with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
-    ):
-        model_output = model(input_tokens)
-
-    # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
-    gt_tokens = gt_tokens.to(model_output.device)
-    mask = mask.to(model_output.device)
-
-    mask_loss = F.cross_entropy(
-        model_output.reshape(-1, vocab_size),
-        gt_tokens.reshape(-1).long(),
-        reduction="none",
-    )
-    mask_loss = mask_loss[mask.reshape(-1) == 1]
-    loss = mask_loss.mean()
-
-    blanks_losses = {}
-    if n_blanks > 0:
-        assert blank_id is not None
-        with torch.no_grad():
-            is_blank = input_tokens.eq(blank_id)
-            total_blanks_count = is_blank.sum()
-            if total_blanks_count > 0:
-                blank_start = get_first_blanks_in_series(is_blank)
-
-                for n, nth_blank_mask in enumerate(
-                    iterate_through_nth_blanks_masks(
-                        blank_start, n_blanks, include_preblank=True
-                    )
-                ):
-                    nth_blanks_count = nth_blank_mask.sum()
-                    assert nth_blanks_count * n_blanks == total_blanks_count
-                    if n == 0:
-                        assert not input_tokens[nth_blank_mask == 1].eq(blank_id).any()
-                    else:
-                        assert input_tokens[nth_blank_mask == 1].eq(blank_id).all()
-                    nth_blank_loss = (nth_blank_mask.reshape(-1) * mask_loss).sum()
-                    blanks_losses[f"blank_{n}_loss"] = (
-                        nth_blank_loss / nth_blanks_count if nth_blanks_count > 0 else 0
-                    )
-
-    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
-    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-    correct_tokens = correct_tokens.sum()
-    total_masked_tokens = mask.sum()
-
-    aux_info = {
-        "correct_tokens": correct_tokens,
-        "total_masked_tokens": total_masked_tokens,
-        "losses": retrieve_additional_losses(model),
-        "blanks_losses": blanks_losses,
-    }
-
-    return loss, aux_info
-
-
-def calculate_blank_loss(
     batch: LLMBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
