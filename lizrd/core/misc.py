@@ -4,6 +4,7 @@ import opt_einsum
 from lizrd.core import nn
 from lizrd.support import ash
 from torch.utils.checkpoint import checkpoint
+from torch.nn.init import trunc_normal_
 import torch.nn
 
 
@@ -30,6 +31,14 @@ def get_init_weight(shape, fan_in, fan_out=None, gain=1.0, dtype=torch.float32):
         raise ValueError("fan_out unsupported")
     range_ = gain * (3 / fan_in) ** 0.5
     return torch.zeros(shape, dtype=dtype).uniform_(-range_, range_)
+
+
+def get_switch_init_weight(shape, fan_in, mean=0, scale=0.1, dtype=torch.float32):
+    scale = (scale / fan_in) ** 0.5
+    low = -2 * scale
+    high = 2 * scale
+    t = torch.zeros(shape, dtype=dtype)
+    return trunc_normal_(t, mean=mean, scale=scale, a=low, b=high)
 
 
 def get_init_bias(shape, fan_in=None, fan_out=None, dtype=torch.float32):
