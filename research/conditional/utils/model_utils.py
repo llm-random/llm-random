@@ -50,11 +50,13 @@ from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weight
 from research.conditional.moe_layers.cont_moe_designs.separate_weighted_parameter_matrices import (
     ContinuousMoESeparateWeightedParameters,
 )
-from research.conditional.moe_layers.cont_moe_designs.softmax_temperature_cheating import (
-    ContinuousMoEPassThroughTemp,
-)
+
+# from research.conditional.moe_layers.cont_moe_designs.softmax_temperature_cheating import (
+#     ContinuousMoEPassThroughTemp,
+# )
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
+    EfficientContMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
@@ -329,6 +331,8 @@ def get_ff_layer(args):
 
     elif args.ff_mode == "cont_moe" or args.ff_mode == "cont_moe_quick":
         return_fn = lambda: ContinuousMoE(**default_contmoe_args)
+    elif args.ff_mode == "schizo_contmoe":
+        return_fn = lambda: EfficientContMoE(**default_contmoe_args)
     elif args.ff_mode == "cont_moe_merge_diff_simple":
         return_fn = lambda: ContinuousMoEMergeDifferentlySimple(**default_contmoe_args)
     elif args.ff_mode == "cont_moe_merge_diff_comm_base":

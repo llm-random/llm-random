@@ -1,8 +1,8 @@
 import argparse
 import os
 import random
-from typing import Callable, Optional
 import socket
+from typing import Callable, Optional
 
 import torch
 import torch.multiprocessing as mp
@@ -12,20 +12,183 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
+from lizrd.text import tokenizers
+from lizrd.train.scheduler import get_scheduler
 from lizrd.train.train_utils import (
     get_model,
 )
-from lizrd.text import tokenizers
-from research.datasets import DataloaderWrapper, get_processed_dataset
-from lizrd.train.scheduler import get_scheduler
-from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
+from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.misc_tools import set_seed
 from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
     get_residual_layer,
 )
+from research.datasets import DataloaderWrapper, get_processed_dataset
+
+
+#
+# def rogue_speedtest():
+#     "juts the calculation, no modules"
+#     x1 = torch.randn([1024, 256, 512]).cuda()
+#     y1 = torch.randn([1024, 512, 512]).cuda()
+#     z1 = torch.randn([1024, 512, 512]).cuda()
+#     w1 = torch.randn([1024, 256, 512]).cuda()
+#
+#     x2 = torch.randn([512, 256, 512]).cuda()
+#     y2 = torch.randn([512, 512, 1024]).cuda()
+#     z2 = torch.randn([512, 1024, 512]).cuda()
+#     w2 = torch.randn([512, 256, 1024]).cuda()
+#
+#     x3 = torch.randn([256, 256, 512]).cuda()
+#     y3 = torch.randn([256, 512, 2048]).cuda()
+#     z3 = torch.randn([256, 2048, 512]).cuda()
+#     w3 = torch.randn([256, 256, 2048]).cuda()
+#
+#     for function_name in [
+#         "bmm_1_no_mixed_precision",
+#         "bmm2_no_mixed_precision",
+#         "bmm_3_no_mixed_precision",
+#         "bmm_1_mixed_precision",
+#         "bmm2_mixed_precision",
+#         "bmm_3_mixed_precision",
+#         "bmm_only_second_bmm_no_mixed_precision",
+#         "bmm_only_second_bmm_mixed_precision",
+#     ]:
+#         for n_experts, (x, y, z, w) in zip(
+#             [1024, 512, 256], [(x1, y1, z1, w1), (x2, y2, z2, w2), (x3, y3, z3, w3)]
+#         ):
+#             t = torch.utils.benchmark.Timer(
+#                 stmt=f"{function_name}(x,y,z,w)",
+#                 setup=f"from __main__ import {function_name}",
+#                 label=f"{n_experts}_{function_name}",
+#                 globals={
+#                     "x": x,
+#                     "y": y,
+#                     "z": z,
+#                     "w": w,
+#                     "function_name": function_name,
+#                 },
+#             )
+#             print(
+#                 f"\n ------------------------------------------- \nFor n_experts = {n_experts} and calculation mode = {function_name}: \n"
+#             )
+#             print(t.timeit(1000))
+#
+#
+# def rogue_speedtest2(args):
+#     common_args = {
+#         "dm": args.dmodel,
+#         "dff": args.dff,
+#         "group_size": args.group_size,
+#         "sparsity_dim": args.sparsity_dim,
+#         "temperature": args.temperature,
+#         "expert_size": args.expert_size,
+#         "use_opt_einsum": args.use_opt_einsum,
+#         "flop_matched": args.flop_matched,
+#     }
+#     contmoe_1024 = SpeedtestContMoE(n_experts=1024, **common_args).cuda()
+#     contmoe_512 = SpeedtestContMoE(n_experts=512, **common_args).cuda()
+#     contmoe_256 = SpeedtestContMoE(n_experts=256, **common_args).cuda()
+#
+#     x_common = torch.randn([1, 256, 256, 512]).cuda()
+#
+#     weights_1024 = torch.randn([1, 256, 1024, 256]).cuda()
+#     weights_512 = torch.randn([1, 256, 512, 256]).cuda()
+#     weights_256 = torch.randn([1, 256, 256, 256]).cuda()
+#
+#     post_merge_1024 = torch.randn([1, 256, 1024, 512]).cuda()
+#     post_merge_512 = torch.randn([1, 256, 512, 512]).cuda()
+#     post_merge_256 = torch.randn([1, 256, 256, 512]).cuda()
+#
+#     post_rearrange_1024 = torch.randn([1024, 256, 512]).cuda()
+#     post_rearrange_512 = torch.randn([512, 256, 512]).cuda()
+#     post_rearrange_256 = torch.randn([256, 256, 512]).cuda()
+#
+#     post_lin1_1024 = torch.randn([1024, 256, 512]).cuda()
+#     post_lin1_512 = torch.randn([512, 256, 1024]).cuda()
+#     post_lin1_256 = torch.randn([256, 256, 2048]).cuda()
+#
+#     post_lin2_1024 = torch.randn([1024, 256, 512]).cuda()
+#     post_lin2_512 = torch.randn([512, 256, 512]).cuda()
+#     post_lin2_256 = torch.randn([256, 256, 512]).cuda()
+#
+#     post_rearrange2_1024 = torch.randn([1, 256, 1024, 512]).cuda()
+#     post_rearrange2_512 = torch.randn([1, 256, 512, 512]).cuda()
+#     post_rearrange2_256 = torch.randn([1, 256, 256, 512]).cuda()
+#
+#     post_emit_1024 = torch.randn([1, 256, 256, 512]).cuda()
+#     post_emit_512 = torch.randn([1, 256, 256, 512]).cuda()
+#     post_emit_256 = torch.randn([1, 256, 256, 512]).cuda()
+#
+#     # for 256 experts, the shape of x post merge is torch.Size([1, 256, 256, 512])
+#     # for 256 experts, the shape of x post rearrange is torch.Size([256, 256, 512])
+#     # for 256 experts, the shape of x post lin1 is torch.Size([256, 256, 2048])
+#     # for 256 experts, the shape of x post lin2 is torch.Size([256, 256, 512])
+#     # for 256 experts, the shape of x post rearrange2 is torch.Size([1, 256, 256, 512])
+#     # for 256 experts, the shape of x post emit is torch.Size([1, 256, 256, 512])
+#
+#     # for 512 experts, the shape of x post merge is torch.Size([1, 256, 512, 512])
+#     # for 512 experts, the shape of x post rearrange is torch.Size([512, 256, 512])
+#     # for 512 experts, the shape of x post lin1 is torch.Size([512, 256, 1024])
+#     # for 512 experts, the shape of x post lin2 is torch.Size([512, 256, 512])
+#     # for 512 experts, the shape of x post rearrange2 is torch.Size([1, 256, 512, 512])
+#     # for 512 experts, the shape of x post emit is torch.Size([1, 256, 256, 512])
+#
+#     # for 1024 experts, the shape of x post merge is torch.Size([1, 256, 1024, 512])
+#     # for 1024 experts, the shape of x post rearrange is torch.Size([1024, 256, 512])
+#     # for 1024 experts, the shape of x post lin1 is torch.Size([1024, 256, 512])
+#     # for 1024 experts, the shape of x post lin2 is torch.Size([1024, 256, 512])
+#     # for 1024 experts, the shape of x post rearrange2 is torch.Size([1, 256, 1024, 512])
+#     # for 1024 experts, the shape of x post emit is torch.Size([1, 256, 256, 512])
+#
+#     for function_name in ["normal_forward", "mixed_precision_forward"]:
+#         print(
+#             f"------------------------------------------------- now testing {function_name}"
+#         )
+#         for (
+#             layer,
+#             input,
+#             weights,
+#             postmerge,
+#             postrearrange,
+#             postlin1,
+#             postlin2,
+#             postrearrange2,
+#             postemit,
+#         ) in zip(
+#             [contmoe_1024, contmoe_512, contmoe_256],
+#             [x_common.clone(), x_common.clone(), x_common.clone()],
+#             [weights_1024, weights_512, weights_256],
+#             [post_merge_1024, post_merge_512, post_merge_256],
+#             [post_rearrange_1024, post_rearrange_512, post_rearrange_256],
+#             [post_lin1_1024, post_lin1_512, post_lin1_256],
+#             [post_lin2_1024, post_lin2_512, post_lin2_256],
+#             [post_rearrange2_1024, post_rearrange2_512, post_rearrange2_256],
+#             [post_emit_1024, post_emit_512, post_emit_256],
+#         ):
+#             t = torch.utils.benchmark.Timer(
+#                 stmt=f"{function_name}(layer,x,w,post_m,post_r,post_1,post_2,post_r2,post_e)",
+#                 setup=f"from __main__ import {function_name}",
+#                 label=f"{layer.n_experts}_{function_name}",
+#                 globals={
+#                     "function_name": function_name,
+#                     "layer": layer,
+#                     "x": input,
+#                     "w": weights,
+#                     "post_m": postmerge,
+#                     "post_r": postrearrange,
+#                     "post_1": postlin1,
+#                     "post_2": postlin2,
+#                     "post_r2": postrearrange2,
+#                     "post_e": postemit,
+#                 },
+#             )
+#             print(
+#                 f"\n ------------------------------------------- \nFor n_experts = {layer.n_experts} and calculation mode = {function_name}:"
+#             )
+#             print(t.timeit(300))
 
 
 def log_batch(
@@ -67,6 +230,13 @@ def main(
         args, extra = parser.parse_known_args(runner_params)
         if len(extra):
             print("Unknown args:", extra)
+
+    if args.allow_matmul_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = True
+
+    print(
+        "11111111111111111111111111111111111111111111111111111111111111111111111111111"
+    )
 
     if args.granularity_expert_config:
         print(
@@ -126,7 +296,8 @@ def main(
         residual_fn=residual_fn,
     )
 
-    print(model)
+    if args.torch_compile:
+        model = torch.compile(model)
 
     # make model data_distributed if necessary
     if rank is not None:
@@ -143,19 +314,32 @@ def main(
 
     scheduler = get_scheduler(args)
 
-    train_dataloader = get_processed_dataset(
-        sequence_length=args.cutoff,
-        device=DEVICE,
-        num_workers=args.num_workers,
-        batch_size=args.batch_size // args.n_gpus
+    common_dataloaders_kwargs = {
+        "sequence_length": args.cutoff,
+        "device": DEVICE,
+        "num_workers": args.num_workers,
+        "batch_size": args.batch_size // args.n_gpus
         if data_distributed
         else args.batch_size,
-        seed=args.data_seed if data_seeds is None else data_seeds[rank],
-        model_type=args.model_type,
-        dataset_type=args.dataset_type,
-        use_dummy_dataset=args.use_dummy_dataset,
+        "seed": args.data_seed if data_seeds is None else data_seeds[rank],
+        "model_type": args.model_type,
+        "dataset_type": args.dataset_type,
+        "use_dummy_dataset": args.use_dummy_dataset,
+    }
+    train_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs, dataset_split="train"
     )
-
+    eval_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs,
+        dataset_split="eval"
+        if args.dataset_type == "wikibook"
+        else (
+            "train"
+            if args.dataset_type == "c4" and args.use_dummy_dataset
+            else "validation"
+        ),
+    )
+    # rogue_speedtest2(args)
     logger = get_logger(args, model, VOCAB_SIZE)
 
     # in case of data parallelism, only gpu:0 should log
@@ -200,6 +384,7 @@ def main(
         n_steps=args.n_steps,
         entropy_loss_weight=args.entropy_loss_weight,
     )
+
     trainer.train(args.n_steps)
 
     if rank is not None:
@@ -207,6 +392,97 @@ def main(
 
 
 if __name__ == "__main__":
+    #
+    # def permute(x, y, z, w):
+    #     return x.permute(1, 0, 2)
+    #
+    # def bmm_1_no_mixed_precision(x, y, z, w):
+    #     x = torch.bmm(x, y)
+    #     return x
+    #
+    # def bmm2_no_mixed_precision(x, y, z, w):
+    #     x = torch.bmm(x, y)
+    #     x = torch.relu_(x)
+    #     return x
+    #
+    # def bmm_3_no_mixed_precision(x, y, z, w):
+    #     x = torch.bmm(x, y)
+    #     x = torch.relu_(x)
+    #     x = torch.bmm(x, z)
+    #     return x
+    #
+    # def bmm_1_mixed_precision(x, y, z, w):
+    #     with torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16):
+    #         x = torch.bmm(x, y)
+    #         return x
+    #
+    # def bmm2_mixed_precision(x, y, z, w):
+    #     with torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16):
+    #         x = torch.bmm(x, y)
+    #         x = torch.relu_(x)
+    #         return x
+    #
+    # def bmm_3_mixed_precision(x, y, z, w):
+    #     with torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16):
+    #         x = torch.bmm(x, y)
+    #         x = torch.relu_(x)
+    #         x = torch.bmm(x, z)
+    #         return x
+    #
+    # def bmm_only_second_bmm_no_mixed_precision(x, y, z, w):
+    #     x = torch.bmm(w, z)
+    #     return x
+    #
+    # def bmm_only_second_bmm_mixed_precision(x, y, z, w):
+    #     with torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16):
+    #         x = torch.bmm(w, z)
+    #         return x
+    #
+    # def normal_forward(
+    #     layer,
+    #     x,
+    #     w,
+    #     a,
+    #     b,
+    #     c,
+    #     d,
+    #     e,
+    #     f,
+    # ):
+    #     return layer(
+    #         x,
+    #         w,
+    #         a,
+    #         b,
+    #         c,
+    #         d,
+    #         e,
+    #         f,
+    #     )
+    #
+    # def mixed_precision_forward(
+    #     layer,
+    #     x,
+    #     w,
+    #     a,
+    #     b,
+    #     c,
+    #     d,
+    #     e,
+    #     f,
+    # ):
+    #     with torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16):
+    #         return layer(
+    #             x,
+    #             w,
+    #             a,
+    #             b,
+    #             c,
+    #             d,
+    #             e,
+    #             f,
+    #         )
+
     misc.print_available_gpus()
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
