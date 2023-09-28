@@ -235,10 +235,14 @@ def list_to_clean_str(l: List[str]) -> str:
 
 
 def get_train_main_function(runner: str):
-    from research.conditional.train.cc_train import main as cc_train_main
-
     if runner == "research.conditional.train.cc_train":
+        from research.conditional.train.cc_train import main as cc_train_main
+
         return cc_train_main
+    elif runner == "research.blanks.train":
+        from research.blanks.train import main as blanks_train_main
+
+        return blanks_train_main
     else:
         raise ValueError(f"Unknown runner: {runner}")
 

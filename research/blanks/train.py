@@ -9,27 +9,22 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from lizrd.core import misc
+from lizrd.core import llm, misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
+from research.blanks.model import get_ff_layer
 from research.datasets import (
     DataloaderWrapper,
     get_processed_dataset,
     get_tokenizer_maker,
 )
 from lizrd.train.scheduler import get_scheduler
-from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.argparse import introduce_parser_arguments
-from lizrd.support.misc import set_seed
-from research.conditional.utils.model_utils import (
-    get_ff_layer,
-    get_attention_layer,
-    get_residual_layer,
-)
+from .trainer import BlankTrainer
+from .argparse import introduce_parser_arguments
 
 
 def log_batch(
@@ -98,8 +93,7 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = get_attention_layer(args)
-    residual_fn = get_residual_layer(args)
+    attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
@@ -127,7 +121,7 @@ def main(
         ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
-        residual_fn=residual_fn,
+        residual_fn=None,
         n_blanks=args.n_blanks,
         blank_id=50257,
         blanks_add_embedding=args.blanks_add_embedding,
@@ -195,7 +189,7 @@ def main(
             else tokenizers.BertTokenizer,
         )
 
-    trainer = ConditionalTrainer(
+    trainer = BlankTrainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
@@ -208,7 +202,6 @@ def main(
         batch_size=args.batch_size,
         lr_scheduler=scheduler,
         hack_name=args.hack_name,
-        model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,

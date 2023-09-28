@@ -1,10 +1,90 @@
 from collections import OrderedDict
-from typing import Callable
+from typing import Callable, Optional
+from lizrd.core import llm
 import lizrd.core.nn as nn
 from research.blanks.utils import get_first_blanks_in_series, shift_left, shift_right
 
 
 import torch
+
+
+def get_model(
+    max_length: int,
+    vocab_size: int,
+    ff_layer_fun: Callable[[], torch.nn.Module],
+    attention_layer_fun: Callable[[], torch.nn.Module],
+    dm: int,
+    n_blocks: int,
+    device: torch.device,
+    gradient_checkpointing: bool = False,
+    model_fragmentation: Optional[list[int]] = None,
+    residual_fn: Callable[[], torch.nn.Module] = None,
+    n_blanks: int = 0,
+    blank_id: int = 0,
+    blanks_residual: bool = False,
+    blanks_add_embedding: bool = False,
+    blanks_learnable_weights: bool = False,
+    blank_initial_weight: float = 1.0,
+    blanks_straight_through: bool = False,
+):
+    if model_fragmentation is None or device == torch.device("cpu"):
+        first_gpu = device
+        last_gpu = device
+    else:
+        first_gpu = torch.device("cuda:0")
+        last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
+
+    if n_blanks > 0 and blanks_add_embedding:
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm).to(first_gpu),
+            BlankEmbedding(
+                vocab_size, dm, blank_token_id=blank_id, n_blanks=n_blanks
+            ).to(first_gpu),
+        )
+    else:
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm).to(first_gpu),
+            llm.TokenEmbedding(vocab_size, dm).to(first_gpu),
+        )
+
+    layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
+    # Python officially preserves dict order since 3.7, so we pass the layer dict
+    encoder_tower = llm.TransformerTower(
+        n_blocks,
+        dm,
+        layer_dict,
+        gradient_checkpointing,
+        device,
+        model_fragmentation=model_fragmentation,
+        residual_fn=residual_fn,
+    )
+
+    if n_blanks > 0 and blanks_residual:
+        head = research.blanks.model.BlankDiffPredictionHead(
+            dm,
+            vocab_size,
+            blank_token_id=blank_id,
+            n_blanks=n_blanks,
+            learnable_weights=blanks_learnable_weights,
+            initial_blank_weight=blank_initial_weight,
+            use_straight_through=blanks_straight_through,
+        ).to(last_gpu)
+    else:
+        head = llm.PredictionHead(dm, vocab_size).to(last_gpu)
+
+    if n_blanks > 0:
+        model = research.blanks.model.BlankLLM(embedding_layer, encoder_tower, head)
+    else:
+        model = llm.LLM(embedding_layer, encoder_tower, head)
+
+    return model
+
+
+def get_ff_layer(args):
+    if args.ff_mode == "vanilla":
+        return lambda: llm.FeedForward(args.dmodel, args.dff)
+    else:
+        raise NotImplementedError(f"ff_mode {args.ff_mode} not implemented")
 
 
 def straight_through(forward: Callable, backward: Callable) -> Callable:

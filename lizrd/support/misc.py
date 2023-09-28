@@ -3,6 +3,8 @@ import hashlib
 import random
 import string
 from typing import Optional, List, Tuple, Set
+import numpy as np
+import torch
 
 import yaml
 
@@ -76,3 +78,15 @@ def get_yaml_md5(file_path):
         file_data = f.read()  # read file data into memory
         hash_md5 = hashlib.md5(file_data).hexdigest()
     return hash_md5
+
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    np.random.seed(seed)  # Numpy module.
+    random.seed(seed)  # Python random module.
+
+
+def get_ith_chunk(tensor, chunks, i):
+    list_of_chunks = torch.chunk(tensor, chunks, dim=0)
+    return list_of_chunks[i]

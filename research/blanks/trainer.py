@@ -7,23 +7,20 @@ from typing import Callable, Optional, Literal
 
 import torch
 from attr import define
-from research.blanks.model import BlankDiffPredictionHead
-from lizrd.core.misc import propagate_forward_pass_cache
-from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
+from lizrd.support.misc import get_ith_chunk
+from research.blanks.model import BlankDiffPredictionHead
+
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
-from research.conditional.moe_layers.continuous_moe import ContinuousMoE
-from research.conditional.utils.layer_manager import LayerManager
-from lizrd.support.misc import get_ith_chunk
-from research.conditional.utils.model_utils import make_loss_function
+
+from .loss import make_loss_function
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
-from transformers import GPT2Tokenizer
 
 
 @define(slots=False)
-class ConditionalTrainer:
+class BlankTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
@@ -31,7 +28,6 @@ class ConditionalTrainer:
     vocab_size: int
     mixed_precision: bool
     logger: Optional[AbstractLogger]
-    model_type: Literal["bert", "gpt"]
     dataset_type: Literal["wikibook", "c4"]
     logging_interval_loss: int
     logging_interval_light: int
@@ -44,7 +40,7 @@ class ConditionalTrainer:
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
-    layer_manager: Optional[LayerManager] = None
+    # layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
     hack_name: str = None
@@ -73,19 +69,12 @@ class ConditionalTrainer:
         self.loss_accumulators["loss"] = SN(
             acc=0.0, interval=self.logging_interval_loss
         )
-        if self.model_type == "bert":
-            self.loss_accumulators["legacy_bert_bugged_loss"] = SN(
-                acc=0.0, interval=self.logging_interval_loss
-            )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
         self._calculate_loss = make_loss_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
             n_blanks=self.n_blanks,
-        )
-        self.layer_manager = LayerManager(
-            self.model, self.logging_interval_light, self.logging_interval_heavy
         )
 
     def _restore_weights(self):
@@ -116,10 +105,10 @@ class ConditionalTrainer:
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
     def _before_train_operations(self):
-        propagate_forward_pass_cache(self.model)
+        pass
 
     def _after_step_operations(self):
-        self.model.forward_pass_cache.clear()
+        pass
 
     def train(self, n_steps: int):
         """
@@ -138,14 +127,6 @@ class ConditionalTrainer:
             t1 = time.time()
             if step % 1000 == 0:
                 print(f"Step {step}")
-
-            # if (
-            #     self.model_type == "gpt"
-            #     and self.decoding_logging_steps > 0
-            #     and step % self.decoding_logging_steps == 0
-            #     and self.is_process_logging
-            # ):
-            #     self._decode_samples(step)
 
             if step % self.n_eval_steps == 0:
                 self._eval_step(step)
@@ -181,32 +162,6 @@ class ConditionalTrainer:
                     iteration=step,
                 )
 
-    def _decode_samples(self, step):
-        examples = [
-            "1, 2, 3, 4, 5",
-            "Our Father, who art in heaven,",
-            "Warsaw -> Poland Paris -> France Berlin ->",
-            "Speech at a funeral of a fly: ",
-        ]
-        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-        for example in examples:
-            tokens = torch.tensor(
-                tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))
-            ).to(self.train_dataloader.device)
-            output_tokens = decode_single_example(
-                self.model,
-                self.max_sequence_length,
-                tokens,
-                tokenizer._convert_token_to_id("<|endoftext|>"),
-            )
-            decoded_output = tokenizer.decode(output_tokens)
-            print(f"{example}: {decoded_output}")
-            self.logger.report_text(
-                title=f"decoding_sample/{example}",
-                value=decoded_output,
-                iteration=step,
-            )
-
     def _optimize(self, loss, should_apply_gradient=False):
         # since we sum gradients averaged over multiple smaller batches, we need to normalize here
         loss /= self.gradient_accumulation_steps
@@ -230,8 +185,6 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
-        if self.is_process_logging:
-            self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
@@ -239,16 +192,8 @@ class ConditionalTrainer:
             processed_batch, should_optimize=True
         )
         if self.is_process_logging:
-            if self.model_type == "bert":
-                mask_percent = self.mask_percent
-                numel = processed_batch.input_ids.numel()
-                real_mask_percent = aux_info["total_masked_tokens"] / numel
-                aux_info["legacy_bert_bugged_loss_multiplier"] = (
-                    real_mask_percent / mask_percent
-                )
             self._log_train_stats(loss, step, aux_info)
             self._log_accuracy(aux_info, step)
-            self.layer_manager.log(step)
             self._log_heavy(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
@@ -344,13 +289,7 @@ class ConditionalTrainer:
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
-            if name == "legacy_bert_bugged_loss":
-                bert_legacy_loss = (
-                    loss_value * aux_info["legacy_bert_bugged_loss_multiplier"]
-                )
-                stats.acc += bert_legacy_loss
-            else:
-                stats.acc += loss_value
+            stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
                 self.logger.report_scalar(
                     title=name,
