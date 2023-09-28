@@ -40,6 +40,8 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_decay", type=float, default=None)
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
+    parser.add_argument("--moe_init_type", type=str, default="switch")
+    parser.add_argument("--moe_init_scale", type=float, default=0.1)
 
     # CORE data hyperparameters, almost always specified in baseline configs
 

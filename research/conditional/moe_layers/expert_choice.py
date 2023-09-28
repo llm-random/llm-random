@@ -27,6 +27,8 @@ class ExpertChoiceFF(LoggingLayer):
         use_full_einsum: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
+        init_type: Literal["switch", "regular"] = "switch",
+        init_scale: float = 0.1,
     ):
         """
         Args:
@@ -58,27 +60,34 @@ class ExpertChoiceFF(LoggingLayer):
         assert not self.softmax_ungrouped or self.group_by_batch
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
 
-        # self.lin1_weight = nn.Parameter(
-        #     get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
-        # )
-        self.lin1_weight = nn.Parameter(
-            get_switch_init_weight(
-                shape=(n_experts, dmodel, expert_size), fan_in=dmodel
+        if init_type == "normal":
+            self.lin1_weight = nn.Parameter(
+                get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
             )
-        )
+            self.lin2_weight = nn.Parameter(
+                get_init_weight(
+                    (n_experts, expert_size, dmodel),
+                    fan_in=int(n_experts * expert_size * topk_fraction),
+                )
+            )
+        elif init_type == "switch":
+            self.lin1_weight = nn.Parameter(
+                get_switch_init_weight(
+                    shape=(n_experts, dmodel, expert_size),
+                    fan_in=dmodel,
+                    scale=init_scale,
+                )
+            )
+            self.lin2_weight = nn.Parameter(
+                get_switch_init_weight(
+                    shape=(n_experts, expert_size, dmodel),
+                    fan_in=int(n_experts * expert_size * topk_fraction),
+                    scale=init_scale,
+                )
+            )
+        else:
+            raise ValueError(f"Unknown init_type: {init_type}")
 
-        # self.lin2_weight = nn.Parameter(
-        #     get_init_weight(
-        #         (n_experts, expert_size, dmodel),
-        #         fan_in=int(n_experts * expert_size * topk_fraction),
-        #     )
-        # )
-        self.lin2_weight = nn.Parameter(
-            get_switch_init_weight(
-                shape=(n_experts, expert_size, dmodel),
-                fan_in=int(n_experts * expert_size * topk_fraction),
-            )
-        )
         self.gate = nn.Parameter(
             get_init_weight((dmodel, n_experts), fan_in=dmodel)
         ).requires_grad_(True)
