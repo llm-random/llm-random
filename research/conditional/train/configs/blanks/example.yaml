@@ -1,7 +1,0 @@
-parent: research/conditional/train/configs/baselines/gpt/mini.yaml
-md5_parent_hash: 019212718f2ace8645ddca8f28f6eaee
-time: "0-00:10:00"
-
-params:
-  n_blanks: 3
-  learning_rate: 1e-3
