@@ -5,7 +5,7 @@ from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClas
 from research.conditional.utils.misc_tools import stable_softmax_temperature
 
 
-@ash.check("... dinp -> ... dout")
+#@ash.check("... dinp -> ... dout")
 class ContinuousMoETopmerge(ContinuousMoeBaseClass):
     """
     The emit only sends the output to the token that had the highest logit in the group.

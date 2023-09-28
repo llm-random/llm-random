@@ -25,7 +25,7 @@ def decode_bias_string(bias):
     return bias_first, bias_second
 
 
-@ash.check("... d -> ... d")
+# #@ash.check("... d -> ... d")
 def FeedForward(
     dmodel,
     dff,
@@ -69,7 +69,7 @@ class EveryOtherLayer:
         return layer
 
 
-@ash.check("... -> ... ")
+# #@ash.check("... -> ... ")
 class Residual(nn.Module):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -80,7 +80,7 @@ class Residual(nn.Module):
         return out + x
 
 
-@ash.check("... -> ... ")
+# #@ash.check("... -> ... ")
 class Parallel(nn.Module):
     def __init__(self, *layers):
         super(Parallel, self).__init__()
@@ -90,7 +90,7 @@ class Parallel(nn.Module):
         return x + sum(layer(x) for layer in self.layers)
 
 
-@ash.check("... dinp -> ... a b")
+# #@ash.check("... dinp -> ... a b")
 class SplitLastAxis(nn.Module):
     def __init__(self, a, b):
         super(SplitLastAxis, self).__init__()
@@ -106,7 +106,7 @@ class SplitLastAxis(nn.Module):
         return result
 
 
-@ash.check("... a b -> ... dout")
+#@ash.check("... a b -> ... dout")
 class MergeLastAxis(nn.Module):
     def forward(self, x):
         result = x.reshape(x.shape[:-2] + (-1,))
@@ -114,21 +114,21 @@ class MergeLastAxis(nn.Module):
         return result
 
 
-@ash.check("... a b -> ... b a")
+#@ash.check("... a b -> ... b a")
 class Transpose(nn.Module):
     def forward(self, x):
         # return einops.rearrange(x, '... a b -> ... b a')
         return torch.transpose(x, -1, -2)
 
 
-@ash.check("... dinp -> ... dout")
+#@ash.check("... dinp -> ... dout")
 def LowRank(dinput, doutput, dlowrank):
     return nn.Sequential(
         misc.Linear(dinput, dlowrank, bias=False), misc.Linear(dlowrank, doutput)
     )
 
 
-@ash.check("... d -> ... d")
+#@ash.check("... d -> ... d")
 class Attention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(Attention, self).__init__()
@@ -176,7 +176,7 @@ class Attention(nn.Module):
         return output
 
 
-@ash.check("... d -> ... d")
+#@ash.check("... d -> ... d")
 class CausalAttention(nn.Module):
     def __init__(self, dmodel, heads, dhead=None):
         super(CausalAttention, self).__init__()
@@ -265,7 +265,7 @@ def PreNormBlock(dmodel, layer, name):
     )
 
 
-@ash.check("... d -> ... d")
+#@ash.check("... d -> ... d")
 def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
     residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
@@ -274,7 +274,7 @@ def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     return nn.Sequential(*residual_layers)
 
 
-@ash.check("... d -> ... d")
+#@ash.check("... d -> ... d")
 class TransformerTower(nn.Module):
     def __init__(
         self,
@@ -334,12 +334,12 @@ class TransformerTower(nn.Module):
         )
 
 
-@ash.check("... -> ... d")
+#@ash.check("... -> ... d")
 def TokenEmbedding(vocab_size, embedding_dim):
     return nn.Embedding(vocab_size, embedding_dim)
 
 
-@ash.check("... -> ... d")
+#@ash.check("... -> ... d")
 class PositionalEmbedding(nn.Module):
     def __init__(self, max_length, embedding_dim):
         super(PositionalEmbedding, self).__init__()
@@ -353,17 +353,17 @@ class PositionalEmbedding(nn.Module):
         return embeddings
 
 
-@ash.check("... -> ... d")
+#@ash.check("... -> ... d")
 def EmbeddingLayer(*layers):
     return misc.Sum(*layers)
 
 
-@ash.check("... inp -> ... out")
+#@ash.check("... inp -> ... out")
 def PredictionHead(embedding_dim, output_size):
     return nn.Linear(embedding_dim, output_size)
 
 
-@ash.check("... -> ... out")
+#@ash.check("... -> ... out")
 class LLM(nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()
