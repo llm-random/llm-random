@@ -34,11 +34,11 @@ def get_init_weight(shape, fan_in, fan_out=None, gain=1.0, dtype=torch.float32):
 
 
 def get_switch_init_weight(shape, fan_in, mean=0, scale=0.1, dtype=torch.float32):
-    scale = (scale / fan_in) ** 0.5
+    std = (scale / fan_in) ** 0.5
     low = -2 * scale
     high = 2 * scale
     t = torch.zeros(shape, dtype=dtype)
-    return trunc_normal_(t, mean=mean, scale=scale, a=low, b=high)
+    return trunc_normal_(t, mean=mean, std=std, a=low, b=high)
 
 
 def get_init_bias(shape, fan_in=None, fan_out=None, dtype=torch.float32):
