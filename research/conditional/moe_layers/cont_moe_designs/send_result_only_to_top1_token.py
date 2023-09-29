@@ -1,11 +1,10 @@
 from lizrd.core import misc
-from lizrd.support import ash
 from research.conditional.archive.rogue_code import set_highest_index_one
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
 
 
-@ash.check("... dinp -> ... dout")
+# @ash.check("... dinp -> ... dout")
 class ContinuousMoETopmerge(ContinuousMoeBaseClass):
     """
     The emit only sends the output to the token that had the highest logit in the group.

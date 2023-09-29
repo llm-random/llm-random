@@ -11,19 +11,15 @@ class FeedForwardTimed(LoggingLayer):
         self.dmodel = dmodel
         self.no_ff = no_ff
         self.dff = dff
-        self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
+        self.lin1 = misc.Linear(dmodel, dff)
         self.activation = resolve_activation_name(activation_type)
-        self.logging_ff_post_relu = misc.Linear(dff, dmodel)
+        self.lin2 = misc.Linear(dff, dmodel)
 
     def forward(self, x):
-        with measure_time(self, "logging_ff_pre_relu"):
-            if self.no_ff:
-                return x
-            x = self.logging_ff_pre_relu(x)
-        with measure_time(self, "activation"):
+        with measure_time(self, "forward"):
+            x = self.lin1(x)
             x = self.activation(x)
-        with measure_time(self, "logging_ff_post_relu"):
-            x = self.logging_ff_post_relu(x)
+            x = self.lin2(x)
         return x
 
     def log_heavy(self):

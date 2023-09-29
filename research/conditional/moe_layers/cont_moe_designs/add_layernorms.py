@@ -1,11 +1,10 @@
 import torch
 
 from lizrd.core import misc, nn
-from lizrd.support import ash
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
 
-@ash.check("... dinp -> ... dout")
+# @ash.check("... dinp -> ... dout")
 class ContinuousMoELayernorm(ContinuousMoeBaseClass):
     def merge_map_emit(self, x, merge_weights, emit_weights):
         x = misc.einsum(

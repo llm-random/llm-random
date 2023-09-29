@@ -1,4 +1,4 @@
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class BatchSplitFF(nn.Module):
     def __init__(
         self,

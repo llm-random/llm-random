@@ -24,7 +24,7 @@ class LayerManager:
 
     def _register_layers(self, model):
         for name, layer in model.named_modules():
-            if name.endswith("feedforward"):
+            if name.endswith("feedforward") or name.endswith("attention"):
                 pattern = r"block_(\d+)"
                 match = re.search(pattern, name)
                 if match:

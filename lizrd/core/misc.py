@@ -2,7 +2,6 @@ import torch
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
 from lizrd.core import nn
-from lizrd.support import ash
 from torch.utils.checkpoint import checkpoint
 import torch.nn
 
@@ -80,7 +79,7 @@ class EinMix(nn.Module):
         return newoutput
 
 
-@ash.check("... inp -> ... out")
+# @ash.check("... inp -> ... out")
 def DenseEinMix(dinp, dout):
     return EinMix(
         "... dinp -> ... dout",
@@ -91,7 +90,7 @@ def DenseEinMix(dinp, dout):
     )
 
 
-@ash.check("... inp -> ... out")
+# @ash.check("... inp -> ... out")
 class Linear(nn.Linear):
     def __init__(self, *args, **kwargs):
         if "bias" not in kwargs:
@@ -114,7 +113,7 @@ def check_layer_funs(*layer_funs):
             )
 
 
-@ash.check("... -> ...")
+# @ash.check("... -> ...")
 class StopGradient(nn.Module):
     def __init__(self):
         super(StopGradient, self).__init__()
@@ -127,7 +126,7 @@ def stop_gradient(x):
     return x.detach()
 
 
-@ash.check("... -> ...")
+# @ash.check("... -> ...")
 class StopValuePassGradient(nn.Module):
     def __init__(self):
         super(StopValuePassGradient, self).__init__()

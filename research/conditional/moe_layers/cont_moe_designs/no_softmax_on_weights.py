@@ -1,11 +1,10 @@
 import torch
 
 from lizrd.core import misc, nn
-from lizrd.support import ash
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
 
-@ash.check("... dinp -> ... dout")
+# @ash.check("... dinp -> ... dout")
 class ContinuousMoENosoftmax(ContinuousMoeBaseClass):
     """
     The merging and emitting is done with just a linear layer, no softmax.

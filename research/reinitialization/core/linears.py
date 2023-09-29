@@ -5,7 +5,6 @@ import torch.nn.functional as F
 
 from lizrd.core import misc
 from lizrd.core.llm import decode_bias_string
-from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 import plotly.express as px
 import numpy as np
@@ -36,7 +35,7 @@ def create_mask(size: torch.Size) -> torch.nn.parameter.Parameter:
     return mask
 
 
-@ash.check("... inp -> ... out")
+# @ash.check("... inp -> ... out")
 class PruneLinear(misc.Linear):
     """Linear layer with pruning"""
 
@@ -55,7 +54,7 @@ class PruneLinear(misc.Linear):
         )
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class UnstructPruneFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner, bias: bool = False):
         super().__init__()
@@ -71,7 +70,7 @@ class UnstructPruneFF(nn.Module):
         return x
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class StructPruneFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
@@ -114,7 +113,7 @@ def prepare_tensor_for_logging(x, sample_size=2500):
     return [t[random_indices] for t in x] if was_list else x[0][random_indices]
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class LogFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
@@ -502,7 +501,7 @@ class MagnitudePruneLinear(misc.Linear):
         )
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class UnstructMagnitudePruneFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner, bias: bool = False):
         super().__init__()
@@ -518,7 +517,7 @@ class UnstructMagnitudePruneFF(nn.Module):
         return x
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class StructMagnitudePruneFF(nn.Module):
     def __init__(
         self, dmodel: int, dff: int, pruner: Pruner, criterion: str = "smallest"
@@ -565,7 +564,7 @@ class StructMagnitudePruneFF(nn.Module):
         self.log_neurons_magnitudes(layer_name, step)
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class MaskedFF(nn.Module):
     """Fully masked Feed-Forward layer"""
 
@@ -573,7 +572,7 @@ class MaskedFF(nn.Module):
         return torch.zeros_like(x)
 
 
-@ash.check("... d -> ... d")
+# @ash.check("... d -> ... d")
 class SeparateDirectionMagnitudeFF(nn.Module):
     def __init__(
         self,

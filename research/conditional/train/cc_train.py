@@ -223,6 +223,9 @@ if __name__ == "__main__":
     introduce_parser_arguments(parser)
     args = parser.parse_args()
 
+    if args.allow_matmul_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = True
+
     if args.data_distributed == False:
         main(None, args=args)
     else:

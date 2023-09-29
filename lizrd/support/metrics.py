@@ -1,8 +1,6 @@
 import torch
 from lizrd.core import nn
 
-from lizrd.support import ash
-
 
 class MetricWriter(object):
     def __init__(self, tb_writer=None, step=0):
@@ -61,7 +59,7 @@ class GenericLog(nn.Module):
         pass
 
 
-@ash.check("...-> ...")
+# @ash.check("...-> ...")
 class LogValue(GenericLog):
     def __init__(self, name, metric_writer=None, aggregate=torch.mean, subname=None):
         if subname is None:
@@ -75,7 +73,7 @@ class LogValue(GenericLog):
         return x
 
 
-@ash.check("...-> ...")
+# @ash.check("...-> ...")
 class LogGradient(GenericLog):
     def __init__(self, name, metric_writer=None, aggregate=torch.mean, subname=None):
         if subname is None:
