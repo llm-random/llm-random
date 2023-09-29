@@ -131,7 +131,7 @@ def LowRank(dinput, doutput, dlowrank):
 
 @ash.check("... d -> ... d")
 class Attention(nn.Module):
-    def __init__(self, dmodel, heads, causal, dhead=None):
+    def __init__(self, dmodel, heads, causal, dhead=None, flash=False):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
@@ -141,6 +141,7 @@ class Attention(nn.Module):
         self.dhead = dhead
         self.dmodel = dmodel
         self.causal = causal
+        self.flash = flash
 
         key_query_value_gen = lambda: misc.EinMix(
             "... dmodel -> ... heads dhead",
@@ -166,22 +167,22 @@ class Attention(nn.Module):
         self.D = combine_gen()
 
     def forward(self, x):
-        if False:
+        q = self.Q(x)
+        k = self.K(x)
+        v = self.V(x)
+
+        if self.flash:
             with torch.backends.cuda.sdp_kernel(
                 enable_flash=True, enable_math=False, enable_mem_efficient=False
             ):
                 output = F.scaled_dot_product_attention(
-                    query=self.Q,
-                    key=self.K,
-                    value=self.V,
+                    query=q,
+                    key=k,
+                    value=v,
                     attn_mask=None,
-                    is_causal=False,
+                    is_causal=self.causal,
                 )
         else:
-            q = self.Q(x)
-            k = self.K(x)
-            v = self.V(x)
-
             a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
             a = a * (1 / self.dhead**0.5)
 
