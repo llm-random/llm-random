@@ -67,8 +67,8 @@ class EncoderTowerTest(GeneralTestCase):
         self.assertShape(out, (batch, seql, dm))
 
 
-class BERTTest(GeneralTestCase):
-    def test_basic(self):
+class LLMTest(GeneralTestCase):
+    def test_bert(self):
         batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
         vocab_size, max_length = 107, 33
         output_size = 3
@@ -81,6 +81,33 @@ class BERTTest(GeneralTestCase):
         )
         layer_dict = {
             "attention": lambda: llm.Attention(dm, heads, causal=False),
+            "feedforward": lambda: llm.FeedForward(dm, dff),
+        }
+        encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
+
+        head = llm.PredictionHead(dm, output_size)
+
+        model = llm.LLM(embedding_layer, encoder_tower, head)
+
+        input = torch.randint(0, vocab_size, (batch, seql))
+
+        output = model(input)
+
+        self.assertShape(output, (batch, seql, output_size))
+
+    def test_gpt(self):
+        batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
+        vocab_size, max_length = 107, 33
+        output_size = 3
+        n_blocks = 2
+        device = torch.device("cpu")
+
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm),
+            llm.TokenEmbedding(vocab_size, dm),
+        )
+        layer_dict = {
+            "attention": lambda: llm.Attention(dm, heads, causal=True),
             "feedforward": lambda: llm.FeedForward(dm, dff),
         }
         encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
