@@ -31,21 +31,21 @@ class ResidualTest(GeneralTestCase):
 class AttentionTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Attention(dm, heads)
+        layer = llm.Attention(dm, heads, causal=False)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
     def test_nonstandard_dhead(self):
         batch, seql, dm, heads, dhead = 3, 7, 32, 4, 100
-        layer = llm.Attention(dm, heads, dhead=dhead)
+        layer = llm.Attention(dm, heads, causal=False, dhead=dhead)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
     def test_residual(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Residual(llm.Attention(dm, heads))
+        layer = llm.Residual(llm.Attention(dm, heads, causal=False))
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
@@ -58,7 +58,7 @@ class EncoderTowerTest(GeneralTestCase):
         device = torch.device("cpu")
 
         layer_dict = {
-            "attention": lambda: llm.Attention(dm, heads),
+            "attention": lambda: llm.Attention(dm, heads, causal=False),
             "feedforward": lambda: llm.FeedForward(dm, dff),
         }
         model = llm.TransformerTower(nblocks, dm, layer_dict, device=device)
@@ -80,7 +80,7 @@ class BERTTest(GeneralTestCase):
             llm.TokenEmbedding(vocab_size, dm),
         )
         layer_dict = {
-            "attention": lambda: llm.Attention(dm, heads),
+            "attention": lambda: llm.Attention(dm, heads, causal=False),
             "feedforward": lambda: llm.FeedForward(dm, dff),
         }
         encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
