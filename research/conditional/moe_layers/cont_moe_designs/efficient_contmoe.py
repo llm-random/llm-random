@@ -57,9 +57,9 @@ class EfficientContMoE(ContinuousMoeBaseClass):
         merge_logits = torch.matmul(
             x.view(x.shape[0], -1, self.group_size, self.dm), self.controller
         )
-        # shape of merge_logits is free_dimension agrr_dimension/group_size, group_size, n_experts
+        # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
         merge_weights = (
-            stable_softmax_temperature(merge_logits, self.temperature, dim=-1)
+            stable_softmax_temperature(merge_logits, self.temperature, dim=-2)
             .view(x.shape[0], -1, self.n_experts)
             .permute(0, 2, 1)
         )
