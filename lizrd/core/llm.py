@@ -150,6 +150,11 @@ def attention_mechanism(
                 is_causal=causal,
             )
     else:
+        # implementation without flash assumes other dim order
+        query = query.transpose(1, 2)
+        key = key.transpose(1, 2)
+        value = value.transpose(1, 2)
+
         a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
         a = a * (1 / dhead**0.5)
         if causal:
@@ -158,6 +163,8 @@ def attention_mechanism(
             )  # mask out future tokens
         a = torch.softmax(a, dim=-1)
         prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
+        prefinal = prefinal.transpose(1, 2)
+
     return prefinal
 
 
@@ -181,7 +188,7 @@ class Attention(LoggingLayer):
         projected = self.input_projection(x)
 
         batch, seq_len = x.shape[:-1]
-        projected = projected.view(batch, seq_len, self.heads, 3 * self.dhead)
+        projected = projected.view(batch, self.heads, seq_len, 3 * self.dhead)
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
 
         prefinal = attention_mechanism(
@@ -193,7 +200,7 @@ class Attention(LoggingLayer):
             flash=self.flash,
         )
 
-        output = self.output_projection(prefinal.flatten(-2))
+        output = self.output_projection(prefinal.transpose(1, 2).flatten(-2))
 
         return output
 
