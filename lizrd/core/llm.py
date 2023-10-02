@@ -129,6 +129,62 @@ def LowRank(dinput, doutput, dlowrank):
     )
 
 
+def get_einmix_attn_projections(dmodel: int, heads: int, dhead: int):
+    Q, K, V = (
+        misc.EinMix(
+            "... dmodel -> ... heads dhead",
+            weight_shape="dmodel heads dhead",
+            bias_shape="heads dhead",
+            dmodel=dmodel,
+            heads=heads,
+            dhead=dhead,
+        )
+        for _ in range(3)
+    )
+
+    D = misc.EinMix(
+        "... heads dhead -> ... dmodel",
+        weight_shape="heads dhead dmodel",
+        bias_shape="dmodel",
+        dmodel=dmodel,
+        heads=heads,
+        dhead=dhead,
+    )
+
+    return Q, K, V, D
+
+
+def attention_mechanism(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    dhead: int,
+    causal: bool,
+    flash: bool,
+):
+    if flash:
+        with torch.backends.cuda.sdp_kernel(
+            enable_flash=True, enable_math=False, enable_mem_efficient=False
+        ):
+            prefinal = F.scaled_dot_product_attention(
+                query=query,
+                key=key,
+                value=value,
+                attn_mask=None,
+                is_causal=causal,
+            )
+    else:
+        a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
+        a = a * (1 / dhead**0.5)
+        if causal:
+            a.masked_fill_(
+                torch.tril(torch.ones_like(a)) == 0, float("-inf")
+            )  # mask out future tokens
+        a = torch.softmax(a, dim=-1)
+        prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
+    return prefinal
+
+
 @ash.check("... d -> ... d")
 class Attention(nn.Module):
     def __init__(self, dmodel, heads, causal, dhead=None, flash=True):
@@ -137,62 +193,20 @@ class Attention(nn.Module):
             assert dmodel % heads == 0
             dhead = dmodel // heads
 
-        self.heads = heads
-        self.dhead = dhead
-        self.dmodel = dmodel
+        self.dhead=dhead
         self.causal = causal
         self.flash = flash
 
-        key_query_value_gen = lambda: misc.EinMix(
-            "... dmodel -> ... heads dhead",
-            weight_shape="dmodel heads dhead",
-            bias_shape="heads dhead",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
+        self.Q, self.K, self.V, self.D = get_einmix_attn_projections(
+            dmodel, heads, dhead
         )
-
-        self.Q = key_query_value_gen()
-        self.K = key_query_value_gen()
-        self.V = key_query_value_gen()
-
-        combine_gen = lambda: misc.EinMix(
-            "... heads dhead -> ... dmodel",
-            weight_shape="heads dhead dmodel",
-            bias_shape="dmodel",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
-        )
-        self.D = combine_gen()
 
     def forward(self, x):
         q = self.Q(x)
         k = self.K(x)
         v = self.V(x)
 
-        if self.flash:
-            with torch.backends.cuda.sdp_kernel(
-                enable_flash=True, enable_math=False, enable_mem_efficient=False
-            ):
-                prefinal = F.scaled_dot_product_attention(
-                    query=q,
-                    key=k,
-                    value=v,
-                    attn_mask=None,
-                    is_causal=self.causal,
-                )
-        else:
-            a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
-            a = a * (1 / self.dhead**0.5)
-
-            if self.causal:
-                a.masked_fill_(
-                    torch.tril(torch.ones_like(a)) == 0, float("-inf")
-                )  # mask out future tokens
-
-            a = torch.softmax(a, dim=-1)
-            prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
+        prefinal = attention_mechanism(query=q, key=k, value=v, dhead=self.dhead, causal=self.causal, flash=self.flash)
 
         output = self.D(prefinal)
 
