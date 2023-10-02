@@ -64,7 +64,7 @@ class AttentionTest(GeneralTestCase):
 
     def test_flash_equivalence(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Attention(dm, heads, causal=False, flash=False)
+        layer = llm.Attention(dm, heads, causal=False, flash=True)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
 
