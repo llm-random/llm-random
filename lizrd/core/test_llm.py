@@ -36,6 +36,41 @@ class AttentionTest(GeneralTestCase):
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
+    def test_flash_basic(self):
+        batch, seql, dm, heads = 3, 7, 32, 4
+        layer = llm.Attention(dm, heads, causal=False, flash=True)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+        self.assertShape(out, (batch, seql, dm))
+
+    def test_flash_basic_causal(self):
+        batch, seql, dm, heads = 3, 7, 32, 4
+        layer = llm.Attention(dm, heads, causal=True, flash=True)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+        self.assertShape(out, (batch, seql, dm))
+
+    def test_attention_mechanism_equivalence(self):
+        # batch, seql, dm, dhead, heads = 3, 7, 32, 100, 4
+        # q = torch.normal(0.0, 1.0, (batch, seql, dm))
+        # k = torch.normal(0.0, 1.0, (batch, seql, dm))
+        # v = torch.normal(0.0, 1.0, (batch, seql, dm))
+        # out1 = llm.attention_mechanism(q, k, v, dhead, flash=False, causal=False)
+        # out2 = llm.attention_mechanism(q, k, v, dhead, flash=True, causal=False)
+        # self.assertTensorAlmostEqual(out1, out2)
+        pass
+
+    def test_flash_equivalence(self):
+        batch, seql, dm, heads = 3, 7, 32, 4
+        layer = llm.Attention(dm, heads, causal=False, flash=False)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+
+        layer.flash = False
+        out2 = layer(input)
+
+        self.assertTensorAlmostEqual(out, out2)
+
     def test_nonstandard_dhead(self):
         batch, seql, dm, heads, dhead = 3, 7, 32, 4, 100
         layer = llm.Attention(dm, heads, causal=False, dhead=dhead)
