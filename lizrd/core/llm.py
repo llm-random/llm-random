@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 import lizrd.core.nn as nn
 from lizrd.core import misc
+from lizrd.core.misc import get_init_weight
 from lizrd.core.misc import Checkpoint, default
 from lizrd.support import ash
 
@@ -129,29 +130,37 @@ def LowRank(dinput, doutput, dlowrank):
     )
 
 
-def get_einmix_attn_projections(dmodel: int, heads: int, dhead: int):
-    Q, K, V = (
-        misc.EinMix(
-            "... dmodel -> ... heads dhead",
-            weight_shape="dmodel heads dhead",
-            bias_shape="heads dhead",
+def get_attn_projections(dmodel: int, heads: int, dhead: int, use_einmix: bool):
+    if use_einmix:
+        Q, K, V = (
+            misc.EinMix(
+                "... dmodel -> ... heads dhead",
+                weight_shape="dmodel heads dhead",
+                bias_shape="heads dhead",
+                dmodel=dmodel,
+                heads=heads,
+                dhead=dhead,
+            )
+            for _ in range(3)
+        )
+        input_projection = (Q, K, V)
+
+        output_projection = misc.EinMix(
+            "... heads dhead -> ... dmodel",
+            weight_shape="heads dhead dmodel",
+            bias_shape="dmodel",
             dmodel=dmodel,
             heads=heads,
             dhead=dhead,
         )
-        for _ in range(3)
-    )
+    else:
+        input_projection = get_init_weight(
+            shape=(3, heads, dmodel, dhead), fan_in=dmodel
+        )
+        input_projection = nn.Linear(dmodel, 3 * heads * dhead)
+        output_projection = nn.Linear(heads * dhead, dmodel)
 
-    D = misc.EinMix(
-        "... heads dhead -> ... dmodel",
-        weight_shape="heads dhead dmodel",
-        bias_shape="dmodel",
-        dmodel=dmodel,
-        heads=heads,
-        dhead=dhead,
-    )
-
-    return Q, K, V, D
+    return input_projection, output_projection
 
 
 def attention_mechanism(
@@ -185,30 +194,69 @@ def attention_mechanism(
     return prefinal
 
 
+def attention_input_projection(
+    input_projection: torch.Tensor,
+    x: torch.Tensor,
+    use_einmix: bool,
+    heads: int,
+    dhead: int,
+):
+    if use_einmix:
+        Q, K, V = input_projection
+        q = Q(x)
+        k = K(x)
+        v = V(x)
+    else:
+        projected = input_projection(x)
+        batch, seq_len = x.shape[:-1]
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+        q = q.view(batch, seq_len, heads, dhead)
+        k = k.view(batch, seq_len, heads, dhead)
+        v = v.view(batch, seq_len, heads, dhead)
+
+    return q, k, v
+
+
 @ash.check("... d -> ... d")
 class Attention(nn.Module):
-    def __init__(self, dmodel, heads, causal, dhead=None, flash=True):
+    def __init__(self, dmodel, heads, causal, dhead=None, flash=False, use_einmix=True):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
             dhead = dmodel // heads
 
-        self.dhead=dhead
+        self.heads = heads
+        self.dhead = dhead
         self.causal = causal
         self.flash = flash
+        self.use_einmix = use_einmix
 
-        self.Q, self.K, self.V, self.D = get_einmix_attn_projections(
-            dmodel, heads, dhead
+        self.input_projection, self.output_projection = get_attn_projections(
+            dmodel, heads, dhead, use_einmix=use_einmix
         )
 
+        if use_einmix:
+            self.Q, self.K, self.V = self.input_projection
+
     def forward(self, x):
-        q = self.Q(x)
-        k = self.K(x)
-        v = self.V(x)
+        q, k, v = attention_input_projection(
+            input_projection=(self.Q, self.K, self.V),
+            x=x,
+            use_einmix=self.use_einmix,
+            heads=self.heads,
+            dhead=self.dhead,
+        )
 
-        prefinal = attention_mechanism(query=q, key=k, value=v, dhead=self.dhead, causal=self.causal, flash=self.flash)
+        prefinal = attention_mechanism(
+            query=q,
+            key=k,
+            value=v,
+            dhead=self.dhead,
+            causal=self.causal,
+            flash=self.flash,
+        )
 
-        output = self.D(prefinal)
+        output = self.output_projection(prefinal)
 
         return output
 
