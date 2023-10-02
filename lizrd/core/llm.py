@@ -4,13 +4,12 @@ from functools import partial
 
 import torch
 import torch.nn.functional as F
-from torch.nn import ModuleList
 
 import lizrd.core.nn as nn
 from lizrd.core import misc
-from lizrd.core.misc import get_init_weight
 from lizrd.core.misc import Checkpoint, default
 from lizrd.support import ash
+from research.conditional.utils.layer_manager import LoggingLayer
 
 
 def decode_bias_string(bias):
@@ -131,39 +130,6 @@ def LowRank(dinput, doutput, dlowrank):
     )
 
 
-def get_attn_projections(dmodel: int, heads: int, dhead: int, use_einmix: bool):
-    if use_einmix:
-        Q, K, V = (
-            misc.EinMix(
-                "... dmodel -> ... heads dhead",
-                weight_shape="dmodel heads dhead",
-                bias_shape="heads dhead",
-                dmodel=dmodel,
-                heads=heads,
-                dhead=dhead,
-            )
-            for _ in range(3)
-        )
-        input_projection = ModuleList([Q, K, V])
-
-        output_projection = misc.EinMix(
-            "... heads dhead -> ... dmodel",
-            weight_shape="heads dhead dmodel",
-            bias_shape="dmodel",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
-        )
-    else:
-        input_projection = get_init_weight(
-            shape=(3, heads, dmodel, dhead), fan_in=dmodel
-        )
-        input_projection = nn.Linear(dmodel, 3 * heads * dhead)
-        output_projection = nn.Linear(heads * dhead, dmodel)
-
-    return input_projection, output_projection
-
-
 def attention_mechanism(
     query: torch.Tensor,
     key: torch.Tensor,
@@ -195,32 +161,9 @@ def attention_mechanism(
     return prefinal
 
 
-def attention_input_projection(
-    input_projection: torch.Tensor,
-    x: torch.Tensor,
-    use_einmix: bool,
-    heads: int,
-    dhead: int,
-):
-    if use_einmix:
-        Q, K, V = input_projection
-        q = Q(x)
-        k = K(x)
-        v = V(x)
-    else:
-        projected = input_projection(x)
-        batch, seq_len = x.shape[:-1]
-        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
-        q = q.view(batch, seq_len, heads, dhead)
-        k = k.view(batch, seq_len, heads, dhead)
-        v = v.view(batch, seq_len, heads, dhead)
-
-    return q, k, v
-
-
 @ash.check("... d -> ... d")
-class Attention(nn.Module):
-    def __init__(self, dmodel, heads, causal, dhead=None, flash=False, use_einmix=True):
+class Attention(LoggingLayer):
+    def __init__(self, dmodel, heads, causal, dhead=None, flash=False):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
@@ -230,20 +173,16 @@ class Attention(nn.Module):
         self.dhead = dhead
         self.causal = causal
         self.flash = flash
-        self.use_einmix = use_einmix
 
-        self.input_projection, self.output_projection = get_attn_projections(
-            dmodel, heads, dhead, use_einmix=use_einmix
-        )
+        self.input_projection = nn.Linear(dmodel, 3 * heads * dhead)
+        self.output_projection = nn.Linear(heads * dhead, dmodel)
 
     def forward(self, x):
-        q, k, v = attention_input_projection(
-            input_projection=self.input_projection,
-            x=x,
-            use_einmix=self.use_einmix,
-            heads=self.heads,
-            dhead=self.dhead,
-        )
+        projected = self.input_projection(x)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(batch, seq_len, self.heads, 3 * self.dhead)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
 
         prefinal = attention_mechanism(
             query=q,
@@ -254,7 +193,7 @@ class Attention(nn.Module):
             flash=self.flash,
         )
 
-        output = self.output_projection(prefinal)
+        output = self.output_projection(prefinal.flatten(-2))
 
         return output
 

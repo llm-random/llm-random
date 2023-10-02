@@ -30,13 +30,10 @@ class ResidualTest(GeneralTestCase):
 
 class AttentionTest(GeneralTestCase):
     def test_basic(self):
-        try:
-            batch, seql, dm, heads = 3, 7, 32, 4
-            layer = llm.Attention(dm, heads, causal=False)
-            input = torch.normal(0.0, 1.0, (batch, seql, dm))
-            out = layer(input)
-        except Exception as e:
-            pass
+        batch, seql, dm, heads = 3, 7, 32, 4
+        layer = llm.Attention(dm, heads, causal=False)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
     def test_nonstandard_dhead(self):
