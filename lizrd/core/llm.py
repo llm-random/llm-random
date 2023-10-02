@@ -131,7 +131,7 @@ def LowRank(dinput, doutput, dlowrank):
 
 @ash.check("... d -> ... d")
 class Attention(nn.Module):
-    def __init__(self, dmodel, heads, causal, dhead=None, flash=False):
+    def __init__(self, dmodel, heads, causal, dhead=None, flash=True):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
@@ -175,7 +175,7 @@ class Attention(nn.Module):
             with torch.backends.cuda.sdp_kernel(
                 enable_flash=True, enable_math=False, enable_mem_efficient=False
             ):
-                output = F.scaled_dot_product_attention(
+                prefinal = F.scaled_dot_product_attention(
                     query=q,
                     key=k,
                     value=v,
@@ -193,7 +193,8 @@ class Attention(nn.Module):
 
             a = torch.softmax(a, dim=-1)
             prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
-            output = self.D(prefinal)
+
+        output = self.D(prefinal)
 
         return output
 
