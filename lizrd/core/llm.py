@@ -4,6 +4,7 @@ from functools import partial
 
 import torch
 import torch.nn.functional as F
+from torch.nn import ModuleList
 
 import lizrd.core.nn as nn
 from lizrd.core import misc
@@ -143,7 +144,7 @@ def get_attn_projections(dmodel: int, heads: int, dhead: int, use_einmix: bool):
             )
             for _ in range(3)
         )
-        input_projection = (Q, K, V)
+        input_projection = ModuleList([Q, K, V])
 
         output_projection = misc.EinMix(
             "... heads dhead -> ... dmodel",
@@ -235,12 +236,9 @@ class Attention(nn.Module):
             dmodel, heads, dhead, use_einmix=use_einmix
         )
 
-        if use_einmix:
-            self.Q, self.K, self.V = self.input_projection
-
     def forward(self, x):
         q, k, v = attention_input_projection(
-            input_projection=(self.Q, self.K, self.V),
+            input_projection=self.input_projection,
             x=x,
             use_einmix=self.use_einmix,
             heads=self.heads,
