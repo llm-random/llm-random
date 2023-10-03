@@ -3,6 +3,7 @@ From: sparsity-base.sif
 
 %files
     requirements.txt
+    build_env.sh
 
 %post
     export DEBIAN_FRONTEND=noninteractive
@@ -11,10 +12,8 @@ From: sparsity-base.sif
     . /opt/venv/bin/activate
 
     cat requirements.txt
-
-    python3 -m pip install -U pip
-    python3 -m pip install -r requirements.txt
-    python3 -m pip install -U multiprocess
+    ./build_env.sh
+    /sbin/ldconfig
 
 %runscript
     . /opt/venv/bin/activate

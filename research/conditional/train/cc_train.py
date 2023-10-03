@@ -125,6 +125,7 @@ def main(
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
     )
+    model = torch.compile(model)
 
     # make model data_distributed if necessary
     if rank is not None:
