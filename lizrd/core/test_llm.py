@@ -121,15 +121,10 @@ class LLMTest(GeneralTestCase):
             "feedforward": lambda: llm.FeedForward(dm, dff),
         }
         encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
-
         head = llm.PredictionHead(dm, output_size)
-
         model = llm.LLM(embedding_layer, encoder_tower, head)
-
         input = torch.randint(0, vocab_size, (batch, seql))
-
         output = model(input)
-
         self.assertShape(output, (batch, seql, output_size))
 
     def test_gpt(self):

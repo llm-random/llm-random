@@ -142,7 +142,7 @@ def attention_mechanism(
         with torch.backends.cuda.sdp_kernel(
             enable_flash=True, enable_math=False, enable_mem_efficient=False
         ):
-            prefinal = F.scaled_dot_product_attention(
+            output = F.scaled_dot_product_attention(
                 query=query,
                 key=key,
                 value=value,
@@ -162,10 +162,10 @@ def attention_mechanism(
                 torch.tril(torch.ones_like(a)) == 0, float("-inf")
             )  # mask out future tokens
         a = torch.softmax(a, dim=-1)
-        prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
-        prefinal = prefinal.transpose(1, 2)
+        output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
+        output = output.transpose(1, 2)
 
-    return prefinal
+    return output
 
 
 @ash.check("... d -> ... d")
@@ -188,10 +188,12 @@ class Attention(LoggingLayer):
         projected = self.input_projection(x)
 
         batch, seq_len = x.shape[:-1]
-        projected = projected.view(batch, self.heads, seq_len, 3 * self.dhead)
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
 
-        prefinal = attention_mechanism(
+        attention_output = attention_mechanism(
             query=q,
             key=k,
             value=v,
@@ -200,7 +202,7 @@ class Attention(LoggingLayer):
             flash=self.flash,
         )
 
-        output = self.output_projection(prefinal.transpose(1, 2).flatten(-2))
+        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
 
         return output
 
