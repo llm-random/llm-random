@@ -62,9 +62,29 @@ class AttentionTest(GeneralTestCase):
         out2 = llm.attention_mechanism(q, k, v, dhead, flash=True, causal=False)
         self.assertTensorAlmostEqual(out1, out2)
 
+    def test_attention_mechanism_equivalence_causal(self):
+        batch, seql, dm, dhead, heads = 16, 4, 512, 64, 8
+        q = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        k = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        v = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        out1 = llm.attention_mechanism(q, k, v, dhead, flash=False, causal=True)
+        out2 = llm.attention_mechanism(q, k, v, dhead, flash=True, causal=True)
+        self.assertTensorAlmostEqual(out1, out2)
+
     def test_flash_equivalence(self):
         batch, seql, dm, heads = 3, 7, 32, 4
         layer = llm.Attention(dm, heads, causal=False, flash=True)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+
+        layer.flash = False
+        out2 = layer(input)
+
+        self.assertTensorAlmostEqual(out, out2)
+
+    def test_flash_equivalence_causal(self):
+        batch, seql, dm, heads = 3, 7, 32, 4
+        layer = llm.Attention(dm, heads, causal=True, flash=True)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
 
