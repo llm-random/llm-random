@@ -78,19 +78,19 @@ if __name__ == "__main__":
         total_minutes_from_this_grid = n_experiments * minutes_per_exp
         total_minutes += total_minutes_from_this_grid
 
-    if not CLUSTER_NAME == MachineBackend.LOCAL:
-        if not interactive_debug_session:
-            user_input = input(
-                f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
-                f"Continue? [Y/n]"
-            )
-        else:
-            user_input = input(
-                f"Will run an INTERACTIVE experiment, which will be the first one from the supplied configs. \nContinue? [Y/n]"
-            )
-        if user_input.lower() not in ("", "y", "Y"):
-            print("Aborting...")
-            exit(1)
+    # if not CLUSTER_NAME == MachineBackend.LOCAL:
+    #     if not interactive_debug_session:
+    #         user_input = input(
+    #             f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
+    #             f"Continue? [Y/n]"
+    #         )
+    #     else:
+    #         user_input = input(
+    #             f"Will run an INTERACTIVE experiment, which will be the first one from the supplied configs. \nContinue? [Y/n]"
+    #         )
+    #     if user_input.lower() not in ("", "y", "Y"):
+    #         print("Aborting...")
+    #         exit(1)
 
     if CLUSTER_NAME != MachineBackend.LOCAL:
         first_exp_training_args, _ = grid[0]
