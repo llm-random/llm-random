@@ -167,18 +167,13 @@ def main(
         ),
     )
 
-    logger = get_logger(args, model, VOCAB_SIZE)
-
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
 
-    if args.model_type == "gpt" and (rank is None or rank == 0):
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=tokenizers.GPTTokenizer
-            if args.model_type == "gpt"
-            else tokenizers.BertTokenizer,
-        )
+    if is_process_logging:
+        logger = get_logger(args, model, VOCAB_SIZE)
+    else:
+        logger = None
 
     trainer = ConditionalTrainer(
         model=model,
@@ -233,9 +228,8 @@ if __name__ == "__main__":
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("", 0))
             port = str(s.getsockname()[1])
-
         mp.spawn(
             main,
-            args=[data_seeds, port],
+            args=[data_seeds, port, args],
             nprocs=args.n_gpus,
         )
