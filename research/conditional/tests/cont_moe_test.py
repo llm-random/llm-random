@@ -383,3 +383,63 @@ class ContinuousMoERandomGroups(GeneralTestCase):
             mix_whole_batch=True,
         )
         shape_and_parameters(layer)
+
+
+class BmmVLegacy(GeneralTestCase):
+    def test_full_group_gpt(self):
+        seq_len = 48
+        dm = 72
+        for sparsity_dim, group_size in zip([0, 0], [batch, batch]):
+            arguments = {
+                "dm": dm,
+                "dff": dff,
+                "n_experts": 4,
+                "group_size": group_size,
+                "sparsity_dim": sparsity_dim,
+                "temperature": 1.0,
+                "expert_size": 8,
+                "use_opt_einsum": True,
+            }
+            legacy = research.conditional.moe_layers.continuous_moe.LegacyContinuousMoE(
+                **arguments
+            )
+            bmm = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
+                **arguments
+            )
+            input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
+            legacy.lin1.data = bmm.lin1.data.clone().transpose(0, 1)
+            legacy.lin2.data = bmm.lin2.data.clone().permute(2, 0, 1)
+            legacy.controller.data = bmm.controller.data.clone()
+
+            _legacy_output = legacy(input)
+            _bmm_output = bmm(input)
+            self.assertTensorAlmostEqual(_legacy_output, _bmm_output)
+
+    def test_small_group_gpt(self):
+        seq_len = 48
+        dm = 72
+        for sparsity_dim, group_size in zip([0, 0], [2, 2]):
+            arguments = {
+                "dm": dm,
+                "dff": dff,
+                "n_experts": 128,
+                "group_size": group_size,
+                "sparsity_dim": sparsity_dim,
+                "temperature": 1.0,
+                "expert_size": 8,
+                "use_opt_einsum": True,
+            }
+            legacy = research.conditional.moe_layers.continuous_moe.LegacyContinuousMoE(
+                **arguments
+            )
+            bmm = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
+                **arguments
+            )
+            input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
+            legacy.lin1.data = bmm.lin1.data.clone().transpose(0, 1)
+            legacy.lin2.data = bmm.lin2.data.clone().permute(2, 0, 1)
+            legacy.controller.data = bmm.controller.data.clone()
+
+            _legacy_output = legacy(input)
+            _bmm_output = bmm(input)
+            self.assertTensorAlmostEqual(_legacy_output, _bmm_output)
