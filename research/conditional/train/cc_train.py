@@ -175,6 +175,14 @@ def main(
     else:
         logger = None
 
+    if args.model_type == "gpt" and is_process_logging:
+        log_batch(
+            train_dataloader,
+            tokenizer_maker=tokenizers.GPTTokenizer
+            if args.model_type == "gpt"
+            else tokenizers.BertTokenizer,
+        )
+
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
