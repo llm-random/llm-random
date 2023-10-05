@@ -1,9 +1,10 @@
 import torch
 from torch.nn import Sequential, ReLU
+from lizrd.core.modules import Linear
 
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
-from lizrd.core.misc import Linear, propagate_forward_pass_cache
+from lizrd.core.misc import propagate_forward_pass_cache
 
 
 def mock_topk_factory(topk_fn):

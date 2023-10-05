@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from lizrd.core import misc
+from lizrd.core import modules
 from lizrd.support import ash
 
 
@@ -9,8 +9,8 @@ from lizrd.support import ash
 class PlusMinusFF(nn.Module):
     def __init__(self, dmodel: int, dff: int):
         super().__init__()
-        self.lin1 = misc.Linear(dmodel, dff, bias=False)
-        self.lin2 = misc.Linear(2 * dff, dmodel, bias=False)
+        self.lin1 = modules.Linear(dmodel, dff, bias=False)
+        self.lin2 = modules.Linear(2 * dff, dmodel, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         plus_x = self.lin1(x)

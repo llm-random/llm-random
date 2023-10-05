@@ -2,21 +2,17 @@ import torch
 
 import research.conditional.moe_layers
 from lizrd.core import llm
-from lizrd.core import misc
 from lizrd.support import profile
 
 
 def test_basic(self):
     batch, seql, dm, heads, dff = 3, 12, 32, 4, 64
-
     vocab_size, max_length = 107, 33
     output_size = 3
     n_blocks = 2
-
     embedding_layer = llm.EmbeddingLayer(
         llm.PositionalEmbedding(max_length, dm), llm.TokenEmbedding(vocab_size, dm)
     )
-
     encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
@@ -27,15 +23,10 @@ def test_basic(self):
         ),
         (lambda: llm.Attention(dm, heads)),
     )
-
     head = llm.PredictionHead(dm, output_size)
-
     model = llm.LLM(embedding_layer, encoder_tower, head)
-
     input = torch.randint(0, vocab_size, (batch, seql))
-
     output = model(input)
-
     self.assertShape(output, (batch, seql, output_size))
 
 
@@ -282,7 +273,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             ),
         )
     elif version == "dense":
-        sparse_linear_projection = lambda: misc.DenseEinMix(dm, dm)
+        sparse_linear_projection = lambda: modules.DenseEinMix(dm, dm)
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
                 "projection", func()

@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import lizrd.core.nn as nn
 from lizrd.core.llm import LowRank, Residual
-from lizrd.core.misc import EinMix
+from lizrd.core.modules import EinMix
 from lizrd.support import ash
 from research.nonlinearities.temporary_code.helper_layers import (
     Sum_norm,

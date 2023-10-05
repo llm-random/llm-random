@@ -3,7 +3,7 @@ import lizrd.core.nn as nn
 
 from einops.layers.torch import Rearrange
 
-from lizrd.core import misc
+from lizrd.core import modules
 from lizrd.support import ash
 from lizrd.support.profile import TimerLayer
 
@@ -19,7 +19,7 @@ class Attention(nn.Module):
         self.dhead = dhead
         self.dmodel = dmodel
         if layer_fun is None:
-            layer_fun = lambda: misc.EinMix(
+            layer_fun = lambda: modules.EinMix(
                 "... dmodel -> ... (heads dhead)",
                 weight_shape="dmodel heads dhead",
                 bias_shape="heads dhead",

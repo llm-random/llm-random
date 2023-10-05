@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 
 from lizrd.core import nn
-from lizrd.core.misc import get_init_weight
+from lizrd.core.init import get_init_weight
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time

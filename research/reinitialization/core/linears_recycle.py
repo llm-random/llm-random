@@ -7,7 +7,8 @@ from torch.nn.init import kaiming_uniform_
 import numpy as np
 import plotly.express as px
 
-from lizrd.core.misc import Linear, get_default_device
+from lizrd.core.misc import get_default_device
+from lizrd.core.modules import Linear
 
 from lizrd.support.logging import (
     get_current_logger,

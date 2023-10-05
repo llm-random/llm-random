@@ -1,8 +1,10 @@
 import copy
 import torch
 
-from lizrd.core import llm, misc
-from lizrd.core.misc import Chungus, Checkpoint
+from lizrd.core import llm
+from lizrd.core.modules import Checkpoint
+import lizrd.core.modules
+from lizrd.core.modules import Chungus
 from lizrd.datasets.wikibookdata import get_processed_dataset
 from lizrd.support.test_utils import GeneralTestCase, heavy_test, skip_test
 from lizrd.train.train_utils import get_model
@@ -11,14 +13,14 @@ from lizrd.train.train_utils import get_model
 class TestDense(GeneralTestCase):
     def test_basic(self):
         batch, dinp, dout = 4, 32, 64
-        layer = misc.DenseEinMix(dinp, dout)
+        layer = lizrd.core.modules.DenseEinMix(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, dinp))
         output = layer(input)
         self.assertShape(output, (batch, dout))
 
     def test_more_dims(self):
         batch, seql, dinp, dout = 4, 8, 32, 64
-        layer = misc.DenseEinMix(dinp, dout)
+        layer = lizrd.core.modules.DenseEinMix(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, seql, dinp))
         output = layer(input)
         self.assertShape(output, (batch, seql, dout))
@@ -27,14 +29,14 @@ class TestDense(GeneralTestCase):
 class TestLinear(GeneralTestCase):
     def test_basic(self):
         batch, dinp, dout = 4, 32, 64
-        layer = misc.Linear(dinp, dout)
+        layer = lizrd.core.modules.Linear(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, dinp))
         output = layer(input)
         self.assertShape(output, (batch, dout))
 
     def test_more_dims(self):
         batch, seql, dinp, dout = 4, 8, 32, 64
-        layer = misc.Linear(dinp, dout)
+        layer = lizrd.core.modules.Linear(dinp, dout)
         input = torch.normal(0.0, 1.0, (batch, seql, dinp))
         output = layer(input)
         self.assertShape(output, (batch, seql, dout))
@@ -43,7 +45,7 @@ class TestLinear(GeneralTestCase):
 class TestEinMix(GeneralTestCase):
     def test_no_ellipsis(self):
         batch, dinp, dout = 4, 32, 64
-        layer = misc.EinMix(
+        layer = lizrd.core.modules.EinMix(
             "b d -> b f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
         )
         input = torch.normal(0.0, 1.0, (batch, dinp))
@@ -52,7 +54,7 @@ class TestEinMix(GeneralTestCase):
 
     def test_one_ellipsis(self):
         batch, dinp, dout = 4, 32, 64
-        layer = misc.EinMix(
+        layer = lizrd.core.modules.EinMix(
             "... d -> ... f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
         )
         input = torch.normal(0.0, 1.0, (batch, dinp))
@@ -61,7 +63,7 @@ class TestEinMix(GeneralTestCase):
 
     def test_two_ellipsis(self):
         batch, seqlen, dinp, dout = 4, 2, 32, 64
-        layer = misc.EinMix(
+        layer = lizrd.core.modules.EinMix(
             "... d -> ... f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
         )
         input = torch.normal(0.0, 1.0, (batch, seqlen, dinp))
@@ -70,7 +72,7 @@ class TestEinMix(GeneralTestCase):
 
     def test_two_ellipsis_2(self):
         batch, seqlen, whatever, dinp, dout = 5, 7, 3, 32, 64
-        layer = misc.EinMix(
+        layer = lizrd.core.modules.EinMix(
             "... d -> ... f", weight_shape="d f", bias_shape="f", d=dinp, f=dout
         )
         input = torch.normal(0.0, 1.0, (batch, seqlen, whatever, dinp))

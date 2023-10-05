@@ -2,6 +2,7 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from lizrd.core import misc
+import lizrd.core.modules
 from research.reinitialization.core.pruner import Pruner
 import numpy as np
 from lizrd.support.logging import (
@@ -25,8 +26,8 @@ class NoiseFF(nn.Module):
     ):
         super().__init__()
 
-        self.lin1 = misc.Linear(dmodel, dff, bias=False)
-        self.lin2 = misc.Linear(dff, dmodel, bias=False)
+        self.lin1 = lizrd.core.modules.Linear(dmodel, dff, bias=False)
+        self.lin2 = lizrd.core.modules.Linear(dff, dmodel, bias=False)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         pruner.register(self)
         self.dff = dff
