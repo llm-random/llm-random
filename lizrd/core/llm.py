@@ -3,9 +3,9 @@ from typing import Literal, Callable, Optional
 from functools import partial
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
-import lizrd.core.nn as nn
 from lizrd.core import misc
 from lizrd.core.misc import Checkpoint, default
 from lizrd.support import ash
@@ -181,8 +181,8 @@ class Attention(LoggingLayer):
         self.causal = causal
         self.flash = flash
 
-        self.input_projection = nn.Linear(dmodel, 3 * heads * dhead)
-        self.output_projection = nn.Linear(heads * dhead, dmodel)
+        self.input_projection = misc.Linear(dmodel, 3 * heads * dhead)
+        self.output_projection = misc.Linear(heads * dhead, dmodel)
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -340,7 +340,7 @@ def EmbeddingLayer(*layers):
 
 @ash.check("... inp -> ... out")
 def PredictionHead(embedding_dim, output_size):
-    return nn.Linear(embedding_dim, output_size)
+    return misc.Linear(embedding_dim, output_size)
 
 
 @ash.check("... -> ... out")
