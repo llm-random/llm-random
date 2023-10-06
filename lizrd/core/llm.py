@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from lizrd.core import misc
 from lizrd.core.misc import default
 import lizrd.core.modules
+from lizrd.core.init import get_init_weight
 from lizrd.core.modules import Checkpoint
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -44,12 +45,24 @@ def FeedForward(
             [
                 (
                     "logging_ff_pre_relu",
-                    lizrd.core.modules.Linear(dmodel, dff, bias=bias_first),
+                    lizrd.core.modules.Linear(
+                        dmodel,
+                        dff,
+                        bias=bias_first,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
                 ),
                 ("relu", nn.ReLU(inplace=True)),
                 (
                     "logging_ff_post_relu",
-                    lizrd.core.modules.Linear(dff, dmodel, bias=bias_second),
+                    lizrd.core.modules.Linear(
+                        dff,
+                        dmodel,
+                        bias=bias_second,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
                 ),
             ]
         )
@@ -178,7 +191,16 @@ def attention_mechanism(
 
 @ash.check("... d -> ... d")
 class Attention(LoggingLayer):
-    def __init__(self, dmodel, heads, causal, dhead=None, flash=False):
+    def __init__(
+        self,
+        dmodel,
+        heads,
+        causal,
+        dhead=None,
+        flash=False,
+        init_type: Literal["uniform", "truncated_normal"] = "uniform",
+        init_scale: float = 1.0,
+    ):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
@@ -189,8 +211,20 @@ class Attention(LoggingLayer):
         self.causal = causal
         self.flash = flash
 
-        self.input_projection = lizrd.core.modules.Linear(dmodel, 3 * heads * dhead)
-        self.output_projection = lizrd.core.modules.Linear(heads * dhead, dmodel)
+        self.input_projection = lizrd.core.modules.Linear(
+            dmodel,
+            3 * heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = lizrd.core.modules.Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -323,15 +357,43 @@ class TransformerTower(nn.Module):
 
 
 @ash.check("... -> ... d")
-def TokenEmbedding(vocab_size, embedding_dim):
+def TokenEmbedding(
+    vocab_size,
+    embedding_dim,
+    init_type: Literal["uniform", "truncated_normal"] = "truncated_normal",
+    init_scale: float = 1.0,
+):
+    embedding = nn.Embedding(vocab_size, embedding_dim)
+    default_weight = embedding.weight.data
+    embedding.weight.data = get_init_weight(
+        shape=default_weight.shape,
+        fan_in=1,
+        init_type=init_type,
+        scale=init_scale,
+        dtype=default_weight.dtype,
+    )
     return nn.Embedding(vocab_size, embedding_dim)
 
 
 @ash.check("... -> ... d")
 class PositionalEmbedding(nn.Module):
-    def __init__(self, max_length, embedding_dim):
+    def __init__(
+        self,
+        max_length,
+        embedding_dim,
+        init_type: Literal["uniform", "truncated_normal"] = "truncated_normal",
+        init_scale: float = 1.0,
+    ):
         super(PositionalEmbedding, self).__init__()
         self.layer = nn.Embedding(max_length, embedding_dim)
+        default_weight = self.layer.weight.data
+        self.layer.weight.data = get_init_weight(
+            shape=default_weight.shape,
+            fan_in=1,
+            init_type=init_type,
+            scale=init_scale,
+            dtype=default_weight.dtype,
+        )
         # TODO(jaszczur): add initialization as positional encoding
 
     def forward(self, x):

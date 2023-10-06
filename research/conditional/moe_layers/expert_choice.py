@@ -27,6 +27,8 @@ class ExpertChoiceFF(LoggingLayer):
         use_full_einsum: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
+        init_type: Literal["uniform", "truncated_normal"] = "uniform",
+        init_scale: float = 1.0,
     ):
         """
         Args:
@@ -59,16 +61,28 @@ class ExpertChoiceFF(LoggingLayer):
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
 
         self.lin1_weight = nn.Parameter(
-            get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
+            get_init_weight(
+                (n_experts, dmodel, expert_size),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            ),
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
                 (n_experts, expert_size, dmodel),
                 fan_in=int(n_experts * expert_size * topk_fraction),
+                init_type=init_type,
+                scale=init_scale,
             )
         )
         self.gate = nn.Parameter(
-            get_init_weight((dmodel, n_experts), fan_in=dmodel)
+            get_init_weight(
+                (dmodel, n_experts),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
         ).requires_grad_(True)
         self.ln = LayerNorm(dmodel)
         self.softmax_over = softmax_over

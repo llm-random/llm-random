@@ -174,6 +174,8 @@ def get_attention_layer(args):
         causal=causal,
         dhead=args.dhead,
         flash=args.flash_attention,
+        init_type=args.init_type,
+        init_scale=args.init_scale,
     )
 
     return attention_layer_fun
@@ -233,6 +235,8 @@ def get_expert_choice_args(args):
         "one_hot_impl": args.granular_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
         "use_full_einsum": args.use_full_einsum,
+        "init_type": args.init_type,
+        "init_scale": args.init_scale,
     }
 
 
@@ -295,7 +299,9 @@ def retrieve_additional_losses(model: torch.nn.Module):
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        return_fn = lambda: llm.FeedForward(args.dmodel, args.dff)
+        return_fn = lambda: llm.FeedForward(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
     elif args.ff_mode == "vanilla_timed":
         return_fn = lambda: FeedForwardTimed(
             args.dmodel, args.dff, args.activation_type, args.no_ff
