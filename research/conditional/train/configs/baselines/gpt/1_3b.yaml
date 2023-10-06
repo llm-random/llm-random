@@ -1,0 +1,15 @@
+parent: research/conditional/train/configs/baselines/gpt/common.yaml
+md5_parent_hash: f10b3c37dd5f7aa8e7282a671a5b37e3
+n_gpus: 2
+
+time: "0-00:20:00"
+params:
+  data_distributed: true
+  learning_rate: 1e-7
+  name: "test_big"
+  cutoff: 1024
+  batch_size: 2
+  dmodel: 2048
+  dff: 8192
+  n_blocks: 24
+  n_att_heads: 32

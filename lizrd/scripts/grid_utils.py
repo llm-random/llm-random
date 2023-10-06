@@ -235,9 +235,13 @@ def list_to_clean_str(l: List[str]) -> str:
 
 
 def get_train_main_function(runner: str):
-    from research.conditional.train.cc_train import main as cc_train_main
-
     if runner == "research.conditional.train.cc_train":
+        from research.conditional.train.cc_train import main as cc_train_main
+
+        return cc_train_main
+    elif runner == "research.conditional.train.cc_train_multinode":
+        from research.conditional.train.cc_train_multinode import main as cc_train_main
+
         return cc_train_main
     else:
         raise ValueError(f"Unknown runner: {runner}")
@@ -254,6 +258,7 @@ def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
     )
     HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", get_cache_path(CLUSTER_NAME))
     NODELIST = grid_args.get("nodelist", None)
+    NODES = grid_args.get("nodes", 1)
     N_GPUS = grid_args.get("n_gpus", 1)
     CPUS_PER_GPU = grid_args.get("cpus_per_gpu", 8)
     CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", None)
@@ -272,6 +277,7 @@ def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
         "hf_datasets_cache": HF_DATASETS_CACHE,
         "singularity_image": SINGULARITY_IMAGE,
         "runs_multiplier": RUNS_MULTIPLIER,
+        "nodes": NODES,
     }
     return setup_args
 

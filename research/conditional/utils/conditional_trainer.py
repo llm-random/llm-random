@@ -135,13 +135,13 @@ class ConditionalTrainer:
             if step % 1000 == 0:
                 print(f"Step {step}")
 
-            if (
-                self.model_type == "gpt"
-                and self.decoding_interval > 0
-                and step % self.decoding_interval == 0
-                and self.is_process_logging
-            ):
-                self._decode_samples(step)
+            # if (
+            #     self.model_type == "gpt"
+            #     and self.decoding_interval > 0
+            #     and step % self.decoding_interval == 0
+            #     and self.is_process_logging
+            # ):
+            #     self._decode_samples(step)
 
             if step % self.eval_interval == 0:
                 self._eval_step(step)
@@ -247,7 +247,7 @@ class ConditionalTrainer:
             self.layer_manager.log(step)
             self._log_heavy(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
-        self._save_weights(step)
+        # self._save_weights(step)
 
     def _eval_step(self, step):
         self.model.eval()

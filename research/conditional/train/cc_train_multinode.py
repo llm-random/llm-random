@@ -27,6 +27,17 @@ from research.conditional.utils.model_utils import (
     get_residual_layer,
 )
 
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel,
+    CPUOffload,
+)
+
+import torch.distributed as dist
+
+# from torch.distributed.fsdp.wrap import (
+#     default_auto_wrap_policy,
+# )
+
 
 def log_batch(
     wrapper: DataloaderWrapper,
@@ -61,6 +72,32 @@ def main(
     args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
 ):
+    multinode_args = {
+        "dist_backend": "nccl",
+        # "dist_url": os.environ["MASTER_ADDR"],
+        "dist_url": "env://",
+    }
+
+    # DDP setting
+    if "WORLD_SIZE" in os.environ:
+        multinode_args["world_size"] = int(os.environ["WORLD_SIZE"])
+    multinode_args["distributed"] = multinode_args["world_size"] > 1
+
+    if multinode_args["distributed"]:
+        # if args.local_rank != -1:  # for torch.distributed.launch
+        #     args.rank = args.local_rank
+        #     args.gpu = args.local_rank
+        # elif
+        # if "SLURM_PROCID" in os.environ:  # for slurm scheduler
+        multinode_args["rank"] = int(os.environ["SLURM_PROCID"])
+        multinode_args["gpu"] = multinode_args["rank"] % torch.cuda.device_count()
+        dist.init_process_group(
+            backend=multinode_args["dist_backend"],
+            init_method=multinode_args["dist_url"],
+            world_size=multinode_args["world_size"],
+            rank=multinode_args["rank"],
+        )
+
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
@@ -68,17 +105,12 @@ def main(
         if len(extra):
             print("Unknown args:", extra)
 
-    if args.granularity_expert_config:
-        print(
-            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
-        )
+    # if rank is not None:
+    #     os.environ["MASTER_ADDR"] = "localhost"
+    #     os.environ["MASTER_PORT"] = port
 
-    if rank is not None:
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = port
-
-        init_process_group("nccl", rank=rank, world_size=args.n_gpus)
-        torch.cuda.set_device(rank)
+    #     init_process_group("nccl", rank=rank, world_size=args.n_gpus)
+    #     torch.cuda.set_device(rank)
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
@@ -127,10 +159,21 @@ def main(
     )
 
     # make model data_distributed if necessary
-    if rank is not None:
-        print(f"Moving model to cuda:{rank}")
-        model = model.to(f"cuda:{rank}")
-        model = DDP(model, device_ids=[rank])
+    # if args.rank is not None:
+    if True:
+        # print(f"Moving model to cuda:{rank}")
+        # model = model.to(f"cuda:{rank}")
+        # model = DDP(model, device_ids=[rank])
+        torch.cuda.set_device(multinode_args["gpu"])
+        model.cuda(multinode_args["gpu"])
+        model = torch.nn.parallel.DistributedDataParallel(
+            model, device_ids=[multinode_args["gpu"]]
+        )
+        model_without_ddp = model.module
+        model = FullyShardedDataParallel(
+            model,
+            cpu_offload=CPUOffload(offload_params=True),
+        )
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -175,13 +218,13 @@ def main(
     else:
         logger = None
 
-    # if args.model_type == "gpt" and is_process_logging:
-    #     log_batch(
-    #         train_dataloader,
-    #         tokenizer_maker=tokenizers.GPTTokenizer
-    #         if args.model_type == "gpt"
-    #         else tokenizers.BertTokenizer,
-    #     )
+    if args.model_type == "gpt" and is_process_logging:
+        log_batch(
+            train_dataloader,
+            tokenizer_maker=tokenizers.GPTTokenizer
+            if args.model_type == "gpt"
+            else tokenizers.BertTokenizer,
+        )
 
     trainer = ConditionalTrainer(
         model=model,

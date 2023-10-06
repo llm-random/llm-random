@@ -140,4 +140,4 @@ if __name__ == "__main__":
     )
     with open("/tmp/git_branch.txt", "w") as f:
         f.write(name_for_branch)
-    version_code(name_for_branch)
+    # version_code(name_for_branch)
