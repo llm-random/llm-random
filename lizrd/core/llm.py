@@ -34,6 +34,8 @@ def FeedForward(
     dmodel,
     dff,
     bias: Literal["both", "first", "second", "none"] = "both",
+    init_type: Literal["uniform", "truncated_normal"] = "uniform",
+    init_scale: float = 1.0,
 ):
     bias_first, bias_second = decode_bias_string(bias)
 

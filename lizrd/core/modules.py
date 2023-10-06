@@ -72,12 +72,16 @@ def DenseEinMix(dinp, dout):
 
 @ash.check("... inp -> ... out")
 class Linear(nn.Linear):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, init_type="uniform", init_scale=1.0, **kwargs):
         if "bias" not in kwargs:
             kwargs["bias"] = False
         super().__init__(*args, **kwargs)
         self.weight.data = get_init_weight(
-            self.weight.shape, self.in_features, dtype=self.weight.dtype
+            shape=self.weight.shape,
+            fan_in=self.in_features,
+            init_type=init_type,
+            scale=init_scale,
+            dtype=self.weight.dtype,
         )
 
 
