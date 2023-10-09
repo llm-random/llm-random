@@ -124,6 +124,7 @@ class BlankDiffPredictionHead(nn.Module):
         preblank_encoder_output = encoder_output * is_preblank.unsqueeze(-1)
         if self.learnable_weights:
             is_not_blank = ~is_blank
+            assert is_not_blank.type() == torch.bool
             if self.use_straight_through:
                 encoder_output = (
                     (encoder_output * is_not_blank.unsqueeze(-1))
