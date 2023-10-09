@@ -166,14 +166,18 @@ def calculate_llm_loss(
 
 
 def get_attention_layer(args):
-    if args.model_type == "gpt":
-        attention_layer_fun = lambda: llm.CausalAttention(
-            args.dmodel, args.n_att_heads, args.dhead
-        )
-    elif args.model_type == "bert":
-        attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
-    else:
-        raise NotImplementedError(f"Model type {args.model_type} not implemented")
+    causal = args.model_type == "gpt"
+
+    # subject to change after blogpost release
+    # LegacyAtttention -> Attention
+    attention_layer_fun = lambda: llm.LegacyAttention(
+        dmodel=args.dmodel,
+        heads=args.n_att_heads,
+        causal=causal,
+        dhead=args.dhead,
+        flash=args.flash_attention,
+    )
+
     return attention_layer_fun
 
 
