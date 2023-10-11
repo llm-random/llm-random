@@ -101,6 +101,7 @@ class ConditionalTrainer:
         print("Saving weights... ")
         if (
             self.save_weights_path is not None
+            and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
             checkpoint = {
