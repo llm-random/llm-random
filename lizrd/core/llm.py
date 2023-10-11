@@ -7,10 +7,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
-from lizrd.core.misc import default
-import lizrd.core.modules
+from lizrd.core.misc import default, Sum
 from lizrd.core.init import get_init_weight
-from lizrd.core.modules import Checkpoint
+from lizrd.core.misc import Checkpoint, Linear
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -45,7 +44,7 @@ def FeedForward(
             [
                 (
                     "logging_ff_pre_relu",
-                    lizrd.core.modules.Linear(
+                    Linear(
                         dmodel,
                         dff,
                         bias=bias_first,
@@ -56,7 +55,7 @@ def FeedForward(
                 ("relu", nn.ReLU(inplace=True)),
                 (
                     "logging_ff_post_relu",
-                    lizrd.core.modules.Linear(
+                    Linear(
                         dff,
                         dmodel,
                         bias=bias_second,
@@ -146,8 +145,8 @@ class Transpose(nn.Module):
 @ash.check("... dinp -> ... dout")
 def LowRank(dinput, doutput, dlowrank):
     return nn.Sequential(
-        lizrd.core.modules.Linear(dinput, dlowrank, bias=False),
-        lizrd.core.modules.Linear(dlowrank, doutput),
+        Linear(dinput, dlowrank, bias=False),
+        Linear(dlowrank, doutput),
     )
 
 
@@ -211,14 +210,14 @@ class Attention(LoggingLayer):
         self.causal = causal
         self.flash = flash
 
-        self.input_projection = lizrd.core.modules.Linear(
+        self.input_projection = Linear(
             dmodel,
             3 * heads * dhead,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.output_projection = lizrd.core.modules.Linear(
+        self.output_projection = Linear(
             heads * dhead,
             dmodel,
             bias=False,
@@ -405,12 +404,12 @@ class PositionalEmbedding(nn.Module):
 
 @ash.check("... -> ... d")
 def EmbeddingLayer(*layers):
-    return lizrd.core.modules.Sum(*layers)
+    return Sum(*layers)
 
 
 @ash.check("... inp -> ... out")
 def PredictionHead(embedding_dim, output_size):
-    return lizrd.core.modules.Linear(embedding_dim, output_size)
+    return Linear(embedding_dim, output_size)
 
 
 @ash.check("... -> ... out")

@@ -7,7 +7,7 @@ from fancy_einsum import einsum
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
-from lizrd.core.modules import Linear
+from lizrd.core.misc import Linear
 
 
 def mock_topk_factory(topk_fn):

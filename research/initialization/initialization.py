@@ -2,7 +2,7 @@ import torch
 from torch.nn import init as nninit
 from lizrd.core import nn
 
-from lizrd.core import modules
+from lizrd.core import misc
 from lizrd.core import llm
 from lizrd.support import metrics
 
@@ -31,7 +31,7 @@ def FixedLinear(dinput, doutput, relu=False):
     block = nn.Sequential(
         PassThrough(grad_mult=(1.0 / doutput) ** 0.5),
         linlayer,
-        nn.ReLU() if relu else modules.Noop(),
+        nn.ReLU() if relu else misc.Noop(),
         PassThrough(val_mult=(scaling / dinput) ** 0.5, grad_mult=(scaling) ** 0.5),
     )
     return block
@@ -48,7 +48,7 @@ def StandardLinear(dinput, doutput, relu=False):
     nninit.uniform_(linlayer.weight, -limit, +limit)
     block = nn.Sequential(
         linlayer,
-        nn.ReLU() if relu else modules.Noop(),
+        nn.ReLU() if relu else misc.Noop(),
     )
     return block
 

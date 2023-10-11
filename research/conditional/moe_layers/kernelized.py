@@ -1,7 +1,7 @@
 import torch.nn
 from plotly import express as px
 
-from lizrd.core import modules
+from lizrd.core import misc
 from lizrd.core.misc import resolve_activation_name
 from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 from functools import partial
@@ -46,8 +46,8 @@ class FCKernelized(LoggingLayer):
         self.use_bias = use_bias
         self.redraw_projections_interval = redraw_projections_interval
         self.current_projection_count = 0
-        self.logging_ff_pre_relu = modules.Linear(dmodel, dff)
-        self.logging_ff_post_relu = modules.Linear(dff, dmodel)
+        self.logging_ff_pre_relu = misc.Linear(dmodel, dff)
+        self.logging_ff_post_relu = misc.Linear(dff, dmodel)
         self.average_attn = not no_average_attn
 
         self.K = lambda: self.logging_ff_pre_relu.weight.reshape(1, 1, dff, dmodel)

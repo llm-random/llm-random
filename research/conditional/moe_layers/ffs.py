@@ -6,8 +6,7 @@ from lizrd.core import misc
 from lizrd.core import nn
 import lizrd.core.init
 from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
-from lizrd.core.modules import EinMix
-import lizrd.core.modules
+from lizrd.core.misc import EinMix
 from lizrd.support import ash
 from lizrd.support.profile import Timer, TimerLayer
 
@@ -578,15 +577,15 @@ def PermutationDense(dinput):
             "verA",
             nn.Sequential(
                 SplitLastAxis(sqdi, sqdi),
-                lizrd.core.modules.EinMix(
+                EinMix(
                     "... a b -> ... a c", weight_shape="a b c", a=sqdi, b=sqdi, c=sqdi
                 ),
                 Transpose(),
-                lizrd.core.modules.EinMix(
+                EinMix(
                     "... a b -> ... a c", weight_shape="a b c", a=sqdi, b=sqdi, c=sqdi
                 ),
                 Transpose(),
-                lizrd.core.modules.EinMix(
+                EinMix(
                     "... a b -> ... a c", weight_shape="a b c", a=sqdi, b=sqdi, c=sqdi
                 ),
                 MergeLastAxis(),

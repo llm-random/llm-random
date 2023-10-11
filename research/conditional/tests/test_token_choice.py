@@ -1,6 +1,6 @@
 import torch
 from torch.nn import Sequential, ReLU
-from lizrd.core.modules import Linear
+from lizrd.core.misc import Linear
 
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from lizrd.support.test_utils import GeneralTestCase

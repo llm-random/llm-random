@@ -7,7 +7,7 @@ import plotly_express as px
 import torch
 
 from lizrd.core import nn
-from lizrd.core.modules import EinMix
+from lizrd.core.misc import EinMix
 from lizrd.support.ash import Check
 from lizrd.support.logging import get_current_logger
 
