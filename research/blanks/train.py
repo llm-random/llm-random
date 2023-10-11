@@ -12,16 +12,12 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from lizrd.core import llm, misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
-from lizrd.train.train_utils import (
-    get_model,
-)
+from research.datasets import DataloaderWrapper
+from .data import get_processed_dataset
+from .model import get_model, get_ff_layer
 from lizrd.text import tokenizers
-from research.blanks.model import get_ff_layer
-from research.datasets import (
-    DataloaderWrapper,
-    get_processed_dataset,
-    get_tokenizer_maker,
-)
+from .tokenizers import BlankTokenizer
+
 from lizrd.train.scheduler import get_scheduler
 from .trainer import BlankTrainer
 from .argparse import introduce_parser_arguments
@@ -67,11 +63,6 @@ def main(
         if len(extra):
             print("Unknown args:", extra)
 
-    if args.granularity_expert_config:
-        print(
-            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
-        )
-
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
@@ -79,13 +70,7 @@ def main(
         init_process_group("nccl", rank=rank, world_size=args.n_gpus)
         torch.cuda.set_device(rank)
 
-    if args.deterministic_experiment:
-        set_seed(args.torch_seed)
-    VOCAB_SIZE = (
-        tokenizers.BertTokenizer.VOCAB_SIZE
-        if args.model_type == "bert"
-        else tokenizers.GPTTokenizer.VOCAB_SIZE
-    )
+    VOCAB_SIZE = BlankTokenizer.VOCAB_SIZE
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.detect_anomaly:
@@ -94,6 +79,7 @@ def main(
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
+
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
@@ -147,8 +133,6 @@ def main(
 
     scheduler = get_scheduler(args)
 
-    tokenizer_maker = get_tokenizer_maker(args.model_type, args.tokenizer)
-
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
         "device": DEVICE,
@@ -157,14 +141,15 @@ def main(
         if data_distributed
         else args.batch_size,
         "seed": args.data_seed if data_seeds is None else data_seeds[rank],
-        "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
-        "tokenizer_maker": tokenizer_maker,
+        "tokenizer_maker": BlankTokenizer,
     }
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs, dataset_split="train", n_blanks=args.n_blanks
     )
+
+    # TODO: replace eval_dataloader with something more sensible
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split="eval"
@@ -174,6 +159,7 @@ def main(
             if args.dataset_type == "c4" and args.use_dummy_dataset
             else "validation"
         ),
+        n_blanks=args.n_blanks,
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
@@ -181,13 +167,13 @@ def main(
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
 
-    if args.model_type == "gpt" and (rank is None or rank == 0):
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=tokenizers.GPTTokenizer
-            if args.model_type == "gpt"
-            else tokenizers.BertTokenizer,
-        )
+    # if args.model_type == "gpt" and (rank is None or rank == 0):
+    #     log_batch(
+    #         train_dataloader,
+    #         tokenizer_maker=tokenizers.GPTTokenizer
+    #         if args.model_type == "gpt"
+    #         else tokenizers.BertTokenizer,
+    #     )
 
     trainer = BlankTrainer(
         model=model,

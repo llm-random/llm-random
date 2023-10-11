@@ -1,27 +1,10 @@
 from functools import partial
-from typing import Callable, Literal, Optional
+from typing import Literal
 
 import torch
 from torch.utils.data import DataLoader
 
 from lizrd.text import datasets, packers, data, tokenizers
-
-
-def get_tokenizer_maker(
-    model_type: str, tokenizer: Optional[str] = None
-) -> Callable[[], tokenizers.AbstractTokenizer]:
-    if tokenizer is None:
-        if model_type == "bert":
-            tokenizer = "bert"
-        elif model_type == "gpt":
-            tokenizer = "gpt"
-
-    if tokenizer == "bert":
-        return tokenizers.BertTokenizer
-    elif tokenizer == "gpt":
-        return tokenizers.GPTTokenizer
-    else:
-        raise ValueError(f"Unknown tokenizer type: {tokenizer}")
 
 
 class DataloaderWrapper:
@@ -47,12 +30,10 @@ def get_processed_dataset(
     device: torch.device,
     num_workers: int,
     seed: int,
-    tokenizer_maker: Callable[[], tokenizers.AbstractTokenizer],
     model_type: Literal["bert", "gpt"] = "bert",
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
-    n_blanks: int = 0,
 ):
     if dataset_type == "wikibook":
         dataset = datasets.WikiBookDataset(
@@ -71,22 +52,14 @@ def get_processed_dataset(
         packer = packers.BERTPacker(
             sequence_length=sequence_length,
             dataset=dataset,
-            tokenizer_maker=tokenizer_maker,
+            tokenizer_maker=tokenizers.BertTokenizer,
         )
     elif model_type == "gpt":
-        if n_blanks == 0:
-            packer = packers.GPTPacker(
-                sequence_length=sequence_length,
-                dataset=dataset,
-                tokenizer_maker=tokenizer_maker,
-            )
-        else:
-            packer = packers.BlankPacker(
-                sequence_length=sequence_length,
-                dataset=dataset,
-                tokenizer_maker=tokenizer_maker,
-                n_blanks=n_blanks,
-            )
+        packer = packers.GPTPacker(
+            sequence_length=sequence_length,
+            dataset=dataset,
+            tokenizer_maker=tokenizers.GPTTokenizer,
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 

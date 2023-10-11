@@ -3,6 +3,7 @@ from typing import Callable, Optional
 from lizrd.core import llm
 import lizrd.core.nn as nn
 from research.blanks.utils import get_first_blanks_in_series, shift_left, shift_right
+import research
 
 
 import torch
@@ -87,15 +88,6 @@ def get_ff_layer(args):
         raise NotImplementedError(f"ff_mode {args.ff_mode} not implemented")
 
 
-def straight_through(forward: Callable, backward: Callable) -> Callable:
-    def ste():
-        backward_output = backward()
-        forward_output = forward()
-        return forward_output.detach() + (backward_output - backward_output.detach())
-
-    return ste()
-
-
 class BlankDiffPredictionHead(nn.Module):
     def __init__(
         self,
@@ -124,7 +116,7 @@ class BlankDiffPredictionHead(nn.Module):
         preblank_encoder_output = encoder_output * is_preblank.unsqueeze(-1)
         if self.learnable_weights:
             is_not_blank = ~is_blank
-            assert is_not_blank.type() == torch.bool
+            assert is_not_blank.dtype == torch.bool
             if self.use_straight_through:
                 encoder_output = (
                     (encoder_output * is_not_blank.unsqueeze(-1))

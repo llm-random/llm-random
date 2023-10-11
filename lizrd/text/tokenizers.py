@@ -44,9 +44,6 @@ class GPTTokenizer(AbstractTokenizer):
         self.tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
         disable_tokenizer_warnings(self.tokenizer)
         self.eot_id = self.tokenizer.convert_tokens_to_ids("<|endoftext|>")
-        blank_text = "<|blank|>"
-        self.tokenizer.add_tokens([blank_text])
-        self.blank_id = self.tokenizer(blank_text)["input_ids"][0]
 
         assert isinstance(self.eot_id, int)
 

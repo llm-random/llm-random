@@ -7,6 +7,7 @@ params:
   name: blanx-small-grid
   learning_rate: 1e-3
   n_steps: 100000
+  num_workers: 1
 
   tokenizer: gpt
   # blanx args
