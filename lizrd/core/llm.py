@@ -207,65 +207,6 @@ class Attention(LoggingLayer):
         return output
 
 
-@ash.check("... d -> ... d")
-class LegacyAttention(nn.Module):
-    def __init__(self, dmodel, heads, causal, flash, dhead=None):
-        super(LegacyAttention, self).__init__()
-        if dhead is None:
-            assert dmodel % heads == 0
-            dhead = dmodel // heads
-
-        self.heads = heads
-        self.dhead = dhead
-        self.dmodel = dmodel
-        self.causal = causal
-        self.flash = flash
-
-        key_query_value_gen = lambda: misc.EinMix(
-            "... dmodel -> ... heads dhead",
-            weight_shape="dmodel heads dhead",
-            bias_shape="heads dhead",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
-        )
-
-        self.Q = key_query_value_gen()
-        self.K = key_query_value_gen()
-        self.V = key_query_value_gen()
-
-        combine_gen = lambda: misc.EinMix(
-            "... heads dhead -> ... dmodel",
-            weight_shape="heads dhead dmodel",
-            bias_shape="dmodel",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
-        )
-        self.D = combine_gen()
-
-    def forward(self, x):
-        q = self.Q(x)
-        k = self.K(x)
-        v = self.V(x)
-
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
-
-        prefinal = attention_mechanism(
-            query=q,
-            key=k,
-            value=v,
-            dhead=self.dhead,
-            causal=self.causal,
-            flash=self.flash,
-        )
-
-        output = self.D(prefinal.transpose(1, 2))
-        return output
-
-
 class ReZero(nn.Module):
     def __init__(self, fn, init=0.0):
         super().__init__()
