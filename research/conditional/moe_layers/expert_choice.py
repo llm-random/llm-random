@@ -27,6 +27,7 @@ class ExpertChoiceFF(LoggingLayer):
         use_full_einsum: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
+        n_groups: int = 1,
     ):
         """
         Args:
@@ -50,6 +51,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.softmax_ungrouped = softmax_ungrouped
         self.n_gating_heatmaps = n_gating_heatmaps
         self.use_full_einsum = use_full_einsum
+        self.n_groups = n_groups
 
         assert (
             not self.one_hot_impl or self.group_by_batch
@@ -82,6 +84,7 @@ class ExpertChoiceFF(LoggingLayer):
             if one_hot_impl
             else self.gating_postprocess_select
         )
+        # TODO: add assert n groups works only for gpt
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -103,10 +106,13 @@ class ExpertChoiceFF(LoggingLayer):
         return x
 
     def expert_gating(self, x: torch.Tensor, batch_size: int, seq_len: int):
+        group_size = batch_size // self.n_groups
+        x = x.reshape(self.n_groups, group_size, seq_len, self.dmodel)
+
         # expert embedding
         with measure_time(self, "expert_embedding"):
             gate_out = einsum(
-                "batch_size seq_len dmodel, dmodel n_experts -> n_experts batch_size seq_len ",
+                "n_groups group_size seq_len dmodel, dmodel n_experts -> n_experts n_groups group_size seq_len ",
                 x,
                 self.gate,
             )
