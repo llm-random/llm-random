@@ -169,10 +169,9 @@ def main(
         ),
     )
 
-    logger = get_logger(args, model, VOCAB_SIZE)
-
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
+    logger = get_logger(args, model, VOCAB_SIZE) if is_process_logging else None
 
     if args.model_type == "gpt" and (rank is None or rank == 0):
         log_batch(
@@ -238,6 +237,6 @@ if __name__ == "__main__":
 
         mp.spawn(
             main,
-            args=[data_seeds, port],
+            args=[data_seeds, port, args],
             nprocs=args.n_gpus,
         )
