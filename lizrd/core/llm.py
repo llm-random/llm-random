@@ -3,11 +3,13 @@ from typing import Literal, Callable, Optional
 from functools import partial
 
 import torch
+import torch.nn.functional as F
 
 import lizrd.core.nn as nn
 from lizrd.core import misc
 from lizrd.core.misc import Checkpoint, default
 from lizrd.support import ash
+from research.conditional.utils.layer_manager import LoggingLayer
 
 
 def decode_bias_string(bias):
@@ -128,9 +130,47 @@ def LowRank(dinput, doutput, dlowrank):
     )
 
 
+def attention_mechanism(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    dhead: int,
+    causal: bool,
+    flash: bool,
+):
+    if flash:
+        with torch.backends.cuda.sdp_kernel(
+            enable_flash=True, enable_math=False, enable_mem_efficient=False
+        ):
+            output = F.scaled_dot_product_attention(
+                query=query,
+                key=key,
+                value=value,
+                attn_mask=None,
+                is_causal=causal,
+            )
+    else:
+        # implementation without flash assumes other dim order
+        query = query.transpose(1, 2)
+        key = key.transpose(1, 2)
+        value = value.transpose(1, 2)
+
+        a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
+        a = a * (1 / dhead**0.5)
+        if causal:
+            a.masked_fill_(
+                torch.tril(torch.ones_like(a)) == 0, float("-inf")
+            )  # mask out future tokens
+        a = torch.softmax(a, dim=-1)
+        output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
+        output = output.transpose(1, 2)
+
+    return output
+
+
 @ash.check("... d -> ... d")
-class Attention(nn.Module):
-    def __init__(self, dmodel, heads, dhead=None):
+class Attention(LoggingLayer):
+    def __init__(self, dmodel, heads, causal, dhead=None, flash=False):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
@@ -138,92 +178,32 @@ class Attention(nn.Module):
 
         self.heads = heads
         self.dhead = dhead
-        self.dmodel = dmodel
+        self.causal = causal
+        self.flash = flash
 
-        key_query_value_gen = lambda: misc.EinMix(
-            "... dmodel -> ... heads dhead",
-            weight_shape="dmodel heads dhead",
-            bias_shape="heads dhead",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
-        )
-
-        self.Q = key_query_value_gen()
-        self.K = key_query_value_gen()
-        self.V = key_query_value_gen()
-
-        combine_gen = lambda: misc.EinMix(
-            "... heads dhead -> ... dmodel",
-            weight_shape="heads dhead dmodel",
-            bias_shape="dmodel",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
-        )
-        self.D = combine_gen()
+        self.input_projection = nn.Linear(dmodel, 3 * heads * dhead)
+        self.output_projection = nn.Linear(heads * dhead, dmodel)
 
     def forward(self, x):
-        q = self.Q(x)
-        k = self.K(x)
-        v = self.V(x)
+        projected = self.input_projection(x)
 
-        a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
-        a = a * (1 / self.dhead**0.5)
-        a = torch.softmax(a, dim=-1)
-        prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
-        output = self.D(prefinal)
-        return output
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
 
-
-@ash.check("... d -> ... d")
-class CausalAttention(nn.Module):
-    def __init__(self, dmodel, heads, dhead=None):
-        super(CausalAttention, self).__init__()
-        if dhead is None:
-            assert dmodel % heads == 0
-            dhead = dmodel // heads
-
-        self.heads = heads
-        self.dhead = dhead
-        self.dmodel = dmodel
-
-        key_query_value_gen = lambda: misc.EinMix(
-            "... dmodel -> ... heads dhead",
-            weight_shape="dmodel heads dhead",
-            bias_shape="heads dhead",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
+        attention_output = attention_mechanism(
+            query=q,
+            key=k,
+            value=v,
+            dhead=self.dhead,
+            causal=self.causal,
+            flash=self.flash,
         )
 
-        self.Q = key_query_value_gen()
-        self.K = key_query_value_gen()
-        self.V = key_query_value_gen()
+        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
 
-        combine_gen = lambda: misc.EinMix(
-            "... heads dhead -> ... dmodel",
-            weight_shape="heads dhead dmodel",
-            bias_shape="dmodel",
-            dmodel=dmodel,
-            heads=heads,
-            dhead=dhead,
-        )
-        self.D = combine_gen()
-
-    def forward(self, x):
-        q = self.Q(x)
-        k = self.K(x)
-        v = self.V(x)
-
-        a = torch.einsum("... l h d, ... L h d -> ... h l L", q, k)
-        a = a * (1 / self.dhead**0.5)
-        a.masked_fill_(
-            torch.tril(torch.ones_like(a)) == 0, float("-inf")
-        )  # mask out future tokens
-        a = torch.softmax(a, dim=-1)
-        prefinal = torch.einsum("... h l L, ... L h d -> ... l h d", a, v)
-        output = self.D(prefinal)
         return output
 
 

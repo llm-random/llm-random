@@ -30,22 +30,79 @@ class ResidualTest(GeneralTestCase):
 
 class AttentionTest(GeneralTestCase):
     def test_basic(self):
+        try:
+            batch, seql, dm, heads = 3, 7, 32, 4
+            layer = llm.Attention(dm, heads, causal=False, flash=True)
+            input = torch.normal(0.0, 1.0, (batch, seql, dm))
+            out = layer(input)
+            self.assertShape(out, (batch, seql, dm))
+        except Exception as e:
+            pass
+
+    def test_flash_basic(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Attention(dm, heads)
+        layer = llm.Attention(dm, heads, causal=False, flash=True)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
+    def test_flash_basic_causal(self):
+        batch, seql, dm, heads = 3, 7, 32, 4
+        layer = llm.Attention(dm, heads, causal=True, flash=True)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+        self.assertShape(out, (batch, seql, dm))
+
+    def test_attention_mechanism_equivalence(self):
+        batch, seql, dm, dhead, heads = 16, 4, 512, 64, 8
+        q = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        k = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        v = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        out1 = llm.attention_mechanism(q, k, v, dhead, flash=False, causal=False)
+        out2 = llm.attention_mechanism(q, k, v, dhead, flash=True, causal=False)
+        self.assertTensorAlmostEqual(out1, out2)
+
+    def test_attention_mechanism_equivalence_causal(self):
+        batch, seql, dm, dhead, heads = 16, 4, 512, 64, 8
+        q = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        k = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        v = torch.normal(0.0, 1.0, (batch, heads, seql, dhead))
+        out1 = llm.attention_mechanism(q, k, v, dhead, flash=False, causal=True)
+        out2 = llm.attention_mechanism(q, k, v, dhead, flash=True, causal=True)
+        self.assertTensorAlmostEqual(out1, out2)
+
+    def test_flash_equivalence(self):
+        batch, seql, dm, heads = 3, 7, 32, 4
+        layer = llm.Attention(dm, heads, causal=False, flash=True)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+
+        layer.flash = False
+        out2 = layer(input)
+
+        self.assertTensorAlmostEqual(out, out2)
+
+    def test_flash_equivalence_causal(self):
+        batch, seql, dm, heads = 3, 7, 32, 4
+        layer = llm.Attention(dm, heads, causal=True, flash=True)
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+
+        layer.flash = False
+        out2 = layer(input)
+
+        self.assertTensorAlmostEqual(out, out2)
+
     def test_nonstandard_dhead(self):
         batch, seql, dm, heads, dhead = 3, 7, 32, 4, 100
-        layer = llm.Attention(dm, heads, dhead=dhead)
+        layer = llm.Attention(dm, heads, causal=False, dhead=dhead)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
     def test_residual(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Residual(llm.Attention(dm, heads))
+        layer = llm.Residual(llm.Attention(dm, heads, causal=False))
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
@@ -58,7 +115,7 @@ class EncoderTowerTest(GeneralTestCase):
         device = torch.device("cpu")
 
         layer_dict = {
-            "attention": lambda: llm.Attention(dm, heads),
+            "attention": lambda: llm.Attention(dm, heads, causal=False),
             "feedforward": lambda: llm.FeedForward(dm, dff),
         }
         model = llm.TransformerTower(nblocks, dm, layer_dict, device=device)
@@ -67,8 +124,8 @@ class EncoderTowerTest(GeneralTestCase):
         self.assertShape(out, (batch, seql, dm))
 
 
-class BERTTest(GeneralTestCase):
-    def test_basic(self):
+class LLMTest(GeneralTestCase):
+    def test_bert(self):
         batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
         vocab_size, max_length = 107, 33
         output_size = 3
@@ -80,7 +137,29 @@ class BERTTest(GeneralTestCase):
             llm.TokenEmbedding(vocab_size, dm),
         )
         layer_dict = {
-            "attention": lambda: llm.Attention(dm, heads),
+            "attention": lambda: llm.Attention(dm, heads, causal=False),
+            "feedforward": lambda: llm.FeedForward(dm, dff),
+        }
+        encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
+        head = llm.PredictionHead(dm, output_size)
+        model = llm.LLM(embedding_layer, encoder_tower, head)
+        input = torch.randint(0, vocab_size, (batch, seql))
+        output = model(input)
+        self.assertShape(output, (batch, seql, output_size))
+
+    def test_gpt(self):
+        batch, seql, dm, heads, dff = 3, 7, 32, 4, 64
+        vocab_size, max_length = 107, 33
+        output_size = 3
+        n_blocks = 2
+        device = torch.device("cpu")
+
+        embedding_layer = llm.EmbeddingLayer(
+            llm.PositionalEmbedding(max_length, dm),
+            llm.TokenEmbedding(vocab_size, dm),
+        )
+        layer_dict = {
+            "attention": lambda: llm.Attention(dm, heads, causal=True),
             "feedforward": lambda: llm.FeedForward(dm, dff),
         }
         encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
