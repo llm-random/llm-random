@@ -19,6 +19,6 @@ Other questions:
    - [ ] If there is a need for a second reviewer I requested additional review 
 
 # Reviewer's checklist:
-   - [ ] Does the Neptune link work and do the results look fine?
+   - [ ] Does the Neptune link work and does it actually compare the situation before and after the PR?
    - [ ] Do I understand the code?
    - [ ] Do I think another reviewer is not needed or I commented that this PR need another reviewer?
