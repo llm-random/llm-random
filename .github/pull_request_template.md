@@ -17,3 +17,8 @@ Other questions:
    - [ ] If I made changes to the requirements or anything related to the Singularity image I did generate new image and upload a new image to the clusters
    - [ ] If this change is significant enough I notified all individuals working with this repository (@channel in slack channel)
    - [ ] If there is a need for a second reviewer I requested additional review 
+
+# Reviewer's checklist:
+   - [ ] Does the Neptune link work and do the results look fine?
+   - [ ] Do I understand the code?
+   - [ ] Do I think another reviewer is not needed or I commented that this PR need another reviewer?
