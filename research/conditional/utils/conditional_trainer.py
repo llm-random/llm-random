@@ -142,7 +142,10 @@ class ConditionalTrainer:
                 and step % self.decoding_interval == 0
                 and self.is_process_logging
             ):
-                self._decode_samples(step)
+                try:
+                    self._decode_samples(step)
+                except:
+                    print("Decoding failed, skipping...")
 
             if step % self.eval_interval == 0:
                 self._eval_step(step)
