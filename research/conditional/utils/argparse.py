@@ -65,6 +65,7 @@ def introduce_parser_arguments(
         help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
     )
     parser.add_argument("--detect_anomaly", action="store_true")
+    parser.add_argument("--flash_attention", action="store_true")
 
     # other parameters usually not changed for experiments
 
@@ -91,7 +92,7 @@ def introduce_parser_arguments(
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
     parser.add_argument("--git_branch", type=str, default=None)
-    parser.add_argument("--decoding_interval", type=int, default=5_000)
+    parser.add_argument("--decoding_interval", type=int, default=0)
 
     # model versioning
 
