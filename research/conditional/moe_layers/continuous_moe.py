@@ -47,13 +47,14 @@ class ContinuousMoeBaseClass(LoggingLayer):
             )
             self.expert_size = self.dff // self.n_experts
         self.init_parameters()
+        self.original_group_size = self.group_size
 
     def forward(self, x):
         x = self.reshape_into_token_groups(x)
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
         x = self.merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
-        return x
+        return x * (self.group_size * 1.0 / self.original_group_size)
 
     def reshape_into_token_groups(self, x):
         """

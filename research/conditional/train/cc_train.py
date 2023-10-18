@@ -210,6 +210,7 @@ def main(
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
         decoding_logging_steps=args.decoding_logging_steps,
+        should_evaluate_dynamic_groupsize=args.should_evaluate_dynamic_groupsize,
     )
     trainer.train(args.n_steps)
 
