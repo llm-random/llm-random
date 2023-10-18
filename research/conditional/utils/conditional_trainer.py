@@ -262,6 +262,8 @@ class ConditionalTrainer:
             while (
                 group_size <= 2 * original_group_size and group_size <= self.batch_size
             ):
+                for layer in contmoe_layers:
+                    layer.group_size = group_size
                 self._batches_eval_step(
                     batches=batches,
                     step=step,
