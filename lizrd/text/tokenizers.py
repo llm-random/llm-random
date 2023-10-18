@@ -38,7 +38,7 @@ class BertTokenizer(AbstractTokenizer):
 
 
 class GPTTokenizer(AbstractTokenizer):
-    VOCAB_SIZE = 50258
+    VOCAB_SIZE = 50257
 
     def __init__(self):
         self.tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
