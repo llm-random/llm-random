@@ -59,7 +59,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
             merge_weights, emit_weights = self.manygroups_get_merge_and_emit_weights(x)
             x = self.manygroups_merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
-        return x
+        return x * (self.group_size / self.original_group_size)
 
     def rearrange_for_grouping(self, x):
         """
