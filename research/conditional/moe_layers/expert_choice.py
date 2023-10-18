@@ -27,6 +27,7 @@ class ExpertChoiceFF(LoggingLayer):
         use_full_einsum: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
+        group_size: int = 1,
     ):
         """
         Args:
@@ -50,6 +51,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.softmax_ungrouped = softmax_ungrouped
         self.n_gating_heatmaps = n_gating_heatmaps
         self.use_full_einsum = use_full_einsum
+        self.simulate_groups = group_size
 
         assert (
             not self.one_hot_impl or self.group_by_batch
@@ -86,6 +88,15 @@ class ExpertChoiceFF(LoggingLayer):
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len = x.shape[0], x.shape[1]
+        orig_bs, orig_seq_len = batch_size, seq_len
+
+        if self.simulate_groups > 1:
+            assert batch_size % self.simulate_groups == 0
+            batch_size, seq_len = (
+                batch_size // self.simulate_groups,
+                seq_len * self.simulate_groups,
+            )
+            x = x.reshape(batch_size, seq_len, self.dmodel)
 
         topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
         if self.use_full_einsum:
@@ -99,6 +110,9 @@ class ExpertChoiceFF(LoggingLayer):
 
         with measure_time(self, "layer_norm"):
             x = self.ln(x)
+
+        if self.simulate_groups > 1:
+            x = x.reshape(orig_bs, orig_seq_len, self.dmodel)
 
         return x
 

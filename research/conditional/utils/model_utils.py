@@ -234,6 +234,7 @@ def get_expert_choice_args(args):
         "one_hot_impl": args.granular_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
         "use_full_einsum": args.use_full_einsum,
+        "group_size": args.simulate_group_size,
     }
 
 
