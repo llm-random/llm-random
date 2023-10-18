@@ -1,4 +1,3 @@
-import subprocess
 from contextlib import contextmanager
 import copy
 import getpass
@@ -55,32 +54,42 @@ def rsync_to_remote(host, local_dir):
         with ConnectWithPassphrase(host) as connection:
             base_dir = get_base_directory(connection)
             proxy_command = get_proxy_command(connection)
-        rsync_command = [
-            "rsync",
-            "--compress",
-            "--recursive",
-            "--links",
-            "--perms",
-            "--human-readable",
-            "--stats",
-            f"--rsh={proxy_command}",
-            "--exclude=*.pyc",
-            local_dir,
-            f"{host}:{base_dir}",
-        ]
-        print(f"Syncing {local_dir} to {host}:{base_dir}...")
-        subprocess.run(rsync_command)
-        print("Sync complete.")
-        return base_dir
+            rsync_command = [
+                "rsync",
+                "--compress",
+                "--recursive",
+                "--links",
+                "--perms",
+                "--human-readable",
+                "--stats",
+                f"--rsh={proxy_command}",
+                "--exclude=*.pyc",
+                local_dir,
+                f"{host}:{base_dir}",
+            ]
+            print(f"Syncing {local_dir} to {host}:{base_dir}...")
+            connection.local(" ".join(rsync_command), echo=True, warn=True)
+            print("Sync complete.")
+            return base_dir
     except Exception as e:
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
 
 
+def athena_user_to_workdir(connection):
+    d = {
+        "plglizard": "jaszczur",
+        "plgcrewtool": "crewtool",
+        "plgmaciejpioro": "maciejpioro",
+        "plgludziej": "ludziej",
+        "plgsimontwice": "simontwice",
+    }
+    user = connection.user
+    return d[user] if user in d else user[3:]
+
+
 def get_base_directory(connection):
     if connection.host == "athena.cyfronet.pl":
-        base_dir = (
-            f"/net/pr2/projects/plgrid/plggllmeffi/{connection.user[3:]}/llm-random"
-        )
+        base_dir = f"/net/pr2/projects/plgrid/plggllmeffi/{athena_user_to_workdir(connection)}/llm-random"
     else:
         base_dir = f"~/llm-random"
     return base_dir

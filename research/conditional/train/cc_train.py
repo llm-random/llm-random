@@ -197,7 +197,7 @@ def main(
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
-        n_eval_steps=args.n_eval_steps,
+        eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
         save_weights_path=args.save_weights_path,
@@ -209,8 +209,8 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
-        decoding_logging_steps=args.decoding_logging_steps,
         should_evaluate_dynamic_groupsize=args.should_evaluate_dynamic_groupsize,
+        decoding_interval=args.decoding_interval,
     )
     trainer.train(args.n_steps)
 
