@@ -34,7 +34,7 @@ params:
   # params of expert choice
   total_experts_width: 98304
   effective_dff: 3072
-  ^n_experts: [128]
+  ^n_experts: [512]
 
   # tags
   tags: ["gpt_base_grid"]
