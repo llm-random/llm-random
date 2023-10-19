@@ -180,6 +180,9 @@ class BlankTrainer:
                 self.optimizer.zero_grad()
             self.scaler.update()
 
+    def _autoregressive_eval_step(self, step):
+        ...
+
     def _train_step(
         self,
         step,
