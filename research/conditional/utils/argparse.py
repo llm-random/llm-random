@@ -111,6 +111,7 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
+    parser.add_argument("--should_evaluate_dynamic_groupsize", action="store_true")
 
     ## used by MoE (some specific, some common)
 
