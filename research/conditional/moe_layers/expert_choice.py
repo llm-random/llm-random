@@ -51,7 +51,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.softmax_ungrouped = softmax_ungrouped
         self.n_gating_heatmaps = n_gating_heatmaps
         self.use_full_einsum = use_full_einsum
-        self.simulate_groups = group_size
+        self.group_size = group_size
 
         assert (
             not self.one_hot_impl or self.group_by_batch
@@ -90,11 +90,11 @@ class ExpertChoiceFF(LoggingLayer):
         batch_size, seq_len = x.shape[0], x.shape[1]
         orig_bs, orig_seq_len = batch_size, seq_len
 
-        if self.simulate_groups > 1:
-            assert batch_size % self.simulate_groups == 0
+        if self.group_size > 1:
+            assert batch_size % self.group_size == 0
             batch_size, seq_len = (
-                batch_size // self.simulate_groups,
-                seq_len * self.simulate_groups,
+                batch_size // self.group_size,
+                seq_len * self.group_size,
             )
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
@@ -111,7 +111,7 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "layer_norm"):
             x = self.ln(x)
 
-        if self.simulate_groups > 1:
+        if self.group_size > 1:
             x = x.reshape(orig_bs, orig_seq_len, self.dmodel)
 
         return x

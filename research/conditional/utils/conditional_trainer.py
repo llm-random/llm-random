@@ -13,6 +13,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
@@ -248,7 +249,9 @@ class ConditionalTrainer:
         if self.should_evaluate_dynamic_groupsize:
             batches = list(batches)
             contmoe_layers = [
-                l for _, l in self.layer_manager._layers if isinstance(l, ContinuousMoE)
+                l
+                for _, l in self.layer_manager._layers
+                if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
             ]
             original_group_size = contmoe_layers[0].group_size
             group_size = original_group_size // 2
