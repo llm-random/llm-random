@@ -16,6 +16,6 @@ params:
   ^loss_checkpoint_chungs: [8]
   name: "example"
   use_dummy_dataset: true
-  should_evaluate_dynamic_groupsize: true
+  # should_evaluate_dynamic_groupsize: true
   flash_attention: true
   # decoding_interval: 0
