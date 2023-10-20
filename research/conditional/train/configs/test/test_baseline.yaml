@@ -9,7 +9,7 @@ params:
   # model
   batch_size: 4
   cutoff: 16
-  project_name: "pmtest/llm-random-tests"
+  project_name: "kamciebiera/testy"
   name: "baseline_test"
   mixed_precision: true
   tags:
