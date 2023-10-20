@@ -141,6 +141,7 @@ class ExpertChoiceFF(LoggingLayer):
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 
         topk = round(self.topk_fraction * gate_out.shape[1])
+        assert topk > 0, "topk is 0, increase topk_fraction or batch_size"
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
