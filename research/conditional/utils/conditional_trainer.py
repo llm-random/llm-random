@@ -99,7 +99,6 @@ class ConditionalTrainer:
                 )
 
     def _save_weights(self, step):
-        print("Saving weights... ")
         if (
             self.save_weights_path is not None
             and self.save_weights_interval > 0
