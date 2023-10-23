@@ -83,11 +83,17 @@ class ContinuousMoeBaseClass(LoggingLayer):
     def get_merge_and_emit_weights(self, x):
         # shape of x is free_dimension, aggr_dimension, dmodel
         merge_logits = torch.matmul(x, self.controller).transpose(1, 2)
-        # shape of merge_logits is free_dimension, aggr_dimension, n_experts
-        merge_weights = stable_softmax_temperature(
-            merge_logits, self.temperature, dim=-1
-        )
-        return merge_weights, merge_weights
+        # shape of merge_logits is free_dimension, n_experts, aggr_dimension
+        temp_merge, temp_emit = self.get_temperature()
+        merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-1)
+        if temp_merge != temp_emit:
+            emit_weights = stable_softmax_temperature(merge_logits, temp_emit, dim=-1)
+        else:
+            emit_weights = merge_weights
+        return merge_weights, emit_weights
+
+    def get_temperature(self):
+        return self.temperature, self.temperature
 
     def manygroups_get_merge_and_emit_weights(self, x):
         # shape of x is free_dimension, aggr_dimension, dmodel
@@ -95,10 +101,13 @@ class ContinuousMoeBaseClass(LoggingLayer):
             x.view(x.shape[0], -1, self.group_size, self.dm), self.controller
         )
         # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
-        merge_weights = stable_softmax_temperature(
-            merge_logits, self.temperature, dim=-2
-        )
-        return merge_weights, merge_weights
+        temp_merge, temp_emit = self.get_temperature()
+        merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-1)
+        if temp_merge != temp_emit:
+            emit_weights = stable_softmax_temperature(merge_logits, temp_emit, dim=-1)
+        else:
+            emit_weights = merge_weights
+        return merge_weights, emit_weights
 
     def manygroups_merge_map_emit(self, x, merge_weights, emit_weights):
         # x shape is free_dimension, aggr_dimension // group_size * group_size, dmodel

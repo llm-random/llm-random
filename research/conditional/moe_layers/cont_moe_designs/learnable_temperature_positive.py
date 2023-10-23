@@ -7,7 +7,7 @@ from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClas
 
 
 @dataclasses.dataclass(eq=False, repr=False)
-class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
+class ContinuousMoEAdaTempPositive(ContinuousMoeBaseClass):
     """
     learnable temperature,
     either shared by experts or not,
@@ -16,6 +16,9 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
 
     share_by_experts: bool = True
     share_by_emit_merge: bool = True
+
+    def get_temperature(self):
+        return torch.exp(self.temperature_merge), torch.exp(self.temperature_emit)
 
     def init_parameters(self):
         if self.share_by_experts:

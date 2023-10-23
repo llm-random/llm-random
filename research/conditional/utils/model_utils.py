@@ -9,6 +9,9 @@ from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
+from research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive import (
+    ContinuousMoEAdaTempPositive,
+)
 from research.conditional.moe_layers.cont_moe_designs.random_grouping import (
     ContinuousMoERandomGroups,
 )
@@ -375,6 +378,20 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "cont_moe_adatemp":
         return_fn = lambda: ContinuousMoEAdaTemp(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+            share_by_experts=args.share_by_experts,
+            share_by_emit_merge=args.share_by_emit_merge,
+        )
+    elif args.ff_mode == "cont_moe_adatemp_positive":
+        return_fn = lambda: ContinuousMoEAdaTempPositive(
             dm=args.dmodel,
             dff=args.dff,
             n_experts=args.n_experts,

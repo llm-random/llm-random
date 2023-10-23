@@ -102,7 +102,7 @@ def main(
         ]
     if args.save_weights_path is not None:
         assert (
-            "." not in args.save_weights_path
+            "." not in args.save_weights_path.split("/")[-1]
         ), f"Do not add .pt or .pth to save_weights_path! It is added automatically, along with step number."
         random_string = generate_random_string(10)
         args.save_weights_path = os.path.join(args.save_weights_path, random_string)
