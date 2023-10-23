@@ -71,9 +71,7 @@ class LayerManager:
                         )
 
     def manage_misc(self, step):
-        is_learning_temperature = False
-        if step > self.steps_until_start_temperature_learn:
-            is_learning_temperature = True
+        is_learning_temperature = step > self.steps_until_start_temperature_learn
         for block_name, layer in self._layers:
             for name, param in layer.named_parameters():
                 if "temperature" in name:
