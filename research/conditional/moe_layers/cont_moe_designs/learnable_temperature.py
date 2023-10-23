@@ -14,24 +14,24 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
     either shared for merge and emit or not
     """
 
-    separate_temp_for_experts: bool = False
-    separate_temp_for_emit_merge: bool = False
+    share_by_experts: bool = True
+    share_by_emit_merge: bool = True
 
     def init_parameters(self):
-        if self.separate_temp_for_experts:
-            if self.separate_temp_for_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 1))
-                self.temperature_merge = nn.Parameter(torch.zeros(self.n_experts, 1))
-            else:
-                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 1))
+        if self.share_by_experts:
+            if self.share_by_emit_merge:
+                self.temperature_emit = nn.Parameter(torch.ones(1))
                 self.temperature_merge = self.temperature_emit
+            else:
+                self.temperature_emit = nn.Parameter(torch.ones(1))
+                self.temperature_merge = nn.Parameter(torch.ones(1))
         else:
-            if self.separate_temp_for_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.zeros(1))
-                self.temperature_merge = nn.Parameter(torch.zeros(1))
-            else:
-                self.temperature_emit = nn.Parameter(torch.zeros(1))
+            if self.share_by_emit_merge:
+                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
                 self.temperature_merge = self.temperature_emit
+            else:
+                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
+                self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
 
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
