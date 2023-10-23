@@ -7,7 +7,7 @@ from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClas
 
 
 @dataclasses.dataclass(eq=False, repr=False)
-class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
+class ContinuousMoEAdaTempPositive(ContinuousMoeBaseClass):
     """
     learnable temperature,
     either shared by experts or not,
@@ -17,20 +17,23 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
     separate_temp_for_experts: bool = False
     separate_temp_for_emit_merge: bool = False
 
+    def get_temperature(self):
+        return torch.exp(self.temperature_merge), torch.exp(self.temperature_emit)
+
     def init_parameters(self):
         if self.separate_temp_for_experts:
             if self.separate_temp_for_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 1))
-                self.temperature_merge = nn.Parameter(torch.zeros(self.n_experts, 1))
+                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 0))
+                self.temperature_merge = nn.Parameter(torch.zeros(self.n_experts, 0))
             else:
-                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 1))
+                self.temperature_emit = nn.Parameter(torch.zeros(self.n_experts, 0))
                 self.temperature_merge = self.temperature_emit
         else:
             if self.separate_temp_for_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.zeros(1))
-                self.temperature_merge = nn.Parameter(torch.zeros(1))
+                self.temperature_emit = nn.Parameter(torch.zeros(0))
+                self.temperature_merge = nn.Parameter(torch.zeros(0))
             else:
-                self.temperature_emit = nn.Parameter(torch.zeros(1))
+                self.temperature_emit = nn.Parameter(torch.zeros(0))
                 self.temperature_merge = self.temperature_emit
 
         self.lin1 = nn.Parameter(
