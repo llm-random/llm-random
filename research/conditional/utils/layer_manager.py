@@ -15,12 +15,19 @@ class LayerManager:
     It is used to log everything from weights and activations to gradients and your mum's phone number. [citation needed][this an unfiltered Codex suggestion I had to leave this in im sorry]
     """
 
-    def __init__(self, model, logging_interval_light, logging_interval_heavy):
+    def __init__(
+        self,
+        model,
+        logging_interval_light,
+        logging_interval_heavy,
+        steps_until_start_temperature_learn,
+    ):
         self._layers = []
         self._register_layers(model)
         self.logger = get_current_logger()
         self.logging_interval_light = logging_interval_light
         self.logging_interval_heavy = logging_interval_heavy
+        self.steps_until_start_temperature_learn = steps_until_start_temperature_learn
 
     def _register_layers(self, model):
         for name, layer in model.named_modules():
@@ -63,6 +70,15 @@ class LayerManager:
                             title=logging_name, iteration=step, data=data
                         )
 
+    def manage_misc(self, step):
+        is_learning_temperature = False
+        if step > self.steps_until_start_temperature_learn:
+            is_learning_temperature = True
+        for block_name, layer in self._layers:
+            for name, param in layer.named_parameters():
+                if "temperature" in name:
+                    param.requires_grad = is_learning_temperature
+
 
 class LoggingLayer(nn.Module):
     def __init__(self):
@@ -76,7 +92,7 @@ class LoggingLayer(nn.Module):
 
         # caches for logging and propagation
         self.logging_cache = {}
-        self.forward_pass_cache: Union[list, None] = None
+        self.forward_pass_cache: Union[dict, None] = None
 
     def report_stats(self):
         assert self.logging_switch
