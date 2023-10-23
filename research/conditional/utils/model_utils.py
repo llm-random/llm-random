@@ -390,7 +390,7 @@ def get_ff_layer(args):
             share_by_experts=args.share_by_experts,
             share_by_emit_merge=args.share_by_emit_merge,
         )
-    elif args.ff_mode == "cont_moe_adatemp":
+    elif args.ff_mode == "cont_moe_adatemp_positive":
         return_fn = lambda: ContinuousMoEAdaTempPositive(
             dm=args.dmodel,
             dff=args.dff,
