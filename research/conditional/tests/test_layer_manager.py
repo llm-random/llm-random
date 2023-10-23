@@ -31,7 +31,7 @@ class TestLearningStartAdatemp(GeneralTestCase):
     )
 
     for step in range(100):
-        layer_manager.manage_misc(step)
+        layer_manager.manage_learnable_temperature(step)
         for name, module in model.named_children():
             if name.endswith("feedforward"):
                 if step == 0 or step == 9:

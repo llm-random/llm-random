@@ -70,8 +70,8 @@ class LayerManager:
                             title=logging_name, iteration=step, data=data
                         )
 
-    def manage_misc(self, step):
-        is_learning_temperature = step > self.steps_until_start_temperature_learn
+    def manage_learnable_temperature(self, step):
+        is_learning_temperature = step >= self.steps_until_start_temperature_learn
         for block_name, layer in self._layers:
             for name, param in layer.named_parameters():
                 if "temperature" in name:

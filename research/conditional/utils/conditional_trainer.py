@@ -84,6 +84,9 @@ class ConditionalTrainer:
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
         )
+        self.layer_manager.manage_learnable_temperature(
+            0
+        )  # so that the temperature is not learned at the beginning, if applicable
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -117,7 +120,7 @@ class ConditionalTrainer:
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
-        self.layer_manager.manage_misc(step)
+        self.layer_manager.manage_learnable_temperature(step)
 
     def train(self, n_steps: int):
         """
