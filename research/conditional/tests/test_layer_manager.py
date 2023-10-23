@@ -21,7 +21,14 @@ class TestLearningStartAdatemp(GeneralTestCase):
     )
     model = nn.Sequential(module_list)
 
-    layer_manager = LayerManager(model, 0, 0, 10)
+    steps_until_start_temperature_learn = 10
+
+    layer_manager = LayerManager(
+        model,
+        0,
+        0,
+        steps_until_start_temperature_learn=steps_until_start_temperature_learn,
+    )
 
     for step in range(100):
         layer_manager.manage_misc(step)
