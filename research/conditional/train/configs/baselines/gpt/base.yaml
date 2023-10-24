@@ -9,7 +9,7 @@ params:
   init_scale: 0.1
 
   # data
-  batch_size: 512
+  batch_size: 256
   cutoff: 256
 
   n_steps: 175_000
@@ -30,11 +30,13 @@ params:
   ^flash_attention: [true]
   data_distributed: true
   weight_decay: 0.1
+  # loss_checkpoint_chungs: 128
 
   # params of expert choice
   total_experts_width: 98304
   effective_dff: 3072
-  ^n_experts: [512]
+  ^n_experts: [128]
+  logging_interval_heavy: 200_000
 
   # tags
-  tags: ["gpt_base_grid"]
+  tags: ["granularity_base_wd"]

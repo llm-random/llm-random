@@ -177,7 +177,6 @@ class ExpertChoiceFF(LoggingLayer):
     ):
         with measure_time(self, "one_hot"):
             one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
-            # one_hot is (n_experts, topk, seq_len, batch_size)
             x = einsum(
                 "batch_size seq_len dmodel, n_exp topk seq_len batch_size "
                 "-> n_exp topk seq_len dmodel",
