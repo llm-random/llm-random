@@ -75,7 +75,6 @@ class RandomStructRecycleFF(nn.Module):
         # prepare mask according to prob
         probs = torch.rand_like(mask)
         mask[probs <= prob] = 0
-
         # apply mask to lin1
         new_weights = kaiming_uniform_(
             torch.empty_like(self.lin1.weight), a=math.sqrt(5)

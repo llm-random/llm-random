@@ -9,7 +9,9 @@ from lizrd.support.test_utils import GeneralTestCase
 class TestFeedForward(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, dff = 4, 8, 32, 64
-        layer = llm.FeedForward(dm, dff)
+        layer = llm.FeedForward(
+            dmodel=dm, dff=dff, init_type="kaiming_uniform", init_scale=1.0
+        )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         output = layer(input)
         self.assertShape(output, (batch, seql, dm))
@@ -18,7 +20,9 @@ class TestFeedForward(GeneralTestCase):
 class ResidualTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, dff = 4, 8, 32, 64
-        layer_ff = llm.FeedForward(dm, dff)
+        layer_ff = llm.FeedForward(
+            dmodel=dm, dff=dff, init_type="kaiming_uniform", init_scale=1.0
+        )
         layer_residual = llm.Residual(layer_ff)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         output1 = layer_ff(input)
@@ -41,14 +45,28 @@ class AttentionTest(GeneralTestCase):
 
     def test_flash_basic(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Attention(dm, heads, causal=False, flash=True)
+        layer = llm.Attention(
+            dm,
+            heads,
+            causal=False,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            flash=True,
+        )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
     def test_flash_basic_causal(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Attention(dm, heads, causal=True, flash=True)
+        layer = llm.Attention(
+            dmodel=dm,
+            heads=heads,
+            causal=True,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            flash=True,
+        )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
@@ -73,7 +91,14 @@ class AttentionTest(GeneralTestCase):
 
     def test_flash_equivalence(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Attention(dm, heads, causal=False, flash=True)
+        layer = llm.Attention(
+            dmodel=dm,
+            heads=heads,
+            causal=False,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            flash=True,
+        )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
 
@@ -84,7 +109,14 @@ class AttentionTest(GeneralTestCase):
 
     def test_flash_equivalence_causal(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Attention(dm, heads, causal=True, flash=True)
+        layer = llm.Attention(
+            dmodel=dm,
+            heads=heads,
+            causal=True,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            flash=True,
+        )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
 
@@ -95,14 +127,29 @@ class AttentionTest(GeneralTestCase):
 
     def test_nonstandard_dhead(self):
         batch, seql, dm, heads, dhead = 3, 7, 32, 4, 100
-        layer = llm.Attention(dm, heads, causal=False, dhead=dhead)
+        layer = llm.Attention(
+            dmodel=dm,
+            heads=heads,
+            causal=False,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            dhead=dhead,
+        )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
 
     def test_residual(self):
         batch, seql, dm, heads = 3, 7, 32, 4
-        layer = llm.Residual(llm.Attention(dm, heads, causal=False))
+        layer = llm.Residual(
+            llm.Attention(
+                dmodel=dm,
+                heads=heads,
+                init_type="kaiming_uniform",
+                init_scale=1.0,
+                causal=False,
+            )
+        )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         out = layer(input)
         self.assertShape(out, (batch, seql, dm))
@@ -115,8 +162,16 @@ class EncoderTowerTest(GeneralTestCase):
         device = torch.device("cpu")
 
         layer_dict = {
-            "attention": lambda: llm.Attention(dm, heads, causal=False),
-            "feedforward": lambda: llm.FeedForward(dm, dff),
+            "attention": lambda: llm.Attention(
+                dmodel=dm,
+                heads=heads,
+                init_type="kaiming_uniform",
+                init_scale=1.0,
+                causal=False,
+            ),
+            "feedforward": lambda: llm.FeedForward(
+                dmodel=dm, dff=dff, init_type="kaiming_uniform", init_scale=1.0
+            ),
         }
         model = llm.TransformerTower(nblocks, dm, layer_dict, device=device)
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
@@ -137,8 +192,16 @@ class LLMTest(GeneralTestCase):
             llm.TokenEmbedding(vocab_size, dm),
         )
         layer_dict = {
-            "attention": lambda: llm.Attention(dm, heads, causal=False),
-            "feedforward": lambda: llm.FeedForward(dm, dff),
+            "attention": lambda: llm.Attention(
+                dmodel=dm,
+                heads=heads,
+                init_type="kaiming_uniform",
+                init_scale=1.0,
+                causal=False,
+            ),
+            "feedforward": lambda: llm.FeedForward(
+                dmodel=dm, dff=dff, init_type="kaiming_uniform", init_scale=1.0
+            ),
         }
         encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
         head = llm.PredictionHead(dm, output_size)
@@ -159,8 +222,16 @@ class LLMTest(GeneralTestCase):
             llm.TokenEmbedding(vocab_size, dm),
         )
         layer_dict = {
-            "attention": lambda: llm.Attention(dm, heads, causal=True),
-            "feedforward": lambda: llm.FeedForward(dm, dff),
+            "attention": lambda: llm.Attention(
+                dmodel=dm,
+                heads=heads,
+                init_type="kaiming_uniform",
+                init_scale=1.0,
+                causal=True,
+            ),
+            "feedforward": lambda: llm.FeedForward(
+                dmodel=dm, dff=dff, init_type="kaiming_uniform", init_scale=1.0
+            ),
         }
         encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
 

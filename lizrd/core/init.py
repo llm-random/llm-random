@@ -2,9 +2,9 @@ import torch
 from torch.nn.init import trunc_normal_
 
 
-def get_init_weight(shape, fan_in, init_type="uniform", scale=1.0, dtype=torch.float32):
-    if init_type == "uniform":
-        return init_uniform(shape=shape, fan_in=fan_in, gain=scale, dtype=dtype)
+def get_init_weight(shape, fan_in, init_type, scale=1.0, dtype=torch.float32):
+    if init_type == "kaiming_uniform":
+        return init_kaiming_uniform(shape=shape, fan_in=fan_in, gain=scale, dtype=dtype)
     elif init_type == "truncated_normal":
         return init_truncated_normal(
             shape=shape, fan_in=fan_in, scale=scale, dtype=dtype
@@ -13,7 +13,7 @@ def get_init_weight(shape, fan_in, init_type="uniform", scale=1.0, dtype=torch.f
         raise ValueError(f"Unknown init_type: {init_type}")
 
 
-def init_uniform(shape, fan_in, gain=1.0, dtype=torch.float32):
+def init_kaiming_uniform(shape, fan_in, gain=1.0, dtype=torch.float32):
     range_ = gain * (3 / fan_in) ** 0.5
     return torch.zeros(shape, dtype=dtype).uniform_(-range_, range_)
 

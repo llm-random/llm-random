@@ -14,7 +14,14 @@ class TestBatchedFeedForward(GeneralTestCase):
         expertsize = 11
         dff = sets * experts * expertsize
         layer = research.conditional.moe_layers.ffs.BatchSplitFF(
-            [], dm, dff, sets, experts, expertsize
+            register_list=[],
+            dm=dm,
+            dff=dff,
+            expertsets=sets,
+            nexperts=experts,
+            expertsize=expertsize,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
         )
         input = torch.normal(0.0, 1.0, (batch, seql, dm))
         output = layer(input)

@@ -34,8 +34,8 @@ def decode_bias_string(bias):
 def FeedForward(
     dmodel,
     dff,
+    init_type: Literal["kaiming_uniform", "truncated_normal"],
     bias: Literal["both", "first", "second", "none"] = "both",
-    init_type: Literal["uniform", "truncated_normal"] = "uniform",
     init_scale: float = 1.0,
 ):
     bias_first, bias_second = decode_bias_string(bias)
@@ -196,10 +196,10 @@ class Attention(LoggingLayer):
         dmodel,
         heads,
         causal,
+        init_type: str,
+        init_scale: float,
         dhead=None,
         flash=False,
-        init_type: Literal["uniform", "truncated_normal"] = "uniform",
-        init_scale: float = 1.0,
     ):
         super(Attention, self).__init__()
         if dhead is None:
@@ -360,7 +360,7 @@ class TransformerTower(nn.Module):
 def TokenEmbedding(
     vocab_size,
     embedding_dim,
-    init_type: Literal["uniform", "truncated_normal"] = "truncated_normal",
+    init_type: Literal["kaiming_uniform", "truncated_normal"] = "truncated_normal",
     init_scale: float = 1.0,
 ):
     embedding = nn.Embedding(vocab_size, embedding_dim)
@@ -381,7 +381,7 @@ class PositionalEmbedding(nn.Module):
         self,
         max_length,
         embedding_dim,
-        init_type: Literal["uniform", "truncated_normal"] = "truncated_normal",
+        init_type: Literal["kaiming_uniform", "truncated_normal"] = "truncated_normal",
         init_scale: float = 1.0,
     ):
         super(PositionalEmbedding, self).__init__()

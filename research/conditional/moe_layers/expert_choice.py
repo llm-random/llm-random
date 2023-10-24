@@ -27,7 +27,7 @@ class ExpertChoiceFF(LoggingLayer):
         use_full_einsum: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
-        init_type: Literal["uniform", "truncated_normal"] = "uniform",
+        init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
         init_scale: float = 1.0,
     ):
         """

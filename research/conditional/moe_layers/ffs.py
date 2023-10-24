@@ -13,7 +13,17 @@ from lizrd.support.profile import Timer, TimerLayer
 
 @ash.check("... d -> ... d")
 class RewrittenSplitFF(nn.Module):
-    def __init__(self, register_list, dm, dff, nexperts, sparsity, expertsize):
+    def __init__(
+        self,
+        register_list,
+        dm,
+        dff,
+        nexperts,
+        sparsity,
+        expertsize,
+        init_type,
+        init_scale,
+    ):
         super(RewrittenSplitFF, self).__init__()
         register_list.append(self)
         assert dff == nexperts * expertsize
@@ -24,14 +34,24 @@ class RewrittenSplitFF(nn.Module):
         self.expertsize = expertsize
 
         self.controller = nn.Parameter(
-            lizrd.core.init.get_init_weight((dm, nexperts), fan_in=dm)
+            lizrd.core.init.get_init_weight(
+                (dm, nexperts), fan_in=dm, init_type=init_type, init_scale=init_scale
+            )
         )
         self.f1 = nn.Parameter(
-            lizrd.core.init.get_init_weight((dm, nexperts, expertsize), fan_in=dm)
+            lizrd.core.init.get_init_weight(
+                (dm, nexperts, expertsize),
+                fan_in=dm,
+                init_type=init_type,
+                init_scale=init_scale,
+            )
         )
         self.f2 = nn.Parameter(
             lizrd.core.init.get_init_weight(
-                (nexperts, expertsize, dm), fan_in=(expertsize * nexperts / sparsity)
+                (nexperts, expertsize, dm),
+                fan_in=(expertsize * nexperts / sparsity),
+                init_type=init_type,
+                init_scale=init_scale,
             )
         )
 
@@ -294,6 +314,8 @@ class BatchSplitFF(nn.Module):
         expertsets,
         nexperts,
         expertsize,
+        init_type,
+        init_scale,
         controller_loss_weight=1.0,
     ):
         super(BatchSplitFF, self).__init__()
@@ -316,7 +338,12 @@ class BatchSplitFF(nn.Module):
         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
 
         self.controller = nn.Parameter(
-            lizrd.core.init.get_init_weight((dm, totalexperts), fan_in=dm)
+            lizrd.core.init.get_init_weight(
+                shape=(dm, totalexperts),
+                fan_in=dm,
+                init_type=init_type,
+                scale=init_scale,
+            )
         )
         self.cp = "d e"
         self.gp = "... t d"
@@ -329,7 +356,12 @@ class BatchSplitFF(nn.Module):
 
         self.f1p = "d e f"
         self.f1 = nn.Parameter(
-            lizrd.core.init.get_init_weight((dm, totalexperts, expertsize), fan_in=dm)
+            lizrd.core.init.get_init_weight(
+                shape=(dm, totalexperts, expertsize),
+                fan_in=dm,
+                init_type=init_type,
+                scale=init_scale,
+            )
         )
 
         self.f2p = "e f d"
@@ -337,6 +369,8 @@ class BatchSplitFF(nn.Module):
             lizrd.core.init.get_init_weight(
                 (totalexperts, expertsize, dm),
                 fan_in=(expertsize * totalexperts / sparsity),
+                init_type=init_type,
+                scale=init_scale,
             )
         )
         # TODO(jaszczur): check if the above is correct regarding fan_in
