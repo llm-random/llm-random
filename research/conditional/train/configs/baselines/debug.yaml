@@ -1,4 +1,4 @@
-parent: research/conditional/train/configs/baselines/gpt/rms.yaml
+parent: research/conditional/train/configs/baselines/rms.yaml
 md5_parent_hash: 2895505e7e5650f7c71b692d99163dcf
 
 time: "00:10:00"
