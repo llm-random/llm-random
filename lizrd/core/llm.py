@@ -258,27 +258,39 @@ class ReZero(nn.Module):
         return self.fn(x, **kwargs) * self.rezero_g
 
 
+class RMSNorm(nn.Module):
+    def __init__(self, dmodel, eps=1e-8):
+        super().__init__()
+        self.eps = eps
+        self.g = nn.Parameter(torch.ones(dmodel))
+
+    def forward(self, x):
+        rms_sq = torch.mean(x**2, dim=-1, keepdim=True)
+        x = x * torch.rsqrt(rms_sq + self.eps)
+        return x * self.g
+
+
 def RezeroBlock(dmodel, layer, name):
     return Residual(ReZero(layer))
 
 
-def PostNormBlock(dmodel, layer, name):
+def PostNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return nn.Sequential(
         OrderedDict(
             [
                 (f"{name}", Residual(layer)),
-                ("post_norm", nn.LayerNorm(dmodel)),
+                ("post_norm", norm_class(dmodel)),
             ]
         )
     )
 
 
-def PreNormBlock(dmodel, layer, name):
+def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return Residual(
         nn.Sequential(
             OrderedDict(
                 [
-                    ("pre_norm", nn.LayerNorm(dmodel)),
+                    ("pre_norm", norm_class(dmodel)),
                     (f"{name}", layer),
                 ]
             )

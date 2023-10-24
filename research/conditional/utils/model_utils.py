@@ -49,6 +49,7 @@ from research.conditional.moe_layers.continuous_moe import (
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
+import lizrd.core.nn as nn
 
 
 def make_loss_function(loss_checkpoint_chungs: int):
@@ -186,10 +187,14 @@ def get_attention_layer(args):
 
 
 def get_residual_layer(args):
+    if args.use_rms_norm:
+        norm_class = llm.RMSNorm
+    else:
+        norm_class = nn.LayerNorm
     if args.residual_mode == "pre_norm":
-        return partial(llm.PreNormBlock, dmodel=args.dmodel)
+        return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "post_norm":
-        return partial(llm.PostNormBlock, dmodel=args.dmodel)
+        return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "rezero":
         return partial(llm.RezeroBlock, dmodel=args.dmodel)
     else:
