@@ -61,6 +61,7 @@ class ConditionalTrainer:
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
     should_evaluate_dynamic_groupsize: bool = True
+    steps_until_start_temperature_learn: int = -1
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -78,8 +79,13 @@ class ConditionalTrainer:
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
         self.layer_manager = LayerManager(
-            self.model, self.logging_interval_light, self.logging_interval_heavy
+            self.model,
+            self.logging_interval_light,
+            self.logging_interval_heavy,
+            self.steps_until_start_temperature_learn,
         )
+        # if temp training is delayed, disable it
+        self.layer_manager.manage_learnable_temperature(0)
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -111,8 +117,9 @@ class ConditionalTrainer:
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
 
-    def _after_step_operations(self):
+    def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
+        self.layer_manager.manage_learnable_temperature(step)
 
     def train(self, n_steps: int):
         """
@@ -147,7 +154,7 @@ class ConditionalTrainer:
                 self._eval_step(step)
 
             t2 = time.time()
-            self._after_step_operations()
+            self._after_step_operations(step)
 
             t3 = time.time()
 
