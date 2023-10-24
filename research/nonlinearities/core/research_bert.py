@@ -2,11 +2,10 @@ from collections import OrderedDict
 
 import numpy as np
 import torch
-from lizrd.core.misc import EinMix
 
 import lizrd.core.nn as nn
 from lizrd.core.llm import LowRank
-from lizrd.core.misc import Linear
+from lizrd.core.misc import EinMix, Linear
 from lizrd.support import ash
 
 

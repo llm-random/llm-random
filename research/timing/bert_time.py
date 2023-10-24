@@ -3,6 +3,7 @@ import torch
 import research.conditional.moe_layers
 from lizrd.core import llm
 from lizrd.support import profile
+import lizrd.core.misc as misc
 
 
 def test_basic(self):
@@ -273,7 +274,7 @@ def main_tests(version, disable_inner=False, expertsets=4, expertsize=64, nexper
             ),
         )
     elif version == "dense":
-        sparse_linear_projection = lambda: modules.DenseEinMix(dm, dm)
+        sparse_linear_projection = lambda: misc.DenseEinMix(dm, dm)
         sparse_linear_projection = (
             lambda func=sparse_linear_projection: profile.TimerLayer(
                 "projection", func()

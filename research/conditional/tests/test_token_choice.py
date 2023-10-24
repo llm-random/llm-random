@@ -29,7 +29,13 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         lin = Sequential(
-            Linear(dm, exp_size, bias=False), ReLU(), Linear(exp_size, dm, bias=False)
+            Linear(
+                dm, exp_size, init_type="kaiming_uniform", init_scale=1.0, bias=False
+            ),
+            ReLU(),
+            Linear(
+                exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
+            ),
         )
         token_choice_layer = TokenChoiceFF(
             dm,

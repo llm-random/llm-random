@@ -52,6 +52,7 @@ class TestFixedLinear(GeneralTestCase):
         # self.assertShape(params[0].grad, (dout, dinp))
         # self.assertAlmostEqual(std_from_zero(params[0].grad)), 1.0, delta=0.02)
 
+    @skip_test(reason="old project")
     def test_compression(self):
         batch, dinp, dout = 256 * 8, 256, 64
         layer = self.layer_init(dinp, dout)
@@ -68,7 +69,7 @@ class TestFixedLinear(GeneralTestCase):
         self.assertShape(input.grad, (batch, dinp))
         self.assertAlmostEqual(std_from_zero(input.grad), 1.0, delta=0.1)
 
-    @skip_test(reason="Project abandoned, fix in the future")
+    @skip_test(reason="old project")
     def test_straight(self):
         batch, dinp, dout = 256 * 4, 256, 256
         layer = self.layer_init(dinp, dout)

@@ -67,7 +67,9 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    head = llm.PredictionHead(dm, vocab_size).to(last_gpu)
+    head = llm.PredictionHead(
+        dm, vocab_size, init_type=init_type, init_scale=init_scale
+    ).to(last_gpu)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 

@@ -80,7 +80,7 @@ def DenseEinMix(dinp, dout):
 
 @ash.check("... inp -> ... out")
 class Linear(nn.Linear):
-    def __init__(self, *args, init_type="kaiming_uniform", init_scale=1.0, **kwargs):
+    def __init__(self, *args, init_type, init_scale, **kwargs):
         if "bias" not in kwargs:
             kwargs["bias"] = False
         super().__init__(*args, **kwargs)

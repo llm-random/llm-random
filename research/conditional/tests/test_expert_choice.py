@@ -30,7 +30,14 @@ class TestExpertChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         topk_fraction = 1
-        layer = ExpertChoiceFF(dm, experts, exp_size, topk_fraction)
+        layer = ExpertChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
         layer.ln = Identity()
 
         # make sure weights don't change input
@@ -74,6 +81,8 @@ class TestExpertChoice(GeneralTestCase):
             experts,
             exp_size,
             topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
             one_hot_impl=True,
             group_by_batch=True,
         )
@@ -82,6 +91,8 @@ class TestExpertChoice(GeneralTestCase):
             experts,
             exp_size,
             topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
             group_by_batch=True,
             use_full_einsum=True,
             one_hot_impl=True,
@@ -108,10 +119,23 @@ class TestExpertChoice(GeneralTestCase):
         seql = 2
         topk_fraction = 0.5
         layer = ExpertChoiceFF(
-            dm, experts, exp_size, topk_fraction, group_by_batch=True
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            group_by_batch=True,
         )
         layer_onehot = ExpertChoiceFF(
-            dm, experts, exp_size, topk_fraction, one_hot_impl=True, group_by_batch=True
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            one_hot_impl=True,
+            group_by_batch=True,
         )
         layer_onehot.lin1_weight.data = layer.lin1_weight.data
         layer_onehot.lin2_weight.data = layer.lin2_weight.data
@@ -140,9 +164,22 @@ class TestExpertChoice(GeneralTestCase):
         seql = 2
         topk_fraction = 1
         lin = Sequential(
-            Linear(dm, exp_size, bias=False), ReLU(), Linear(exp_size, dm, bias=False)
+            Linear(
+                dm, exp_size, init_type="kaiming_uniform", init_scale=1.0, bias=False
+            ),
+            ReLU(),
+            Linear(
+                exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
+            ),
         )
-        ec = ExpertChoiceFF(dm, experts, exp_size, topk_fraction)
+        ec = ExpertChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
         ec.lin1_weight.data = lin[0].weight.data.transpose(0, 1).unsqueeze(0)
         ec.lin2_weight.data = lin[2].weight.data.transpose(0, 1).unsqueeze(0)
         ln = ec.ln

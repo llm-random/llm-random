@@ -208,7 +208,12 @@ class LLMTest(GeneralTestCase):
             ),
         }
         encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
-        head = llm.PredictionHead(dm, output_size)
+        head = llm.PredictionHead(
+            dm,
+            output_size,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
         model = llm.LLM(embedding_layer, encoder_tower, head)
         input = torch.randint(0, vocab_size, (batch, seql))
         output = model(input)
@@ -243,7 +248,9 @@ class LLMTest(GeneralTestCase):
         }
         encoder_tower = llm.TransformerTower(n_blocks, dm, layer_dict, device=device)
 
-        head = llm.PredictionHead(dm, output_size)
+        head = llm.PredictionHead(
+            dm, output_size, init_type="kaiming_uniform", init_scale=1.0
+        )
 
         model = llm.LLM(embedding_layer, encoder_tower, head)
 

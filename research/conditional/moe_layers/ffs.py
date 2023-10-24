@@ -4,11 +4,11 @@ from torch.nn import functional as F
 
 from lizrd.core import misc
 from lizrd.core import nn
-import lizrd.core.init
 from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
 from lizrd.core.misc import EinMix
 from lizrd.support import ash
 from lizrd.support.profile import Timer, TimerLayer
+from lizrd.core.init import get_init_weight, get_init_bias
 
 
 @ash.check("... d -> ... d")
@@ -34,12 +34,12 @@ class RewrittenSplitFF(nn.Module):
         self.expertsize = expertsize
 
         self.controller = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            get_init_weight(
                 (dm, nexperts), fan_in=dm, init_type=init_type, init_scale=init_scale
             )
         )
         self.f1 = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            get_init_weight(
                 (dm, nexperts, expertsize),
                 fan_in=dm,
                 init_type=init_type,
@@ -47,7 +47,7 @@ class RewrittenSplitFF(nn.Module):
             )
         )
         self.f2 = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            get_init_weight(
                 (nexperts, expertsize, dm),
                 fan_in=(expertsize * nexperts / sparsity),
                 init_type=init_type,
@@ -55,7 +55,7 @@ class RewrittenSplitFF(nn.Module):
             )
         )
 
-        self.f1b = nn.Parameter(lizrd.core.init.get_init_bias((nexperts, expertsize)))
+        self.f1b = nn.Parameter(get_init_bias((nexperts, expertsize)))
         # self.f2b = nn.Parameter(misc.get_init_bias(
         #     (nexperts, dm)))
 
@@ -193,26 +193,22 @@ class SimpleSplitFF(nn.Module):
 
         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
 
-        self.controller = nn.Parameter(
-            lizrd.core.init.get_init_weight((dm, totalexperts), fan_in=dm)
-        )
+        self.controller = nn.Parameter(get_init_weight((dm, totalexperts), fan_in=dm))
         self.cp = "d e"
         self.gp = "... t d"
         self.cout = "... t e"
         self.inner = "... e f"
 
-        self.bias = nn.Parameter(
-            lizrd.core.init.get_init_bias((totalexperts, expertsize))
-        )
+        self.bias = nn.Parameter(get_init_bias((totalexperts, expertsize)))
 
         self.f1p = "d e f"
         self.f1 = nn.Parameter(
-            lizrd.core.init.get_init_weight((dm, totalexperts, expertsize), fan_in=dm)
+            get_init_weight((dm, totalexperts, expertsize), fan_in=dm)
         )
 
         self.f2p = "e f d"
         self.f2 = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            get_init_weight(
                 (totalexperts, expertsize, dm),
                 fan_in=(expertsize * totalexperts / sparsity),
             )
@@ -338,7 +334,7 @@ class BatchSplitFF(nn.Module):
         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
 
         self.controller = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            get_init_weight(
                 shape=(dm, totalexperts),
                 fan_in=dm,
                 init_type=init_type,
@@ -350,13 +346,11 @@ class BatchSplitFF(nn.Module):
         self.cout = "... t e"
         self.inner = "... e f"
 
-        self.bias = nn.Parameter(
-            lizrd.core.init.get_init_bias((totalexperts, expertsize))
-        )
+        self.bias = nn.Parameter(get_init_bias((totalexperts, expertsize)))
 
         self.f1p = "d e f"
         self.f1 = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            get_init_weight(
                 shape=(dm, totalexperts, expertsize),
                 fan_in=dm,
                 init_type=init_type,
@@ -366,7 +360,7 @@ class BatchSplitFF(nn.Module):
 
         self.f2p = "e f d"
         self.f2 = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            get_init_weight(
                 (totalexperts, expertsize, dm),
                 fan_in=(expertsize * totalexperts / sparsity),
                 init_type=init_type,
@@ -379,9 +373,7 @@ class BatchSplitFF(nn.Module):
 
         self.ogp = self.gp.replace("...", "... b")
         self.controller_loss_weight = controller_loss_weight
-        self.controller_bias = nn.Parameter(
-            lizrd.core.init.get_init_bias((totalexperts,))
-        )
+        self.controller_bias = nn.Parameter(get_init_bias((totalexperts,)))
 
         self.register_full_backward_hook(BatchSplitFF.backward_hook_batch_split_ff)
         self.last_x = None
@@ -562,13 +554,11 @@ class FactoredDense(nn.Module):
         assert doutput % modules == 0
         dmodule = doutput // modules
 
-        self.gating = nn.Parameter(
-            lizrd.core.init.get_init_weight((modules, dinput), fan_in=1)
-        )
+        self.gating = nn.Parameter(get_init_weight((modules, dinput), fan_in=1))
         self.projection = nn.Parameter(
-            lizrd.core.init.get_init_weight((dinput, dmodule), fan_in=dinput)
+            get_init_weight((dinput, dmodule), fan_in=dinput)
         )
-        self.bias = nn.Parameter(lizrd.core.init.get_init_bias(doutput))
+        self.bias = nn.Parameter(get_init_bias(doutput))
 
     def forward(self, x):
         y = misc.einsum(

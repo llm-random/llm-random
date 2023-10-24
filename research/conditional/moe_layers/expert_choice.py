@@ -20,6 +20,8 @@ class ExpertChoiceFF(LoggingLayer):
         n_experts: int,
         expert_size: int,
         topk_fraction: float,
+        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_scale: float,
         random_perm: bool = False,
         group_by_batch: bool = False,
         one_hot_impl: bool = False,
@@ -27,8 +29,6 @@ class ExpertChoiceFF(LoggingLayer):
         use_full_einsum: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
-        init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
-        init_scale: float = 1.0,
     ):
         """
         Args:

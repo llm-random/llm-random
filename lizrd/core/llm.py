@@ -5,7 +5,6 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.nn.functional as F
 
 from lizrd.core import misc
 from lizrd.core.misc import default, Sum
@@ -360,19 +359,16 @@ class TransformerTower(nn.Module):
 def TokenEmbedding(
     vocab_size,
     embedding_dim,
-    init_type: Literal["kaiming_uniform", "truncated_normal"] = "truncated_normal",
-    init_scale: float = 1.0,
+    init_type: Literal["kaiming_uniform", "truncated_normal"],
+    init_scale: float,
 ):
-    embedding = nn.Embedding(vocab_size, embedding_dim)
-    default_weight = embedding.weight.data
-    embedding.weight.data = get_init_weight(
-        shape=default_weight.shape,
-        fan_in=1,
+    weight = get_init_weight(
+        shape=(vocab_size, embedding_dim),
+        fan_in=1,  # fan_in=1 is also default in pytorch
         init_type=init_type,
         scale=init_scale,
-        dtype=default_weight.dtype,
     )
-    return nn.Embedding(vocab_size, embedding_dim)
+    return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
 
 
 @ash.check("... -> ... d")
@@ -409,8 +405,10 @@ def EmbeddingLayer(*layers):
 
 
 @ash.check("... inp -> ... out")
-def PredictionHead(embedding_dim, output_size):
-    return Linear(embedding_dim, output_size)
+def PredictionHead(embedding_dim, output_size, init_type, init_scale):
+    return Linear(
+        embedding_dim, output_size, init_type=init_type, init_scale=init_scale
+    )
 
 
 @ash.check("... -> ... out")
