@@ -84,9 +84,8 @@ class ConditionalTrainer:
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
         )
-        self.layer_manager.manage_learnable_temperature(
-            0
-        )  # so that the temperature is not learned at the beginning, if applicable
+        # if temp training is delayed, disable it
+        self.layer_manager.manage_learnable_temperature(0)
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
