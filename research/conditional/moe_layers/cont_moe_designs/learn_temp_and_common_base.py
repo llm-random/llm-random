@@ -33,7 +33,7 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
         self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
-    def init_parameters(self):
+    def init_core_parameters(self):
         if self.share_by_experts:
             if self.share_by_emit_merge:
                 self.temperature_emit = nn.Parameter(torch.ones(1))

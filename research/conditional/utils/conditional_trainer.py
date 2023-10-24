@@ -535,7 +535,7 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
         for block_name, layer in self.layer_manager._layers:
             layer.expertsize = step + 1
-            layer.init_parameters()
+            layer.init_core_parameters()
             layer.to(torch.device("cuda"))
         loss = self._calculate_loss(
             batch=processed_batch,

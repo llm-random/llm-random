@@ -36,7 +36,7 @@ class ContinuousMoECommonWeightedParameters(ContinuousMoeBaseClass):
         self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
-    def init_parameters(self):
+    def init_core_parameters(self):
         self.parameters_matrix_weight = nn.Parameter(torch.Tensor([0.5]))
         self.lin1 = nn.Parameter(
             misc.get_init_weight(

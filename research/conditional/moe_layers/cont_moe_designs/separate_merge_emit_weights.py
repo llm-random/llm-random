@@ -8,7 +8,7 @@ class ContinuousMoEMergeDifferentlySimple(ContinuousMoeBaseClass):
     Emits tokens with separate weights, instead of using the weights from the merging step.
     """
 
-    def init_parameters(self):
+    def init_core_parameters(self):
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm

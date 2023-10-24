@@ -2,7 +2,7 @@ import dataclasses
 
 import torch
 
-from lizrd.core import misc, nn
+from lizrd.core import nn
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
 
@@ -17,7 +17,7 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
     share_by_experts: bool = True
     share_by_emit_merge: bool = True
 
-    def init_parameters(self):
+    def init_additional_parameters(self):
         if self.share_by_experts:
             if self.share_by_emit_merge:
                 self.temperature_emit = nn.Parameter(torch.ones(1))
@@ -32,20 +32,6 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
             else:
                 self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
                 self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
-
-        self.lin1 = nn.Parameter(
-            misc.get_init_weight(
-                (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
-            )
-        )
-        self.lin2 = nn.Parameter(
-            misc.get_init_weight(
-                (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
-            )
-        )
-        self.controller = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
-        )
 
     def log_heavy(self):
         log = super().log_heavy()

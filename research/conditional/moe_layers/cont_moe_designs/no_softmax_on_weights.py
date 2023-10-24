@@ -46,7 +46,7 @@ class ContinuousMoENosoftmax(ContinuousMoeBaseClass):
         )
         return x
 
-    def init_parameters(self):
+    def init_core_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
