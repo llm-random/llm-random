@@ -188,8 +188,12 @@ class LLMTest(GeneralTestCase):
         device = torch.device("cpu")
 
         embedding_layer = llm.EmbeddingLayer(
-            llm.PositionalEmbedding(max_length, dm),
-            llm.TokenEmbedding(vocab_size, dm),
+            llm.PositionalEmbedding(
+                max_length, dm, init_type="kaiming_uniform", init_scale=1.0
+            ),
+            llm.TokenEmbedding(
+                vocab_size, dm, init_type="kaiming_uniform", init_scale=1.0
+            ),
         )
         layer_dict = {
             "attention": lambda: llm.Attention(
@@ -218,8 +222,12 @@ class LLMTest(GeneralTestCase):
         device = torch.device("cpu")
 
         embedding_layer = llm.EmbeddingLayer(
-            llm.PositionalEmbedding(max_length, dm),
-            llm.TokenEmbedding(vocab_size, dm),
+            llm.PositionalEmbedding(
+                max_length, dm, init_type="kaiming_uniform", init_scale=1.0
+            ),
+            llm.TokenEmbedding(
+                vocab_size, dm, init_type="kaiming_uniform", init_scale=1.0
+            ),
         )
         layer_dict = {
             "attention": lambda: llm.Attention(

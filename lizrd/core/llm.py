@@ -381,8 +381,8 @@ class PositionalEmbedding(nn.Module):
         self,
         max_length,
         embedding_dim,
-        init_type: Literal["kaiming_uniform", "truncated_normal"] = "truncated_normal",
-        init_scale: float = 1.0,
+        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_scale: float,
     ):
         super(PositionalEmbedding, self).__init__()
         self.layer = nn.Embedding(max_length, embedding_dim)

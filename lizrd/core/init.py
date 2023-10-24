@@ -13,12 +13,12 @@ def get_init_weight(shape, fan_in, init_type, scale=1.0, dtype=torch.float32):
         raise ValueError(f"Unknown init_type: {init_type}")
 
 
-def init_kaiming_uniform(shape, fan_in, gain=1.0, dtype=torch.float32):
+def init_kaiming_uniform(shape, fan_in, gain, dtype=torch.float32):
     range_ = gain * (3 / fan_in) ** 0.5
     return torch.zeros(shape, dtype=dtype).uniform_(-range_, range_)
 
 
-def init_truncated_normal(shape, fan_in, scale=0.1, dtype=torch.float32):
+def init_truncated_normal(shape, fan_in, scale, dtype=torch.float32):
     std = (scale / fan_in) ** 0.5
     low = -2 * scale
     high = 2 * scale
