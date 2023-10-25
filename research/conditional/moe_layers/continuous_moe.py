@@ -82,7 +82,8 @@ class ContinuousMoeBaseClass(LoggingLayer):
         # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
         temp_merge, temp_emit = self.get_temperature()
         merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-2)
-        if temp_merge != temp_emit or self.emit_softmax_over_experts:
+        # on default we use the same weights for emitting and merging, but if the temperature is learnable or we want to take softmax over experts for emitting, we will use different weights
+        if isinstance(temp_merge, torch.nn.Parameter) or self.emit_softmax_over_experts:
             softmax_dim = -1 if self.emit_softmax_over_experts else -2
             emit_weights = stable_softmax_temperature(
                 merge_logits, temp_emit, dim=softmax_dim
