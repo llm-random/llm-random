@@ -169,12 +169,15 @@ def main(
         ),
     )
 
-    logger = get_logger(args, model, VOCAB_SIZE)
-
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
 
-    if args.model_type == "gpt" and (rank is None or rank == 0):
+    if is_process_logging:
+        logger = get_logger(args, model, VOCAB_SIZE)
+    else:
+        logger = None
+
+    if args.model_type == "gpt" and is_process_logging:
         log_batch(
             train_dataloader,
             tokenizer_maker=tokenizers.GPTTokenizer
@@ -211,6 +214,7 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
+        should_evaluate_dynamic_groupsize=args.should_evaluate_dynamic_groupsize,
         decoding_interval=args.decoding_interval,
     )
     trainer.train(args.n_steps)
@@ -235,9 +239,8 @@ if __name__ == "__main__":
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("", 0))
             port = str(s.getsockname()[1])
-
         mp.spawn(
             main,
-            args=[data_seeds, port],
+            args=[data_seeds, port, args],
             nprocs=args.n_gpus,
         )

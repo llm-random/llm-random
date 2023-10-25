@@ -41,6 +41,7 @@ from research.conditional.moe_layers.cont_moe_designs.separate_weighted_paramete
 )
 from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
+    LegacyContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
@@ -445,6 +446,18 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "cont_moe_separate_weighted_parameters":
         return_fn = lambda: ContinuousMoESeparateWeightedParameters(
+            dm=args.dmodel,
+            dff=args.dff,
+            n_experts=args.n_experts,
+            group_size=args.group_size,
+            sparsity_dim=args.sparsity_dim,
+            temperature=args.temperature,
+            expert_size=args.expert_size,
+            use_opt_einsum=args.use_opt_einsum,
+            flop_matched=args.flop_matched,
+        )
+    elif args.ff_mode == "cont_moe_legacy":
+        return_fn = lambda: LegacyContinuousMoE(
             dm=args.dmodel,
             dff=args.dff,
             n_experts=args.n_experts,

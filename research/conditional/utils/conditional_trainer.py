@@ -3,7 +3,7 @@ import os.path
 import copy
 from types import SimpleNamespace as SN
 import time
-from typing import Callable, Optional, Literal
+from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from attr import define
@@ -60,6 +60,7 @@ class ConditionalTrainer:
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
+    should_evaluate_dynamic_groupsize: bool = True
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -70,10 +71,6 @@ class ConditionalTrainer:
         self.loss_accumulators["loss"] = SN(
             acc=0.0, interval=self.logging_interval_loss
         )
-        if self.model_type == "bert":
-            self.loss_accumulators["legacy_bert_bugged_loss"] = SN(
-                acc=0.0, interval=self.logging_interval_loss
-            )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
@@ -98,7 +95,6 @@ class ConditionalTrainer:
                 )
 
     def _save_weights(self, step):
-        print("Saving weights... ")
         if (
             self.save_weights_path is not None
             and self.save_weights_interval > 0
@@ -142,7 +138,10 @@ class ConditionalTrainer:
                 and step % self.decoding_interval == 0
                 and self.is_process_logging
             ):
-                self._decode_samples(step)
+                try:
+                    self._decode_samples(step)
+                except:
+                    print("Decoding failed, skipping...")
 
             if step % self.eval_interval == 0:
                 self._eval_step(step)
@@ -236,13 +235,6 @@ class ConditionalTrainer:
             processed_batch, should_optimize=True
         )
         if self.is_process_logging:
-            if self.model_type == "bert":
-                mask_percent = self.mask_percent
-                numel = processed_batch.input_ids.numel()
-                real_mask_percent = aux_info["total_masked_tokens"] / numel
-                aux_info["legacy_bert_bugged_loss_multiplier"] = (
-                    real_mask_percent / mask_percent
-                )
             self._log_train_stats(loss, step, aux_info)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
@@ -250,14 +242,44 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def _eval_step(self, step):
+    def _eval_step(self, step: int):
+        batches = (self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches))
+        if self.should_evaluate_dynamic_groupsize:
+            batches = list(batches)
+            contmoe_layers = [
+                l for _, l in self.layer_manager._layers if isinstance(l, ContinuousMoE)
+            ]
+            original_group_size = contmoe_layers[0].group_size
+            group_size = original_group_size // 2
+            while (
+                group_size <= 2 * original_group_size and group_size <= self.batch_size
+            ):
+                for layer in contmoe_layers:
+                    layer.group_size = group_size
+                self._batches_eval_step(
+                    batches=batches,
+                    step=step,
+                    eval_variant_name=f"gs={group_size}",
+                )
+                group_size *= 2
+            for layer in contmoe_layers:
+                layer.group_size = original_group_size
+        else:
+            self._batches_eval_step(
+                batches=batches,
+                step=step,
+                eval_variant_name=None,
+            )
+
+    def _batches_eval_step(
+        self, batches: Iterable[LLMBatch], step: int, eval_variant_name: Optional[str]
+    ):
         self.model.eval()
         total_loss = 0.0
         total_correct_tokens = 0
         total_masked_tokens = 0
         extra_losses = defaultdict(float)
-        for _ in range(self.n_eval_batches):
-            processed_batch = self.eval_dataloader.get_batch()
+        for processed_batch in batches:
             with torch.no_grad():
                 loss, aux_info = self.calculate_loss_and_maybe_optimize(
                     processed_batch, should_optimize=False
@@ -269,21 +291,68 @@ class ConditionalTrainer:
                 extra_losses[name] += loss_value
         if self.is_process_logging:
             self.logger.report_scalar(
-                title="eval/total_loss",
+                title=f"eval/total_loss/{eval_variant_name}"
+                if eval_variant_name
+                else "eval/total_loss",
                 value=total_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title="eval/accuracy",
+                title=f"eval/accuracy/{eval_variant_name}"
+                if eval_variant_name
+                else "eval/accuracy",
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
             for name, loss_value in extra_losses.items():
                 self.logger.report_scalar(
-                    title=f"eval/{name}",
+                    title=f"eval/{name}/{eval_variant_name}"
+                    if eval_variant_name is None
+                    else f"eval/{name}",
                     value=loss_value / self.n_eval_batches,
                     iteration=step,
                 )
+
+    def _eval_dynamic_groupsizes(self, step):
+        batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
+        while group_size <= 2 * original_group_size and group_size <= self.batch_size:
+            for layer in contmoe_layers:
+                layer.group_size = group_size
+            self.model.eval()
+            total_loss = 0.0
+            total_correct_tokens = 0
+            total_masked_tokens = 0
+            extra_losses = defaultdict(float)
+            for processed_batch in batches:
+                with torch.no_grad():
+                    loss, aux_info = self.calculate_loss_and_maybe_optimize(
+                        processed_batch, should_optimize=False
+                    )
+                total_loss += loss
+                total_correct_tokens += aux_info["correct_tokens"]
+                total_masked_tokens += aux_info["total_masked_tokens"]
+                for name, loss_value in aux_info["losses"].items():
+                    extra_losses[name] += loss_value
+            if self.is_process_logging:
+                self.logger.report_scalar(
+                    title=f"eval/total_loss/gs={group_size}",
+                    value=total_loss / self.n_eval_batches,
+                    iteration=step,
+                )
+                self.logger.report_scalar(
+                    title=f"eval/accuracy/gs={group_size}",
+                    value=total_correct_tokens / total_masked_tokens,
+                    iteration=step,
+                )
+                for name, loss_value in extra_losses:
+                    self.logger.report_scalar(
+                        title=f"eval/{name}/gs={group_size}",
+                        value=loss_value / self.n_eval_batches,
+                        iteration=step,
+                    )
+            group_size *= 2
+        for layer in contmoe_layers:
+            layer.group_size = original_group_size
 
     def calculate_loss_and_maybe_optimize(
         self, processed_batch: LLMBatch, should_optimize: bool
@@ -340,13 +409,7 @@ class ConditionalTrainer:
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
-            if name == "legacy_bert_bugged_loss":
-                bert_legacy_loss = (
-                    loss_value * aux_info["legacy_bert_bugged_loss_multiplier"]
-                )
-                stats.acc += bert_legacy_loss
-            else:
-                stats.acc += loss_value
+            stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
                 self.logger.report_scalar(
                     title=name,
