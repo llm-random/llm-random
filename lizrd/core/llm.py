@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from lizrd.core import misc
 from lizrd.core.misc import default, Sum
-from lizrd.core.init import get_init_weight
+from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Checkpoint, Linear
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer

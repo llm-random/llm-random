@@ -8,7 +8,7 @@ from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
 from lizrd.core.misc import EinMix
 from lizrd.support import ash
 from lizrd.support.profile import Timer, TimerLayer
-from lizrd.core.init import get_init_weight, get_init_bias
+from lizrd.core.initialization import get_init_weight, get_init_bias
 
 
 @ash.check("... d -> ... d")

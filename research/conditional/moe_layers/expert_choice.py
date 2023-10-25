@@ -6,7 +6,7 @@ from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
 from lizrd.core import nn
-from lizrd.core.init import get_init_weight
+from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer

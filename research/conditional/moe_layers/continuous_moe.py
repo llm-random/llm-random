@@ -7,7 +7,7 @@ import torch
 from plotly import express as px
 
 from lizrd.core import misc, nn
-import lizrd.core.init
+import lizrd.core.initialization
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -109,19 +109,21 @@ class ContinuousMoeBaseClass(LoggingLayer):
     def init_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
             )
         )
 
         self.lin2 = nn.Parameter(
-            lizrd.core.init.get_init_weight(
+            lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
-            lizrd.core.init.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts), fan_in=self.dm
+            )
         )
 
     def log_light(self):

@@ -5,7 +5,7 @@ import torch.nn
 from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import nn
-from lizrd.core.init import get_init_weight
+from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 
 
