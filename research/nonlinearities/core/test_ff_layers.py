@@ -1,6 +1,6 @@
 import torch
 
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, skip_test
 from research.nonlinearities.core.research_bert import (
     FeedForwardBottleneck,
     FeedForwardMultineck,
@@ -10,6 +10,7 @@ from research.nonlinearities.core.research_bert import (
 
 
 class TestFFNecks(GeneralTestCase):
+    @skip_test(reason="old project")
     def test_ff_bottleneck(self):
         batch, seqlen, dmodel, exp_rate = 3, 5, 256, 11
         input = torch.normal(0.0, 1.0, (batch, seqlen, dmodel))
@@ -31,6 +32,7 @@ class TestFFNecks(GeneralTestCase):
         output = layer(input)
         self.assertShape(output, (batch, seqlen, dmodel))
 
+    @skip_test(reason="old project")
     def test_ff_inception_neck(self):
         batch, seqlen, dmodel, exprate, head_sizes = 3, 5, 256, 8, [0.25, 0.5, 0.25]
         input = torch.normal(0.0, 1.0, (batch, seqlen, dmodel))

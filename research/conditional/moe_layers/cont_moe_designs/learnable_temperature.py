@@ -5,6 +5,7 @@ import torch
 from plotly import express as px
 
 from lizrd.core import misc, nn
+import lizrd.core.initialization
 from lizrd.support.logging import make_histogram
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
@@ -49,17 +50,19 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
                 self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
 
         self.lin1 = nn.Parameter(
-            misc.get_init_weight(
+            lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
             )
         )
         self.lin2 = nn.Parameter(
-            misc.get_init_weight(
+            lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
         self.controller = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts), fan_in=self.dm
+            )
         )
 
     def log_heavy(self):

@@ -33,6 +33,8 @@ def get_model(
     dm: int,
     n_blocks: int,
     device: torch.device,
+    init_type,
+    init_scale,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
@@ -45,8 +47,12 @@ def get_model(
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
     embedding_layer = llm.EmbeddingLayer(
-        llm.PositionalEmbedding(max_length, dm).to(first_gpu),
-        llm.TokenEmbedding(vocab_size, dm).to(first_gpu),
+        llm.PositionalEmbedding(
+            max_length, dm, init_type=init_type, init_scale=init_scale
+        ).to(first_gpu),
+        llm.TokenEmbedding(
+            vocab_size, dm, init_type=init_type, init_scale=init_scale
+        ).to(first_gpu),
     )
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
@@ -61,7 +67,9 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    head = llm.PredictionHead(dm, vocab_size).to(last_gpu)
+    head = llm.PredictionHead(
+        dm, vocab_size, init_type=init_type, init_scale=init_scale
+    ).to(last_gpu)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 

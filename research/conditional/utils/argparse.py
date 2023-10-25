@@ -29,6 +29,13 @@ def introduce_parser_arguments(
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
+    parser.add_argument(
+        "--init_type",
+        type=str,
+        choices=["kaiming_uniform", "truncated_normal"],
+        required=True,
+    )
+    parser.add_argument("--init_scale", type=float, required=True)
 
     # other training hyperparameters
 
