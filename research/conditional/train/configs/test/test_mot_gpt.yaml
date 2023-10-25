@@ -1,0 +1,41 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "5-05:00:00"
+n_gpus: 0
+cuda_visible: ""
+
+# train params
+params:
+  # model
+  batch_size: 4
+  cutoff: 16
+  project_name: "pmtest/llm-random-tests"
+  name: "baseline_test"
+  mixed_precision: true
+  tags:
+    - "test"
+  use_neptune: true
+  n_steps: 10
+  dmodel: 64
+  dff: 256
+  n_blocks: 2
+  model_type: gpt
+  ff_mode: cont_moe
+  n_experts: 16
+  group_size: 4
+  sparsity_dim: 0
+  temperature: 1.0
+  flop_matched: true
+  share_by_experts: true
+  share_by_emit_merge: true
+  logging_interval_heavy: 2
+  logging_interval_loss: 1
+  grad_clip: 0.5
+  scheduler: constant
+  lr_warmup_steps: 4
+  n_att_heads: 4
+  learning_rate: 0.0001
+  dataset_type: wikibook
+  use_dummy_dataset: true
+  init_type: kaiming_uniform
+  init_scale: 1.0

@@ -301,6 +301,22 @@ def retrieve_additional_losses(model: torch.nn.Module):
     return losses
 
 
+def get_common_mot_kwargs(args):
+    return {
+        "dm": args.dmodel,
+        "dff": args.dff,
+        "n_experts": args.n_experts,
+        "group_size": args.group_size,
+        "sparsity_dim": args.sparsity_dim,
+        "temperature": args.temperature,
+        "expert_size": args.expert_size,
+        "use_opt_einsum": args.use_opt_einsum,
+        "flop_matched": args.flop_matched,
+        "init_type": args.init_type,
+        "init_scale": args.init_scale,
+    }
+
+
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
@@ -311,180 +327,54 @@ def get_ff_layer(args):
             args.dmodel, args.dff, args.activation_type, args.no_ff
         )
     elif args.ff_mode == "cont_moe" or args.ff_mode == "cont_moe_quick":
-        return_fn = lambda: ContinuousMoE(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
-        )
+        return_fn = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
     elif args.ff_mode == "cont_moe_merge_diff_simple":
         return_fn = lambda: ContinuousMoEMergeDifferentlySimple(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
+            **get_common_mot_kwargs(args)
         )
     elif args.ff_mode == "cont_moe_merge_diff_comm_base":
         return_fn = lambda: ContinuousMoEMergeDifferentlyCommonBase(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
+            **get_common_mot_kwargs(args)
         )
     elif args.ff_mode == "cont_moe_rawmerge":
-        return_fn = lambda: ContinuousMoERawmerge(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
-        )
+        return_fn = lambda: ContinuousMoERawmerge(**get_common_mot_kwargs(args))
     elif args.ff_mode == "cont_moe_topmerge":
-        return_fn = lambda: ContinuousMoETopmerge(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
-        )
+        return_fn = lambda: ContinuousMoETopmerge(**get_common_mot_kwargs(args))
     elif args.ff_mode == "cont_moe_nosoft":
-        return_fn = lambda: ContinuousMoENosoftmax(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
-        )
+        return_fn = lambda: ContinuousMoENosoftmax(**get_common_mot_kwargs(args))
     elif args.ff_mode == "cont_moe_adatemp":
         return_fn = lambda: ContinuousMoEAdaTemp(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
+            **get_common_mot_kwargs(args),
             share_by_experts=args.share_by_experts,
             share_by_emit_merge=args.share_by_emit_merge,
         )
     elif args.ff_mode == "cont_moe_adatemp_positive":
         return_fn = lambda: ContinuousMoEAdaTempPositive(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
+            **get_common_mot_kwargs(args),
             share_by_experts=args.share_by_experts,
             share_by_emit_merge=args.share_by_emit_merge,
         )
     elif args.ff_mode == "cont_moe_ln":
-        return_fn = lambda: ContinuousMoELayernorm(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
-        )
+        return_fn = lambda: ContinuousMoELayernorm(**get_common_mot_kwargs(args))
     elif args.ff_mode == "cont_moe_final":
-        return_fn = lambda: ContinuousMoEFinal(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
-        )
+        return_fn = lambda: ContinuousMoEFinal(**get_common_mot_kwargs(args))
     elif args.ff_mode == "cont_moe_random_groups":
         return_fn = lambda: ContinuousMoERandomGroups(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
+            **get_common_mot_kwargs(args),
             batch_size=args.batch_size,
             seqlen=args.cutoff,
             mix_whole_batch=args.mix_whole_batch,
         )
     elif args.ff_mode == "cont_moe_common_weighted_parameters":
         return_fn = lambda: ContinuousMoECommonWeightedParameters(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
+            **get_common_mot_kwargs(args)
         )
     elif args.ff_mode == "cont_moe_separate_weighted_parameters":
         return_fn = lambda: ContinuousMoESeparateWeightedParameters(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
+            **get_common_mot_kwargs(args)
         )
     elif args.ff_mode == "cont_moe_legacy":
-        return_fn = lambda: LegacyContinuousMoE(
-            dm=args.dmodel,
-            dff=args.dff,
-            n_experts=args.n_experts,
-            group_size=args.group_size,
-            sparsity_dim=args.sparsity_dim,
-            temperature=args.temperature,
-            expert_size=args.expert_size,
-            use_opt_einsum=args.use_opt_einsum,
-            flop_matched=args.flop_matched,
-        )
+        return_fn = lambda: LegacyContinuousMoE(**get_common_mot_kwargs(args))
     elif args.ff_mode == "expert_choice":
         ff_args = get_expert_choice_args(args)
         return_fn = partial(ExpertChoiceFF, **ff_args)

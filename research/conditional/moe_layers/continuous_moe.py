@@ -29,7 +29,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
     sparsity_dim: int
     temperature: float
     init_type: str
-    scale: float
+    init_scale: float
     expert_size: Union[int, None]
     use_opt_einsum: bool = False
     flop_matched: bool = False
@@ -56,10 +56,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
     def forward(self, x):
         x = self.rearrange_for_grouping(x)
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
-        if self.max_group_size:
-            x = self.merge_map_emit(x, merge_weights, emit_weights)
-        else:
-            x = self.manygroups_merge_map_emit(x, merge_weights, emit_weights)
+        x = self.merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
         return x * (self.group_size / self.original_group_size)
 
@@ -68,41 +65,24 @@ class ContinuousMoeBaseClass(LoggingLayer):
         :param x: normal input tensor of shape (B, S, dmodel)
         :return: x transposed so that the dimension to group over is second last
         """
-
-        if self.group_size == x.shape[self.sparsity_dim]:
-            self.max_group_size = True
-        else:
-            self.max_group_size = False
-
         if self.sparsity_dim == 0:
             x = torch.permute(x, [1, 0, 2])
             return x
         elif self.sparsity_dim == 1:
-            return x
+            raise NotImplementedError
         else:
             raise NotImplementedError
 
     def get_merge_and_emit_weights(self, x):
-        if self.max_group_size:
-            # shape of x is free_dimension, aggr_dimension, dmodel
-            merge_logits = torch.matmul(x, self.controller).transpose(1, 2)
-            # shape of merge_logits is free_dimension, n_experts, aggr_dimension
-            softmax_dim = -1
-        else:
-            # shape of x is free_dimension, aggr_dimension, dmodel
-            merge_logits = torch.matmul(
-                x.view(x.shape[0], -1, self.group_size, self.dm), self.controller
-            )
-            # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
-            softmax_dim = -2
-        temp_merge, temp_emit = self.get_temperature()
-        merge_weights = stable_softmax_temperature(
-            merge_logits, temp_merge, dim=softmax_dim
+        # shape of x is free_dimension, aggr_dimension, dmodel
+        merge_logits = torch.matmul(
+            x.view(x.shape[0], -1, self.group_size, self.dm), self.controller
         )
+        # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
+        temp_merge, temp_emit = self.get_temperature()
+        merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-2)
         if temp_merge != temp_emit:
-            emit_weights = stable_softmax_temperature(
-                merge_logits, temp_emit, dim=softmax_dim
-            )
+            emit_weights = stable_softmax_temperature(merge_logits, temp_emit, dim=-2)
         else:
             emit_weights = merge_weights
         return merge_weights, emit_weights
@@ -110,7 +90,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
     def get_temperature(self):
         return self.temperature, self.temperature
 
-    def manygroups_merge_map_emit(self, x, merge_weights, emit_weights):
+    def merge_map_emit(self, x, merge_weights, emit_weights):
         # x shape is free_dimension, aggr_dimension // group_size * group_size, dmodel
         # merge_weights shape is free_dimension, aggr_dimension // group_size, group_size, n_experts
         x = torch.matmul(
@@ -137,20 +117,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
         )
         return x
 
-    def merge_map_emit(self, x, merge_weights, emit_weights):
-        # x shape is free_dimension, aggr_dimension, dmodel
-        # merge_weights shape is free_dimension, n_experts, aggr_dimension
-        x = torch.bmm(merge_weights, x)
-        # x shape is free_dimension, n_experts, dmodel ||| lin1 shape is n_experts, dmodel, expert_size
-        x = torch.bmm(x.transpose(0, 1), self.lin1)
-        x = torch.relu_(x)
-        # x shape is n_experts, free_dimension, expert_size ||| lin2 shape is n_experts, expert_size, dmodel
-        x = torch.bmm(x, self.lin2)
-        # x shape is n_experts, free_dimension, dmodel ||| merge_weights shape is free_dimension, aggr_dimension, n_experts
-        # after permute, x shape is free_dimension, dmodel, n_experts, and merge_weights shape is free_dimension, n_experts, aggr_dimension
-        x = torch.bmm(x.permute(1, 2, 0), emit_weights)
-        return x
-
     def reshape_into_original(self, x):
         if self.sparsity_dim == 0:
             # sequence dimension is the new "batch size" when you think about it
@@ -158,7 +124,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
             # shape is free_dimension, aggr_dimension, dmodel
             return x
         elif self.sparsity_dim == 1:
-            return x
+            raise NotImplementedError
         else:
             raise NotImplementedError
 
@@ -169,7 +135,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 (self.n_experts, self.dm, self.expert_size),
                 fan_in=self.dm,
                 init_type=self.init_type,
-                scale=self.scale,
+                scale=self.init_scale,
             )
         )
 
@@ -178,7 +144,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 (self.n_experts, self.expert_size, self.dm),
                 fan_in=self.expert_size,
                 init_type=self.init_type,
-                scale=self.scale,
+                scale=self.init_scale,
             )
         )
         # controller: send a token of size dmodel to n_experts scalars
@@ -187,7 +153,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 (self.dm, self.n_experts),
                 fan_in=self.dm,
                 init_type=self.init_type,
-                scale=self.scale,
+                scale=self.init_scale,
             )
         )
 
@@ -306,18 +272,27 @@ class LegacyContinuousMoE(ContinuousMoeBaseClass):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             lizrd.core.initialization.get_init_weight(
-                (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
+                (self.dm, self.n_experts, self.expert_size),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.init_scale,
             )
         )
 
         self.lin2 = nn.Parameter(
             lizrd.core.initialization.get_init_weight(
-                (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
+                (self.dm, self.n_experts, self.expert_size),
+                fan_in=self.expert_size,
+                init_type=self.init_type,
+                scale=self.init_scale,
             )
         )
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
             lizrd.core.initialization.get_init_weight(
-                (self.dm, self.n_experts), fan_in=self.dm
+                (self.dm, self.n_experts),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.init_scale,
             )
         )
