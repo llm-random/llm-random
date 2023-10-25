@@ -83,7 +83,10 @@ class ContinuousMoeBaseClass(LoggingLayer):
         temp_merge, temp_emit = self.get_temperature()
         merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-2)
         if temp_merge != temp_emit or self.emit_softmax_over_experts:
-            emit_weights = stable_softmax_temperature(merge_logits, temp_emit, dim=-2)
+            softmax_dim = -1 if self.emit_softmax_over_experts else -2
+            emit_weights = stable_softmax_temperature(
+                merge_logits, temp_emit, dim=softmax_dim
+            )
         else:
             emit_weights = merge_weights
         return merge_weights, emit_weights
