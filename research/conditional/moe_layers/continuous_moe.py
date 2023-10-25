@@ -53,7 +53,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
     def forward(self, x):
         x = self.rearrange_for_grouping(x)
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
-        print("merge_weights", merge_weights.shape)
         if self.max_group_size:
             x = self.merge_map_emit(x, merge_weights, emit_weights)
         else:
