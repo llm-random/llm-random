@@ -1,8 +1,9 @@
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, skip_test
 from pathlib import Path
 import subprocess
 
 
+@skip_test("datasets_are_bugged")
 class TestIntegrated(GeneralTestCase):
     def test_dummy_train(self):
         """
