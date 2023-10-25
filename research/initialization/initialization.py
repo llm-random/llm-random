@@ -45,7 +45,7 @@ def StandardLinear(dinput, doutput, relu=False):
     metrics.LogWeightGradient("LinearWGS", lambda: linlayer.weight, aggregate=torch.std)
     scaling = 6 if relu else 3
     limit = (scaling / dinput) ** 0.5
-    nninit.uniform_(linlayer.weight, -limit, +limit)
+    nninit.kaiming_uniform_(linlayer.weight)
     block = nn.Sequential(
         linlayer,
         nn.ReLU() if relu else misc.Noop(),

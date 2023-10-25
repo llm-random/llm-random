@@ -3,11 +3,13 @@ from typing import Literal, Callable, Optional
 from functools import partial
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
-import lizrd.core.nn as nn
 from lizrd.core import misc
-from lizrd.core.misc import Checkpoint, default
+from lizrd.core.misc import default, Sum
+from lizrd.core.initialization import get_init_weight
+from lizrd.core.misc import Checkpoint, Linear
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -31,6 +33,8 @@ def decode_bias_string(bias):
 def FeedForward(
     dmodel,
     dff,
+    init_type: Literal["kaiming_uniform", "truncated_normal"],
+    init_scale: float,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
     bias_first, bias_second = decode_bias_string(bias)
@@ -38,11 +42,26 @@ def FeedForward(
     return nn.Sequential(
         OrderedDict(
             [
-                ("logging_ff_pre_relu", misc.Linear(dmodel, dff, bias=bias_first)),
+                (
+                    "logging_ff_pre_relu",
+                    Linear(
+                        dmodel,
+                        dff,
+                        bias=bias_first,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
                 ("relu", nn.ReLU(inplace=True)),
                 (
                     "logging_ff_post_relu",
-                    misc.Linear(dff, dmodel, bias=bias_second),
+                    Linear(
+                        dff,
+                        dmodel,
+                        bias=bias_second,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
                 ),
             ]
         )
@@ -126,7 +145,8 @@ class Transpose(nn.Module):
 @ash.check("... dinp -> ... dout")
 def LowRank(dinput, doutput, dlowrank):
     return nn.Sequential(
-        misc.Linear(dinput, dlowrank, bias=False), misc.Linear(dlowrank, doutput)
+        Linear(dinput, dlowrank, bias=False),
+        Linear(dlowrank, doutput),
     )
 
 
@@ -170,7 +190,16 @@ def attention_mechanism(
 
 @ash.check("... d -> ... d")
 class Attention(LoggingLayer):
-    def __init__(self, dmodel, heads, causal, dhead=None, flash=False):
+    def __init__(
+        self,
+        dmodel,
+        heads,
+        causal,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
@@ -181,8 +210,20 @@ class Attention(LoggingLayer):
         self.causal = causal
         self.flash = flash
 
-        self.input_projection = nn.Linear(dmodel, 3 * heads * dhead)
-        self.output_projection = nn.Linear(heads * dhead, dmodel)
+        self.input_projection = Linear(
+            dmodel,
+            3 * heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -315,15 +356,40 @@ class TransformerTower(nn.Module):
 
 
 @ash.check("... -> ... d")
-def TokenEmbedding(vocab_size, embedding_dim):
-    return nn.Embedding(vocab_size, embedding_dim)
+def TokenEmbedding(
+    vocab_size,
+    embedding_dim,
+    init_type: Literal["kaiming_uniform", "truncated_normal"],
+    init_scale: float,
+):
+    weight = get_init_weight(
+        shape=(vocab_size, embedding_dim),
+        fan_in=1,  # fan_in=1 is also default in pytorch
+        init_type=init_type,
+        scale=init_scale,
+    )
+    return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
 
 
 @ash.check("... -> ... d")
 class PositionalEmbedding(nn.Module):
-    def __init__(self, max_length, embedding_dim):
+    def __init__(
+        self,
+        max_length,
+        embedding_dim,
+        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_scale: float,
+    ):
         super(PositionalEmbedding, self).__init__()
         self.layer = nn.Embedding(max_length, embedding_dim)
+        default_weight = self.layer.weight.data
+        self.layer.weight.data = get_init_weight(
+            shape=default_weight.shape,
+            fan_in=1,
+            init_type=init_type,
+            scale=init_scale,
+            dtype=default_weight.dtype,
+        )
         # TODO(jaszczur): add initialization as positional encoding
 
     def forward(self, x):
@@ -335,12 +401,14 @@ class PositionalEmbedding(nn.Module):
 
 @ash.check("... -> ... d")
 def EmbeddingLayer(*layers):
-    return misc.Sum(*layers)
+    return Sum(*layers)
 
 
 @ash.check("... inp -> ... out")
-def PredictionHead(embedding_dim, output_size):
-    return nn.Linear(embedding_dim, output_size)
+def PredictionHead(embedding_dim, output_size, init_type, init_scale):
+    return Linear(
+        embedding_dim, output_size, init_type=init_type, init_scale=init_scale
+    )
 
 
 @ash.check("... -> ... out")

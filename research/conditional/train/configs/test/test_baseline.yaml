@@ -32,3 +32,5 @@ params:
   learning_rate: 0.0001
   dataset_type: wikibook
   use_dummy_dataset: true
+  init_type: kaiming_uniform
+  init_scale: 1.0

@@ -1,9 +1,9 @@
 import torch
 from torch.nn import Sequential, ReLU
+from lizrd.core.misc import Linear, propagate_forward_pass_cache
 
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
-from lizrd.core.misc import Linear, propagate_forward_pass_cache
 
 
 def mock_topk_factory(topk_fn):
@@ -29,10 +29,22 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         lin = Sequential(
-            Linear(dm, exp_size, bias=False), ReLU(), Linear(exp_size, dm, bias=False)
+            Linear(
+                dm, exp_size, init_type="kaiming_uniform", init_scale=1.0, bias=False
+            ),
+            ReLU(),
+            Linear(
+                exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
+            ),
         )
         token_choice_layer = TokenChoiceFF(
-            dm, experts, exp_size, 5.0, load_balancing_loss_weight=0.1
+            dm,
+            experts,
+            exp_size,
+            5.0,
+            load_balancing_loss_weight=0.1,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
         )
         propagate_forward_pass_cache(token_choice_layer)
 

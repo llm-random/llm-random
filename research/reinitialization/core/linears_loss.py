@@ -2,6 +2,7 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from lizrd.core import misc
+from lizrd.core.misc import Linear
 from lizrd.support.loss import LossDict
 from research.reinitialization.core.pruner import Pruner
 import numpy as np
@@ -34,8 +35,8 @@ class BaseLossFF(nn.Module):
         assert aggregation_type in ["regular", "concat", "mixed", "dmodel"]
         self.aggregation_type = aggregation_type
 
-        self.lin1 = misc.Linear(dmodel, dff)
-        self.lin2 = misc.Linear(dff, dmodel)
+        self.lin1 = Linear(dmodel, dff)
+        self.lin2 = Linear(dff, dmodel)
         self.current_activations = self.activate_ratio = np.zeros(dff)
         pruner.register(self)
 
