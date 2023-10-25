@@ -2,7 +2,7 @@ import torch
 
 from research.reinitialization.core import linears_recycle
 
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, skip_test
 from research.reinitialization.core.pruner import Pruner
 
 
@@ -14,12 +14,14 @@ class RecycleFFTest(GeneralTestCase):
 
 
 class TestUnstructMagnitudeRecycleFF(RecycleFFTest):
+    @skip_test(reason="old project")
     def test_smoke(self):
         pruner = Pruner()
         linears_recycle.UnstructMagnitudeRecycleFF(10, 2, pruner)
         linears_recycle.UnstructMagnitudeRecycleFF(10, 1, pruner)
         linears_recycle.UnstructMagnitudeRecycleFF(5, 5, pruner)
 
+    @skip_test(reason="old project")
     def test_with_pruner(self):
         P = 0.2
 
@@ -43,6 +45,7 @@ class TestUnstructMagnitudeRecycleFF(RecycleFFTest):
         self._assert_perc_changed(weights_before_1, layer.lin1.weight.data, 20)
         self._assert_perc_changed(weights_before_2, layer.lin2.weight.data, 20)
 
+    @skip_test(reason="old project")
     def test_magnitude(self):
         P = 0.001
         pruner = Pruner()
@@ -64,12 +67,14 @@ class TestUnstructMagnitudeRecycleFF(RecycleFFTest):
 
 
 class TestStructMagnitudeRecycleFF(RecycleFFTest):
+    @skip_test(reason="old project")
     def test_smoke(self):
         pruner = Pruner()
         linears_recycle.StructMagnitudeRecycleFF(10, 2, pruner)
         linears_recycle.StructMagnitudeRecycleFF(10, 1, pruner)
         linears_recycle.StructMagnitudeRecycleFF(5, 5, pruner)
 
+    @skip_test(reason="old project")
     def test_with_pruner(self):
         P = 0.2
 

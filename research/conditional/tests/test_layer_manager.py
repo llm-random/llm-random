@@ -17,7 +17,7 @@ class TestLearningStartAdatemp(GeneralTestCase):
         [
             (
                 f"block_{i}_feedforward",
-                ContinuousMoEAdaTemp(1, 1, 1, 1, 1, 1.0, None),
+                ContinuousMoEAdaTemp(1, 1, 1, 1, 1, 1.0, "kaiming_uniform", 1.0, None),
             )
             for i in range(10)
         ]
@@ -50,7 +50,9 @@ class TestLearningStartAdatempPositive(GeneralTestCase):
         [
             (
                 f"block_{i}_feedforward",
-                ContinuousMoEAdaTempPositive(1, 1, 1, 1, 1, 1.0, None),
+                ContinuousMoEAdaTempPositive(
+                    1, 1, 1, 1, 1, 1.0, "kaiming_uniform", 1.0, None
+                ),
             )
             for i in range(10)
         ]

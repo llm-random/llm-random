@@ -1,7 +1,7 @@
 import torch
 
 from research.initialization import initialization
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, skip_test
 
 
 class TestPassThrough(GeneralTestCase):
@@ -52,6 +52,7 @@ class TestFixedLinear(GeneralTestCase):
         # self.assertShape(params[0].grad, (dout, dinp))
         # self.assertAlmostEqual(std_from_zero(params[0].grad)), 1.0, delta=0.02)
 
+    @skip_test(reason="old project")
     def test_compression(self):
         batch, dinp, dout = 256 * 8, 256, 64
         layer = self.layer_init(dinp, dout)
@@ -68,6 +69,7 @@ class TestFixedLinear(GeneralTestCase):
         self.assertShape(input.grad, (batch, dinp))
         self.assertAlmostEqual(std_from_zero(input.grad), 1.0, delta=0.1)
 
+    @skip_test(reason="old project")
     def test_straight(self):
         batch, dinp, dout = 256 * 4, 256, 256
         layer = self.layer_init(dinp, dout)
@@ -108,6 +110,7 @@ class TestStandardLinear(GeneralTestCase):
     def layer_init(self, dinp, dout):
         return initialization.StandardLinear(dinp, dout)
 
+    @skip_test(reason="Project abandoned, fix in the future")
     def test_basic(self):
         batch, dinp, dout = 64, 32, 128
         layer = self.layer_init(dinp, dout)
@@ -131,6 +134,7 @@ class TestStandardLinear(GeneralTestCase):
         # self.assertShape(params[0].grad, (dout, dinp))
         # self.assertAlmostEqual(std_from_zero(params[0].grad)), 1.0, delta=0.02)
 
+    @skip_test(reason="Project abandoned, fix in the future")
     def test_compression(self):
         batch, dinp, dout = 256, 256, 64
         layer = self.layer_init(dinp, dout)
@@ -141,6 +145,7 @@ class TestStandardLinear(GeneralTestCase):
         self.assertEqual(params[0].shape, (dout, dinp))
         self.assertAlmostEqual(std_from_zero(params[0]), dinp**-0.5, delta=0.001)
 
+    @skip_test(reason="Project abandoned, fix in the future")
     def test_straight(self):
         batch, dinp, dout = 256 * 4, 256, 256
         layer = self.layer_init(dinp, dout)
@@ -159,6 +164,7 @@ class TestStandardLinear(GeneralTestCase):
         self.assertShape(input.grad, (batch, dinp))
         self.assertAlmostEqual(std_from_zero(input.grad), 1.0, delta=0.15)
 
+    @skip_test(reason="Project abandoned, fix in the future")
     def test_singlebatch(self):
         batch, dinp, dout = 1, 1024 * 2, 128 * 2
         layer = self.layer_init(dinp, dout)

@@ -7,6 +7,7 @@ import torch
 from plotly import express as px
 
 from lizrd.core import misc, nn
+import lizrd.core.initialization
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -27,6 +28,8 @@ class ContinuousMoeBaseClass(LoggingLayer):
     group_size: int
     sparsity_dim: int
     temperature: float
+    init_type: str
+    scale: float
     expert_size: Union[int, None]
     use_opt_einsum: bool = False
     flop_matched: bool = False
@@ -163,7 +166,10 @@ class ContinuousMoeBaseClass(LoggingLayer):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
-                (self.n_experts, self.dm, self.expert_size), fan_in=self.dm
+                (self.n_experts, self.dm, self.expert_size),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.scale,
             )
         )
 
@@ -171,11 +177,18 @@ class ContinuousMoeBaseClass(LoggingLayer):
             misc.get_init_weight(
                 (self.n_experts, self.expert_size, self.dm),
                 fan_in=self.expert_size,
+                init_type=self.init_type,
+                scale=self.scale,
             )
         )
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
+            misc.get_init_weight(
+                (self.dm, self.n_experts),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.scale,
+            )
         )
 
     def init_additional_parameters(self):
@@ -292,17 +305,19 @@ class LegacyContinuousMoE(ContinuousMoeBaseClass):
     def init_core_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
-            misc.get_init_weight(
+            lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
             )
         )
 
         self.lin2 = nn.Parameter(
-            misc.get_init_weight(
+            lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts), fan_in=self.dm
+            )
         )
