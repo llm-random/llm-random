@@ -121,7 +121,7 @@ def introduce_parser_arguments(
     parser.add_argument("--should_evaluate_dynamic_groupsize", action="store_true")
 
     ## used by MoE (some specific, some common)
-
+    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,

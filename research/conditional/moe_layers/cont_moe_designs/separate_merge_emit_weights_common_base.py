@@ -24,7 +24,7 @@ class ContinuousMoEMergeDifferentlyCommonBase(ContinuousMoeBaseClass):
         self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
-    def init_parameters(self):
+    def init_core_parameters(self):
         self.lin1 = nn.Parameter(
             get_init_weight((self.dm, self.n_experts, self.expert_size), fan_in=self.dm)
         )

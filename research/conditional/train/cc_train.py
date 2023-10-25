@@ -216,6 +216,7 @@ def main(
         is_process_logging=is_process_logging,
         should_evaluate_dynamic_groupsize=args.should_evaluate_dynamic_groupsize,
         decoding_interval=args.decoding_interval,
+        steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
     )
     trainer.train(args.n_steps)
 
