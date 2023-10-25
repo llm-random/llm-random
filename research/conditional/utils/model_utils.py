@@ -314,6 +314,7 @@ def get_common_mot_kwargs(args):
         "flop_matched": args.flop_matched,
         "init_type": args.init_type,
         "init_scale": args.init_scale,
+        "emit_softmax_over_experts": args.emit_softmax_over_experts,
     }
 
 

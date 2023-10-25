@@ -33,6 +33,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
     expert_size: Union[int, None]
     use_opt_einsum: bool = False
     flop_matched: bool = False
+    emit_softmax_over_experts: bool = False
 
     def __post_init__(self):
         super().__init__()
@@ -81,7 +82,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
         # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
         temp_merge, temp_emit = self.get_temperature()
         merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-2)
-        if temp_merge != temp_emit:
+        if temp_merge != temp_emit or self.emit_softmax_over_experts:
             emit_weights = stable_softmax_temperature(merge_logits, temp_emit, dim=-2)
         else:
             emit_weights = merge_weights
