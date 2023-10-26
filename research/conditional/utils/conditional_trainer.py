@@ -320,47 +320,6 @@ class ConditionalTrainer:
                     iteration=step,
                 )
 
-    def _eval_dynamic_groupsizes(self, step):
-        batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
-        while group_size <= 2 * original_group_size and group_size <= self.batch_size:
-            for layer in contmoe_layers:
-                layer.group_size = group_size
-            self.model.eval()
-            total_loss = 0.0
-            total_correct_tokens = 0
-            total_masked_tokens = 0
-            extra_losses = defaultdict(float)
-            for processed_batch in batches:
-                with torch.no_grad():
-                    loss, aux_info = self.calculate_loss_and_maybe_optimize(
-                        processed_batch, should_optimize=False
-                    )
-                total_loss += loss
-                total_correct_tokens += aux_info["correct_tokens"]
-                total_masked_tokens += aux_info["total_masked_tokens"]
-                for name, loss_value in aux_info["losses"].items():
-                    extra_losses[name] += loss_value
-            if self.is_process_logging:
-                self.logger.report_scalar(
-                    title=f"eval/total_loss/gs={group_size}",
-                    value=total_loss / self.n_eval_batches,
-                    iteration=step,
-                )
-                self.logger.report_scalar(
-                    title=f"eval/accuracy/gs={group_size}",
-                    value=total_correct_tokens / total_masked_tokens,
-                    iteration=step,
-                )
-                for name, loss_value in extra_losses:
-                    self.logger.report_scalar(
-                        title=f"eval/{name}/gs={group_size}",
-                        value=loss_value / self.n_eval_batches,
-                        iteration=step,
-                    )
-            group_size *= 2
-        for layer in contmoe_layers:
-            layer.group_size = original_group_size
-
     def calculate_loss_and_maybe_optimize(
         self, processed_batch: LLMBatch, should_optimize: bool
     ):
