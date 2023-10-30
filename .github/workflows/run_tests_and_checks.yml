@@ -43,3 +43,10 @@ jobs:
       if: success() || failure()
       run: |
         python -m autoflake --remove-all-unused-imports -r . --exclude venv,archived_code -c --quiet
+
+    - name: Run unittest
+      if: success() || failure()
+      run: |
+        python -m unittest discover
+      env:
+        NEPTUNE_API_TOKEN: ${{ secrets.NEPTUNE_API_TOKEN }}
