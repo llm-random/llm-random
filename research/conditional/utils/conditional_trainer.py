@@ -16,7 +16,8 @@ from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.model_utils import make_loss_function
+from research.conditional.utils.misc_tools import get_ith_chunk
+from research.conditional.utils.model_utils import make_loss_and_backprop_function
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
@@ -78,7 +79,7 @@ class ConditionalTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
-        self._calculate_loss = make_loss_function(
+        self._calculate_loss = make_loss_and_backprop_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
         self.layer_manager = LayerManager(
@@ -213,13 +214,8 @@ class ConditionalTrainer:
                 iteration=step,
             )
 
-    def _optimize(self, loss, should_apply_gradient=False):
-        # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-        loss /= self.gradient_accumulation_steps
-        if self.gradient_accumulation_steps == 1:
-            self.optimizer.zero_grad()
-        # clear computation graph, store gradients
-        self.scaler.scale(loss).backward()
+    def _optimize(self, additional_loss, should_apply_gradient=False):
+        self.scaler.scale(additional_loss).backward()
         if should_apply_gradient:
             if self.gradient_clipping is not None:
                 self.scaler.unscale_(self.optimizer)
@@ -227,8 +223,7 @@ class ConditionalTrainer:
                     self.model.parameters(), self.gradient_clipping
                 )
             self.scaler.step(self.optimizer)
-            if self.gradient_accumulation_steps > 1:
-                self.optimizer.zero_grad()
+            self.optimizer.zero_grad()
             self.scaler.update()
 
     def _train_step(
@@ -354,19 +349,23 @@ class ConditionalTrainer:
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
+                scaler=self.scaler,
                 vocab_size=self.vocab_size,
+                backward_pass=should_optimize,
+                num_accumulated_batches=self.gradient_accumulation_steps,
             )
 
             # clear computation graph, store gradients, only apply gradients at the end
             should_apply_gradient = i == self.gradient_accumulation_steps - 1
 
-            loss_to_optimize = cross_entropy_loss
+            additional_loss = torch.tensor(0.0).to(cross_entropy_loss.device)
+            additional_loss.requires_grad = True
             for key, value in aux_info["losses"].items():
-                loss_to_optimize += value
+                additional_loss += value
 
             if should_optimize:
                 self._optimize(
-                    loss_to_optimize, should_apply_gradient=should_apply_gradient
+                    additional_loss, should_apply_gradient=should_apply_gradient
                 )
             total_cross_entropy_loss += cross_entropy_loss.item()
             correct_tokens_value += aux_info["correct_tokens"]

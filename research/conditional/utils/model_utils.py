@@ -1,7 +1,6 @@
 from functools import partial
 import torch
 import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
@@ -51,88 +50,89 @@ from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
-def make_loss_function(loss_checkpoint_chungs: int):
+def make_loss_and_backprop_function(loss_checkpoint_chungs: int):
     if loss_checkpoint_chungs == 0:
-        return calculate_llm_loss
+        return calculate_llm_loss_and_backward_pass
     else:
-        return partial(chungized_llm_loss, n_chungs=loss_checkpoint_chungs)
+        return partial(
+            chungized_llm_loss_and_backward_pass, n_chungs=loss_checkpoint_chungs
+        )
 
 
-def chungized_llm_loss(
+def chungized_llm_loss_and_backward_pass(
     batch: LLMBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
+    scaler: torch.cuda.amp.GradScaler,
     n_chungs: int,
+    backward_pass: bool,
+    num_accumulated_batches: int,
 ):
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
-
-    def make_custom_forward():
-        def custom_forward(*inputs):
-            output = model.head(inputs[0])
-            with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
-                gt = inputs[1]
-                mask = inputs[2]
-                gt = gt.to(output.device)
-                loss = F.cross_entropy(
-                    output.reshape(-1, vocab_size),
-                    gt.reshape(-1).long(),
-                    reduction="none",
-                )
-
-                correct_tokens = gt.long() == output.argmax(dim=-1)
-                correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-                correct_tokens = correct_tokens.sum()
-
-                total_tokens = mask.sum()
-
-            return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
-
-        return custom_forward
+    num_masked_tokens = mask.sum()
 
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
-        encoder_output = model.encoder(input_tokens)
-        chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
-        chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
-        chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
+        encoder_output: torch.Tensor = model.encoder(input_tokens)
+    encoder_output_det = encoder_output.detach()
+    encoder_output_det.requires_grad = True
+    chunged_inputs = torch.chunk(encoder_output_det, n_chungs, dim=0)
+    chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
+    chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
-        num_tokens = 0
-        total_loss = 0
-        total_correct_tokens = 0
-        total_masked_tokens = 0
-        for chunged_input, chunged_gt, chunged_mask in zip(
-            chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+    total_loss = 0
+    total_correct_tokens = 0
+    for chunged_input, chunged_gt, chunged_mask in zip(
+        chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+    ):
+        with torch.autocast(
+            device_type="cuda", enabled=mixed_precision, dtype=torch.float16
         ):
-            (
-                partial_loss_output,
-                partial_correct_tokens,
-                partial_masked_tokens,
-            ) = checkpoint(
-                make_custom_forward(), chunged_input, chunged_gt, chunged_mask
-            )
-            num_tokens += partial_loss_output.shape[0]
-            total_loss += partial_loss_output.sum()
-            total_correct_tokens += partial_correct_tokens
-            total_masked_tokens += partial_masked_tokens
+            output = model.head(chunged_input)
+        chunged_gt = chunged_gt.to(output.device)
+        partial_loss_full = F.cross_entropy(
+            output.reshape(-1, vocab_size),
+            chunged_gt.reshape(-1).long(),
+            reduction="none",
+        )
+        partial_loss = partial_loss_full[chunged_mask.reshape(-1) == 1]
 
-        aux_info = {
-            "correct_tokens": total_correct_tokens,
-            "total_masked_tokens": total_masked_tokens,
-            "losses": retrieve_additional_losses(model),
-        }
+        partial_correct_tokens = chunged_gt.long() == output.argmax(dim=-1)
+        partial_correct_tokens = partial_correct_tokens.long().reshape(
+            -1
+        ) * mask.reshape(-1)
+        partial_correct_tokens = partial_correct_tokens.sum()
 
-        return total_loss / num_tokens, aux_info
+        total_loss += partial_loss.sum()
+        total_correct_tokens += partial_correct_tokens
+        if backward_pass:
+            loss = partial_loss.sum() / num_masked_tokens / num_accumulated_batches
+            scaler.scale(loss).backward()
+
+    if backward_pass:
+        encoder_output.backward(encoder_output_det.grad)
+
+    aux_info = {
+        "correct_tokens": total_correct_tokens,
+        "total_masked_tokens": num_masked_tokens,
+        "losses": retrieve_additional_losses(model),
+    }
+
+    return total_loss / num_masked_tokens, aux_info
 
 
-def calculate_llm_loss(
+def calculate_llm_loss_and_backward_pass(
     batch: LLMBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
+    scaler: torch.cuda.amp.GradScaler,
     vocab_size: int,
+    backward_pass: bool,
+    num_accumulated_batches: int,
 ):
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
@@ -154,6 +154,9 @@ def calculate_llm_loss(
     )
     mask_loss = mask_loss[mask.reshape(-1) == 1]
     loss = mask_loss.mean()
+    if backward_pass:
+        loss = loss / num_accumulated_batches
+        scaler.scale(loss).backward()
 
     correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
     correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
