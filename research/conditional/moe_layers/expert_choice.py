@@ -13,6 +13,20 @@ from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 
 
+class GateSoftmax(LoggingLayer):
+    def __init__(self, softmax_over: Literal["tokens", "experts"]):
+        super().__init__()
+        self.softmax_over = softmax_over
+        self.high_precision = True
+
+    def forward(self, gate_out: torch.Tensor):
+        if self.softmax_over == "tokens":
+            gate_out = torch.softmax(gate_out, dim=1)
+        elif self.softmax_over == "experts":
+            gate_out = torch.softmax(gate_out, dim=0)
+        return gate_out
+
+
 class ExpertChoiceFF(LoggingLayer):
     def __init__(
         self,
@@ -96,6 +110,7 @@ class ExpertChoiceFF(LoggingLayer):
             if one_hot_impl
             else self.gating_postprocess_select
         )
+        self.gate_softmax = GateSoftmax(softmax_over=softmax_over)
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -132,10 +147,7 @@ class ExpertChoiceFF(LoggingLayer):
 
         # perform softmax either over tokens for each expert or over experts for each token
         with measure_time(self, "softmax"):
-            if self.softmax_over == "tokens":
-                gate_out = torch.softmax(gate_out, dim=1)
-            elif self.softmax_over == "experts":
-                gate_out = torch.softmax(gate_out, dim=0)
+            gate_out = self.gate_softmax(gate_out)
 
         if self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)

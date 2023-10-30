@@ -8,6 +8,8 @@ import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import MixedPrecision
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
@@ -26,6 +28,7 @@ from research.conditional.utils.model_utils import (
     get_attention_layer,
     get_residual_layer,
 )
+from research.conditional.utils.layer_manager import LayerManager
 
 
 def log_batch(
@@ -128,11 +131,27 @@ def main(
         residual_fn=residual_fn,
     )
 
+    layer_manager = LayerManager(
+        model,
+        args.logging_interval_light,
+        args.logging_interval_heavy,
+        args.steps_until_start_temperature_learn,
+    )
+
     # make model data_distributed if necessary
     if rank is not None:
         print(f"Moving model to cuda:{rank}")
         model = model.to(f"cuda:{rank}")
-        model = DDP(model, device_ids=[rank])
+        model = FSDP(
+            model,
+            device_id=rank,
+            mixed_precision=MixedPrecision(
+                param_dtype=torch.float16,
+                reduce_dtype=torch.float32,
+                _module_classes_to_ignore=layer_manager.high_precision_layers,
+            ),
+            auto_wrap_policy=lambda module, recurse, nonwrapped_numel: True,
+        )
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
