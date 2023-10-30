@@ -63,7 +63,7 @@ class ConditionalTrainer:
     min_eval_group_size: int = 0
     max_eval_group_size: int = 0
     is_process_logging: bool = True
-    should_evaluate_dynamic_groupsize: bool = True
+    should_evaluate_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
 
     def __attrs_post_init__(self):
