@@ -93,8 +93,8 @@ class ExpertChoiceFF(LoggingLayer):
         if self.group_size > 1:
             assert batch_size % self.group_size == 0
             batch_size, seq_len = (
-                batch_size // self.group_size,
-                seq_len * self.group_size,
+                self.group_size,
+                seq_len * (batch_size // self.group_size),
             )
             x = x.reshape(batch_size, seq_len, self.dmodel)
 

@@ -258,13 +258,13 @@ class ConditionalTrainer:
             original_group_size = contmoe_layers[0].group_size
             group_size = max(
                 original_group_size // 2
-                if self.min_eval_group_size is 0
+                if self.min_eval_group_size == 0
                 else self.min_eval_group_size,
                 1,
             )
             max_group_size = min(
                 2 * original_group_size
-                if self.max_eval_group_size is 0
+                if self.max_eval_group_size == 0
                 else self.max_eval_group_size,
                 self.batch_size,
             )
