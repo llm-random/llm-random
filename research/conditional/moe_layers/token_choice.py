@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 
 from lizrd.core import nn
-from lizrd.core.misc import get_init_weight
+from lizrd.core.initialization import get_init_weight
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
@@ -18,6 +18,8 @@ class TokenChoiceFF(LoggingLayer):
         expert_size: int,
         capacity_factor: float,
         load_balancing_loss_weight: float,
+        init_type: str,
+        init_scale: float,
     ):
         """
         Args:
@@ -36,16 +38,30 @@ class TokenChoiceFF(LoggingLayer):
         self.load_balancing_loss_weight = load_balancing_loss_weight
 
         self.lin1_weight = nn.Parameter(
-            get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
+            get_init_weight(
+                shape=(n_experts, dmodel, expert_size),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
-                (n_experts, expert_size, dmodel),
+                shape=(n_experts, expert_size, dmodel),
                 fan_in=int(n_experts * expert_size),
+                init_type=init_type,
+                scale=init_scale,
             )
         )
 
-        self.gate = nn.Parameter(get_init_weight((dmodel, n_experts), fan_in=dmodel))
+        self.gate = nn.Parameter(
+            get_init_weight(
+                shape=(dmodel, n_experts),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)

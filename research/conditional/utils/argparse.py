@@ -29,6 +29,13 @@ def introduce_parser_arguments(
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
+    parser.add_argument(
+        "--init_type",
+        type=str,
+        choices=["kaiming_uniform", "truncated_normal"],
+        required=True,
+    )
+    parser.add_argument("--init_scale", type=float, required=True)
 
     # other training hyperparameters
 
@@ -114,7 +121,7 @@ def introduce_parser_arguments(
     parser.add_argument("--should_evaluate_dynamic_groupsize", action="store_true")
 
     ## used by MoE (some specific, some common)
-
+    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,

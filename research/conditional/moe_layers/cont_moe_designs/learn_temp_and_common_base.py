@@ -3,6 +3,7 @@ import dataclasses
 import torch
 
 from lizrd.core import misc, nn
+import lizrd.core.initialization
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
 
@@ -33,7 +34,7 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
         self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
-    def init_parameters(self):
+    def init_core_parameters(self):
         if self.share_by_experts:
             if self.share_by_emit_merge:
                 self.temperature_emit = nn.Parameter(torch.ones(1))
@@ -50,23 +51,29 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
                 self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
 
         self.lin1 = nn.Parameter(
-            misc.get_init_weight(
+            lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
             )
         )
         self.lin2 = nn.Parameter(
-            misc.get_init_weight(
+            lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
         self.controller_base = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm * 2)
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts), fan_in=self.dm * 2
+            )
         )
         self.controller_merge = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm * 2)
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts), fan_in=self.dm * 2
+            )
         )
         self.controller_emit = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm * 2)
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts), fan_in=self.dm * 2
+            )
         )
 
     def log_light(self):

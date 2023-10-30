@@ -7,6 +7,7 @@ import torch
 from plotly import express as px
 
 from lizrd.core import misc, nn
+import lizrd.core.initialization
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -27,6 +28,8 @@ class ContinuousMoeBaseClass(LoggingLayer):
     group_size: int
     sparsity_dim: int
     temperature: float
+    init_type: str
+    init_scale: float
     expert_size: Union[int, None]
     use_opt_einsum: bool = False
     flop_matched: bool = False
@@ -46,18 +49,14 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 f"expert_size is None, setting it to dff // n_experts = {self.dff // self.n_experts}"
             )
             self.expert_size = self.dff // self.n_experts
-        self.init_parameters()
+        self.init_core_parameters()
+        self.init_additional_parameters()
         self.original_group_size = self.group_size
 
     def forward(self, x):
         x = self.rearrange_for_grouping(x)
-        if self.max_group_size:
-            merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
-            x = self.merge_map_emit(x, merge_weights, None)
-
-        else:
-            merge_weights, emit_weights = self.manygroups_get_merge_and_emit_weights(x)
-            x = self.manygroups_merge_map_emit(x, merge_weights, emit_weights)
+        merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
+        x = self.merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
         return x * (self.group_size / self.original_group_size)
 
@@ -66,41 +65,32 @@ class ContinuousMoeBaseClass(LoggingLayer):
         :param x: normal input tensor of shape (B, S, dmodel)
         :return: x transposed so that the dimension to group over is second last
         """
-
-        if self.group_size == x.shape[self.sparsity_dim]:
-            self.max_group_size = True
-        else:
-            self.max_group_size = False
-
         if self.sparsity_dim == 0:
             x = torch.permute(x, [1, 0, 2])
             return x
         elif self.sparsity_dim == 1:
-            return x
+            raise NotImplementedError
         else:
             raise NotImplementedError
 
     def get_merge_and_emit_weights(self, x):
         # shape of x is free_dimension, aggr_dimension, dmodel
-        merge_logits = torch.matmul(x, self.controller).transpose(1, 2)
-        # shape of merge_logits is free_dimension, aggr_dimension, n_experts
-        merge_weights = stable_softmax_temperature(
-            merge_logits, self.temperature, dim=-1
-        )
-        return merge_weights, merge_weights
-
-    def manygroups_get_merge_and_emit_weights(self, x):
-        # shape of x is free_dimension, aggr_dimension, dmodel
         merge_logits = torch.matmul(
             x.view(x.shape[0], -1, self.group_size, self.dm), self.controller
         )
         # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
-        merge_weights = stable_softmax_temperature(
-            merge_logits, self.temperature, dim=-2
-        )
-        return merge_weights, merge_weights
+        temp_merge, temp_emit = self.get_temperature()
+        merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-2)
+        if temp_merge != temp_emit:
+            emit_weights = stable_softmax_temperature(merge_logits, temp_emit, dim=-2)
+        else:
+            emit_weights = merge_weights
+        return merge_weights, emit_weights
 
-    def manygroups_merge_map_emit(self, x, merge_weights, emit_weights):
+    def get_temperature(self):
+        return self.temperature, self.temperature
+
+    def merge_map_emit(self, x, merge_weights, emit_weights):
         # x shape is free_dimension, aggr_dimension // group_size * group_size, dmodel
         # merge_weights shape is free_dimension, aggr_dimension // group_size, group_size, n_experts
         x = torch.matmul(
@@ -117,28 +107,14 @@ class ContinuousMoeBaseClass(LoggingLayer):
         # permute it to be free_dimension, aggr_dimension // group_size, n_experts, dmodel
         x = (
             torch.matmul(
-                merge_weights,
-                x.view(x.size(0), merge_weights.size(0), -1, x.size(-1)).permute(
+                emit_weights,
+                x.view(x.size(0), emit_weights.size(0), -1, x.size(-1)).permute(
                     1, 2, 0, 3
                 ),
             )
-            .view(merge_weights.size(0), -1, x.size(-1))
+            .view(emit_weights.size(0), -1, x.size(-1))
             .transpose(1, 2)
         )
-        return x
-
-    def merge_map_emit(self, x, merge_weights, emit_weights):
-        # x shape is free_dimension, aggr_dimension, dmodel
-        # merge_weights shape is free_dimension, n_experts, aggr_dimension
-        x = torch.bmm(merge_weights, x)
-        # x shape is free_dimension, n_experts, dmodel ||| lin1 shape is n_experts, dmodel, expert_size
-        x = torch.bmm(x.transpose(0, 1), self.lin1)
-        x = torch.relu_(x)
-        # x shape is n_experts, free_dimension, expert_size ||| lin2 shape is n_experts, expert_size, dmodel
-        x = torch.bmm(x, self.lin2)
-        # x shape is n_experts, free_dimension, dmodel ||| merge_weights shape is free_dimension, aggr_dimension, n_experts
-        # after permute, x shape is free_dimension, dmodel, n_experts, and merge_weights shape is free_dimension, n_experts, aggr_dimension
-        x = torch.bmm(x.permute(1, 2, 0), merge_weights)
         return x
 
     def reshape_into_original(self, x):
@@ -148,15 +124,18 @@ class ContinuousMoeBaseClass(LoggingLayer):
             # shape is free_dimension, aggr_dimension, dmodel
             return x
         elif self.sparsity_dim == 1:
-            return x
+            raise NotImplementedError
         else:
             raise NotImplementedError
 
-    def init_parameters(self):
+    def init_core_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
             misc.get_init_weight(
-                (self.n_experts, self.dm, self.expert_size), fan_in=self.dm
+                (self.n_experts, self.dm, self.expert_size),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.init_scale,
             )
         )
 
@@ -164,12 +143,22 @@ class ContinuousMoeBaseClass(LoggingLayer):
             misc.get_init_weight(
                 (self.n_experts, self.expert_size, self.dm),
                 fan_in=self.expert_size,
+                init_type=self.init_type,
+                scale=self.init_scale,
             )
         )
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
+            misc.get_init_weight(
+                (self.dm, self.n_experts),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
         )
+
+    def init_additional_parameters(self):
+        pass
 
     def log_light(self):
         return {}
@@ -279,20 +268,31 @@ class LegacyContinuousMoE(ContinuousMoeBaseClass):
             raise NotImplementedError("sparsity_dim must be 0 or 1")
         return out
 
-    def init_parameters(self):
+    def init_core_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
-            misc.get_init_weight(
-                (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts, self.expert_size),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.init_scale,
             )
         )
 
         self.lin2 = nn.Parameter(
-            misc.get_init_weight(
-                (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts, self.expert_size),
+                fan_in=self.expert_size,
+                init_type=self.init_type,
+                scale=self.init_scale,
             )
         )
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
-            misc.get_init_weight((self.dm, self.n_experts), fan_in=self.dm)
+            lizrd.core.initialization.get_init_weight(
+                (self.dm, self.n_experts),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
         )

@@ -6,7 +6,7 @@ from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
 from lizrd.core import nn
-from lizrd.core.misc import get_init_weight
+from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -20,6 +20,8 @@ class ExpertChoiceFF(LoggingLayer):
         n_experts: int,
         expert_size: int,
         topk_fraction: float,
+        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_scale: float,
         random_perm: bool = False,
         group_by_batch: bool = False,
         one_hot_impl: bool = False,
@@ -61,16 +63,28 @@ class ExpertChoiceFF(LoggingLayer):
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
 
         self.lin1_weight = nn.Parameter(
-            get_init_weight((n_experts, dmodel, expert_size), fan_in=dmodel)
+            get_init_weight(
+                (n_experts, dmodel, expert_size),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            ),
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
                 (n_experts, expert_size, dmodel),
                 fan_in=int(n_experts * expert_size * topk_fraction),
+                init_type=init_type,
+                scale=init_scale,
             )
         )
         self.gate = nn.Parameter(
-            get_init_weight((dmodel, n_experts), fan_in=dmodel)
+            get_init_weight(
+                (dmodel, n_experts),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
         ).requires_grad_(True)
         self.ln = LayerNorm(dmodel)
         self.softmax_over = softmax_over

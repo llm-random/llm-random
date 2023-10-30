@@ -121,6 +121,8 @@ def main(
         else torch.device(
             "cpu"
         ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
+        init_type=args.init_type,
+        init_scale=args.init_scale,
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
@@ -216,6 +218,7 @@ def main(
         decoding_interval=args.decoding_interval,
         min_eval_group_size=args.min_eval_group_size,
         max_eval_group_size=args.max_eval_group_size,
+        steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
     )
     trainer.train(args.n_steps)
 
