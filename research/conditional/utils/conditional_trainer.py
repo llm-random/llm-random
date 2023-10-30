@@ -13,6 +13,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_ith_chunk
 from research.conditional.utils.model_utils import make_loss_function
@@ -59,8 +60,10 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
+    min_eval_group_size: int = 0
+    max_eval_group_size: int = 0
     is_process_logging: bool = True
-    should_evaluate_dynamic_groupsize: bool = True
+    should_evaluate_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
 
     def __attrs_post_init__(self):
@@ -254,13 +257,24 @@ class ConditionalTrainer:
         if self.should_evaluate_dynamic_groupsize:
             batches = list(batches)
             contmoe_layers = [
-                l for _, l in self.layer_manager._layers if isinstance(l, ContinuousMoE)
+                l
+                for _, l in self.layer_manager._layers
+                if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
             ]
             original_group_size = contmoe_layers[0].group_size
-            group_size = original_group_size // 2
-            while (
-                group_size <= 2 * original_group_size and group_size <= self.batch_size
-            ):
+            group_size = max(
+                original_group_size // 2
+                if self.min_eval_group_size == 0
+                else self.min_eval_group_size,
+                1,
+            )
+            max_group_size = min(
+                2 * original_group_size
+                if self.max_eval_group_size == 0
+                else self.max_eval_group_size,
+                self.batch_size,
+            )
+            while group_size <= max_group_size:
                 for layer in contmoe_layers:
                     layer.group_size = group_size
                 self._batches_eval_step(
