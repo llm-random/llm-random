@@ -4,7 +4,8 @@ md5_parent_hash: cbdf4e5992f41713488c25c819086e51
 
 params:
   project_name: "kamciebiera/testy"
+  name: "rms_test"
 
 
-  ^use_rms_norm: [false, true]
+  ^use_rms_norm: [true, false]
   ^learning_rate: [1e-3, 1e-4]
