@@ -188,6 +188,30 @@ def attention_mechanism(
     return output
 
 
+class AttentionMechanism(nn.Module):
+    def __init__(self, flash: bool, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.high_precision = True
+        self.flash = flash
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        dhead: int,
+        causal: bool,
+    ):
+        return attention_mechanism(
+            query=query,
+            key=key,
+            value=value,
+            dhead=dhead,
+            causal=causal,
+            flash=self.flash,
+        )
+
+
 @ash.check("... d -> ... d")
 class Attention(LoggingLayer):
     def __init__(
@@ -224,6 +248,7 @@ class Attention(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
+        self.attention_mechanism = AttentionMechanism(flash=flash)
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -234,13 +259,8 @@ class Attention(LoggingLayer):
         ).transpose(1, 2)
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
 
-        attention_output = attention_mechanism(
-            query=q,
-            key=k,
-            value=v,
-            dhead=self.dhead,
-            causal=self.causal,
-            flash=self.flash,
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
         )
 
         output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))

@@ -23,6 +23,7 @@ class LayerManager:
         steps_until_start_temperature_learn,
     ):
         self._layers = []
+        self.high_precision_layers = []
         self._register_layers(model)
         self.logger = get_current_logger()
         self.logging_interval_light = logging_interval_light
@@ -41,6 +42,9 @@ class LayerManager:
                         f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected."
                     )
                 self._layers.append((block_name, layer))
+            if hasattr(layer, "high_precision") and layer.high_precision:
+                self.high_precision_layers.append(layer)
+                print(f"registering high precision layer: {name}")
 
     def prepare_for_logging(self, step):
         if (
