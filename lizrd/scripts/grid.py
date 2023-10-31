@@ -29,6 +29,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str)
     parser.add_argument("--git_branch", type=str, default="")
+    parser.add_argument('--neptune_key', type=str, default=None)
     args = parser.parse_args()
     CLUSTER_NAME = get_machine_backend()
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
@@ -104,6 +105,7 @@ if __name__ == "__main__":
 
     slurm_command = "srun" if interactive_debug_session else "sbatch"
 
+
     for i, (training_args, setup_args) in enumerate(grid):
         full_config_path = f"full_config{i}.yaml"
         with open(full_config_path, "w") as f:
@@ -112,6 +114,11 @@ if __name__ == "__main__":
 
         job_name = training_args["name"]
         training_args["n_gpus"] = setup_args["n_gpus"]
+
+        singularity_env_strings = make_singularity_env_variables(
+            hf_datasets_cache=setup_args['hf_datasets_cache']
+            neptune_key=args.neptune_key
+        )
 
         env = None
         runner_params = translate_to_argparse(training_args)
@@ -134,7 +141,8 @@ if __name__ == "__main__":
                 slurm_command,
                 f"--gres=gpu:{setup_args['n_gpus']}",
                 "--partition=plgrid-gpu-a100",
-                f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+                # f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+                "--cpus-per-task=1",
                 "--account=plgplggllmeffi-gpu-a100",
                 f"--job-name={job_name}",
                 f"--time={setup_args['time']}",
@@ -165,7 +173,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 f"--env",
-                f"HF_DATASETS_CACHE={setup_args['hf_datasets_cache']}",
+                f"HF_DATASETS_CACHE={}",
                 f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
                 "--nv",
                 setup_args["singularity_image"],
