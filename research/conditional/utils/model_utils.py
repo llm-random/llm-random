@@ -78,41 +78,41 @@ def chungized_llm_loss_and_backward_pass(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
         encoder_output: torch.Tensor = model.encoder(input_tokens)
-    encoder_output_det = encoder_output.detach()
-    if backward_pass:
-        encoder_output_det.requires_grad = True
-    chunged_inputs = torch.chunk(encoder_output_det, n_chungs, dim=0)
-    chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
-    chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
+        encoder_output_det = encoder_output.detach()
+        if backward_pass:
+            encoder_output_det.requires_grad = True
+        chunged_inputs = torch.chunk(encoder_output_det, n_chungs, dim=0)
+        chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
+        chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
-    total_loss = 0
-    total_correct_tokens = 0
-    for chunged_input, chunged_gt, chunged_mask in zip(
-        chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
-    ):
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+        total_loss = 0
+        total_correct_tokens = 0
+        for chunged_input, chunged_gt, chunged_mask in zip(
+            chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
             output = model.head(chunged_input)
-        chunged_gt = chunged_gt.to(output.device)
-        partial_loss_full = F.cross_entropy(
-            output.reshape(-1, vocab_size),
-            chunged_gt.reshape(-1).long(),
-            reduction="none",
-        )
-        partial_loss = partial_loss_full[chunged_mask.reshape(-1) == 1]
+            with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
+                chunged_gt = chunged_gt.to(output.device)
+                partial_loss_full = F.cross_entropy(
+                    output.reshape(-1, vocab_size),
+                    chunged_gt.reshape(-1).long(),
+                    reduction="none",
+                )
+                partial_loss = partial_loss_full[chunged_mask.reshape(-1) == 1]
 
-        partial_correct_tokens = chunged_gt.long() == output.argmax(dim=-1)
-        partial_correct_tokens = partial_correct_tokens.long().reshape(
-            -1
-        ) * chunged_mask.reshape(-1)
-        partial_correct_tokens = partial_correct_tokens.sum()
+                partial_correct_tokens = chunged_gt.long() == output.argmax(dim=-1)
+                partial_correct_tokens = partial_correct_tokens.long().reshape(
+                    -1
+                ) * chunged_mask.reshape(-1)
+                partial_correct_tokens = partial_correct_tokens.sum()
 
-        total_loss += partial_loss.sum()
-        total_correct_tokens += partial_correct_tokens
-        if backward_pass:
-            loss = partial_loss.sum() / num_masked_tokens / num_accumulated_batches
-            scaler.scale(loss).backward()
+                total_loss += partial_loss.sum()
+                total_correct_tokens += partial_correct_tokens
+                if backward_pass:
+                    loss = (
+                        partial_loss.sum() / num_masked_tokens / num_accumulated_batches
+                    )
+                    scaler.scale(loss).backward()
 
     if backward_pass:
         encoder_output.backward(encoder_output_det.grad)
