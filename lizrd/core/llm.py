@@ -263,11 +263,13 @@ class RMSNorm(nn.Module):
         super().__init__()
         self.eps = eps
         self.g = nn.Parameter(torch.ones(dmodel))
+        self.b = nn.Parameter(torch.zeros(dmodel))
+        self.ps = nn.Parameter(torch.full(dmodel, 2))
 
     def forward(self, x):
-        rms_sq = torch.mean(x**2, dim=-1, keepdim=True)
-        x = x * torch.rsqrt(rms_sq + self.eps)
-        return x * self.g
+        p_norm = torch.mean(torch.pow(x, self.ps), dim=-1, keepdim=True)
+        x = x * torch.pow(p_norm + self.eps, -1 / self.ps)
+        return x * self.g + self.b
 
 
 def RezeroBlock(dmodel, layer, name):
