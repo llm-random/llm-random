@@ -91,27 +91,31 @@ def chungized_llm_loss_and_backward_pass(
             chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
             output = model.head(chunged_input)
-            with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
-                chunged_gt = chunged_gt.to(output.device)
-                partial_loss_full = F.cross_entropy(
-                    output.reshape(-1, vocab_size),
-                    chunged_gt.reshape(-1).long(),
-                    reduction="none",
-                )
-                partial_loss = partial_loss_full[chunged_mask.reshape(-1) == 1]
+            chunged_gt = chunged_gt.to(output.device)
+            partial_loss_full = F.cross_entropy(
+                output.reshape(-1, vocab_size),
+                chunged_gt.reshape(-1).long(),
+                reduction="none",
+            )
+            partial_loss = partial_loss_full[chunged_mask.reshape(-1) == 1]
 
-                partial_correct_tokens = chunged_gt.long() == output.argmax(dim=-1)
-                partial_correct_tokens = partial_correct_tokens.long().reshape(
-                    -1
-                ) * chunged_mask.reshape(-1)
-                partial_correct_tokens = partial_correct_tokens.sum()
+            partial_correct_tokens = chunged_gt.long() == output.argmax(dim=-1)
+            partial_correct_tokens = partial_correct_tokens.long().reshape(
+                -1
+            ) * chunged_mask.reshape(-1)
+            partial_correct_tokens = partial_correct_tokens.sum()
 
-                total_loss += partial_loss.sum()
-                total_correct_tokens += partial_correct_tokens
-                if backward_pass:
-                    loss = (
-                        partial_loss.sum() / num_masked_tokens / num_accumulated_batches
+            total_loss += partial_loss.sum()
+            total_correct_tokens += partial_correct_tokens
+            if backward_pass:
+                loss = partial_loss.sum() / num_masked_tokens / num_accumulated_batches
+                if torch.isnan(loss):
+                    raise ValueError(
+                        f"Loss is NaN, num_masked_tokens: {num_masked_tokens}, num_accumulated_batches: {num_accumulated_batches}, loss_dim: {partial_loss.shape}"
                     )
+                with torch.autocast(
+                    device_type="cuda", enabled=False, dtype=torch.float16
+                ):
                     scaler.scale(loss).backward()
 
     if backward_pass:
