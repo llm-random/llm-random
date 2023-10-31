@@ -79,7 +79,8 @@ def chungized_llm_loss_and_backward_pass(
     ):
         encoder_output: torch.Tensor = model.encoder(input_tokens)
     encoder_output_det = encoder_output.detach()
-    encoder_output_det.requires_grad = True
+    if backward_pass:
+        encoder_output_det.requires_grad = True
     chunged_inputs = torch.chunk(encoder_output_det, n_chungs, dim=0)
     chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
     chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
