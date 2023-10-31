@@ -104,7 +104,7 @@ def chungized_llm_loss_and_backward_pass(
         partial_correct_tokens = chunged_gt.long() == output.argmax(dim=-1)
         partial_correct_tokens = partial_correct_tokens.long().reshape(
             -1
-        ) * mask.reshape(-1)
+        ) * chunged_mask.reshape(-1)
         partial_correct_tokens = partial_correct_tokens.sum()
 
         total_loss += partial_loss.sum()
