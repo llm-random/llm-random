@@ -3,14 +3,17 @@ import os
 import random
 from typing import Callable, Optional
 import socket
+from functools import partial
 
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import MixedPrecision
+from torch.distributed.fsdp.wrap import ModuleWrapPolicy, size_based_auto_wrap_policy
 
 from lizrd.core import misc
+from lizrd.core.llm import EmbeddingLayer, TransformerBlock, PredictionHead
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from lizrd.train.train_utils import (
@@ -96,7 +99,7 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = get_attention_layer(args)
+    attention_layer_fun = get_attention_layer(args, rank)
     residual_fn = get_residual_layer(args)
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
@@ -140,17 +143,40 @@ def main(
     # make model data_distributed if necessary
     if rank is not None:
         print(f"Moving model to cuda:{rank}")
-        model = model.to(f"cuda:{rank}")
+        # model = model.to(f"cuda:{rank}")
+        # for module in layer_manager.high_precision_layers:
+        #     module = FSDP(
+        #         module,
+        #         device_id=rank,
+        # mixed_precision=MixedPrecision(
+        #     param_dtype=torch.float32,
+        #     reduce_dtype=torch.float32,
+        #     cast_forward_inputs=True,
+        #     cast_root_forward_inputs=True
+        # ),
+        #     )
+        # fsdp_wrap_modules = (EmbeddingLayer, TransformerBlock, PredictionHead)
+        # for _, module in model.named_modules():
+        # if isinstance(module, fsdp_wrap_modules):
+        #     FSDP(
+        #         module,
+        #         device_id=rank,
+        #         mixed_precision=MixedPrecision(
+        #             param_dtype=torch.bfloat16, reduce_dtype=torch.float32, cast_forward_inputs=True
+        #         ),
+        #     )
         model = FSDP(
             model,
             device_id=rank,
             mixed_precision=MixedPrecision(
-                param_dtype=torch.float16,
+                param_dtype=torch.bfloat16,
                 reduce_dtype=torch.float32,
-                _module_classes_to_ignore=layer_manager.high_precision_layers,
+                cast_forward_inputs=True,
             ),
-            auto_wrap_policy=lambda module, recurse, nonwrapped_numel: True,
+            # auto_wrap_policy=partial(size_based_auto_wrap_policy, min_num_params=100)
         )
+        print("------- MODEL AFTER WRAPPING IN FSDP -------")
+        print(model)
 
     optimizer = torch.optim.AdamW(
         model.parameters(),

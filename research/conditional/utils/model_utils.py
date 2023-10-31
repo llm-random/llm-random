@@ -49,6 +49,8 @@ from research.conditional.moe_layers.continuous_moe import (
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import MixedPrecision
 
 
 def make_loss_function(loss_checkpoint_chungs: int):
@@ -169,17 +171,26 @@ def calculate_llm_loss(
     return loss, aux_info
 
 
-def get_attention_layer(args):
+def get_attention_layer(args, rank):
     causal = args.model_type == "gpt"
 
-    attention_layer_fun = lambda: llm.Attention(
-        dmodel=args.dmodel,
-        heads=args.n_att_heads,
-        causal=causal,
-        dhead=args.dhead,
-        flash=args.flash_attention,
-        init_type=args.init_type,
-        init_scale=args.init_scale,
+    attention_layer_fun = lambda: FSDP(
+        llm.Attention(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            rank=rank,
+        ),
+        device_id=rank,
+        mixed_precision=MixedPrecision(
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.float32,
+            cast_forward_inputs=True,
+        ),
     )
 
     return attention_layer_fun

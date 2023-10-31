@@ -7,11 +7,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
-from lizrd.core.misc import default, Sum
+from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Checkpoint, Linear
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import MixedPrecision
 
 
 def decode_bias_string(bias):
@@ -177,11 +179,15 @@ def attention_mechanism(
 
         a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
         a = a * (1 / dhead**0.5)
+        # print(f"type of a: {a.dtype}")
+        # a = a.type(torch.float32)
+        # print(f"type of a: {a.dtype}")
         if causal:
             a.masked_fill_(
                 torch.tril(torch.ones_like(a)) == 0, float("-inf")
             )  # mask out future tokens
         a = torch.softmax(a, dim=-1)
+        # a = a.type(torch.bfloat16)
         output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
         output = output.transpose(1, 2)
 
@@ -221,6 +227,7 @@ class Attention(LoggingLayer):
         causal,
         init_type: str,
         init_scale: float,
+        rank: int,
         dhead=None,
         flash=False,
     ):
@@ -241,14 +248,34 @@ class Attention(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.output_projection = Linear(
-            heads * dhead,
-            dmodel,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
+        self.output_projection = FSDP(
+            Linear(
+                heads * dhead,
+                dmodel,
+                bias=False,
+                init_type=init_type,
+                init_scale=init_scale,
+            ),
+            device_id=rank,
+            mixed_precision=MixedPrecision(
+                param_dtype=torch.bfloat16,
+                reduce_dtype=torch.float32,
+                cast_forward_inputs=True
+            ),
         )
         self.attention_mechanism = AttentionMechanism(flash=flash)
+        # self.attention_mechanism.to(f"cuda:{rank}")
+        # print(f"Attention mechanism on cuda:{rank}")
+        self.attention_mechanism = FSDP(
+            self.attention_mechanism,
+            device_id=rank,
+            mixed_precision=MixedPrecision(
+                param_dtype=torch.float32,
+                reduce_dtype=torch.float32,
+                cast_forward_inputs=True,
+                cast_root_forward_inputs=True,
+            ),
+        )
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -306,13 +333,15 @@ def PreNormBlock(dmodel, layer, name):
     )
 
 
-@ash.check("... d -> ... d")
-def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
-    residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
-    residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
-    if gradient_checkpointing:
-        residual_layers = [Checkpoint(layer) for layer in residual_layers]
-    return nn.Sequential(*residual_layers)
+class TransformerBlock(nn.Sequential):
+    def __init__(self, dmodel, layers, gradient_checkpointing, residual_fn):
+        residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
+        residual_layers = [
+            residual_fn(layer=layer, name=name) for name, layer in layers
+        ]
+        if gradient_checkpointing:
+            residual_layers = [Checkpoint(layer) for layer in residual_layers]
+        super(TransformerBlock, self).__init__(*residual_layers)
 
 
 @ash.check("... d -> ... d")
@@ -419,16 +448,16 @@ class PositionalEmbedding(nn.Module):
         return embeddings
 
 
-@ash.check("... -> ... d")
-def EmbeddingLayer(*layers):
-    return Sum(*layers)
+class EmbeddingLayer(Aggregate):
+    def __init__(self, *layers):
+        super(EmbeddingLayer, self).__init__((lambda x, y: x + y), *layers)
 
 
-@ash.check("... inp -> ... out")
-def PredictionHead(embedding_dim, output_size, init_type, init_scale):
-    return Linear(
-        embedding_dim, output_size, init_type=init_type, init_scale=init_scale
-    )
+class PredictionHead(Linear):
+    def __init__(self, embedding_dim, output_size, init_type, init_scale):
+        super(PredictionHead, self).__init__(
+            embedding_dim, output_size, init_type=init_type, init_scale=init_scale
+        )
 
 
 @ash.check("... -> ... out")
