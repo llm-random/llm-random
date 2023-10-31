@@ -264,7 +264,7 @@ class RMSNorm(nn.Module):
         self.eps = eps
         self.g = nn.Parameter(torch.ones(dmodel))
         self.b = nn.Parameter(torch.zeros(dmodel))
-        self.ps = nn.Parameter(torch.full(dmodel, 2))
+        self.ps = nn.Parameter(torch.full((dmodel,), 2.0))
 
     def forward(self, x):
         p_norm = torch.mean(torch.pow(x, self.ps), dim=-1, keepdim=True)
