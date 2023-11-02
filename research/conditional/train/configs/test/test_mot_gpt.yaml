@@ -22,7 +22,7 @@ params:
   model_type: gpt
   ff_mode: cont_moe
   n_experts: 16
-  group_size: 2
+  group_size: 4
   sparsity_dim: 0
   temperature: 1.0
   flop_matched: true
