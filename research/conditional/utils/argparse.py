@@ -110,6 +110,8 @@ def introduce_parser_arguments(
     # paremeters for specific experiments
     ## used often by Continuous MoE
 
+    parser.add_argument("--emit_softmax_over_experts", action="store_true")
+    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument("--n_experts", type=int)
     parser.add_argument("--group_size", type=int)
     parser.add_argument("--sparsity_dim", type=int)
@@ -121,7 +123,6 @@ def introduce_parser_arguments(
     parser.add_argument("--should_evaluate_dynamic_groupsize", action="store_true")
 
     ## used by MoE (some specific, some common)
-    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
