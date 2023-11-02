@@ -5,8 +5,8 @@ import torch
 from torch.utils.data import DataLoader
 
 from lizrd.text import datasets, data, tokenizers
-from .packer import BlankPacker
 from research.datasets import DataloaderWrapper, worker_init_fn
+from .packer import BlankPacker
 
 
 def get_processed_dataset(
