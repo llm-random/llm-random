@@ -9,7 +9,7 @@ import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import MixedPrecision
+from torch.distributed.fsdp import MixedPrecision, CPUOffload
 from torch.distributed.fsdp.wrap import ModuleWrapPolicy, size_based_auto_wrap_policy
 
 from lizrd.core import misc
@@ -184,6 +184,7 @@ def main(
                 reduce_dtype=torch.float32,
                 cast_forward_inputs=True,
             ),
+            cpu_offload=CPUOffload(offload_params=True)
             # auto_wrap_policy=ModuleWrapPolicy(
             #     (EmbeddingLayer, TransformerBlock, PredictionHead)
             # ),
