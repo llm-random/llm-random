@@ -35,7 +35,7 @@ class ConditionalTrainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
-    n_eval_steps: int
+    eval_interval: int
     n_eval_batches: int
     max_sequence_length: int
     batch_size: int
@@ -55,7 +55,7 @@ class ConditionalTrainer:
     gradient_accumulation_steps: int = 1
     log_gradients_and_weights: bool = False
     loss_log_intervals: tuple[int] = (1, 10, 100, 1000)
-    decoding_logging_steps: int = 5_000
+    decoding_interval: int = 5_000
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
@@ -70,10 +70,6 @@ class ConditionalTrainer:
         self.loss_accumulators["loss"] = SN(
             acc=0.0, interval=self.logging_interval_loss
         )
-        if self.model_type == "bert":
-            self.loss_accumulators["legacy_bert_bugged_loss"] = SN(
-                acc=0.0, interval=self.logging_interval_loss
-            )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
@@ -101,6 +97,7 @@ class ConditionalTrainer:
         print("Saving weights... ")
         if (
             self.save_weights_path is not None
+            and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
             checkpoint = {
@@ -137,13 +134,13 @@ class ConditionalTrainer:
 
             if (
                 self.model_type == "gpt"
-                and self.decoding_logging_steps > 0
-                and step % self.decoding_logging_steps == 0
+                and self.decoding_interval > 0
+                and step % self.decoding_interval == 0
                 and self.is_process_logging
             ):
                 self._decode_samples(step)
 
-            if step % self.n_eval_steps == 0:
+            if step % self.eval_interval == 0:
                 self._eval_step(step)
 
             t2 = time.time()
@@ -235,13 +232,6 @@ class ConditionalTrainer:
             processed_batch, should_optimize=True
         )
         if self.is_process_logging:
-            if self.model_type == "bert":
-                mask_percent = self.mask_percent
-                numel = processed_batch.input_ids.numel()
-                real_mask_percent = aux_info["total_masked_tokens"] / numel
-                aux_info["legacy_bert_bugged_loss_multiplier"] = (
-                    real_mask_percent / mask_percent
-                )
             self._log_train_stats(loss, step, aux_info)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
@@ -277,7 +267,7 @@ class ConditionalTrainer:
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
-            for name, loss_value in extra_losses:
+            for name, loss_value in extra_losses.items():
                 self.logger.report_scalar(
                     title=f"eval/{name}",
                     value=loss_value / self.n_eval_batches,
@@ -339,13 +329,7 @@ class ConditionalTrainer:
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
-            if name == "legacy_bert_bugged_loss":
-                bert_legacy_loss = (
-                    loss_value * aux_info["legacy_bert_bugged_loss_multiplier"]
-                )
-                stats.acc += bert_legacy_loss
-            else:
-                stats.acc += loss_value
+            stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
                 self.logger.report_scalar(
                     title=name,

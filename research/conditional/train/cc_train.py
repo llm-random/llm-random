@@ -160,12 +160,15 @@ def main(
         dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
     )
 
-    logger = get_logger(args, model, VOCAB_SIZE)
-
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
 
-    if args.model_type == "gpt" and (rank is None or rank == 0):
+    if is_process_logging:
+        logger = get_logger(args, model, VOCAB_SIZE)
+    else:
+        logger = None
+
+    if args.model_type == "gpt" and is_process_logging:
         log_batch(
             train_dataloader,
             tokenizer_maker=tokenizers.GPTTokenizer
@@ -190,7 +193,7 @@ def main(
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
-        n_eval_steps=args.n_eval_steps,
+        eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
         save_weights_path=args.save_weights_path,
@@ -202,6 +205,7 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
+        decoding_interval=args.decoding_interval,
     )
     trainer.train(args.n_steps)
 
@@ -225,9 +229,8 @@ if __name__ == "__main__":
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("", 0))
             port = str(s.getsockname()[1])
-
         mp.spawn(
             main,
-            args=[data_seeds, port],
+            args=[data_seeds, port, args],
             nprocs=args.n_gpus,
         )
