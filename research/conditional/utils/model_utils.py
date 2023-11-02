@@ -48,6 +48,7 @@ from research.conditional.moe_layers.continuous_moe import (
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def make_loss_and_backprop_function(loss_checkpoint_chungs: int):
@@ -69,6 +70,8 @@ def chungized_llm_loss_and_backward_pass(
     backward_pass: bool,
     num_accumulated_batches: int,
 ):
+    if isinstance(model, DDP):
+        model = model.module
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
