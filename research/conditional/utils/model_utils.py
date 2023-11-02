@@ -174,23 +174,15 @@ def calculate_llm_loss(
 def get_attention_layer(args, rank):
     causal = args.model_type == "gpt"
 
-    attention_layer_fun = lambda: FSDP(
-        llm.Attention(
-            dmodel=args.dmodel,
-            heads=args.n_att_heads,
-            causal=causal,
-            dhead=args.dhead,
-            flash=args.flash_attention,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-            rank=rank,
-        ),
-        device_id=rank,
-        mixed_precision=MixedPrecision(
-            param_dtype=torch.bfloat16,
-            reduce_dtype=torch.float32,
-            cast_forward_inputs=True,
-        ),
+    attention_layer_fun = lambda: llm.Attention(
+        dmodel=args.dmodel,
+        heads=args.n_att_heads,
+        causal=causal,
+        dhead=args.dhead,
+        flash=args.flash_attention,
+        init_type=args.init_type,
+        init_scale=args.init_scale,
+        rank=rank,
     )
 
     return attention_layer_fun

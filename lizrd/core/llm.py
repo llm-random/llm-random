@@ -194,6 +194,11 @@ def attention_mechanism(
     return output
 
 
+class IgnoredFSDPLinear(Linear):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 class AttentionMechanism(nn.Module):
     def __init__(self, flash: bool, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -249,7 +254,7 @@ class Attention(LoggingLayer):
             init_scale=init_scale,
         )
         self.output_projection = FSDP(
-            Linear(
+            IgnoredFSDPLinear(
                 heads * dhead,
                 dmodel,
                 bias=False,
@@ -260,7 +265,7 @@ class Attention(LoggingLayer):
             mixed_precision=MixedPrecision(
                 param_dtype=torch.bfloat16,
                 reduce_dtype=torch.float32,
-                cast_forward_inputs=True
+                cast_forward_inputs=True,
             ),
         )
         self.attention_mechanism = AttentionMechanism(flash=flash)
@@ -355,6 +360,7 @@ class TransformerTower(nn.Module):
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
+        rank=None,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -376,9 +382,17 @@ class TransformerTower(nn.Module):
             _, current_device = self.get_current_device(i_block)
             name_and_block = (
                 f"block_{i_block}",
-                TransformerBlock(
-                    dmodel, layers_info, gradient_checkpointing, residual_fn
-                ).to(current_device),
+                FSDP(
+                    TransformerBlock(
+                        dmodel, layers_info, gradient_checkpointing, residual_fn
+                    ).to(current_device),
+                    device_id=rank,
+                    mixed_precision=MixedPrecision(
+                        param_dtype=torch.bfloat16,
+                        reduce_dtype=torch.float32,
+                        cast_forward_inputs=True,
+                    ),
+                ),
             )
             self.blocks.append(name_and_block)
         self.blocks = nn.Sequential(OrderedDict(self.blocks))

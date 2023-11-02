@@ -9,6 +9,8 @@ import torch
 import torch.nn.functional as F
 from attr import define
 from torch.utils.tensorboard import SummaryWriter
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import MixedPrecision
 
 from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same
@@ -38,6 +40,7 @@ def get_model(
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
+    rank=None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -54,6 +57,15 @@ def get_model(
             vocab_size, dm, init_type=init_type, init_scale=init_scale
         ).to(first_gpu),
     )
+    embedding_layer = FSDP(
+        embedding_layer,
+        device_id=rank,
+        mixed_precision=MixedPrecision(
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.float32,
+            cast_forward_inputs=True,
+        ),
+    )
 
     layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
     # Python officially preserves dict order since 3.7, so we pass the layer dict
@@ -65,11 +77,21 @@ def get_model(
         device,
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
+        rank=rank,
     )
 
     head = llm.PredictionHead(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(last_gpu)
+    head = FSDP(
+        head,
+        device_id=rank,
+        mixed_precision=MixedPrecision(
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.float32,
+            cast_forward_inputs=True,
+        ),
+    )
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
