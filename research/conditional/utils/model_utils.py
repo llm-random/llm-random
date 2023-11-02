@@ -106,26 +106,25 @@ def chungized_llm_loss_and_backward_pass(
                 ) * chunged_mask.reshape(-1)
                 partial_correct_tokens = partial_correct_tokens.sum()
 
-                if backward_pass:
-                    loss = (
-                        partial_loss.sum() / num_masked_tokens / num_accumulated_batches
-                    )
+            if backward_pass:
+                loss = partial_loss.sum() / num_masked_tokens / num_accumulated_batches
+                with torch.autocast(
+                    device_type="cuda", enabled=False, dtype=torch.float16
+                ):
                     scaler.scale(loss).backward()
             total_loss += partial_loss.sum()
             total_correct_tokens += partial_correct_tokens
 
     if backward_pass:
         encoder_output.backward(encoder_output_det.grad)
-    with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
-    ):
-        aux_info = {
-            "correct_tokens": total_correct_tokens,
-            "total_masked_tokens": num_masked_tokens,
-            "losses": retrieve_additional_losses(model),
-        }
 
-        return total_loss / num_masked_tokens, aux_info
+    aux_info = {
+        "correct_tokens": total_correct_tokens,
+        "total_masked_tokens": num_masked_tokens,
+        "losses": retrieve_additional_losses(model),
+    }
+
+    return total_loss / num_masked_tokens, aux_info
 
 
 def calculate_llm_loss_and_backward_pass(
