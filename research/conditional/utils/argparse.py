@@ -140,6 +140,9 @@ def introduce_parser_arguments(
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
+    parser.add_argument("--simulate_group_size", type=int, default=1)
+    parser.add_argument("--min_eval_group_size", type=int, default=0)
+    parser.add_argument("--max_eval_group_size", type=int, default=0)
 
     parser.add_argument("--kernel_r", type=int, default=256)
     parser.add_argument("--redraw_projections_interval", type=int, default=100)

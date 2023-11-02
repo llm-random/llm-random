@@ -1,0 +1,31 @@
+parent: research/conditional/train/configs/baselines/gpt/small.yaml
+md5_parent_hash: cbdf4e5992f41713488c25c819086e51
+
+params:
+  # technical/common params
+  ff_mode: expert_choice
+  softmax_over: experts
+  group_granular_moe_by_batch: true
+  use_full_einsum: true
+  granular_moe_one_hot_impl: true
+  ^flash_attention: [true]
+  logging_interval_heavy: 1_000_000
+  decoding_interval: 0
+
+  # init
+  init_type: truncated_normal
+  init_scale: 0.1
+
+  # params of expert choice
+  total_experts_width: 65536
+  effective_dff: 2048
+  ^n_experts: [32]
+
+  # ------ FILL IN BELOW ------
+  # n_steps:
+  # scheduler: cosine
+  # learning_rate: 1e-4
+  # lr_warmup_steps:
+  # final_lr_step:
+  # batch_size: 256
+  # cutoff: 256
