@@ -101,9 +101,10 @@ def main(
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
     if args.save_weights_path is not None:
+        filename = args.save_weights_path.split("/")[-1]
         assert (
-            "." not in args.save_weights_path.split("/")[-1]
-        ), f"Do not add .pt or .pth to save_weights_path! It is added automatically, along with step number."
+            "." not in filename
+        ), f"Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
         random_string = generate_random_string(10)
         args.save_weights_path = os.path.join(args.save_weights_path, random_string)
         args.save_weights_path = os.path.abspath(args.save_weights_path)
