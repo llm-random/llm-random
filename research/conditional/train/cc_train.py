@@ -11,7 +11,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
-from lizrd.support.misc import create_zipped_model_fits_params, generate_random_string
+from lizrd.support.misc import create_list_of_params_for_report, generate_random_string
 from lizrd.train.train_utils import (
     get_model,
 )
@@ -186,9 +186,9 @@ def main(
             else tokenizers.BertTokenizer,
         )
 
-    zipped_model_fits_params = (
-        create_zipped_model_fits_params(args)
-        if args.model_fits_params is not None
+    params_for_report = (
+        create_list_of_params_for_report(args)
+        if args.gpu_usage_report_params is not None
         else None
     )
 
@@ -226,8 +226,8 @@ def main(
         min_eval_group_size=args.min_eval_group_size,
         max_eval_group_size=args.max_eval_group_size,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
-        zipped_model_fits_params=zipped_model_fits_params,
-        model_fits_filename=args.model_fits_filename,
+        gpu_usage_report_params=params_for_report,
+        gpu_usage_report_path=args.gpu_usage_report_path,
     )
     trainer.train(args.n_steps)
 
