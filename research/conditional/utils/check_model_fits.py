@@ -1,7 +1,7 @@
 import json
 
 
-def mark_model_fits(filename, params, value):
+def record_gpu_ram_availability(filename, params, value):
     """
     This function is used to mark whether a model fits a certain condition in a json file.
     """

@@ -60,7 +60,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Is table for gradient checkpointing",
     )
-    parser.add_argument("--input_file", default="results.json", type=str)
+    parser.add_argument("--input_file", default="gpu_usage_report.json", type=str)
     parser.add_argument("--group_sizes", default="2,4,8,16,32,64,128,256", type=str)
     parser.add_argument("--output_file", default="output_file", type=str)
     parser.add_argument("--models", default="mini,small,medium,base", type=str)
