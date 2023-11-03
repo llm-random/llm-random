@@ -19,10 +19,15 @@ params:
   dmodel: 64
   dff: 256
   n_blocks: 2
-  "^model_type":
-    - "bert"
-  "^ff_mode":
-    - "vanilla"
+  model_type: gpt
+  ff_mode: cont_moe
+  n_experts: 16
+  group_size: 4
+  sparsity_dim: 0
+  temperature: 1.0
+  flop_matched: true
+  share_by_experts: true
+  share_by_emit_merge: true
   logging_interval_heavy: 2
   logging_interval_loss: 1
   grad_clip: 0.5

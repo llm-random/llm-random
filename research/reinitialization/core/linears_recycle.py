@@ -7,7 +7,8 @@ from torch.nn.init import kaiming_uniform_
 import numpy as np
 import plotly.express as px
 
-from lizrd.core.misc import Linear, get_default_device
+from lizrd.core.misc import get_default_device
+from lizrd.core.misc import Linear
 
 from lizrd.support.logging import (
     get_current_logger,
@@ -74,7 +75,6 @@ class RandomStructRecycleFF(nn.Module):
         # prepare mask according to prob
         probs = torch.rand_like(mask)
         mask[probs <= prob] = 0
-
         # apply mask to lin1
         new_weights = kaiming_uniform_(
             torch.empty_like(self.lin1.weight), a=math.sqrt(5)
@@ -136,8 +136,12 @@ class UnstructMagnitudeRecycleFF(nn.Module):
 class StructMagnitudeRecycleFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner, bias: bool = False):
         super().__init__()
-        self.lin1 = Linear(dmodel, dff, bias=bias)
-        self.lin2 = Linear(dff, dmodel, bias=bias)
+        self.lin1 = Linear(
+            dmodel, dff, init_type="kaiming_uniform", init_scale=1.0, bias=bias
+        )
+        self.lin2 = Linear(
+            dff, dmodel, bias=bias, init_type="kaiming_uniform", init_scale=1.0
+        )
         self.dff = dff
         pruner.register(self)
 

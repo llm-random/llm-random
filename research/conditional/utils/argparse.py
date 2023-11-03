@@ -29,6 +29,13 @@ def introduce_parser_arguments(
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
+    parser.add_argument(
+        "--init_type",
+        type=str,
+        choices=["kaiming_uniform", "truncated_normal"],
+        required=True,
+    )
+    parser.add_argument("--init_scale", type=float, required=True)
 
     # other training hyperparameters
 
@@ -103,6 +110,8 @@ def introduce_parser_arguments(
     # paremeters for specific experiments
     ## used often by Continuous MoE
 
+    parser.add_argument("--emit_softmax_over_experts", action="store_true")
+    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument("--n_experts", type=int)
     parser.add_argument("--group_size", type=int)
     parser.add_argument("--sparsity_dim", type=int)
@@ -111,9 +120,9 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
+    parser.add_argument("--should_evaluate_dynamic_groupsize", action="store_true")
 
     ## used by MoE (some specific, some common)
-
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
@@ -131,6 +140,9 @@ def introduce_parser_arguments(
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
+    parser.add_argument("--simulate_group_size", type=int, default=1)
+    parser.add_argument("--min_eval_group_size", type=int, default=0)
+    parser.add_argument("--max_eval_group_size", type=int, default=0)
 
     parser.add_argument("--kernel_r", type=int, default=256)
     parser.add_argument("--redraw_projections_interval", type=int, default=100)

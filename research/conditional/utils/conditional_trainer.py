@@ -3,7 +3,7 @@ import os.path
 import copy
 from types import SimpleNamespace as SN
 import time
-from typing import Callable, Optional, Literal
+from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from attr import define
@@ -14,6 +14,7 @@ from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.model_utils import make_loss_function
 from research.datasets import DataloaderWrapper
@@ -59,7 +60,11 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
+    min_eval_group_size: int = 0
+    max_eval_group_size: int = 0
     is_process_logging: bool = True
+    should_evaluate_dynamic_groupsize: bool = False
+    steps_until_start_temperature_learn: int = -1
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -77,8 +82,13 @@ class ConditionalTrainer:
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
         self.layer_manager = LayerManager(
-            self.model, self.logging_interval_light, self.logging_interval_heavy
+            self.model,
+            self.logging_interval_light,
+            self.logging_interval_heavy,
+            self.steps_until_start_temperature_learn,
         )
+        # if temp training is delayed, disable it
+        self.layer_manager.manage_learnable_temperature(0)
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -94,7 +104,6 @@ class ConditionalTrainer:
                 )
 
     def _save_weights(self, step):
-        print("Saving weights... ")
         if (
             self.save_weights_path is not None
             and self.save_weights_interval > 0
@@ -111,8 +120,9 @@ class ConditionalTrainer:
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
 
-    def _after_step_operations(self):
+    def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
+        self.layer_manager.manage_learnable_temperature(step)
 
     def train(self, n_steps: int):
         """
@@ -138,13 +148,16 @@ class ConditionalTrainer:
                 and step % self.decoding_interval == 0
                 and self.is_process_logging
             ):
-                self._decode_samples(step)
+                try:
+                    self._decode_samples(step)
+                except:
+                    print("Decoding failed, skipping...")
 
             if step % self.eval_interval == 0:
                 self._eval_step(step)
 
             t2 = time.time()
-            self._after_step_operations()
+            self._after_step_operations(step)
 
             t3 = time.time()
 
@@ -239,14 +252,55 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def _eval_step(self, step):
+    def _eval_step(self, step: int):
+        batches = (self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches))
+        if self.should_evaluate_dynamic_groupsize:
+            batches = list(batches)
+            contmoe_layers = [
+                l
+                for _, l in self.layer_manager._layers
+                if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
+            ]
+            original_group_size = contmoe_layers[0].group_size
+            group_size = max(
+                original_group_size // 2
+                if self.min_eval_group_size == 0
+                else self.min_eval_group_size,
+                1,
+            )
+            max_group_size = min(
+                2 * original_group_size
+                if self.max_eval_group_size == 0
+                else self.max_eval_group_size,
+                self.batch_size,
+            )
+            while group_size <= max_group_size:
+                for layer in contmoe_layers:
+                    layer.group_size = group_size
+                self._batches_eval_step(
+                    batches=batches,
+                    step=step,
+                    eval_variant_name=f"gs={group_size}",
+                )
+                group_size *= 2
+            for layer in contmoe_layers:
+                layer.group_size = original_group_size
+        else:
+            self._batches_eval_step(
+                batches=batches,
+                step=step,
+                eval_variant_name=None,
+            )
+
+    def _batches_eval_step(
+        self, batches: Iterable[LLMBatch], step: int, eval_variant_name: Optional[str]
+    ):
         self.model.eval()
         total_loss = 0.0
         total_correct_tokens = 0
         total_masked_tokens = 0
         extra_losses = defaultdict(float)
-        for _ in range(self.n_eval_batches):
-            processed_batch = self.eval_dataloader.get_batch()
+        for processed_batch in batches:
             with torch.no_grad():
                 loss, aux_info = self.calculate_loss_and_maybe_optimize(
                     processed_batch, should_optimize=False
@@ -258,18 +312,24 @@ class ConditionalTrainer:
                 extra_losses[name] += loss_value
         if self.is_process_logging:
             self.logger.report_scalar(
-                title="eval/total_loss",
+                title=f"eval/total_loss/{eval_variant_name}"
+                if eval_variant_name
+                else "eval/total_loss",
                 value=total_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title="eval/accuracy",
+                title=f"eval/accuracy/{eval_variant_name}"
+                if eval_variant_name
+                else "eval/accuracy",
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
             for name, loss_value in extra_losses.items():
                 self.logger.report_scalar(
-                    title=f"eval/{name}",
+                    title=f"eval/{name}/{eval_variant_name}"
+                    if eval_variant_name is None
+                    else f"eval/{name}",
                     value=loss_value / self.n_eval_batches,
                     iteration=step,
                 )
@@ -448,7 +508,7 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
         for block_name, layer in self.layer_manager._layers:
             layer.expertsize = step + 1
-            layer.init_parameters()
+            layer.init_core_parameters()
             layer.to(torch.device("cuda"))
         loss = self._calculate_loss(
             batch=processed_batch,

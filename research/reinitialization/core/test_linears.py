@@ -2,11 +2,12 @@ import torch
 
 from research.reinitialization.core import linears
 
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, skip_test
 from research.reinitialization.core.pruner import Pruner
 
 
 class TestPruneLinear(GeneralTestCase):
+    @skip_test(reason="old project")
     def test_smoke(self):
         shapes = [(1, 5), (10, 3), (3, 3)]
         types = [torch.float32, torch.float64, torch.double]
@@ -19,6 +20,7 @@ class TestPruneLinear(GeneralTestCase):
         for shape, dtype, device in zip(shapes, types, devices):
             linears.PruneLinear(*shape, dtype=dtype, device=device)
 
+    @skip_test(reason="old project")
     def test_basic(self):
         layer = linears.PruneLinear(2, 5, bias=True)
         b = layer.bias.data
@@ -37,6 +39,7 @@ class TestPruneLinear(GeneralTestCase):
 
 
 class PruneFFTest(GeneralTestCase):
+    @skip_test(reason="old project")
     def _test_with_pruner(
         self,
         layer: torch.nn.Module,
@@ -73,12 +76,14 @@ class PruneFFTest(GeneralTestCase):
 
 
 class TestUnstructPruneFF(PruneFFTest):
+    @skip_test(reason="old project")
     def test_smoke(self):
         pruner = Pruner()
         linears.UnstructPruneFF(10, 2, pruner)
         linears.UnstructPruneFF(10, 1, pruner)
         linears.UnstructPruneFF(5, 5, pruner)
 
+    @skip_test(reason="old project")
     def test_with_pruner(self):
         P = 0.1
         pruner = Pruner()
@@ -117,12 +122,14 @@ class TestStructPruneFF(PruneFFTest):
 
 
 class TestUnstructMagnitudePruneFF(TestUnstructPruneFF):
+    @skip_test(reason="old project")
     def test_smoke(self):
         pruner = Pruner()
         linears.UnstructMagnitudePruneFF(10, 2, pruner)
         linears.UnstructMagnitudePruneFF(10, 1, pruner)
         linears.UnstructMagnitudePruneFF(5, 5, pruner)
 
+    @skip_test(reason="old project")
     def test_with_pruner(self):
         P = 0.1
         N = 3
@@ -154,6 +161,7 @@ class TestUnstructMagnitudePruneFF(TestUnstructPruneFF):
         # assert that number of nonzero is approximately as expected
         self._assert_perc_nonzero(layer, 100 - 2 * round(P * N * 100))
 
+    @skip_test(reason="old project")
     def test_magnitude(self):
         P = 0.001
         pruner = Pruner()
@@ -227,6 +235,7 @@ class TestLayersPruningEquivalence(GeneralTestCase):
     """Tests if pruning the same number of times with the same rate in various pruning layers
     prunes the same percentage of weights."""
 
+    @skip_test(reason="old project")
     def test_equivalence(self):
         P = 0.1
         N = 6

@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 from lizrd.core import misc
 from lizrd.core.llm import decode_bias_string
+from lizrd.core.misc import Linear
 from lizrd.support import ash
 from research.reinitialization.core.pruner import Pruner
 import plotly.express as px
@@ -37,7 +38,7 @@ def create_mask(size: torch.Size) -> torch.nn.parameter.Parameter:
 
 
 @ash.check("... inp -> ... out")
-class PruneLinear(misc.Linear):
+class PruneLinear(Linear):
     """Linear layer with pruning"""
 
     def __init__(self, d_in, d_out, **kwargs):
@@ -118,8 +119,8 @@ def prepare_tensor_for_logging(x, sample_size=2500):
 class LogFF(nn.Module):
     def __init__(self, dmodel: int, dff: int, pruner: Pruner):
         super().__init__()
-        self.lin1 = misc.Linear(dmodel, dff)
-        self.lin2 = misc.Linear(dff, dmodel)
+        self.lin1 = Linear(dmodel, dff)
+        self.lin2 = Linear(dff, dmodel)
         self.initial_weight1 = torch.clone(self.lin1.weight).detach()
         self.initial_weight2 = torch.clone(self.lin2.weight).detach()
         self.register_buffer(
@@ -484,7 +485,7 @@ class LogFF(nn.Module):
             flush()
 
 
-class MagnitudePruneLinear(misc.Linear):
+class MagnitudePruneLinear(Linear):
     """Linear layer with magnitude pruning"""
 
     def __init__(self, d_in, d_out, **kwargs):
@@ -585,11 +586,11 @@ class SeparateDirectionMagnitudeFF(nn.Module):
     ):
         super().__init__()
         bias_first, bias_second = decode_bias_string(bias)
-        self.dir1 = misc.Linear(dmodel, dff, bias=bias_first)
+        self.dir1 = Linear(dmodel, dff, bias=bias_first)
         self.magnitude = nn.parameter.Parameter(
             torch.ones(dff), requires_grad=magnitude_requires_grad
         )
-        self.dir2 = misc.Linear(dff, dmodel, bias=bias_second)
+        self.dir2 = Linear(dff, dmodel, bias=bias_second)
         self.small_grad = small_grad
 
     def normalize(self):

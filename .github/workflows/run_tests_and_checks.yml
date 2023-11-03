@@ -29,6 +29,7 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         python -m pip install -U multiprocess
+        python -m pip freeze
 
     - name: Black code style check
       if: success() || failure()

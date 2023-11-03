@@ -1,10 +1,12 @@
-import torch
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
-from lizrd.core import nn
-from lizrd.support import ash
-from torch.utils.checkpoint import checkpoint
+import torch
 import torch.nn
+from torch.utils.checkpoint import checkpoint
+
+from lizrd.core import nn
+from lizrd.core.initialization import get_init_weight
+from lizrd.support import ash
 
 
 class Noop(nn.Module):
@@ -23,21 +25,6 @@ class ParameterLayer(nn.Module):
     def forward(self, x):
         del x
         return self.parameter
-
-
-def get_init_weight(shape, fan_in, fan_out=None, gain=1.0, dtype=torch.float32):
-    if fan_out is not None:
-        raise ValueError("fan_out unsupported")
-    range_ = gain * (3 / fan_in) ** 0.5
-    return torch.zeros(shape, dtype=dtype).uniform_(-range_, range_)
-
-
-def get_init_bias(shape, fan_in=None, fan_out=None, dtype=torch.float32):
-    if fan_in is not None:
-        raise ValueError("fan_in unsupported")
-    if fan_out is not None:
-        raise ValueError("fan_out unsupported")
-    return torch.zeros(shape, dtype=dtype)
 
 
 def einsum(subscript, *operands, use_opt_einsum=False, **kwargs):
@@ -93,15 +80,17 @@ def DenseEinMix(dinp, dout):
 
 @ash.check("... inp -> ... out")
 class Linear(nn.Linear):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, init_type, init_scale, **kwargs):
         if "bias" not in kwargs:
             kwargs["bias"] = False
         super().__init__(*args, **kwargs)
-
-        # This is to make sure values after the layer keep the variance
-        self.weight.data *= 3**0.5
-        if self.bias is not None:
-            self.bias.data *= 0.0
+        self.weight.data = get_init_weight(
+            shape=self.weight.shape,
+            fan_in=self.in_features,
+            init_type=init_type,
+            scale=init_scale,
+            dtype=self.weight.dtype,
+        )
 
 
 def check_layer_funs(*layer_funs):
