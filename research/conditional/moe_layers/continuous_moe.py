@@ -65,7 +65,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
         :return: x transposed so that the dimension to group over is second last
         """
         if self.sparsity_dim == 0:
-            x = torch.permute(x, [1, 0, 2])  # x = x.transpose(0,1)
+            x = torch.permute(x, [1, 0, 2])
             return x
         elif self.sparsity_dim == 1:
             raise NotImplementedError
