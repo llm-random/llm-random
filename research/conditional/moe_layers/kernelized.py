@@ -1,6 +1,4 @@
 import torch.nn
-from plotly import express as px
-
 from lizrd.core import misc
 from lizrd.core.misc import resolve_activation_name
 from research.conditional.utils.layer_manager import LoggingLayer, measure_time
@@ -146,12 +144,4 @@ class FCKernelized(LoggingLayer):
                 out = torch.einsum("...de,...nd,...n->...ne", context, q, D_inv)
             else:
                 out = torch.einsum("...de,...nd->...ne", context, q)
-        return out
-
-    def log_heavy(self):
-        instr_names = list(self.logging_cache["time"].keys())
-        instr_times = list(self.logging_cache["time"].values())
-        times_fig = px.bar(x=instr_names, y=instr_times)
-        out = {"instruction_times_plot": times_fig}
-        out.update(self.logging_cache["time"])
         return out
