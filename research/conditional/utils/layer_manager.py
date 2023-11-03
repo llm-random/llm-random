@@ -2,6 +2,7 @@ import re
 import time
 from contextlib import contextmanager
 from typing import Union
+from plotly import express as px
 
 import torch
 
@@ -60,9 +61,12 @@ class LayerManager:
         ):
             if step % freq == 0:
                 verbosity_levels.append(level)
+        # if we are actually logging, we also want to log the time
+        if len(verbosity_levels) > 0:
+            verbosity_levels.append(-1)
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
-                if hasattr(layer, "log"):
+                if isinstance(layer, LoggingLayer):
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
                         logging_name = block_name + "/" + name
@@ -132,6 +136,8 @@ class LoggingLayer(nn.Module):
             return self.log_light()
         elif verbosity_level == 2:
             return self.log_heavy()
+        elif verbosity_level == -1:
+            return self.log_time()
         else:
             raise Exception("Invalid verbosity level")
 
@@ -140,6 +146,15 @@ class LoggingLayer(nn.Module):
 
     def log_heavy(self):
         return {}
+
+    def log_time(self):
+        log = {}
+        if "time" in self.logging_cache:
+            instr_names = list(self.logging_cache["time"].keys())
+            instr_times = list(self.logging_cache["time"].values())
+            times_fig = px.bar(x=instr_names, y=instr_times)
+            log["time"] = times_fig
+        return log
 
 
 @contextmanager

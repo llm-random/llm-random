@@ -4,7 +4,6 @@ from typing import Union
 import einops
 import numpy as np
 import torch
-from plotly import express as px
 
 from lizrd.core import misc, nn
 import lizrd.core.initialization
@@ -209,12 +208,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
         log[f"logits/mean"] = merge_logits.mean()
         log[f"logits/std"] = merge_logits.std()
-
-        if "time" in self.logging_cache:
-            instr_names = list(self.logging_cache["time"].keys())
-            instr_times = list(self.logging_cache["time"].values())
-            times_fig = px.bar(x=instr_names, y=instr_times)
-            log["time"] = times_fig
 
         return log
 
