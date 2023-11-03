@@ -127,9 +127,7 @@ class LoggingLayer(nn.Module):
         return self.forward_pass_cache[combined_key]
 
     def log(self, verbosity_level):
-        if verbosity_level == -1:
-            return {}
-        elif verbosity_level == 0:
+        if verbosity_level == 0:
             return self.log_time()
         elif verbosity_level == 1:
             return self.log_light()
