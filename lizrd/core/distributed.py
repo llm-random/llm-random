@@ -40,4 +40,4 @@ def wrap_in_ddp(
     module: nn.Module,
     rank: int,
 ):
-    return DDP(module=module, device_ids=[rank])
+    return DDP(module=module.to(f"cuda:{rank}"), device_ids=[rank])

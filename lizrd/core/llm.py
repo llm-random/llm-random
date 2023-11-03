@@ -201,7 +201,6 @@ class IgnoredFSDPLinear(Linear):
 class AttentionMechanism(nn.Module):
     def __init__(self, flash: bool, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.high_precision = True
         self.flash = flash
 
     def forward(
