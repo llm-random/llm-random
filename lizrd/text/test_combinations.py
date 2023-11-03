@@ -1,4 +1,4 @@
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, heavy_test
 from lizrd.text.data import LLMBatch
 from .datasets import WikiBookDataset
 from .packers import GPTPacker
@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 
 
 class TestCombinations(GeneralTestCase):
+    @heavy_test
     def test_integration(self):
         dataset = WikiBookDataset(1, True)
         tokenizer_maker = GPTTokenizer

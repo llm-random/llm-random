@@ -8,6 +8,7 @@ class AbstractTokenizer(ABC):
     sequence_separator_id: Optional[int]
     mask_id: Optional[int]
     eot_id: Optional[int]
+    blank_id: Optional[int]
 
     @abstractmethod
     def text_to_ids(self, text: str) -> List[int]:
@@ -43,6 +44,7 @@ class GPTTokenizer(AbstractTokenizer):
         self.tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
         disable_tokenizer_warnings(self.tokenizer)
         self.eot_id = self.tokenizer.convert_tokens_to_ids("<|endoftext|>")
+
         assert isinstance(self.eot_id, int)
 
     def text_to_ids(self, text: str) -> List[int]:

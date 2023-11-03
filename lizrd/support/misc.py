@@ -98,3 +98,20 @@ def merge_dicts(a: dict, b: dict, path=[]):
         else:
             a[key] = b[key]
     return a
+
+
+def set_seed(seed):
+    import numpy as np
+    import torch
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    np.random.seed(seed)  # Numpy module.
+    random.seed(seed)  # Python random module.
+
+
+def get_ith_chunk(tensor, chunks, i):
+    import torch
+
+    list_of_chunks = torch.chunk(tensor, chunks, dim=0)
+    return list_of_chunks[i]
