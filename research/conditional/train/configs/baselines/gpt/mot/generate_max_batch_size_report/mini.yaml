@@ -1,0 +1,33 @@
+parent: research/conditional/train/configs/baselines/gpt/mini.yaml
+md5_parent_hash: 019212718f2ace8645ddca8f28f6eaee
+interactive_debug: false
+time: 00:10:00
+n_gpus: 1
+
+params:
+    ^group_size: [2,4,8,16,32,64,128,256]
+    ^gradient_checkpointing: [true,false]
+    ^batch_size: [2,4,8,16,32,64,128,256]
+
+    flash_attention: true
+    n_steps: 3
+    learning_rate: 2e-3
+    n_experts: 512
+    ff_mode: cont_moe
+    flop_matched: true
+    sparsity_dim: 0
+    temperature: 1.0
+    name: memory_usage_grid_mini
+    tags: [MoT, memory, mini]
+    loss_checkpoint_chungs: 64
+    decoding_interval: 0
+    save_weights_interval: 0
+    logging_interval_heavy: 100000000000
+
+    use_dummy_dataset: true
+
+    init_type: "kaiming_uniform"
+    init_scale: 1.0
+
+    model_fits_filename: "results_mini.json"
+    model_fits_params: "dmodel,dff,n_blocks,n_att_heads,group_size,gradient_checkpointing,batch_size"

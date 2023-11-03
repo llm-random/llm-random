@@ -78,3 +78,9 @@ def get_yaml_md5(file_path):
         file_data = f.read()  # read file data into memory
         hash_md5 = hashlib.md5(file_data).hexdigest()
     return hash_md5
+
+
+def create_zipped_model_fits_params(args):
+    params = args.model_fits_params.split(",")
+    values = [str(getattr(args, param)) for param in params]
+    return list(zip(params, values))
