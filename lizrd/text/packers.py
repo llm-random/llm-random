@@ -8,7 +8,7 @@ import numpy as np
 from torch.utils.data import IterableDataset
 
 from lizrd.text.datasets import AbstractDataset
-from lizrd.text.data import LLMExample as LLMExample
+from lizrd.text.data import LLMExample
 from lizrd.text.tokenizers import AbstractTokenizer, BertTokenizer
 
 
