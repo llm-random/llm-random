@@ -74,7 +74,7 @@ def get_model(
         head = llm.PredictionHead(dm, vocab_size).to(last_gpu)
 
     if n_blanks > 0:
-        model = research.blanks.model.BlankLLM(embedding_layer, encoder_tower, head)
+        model = BlankLLM(embedding_layer, encoder_tower, head)
     else:
         model = llm.LLM(embedding_layer, encoder_tower, head)
 

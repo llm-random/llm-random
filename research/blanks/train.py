@@ -13,7 +13,7 @@ from lizrd.core import llm, misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
-from .data import get_processed_dataset
+from .datasets import get_processed_dataset
 from .model import get_model, get_ff_layer
 from lizrd.text import tokenizers
 from .tokenizers import BlankTokenizer
@@ -166,14 +166,6 @@ def main(
 
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
-
-    # if args.model_type == "gpt" and (rank is None or rank == 0):
-    #     log_batch(
-    #         train_dataloader,
-    #         tokenizer_maker=tokenizers.GPTTokenizer
-    #         if args.model_type == "gpt"
-    #         else tokenizers.BertTokenizer,
-    #     )
 
     trainer = BlankTrainer(
         model=model,

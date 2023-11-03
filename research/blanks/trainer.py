@@ -400,8 +400,6 @@ class BlankTrainer:
     def _hack(self, hack_name, step):
         if hack_name == "batch_size":
             self._hack_for_batch_size(step)
-        elif hack_name == "expert_size":
-            self._hack_for_contmoe_expert_size(step)
         else:
             raise ValueError(f"Unknown hack {hack_name}")
 
@@ -427,31 +425,3 @@ class BlankTrainer:
             self.logger.report_scalar(
                 title="max batch size", value=step * self.n_gpus, iteration=step
             )
-
-    def _hack_for_contmoe_expert_size(
-        self,
-        step,
-    ):
-        """
-        This is a hack to easily determine the maximal batch size that can be used with given GPU memory and model size.
-        """
-        assert all(
-            [
-                isinstance(layer, ContinuousMoE)
-                for name, layer in self.layer_manager._layers
-            ]
-        )
-        self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        for block_name, layer in self.layer_manager._layers:
-            layer.expertsize = step + 1
-            layer.init_parameters()
-            layer.to(torch.device("cuda"))
-        loss = self._calculate_loss(
-            batch=processed_batch,
-            model=self.model,
-            mixed_precision=self.mixed_precision,
-            vocab_size=self.vocab_size,
-        )
-        self._optimize(loss, should_apply_gradient=True)
-        self.logger.report_scalar(title="max expert size", value=step, iteration=step)

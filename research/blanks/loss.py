@@ -19,7 +19,7 @@ def make_loss_function(loss_checkpoint_chungs: int, n_blanks: int = 0):
     else:
         if n_blanks > 0:
             raise NotImplementedError(
-                "Loss checkpointing not supported for blanks (yet)"
+                "Loss chungization not supported for blanks (yet)"
             )
         return partial(chungized_llm_loss, n_chungs=loss_checkpoint_chungs)
 
