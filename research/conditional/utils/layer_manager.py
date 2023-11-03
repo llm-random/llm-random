@@ -56,14 +56,11 @@ class LayerManager:
         if step == 0:
             return
         verbosity_levels = []
-        for level, freq in enumerate(
-            [self.logging_interval_light, self.logging_interval_heavy], start=1
-        ):
-            if step % freq == 0:
-                verbosity_levels.append(level)
-        # if we are actually logging, we also want to log the time
-        if len(verbosity_levels) > 0:
-            verbosity_levels.append(-1)
+        if step % self.logging_interval_heavy == 0:
+            verbosity_levels = [2, 1, 0]
+        elif step % self.logging_interval_light == 0:
+            verbosity_levels = [1, 0]
+
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
                 if isinstance(layer, LoggingLayer):
@@ -130,14 +127,14 @@ class LoggingLayer(nn.Module):
         return self.forward_pass_cache[combined_key]
 
     def log(self, verbosity_level):
-        if verbosity_level == 0:
-            return []
+        if verbosity_level == -1:
+            return {}
+        elif verbosity_level == 0:
+            return self.log_time()
         elif verbosity_level == 1:
             return self.log_light()
         elif verbosity_level == 2:
             return self.log_heavy()
-        elif verbosity_level == -1:
-            return self.log_time()
         else:
             raise Exception("Invalid verbosity level")
 
