@@ -3,7 +3,7 @@ import os
 import platform
 from enum import Enum
 from itertools import product
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 class MachineBackend(Enum):
@@ -235,10 +235,14 @@ def list_to_clean_str(l: List[str]) -> str:
 
 
 def get_train_main_function(runner: str):
-    from research.conditional.train.cc_train import main as cc_train_main
-
     if runner == "research.conditional.train.cc_train":
+        from research.conditional.train.cc_train import main as cc_train_main
+
         return cc_train_main
+    elif runner == "research.blanks.train":
+        from research.blanks.train import main as blanks_train_main
+
+        return blanks_train_main
     else:
         raise ValueError(f"Unknown runner: {runner}")
 
@@ -295,3 +299,21 @@ def translate_to_argparse(param_set: dict):
                     runner_params.append(str(v))
 
     return runner_params
+
+
+def make_singularity_env_arguments(
+    hf_datasets_cache_path: Optional[str], neptune_key: Optional[str]
+) -> List[str]:
+    variables_and_values = {}
+
+    if hf_datasets_cache_path is None:
+        variables_and_values["HF_DATASETS_CACHE"] = hf_datasets_cache_path
+
+    if neptune_key is not None:
+        variables_and_values["NEPTUNE_API_TOKEN"] = neptune_key
+
+    return (
+        ["--env", ",".join([f"{k}={v}" for k, v in variables_and_values.items()])]
+        if len(variables_and_values) > 0
+        else []
+    )

@@ -21,6 +21,7 @@ from lizrd.scripts.grid_utils import (
     get_grid_entrypoint,
     get_setup_args_with_defaults,
     translate_to_argparse,
+    make_singularity_env_arguments,
 )
 from lizrd.support.code_copying import copy_code
 from lizrd.support.misc import load_with_inheritance
@@ -29,6 +30,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str)
     parser.add_argument("--git_branch", type=str, default="")
+    parser.add_argument("--neptune_key", type=str, default=None)
     args = parser.parse_args()
     CLUSTER_NAME = get_machine_backend()
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
@@ -51,7 +53,7 @@ if __name__ == "__main__":
 
     assert (
         len(set(interactive_options_per_config)) == 1
-    ), f"`interactive_debug` must be the same for all configs"
+    ), "`interactive_debug` must be the same for all configs"
 
     interactive_debug_session = interactive_options_per_config[0]
 
@@ -86,7 +88,7 @@ if __name__ == "__main__":
             )
         else:
             user_input = input(
-                f"Will run an INTERACTIVE experiment, which will be the first one from the supplied configs. \nContinue? [Y/n]"
+                "Will run an INTERACTIVE experiment, which will be the first one from the supplied configs. \nContinue? [Y/n]"
             )
         if user_input.lower() not in ("", "y", "Y"):
             print("Aborting...")
@@ -100,7 +102,7 @@ if __name__ == "__main__":
         )
         copy_code(newdir_name)
     else:
-        print(f"Running locally, skip copying code to a new directory.")
+        print("Running locally, skip copying code to a new directory.")
 
     slurm_command = "srun" if interactive_debug_session else "sbatch"
 
@@ -112,6 +114,11 @@ if __name__ == "__main__":
 
         job_name = training_args["name"]
         training_args["n_gpus"] = setup_args["n_gpus"]
+
+        singularity_env_arguments = make_singularity_env_arguments(
+            hf_datasets_cache_path=setup_args["hf_datasets_cache"],
+            neptune_key=args.neptune_key,
+        )
 
         env = None
         runner_params = translate_to_argparse(training_args)
@@ -142,8 +149,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 "--bind=/net:/net",
-                f"--env",
-                f"HF_DATASETS_CACHE={setup_args['hf_datasets_cache']}",
+                *singularity_env_arguments,
                 f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
                 "--nv",
                 setup_args["singularity_image"],
@@ -164,8 +170,7 @@ if __name__ == "__main__":
                 get_grid_entrypoint(CLUSTER_NAME),
                 "singularity",
                 "run",
-                f"--env",
-                f"HF_DATASETS_CACHE={setup_args['hf_datasets_cache']}",
+                *singularity_env_arguments,
                 f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
                 "--nv",
                 setup_args["singularity_image"],
@@ -181,8 +186,7 @@ if __name__ == "__main__":
             subprocess_args = [
                 "singularity",
                 "run",
-                f"--env",
-                f"HF_DATASETS_CACHE={setup_args['hf_datasets_cache']}",
+                *singularity_env_arguments,
                 f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
                 "--nv",
                 setup_args["singularity_image"],

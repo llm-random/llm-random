@@ -7,23 +7,20 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
 
-from lizrd.core import misc
+from lizrd.core import llm, misc
 from lizrd.support.logging import get_current_logger, get_logger
-from lizrd.support.misc import generate_random_string, set_seed
-from lizrd.train.train_utils import (
-    get_model,
-)
+from lizrd.support.misc import generate_random_string
+from research.datasets import DataloaderWrapper
+from .datasets import get_processed_dataset
+from .model import get_model, get_ff_layer
 from lizrd.text import tokenizers
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from .tokenizers import BlankTokenizer
+
 from lizrd.train.scheduler import get_scheduler
-from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.argparse import introduce_parser_arguments
-from research.conditional.utils.model_utils import (
-    get_ff_layer,
-    get_attention_layer,
-    get_residual_layer,
-)
+from .trainer import BlankTrainer
+from .argparse import introduce_parser_arguments
 
 
 def log_batch(
@@ -66,11 +63,6 @@ def main(
         if len(extra):
             print("Unknown args:", extra)
 
-    if args.granularity_expert_config:
-        print(
-            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
-        )
-
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
@@ -78,13 +70,7 @@ def main(
         init_process_group("nccl", rank=rank, world_size=args.n_gpus)
         torch.cuda.set_device(rank)
 
-    if args.deterministic_experiment:
-        set_seed(args.torch_seed)
-    VOCAB_SIZE = (
-        tokenizers.BertTokenizer.VOCAB_SIZE
-        if args.model_type == "bert"
-        else tokenizers.GPTTokenizer.VOCAB_SIZE
-    )
+    VOCAB_SIZE = BlankTokenizer.VOCAB_SIZE
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.detect_anomaly:
@@ -92,23 +78,20 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = get_attention_layer(args, rank=rank, fsdp_enabled=args.fsdp)
-    residual_fn = get_residual_layer(args)
+    attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
+
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
     if args.save_weights_path is not None:
-        filename = args.save_weights_path.split("/")[-1]
         assert (
-            "." not in filename
-        ), f"Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
+            "." not in args.save_weights_path
+        ), f"Do not add .pt or .pth to save_weights_path! It is added automatically, along with step number."
         random_string = generate_random_string(10)
         args.save_weights_path = os.path.join(args.save_weights_path, random_string)
         args.save_weights_path = os.path.abspath(args.save_weights_path)
         os.makedirs(args.save_weights_path, exist_ok=True)
-
-    param_precision = torch.bfloat16 if args.mixed_precision else torch.float32
 
     model = get_model(
         max_length=args.cutoff,
@@ -122,19 +105,24 @@ def main(
         else torch.device(
             "cpu"
         ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
-        init_type=args.init_type,
-        init_scale=args.init_scale,
-        ddp_enabled=args.ddp,
-        fsdp_enabled=args.fsdp,
-        wrap_blocks_in_fsdp=args.wrap_blocks_in_fsdp,
-        wrap_attn_and_ff_in_fsdp=args.wrap_attn_and_ff_in_fsdp,
-        param_precision=param_precision,
-        offload_params=args.cpu_offload,
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
-        residual_fn=residual_fn,
-        rank=rank,
+        residual_fn=None,
+        n_blanks=args.n_blanks,
+        blank_id=50257,
+        blanks_add_embedding=args.blanks_add_embedding,
+        blanks_residual=args.blanks_residual,
+        blanks_learnable_weights=args.blanks_learnable_weights,
+        #
+        blank_initial_weight=args.blank_initial_weight,
+        blanks_straight_through=args.blanks_use_straight_through,
     )
+
+    # make model data_distributed if necessary
+    if rank is not None:
+        print(f"Moving model to cuda:{rank}")
+        model = model.to(f"cuda:{rank}")
+        model = DDP(model, device_ids=[rank])
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -153,52 +141,49 @@ def main(
         if data_distributed
         else args.batch_size,
         "seed": args.data_seed if data_seeds is None else data_seeds[rank],
-        "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
+        "tokenizer_maker": BlankTokenizer,
     }
     train_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs, dataset_split="train"
+        **common_dataloaders_kwargs, dataset_split="train", n_blanks=args.n_blanks
     )
+
+    # TODO: replace eval_dataloader with something more sensible
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
-        dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
+        dataset_split="eval"
+        if args.dataset_type == "wikibook"
+        else (
+            "train"
+            if args.dataset_type == "c4" and args.use_dummy_dataset
+            else "validation"
+        ),
+        n_blanks=args.n_blanks,
     )
+
+    logger = get_logger(args, model, VOCAB_SIZE)
 
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
 
-    if is_process_logging:
-        logger = get_logger(args, model, VOCAB_SIZE)
-    else:
-        logger = None
-
-    if args.model_type == "gpt" and is_process_logging:
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=tokenizers.GPTTokenizer
-            if args.model_type == "gpt"
-            else tokenizers.BertTokenizer,
-        )
-
-    trainer = ConditionalTrainer(
+    trainer = BlankTrainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
         eval_dataloader=eval_dataloader,
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
-        mixed_precision=False if args.fsdp else args.mixed_precision,
+        mixed_precision=args.mixed_precision,
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
         lr_scheduler=scheduler,
         hack_name=args.hack_name,
-        model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
-        eval_interval=args.eval_interval,
+        n_eval_steps=args.n_eval_steps,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
         save_weights_path=args.save_weights_path,
@@ -210,11 +195,8 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
-        should_evaluate_dynamic_groupsize=args.should_evaluate_dynamic_groupsize,
-        decoding_interval=args.decoding_interval,
-        min_eval_group_size=args.min_eval_group_size,
-        max_eval_group_size=args.max_eval_group_size,
-        steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
+        decoding_logging_steps=args.decoding_logging_steps,
+        n_blanks=args.n_blanks,
     )
     trainer.train(args.n_steps)
 
@@ -228,7 +210,9 @@ if __name__ == "__main__":
     introduce_parser_arguments(parser)
     args = parser.parse_args()
 
-    if args.ddp or args.fsdp:
+    if args.data_distributed == False:
+        main(None, args=args)
+    else:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 
@@ -236,10 +220,9 @@ if __name__ == "__main__":
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("", 0))
             port = str(s.getsockname()[1])
+
         mp.spawn(
             main,
-            args=[data_seeds, port, args],
+            args=[data_seeds, port],
             nprocs=args.n_gpus,
         )
-    else:
-        main(None, args=args)

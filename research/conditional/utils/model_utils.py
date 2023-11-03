@@ -243,6 +243,7 @@ def get_expert_choice_args(args):
         "one_hot_impl": args.granular_moe_one_hot_impl,
         "softmax_over": args.softmax_over,
         "use_full_einsum": args.use_full_einsum,
+        "group_size": args.simulate_group_size,
         "init_type": args.init_type,
         "init_scale": args.init_scale,
     }
@@ -318,6 +319,7 @@ def get_common_mot_kwargs(args):
         "flop_matched": args.flop_matched,
         "init_type": args.init_type,
         "init_scale": args.init_scale,
+        "emit_softmax_over_experts": args.emit_softmax_over_experts,
     }
 
 

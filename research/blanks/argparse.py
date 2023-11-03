@@ -8,6 +8,7 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
+    parser.add_argument("--tokenizer", type=str, choices=["gpt", "bert"], required=True)
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
@@ -29,13 +30,6 @@ def introduce_parser_arguments(
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
-    parser.add_argument(
-        "--init_type",
-        type=str,
-        choices=["kaiming_uniform", "truncated_normal"],
-        required=True,
-    )
-    parser.add_argument("--init_scale", type=float, required=True)
 
     # other training hyperparameters
 
@@ -64,11 +58,7 @@ def introduce_parser_arguments(
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--mixed_precision", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
-    parser.add_argument("--ddp", action="store_true")
-    parser.add_argument("--fsdp", action="store_true")
-    parser.add_argument("--wrap_blocks_in_fsdp", action="store_true")
-    parser.add_argument("--wrap_attn_and_ff_in_fsdp", action="store_true")
-    parser.add_argument("--cpu_offload", action="store_true")
+    parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,
@@ -76,7 +66,6 @@ def introduce_parser_arguments(
         help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
     )
     parser.add_argument("--detect_anomaly", action="store_true")
-    parser.add_argument("--flash_attention", action="store_true")
 
     # other parameters usually not changed for experiments
 
@@ -97,13 +86,13 @@ def introduce_parser_arguments(
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
-    parser.add_argument("--eval_interval", type=int, default=1000)
+    parser.add_argument("--n_eval_steps", type=int, default=1000)
     parser.add_argument("--n_eval_batches", type=int, default=10)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
     parser.add_argument("--git_branch", type=str, default=None)
-    parser.add_argument("--decoding_interval", type=int, default=0)
+    parser.add_argument("--decoding_logging_steps", type=int, default=5_000)
 
     # model versioning
 
@@ -114,8 +103,6 @@ def introduce_parser_arguments(
     # paremeters for specific experiments
     ## used often by Continuous MoE
 
-    parser.add_argument("--emit_softmax_over_experts", action="store_true")
-    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument("--n_experts", type=int)
     parser.add_argument("--group_size", type=int)
     parser.add_argument("--sparsity_dim", type=int)
@@ -124,9 +111,9 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
-    parser.add_argument("--should_evaluate_dynamic_groupsize", action="store_true")
 
     ## used by MoE (some specific, some common)
+
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
@@ -144,9 +131,6 @@ def introduce_parser_arguments(
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
-    parser.add_argument("--simulate_group_size", type=int, default=1)
-    parser.add_argument("--min_eval_group_size", type=int, default=0)
-    parser.add_argument("--max_eval_group_size", type=int, default=0)
 
     parser.add_argument("--kernel_r", type=int, default=256)
     parser.add_argument("--redraw_projections_interval", type=int, default=100)
@@ -199,5 +183,13 @@ def introduce_parser_arguments(
     parser.add_argument("--hack_name", type=str, default=None)
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
+
+    # blanx
+    parser.add_argument("--n_blanks", type=int, default=0)
+    parser.add_argument("--blanks_add_embedding", action="store_true")
+    parser.add_argument("--blanks_residual", action="store_true")
+    parser.add_argument("--blanks_learnable_weights", action="store_true")
+    parser.add_argument("--blank_initial_weight", type=float, default=1.0)
+    parser.add_argument("--blanks_use_straight_through", action="store_true")
 
     return parser
