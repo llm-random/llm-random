@@ -9,11 +9,10 @@ import torch
 import torch.nn.functional as F
 from attr import define
 from torch.utils.tensorboard import SummaryWriter
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import MixedPrecision
 
 from lizrd.core import llm
 from lizrd.core.misc import are_state_dicts_the_same
+from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
 from lizrd.datasets import wikibookdata
 import lizrd.datasets.processed_batch
 from lizrd.support.logging import AbstractLogger
@@ -37,6 +36,12 @@ def get_model(
     device: torch.device,
     init_type,
     init_scale,
+    ddp_enabled: bool,
+    fsdp_enabled: bool,
+    wrap_blocks_in_fsdp: bool,
+    wrap_attn_and_ff_in_fsdp: bool,
+    param_precision: bool,
+    offload_params: bool,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
@@ -57,17 +62,27 @@ def get_model(
             vocab_size, dm, init_type=init_type, init_scale=init_scale
         ).to(first_gpu),
     )
-    embedding_layer = FSDP(
-        embedding_layer,
-        device_id=rank,
-        mixed_precision=MixedPrecision(
-            param_dtype=torch.bfloat16,
-            reduce_dtype=torch.float32,
-            cast_forward_inputs=True,
-        ),
+    embedding_layer = wrap_in_fsdp(
+        enabled=wrap_blocks_in_fsdp,
+        module=embedding_layer,
+        rank=rank,
+        param_precision=param_precision,
+        offload_params=offload_params,
     )
 
-    layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
+    def attn_ff_wrap_fn(module):
+        return wrap_in_fsdp(
+            enabled=wrap_attn_and_ff_in_fsdp,
+            rank=rank,
+            module=module,
+            param_precision=param_precision,
+            offload_params=offload_params,
+        )
+
+    layer_dict = {
+        "attention": lambda: attn_ff_wrap_fn(attention_layer_fun()),
+        "feedforward": lambda: attn_ff_wrap_fn(ff_layer_fun()),
+    }
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
         n_blocks,
@@ -83,17 +98,27 @@ def get_model(
     head = llm.PredictionHead(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(last_gpu)
-    head = FSDP(
-        head,
-        device_id=rank,
-        mixed_precision=MixedPrecision(
-            param_dtype=torch.bfloat16,
-            reduce_dtype=torch.float32,
-            cast_forward_inputs=True,
-        ),
+    head = wrap_in_fsdp(
+        enabled=wrap_blocks_in_fsdp,
+        module=head,
+        rank=rank,
+        param_precision=param_precision,
+        offload_params=offload_params,
     )
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
+    if ddp_enabled:
+        model = wrap_in_ddp(module=model, rank=rank)
+    else:
+        model = wrap_in_fsdp(
+            enabled=fsdp_enabled,
+            module=model,
+            rank=rank,
+            param_precision=param_precision,
+            cast_inputs=True,
+            offload_params=offload_params,
+            print_model=True,
+        )
 
     return model
 

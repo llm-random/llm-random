@@ -49,8 +49,6 @@ from research.conditional.moe_layers.continuous_moe import (
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import MixedPrecision
 
 
 def make_loss_function(loss_checkpoint_chungs: int):

@@ -2,6 +2,7 @@ from typing import Optional
 
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import MixedPrecision, CPUOffload
+from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.nn as nn
 import torch
 
@@ -10,7 +11,7 @@ def wrap_in_fsdp(
     enabled: bool,
     module: nn.Module,
     rank: Optional[int],
-    param_precision: torch.dtype = torch.bfloat16,
+    param_precision: torch.dtype,
     cast_inputs: bool = False,
     offload_params: bool = False,
     print_model: bool = False,
@@ -33,3 +34,10 @@ def wrap_in_fsdp(
             print(wrapped)
             print("--------------------------------------------")
         return wrapped
+
+
+def wrap_in_ddp(
+    module: nn.Module,
+    rank: int,
+):
+    return DDP(module=module, device_ids=[rank])

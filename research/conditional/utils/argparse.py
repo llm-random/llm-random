@@ -64,7 +64,11 @@ def introduce_parser_arguments(
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--mixed_precision", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
-    parser.add_argument("--data_distributed", action="store_true")
+    parser.add_argument("--ddp", action="store_true")
+    parser.add_argument("--fsdp", action="store_true")
+    parser.add_argument("--wrap_blocks_in_fsdp", action="store_true")
+    parser.add_argument("--wrap_attn_and_ff_in_fsdp", action="store_true")
+    parser.add_argument("--cpu_offload", action="store_true")
     parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,

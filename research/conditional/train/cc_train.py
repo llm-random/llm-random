@@ -3,23 +3,12 @@ import os
 import random
 from typing import Callable, Optional
 import socket
-from functools import partial
 
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import MixedPrecision, CPUOffload
-from torch.distributed.fsdp.wrap import ModuleWrapPolicy, size_based_auto_wrap_policy
 
 from lizrd.core import misc
-from lizrd.core.llm import (
-    EmbeddingLayer,
-    TransformerBlock,
-    PredictionHead,
-    AttentionMechanism,
-    IgnoredFSDPLinear,
-)
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from lizrd.train.train_utils import (
@@ -36,7 +25,6 @@ from research.conditional.utils.model_utils import (
     get_attention_layer,
     get_residual_layer,
 )
-from research.conditional.utils.layer_manager import LayerManager
 
 
 def log_batch(
@@ -120,6 +108,8 @@ def main(
         args.save_weights_path = os.path.abspath(args.save_weights_path)
         os.makedirs(args.save_weights_path, exist_ok=True)
 
+    param_precision = torch.bfloat16 if args.mixed_precision else torch.float32
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -134,32 +124,17 @@ def main(
         ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
+        ddp_enabled=args.ddp,
+        fsdp_enabled=args.fsdp,
+        wrap_blocks_in_fsdp=args.wrap_blocks_in_fsdp,
+        wrap_attn_and_ff_in_fsdp=args.wrap_attn_and_ff_in_fsdp,
+        param_precision=param_precision,
+        offload_params=args.cpu_offload,
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
         rank=rank,
     )
-
-    # make model data_distributed if necessary
-    if rank is not None:
-        print(f"Moving model to cuda:{rank}")
-        ignored = []
-        for _, module in model.named_modules():
-            if isinstance(module, (AttentionMechanism, IgnoredFSDPLinear)):
-                ignored.append(module)
-        model = FSDP(
-            model,
-            device_id=rank,
-            mixed_precision=MixedPrecision(
-                param_dtype=torch.bfloat16,
-                reduce_dtype=torch.float32,
-                cast_forward_inputs=True,
-            ),
-            cpu_offload=CPUOffload(offload_params=True)
-        )
-        print("------- MODEL AFTER WRAPPING IN FSDP -------")
-        print(model)
-        print("--------------------------------------------")
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -219,7 +194,7 @@ def main(
         eval_dataloader=eval_dataloader,
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
-        mixed_precision=args.mixed_precision,
+        mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
@@ -257,9 +232,7 @@ if __name__ == "__main__":
     introduce_parser_arguments(parser)
     args = parser.parse_args()
 
-    if args.data_distributed == False:
-        main(None, args=args)
-    else:
+    if args.ddp or args.fsdp:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 
@@ -272,3 +245,5 @@ if __name__ == "__main__":
             args=[data_seeds, port, args],
             nprocs=args.n_gpus,
         )
+    else:
+        main(None, args=args)
