@@ -350,6 +350,9 @@ class TransformerTower(nn.Module):
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
         rank=None,
+        wrap_blocks_in_fsdp=False,
+        param_precision=torch.float32,
+        offload_params=False,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -369,11 +372,19 @@ class TransformerTower(nn.Module):
                 layer.block_number = i_block
 
             _, current_device = self.get_current_device(i_block)
+            block = TransformerBlock(
+                dmodel, layers_info, gradient_checkpointing, residual_fn
+            ).to(current_device)
+            block = wrap_in_fsdp(
+                enabled=wrap_blocks_in_fsdp,
+                module=block,
+                rank=rank,
+                param_precision=param_precision,
+                offload_params=offload_params,
+            )
             name_and_block = (
                 f"block_{i_block}",
-                TransformerBlock(
-                    dmodel, layers_info, gradient_checkpointing, residual_fn
-                ).to(current_device),
+                block,
             )
             self.blocks.append(name_and_block)
         self.blocks = nn.Sequential(OrderedDict(self.blocks))
