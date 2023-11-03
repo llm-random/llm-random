@@ -1,9 +1,10 @@
-from lizrd.support.test_utils import GeneralTestCase
+from lizrd.support.test_utils import GeneralTestCase, heavy_test
 from pathlib import Path
 import subprocess
 
 
 class TestIntegrated(GeneralTestCase):
+    @heavy_test
     def test_dummy_train(self):
         """
         Test if the training loop runs without crashing, using dummy data
