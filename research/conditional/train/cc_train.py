@@ -140,38 +140,9 @@ def main(
         rank=rank,
     )
 
-    layer_manager = LayerManager(
-        model,
-        args.logging_interval_light,
-        args.logging_interval_heavy,
-        args.steps_until_start_temperature_learn,
-    )
-
     # make model data_distributed if necessary
     if rank is not None:
         print(f"Moving model to cuda:{rank}")
-        # model = model.to(f"cuda:{rank}")
-        # for module in layer_manager.high_precision_layers:
-        #     module = FSDP(
-        #         module,
-        #         device_id=rank,
-        # mixed_precision=MixedPrecision(
-        #     param_dtype=torch.float32,
-        #     reduce_dtype=torch.float32,
-        #     cast_forward_inputs=True,
-        #     cast_root_forward_inputs=True
-        # ),
-        #     )
-        # fsdp_wrap_modules = (EmbeddingLayer, TransformerBlock, PredictionHead)
-        # for _, module in model.named_modules():
-        # if isinstance(module, fsdp_wrap_modules):
-        #     FSDP(
-        #         module,
-        #         device_id=rank,
-        #         mixed_precision=MixedPrecision(
-        #             param_dtype=torch.bfloat16, reduce_dtype=torch.float32, cast_forward_inputs=True
-        #         ),
-        #     )
         ignored = []
         for _, module in model.named_modules():
             if isinstance(module, (AttentionMechanism, IgnoredFSDPLinear)):
@@ -185,12 +156,6 @@ def main(
                 cast_forward_inputs=True,
             ),
             cpu_offload=CPUOffload(offload_params=True)
-            # auto_wrap_policy=ModuleWrapPolicy(
-            #     (EmbeddingLayer, TransformerBlock, PredictionHead)
-            # ),
-            # ignored_modules=ignored
-            # TODO: dodać tu ignored_modules
-            # auto_wrap_policy=partial(size_based_auto_wrap_policy, min_num_params=100)
         )
         print("------- MODEL AFTER WRAPPING IN FSDP -------")
         print(model)
