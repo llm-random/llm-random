@@ -1,15 +1,20 @@
-parent: research/conditional/train/configs/baselines/gpt/base.yaml
-md5_parent_hash: 1cc2f52ca625d4d24f327c4874413d0c
+parent: research/conditional/train/configs/baselines/gpt/medium.yaml
+md5_parent_hash: 335962f2f67ef04105ef58db9f3da0d7
+name: saturation_test_medium_ch
+time: 1-00:00:00
+n_gpus: 1
 
 params:
   # technical/common params
+  name: saturation_test_medium_ch
   ff_mode: expert_choice
   softmax_over: experts
   group_granular_moe_by_batch: true
   use_full_einsum: true
   granular_moe_one_hot_impl: true
-  ^flash_attention: [true]
+  flash_attention: true
   logging_interval_heavy: 1_000_000
+  loss_checkpoint_chungs: 8
   decoding_interval: 0
 
   # init
@@ -18,4 +23,14 @@ params:
 
   # params of expert choice
   total_experts_width: 65536
-  effective_dff: 2048
+  ^effective_dff: [1536, 2048, 3076]
+  n_experts: 128
+
+  # ------ FILL IN BELOW ------
+  n_steps: 50_000
+  scheduler: cosine
+  learning_rate: 1e-4
+  lr_warmup_steps: 5000
+  final_lr_step: 50_000
+  batch_size: 256
+  cutoff: 256
