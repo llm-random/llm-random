@@ -10,10 +10,9 @@ from lizrd.core import misc
 from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Checkpoint, Linear
+from lizrd.core.distributed import wrap_in_fsdp
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import MixedPrecision
 
 
 def decode_bias_string(bias):
@@ -232,7 +231,10 @@ class Attention(LoggingLayer):
         causal,
         init_type: str,
         init_scale: float,
-        rank: int,
+        fsdp_enabled: bool = False,
+        rank: Optional[int] = None,
+        param_precision: Optional[torch.dtype] = None,
+        offload_params: bool = False,
         dhead=None,
         flash=False,
     ):
@@ -253,34 +255,21 @@ class Attention(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.output_projection = FSDP(
-            IgnoredFSDPLinear(
-                heads * dhead,
-                dmodel,
-                bias=False,
-                init_type=init_type,
-                init_scale=init_scale,
-            ),
-            device_id=rank,
-            mixed_precision=MixedPrecision(
-                param_dtype=torch.bfloat16,
-                reduce_dtype=torch.float32,
-                cast_forward_inputs=True,
-            ),
+        self.output_projection = Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = wrap_in_fsdp(
+            enabled=fsdp_enabled,
+            module=self.output_projection,
+            rank=rank,
+            param_precision=param_precision,
+            offload_params=offload_params,
         )
         self.attention_mechanism = AttentionMechanism(flash=flash)
-        # self.attention_mechanism.to(f"cuda:{rank}")
-        # print(f"Attention mechanism on cuda:{rank}")
-        self.attention_mechanism = FSDP(
-            self.attention_mechanism,
-            device_id=rank,
-            mixed_precision=MixedPrecision(
-                param_dtype=torch.float32,
-                reduce_dtype=torch.float32,
-                cast_forward_inputs=True,
-                cast_root_forward_inputs=True,
-            ),
-        )
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -382,17 +371,9 @@ class TransformerTower(nn.Module):
             _, current_device = self.get_current_device(i_block)
             name_and_block = (
                 f"block_{i_block}",
-                FSDP(
-                    TransformerBlock(
-                        dmodel, layers_info, gradient_checkpointing, residual_fn
-                    ).to(current_device),
-                    device_id=rank,
-                    mixed_precision=MixedPrecision(
-                        param_dtype=torch.bfloat16,
-                        reduce_dtype=torch.float32,
-                        cast_forward_inputs=True,
-                    ),
-                ),
+                TransformerBlock(
+                    dmodel, layers_info, gradient_checkpointing, residual_fn
+                ).to(current_device),
             )
             self.blocks.append(name_and_block)
         self.blocks = nn.Sequential(OrderedDict(self.blocks))

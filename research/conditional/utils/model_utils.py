@@ -169,7 +169,7 @@ def calculate_llm_loss(
     return loss, aux_info
 
 
-def get_attention_layer(args, rank):
+def get_attention_layer(args, rank, fsdp_enabled):
     causal = args.model_type == "gpt"
 
     attention_layer_fun = lambda: llm.Attention(
@@ -180,7 +180,10 @@ def get_attention_layer(args, rank):
         flash=args.flash_attention,
         init_type=args.init_type,
         init_scale=args.init_scale,
+        fsdp_enabled=fsdp_enabled,
         rank=rank,
+        param_precision=torch.bfloat16 if args.mixed_precision else torch.float32,
+        offload_params=args.cpu_offload,
     )
 
     return attention_layer_fun

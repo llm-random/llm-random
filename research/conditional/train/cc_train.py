@@ -93,7 +93,7 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = get_attention_layer(args, rank)
+    attention_layer_fun = get_attention_layer(args, rank=rank, fsdp_enabled=args.fsdp)
     residual_fn = get_residual_layer(args)
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
@@ -194,7 +194,7 @@ def main(
         eval_dataloader=eval_dataloader,
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
-        mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
+        mixed_precision=False if args.fsdp else args.mixed_precision,
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
