@@ -10,7 +10,7 @@ opt-einsum==3.3.0
 line-profiler==4.0.3
 einops==0.4.0
 tensorflow==2.8.0
-datasets==2.9.0
+datasets==2.14.6
 transformers==4.29.1
 apache-beam==2.47.0
 black==23.1.0

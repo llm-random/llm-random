@@ -29,6 +29,7 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         python -m pip install -U multiprocess
+        python -m pip freeze
 
     - name: Black code style check
       if: success() || failure()
@@ -43,3 +44,10 @@ jobs:
       if: success() || failure()
       run: |
         python -m autoflake --remove-all-unused-imports -r . --exclude venv,archived_code -c --quiet
+
+    - name: Run unittest
+      if: success() || failure()
+      run: |
+        python -m unittest discover
+      env:
+        NEPTUNE_API_TOKEN: ${{ secrets.NEPTUNE_API_TOKEN }}
