@@ -177,7 +177,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
         merge_logits = self.logging_cache["merge_logits"]
         merge_weights = self.logging_cache["merge_weights"]
         emit_weights = self.logging_cache["emit_weights"]
-        print("shapes are", merge_weights.shape, emit_weights.shape)
 
         max_entropy = np.log(self.group_size)
 
