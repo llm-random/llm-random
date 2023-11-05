@@ -53,13 +53,13 @@ class LayerManager:
                     layer.prepare_for_logging()
 
     def log(self, step):
-        if step == 0:
-            return
         verbosity_levels = []
         if step % self.logging_interval_heavy == 0:
             verbosity_levels = [2, 1, 0]
         elif step % self.logging_interval_light == 0:
             verbosity_levels = [1, 0]
+
+        should_clean_up = len(verbosity_levels) > 0
 
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
@@ -70,6 +70,10 @@ class LayerManager:
                         self.logger.report_generic_info(
                             title=logging_name, iteration=step, data=data
                         )
+        if should_clean_up:
+            for _, layer in self._layers:
+                if isinstance(layer, LoggingLayer):
+                    layer.clean_up_after_logging()
 
     def manage_learnable_temperature(self, step):
         is_learning_temperature = step >= self.steps_until_start_temperature_learn
@@ -93,25 +97,25 @@ class LoggingLayer(nn.Module):
         self.logging_cache = {}
         self.forward_pass_cache: Union[dict, None] = None
 
-    def report_stats(self):
+    def clean_up_after_logging(self):
         assert self.logging_switch
         self.logging_switch = False
-        data = self.logging_cache
         self.logging_cache = {}
-        return data
 
     def prepare_for_logging(self):
         self.logging_switch = True
 
     def update_cache_for_logging(self, key, value):
         if self.logging_switch:
-            if type(value) == dict:
+            if isinstance(value, dict):
                 if key in self.logging_cache:
                     self.logging_cache[key].update(value)
                 else:
                     self.logging_cache[key] = value
-            else:
+            elif isinstance(value, torch.Tensor):
                 self.logging_cache[key] = value.clone().detach().cpu()
+            else:
+                raise NotImplementedError
 
     def _combine_to_dict_key(self, key, layer_type, block_number):
         return f"block_{block_number}_{layer_type}_{key}"

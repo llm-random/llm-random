@@ -178,8 +178,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
         merge_weights = self.logging_cache["merge_weights"]
         emit_weights = self.logging_cache["emit_weights"]
 
-        max_entropy = np.log(self.group_size)
-
         merge_entropy_dim = -2
         if self.emit_softmax_over_experts:
             emit_entropy_dim = -1
@@ -203,11 +201,13 @@ class ContinuousMoeBaseClass(LoggingLayer):
         ]:
             log[f"{name}/mean"] = weights.mean()
             log[f"{name}/std"] = weights.std()
+            max_entropy = np.log(weights.size(entropy_dim))
             normalized_entropy = entropy(weights, dim=entropy_dim) / max_entropy
+            breakpoint()
             log[f"{name}/normalised_entropy/mean"] = normalized_entropy.mean()
-            log[f"{name}/normalised_entropy/mean"] = normalized_entropy.std()
+            log[f"{name}/normalised_entropy/std"] = normalized_entropy.std()
 
-        log[f"logits/mean"] = merge_logits.mean()
+        log[f"logits/mean"] = 1e4 * (merge_logits * 1e-4).mean()
         log[f"logits/std"] = merge_logits.std()
 
         return log
