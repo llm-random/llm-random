@@ -203,7 +203,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
             log[f"{name}/std"] = weights.std()
             max_entropy = np.log(weights.size(entropy_dim))
             normalized_entropy = entropy(weights, dim=entropy_dim) / max_entropy
-            breakpoint()
             log[f"{name}/normalised_entropy/mean"] = normalized_entropy.mean()
             log[f"{name}/normalised_entropy/std"] = normalized_entropy.std()
 
