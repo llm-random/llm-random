@@ -2,6 +2,7 @@ import re
 import time
 from contextlib import contextmanager
 from typing import Union
+from plotly import express as px
 
 import torch
 
@@ -52,23 +53,27 @@ class LayerManager:
                     layer.prepare_for_logging()
 
     def log(self, step):
-        if step == 0:
-            return
         verbosity_levels = []
-        for level, freq in enumerate(
-            [self.logging_interval_light, self.logging_interval_heavy], start=1
-        ):
-            if step % freq == 0:
-                verbosity_levels.append(level)
+        if step % self.logging_interval_heavy == 0:
+            verbosity_levels = [2, 1, 0]
+        elif step % self.logging_interval_light == 0:
+            verbosity_levels = [1, 0]
+
+        should_clean_up = len(verbosity_levels) > 0
+
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
-                if hasattr(layer, "log"):
+                if isinstance(layer, LoggingLayer):
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
                         logging_name = block_name + "/" + name
                         self.logger.report_generic_info(
                             title=logging_name, iteration=step, data=data
                         )
+        if should_clean_up:
+            for _, layer in self._layers:
+                if isinstance(layer, LoggingLayer):
+                    layer.clean_up_after_logging()
 
     def manage_learnable_temperature(self, step):
         is_learning_temperature = step >= self.steps_until_start_temperature_learn
@@ -92,25 +97,25 @@ class LoggingLayer(nn.Module):
         self.logging_cache = {}
         self.forward_pass_cache: Union[dict, None] = None
 
-    def report_stats(self):
+    def clean_up_after_logging(self):
         assert self.logging_switch
         self.logging_switch = False
-        data = self.logging_cache
         self.logging_cache = {}
-        return data
 
     def prepare_for_logging(self):
         self.logging_switch = True
 
     def update_cache_for_logging(self, key, value):
         if self.logging_switch:
-            if type(value) == dict:
+            if isinstance(value, dict):
                 if key in self.logging_cache:
                     self.logging_cache[key].update(value)
                 else:
                     self.logging_cache[key] = value
-            else:
+            elif isinstance(value, torch.Tensor):
                 self.logging_cache[key] = value.clone().detach().cpu()
+            else:
+                raise NotImplementedError
 
     def _combine_to_dict_key(self, key, layer_type, block_number):
         return f"block_{block_number}_{layer_type}_{key}"
@@ -127,7 +132,7 @@ class LoggingLayer(nn.Module):
 
     def log(self, verbosity_level):
         if verbosity_level == 0:
-            return []
+            return self.log_time()
         elif verbosity_level == 1:
             return self.log_light()
         elif verbosity_level == 2:
@@ -140,6 +145,15 @@ class LoggingLayer(nn.Module):
 
     def log_heavy(self):
         return {}
+
+    def log_time(self):
+        log = {}
+        if "time" in self.logging_cache:
+            instr_names = list(self.logging_cache["time"].keys())
+            instr_times = list(self.logging_cache["time"].values())
+            times_fig = px.bar(x=instr_names, y=instr_times)
+            log["time"] = times_fig
+        return log
 
 
 @contextmanager

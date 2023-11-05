@@ -38,6 +38,6 @@ def stable_softmax_temperature(x, temperature, dim=-1):
     return x
 
 
-def entropy(x):
-    ent = -torch.sum(x * torch.log(x + 1e-8), dim=-1)
+def entropy(x, dim):
+    ent = -torch.sum(x * torch.log(x + 1e-8), dim=dim)
     return ent
