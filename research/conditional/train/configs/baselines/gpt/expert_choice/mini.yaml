@@ -1,0 +1,9 @@
+parent: research/conditional/train/configs/baselines/expert_choice/common.yaml
+md5_parent_hash: 5d92a8b4ef428b471391eec0414ac4ff
+name: "expert_choice_mini"
+
+params:
+  dmodel: 256
+  n_blocks: 4
+  n_att_heads: 4
+

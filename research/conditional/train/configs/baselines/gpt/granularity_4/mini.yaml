@@ -1,0 +1,6 @@
+arent: research/conditional/train/configs/baselines/expert_choice/mini.yaml
+md5_parent_hash: 1cc2f52ca625d4d24f327c4874413d0c
+name: "granular_4_mini"
+
+params:
+  granularity: 4

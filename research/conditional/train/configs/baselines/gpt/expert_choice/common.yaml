@@ -1,0 +1,21 @@
+parent: research/conditional/train/configs/baselines/gpt/common.yaml
+md5_parent_hash: 1cc2f52ca625d4d24f327c4874413d0c
+name: "expert_choice"
+
+params:
+  # technical/common params
+  ff_mode: expert_choice
+  softmax_over: experts
+  group_granular_moe_by_batch: true
+  use_full_einsum: true
+  granular_moe_one_hot_impl: true
+
+  # params
+  expansion_rate: 32
+  granularity: 1
+  effective_dff_x: 4
+
+
+  # init
+  init_type: truncated_normal
+  init_scale: 0.1

@@ -1,5 +1,5 @@
 parent: research/conditional/train/configs/baselines/common.yaml
-md5_parent_hash: 07160dfb7bc619d49d83caa40cb658af
+md5_parent_hash: 5d92a8b4ef428b471391eec0414ac4ff
 
 params:
   model_type: gpt

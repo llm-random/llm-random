@@ -1,17 +1,18 @@
-time: "2-00:00:00"
+runner: "research.conditional.train.cc_train"
+time: 1-00:00:00
 n_gpus: 1
 interactive_debug: false
-runner: "research.conditional.train.cc_train"
+name: "baseline"
 
 # train params
 params:
   # base bass
   mixed_precision: true
+  flash_attention: true
 
   # logging etc.
   use_neptune: true
   project_name: "pmtest/llm-random"
-  name: "f-bench"
   logging_interval_heavy: 5000
   logging_interval_loss: 1000
   save_weights_path: "model_ckpt"
@@ -20,10 +21,10 @@ params:
   # shallower bass
   cutoff: 256
   batch_size: 256
-  n_steps: 275_000
+  n_steps: 250_000
   scheduler: cosine
+  learning_rate: 1e-4
   lr_warmup_steps: 2500
-  final_lr_step: 250_000
   final_lr_fraction: 0.1
 
   grad_clip: 0.5

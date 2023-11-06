@@ -1,9 +1,6 @@
-parent: research/conditional/train/configs/baselines/gpt/mini.yaml
-md5_parent_hash: 019212718f2ace8645ddca8f28f6eaee
+parent: research/conditional/train/configs/baselines/expert_choice/mini.yaml
+md5_parent_hash: 1b313fc3b6e4080051377be3b808b8f9
 name: grouping_test
-
-# gpus
-n_gpus: 1
 
 # time
 time: 0-05:00:00
@@ -12,49 +9,17 @@ interactive_debug: true
 params:
   n_steps: 25_000
   lr_warmup_steps: 2500
-  final_lr_step: 25_000
-  final_lr_fraction: 0.1
-  name: grouping_test
 
-  # technical/common params
-  ff_mode: expert_choice
-  softmax_over: experts
-  group_granular_moe_by_batch: true
-  use_full_einsum: true
-  granular_moe_one_hot_impl: true
-  decoding_interval: 0
-  ^flash_attention: [true]
   should_evaluate_dynamic_groupsize: true
   n_eval_batches: 10
   eval_interval: 10
-  init_type: truncated_normal
-  init_scale: 0.1
   ^simulate_group_size: [8]
-
-  # params of expert choice
-  #total_experts_width: 32768
-  #effective_dff: 1024
-  #n_experts: 32
-  #min_eval_group_size: 32
-  #max_eval_group_size: 256
-  #batch_size: 256
 
   # DEBUG TODO REMOVE
   dataset_type: wikibook  # TODO TYLKO TO JEST TEST REMOVE
   min_eval_group_size: 4
   max_eval_group_size: 16
   batch_size: 16
-  total_experts_width:  128
-  effective_dff: 64
-  n_experts: 32
+  cutoff: 16
   dmodel: 64
   n_blocks: 1
-
-
-  # params of expert choice
-
-  # tags
-  tags: ["grouping_test"]
-
-  # param to tune
-  ^learning_rate: [1e-4]

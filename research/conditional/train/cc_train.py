@@ -70,7 +70,7 @@ def main(
 
     if args.granularity_expert_config:
         print(
-            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
+            "`--granularity_expert_config` is deprecated. Missing granularity_4 arguments are now always computed automatically."
         )
 
     if rank is not None:

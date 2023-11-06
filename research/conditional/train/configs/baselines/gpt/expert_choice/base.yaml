@@ -1,8 +1,8 @@
 arent: research/conditional/train/configs/baselines/expert_choice/common.yaml
 md5_parent_hash: cbdf4e5992f41713488c25c819086e51
-name: "expert_choice_small"
+name: "expert_choice_base"
 
 params:
-  dmodel: 512
-  n_blocks: 4
-  n_att_heads: 8
+  dmodel: 768
+  n_blocks: 12
+  n_att_heads: 12

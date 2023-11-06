@@ -137,6 +137,9 @@ def introduce_parser_arguments(
         help="This argument is deprecated. Provide either (total_experts_width, n_experts, effective_dff) or (expert_size, n_experts, topk_fraction) instead.",
     )
     parser.add_argument("--total_experts_width", type=int)
+    parser.add_argument("--granularity_4", type=int)
+    parser.add_argument("--expansion_rate", type=int)
+    parser.add_argument("--effective_dff_x", type=int)
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
