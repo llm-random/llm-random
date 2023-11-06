@@ -332,12 +332,6 @@ class ExpertChoiceFF(LoggingLayer):
             )
         )  # make sure bincount takes into account the whole range of indexes
         indexes_choose_counts = chosen_indexes.bincount()
-
-        # make bar plot of values cached in forward with measure_time
-        instr_names = list(self.logging_cache["time"].keys())
-        instr_times = list(self.logging_cache["time"].values())
-        times_fig = px.bar(x=instr_names, y=instr_times)
-
         return {
             "gradient of gate distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_topk_vals": make_histogram(
@@ -347,7 +341,6 @@ class ExpertChoiceFF(LoggingLayer):
                 self.logging_cache["gate_softmax_all_values"].flatten()
             ),
             "indexes_choose_counts": make_histogram(indexes_choose_counts),
-            "instruction_times": times_fig,
             **{
                 f"gating_heatmap_{i}": make_heatmap(
                     self.logging_cache["unflatten_gate_out"], i

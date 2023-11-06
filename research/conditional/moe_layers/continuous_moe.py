@@ -4,11 +4,9 @@ from typing import Union
 import einops
 import numpy as np
 import torch
-from plotly import express as px
 
 from lizrd.core import misc, nn
 import lizrd.core.initialization
-from lizrd.support.logging import make_histogram
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -79,6 +77,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
         merge_logits = torch.matmul(
             x.view(x.shape[0], -1, self.group_size, self.dm), self.controller
         )
+        self.update_cache_for_logging("merge_logits", merge_logits)
         # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
         temp_merge, temp_emit = self.get_temperature()
         merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-2)
@@ -90,13 +89,15 @@ class ContinuousMoeBaseClass(LoggingLayer):
             )
         else:
             emit_weights = merge_weights
+        self.update_cache_for_logging("merge_weights", merge_weights)
+        self.update_cache_for_logging("emit_weights", emit_weights)
         return merge_weights, emit_weights
 
     def get_temperature(self):
         return self.temperature, self.temperature
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        # x shape is free_dimension, aggr_dimension // group_size * group_size, dmodel
+        # x shape is free_dimension, aggr_dimension, dmodel
         # merge_weights shape is free_dimension, aggr_dimension // group_size, group_size, n_experts
         x = torch.matmul(
             merge_weights.transpose(-1, -2),
@@ -172,47 +173,47 @@ class ContinuousMoeBaseClass(LoggingLayer):
         log = {}
         if self.group_size == 1:
             return log
-        merge_weights = torch.flatten(
-            self.logging_cache["merge_weights"], start_dim=0, end_dim=-2
-        )
-        merge_logits = torch.flatten(
-            self.logging_cache["merge_logits"], start_dim=0, end_dim=-2
-        )
-        sample_weight_distros = merge_weights[:5]
-        sample_logits_distros = merge_logits[:5]
 
-        for i, sample in enumerate(sample_weight_distros):
-            sample = sample.sort(descending=True).values
-            sample = sample.tolist()
-            fig = px.bar(x=range(len(sample)), y=sample, title=f"sample {i}")
-            log[f"merge_weights/sample_{i}"] = fig
+        merge_logits = self.logging_cache["merge_logits"]
+        merge_weights = self.logging_cache["merge_weights"]
+        emit_weights = self.logging_cache["emit_weights"]
 
-        for i, sample in enumerate(sample_logits_distros):
-            sample = sample.sort(descending=True).values
-            sample = sample.tolist()
-            fig = px.bar(x=range(len(sample)), y=sample, title=f"sample {i}")
-            log[f"merge_logits/sample_{i}"] = fig
+        merge_entropy_dim = -2
+        if self.emit_softmax_over_experts:
+            emit_entropy_dim = -1
+        else:
+            emit_entropy_dim = -2
 
-        ent = entropy(merge_weights)
-        max_entropy = np.log(self.group_size)
-        normalised_ent = ent / max_entropy
-        log["merge_weights/normalised_entropy"] = make_histogram(
-            normalised_ent, title="merge logits entropy (normalised to [0,1])"
-        )
+        merge_weights_sum = merge_weights.sum(dim=merge_entropy_dim)
+        emit_weights_sum = emit_weights.sum(dim=emit_entropy_dim)
 
-        if "time" not in self.logging_cache:
-            return log
-        instr_names = list(self.logging_cache["time"].keys())
-        instr_times = list(self.logging_cache["time"].values())
-        times_fig = px.bar(x=instr_names, y=instr_times)
-        log["time"] = times_fig
+        # assure that the entropy dimensions above are correct for both merge and emit weights
+        assert torch.allclose(
+            merge_weights_sum, torch.ones_like(merge_weights_sum)
+        ), f"merge_weights_sum = {merge_weights_sum} does not sum to 1 along dim {merge_entropy_dim}"
+        assert torch.allclose(
+            emit_weights_sum, torch.ones_like(emit_weights_sum)
+        ), f"emit_weights_sum = {emit_weights_sum} does not sum to 1 along dim {emit_entropy_dim}"
+
+        for name, weights, entropy_dim in [
+            ("merge_weights", merge_weights, merge_entropy_dim),
+            ("emit_weights", emit_weights, emit_entropy_dim),
+        ]:
+            log[f"{name}/mean"] = weights.mean()
+            log[f"{name}/std"] = weights.std()
+            max_entropy = np.log(weights.size(entropy_dim))
+            normalized_entropy = entropy(weights, dim=entropy_dim) / max_entropy
+            log[f"{name}/normalised_entropy/mean"] = normalized_entropy.mean()
+            log[f"{name}/normalised_entropy/std"] = normalized_entropy.std()
+
+        log[f"logits/mean"] = 1e4 * (merge_logits * 1e-4).mean()
+        log[f"logits/std"] = merge_logits.std()
 
         return log
 
 
 class ContinuousMoE(ContinuousMoeBaseClass):
-    def log_heavy(self):
-        return {}
+    pass
 
 
 class LegacyContinuousMoE(ContinuousMoeBaseClass):

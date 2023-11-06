@@ -1,4 +1,3 @@
-import plotly.express as px
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
@@ -169,11 +168,6 @@ class TokenChoiceFF(LoggingLayer):
         return output
 
     def log_heavy(self):
-        # make bar plot of values cached in forward with measure_time
-        instr_names = list(self.logging_cache["time"].keys())
-        instr_times = list(self.logging_cache["time"].values())
-        times_fig = px.bar(x=instr_names, y=instr_times)
-
         return {
             "gradient_of_gate_distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_all_values": make_histogram(
@@ -182,7 +176,6 @@ class TokenChoiceFF(LoggingLayer):
             "tokens_per_expert_counts": make_histogram(
                 self.logging_cache["tokens_per_expert"]
             ),
-            "instruction_times": times_fig,
             "load_balancing_loss": self.logging_cache["load_balancing_loss"],
         }
 
