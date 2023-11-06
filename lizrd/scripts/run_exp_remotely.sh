@@ -30,5 +30,9 @@ run_grid_remotely() {
   ssh -t $host "$script"
 }
 
-# run your bash function
-run_grid_remotely $1 $2
+for i in "${@:2}"
+do
+  # run your bash function
+  run_grid_remotely $1 $i
+done
+

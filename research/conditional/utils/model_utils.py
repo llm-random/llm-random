@@ -214,7 +214,11 @@ def get_expert_choice_args(args):
         and args.effective_dff_x is not None
     )
 
-    if not set_arguments_option1 and not set_arguments_option2 and not set_arguments_option3:
+    if (
+        not set_arguments_option1
+        and not set_arguments_option2
+        and not set_arguments_option3
+    ):
         raise AssertionError(
             "You must specify either total_experts_width, effective_dff, and n_experts "
             "or expert_size, topk_fraction, and n_experts "
