@@ -193,11 +193,6 @@ def attention_mechanism(
     return output
 
 
-class IgnoredFSDPLinear(Linear):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
 class AttentionMechanism(nn.Module):
     def __init__(self, flash: bool, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
