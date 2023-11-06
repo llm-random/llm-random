@@ -23,10 +23,11 @@ params:
   ^n_experts: [32]
 
   # ------ FILL IN BELOW ------
-  # n_steps:
-  # scheduler: cosine
-  # learning_rate: 1e-4
-  # lr_warmup_steps:
-  # final_lr_step:
-  # batch_size: 256
-  # cutoff: 256
+  n_steps: 175_000
+  scheduler: cosine
+  learning_rate: 1e-4
+  lr_warmup_steps: 2500
+  final_lr_step: 150_000
+  batch_size: 256
+  cutoff: 256
+  weight_decay: 0.01
