@@ -1,18 +1,4 @@
-import random
-import numpy as np
 import torch
-
-
-def set_seed(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
-    np.random.seed(seed)  # Numpy module.
-    random.seed(seed)  # Python random module.
-
-
-def get_ith_chunk(tensor, chunks, i):
-    list_of_chunks = torch.chunk(tensor, chunks, dim=0)
-    return list_of_chunks[i]
 
 
 def generate_shuffler_unshuffler(batch_size, seqlen, mix_whole_batch=False):
@@ -52,6 +38,6 @@ def stable_softmax_temperature(x, temperature, dim=-1):
     return x
 
 
-def entropy(x):
-    ent = -torch.sum(x * torch.log(x + 1e-8), dim=-1)
+def entropy(x, dim):
+    ent = -torch.sum(x * torch.log(x + 1e-8), dim=dim)
     return ent

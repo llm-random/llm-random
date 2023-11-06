@@ -23,7 +23,11 @@ run_grid_remotely() {
   echo "Running grid search on $host with config $config"
 
   script="cd $base_dir && tmux new-session -d -s $session_name bash"
-  script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid --config_path=$config --git_branch=$git_branch' C-m"
+  script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid --config_path=$config --git_branch=$git_branch"
+  if [ -n "$NEPTUNE_API_TOKEN" ]; then
+    script+=" --neptune_key=$NEPTUNE_API_TOKEN"
+  fi
+  script+="' C-m"
   script+="; tmux attach -t $session_name"
   script+="; echo 'done'" #black magic: without it, interactive sessions like "srun" cannot be detached from without killing the session
 
