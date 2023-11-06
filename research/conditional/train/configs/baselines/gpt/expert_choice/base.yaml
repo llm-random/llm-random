@@ -1,8 +1,8 @@
 parent: research/conditional/train/configs/baselines/gpt/expert_choice/common.yaml
 md5_parent_hash: 7d5daa403319ec12a78266a728814fc0
-name: "expert_choice_base"
 
 params:
+  name: "expert_choice_base"
   dmodel: 768
   n_blocks: 12
   n_att_heads: 12

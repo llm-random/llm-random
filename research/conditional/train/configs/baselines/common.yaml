@@ -2,10 +2,10 @@ runner: "research.conditional.train.cc_train"
 time: 1-00:00:00
 n_gpus: 1
 interactive_debug: false
-name: "baseline"
 
 # train params
 params:
+  name: "baseline"
   # base bass
   mixed_precision: true
   flash_attention: true
