@@ -1,0 +1,23 @@
+parent: research/conditional/train/configs/baselines/gpt/small.yaml
+md5_parent_hash: cbdf4e5992f41713488c25c819086e51
+interactive_debug: true
+time: 00:02:00
+n_gpus: 0
+params:
+  n_blocks: 1
+  cutoff: 8
+  ff_mode: vanilla
+  n_experts: 256
+  group_size: 128
+  flop_matched: true
+  sparsity_dim: 0
+  learning_rate: 0.0003
+  temperature: 1.0
+  ^loss_checkpoint_chungs: [8]
+  name: "test_env"
+  use_dummy_dataset: true
+  should_evaluate_dynamic_groupsize: true
+  flash_attention: true
+  init_type: kaiming_uniform
+  init_scale: 1
+  # decoding_interval: 0
