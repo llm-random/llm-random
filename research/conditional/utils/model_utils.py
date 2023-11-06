@@ -222,7 +222,7 @@ def get_expert_choice_args(args):
         raise AssertionError(
             "You must specify either total_experts_width, effective_dff, and n_experts "
             "or expert_size, topk_fraction, and n_experts "
-            "or granularity_4, expansion_rate, and effective_dff_x "
+            "or granularity, expansion_rate, and effective_dff_x "
         )
 
     if set_arguments_option3:
