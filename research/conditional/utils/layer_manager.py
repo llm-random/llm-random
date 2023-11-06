@@ -54,7 +54,7 @@ class LayerManager:
 
     def log(self, step):
         verbosity_levels = []
-        if self.logging_interval_light != 0 and step % self.logging_interval_heavy == 0:
+        if self.logging_interval_heavy != 0 and step % self.logging_interval_heavy == 0:
             verbosity_levels = [2, 1, 0]
         elif (
             self.logging_interval_light != 0 and step % self.logging_interval_light == 0
