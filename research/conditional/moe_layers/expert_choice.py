@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 import plotly.express as px
 import torch
 import torch.nn.functional as F
@@ -7,130 +7,36 @@ from torch.nn import LayerNorm
 
 from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
+from lizrd.core.distributed import wrap_in_fsdp
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 
 
-class ExpertChoiceFF(LoggingLayer):
+class ExpertGating(LoggingLayer):
     def __init__(
         self,
-        dmodel: int,
-        n_experts: int,
-        expert_size: int,
-        topk_fraction: float,
-        init_type: Literal["kaiming_uniform", "truncated_normal"],
-        init_scale: float,
-        random_perm: bool = False,
-        group_by_batch: bool = False,
-        one_hot_impl: bool = False,
-        softmax_ungrouped: bool = False,
-        use_full_einsum: bool = False,
-        softmax_over: Literal["tokens", "experts"] = "tokens",
-        n_gating_heatmaps: int = 4,
-        group_size: int = 1,
+        n_experts,
+        group_by_batch,
+        softmax_ungrouped,
+        softmax_over,
+        topk_fraction,
+        one_hot_impl,
+        random_perm,
+        gate,
     ):
-        """
-        Args:
-            dmodel: dimension of the input
-            n_experts: number of experts
-            expert_size: size of each expert
-            topk_fraction: fraction of tokens that will be chosen for each expert
-            random_perm: randomly permute tokens for experts (ablation). Note that
-                network can still learn which tokens to choose,
-                but not which expert to choose for token
-        """
         super().__init__()
-
-        self.dmodel = dmodel
         self.n_experts = n_experts
-        self.expert_size = expert_size
-        self.topk_fraction = topk_fraction
-        self.random_perm = random_perm
         self.group_by_batch = group_by_batch
-        self.one_hot_impl = one_hot_impl
         self.softmax_ungrouped = softmax_ungrouped
-        self.n_gating_heatmaps = n_gating_heatmaps
-        self.use_full_einsum = use_full_einsum
-        self.group_size = group_size
-
-        assert (
-            not self.one_hot_impl or self.group_by_batch
-        ), "Not implemented, would require a lot of memory"
-        assert softmax_over in ["tokens", "experts"]
-        assert not self.softmax_ungrouped or self.group_by_batch
-        assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
-
-        self.lin1_weight = nn.Parameter(
-            get_init_weight(
-                (n_experts, dmodel, expert_size),
-                fan_in=dmodel,
-                init_type=init_type,
-                scale=init_scale,
-            ),
-        )
-        self.lin2_weight = nn.Parameter(
-            get_init_weight(
-                (n_experts, expert_size, dmodel),
-                fan_in=int(n_experts * expert_size * topk_fraction),
-                init_type=init_type,
-                scale=init_scale,
-            )
-        )
-        self.gate = nn.Parameter(
-            get_init_weight(
-                (dmodel, n_experts),
-                fan_in=dmodel,
-                init_type=init_type,
-                scale=init_scale,
-            )
-        ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel)
         self.softmax_over = softmax_over
-        self.extract_chosen_tokens = (
-            self.extract_chosen_tokens_onehot
-            if one_hot_impl
-            else self.extract_chosen_tokens_select
-        )
-        self.gating_postprocess = (
-            self.gating_postprocess_onehot
-            if one_hot_impl
-            else self.gating_postprocess_select
-        )
+        self.topk_fraction = topk_fraction
+        self.one_hot_impl = one_hot_impl
+        self.random_perm = random_perm
+        self.gate = gate
 
-    def forward(self, x: torch.Tensor):
-        # x is (batch, seq_len, dmodel)
-        batch_size, seq_len = x.shape[0], x.shape[1]
-        orig_bs, orig_seq_len = batch_size, seq_len
-
-        if self.group_size > 1:
-            assert batch_size % self.group_size == 0
-            batch_size, seq_len = (
-                self.group_size,
-                seq_len * (batch_size // self.group_size),
-            )
-            x = x.reshape(batch_size, seq_len, self.dmodel)
-
-        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
-        if self.use_full_einsum:
-            x = self.full_einsum(x, topk_indices, topk_values, batch_size)
-        else:
-            x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
-            x = self.feed_forward(x, topk)
-            x = self.gating_postprocess(
-                x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
-            )
-
-        with measure_time(self, "layer_norm"):
-            x = self.ln(x)
-
-        if self.group_size > 1:
-            x = x.reshape(orig_bs, orig_seq_len, self.dmodel)
-
-        return x
-
-    def expert_gating(self, x: torch.Tensor, batch_size: int, seq_len: int):
+    def forward(self, x: torch.Tensor, batch_size: int, seq_len: int):
         # expert embedding
         with measure_time(self, "expert_embedding"):
             gate_out = einsum(
@@ -186,6 +92,146 @@ class ExpertChoiceFF(LoggingLayer):
             ].reshape((self.n_experts, topk))
 
         return topk, topk_indices, topk_values
+
+
+class ExpertChoiceFF(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_experts: int,
+        expert_size: int,
+        topk_fraction: float,
+        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_scale: float,
+        random_perm: bool = False,
+        group_by_batch: bool = False,
+        one_hot_impl: bool = False,
+        softmax_ungrouped: bool = False,
+        use_full_einsum: bool = False,
+        softmax_over: Literal["tokens", "experts"] = "tokens",
+        n_gating_heatmaps: int = 4,
+        group_size: int = 1,
+        fsdp_enabled: bool = False,
+        rank: Optional[int] = None,
+        param_precision: Optional[torch.dtype] = None,
+        offload_params: bool = False,
+    ):
+        """
+        Args:
+            dmodel: dimension of the input
+            n_experts: number of experts
+            expert_size: size of each expert
+            topk_fraction: fraction of tokens that will be chosen for each expert
+            random_perm: randomly permute tokens for experts (ablation). Note that
+                network can still learn which tokens to choose,
+                but not which expert to choose for token
+        """
+        super().__init__()
+
+        self.dmodel = dmodel
+        self.n_experts = n_experts
+        self.expert_size = expert_size
+        self.topk_fraction = topk_fraction
+        self.random_perm = random_perm
+        self.group_by_batch = group_by_batch
+        self.one_hot_impl = one_hot_impl
+        self.softmax_ungrouped = softmax_ungrouped
+        self.n_gating_heatmaps = n_gating_heatmaps
+        self.use_full_einsum = use_full_einsum
+        self.group_size = group_size
+
+        assert (
+            not self.one_hot_impl or self.group_by_batch
+        ), "Not implemented, would require a lot of memory"
+        assert softmax_over in ["tokens", "experts"]
+        assert not self.softmax_ungrouped or self.group_by_batch
+        assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
+
+        self.lin1_weight = nn.Parameter(
+            get_init_weight(
+                (n_experts, dmodel, expert_size),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            ),
+        )
+        self.lin2_weight = nn.Parameter(
+            get_init_weight(
+                (n_experts, expert_size, dmodel),
+                fan_in=int(n_experts * expert_size * topk_fraction),
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+        gate = nn.Parameter(
+            get_init_weight(
+                (dmodel, n_experts),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        ).requires_grad_(True)
+        self.ln = LayerNorm(dmodel)
+        self.softmax_over = softmax_over
+        self.extract_chosen_tokens = (
+            self.extract_chosen_tokens_onehot
+            if one_hot_impl
+            else self.extract_chosen_tokens_select
+        )
+        self.gating_postprocess = (
+            self.gating_postprocess_onehot
+            if one_hot_impl
+            else self.gating_postprocess_select
+        )
+        self.expert_gating = wrap_in_fsdp(
+            enabled=fsdp_enabled,
+            module=ExpertGating(
+                n_experts=n_experts,
+                group_by_batch=group_by_batch,
+                softmax_ungrouped=softmax_ungrouped,
+                softmax_over=softmax_over,
+                topk_fraction=topk_fraction,
+                one_hot_impl=one_hot_impl,
+                random_perm=random_perm,
+                gate=gate,
+            ),
+            rank=rank,
+            param_precision=torch.float32,
+            offload_params=offload_params,
+            cast_inputs=True,
+            cast_outputs_to=param_precision,
+        )
+
+    def forward(self, x: torch.Tensor):
+        # x is (batch, seq_len, dmodel)
+        batch_size, seq_len = x.shape[0], x.shape[1]
+        orig_bs, orig_seq_len = batch_size, seq_len
+
+        if self.group_size > 1:
+            assert batch_size % self.group_size == 0
+            batch_size, seq_len = (
+                self.group_size,
+                seq_len * (batch_size // self.group_size),
+            )
+            x = x.reshape(batch_size, seq_len, self.dmodel)
+
+        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
+        if self.use_full_einsum:
+            x = self.full_einsum(x, topk_indices, topk_values, batch_size)
+        else:
+            x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
+            x = self.feed_forward(x, topk)
+            x = self.gating_postprocess(
+                x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
+            )
+
+        with measure_time(self, "layer_norm"):
+            x = self.ln(x)
+
+        if self.group_size > 1:
+            x = x.reshape(orig_bs, orig_seq_len, self.dmodel)
+
+        return x
 
     def extract_chosen_tokens_onehot(
         self, x: torch.Tensor, topk, topk_indices: torch.Tensor, batch_size
@@ -321,8 +367,6 @@ class ExpertChoiceFF(LoggingLayer):
         return dict()
 
     def log_heavy(self):
-        # calculate indexes choose counts
-        chosen_indexes = self.logging_cache["topk_indices"].flatten()
         chosen_indexes = torch.cat(
             (
                 chosen_indexes,

@@ -261,14 +261,15 @@ class Attention(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.output_projection = wrap_in_fsdp(
+        self.attention_mechanism = wrap_in_fsdp(
             enabled=fsdp_enabled,
-            module=self.output_projection,
+            module=AttentionMechanism(flash=flash),
             rank=rank,
-            param_precision=param_precision,
+            param_precision=torch.float32,
             offload_params=offload_params,
+            cast_inputs=True,
+            cast_outputs_to=param_precision,
         )
-        self.attention_mechanism = AttentionMechanism(flash=flash)
 
     def forward(self, x):
         projected = self.input_projection(x)

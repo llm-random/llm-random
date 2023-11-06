@@ -99,7 +99,7 @@ class TestExpertChoice(GeneralTestCase):
         )
         layer_einsum.lin1_weight.data = layer.lin1_weight.data
         layer_einsum.lin2_weight.data = layer.lin2_weight.data
-        layer_einsum.gate.data = layer.gate.data
+        layer_einsum.expert_gating.gate.data = layer.expert_gating.gate.data
         layer_einsum.ln = layer.ln
 
         input = torch.rand((batch, seql, dm))
@@ -139,7 +139,7 @@ class TestExpertChoice(GeneralTestCase):
         )
         layer_onehot.lin1_weight.data = layer.lin1_weight.data
         layer_onehot.lin2_weight.data = layer.lin2_weight.data
-        layer_onehot.gate.data = layer.gate.data
+        layer_onehot.expert_gating.gate.data = layer.expert_gating.gate.data
         layer_onehot.ln = layer.ln
 
         input = torch.rand((batch, seql, dm))
