@@ -3,8 +3,6 @@ from typing import Callable, Literal, Optional
 from lizrd.core import llm
 import lizrd.core.nn as nn
 from research.blanks.utils import get_first_blanks_in_series, shift_left, shift_right
-import research
-
 
 import torch
 
