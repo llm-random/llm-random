@@ -62,7 +62,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
     def reshape_into_groups(self, x):
         """
         :param x: normal input tensor of shape (B, S, dmodel)
-        :return: x transposed so that the dimension to group over is second last
+        :return: x of shape (free_dimension, aggr_dimension // group_size, group_size , dmodel)
         """
         if self.sparsity_dim == 0:
             x = x.view(x.size(1), -1, self.group_size, self.dm)
@@ -73,10 +73,10 @@ class ContinuousMoeBaseClass(LoggingLayer):
             raise NotImplementedError
 
     def get_merge_and_emit_weights(self, x):
-        # shape of x is free_dimension, aggr_dimension, dmodel
+        # shape of x is (free_dimension, aggr_dimension // group_size, group_size, dmodel)
         merge_logits = torch.matmul(x, self.controller)
         self.update_cache_for_logging("merge_logits", merge_logits)
-        # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
+        # shape of merge_logits is (free_dimension, agrr_dimension // group_size, group_size, n_experts)
         temp_merge, temp_emit = self.get_temperature()
         merge_weights = stable_softmax_temperature(merge_logits, temp_merge, dim=-2)
         # on default we use the same weights for emitting and merging, but if the temperature is learnable or we want to take softmax over experts for emitting, we will use different weights
@@ -95,8 +95,8 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return self.temperature, self.temperature
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        # x shape is free_dimension, aggr_dimension, dmodel
-        # merge_weights shape is free_dimension, aggr_dimension // group_size, group_size, n_experts
+        # merge_weights shape is (free_dimension, aggr_dimension // group_size, group_size, n_experts)
+        # x shape is (free_dimension, aggr_dimension // group_size, group_size, dmodel)
         x = torch.matmul(
             merge_weights.transpose(-1, -2),
             x,
@@ -104,23 +104,22 @@ class ContinuousMoeBaseClass(LoggingLayer):
         # x shape is free_dimension, aggr_dimension // group_size, n_experts, dmodel ||| lin1 shape is n_experts, dmodel, expert_size
         x = torch.matmul(x.transpose(1, 2), self.lin1)
         x = torch.relu_(x)
-        # x shape is n_experts, free_dimension * aggr_dimension // group_size, expert_size ||| lin2 shape is n_experts, expert_size, dmodel
+        # x shape is free_dimension, aggr_dimension // group_size, n_experts, expert_size ||| lin2 shape is n_experts, expert_size, dmodel
         x = torch.matmul(x, self.lin2)
-        # x shape is n_experts, free_dimension * aggr_dimension // group_size, dmodel ||| merge_weights shape is free_dimension, aggr_dimension // group_size, group_size, n_experts
-        # view x to be n_experts, free_dimension, aggr_dimension // group_size, dmodel
-        # permute it to be free_dimension, aggr_dimension // group_size, n_experts, dmodel
+        # emit_weights shape is (free_dimension, aggr_dimension // group_size, group_size, n_experts)
+        # x shape is free_dimension, group_size, aggr_dimension // group_size, dmodel
         x = torch.matmul(
             emit_weights,
             x.transpose(1, 2),
         )
+        # x shape is free_dimension, aggr_dimension // group_size, group_size, dmodel
         return x
 
     def reshape_into_original(self, x):
         if self.sparsity_dim == 0:
             # sequence dimension is the new "batch size" when you think about it
-            # x = x.permute(2, 0, 1)
             x = x.view(-1, x.size(0), self.dm)
-            # shape is free_dimension, aggr_dimension, dmodel
+            # x is reshaped back to B, S, dmodel
             return x
         elif self.sparsity_dim == 1:
             raise NotImplementedError
