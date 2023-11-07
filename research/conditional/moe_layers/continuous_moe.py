@@ -53,19 +53,19 @@ class ContinuousMoeBaseClass(LoggingLayer):
         self.original_group_size = self.group_size
 
     def forward(self, x):
-        x = self.rearrange_for_grouping(x)
+        x = self.reshape_into_groups(x)
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
         x = self.merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
         return x * (self.group_size / self.original_group_size)
 
-    def rearrange_for_grouping(self, x):
+    def reshape_into_groups(self, x):
         """
         :param x: normal input tensor of shape (B, S, dmodel)
         :return: x transposed so that the dimension to group over is second last
         """
         if self.sparsity_dim == 0:
-            x = torch.permute(x, [1, 0, 2])
+            x = x.view(x.size(1), -1, self.group_size, self.dm)
             return x
         elif self.sparsity_dim == 1:
             raise NotImplementedError
@@ -74,9 +74,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
     def get_merge_and_emit_weights(self, x):
         # shape of x is free_dimension, aggr_dimension, dmodel
-        merge_logits = torch.matmul(
-            x.view(x.shape[0], -1, self.group_size, self.dm), self.controller
-        )
+        merge_logits = torch.matmul(x, self.controller)
         self.update_cache_for_logging("merge_logits", merge_logits)
         # shape of merge_logits is free_dimension, agrr_dimension // group_size, group_size, n_experts
         temp_merge, temp_emit = self.get_temperature()
@@ -101,32 +99,27 @@ class ContinuousMoeBaseClass(LoggingLayer):
         # merge_weights shape is free_dimension, aggr_dimension // group_size, group_size, n_experts
         x = torch.matmul(
             merge_weights.transpose(-1, -2),
-            x.view(x.size(0), -1, self.group_size, x.size(-1)),
+            x,
         )
         # x shape is free_dimension, aggr_dimension // group_size, n_experts, dmodel ||| lin1 shape is n_experts, dmodel, expert_size
-        x = torch.bmm(x.view(-1, self.n_experts, x.size(-1)).transpose(0, 1), self.lin1)
+        x = torch.matmul(x.transpose(1, 2), self.lin1)
         x = torch.relu_(x)
         # x shape is n_experts, free_dimension * aggr_dimension // group_size, expert_size ||| lin2 shape is n_experts, expert_size, dmodel
-        x = torch.bmm(x, self.lin2)
+        x = torch.matmul(x, self.lin2)
         # x shape is n_experts, free_dimension * aggr_dimension // group_size, dmodel ||| merge_weights shape is free_dimension, aggr_dimension // group_size, group_size, n_experts
         # view x to be n_experts, free_dimension, aggr_dimension // group_size, dmodel
         # permute it to be free_dimension, aggr_dimension // group_size, n_experts, dmodel
-        x = (
-            torch.matmul(
-                emit_weights,
-                x.view(x.size(0), emit_weights.size(0), -1, x.size(-1)).permute(
-                    1, 2, 0, 3
-                ),
-            )
-            .view(emit_weights.size(0), -1, x.size(-1))
-            .transpose(1, 2)
+        x = torch.matmul(
+            emit_weights,
+            x.transpose(1, 2),
         )
         return x
 
     def reshape_into_original(self, x):
         if self.sparsity_dim == 0:
             # sequence dimension is the new "batch size" when you think about it
-            x = x.permute(2, 0, 1)
+            # x = x.permute(2, 0, 1)
+            x = x.view(-1, x.size(0), self.dm)
             # shape is free_dimension, aggr_dimension, dmodel
             return x
         elif self.sparsity_dim == 1:
@@ -218,13 +211,13 @@ class ContinuousMoE(ContinuousMoeBaseClass):
 
 class LegacyContinuousMoE(ContinuousMoeBaseClass):
     def forward(self, x):
-        x = self.rearrange_for_grouping(x)
+        x = self.reshape_into_groups(x)
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
         x = self.merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
         return x * (self.group_size * 1.0 / self.original_group_size)
 
-    def rearrange_for_grouping(self, x):
+    def reshape_into_groups(self, x):
         """
         :param x: normal input tensor of shape (B, S, dmodel)
         :return: x reshaped so that one of dimensions is split into groups of size self.group_size, (the dimension is determined by self.sparsity_dim)
