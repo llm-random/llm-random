@@ -200,7 +200,7 @@ def get_residual_layer(args):
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
 
-def get_expert_choice_args(args):
+def get_expert_choice_args(args, rank=None):
     set_arguments_option1 = (
         args.total_experts_width is not None
         and args.effective_dff is not None
@@ -246,6 +246,10 @@ def get_expert_choice_args(args):
         "group_size": args.simulate_group_size,
         "init_type": args.init_type,
         "init_scale": args.init_scale,
+        "fsdp_enabled": args.fsdp,
+        "rank": rank,
+        "param_precision": torch.bfloat16 if args.mixed_precision else torch.float32,
+        "offload_params": args.cpu_offload,
     }
 
 
@@ -323,7 +327,7 @@ def get_common_mot_kwargs(args):
     }
 
 
-def get_ff_layer(args):
+def get_ff_layer(args, rank=None):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
@@ -382,7 +386,7 @@ def get_ff_layer(args):
     elif args.ff_mode == "cont_moe_legacy":
         return_fn = lambda: LegacyContinuousMoE(**get_common_mot_kwargs(args))
     elif args.ff_mode == "expert_choice":
-        ff_args = get_expert_choice_args(args)
+        ff_args = get_expert_choice_args(args, rank)
         return_fn = partial(ExpertChoiceFF, **ff_args)
     elif args.ff_mode == "expert_choice_with_parallel_ff":
         expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[

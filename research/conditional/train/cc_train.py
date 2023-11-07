@@ -91,7 +91,7 @@ def main(
         torch.autograd.set_detect_anomaly(True)
 
     data_distributed = True if rank is not None else False
-    ff_layer_fun = get_ff_layer(args)
+    ff_layer_fun = get_ff_layer(args, rank)
     attention_layer_fun = get_attention_layer(args, rank=rank, fsdp_enabled=args.fsdp)
     residual_fn = get_residual_layer(args)
     if args.model_parallelism_fragmentation is not None:
