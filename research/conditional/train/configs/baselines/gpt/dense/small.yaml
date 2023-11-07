@@ -1,0 +1,5 @@
+parent: research/conditional/train/configs/baselines/gpt/small.yaml
+md5_parent_hash: 94cd964259d1065e3ed2e26028f4865a
+
+params:
+  learning_rate: 1e-4

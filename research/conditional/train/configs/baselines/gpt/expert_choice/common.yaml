@@ -15,6 +15,7 @@ params:
   expansion_rate: 32
   granularity: 1
   effective_dff_x: 4
+  learning_rate: 1e-4
 
 
   # init
