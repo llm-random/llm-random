@@ -1,8 +1,0 @@
-parent: research/conditional/train/configs/baselines/gpt/common.yaml
-md5_parent_hash: 94cd964259d1065e3ed2e26028f4865a
-
-params:
-  dmodel: 768
-  dff: 3072
-  n_blocks: 12
-  n_att_heads: 12
