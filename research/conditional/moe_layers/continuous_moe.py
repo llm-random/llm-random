@@ -61,19 +61,28 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
     def reshape_into_groups(self, x):
         """
-        :param x: normal input tensor of shape (B, S, dmodel)
-        :return: x of shape (free_dimension, aggr_dimension // group_size, group_size , dmodel)
+        Reshape code so the axis to split into groups is on position 1, and then group over said axis.
+        e.g.:
+         - if we group tokens from different sequences in a batch (sparsity = 0), we need to put the batch dimension to position 1.
+         - if we group tokens within one sequence, the dimension to split into groups is already on position 1, hence we leave it as is.
+
+        free_dimension is the dimension on position 0 after reshape
+        split_dimension is the dimension on position 1 - the one to split into groups
+
+        :param x: normal input tensor of shape (batch, seq_len, dmodel)
+        :return: x of shape (free_dimension, split_dimension // group_size, group_size , dmodel)
         """
         if self.sparsity_dim == 0:
-            x = x.view(x.size(1), -1, self.group_size, self.dm)
-            return x
+            x = x.transpose(0, 1)
+            x = x.view(x.size(0), -1, self.group_size, self.dm)
         elif self.sparsity_dim == 1:
-            raise NotImplementedError
+            x = x.view(x.size(0), -1, self.group_size, self.dm)
         else:
             raise NotImplementedError
+        return x
 
     def get_merge_and_emit_weights(self, x):
-        # shape of x is (free_dimension, aggr_dimension // group_size, group_size, dmodel)
+        # shape of x is (free_dimension, split_dimension // group_size, group_size, dmodel)
         merge_logits = torch.matmul(x, self.controller)
         self.update_cache_for_logging("merge_logits", merge_logits)
         # shape of merge_logits is (free_dimension, agrr_dimension // group_size, group_size, n_experts)
@@ -95,34 +104,38 @@ class ContinuousMoeBaseClass(LoggingLayer):
         return self.temperature, self.temperature
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        # merge_weights shape is (free_dimension, aggr_dimension // group_size, group_size, n_experts)
-        # x shape is (free_dimension, aggr_dimension // group_size, group_size, dmodel)
+        """
+        :param x: input reshaped to (free_dimension, split_dimension // group_size, group_size, dmodel)
+        :param merge_weights: weights for merging tokens within a group, shape (free_dimension, split_dimension // group_size, group_size, n_experts)
+        :param emit_weights: weights for emitting tokens within a group, shape (free_dimension, split_dimension // group_size, group_size, n_experts)
+        :return: tensor of token updates of shape (free_dimension, split_dimension // group_size, group_size, dmodel)
+        """
         x = torch.matmul(
             merge_weights.transpose(-1, -2),
             x,
         )
-        # x shape is free_dimension, aggr_dimension // group_size, n_experts, dmodel ||| lin1 shape is n_experts, dmodel, expert_size
+        # x shape is (free_dimension, split_dimension // group_size, n_experts, dmodel) ||| (lin1 shape is n_experts, dmodel, expert_size)
         x = torch.matmul(x.transpose(1, 2), self.lin1)
         x = torch.relu_(x)
-        # x shape is free_dimension, aggr_dimension // group_size, n_experts, expert_size ||| lin2 shape is n_experts, expert_size, dmodel
+        # x shape is (free_dimension, split_dimension // group_size, n_experts, expert_size) ||| (lin2 shape is n_experts, expert_size, dmodel)
         x = torch.matmul(x, self.lin2)
-        # emit_weights shape is (free_dimension, aggr_dimension // group_size, group_size, n_experts)
-        # x shape is free_dimension, group_size, aggr_dimension // group_size, dmodel
+        # emit_weights shape is (free_dimension, split_dimension // group_size, group_size, n_experts)
+        # x shape is free_dimension, group_size, split_dimension // group_size, dmodel
         x = torch.matmul(
             emit_weights,
             x.transpose(1, 2),
         )
-        # x shape is free_dimension, aggr_dimension // group_size, group_size, dmodel
+        # x shape is free_dimension, split_dimension // group_size, group_size, dmodel
         return x
 
     def reshape_into_original(self, x):
         if self.sparsity_dim == 0:
             # sequence dimension is the new "batch size" when you think about it
-            x = x.view(-1, x.size(0), self.dm)
-            # x is reshaped back to B, S, dmodel
-            return x
+            x = x.view(x.size(0), -1, self.dm)
+            return x.transpose(0, 1)
+            # x is reshaped back to (batch, seq_len, dmodel)
         elif self.sparsity_dim == 1:
-            raise NotImplementedError
+            return x.view(x.size(0), -1, self.dm)
         else:
             raise NotImplementedError
 

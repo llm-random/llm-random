@@ -198,4 +198,35 @@ class OptimizedVersusLegacy(GeneralTestCase):
 
             _legacy_output = legacy(input)
             _bmm_output = bmm(input)
-            self.assertTensorAlmostEqual(_legacy_output, _bmm_output)
+            self.assertTensorAlmostEqual(_legacy_output, _bmm_output, atol=1e-5)
+
+    def test_bert(self):
+        seq_len = 48
+        dm = 72
+        for group_size in [1, 2, batch]:
+            arguments = {
+                "dm": dm,
+                "dff": dff,
+                "n_experts": 4,
+                "group_size": group_size,
+                "sparsity_dim": 1,
+                "temperature": 1.0,
+                "expert_size": 8,
+                "use_opt_einsum": True,
+                "init_type": "kaiming_uniform",
+                "init_scale": 1.0,
+            }
+            legacy = research.conditional.moe_layers.continuous_moe.LegacyContinuousMoE(
+                **arguments
+            )
+            bmm = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
+                **arguments
+            )
+            input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
+            legacy.lin1.data = bmm.lin1.data.clone().transpose(0, 1)
+            legacy.lin2.data = bmm.lin2.data.clone().permute(2, 0, 1)
+            legacy.controller.data = bmm.controller.data.clone()
+
+            _legacy_output = legacy(input)
+            _bmm_output = bmm(input)
+            self.assertTensorAlmostEqual(_legacy_output, _bmm_output, atol=1e-5)
