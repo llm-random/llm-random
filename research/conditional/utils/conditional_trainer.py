@@ -213,8 +213,11 @@ class ConditionalTrainer:
                 iteration=step,
             )
 
-    def _optimize(self, additional_loss, should_apply_gradient=False):
-        self.scaler.scale(additional_loss).backward()
+    def _optimize(
+        self, additional_loss: Optional[torch.Tensor], should_apply_gradient=False
+    ):
+        if additional_loss is not None:
+            self.scaler.scale(additional_loss).backward()
         if should_apply_gradient:
             if self.gradient_clipping is not None:
                 self.scaler.unscale_(self.optimizer)
@@ -483,8 +486,11 @@ class ConditionalTrainer:
             model=self.model,
             mixed_precision=self.mixed_precision,
             vocab_size=self.vocab_size,
+            scaler=self.scaler,
+            backward_pass=True,
+            num_accumulated_batches=1,
         )
-        self._optimize(loss, should_apply_gradient=True)
+        self._optimize(None, should_apply_gradient=True)
         if self.is_process_logging:
             self.logger.report_scalar(
                 title="max batch size", value=step * self.n_gpus, iteration=step
@@ -509,11 +515,14 @@ class ConditionalTrainer:
             layer.expertsize = step + 1
             layer.init_core_parameters()
             layer.to(torch.device("cuda"))
-        loss = self._calculate_loss(
+        loss, _ = self._calculate_loss(
             batch=processed_batch,
             model=self.model,
             mixed_precision=self.mixed_precision,
             vocab_size=self.vocab_size,
+            scaler=self.scaler,
+            backward_pass=True,
+            num_accumulated_batches=1,
         )
-        self._optimize(loss, should_apply_gradient=True)
+        self._optimize(None, should_apply_gradient=True)
         self.logger.report_scalar(title="max expert size", value=step, iteration=step)
