@@ -71,8 +71,6 @@ class TestExpertChoice(GeneralTestCase):
         """
         Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
         """
-
-        return True
         batch, dm = 2, 2
         experts = 2
         exp_size = 6
@@ -96,9 +94,9 @@ class TestExpertChoice(GeneralTestCase):
             topk_fraction,
             init_type="kaiming_uniform",
             init_scale=1.0,
+            one_hot_impl=True,
             group_by_batch=True,
             use_full_einsum=True,
-            one_hot_impl=True,
         )
         layer_einsum.lin1_weight.data = layer.lin1_weight.data
         layer_einsum.lin2_weight.data = layer.lin2_weight.data

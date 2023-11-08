@@ -118,7 +118,7 @@ class ExpertChoiceFF(LoggingLayer):
         topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
         if self.use_torch_bmm:
             x = self.full_bmm(x, topk_indices, topk_values, batch_size)
-        if self.use_full_einsum:
+        elif self.use_full_einsum:
             x = self.full_einsum(x, topk_indices, topk_values, batch_size)
         else:
             x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
@@ -275,9 +275,10 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "gating_postprocess_with_linear"):
             n_exp, exp_size, dmodel = weight.shape
             _, topk, seq_len, batch_size = one_hot.shape
+            assert x.shape == (n_exp, seq_len * topk, exp_size)
 
             # n_exp seq_len*topk exp_size, n_exp exp_size dmodel,
-            # x * weight (BROAD n_exp, MUL=exp_size, N=(topk seq_len), M=dmodel)
+            # x * weight (BROAD n_exp, MUL=exp_size, N=(seq_len, topk), M=dmodel)
             # -> n_exp seq_len topk dmodel
             x = torch.bmm(x, weight).reshape(n_exp, seq_len, topk, dmodel)
 
@@ -288,7 +289,7 @@ class ExpertChoiceFF(LoggingLayer):
             # n_exp seq_len topk dmodel, n_exp topk seq_len batch_size,
             # x * one_hot (BROAD seq_len, MUL=(n_exp, topk), N=dmodel, M=batch_size)
             # -> batch_size seq_len dmodel
-            x = x.permute(1, 0, 2, 3).reshape(seq_len, n_exp * topk, dmodel)
+            x = x.permute(1, 3, 0, 2).reshape(seq_len, dmodel, n_exp * topk)
             one_hot = one_hot.permute(2, 0, 1, 3).reshape(
                 seq_len, n_exp * topk, batch_size
             )
