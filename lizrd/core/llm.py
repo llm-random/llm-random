@@ -323,8 +323,29 @@ def PreNormBlock(dmodel, layer, name):
 
 
 class TransformerBlock(nn.Sequential):
-    def __init__(self, dmodel, layers, gradient_checkpointing, residual_fn):
-        residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
+    def __init__(
+        self,
+        dmodel,
+        layers,
+        gradient_checkpointing,
+        residual_fn,
+        wrap_attn_and_ff_in_fsdp=False,
+        rank=None,
+        param_precision=torch.float32,
+        offload_params=False,
+    ):
+        def attn_ff_wrap_fn(module):
+            return wrap_in_fsdp(
+                enabled=wrap_attn_and_ff_in_fsdp,
+                rank=rank,
+                module=module,
+                param_precision=param_precision,
+                offload_params=offload_params,
+            )
+
+        residual_fn = default(
+            attn_ff_wrap_fn(residual_fn), partial(PreNormBlock, dmodel=dmodel)
+        )
         residual_layers = [
             residual_fn(layer=layer, name=name) for name, layer in layers
         ]
@@ -346,6 +367,7 @@ class TransformerTower(nn.Module):
         residual_fn: Optional[Callable] = None,
         rank=None,
         wrap_blocks_in_fsdp=False,
+        wrap_attn_and_ff_in_fsdp=False,
         param_precision=torch.float32,
         offload_params=False,
     ):
@@ -368,7 +390,14 @@ class TransformerTower(nn.Module):
 
             _, current_device = self.get_current_device(i_block)
             block = TransformerBlock(
-                dmodel, layers_info, gradient_checkpointing, residual_fn
+                dmodel,
+                layers_info,
+                gradient_checkpointing,
+                residual_fn,
+                wrap_attn_and_ff_in_fsdp=wrap_attn_and_ff_in_fsdp,
+                rank=rank,
+                param_precision=param_precision,
+                offload_params=offload_params,
             ).to(current_device)
             block = wrap_in_fsdp(
                 enabled=wrap_blocks_in_fsdp,
