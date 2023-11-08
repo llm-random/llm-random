@@ -1,6 +1,6 @@
 parent: research/conditional/train/configs/baselines/gpt/small.yaml
 md5_parent_hash: cbdf4e5992f41713488c25c819086e51
-time: "0-20:10:00"
+time: "0-4:10:00"
 runner: "research.blanks.train"
 
 params:
