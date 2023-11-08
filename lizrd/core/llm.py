@@ -323,13 +323,44 @@ def PreNormBlock(dmodel, layer, name):
 
 
 class TransformerBlock(nn.Sequential):
-    def __init__(self, dmodel, layers, gradient_checkpointing, residual_fn):
+    def __init__(
+        self,
+        dmodel,
+        layers,
+        gradient_checkpointing,
+        residual_fn,
+        wrap_attn_and_ff_in_fsdp=False,
+        rank=None,
+        param_precision=torch.float32,
+        offload_params=False,
+    ):
+        # super(TransformerBlock, self).__init__()
+        def attn_ff_wrap_fn(module):
+            return wrap_in_fsdp(
+                enabled=wrap_attn_and_ff_in_fsdp,
+                rank=rank,
+                module=module,
+                param_precision=param_precision,
+                offload_params=offload_params,
+            )
+
         residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
         residual_layers = [
-            residual_fn(layer=layer, name=name) for name, layer in layers
+            attn_ff_wrap_fn(residual_fn(layer=layer, name=name))
+            for name, layer in layers
         ]
+        # residual_layers = []
+        # for name, layer in layers:
+        #     print("type of layer:")
+        #     print(type(layer))
+        #     to_add=attn_ff_wrap_fn(residual_fn(layer=layer, name=name))
+        #     residual_layers.append(to_add)
+        #     print(f"Adding layer: {layer}")
+        # print(residual_layers[0])
+        # print(residual_layers[1])
         if gradient_checkpointing:
             residual_layers = [Checkpoint(layer) for layer in residual_layers]
+        # self.layers = nn.Sequential(*residual_layers)
         super(TransformerBlock, self).__init__(*residual_layers)
 
 
@@ -346,6 +377,7 @@ class TransformerTower(nn.Module):
         residual_fn: Optional[Callable] = None,
         rank=None,
         wrap_blocks_in_fsdp=False,
+        wrap_attn_and_ff_in_fsdp=False,
         param_precision=torch.float32,
         offload_params=False,
     ):
@@ -368,8 +400,17 @@ class TransformerTower(nn.Module):
 
             _, current_device = self.get_current_device(i_block)
             block = TransformerBlock(
-                dmodel, layers_info, gradient_checkpointing, residual_fn
-            ).to(current_device)
+                dmodel,
+                layers_info,
+                gradient_checkpointing,
+                residual_fn,
+                wrap_attn_and_ff_in_fsdp=wrap_attn_and_ff_in_fsdp,
+                rank=rank,
+                param_precision=param_precision,
+                offload_params=offload_params,
+            )
+            if current_device != torch.device("cpu"):
+                block = block.to(current_device)
             block = wrap_in_fsdp(
                 enabled=wrap_blocks_in_fsdp,
                 module=block,

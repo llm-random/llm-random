@@ -70,18 +70,9 @@ def get_model(
         offload_params=offload_params,
     )
 
-    def attn_ff_wrap_fn(module):
-        return wrap_in_fsdp(
-            enabled=wrap_attn_and_ff_in_fsdp,
-            rank=rank,
-            module=module,
-            param_precision=param_precision,
-            offload_params=offload_params,
-        )
-
     layer_dict = {
-        "attention": lambda: attn_ff_wrap_fn(attention_layer_fun()),
-        "feedforward": lambda: attn_ff_wrap_fn(ff_layer_fun()),
+        "attention": attention_layer_fun,
+        "feedforward": ff_layer_fun,
     }
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
@@ -94,6 +85,7 @@ def get_model(
         residual_fn=residual_fn,
         rank=rank,
         wrap_blocks_in_fsdp=wrap_blocks_in_fsdp,
+        wrap_attn_and_ff_in_fsdp=wrap_attn_and_ff_in_fsdp,
         param_precision=param_precision,
         offload_params=offload_params,
     )
