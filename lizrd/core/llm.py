@@ -334,18 +334,15 @@ class TransformerBlock(nn.Sequential):
         param_precision=torch.float32,
         offload_params=False,
     ):
-        def attn_ff_wrap_fn(module):
-            return wrap_in_fsdp(
+        residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
+        residual_layers = [
+            wrap_in_fsdp(
                 enabled=wrap_attn_and_ff_in_fsdp,
                 rank=rank,
-                module=module,
+                module=residual_fn(layer=layer, name=name),
                 param_precision=param_precision,
                 offload_params=offload_params,
             )
-
-        residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
-        residual_layers = [
-            attn_ff_wrap_fn(residual_fn(layer=layer, name=name))
             for name, layer in layers
         ]
         if gradient_checkpointing:
