@@ -411,7 +411,6 @@ class ExpertChoiceFF(LoggingLayer):
         )  # make sure bincount takes into account the whole range of indexes
         indexes_choose_counts = chosen_indexes.bincount()
         return {
-            "gradient of gate distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_topk_vals": make_histogram(
                 self.logging_cache["gate_softmax_topk_vals"].flatten()
             ),
