@@ -1,10 +1,11 @@
 from collections import OrderedDict
 from typing import Callable, Literal, Optional
-from lizrd.core import llm
-import lizrd.core.nn as nn
-from research.blanks.utils import get_first_blanks_in_series, shift_left, shift_right
 
 import torch
+
+from lizrd.core import llm
+import lizrd.core.misc as misc
+from research.blanks.utils import get_first_blanks_in_series, shift_left, shift_right
 
 
 def get_model(
@@ -41,7 +42,12 @@ def get_model(
                 max_length, dm, init_type=init_type, init_scale=init_scale
             ).to(first_gpu),
             BlankEmbedding(
-                vocab_size, dm, blank_token_id=blank_id, n_blanks=n_blanks
+                vocab_size,
+                dm,
+                blank_token_id=blank_id,
+                n_blanks=n_blanks,
+                init_type=init_type,
+                init_scale=init_scale,
             ).to(first_gpu),
         )
     else:
@@ -114,7 +120,7 @@ def get_attention_layer(args):
     return attention_layer_fun
 
 
-class BlankDiffPredictionHead(nn.Module):
+class BlankDiffPredictionHead(torch.nn.Module):
     def __init__(
         self,
         embedding_dim: int,
@@ -128,7 +134,7 @@ class BlankDiffPredictionHead(nn.Module):
         use_straight_through: bool = False,
     ):
         super(BlankDiffPredictionHead, self).__init__()
-        self.linear = nn.Linear(
+        self.linear = misc.Linear(
             embedding_dim,
             output_size,
             init_type=init_type,
@@ -139,8 +145,8 @@ class BlankDiffPredictionHead(nn.Module):
         self.n_blanks = n_blanks
 
         self.learnable_weights = learnable_weights
-        self.preblank_weight = nn.Parameter(torch.tensor(1.0))
-        self.blank_weight = nn.Parameter(torch.tensor(initial_blank_weight))
+        self.preblank_weight = torch.nn.Parameter(torch.tensor(1.0))
+        self.blank_weight = torch.nn.Parameter(torch.tensor(initial_blank_weight))
         self.use_straight_through = use_straight_through
 
     def forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
@@ -180,7 +186,7 @@ class BlankDiffPredictionHead(nn.Module):
         return self.linear(encoder_output)
 
 
-class BlankSeparateHead(nn.Module):
+class BlankSeparateHead(torch.nn.Module):
     def __init__(
         self,
         embedding_dim: int,
@@ -192,7 +198,7 @@ class BlankSeparateHead(nn.Module):
         use_straight_through: bool = False,
     ):
         super().__init__()
-        self.linear = nn.Linear(embedding_dim, output_size, bias=False)
+        self.linear = Linear(embedding_dim, output_size, bias=False)
         self.blank_token_id = blank_token_id
         self.n_blanks = n_blanks
 
@@ -204,11 +210,11 @@ class BlankSeparateHead(nn.Module):
     ...
 
 
-class BlankLLM(nn.Module):
+class BlankLLM(torch.nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super().__init__()
 
-        self.encoder = nn.Sequential(
+        self.encoder = torch.nn.Sequential(
             OrderedDict(
                 [
                     ("embedding_layer", embedding_layer),
@@ -216,7 +222,7 @@ class BlankLLM(nn.Module):
                 ]
             )
         )
-        self.full_model = nn.Sequential(
+        self.full_model = torch.nn.Sequential(
             OrderedDict(
                 [
                     ("embedding_layer", embedding_layer),
@@ -236,7 +242,7 @@ class BlankLLM(nn.Module):
             return self.full_model.forward(*args, **kwargs)
 
 
-class BlankEmbedding(nn.Module):
+class BlankEmbedding(torch.nn.Module):
     def __init__(
         self,
         vocab_size: int,
