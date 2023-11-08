@@ -245,16 +245,18 @@ class ExpertChoiceFF(LoggingLayer):
             # x * one_hot (BROAD seq_len, MUL=batch_size, N=dmodel, M=(topk, n_exp))
             # -> seq_len dmodel n_exp topk
             x = x.permute(1, 2, 0)
-            one_hot_perm = one_hot.permute(2, 3, 0, 1).reshape(seq_len, batch_size, n_exp * topk)
+            one_hot_perm = one_hot.permute(2, 3, 0, 1).reshape(
+                seq_len, batch_size, n_exp * topk
+            )
             x = torch.bmm(x, one_hot_perm).reshape(seq_len, dmodel, n_exp, topk)
 
             # seq_len dmodel n_exp topk, n_exp dmodel exp_size
             # x * weight (BROAD n_exp, MUL=dmodel, N=seq_len, M=exp_size)
             # -> n_exp seq_len topk exp_size
-            x = x.permute(2, 0, 3, 1).reshape(n_exp, seq_len*topk, dmodel)
+            x = x.permute(2, 0, 3, 1).reshape(n_exp, seq_len * topk, dmodel)
             x = torch.bmm(x, weight)
 
-            assert x.shape == (n_exp, seq_len*topk, exp_size)
+            assert x.shape == (n_exp, seq_len * topk, exp_size)
             return x, one_hot
 
     def gating_postprocess_onehot_with_linear(self, x, topk_values, one_hot, weight):
@@ -286,8 +288,10 @@ class ExpertChoiceFF(LoggingLayer):
             # n_exp seq_len topk dmodel, n_exp topk seq_len batch_size,
             # x * one_hot (BROAD seq_len, MUL=(n_exp, topk), N=dmodel, M=batch_size)
             # -> batch_size seq_len dmodel
-            x = x.permute(1, 0, 2, 3).reshape(seq_len, n_exp*topk, dmodel)
-            one_hot = one_hot.permute(2, 0, 1, 3).reshape(seq_len, n_exp*topk, batch_size)
+            x = x.permute(1, 0, 2, 3).reshape(seq_len, n_exp * topk, dmodel)
+            one_hot = one_hot.permute(2, 0, 1, 3).reshape(
+                seq_len, n_exp * topk, batch_size
+            )
             x = torch.bmm(x, one_hot).permute(2, 0, 1)
 
             assert x.shape == (batch_size, seq_len, dmodel)
@@ -312,9 +316,7 @@ class ExpertChoiceFF(LoggingLayer):
             x, topk_indices, batch_size, self.lin1_weight
         )
         x = F.relu(x)
-        x = self.gating_postprocess_bmm(
-            x, topk_values, one_hot, self.lin2_weight
-        )
+        x = self.gating_postprocess_bmm(x, topk_values, one_hot, self.lin2_weight)
         return x
 
     def extract_chosen_tokens_select(
