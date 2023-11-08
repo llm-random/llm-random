@@ -63,7 +63,7 @@ class ExpertChoiceFF(LoggingLayer):
         assert softmax_over in ["tokens", "experts"]
         assert not self.softmax_ungrouped or self.group_by_batch
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
-        #assert not self.use_torch_bmm or not self.use_full_einsum  # Not implemented
+        assert not self.use_torch_bmm or not self.use_full_einsum  # Not implemented
 
         self.lin1_weight = nn.Parameter(
             get_init_weight(
