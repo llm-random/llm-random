@@ -10,7 +10,6 @@ from lizrd.core.misc import Noop
 
 
 def wrap_module_in_fsdp(
-    enabled: bool,
     module: nn.Module,
     rank: Optional[int],
     param_precision: torch.dtype,
@@ -49,14 +48,12 @@ def wrap_in_fsdp(
         return module
     elif cast_outputs_to is not None:
         cast_module = wrap_module_in_fsdp(
-            enabled=enabled,
             module=Noop(),
             rank=rank,
             param_precision=cast_outputs_to,
             cast_inputs=True,
         )
         main_module = wrap_module_in_fsdp(
-            enabled=enabled,
             module=module,
             rank=rank,
             param_precision=param_precision,
@@ -67,7 +64,6 @@ def wrap_in_fsdp(
         return CastWrapper(module=main_module, cast_module=cast_module)
     else:
         return wrap_module_in_fsdp(
-            enabled=enabled,
             module=module,
             rank=rank,
             param_precision=param_precision,

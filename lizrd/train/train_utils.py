@@ -85,6 +85,7 @@ def get_model(
         residual_fn=residual_fn,
         rank=rank,
         wrap_blocks_in_fsdp=wrap_blocks_in_fsdp,
+        wrap_attn_and_ff_in_fsdp=wrap_attn_and_ff_in_fsdp,
         param_precision=param_precision,
         offload_params=offload_params,
     )
