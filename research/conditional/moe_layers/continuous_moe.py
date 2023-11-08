@@ -125,15 +125,12 @@ class ContinuousMoeBaseClass(LoggingLayer):
             emit_weights,
             x.transpose(1, 2),
         )
-        # x shape is free_dimension, split_dimension // group_size, group_size, dmodel
         return x
 
     def reshape_into_original(self, x):
         if self.sparsity_dim == 0:
-            # sequence dimension is the new "batch size" when you think about it
             x = x.view(x.size(0), -1, self.dm)
             return x.transpose(0, 1)
-            # x is reshaped back to (batch, seq_len, dmodel)
         elif self.sparsity_dim == 1:
             return x.view(x.size(0), -1, self.dm)
         else:
