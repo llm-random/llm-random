@@ -200,6 +200,11 @@ def introduce_parser_arguments(
         help="in grouped ExpertChoice, use squash all linears with einsum",
     )
     parser.add_argument(
+        "--use_torch_bmm",
+        action="store_true",
+        help="in grouped ExpertChoice, use full_einsum implementation with all einsums replaced by torch.bmm",
+    )
+    parser.add_argument(
         "--use_dummy_dataset",
         action="store_true",
         help="whether to use dummy dataset (for debugging or tests)",

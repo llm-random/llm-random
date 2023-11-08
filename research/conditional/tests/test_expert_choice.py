@@ -67,6 +67,49 @@ class TestExpertChoice(GeneralTestCase):
             output = layer(input)
         self.assertTensorAlmostEqual(output, input)
 
+    def test_onehot_bmm_equivalence(self):
+        """
+        Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
+        """
+        batch, dm = 2, 2
+        experts = 2
+        exp_size = 6
+        seql = 2
+        topk_fraction = 0.5
+        layer = ExpertChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            one_hot_impl=True,
+            group_by_batch=True,
+            use_torch_bmm=True,
+        )
+        layer_einsum = ExpertChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            group_by_batch=True,
+            use_full_einsum=True,
+            one_hot_impl=True,
+        )
+        layer_einsum.lin1_weight.data = layer.lin1_weight.data
+        layer_einsum.lin2_weight.data = layer.lin2_weight.data
+        layer_einsum.gate.data = layer.gate.data
+        layer_einsum.ln = layer.ln
+
+        input = torch.rand((batch, seql, dm))
+
+        output = layer.forward(input)
+        output_onehot = layer_einsum.forward(input)
+
+        self.assertTensorAlmostEqual(output, output_onehot)
+
     def test_onehot_full_equivalence(self):
         """
         Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
