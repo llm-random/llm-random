@@ -322,7 +322,7 @@ def PreNormBlock(dmodel, layer, name):
     )
 
 
-class TransformerBlock(nn.Sequential):
+class TransformerBlock(nn.Module):
     def __init__(
         self,
         dmodel,
@@ -343,7 +343,7 @@ class TransformerBlock(nn.Sequential):
                 param_precision=param_precision,
                 offload_params=offload_params,
             )
-
+        sel
         residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
         residual_layers = [
             attn_ff_wrap_fn(residual_fn(layer=layer, name=name))
