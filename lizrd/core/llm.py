@@ -368,10 +368,7 @@ class TransformerTower(nn.Module):
 
             _, current_device = self.get_current_device(i_block)
             block = TransformerBlock(
-                dmodel,
-                layers_info,
-                gradient_checkpointing,
-                residual_fn
+                dmodel, layers_info, gradient_checkpointing, residual_fn
             ).to(current_device)
             block = wrap_in_fsdp(
                 enabled=wrap_blocks_in_fsdp,
