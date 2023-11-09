@@ -202,7 +202,8 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--use_torch_bmm",
         action="store_true",
-        help="in grouped ExpertChoice, use full_einsum implementation with all einsums replaced by torch.bmm",
+        help="in grouped ExpertChoice, use one hot implementation with all "
+             "linear operations performed using torch.bmm",
     )
     parser.add_argument(
         "--use_dummy_dataset",
