@@ -3,8 +3,6 @@ md5_parent_hash: 459a971ca459f7b0fc77c95edaf6b5fe
 time: 0-05:00:00
 
 params:
-  name: "laptop_check"
-  cutoff: 8
-  dataset_type: wikibook
-  torch_compile: true
+  name: "torch_compile_compare"
+  ^torch_compile: [false, true]
   logging_interval_heavy: 0

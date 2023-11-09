@@ -59,7 +59,7 @@ def get_cache_path(machine_backend: MachineBackend) -> str:
 
 
 def get_singularity_image(machine_backend: MachineBackend) -> str:
-    image_name = "sparsity_2023.08.29_09.26.31.sif"
+    image_name = "sparsity_2023.11.09_13.44.16.sif"
     common_dir = get_common_directory(machine_backend)
     return f"{common_dir}/images/{image_name}"
 
