@@ -30,6 +30,7 @@ class ExpertChoiceFF(LoggingLayer):
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
         group_size: int = 1,
+        use_torch_bmm: bool = False,
     ):
         """
         Args:
@@ -54,6 +55,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.n_gating_heatmaps = n_gating_heatmaps
         self.use_full_einsum = use_full_einsum
         self.group_size = group_size
+        self.use_torch_bmm = use_torch_bmm
 
         assert (
             not self.one_hot_impl or self.group_by_batch
@@ -61,6 +63,7 @@ class ExpertChoiceFF(LoggingLayer):
         assert softmax_over in ["tokens", "experts"]
         assert not self.softmax_ungrouped or self.group_by_batch
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
+        assert not self.use_torch_bmm or not self.use_full_einsum  # Not implemented
 
         self.lin1_weight = nn.Parameter(
             get_init_weight(
@@ -113,7 +116,9 @@ class ExpertChoiceFF(LoggingLayer):
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
         topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
-        if self.use_full_einsum:
+        if self.use_torch_bmm:
+            x = self.full_bmm(x, topk_indices, topk_values, batch_size)
+        elif self.use_full_einsum:
             x = self.full_einsum(x, topk_indices, topk_values, batch_size)
         else:
             x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
@@ -133,11 +138,17 @@ class ExpertChoiceFF(LoggingLayer):
     def expert_gating(self, x: torch.Tensor, batch_size: int, seq_len: int):
         # expert embedding
         with measure_time(self, "expert_embedding"):
-            gate_out = einsum(
-                "batch_size seq_len dmodel, dmodel n_experts -> n_experts batch_size seq_len ",
-                x,
-                self.gate,
-            )
+            if self.use_torch_bmm:
+                gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
+                gate_out = torch.bmm(x, gate).permute(2, 0, 1)
+                assert gate_out.shape == (self.n_experts, batch_size, seq_len)
+            else:
+                gate_out = einsum(
+                    "batch_size seq_len dmodel, dmodel n_experts "
+                    "-> n_experts batch_size seq_len ",
+                    x,
+                    self.gate,
+                )
         self.update_cache_for_logging("unflatten_gate_out", gate_out)
 
         # each expert chooses k within dimension 1
@@ -218,6 +229,36 @@ class ExpertChoiceFF(LoggingLayer):
             )
             return x, one_hot
 
+    def extract_with_linear_bmm(
+        self, x: torch.Tensor, topk_indices: torch.Tensor, batch_size, weight
+    ):
+        with measure_time(self, "gate_preprocess_with_linear"):
+            one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
+            n_exp, topk, seq_len, _ = one_hot.shape
+            _, dmodel, exp_size = weight.shape
+
+            # BROAD here means that dimension is broadcasted, N means it's copied from left,
+            # M means it's copied from right and MUL means it's multiplied
+            # maybe we should rewrite it as "fancy_bmm" with similar notation to einsum
+
+            # batch_size seq_len dmodel, n_exp topk seq_len batch_size,
+            # x * one_hot (BROAD seq_len, MUL=batch_size, N=dmodel, M=(topk, n_exp))
+            # -> seq_len dmodel n_exp topk
+            x = x.permute(1, 2, 0)
+            one_hot_perm = one_hot.permute(2, 3, 0, 1).reshape(
+                seq_len, batch_size, n_exp * topk
+            )
+            x = torch.bmm(x, one_hot_perm).reshape(seq_len, dmodel, n_exp, topk)
+
+            # seq_len dmodel n_exp topk, n_exp dmodel exp_size
+            # x * weight (BROAD n_exp, MUL=dmodel, N=seq_len, M=exp_size)
+            # -> n_exp seq_len topk exp_size
+            x = x.permute(2, 0, 3, 1).reshape(n_exp, seq_len * topk, dmodel)
+            x = torch.bmm(x, weight)
+
+            assert x.shape == (n_exp, seq_len * topk, exp_size)
+            return x, one_hot
+
     def gating_postprocess_onehot_with_linear(self, x, topk_values, one_hot, weight):
         with measure_time(self, "gating_postprocess_with_linear"):
             return einsum(
@@ -230,6 +271,33 @@ class ExpertChoiceFF(LoggingLayer):
                 weight,
             )
 
+    def gating_postprocess_bmm(self, x, topk_values, one_hot, weight):
+        with measure_time(self, "gating_postprocess_with_linear"):
+            n_exp, exp_size, dmodel = weight.shape
+            _, topk, seq_len, batch_size = one_hot.shape
+            assert x.shape == (n_exp, seq_len * topk, exp_size)
+
+            # n_exp seq_len*topk exp_size, n_exp exp_size dmodel,
+            # x * weight (BROAD n_exp, MUL=exp_size, N=(seq_len, topk), M=dmodel)
+            # -> n_exp seq_len topk dmodel
+            x = torch.bmm(x, weight).reshape(n_exp, seq_len, topk, dmodel)
+
+            # n_exp seq_len topk dmodel, n_exp topk seq_len,
+            # x * topk_values -> n_exp seq_len topk dmodel
+            x *= topk_values.permute(0, 2, 1).unsqueeze(-1)
+
+            # n_exp seq_len topk dmodel, n_exp topk seq_len batch_size,
+            # x * one_hot (BROAD seq_len, MUL=(n_exp, topk), N=dmodel, M=batch_size)
+            # -> batch_size seq_len dmodel
+            x = x.permute(1, 3, 0, 2).reshape(seq_len, dmodel, n_exp * topk)
+            one_hot = one_hot.permute(2, 0, 1, 3).reshape(
+                seq_len, n_exp * topk, batch_size
+            )
+            x = torch.bmm(x, one_hot).permute(2, 0, 1)
+
+            assert x.shape == (batch_size, seq_len, dmodel)
+            return x
+
     def full_einsum(
         self, x: torch.Tensor, topk_indices: torch.Tensor, topk_values, batch_size
     ):
@@ -240,6 +308,16 @@ class ExpertChoiceFF(LoggingLayer):
         x = self.gating_postprocess_onehot_with_linear(
             x, topk_values, one_hot, self.lin2_weight
         )
+        return x
+
+    def full_bmm(
+        self, x: torch.Tensor, topk_indices: torch.Tensor, topk_values, batch_size
+    ):
+        x, one_hot = self.extract_with_linear_bmm(
+            x, topk_indices, batch_size, self.lin1_weight
+        )
+        x = F.relu(x)
+        x = self.gating_postprocess_bmm(x, topk_values, one_hot, self.lin2_weight)
         return x
 
     def extract_chosen_tokens_select(
