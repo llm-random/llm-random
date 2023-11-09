@@ -38,14 +38,14 @@ def get_model(
     init_scale,
     ddp_enabled: bool,
     fsdp_enabled: bool,
-    wrap_blocks_in_fsdp: bool,
-    wrap_attn_and_ff_in_fsdp: bool,
-    param_precision: bool,
-    offload_params: bool,
+    fsdp_wrap_whole_transformer_blocks: bool,
+    fsdp_wrap_attn_and_ff: bool,
+    fsdp_param_precision: bool,
+    fsdp_cpu_offloading: bool,
+    rank=None,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
-    rank=None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -62,13 +62,13 @@ def get_model(
             vocab_size, dm, init_type=init_type, init_scale=init_scale
         ).to(first_gpu),
     )
-    embedding_layer = wrap_in_fsdp(
-        enabled=wrap_blocks_in_fsdp,
-        module=embedding_layer,
-        rank=rank,
-        param_precision=param_precision,
-        offload_params=offload_params,
-    )
+    if fsdp_wrap_whole_transformer_blocks:
+        embedding_layer = wrap_in_fsdp(
+            module=embedding_layer,
+            rank=rank,
+            param_precision=fsdp_param_precision,
+            offload_params=fsdp_cpu_offloading,
+        )
 
     layer_dict = {
         "attention": attention_layer_fun,
@@ -84,41 +84,40 @@ def get_model(
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
         rank=rank,
-        wrap_blocks_in_fsdp=wrap_blocks_in_fsdp,
-        wrap_attn_and_ff_in_fsdp=wrap_attn_and_ff_in_fsdp,
-        param_precision=param_precision,
-        offload_params=offload_params,
+        fsdp_wrap_whole_transformer_blocks=fsdp_wrap_whole_transformer_blocks,
+        fsdp_wrap_attn_and_ff=fsdp_wrap_attn_and_ff,
+        fsdp_param_precision=fsdp_param_precision,
+        fsdp_cpu_offloading=fsdp_cpu_offloading,
     )
-    encoder_tower = wrap_in_fsdp(
-        enabled=wrap_blocks_in_fsdp,
-        module=encoder_tower,
-        rank=rank,
-        param_precision=param_precision,
-        offload_params=offload_params,
-    )
+    if fsdp_wrap_whole_transformer_blocks:
+        encoder_tower = wrap_in_fsdp(
+            module=encoder_tower,
+            rank=rank,
+            param_precision=fsdp_param_precision,
+            offload_params=fsdp_cpu_offloading,
+        )
 
     head = llm.PredictionHead(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(last_gpu)
-    head = wrap_in_fsdp(
-        enabled=wrap_blocks_in_fsdp,
-        module=head,
-        rank=rank,
-        param_precision=param_precision,
-        offload_params=offload_params,
-    )
+    if fsdp_wrap_whole_transformer_blocks:
+        head = wrap_in_fsdp(
+            module=head,
+            rank=rank,
+            param_precision=fsdp_param_precision,
+            offload_params=fsdp_cpu_offloading,
+        )
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
     if ddp_enabled:
         model = wrap_in_ddp(module=model, rank=rank)
-    else:
+    elif fsdp_enabled:
         model = wrap_in_fsdp(
-            enabled=fsdp_enabled,
             module=model,
             rank=rank,
-            param_precision=param_precision,
+            param_precision=fsdp_param_precision,
             cast_inputs=True,
-            offload_params=offload_params,
+            offload_params=fsdp_cpu_offloading,
             print_model=True,
         )
 

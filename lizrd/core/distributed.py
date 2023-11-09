@@ -10,18 +10,14 @@ from lizrd.core.misc import Noop
 
 
 def wrap_in_fsdp(
-    enabled: bool,
     module: nn.Module,
     rank: Optional[int],
     param_precision: torch.dtype,
     cast_inputs: bool = False,
     offload_params: bool = False,
     print_model: bool = False,
-    cast_outputs_to: Optional[torch.dtype] = None,
+    output_cast_dtype: Optional[torch.dtype] = None,
 ):
-    if not enabled:
-        return module
-
     def _create_single_fsdp_module(module_to_wrap, precision):
         return FSDP(
             module_to_wrap,
@@ -34,10 +30,10 @@ def wrap_in_fsdp(
             cpu_offload=CPUOffload(offload_params=offload_params),
         )
 
-    if cast_outputs_to is not None:
+    if output_cast_dtype is not None:
         main_module = _create_single_fsdp_module(module, param_precision)
-        cast_module = _create_single_fsdp_module(Noop(), cast_outputs_to)
-        wrapped = CastWrapper(module=main_module, cast_module=cast_module)
+        casting_module = _create_single_fsdp_module(Noop(), output_cast_dtype)
+        wrapped = nn.Sequential([main_module, casting_module])
     else:
         wrapped = _create_single_fsdp_module(module, param_precision)
 
@@ -47,16 +43,6 @@ def wrap_in_fsdp(
         print("--------------------------------------------")
 
     return wrapped
-
-
-class CastWrapper(nn.Module):
-    def __init__(self, module: nn.Module, cast_module: nn.Module):
-        super().__init__()
-        self.module = module
-        self.cast_module = cast_module
-
-    def forward(self, *args, **kwargs):
-        return self.cast_module(self.module(*args, **kwargs))
 
 
 def wrap_in_ddp(

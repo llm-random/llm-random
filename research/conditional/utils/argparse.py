@@ -68,6 +68,7 @@ def introduce_parser_arguments(
     parser.add_argument("--fsdp", action="store_true")
     parser.add_argument("--wrap_blocks_in_fsdp", action="store_true")
     parser.add_argument("--wrap_attn_and_ff_in_fsdp", action="store_true")
+    parser.add_argument("--fsdp_attn_in_high_precision", action="store_true")
     parser.add_argument("--cpu_offload", action="store_true")
     parser.add_argument(
         "--model_parallelism_fragmentation",

@@ -225,7 +225,7 @@ class Attention(LoggingLayer):
         causal,
         init_type: str,
         init_scale: float,
-        fsdp_enabled: bool = False,
+        attn_in_high_precision: bool = False,
         rank: Optional[int] = None,
         param_precision: Optional[torch.dtype] = None,
         offload_params: bool = False,
@@ -256,15 +256,17 @@ class Attention(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.attention_mechanism = wrap_in_fsdp(
-            enabled=fsdp_enabled,
-            module=AttentionMechanism(flash=flash),
-            rank=rank,
-            param_precision=torch.float32,
-            offload_params=offload_params,
-            cast_inputs=True,
-            cast_outputs_to=param_precision,
-        )
+        attention_mechanism = AttentionMechanism(flash=flash)
+        if attn_in_high_precision:
+            self.attention_mechanism = wrap_in_fsdp(
+                module=attention_mechanism,
+                rank=rank,
+                param_precision=torch.float32,
+                offload_params=offload_params,
+                cast_inputs=True,
+                output_cast_dtype=param_precision,
+            )
+        self.attention_mechanism = attention_mechanism
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -329,22 +331,25 @@ class TransformerBlock(nn.Sequential):
         layers,
         gradient_checkpointing,
         residual_fn,
-        wrap_attn_and_ff_in_fsdp=False,
+        fsdp_wrap_attn_and_ff=False,
         rank=None,
-        param_precision=torch.float32,
-        offload_params=False,
+        fsdp_param_precision=torch.float32,
+        fsdp_cpu_offloading=False,
     ):
         residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
-        residual_layers = [
-            wrap_in_fsdp(
-                enabled=wrap_attn_and_ff_in_fsdp,
-                rank=rank,
-                module=residual_fn(layer=layer, name=name),
-                param_precision=param_precision,
-                offload_params=offload_params,
-            )
-            for name, layer in layers
-        ]
+
+        residual_layers = []
+        for name, layer in layers:
+            module = residual_fn(layer=layer, name=name)
+            if fsdp_wrap_attn_and_ff:
+                wrap_in_fsdp(
+                    rank=rank,
+                    module=residual_fn(layer=layer, name=name),
+                    param_precision=fsdp_param_precision,
+                    offload_params=fsdp_cpu_offloading,
+                )
+            residual_layers.append(module)
+
         if gradient_checkpointing:
             residual_layers = [Checkpoint(layer) for layer in residual_layers]
         super(TransformerBlock, self).__init__(*residual_layers)
@@ -362,10 +367,10 @@ class TransformerTower(nn.Module):
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
         rank=None,
-        wrap_blocks_in_fsdp=False,
-        wrap_attn_and_ff_in_fsdp=False,
-        param_precision=torch.float32,
-        offload_params=False,
+        fsdp_wrap_whole_transformer_blocks=False,
+        fsdp_wrap_attn_and_ff=False,
+        fsdp_param_precision=torch.float32,
+        fsdp_cpu_offloading=False,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -390,20 +395,21 @@ class TransformerTower(nn.Module):
                 layers_info,
                 gradient_checkpointing,
                 residual_fn,
-                wrap_attn_and_ff_in_fsdp=wrap_attn_and_ff_in_fsdp,
+                fsdp_wrap_attn_and_ff=fsdp_wrap_attn_and_ff,
                 rank=rank,
-                param_precision=param_precision,
-                offload_params=offload_params,
+                fsdp_param_precision=fsdp_param_precision,
+                fsdp_cpu_offloading=fsdp_cpu_offloading,
             )
             if current_device != torch.device("cpu"):
                 block = block.to(current_device)
-            block = wrap_in_fsdp(
-                enabled=wrap_blocks_in_fsdp,
-                module=block,
-                rank=rank,
-                param_precision=param_precision,
-                offload_params=offload_params,
-            )
+
+            if fsdp_wrap_whole_transformer_blocks:
+                block = wrap_in_fsdp(
+                    module=block,
+                    rank=rank,
+                    param_precision=fsdp_param_precision,
+                    offload_params=fsdp_cpu_offloading,
+                )
             name_and_block = (
                 f"block_{i_block}",
                 block,

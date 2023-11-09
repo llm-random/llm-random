@@ -183,24 +183,27 @@ class ExpertChoiceFF(LoggingLayer):
             if one_hot_impl
             else self.gating_postprocess_select
         )
-        self.expert_gating = wrap_in_fsdp(
-            enabled=fsdp_enabled,
-            module=ExpertGating(
-                n_experts=n_experts,
-                group_by_batch=group_by_batch,
-                softmax_ungrouped=softmax_ungrouped,
-                softmax_over=softmax_over,
-                topk_fraction=topk_fraction,
-                one_hot_impl=one_hot_impl,
-                random_perm=random_perm,
-                gate=gate,
-            ),
-            rank=rank,
-            param_precision=torch.float32,
-            offload_params=offload_params,
-            cast_inputs=True,
-            cast_outputs_to=param_precision,
+
+        expert_gating = ExpertGating(
+            n_experts=n_experts,
+            group_by_batch=group_by_batch,
+            softmax_ungrouped=softmax_ungrouped,
+            softmax_over=softmax_over,
+            topk_fraction=topk_fraction,
+            one_hot_impl=one_hot_impl,
+            random_perm=random_perm,
+            gate=gate,
         )
+        if fsdp_enabled:
+            expert_gating = wrap_in_fsdp(
+                module=expert_gating,
+                rank=rank,
+                param_precision=torch.float32,
+                offload_params=offload_params,
+                cast_inputs=True,
+                output_cast_dtype=param_precision,
+            )
+        self.expert_gating = expert_gating
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)

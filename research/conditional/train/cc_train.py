@@ -92,7 +92,7 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args, rank)
-    attention_layer_fun = get_attention_layer(args, rank=rank, fsdp_enabled=args.fsdp)
+    attention_layer_fun = get_attention_layer(args, rank=rank)
     residual_fn = get_residual_layer(args)
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
@@ -126,10 +126,10 @@ def main(
         init_scale=args.init_scale,
         ddp_enabled=args.ddp,
         fsdp_enabled=args.fsdp,
-        wrap_blocks_in_fsdp=args.wrap_blocks_in_fsdp,
-        wrap_attn_and_ff_in_fsdp=args.wrap_attn_and_ff_in_fsdp,
-        param_precision=param_precision,
-        offload_params=args.cpu_offload,
+        fsdp_wrap_whole_transformer_blocks=args.wrap_blocks_in_fsdp,
+        fsdp_wrap_attn_and_ff=args.wrap_attn_and_ff_in_fsdp,
+        fsdp_param_precision=param_precision,
+        fsdp_cpu_offloading=args.cpu_offload,
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
