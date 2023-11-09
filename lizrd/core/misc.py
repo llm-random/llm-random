@@ -191,9 +191,12 @@ class Checkpoint(nn.Module):
         return custom_forward
 
     def forward(self, x):
+        # print(self.module.__class__)
         if hasattr(self.module, "checkpoint_forward"):
+            # print("choosing custom with cache")
             return checkpoint(self.custom_with_cache(), x)
         else:
+            # print("choosing custom")
             return checkpoint(self.custom(), x)
 
 

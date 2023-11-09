@@ -289,9 +289,15 @@ def PreNormBlock(dmodel, layer, name):
 @ash.check("... d -> ... d")
 def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
-    residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
+
     if gradient_checkpointing:
-        residual_layers = [Checkpoint(layer) for layer in residual_layers]
+        residual_layers = [
+            residual_fn(layer=Checkpoint(layer), name=name) for name, layer in layers
+        ]
+    else:
+        residual_layers = [
+            residual_fn(layer=layer, name=name) for name, layer in layers
+        ]
     return nn.Sequential(*residual_layers)
 
 
