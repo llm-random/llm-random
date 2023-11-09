@@ -194,9 +194,9 @@ def attention_mechanism(
 
 
 class AttentionMechanism(nn.Module):
-    def __init__(self, flash: bool, *args, **kwargs) -> None:
+    def __init__(self, use_flash_attention: bool, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.flash = flash
+        self.use_flash_attention = use_flash_attention
 
     def forward(
         self,
@@ -212,7 +212,7 @@ class AttentionMechanism(nn.Module):
             value=value,
             dhead=dhead,
             causal=causal,
-            flash=self.flash,
+            flash=self.use_flash_attention,
         )
 
 
@@ -256,7 +256,7 @@ class Attention(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
-        attention_mechanism = AttentionMechanism(flash=flash)
+        attention_mechanism = AttentionMechanism(use_flash_attention=flash)
         if attn_in_high_precision:
             self.attention_mechanism = wrap_in_fsdp(
                 module=attention_mechanism,
