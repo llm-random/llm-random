@@ -89,6 +89,13 @@ def get_model(
         param_precision=param_precision,
         offload_params=offload_params,
     )
+    encoder_tower = wrap_in_fsdp(
+        enabled=wrap_blocks_in_fsdp,
+        module=encoder_tower,
+        rank=rank,
+        param_precision=param_precision,
+        offload_params=offload_params,
+    )
 
     head = llm.PredictionHead(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
