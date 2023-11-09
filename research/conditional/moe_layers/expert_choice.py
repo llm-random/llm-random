@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 import plotly.express as px
 import torch
 import torch.nn.functional as F
@@ -99,7 +99,7 @@ class ExpertChoiceFF(LoggingLayer):
             else self.gating_postprocess_select
         )
 
-    def checkpointed_forward(self, x: torch.Tensor, cache: dict):
+    def checkpoint_forward(self, x: torch.Tensor, cache: dict):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len = x.shape[0], x.shape[1]
         orig_bs, orig_seq_len = batch_size, seq_len
@@ -112,19 +112,7 @@ class ExpertChoiceFF(LoggingLayer):
             )
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
-        if "topk" not in cache:
-            topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
-            cache["topk"], cache["topk_indices"], cache["topk_values"] = (
-                topk,
-                topk_indices,
-                topk_values,
-            )
-        else:
-            topk, topk_indices, topk_values = (
-                cache["topk"],
-                cache["topk_indices"],
-                cache["topk_values"],
-            )
+        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
 
         if self.use_full_einsum:
             x = self.full_einsum(x, topk_indices, topk_values, batch_size)
@@ -144,9 +132,15 @@ class ExpertChoiceFF(LoggingLayer):
         return x
 
     def forward(self, x: torch.Tensor):
-        return self.checkpointed_forward(x, {})
+        return self.checkpoint_forward(x, {})
 
-    def expert_gating(self, x: torch.Tensor, batch_size: int, seq_len: int):
+    def expert_gating(
+        self,
+        x: torch.Tensor,
+        batch_size: int,
+        seq_len: int,
+        cache: Optional[dict] = None,
+    ):
         # expert embedding
         with measure_time(self, "expert_embedding"):
             gate_out = einsum(
@@ -177,7 +171,13 @@ class ExpertChoiceFF(LoggingLayer):
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
             # n_experts batch_size seq_len -> n_experts topk, n_experts topk
-            topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+            if cache is None or "gating_topk_indices" not in cache:
+                topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+                if cache is not None:
+                    cache["gating_topk_indices"] = topk_indices
+            else:
+                topk_indices = cache["gating_topk_indices"]
+                topk_values = gate_out.gather(dim=1, index=topk_indices)
 
         with measure_time(self, "indexing_change"):
             if self.group_by_batch and not self.one_hot_impl:

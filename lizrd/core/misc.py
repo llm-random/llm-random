@@ -182,8 +182,19 @@ class Checkpoint(nn.Module):
 
         return custom_forward
 
+    def custom_with_cache(self):
+        cache = dict()
+
+        def custom_forward(*inputs):
+            return self.module.checkpoint_forward(inputs[0], cache)
+
+        return custom_forward
+
     def forward(self, x):
-        return checkpoint(self.custom(), x)
+        if hasattr(self.module, "checkpoint_forward"):
+            return checkpoint(self.custom_with_cache(), x)
+        else:
+            return checkpoint(self.custom(), x)
 
 
 def Sum(*layers):
