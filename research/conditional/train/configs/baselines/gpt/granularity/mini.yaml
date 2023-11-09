@@ -19,9 +19,9 @@ params:
   init_scale: 0.1
 
   # params of expert choice
-  total_experts_width: 32768
-  effective_dff: 1024
-  ^n_experts: [32]
+  # total_experts_width: 32768
+  # effective_dff: 1024
+  # ^n_experts: [32]
 
   # ------ FILL IN BELOW ------
   n_steps: 1000
@@ -29,9 +29,12 @@ params:
   learning_rate: 1e-4
   lr_warmup_steps: 10
   final_lr_step: 1000
-  batch_size: 256
+  batch_size: 10
   cutoff: 256
 
-  dataset_type: c4
+  expert_size: 256
+  n_experts: 4
+  topk_fraction: 0.5
+
+  dataset_type: wikibook
   use_dummy_dataset: true
-  batch_size: 2
