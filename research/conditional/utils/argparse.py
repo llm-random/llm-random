@@ -203,7 +203,7 @@ def introduce_parser_arguments(
         "--use_torch_bmm",
         action="store_true",
         help="in grouped ExpertChoice, use one hot implementation with all "
-             "linear operations performed using torch.bmm",
+        "linear operations performed using torch.bmm",
     )
     parser.add_argument(
         "--use_dummy_dataset",
