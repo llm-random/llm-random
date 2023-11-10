@@ -1,7 +1,6 @@
 parent: research/conditional/train/configs/baselines/gpt/mot/mini.yaml
 md5_parent_hash: f8e9b6016fa9112fea4c85dab1833ba2
 
-cuda_visible: "4"
 
 time: "00:30:00"
 
