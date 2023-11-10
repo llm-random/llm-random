@@ -108,18 +108,7 @@ def introduce_parser_arguments(
     parser.add_argument("--load_weights_path", type=str, default=None)
 
     # paremeters for specific experiments
-    ## used often by Continuous MoE
 
-    parser.add_argument("--emit_softmax_over_experts", action="store_true")
-    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
-    parser.add_argument("--n_experts", type=int)
-    parser.add_argument("--group_size", type=int)
-    parser.add_argument("--sparsity_dim", type=int)
-    parser.add_argument("--temperature", type=float)
-    parser.add_argument("--expert_size", type=int)
-    parser.add_argument("--share_by_experts", action="store_true")
-    parser.add_argument("--share_by_emit_merge", action="store_true")
-    parser.add_argument("--flop_matched", action="store_true")
     ## used by MoE (common)
     parser.add_argument(
         "--eval_dynamic_groupsize",
@@ -138,6 +127,19 @@ def introduce_parser_arguments(
         default=None,
         help="During evaluation, the largest group size is group_size * 2**eval_max_group_size_logfactor",
     )
+
+    ## used often by Continuous MoE
+
+    parser.add_argument("--emit_softmax_over_experts", action="store_true")
+    parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
+    parser.add_argument("--n_experts", type=int)
+    parser.add_argument("--group_size", type=int)
+    parser.add_argument("--sparsity_dim", type=int)
+    parser.add_argument("--temperature", type=float)
+    parser.add_argument("--expert_size", type=int)
+    parser.add_argument("--share_by_experts", action="store_true")
+    parser.add_argument("--share_by_emit_merge", action="store_true")
+    parser.add_argument("--flop_matched", action="store_true")
 
     ## used by MoE (specific)
     parser.add_argument(

@@ -208,7 +208,7 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
-        eval_dynamic_groupsize=args.should_evaluate_dynamic_groupsize,
+        eval_dynamic_groupsize=args.eval_dynamic_groupsize,
         decoding_interval=args.decoding_interval,
         eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
         eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
