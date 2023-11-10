@@ -353,7 +353,7 @@ class ConditionalTrainer:
                 mixed_precision=self.mixed_precision,
                 scaler=self.scaler,
                 vocab_size=self.vocab_size,
-                num_accumulated_batches=self.gradient_accumulation_steps,
+                gradient_accumulation_steps=self.gradient_accumulation_steps,
             )
 
             # clear computation graph, store gradients, only apply gradients at the end
@@ -487,7 +487,7 @@ class ConditionalTrainer:
             vocab_size=self.vocab_size,
             scaler=self.scaler,
             backward_pass=True,
-            num_accumulated_batches=1,
+            gradient_accumulation_steps=1,
         )
         self._optimize(None, should_apply_gradient=True)
         if self.is_process_logging:
@@ -521,7 +521,7 @@ class ConditionalTrainer:
             vocab_size=self.vocab_size,
             scaler=self.scaler,
             backward_pass=True,
-            num_accumulated_batches=1,
+            gradient_accumulation_steps=1,
         )
         self._optimize(None, should_apply_gradient=True)
         self.logger.report_scalar(title="max expert size", value=step, iteration=step)
