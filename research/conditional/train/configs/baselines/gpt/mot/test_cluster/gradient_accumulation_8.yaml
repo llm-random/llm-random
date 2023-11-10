@@ -1,0 +1,13 @@
+parent: research/conditional/train/configs/baselines/gpt/mini.yaml
+md5_parent_hash: 019212718f2ace8645ddca8f28f6eaee
+
+
+time: "00:30:00"
+
+params:
+  name: "gradient_accumulation_steps_8"
+  gradient_accumulation_steps: 8
+  save_weights_interval: 0
+  logging_interval_heavy: 1000
+  tags: ["cluster_test", "gradient_accumulation_steps"]
+  n_steps: 5000
