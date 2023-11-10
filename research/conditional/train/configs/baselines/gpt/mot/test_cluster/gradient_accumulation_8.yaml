@@ -1,5 +1,5 @@
-parent: research/conditional/train/configs/baselines/gpt/mini.yaml
-md5_parent_hash: 019212718f2ace8645ddca8f28f6eaee
+parent: research/conditional/train/configs/baselines/gpt/mot/mini.yaml
+md5_parent_hash: f8e9b6016fa9112fea4c85dab1833ba2
 
 
 time: "00:30:00"
