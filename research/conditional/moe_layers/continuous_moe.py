@@ -114,17 +114,21 @@ class ContinuousMoeBaseClass(LoggingLayer):
             merge_weights.transpose(-1, -2),
             x,
         )
-        # x shape is (free_dimension, split_dimension // group_size, n_experts, dmodel) ||| (lin1 shape is n_experts, dmodel, expert_size)
-        x = torch.matmul(x.transpose(1, 2), self.lin1)
+        # x shape is (free_dimension, split_dimension // group_size, n_experts, dmodel) ||| lin1 shape is (n_experts, dmodel, expert_size)
+        x = torch.bmm(x.view(-1, self.n_experts, self.dm).transpose(0, 1), self.lin1)
         x = torch.relu_(x)
-        # x shape is (free_dimension, split_dimension // group_size, n_experts, expert_size) ||| (lin2 shape is n_experts, expert_size, dmodel)
-        x = torch.matmul(x, self.lin2)
-        # emit_weights shape is (free_dimension, split_dimension // group_size, group_size, n_experts)
-        # x shape is free_dimension, group_size, split_dimension // group_size, dmodel
+        # x shape is (n_experts, free_dimension * aggr_dimension // group_size, expert_size) ||| lin2 shape is (n_experts, expert_size, dmodel)
+        x = torch.bmm(x, self.lin2)
+        # x shape is (n_experts, free_dimension * aggr_dimension // group_size, dmodel)
+
+        # merge_weights shape is (free_dimension, aggr_dimension // group_size, group_size, n_experts)
+        # view x to be (n_experts, free_dimension, aggr_dimension // group_size, dmodel)
+        # permute it to be (free_dimension, aggr_dimension // group_size, n_experts, dmodel)
         x = torch.matmul(
             emit_weights,
-            x.transpose(1, 2),
+            x.view(x.size(0), emit_weights.size(0), -1, self.dm).permute(1, 2, 0, 3),
         )
+
         return x
 
     def reshape_into_original(self, x):
