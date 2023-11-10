@@ -178,15 +178,11 @@ def attention_mechanism(
 
         a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
         a = a * (1 / dhead**0.5)
-        # print(f"type of a: {a.dtype}")
-        # a = a.type(torch.float32)
-        # print(f"type of a: {a.dtype}")
         if causal:
             a.masked_fill_(
                 torch.tril(torch.ones_like(a)) == 0, float("-inf")
             )  # mask out future tokens
         a = torch.softmax(a, dim=-1)
-        # a = a.type(torch.bfloat16)
         output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
         output = output.transpose(1, 2)
 
