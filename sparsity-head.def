@@ -13,6 +13,8 @@ From: sparsity-base.sif
 
     ./install_requirements.sh
 
+    ldconfig
+
 %runscript
     . /opt/venv/bin/activate
     $@

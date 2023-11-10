@@ -4,5 +4,5 @@ time: 0-05:00:00
 
 params:
   name: "torch_compile_compare"
-  ^torch_compile: [false, true]
+  ^torch_compile: [true, false]
   logging_interval_heavy: 0
