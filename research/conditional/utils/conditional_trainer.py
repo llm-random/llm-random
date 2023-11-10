@@ -5,6 +5,7 @@ from types import SimpleNamespace as SN
 import time
 from typing import Callable, Iterable, Optional, Literal
 
+import numpy as np
 import torch
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
@@ -16,6 +17,7 @@ from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
+from research.conditional.utils.misc_tools import temp_modify_attr
 from research.conditional.utils.model_utils import make_loss_function
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
@@ -60,10 +62,11 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
-    min_eval_group_size: int = 0
-    max_eval_group_size: int = 0
+    eval_min_group_size_logfactor: int = 0
+    eval_max_group_size_logfactor: int = 0
+    eval_discrete_mot: bool = False
     is_process_logging: bool = True
-    should_evaluate_dynamic_groupsize: bool = False
+    eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
 
     def __attrs_post_init__(self):
@@ -254,43 +257,42 @@ class ConditionalTrainer:
 
     def _eval_step(self, step: int):
         batches = (self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches))
-        if self.should_evaluate_dynamic_groupsize:
-            batches = list(batches)
-            contmoe_layers = [
-                l
-                for _, l in self.layer_manager._layers
-                if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
-            ]
-            original_group_size = contmoe_layers[0].group_size
-            group_size = max(
-                original_group_size // 2
-                if self.min_eval_group_size == 0
-                else self.min_eval_group_size,
-                1,
+        self._batches_eval_step(
+            batches=batches,
+            step=step,
+            eval_variant_name=None,
+        )
+        layers = [
+            l
+            for _, l in self.layer_manager._layers
+            if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
+        ]
+        if self.eval_dynamic_groupsize:
+            original_group_size = layers[0].group_size
+            assert (
+                self.eval_min_group_size_logfactor <= self.eval_max_group_size_logfactor
             )
-            max_group_size = min(
-                2 * original_group_size
-                if self.max_eval_group_size == 0
-                else self.max_eval_group_size,
-                self.batch_size,
-            )
-            while group_size <= max_group_size:
-                for layer in contmoe_layers:
-                    layer.group_size = group_size
+            for log_group_size_factor in range(
+                self.eval_min_group_size_logfactor, self.eval_max_group_size_logfactor
+            ):
+                current_group_size = (
+                    np.power(2, log_group_size_factor) * original_group_size
+                )
+                assert isinstance(current_group_size, int)
+                with temp_modify_attr(layers, "group_size", current_group_size):
+                    self._batches_eval_step(
+                        batches=batches,
+                        step=step,
+                        eval_variant_name=f"group size={current_group_size}",
+                    )
+
+        if self.eval_discrete_mot:
+            with temp_modify_attr(layers, "use_discrete_routing", True):
                 self._batches_eval_step(
                     batches=batches,
                     step=step,
-                    eval_variant_name=f"gs={group_size}",
+                    eval_variant_name="discrete MoT routing",
                 )
-                group_size *= 2
-            for layer in contmoe_layers:
-                layer.group_size = original_group_size
-        else:
-            self._batches_eval_step(
-                batches=batches,
-                step=step,
-                eval_variant_name=None,
-            )
 
     def _batches_eval_step(
         self, batches: Iterable[LLMBatch], step: int, eval_variant_name: Optional[str]
