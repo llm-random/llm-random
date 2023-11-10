@@ -401,7 +401,8 @@ class ConditionalTrainer:
     def _log_heavy(self, step):
         g_metrics, w_metrics = {}, {}
         if (
-            step % self.logging_interval_heavy == 0
+            self.logging_interval_heavy > 0
+            and step % self.logging_interval_heavy == 0
             and step > 0
             and self.log_gradients_and_weights
         ):
