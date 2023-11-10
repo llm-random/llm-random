@@ -53,11 +53,6 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
     )
-    parser.add_argument(
-        "--use_dummy_dataset",
-        action="store_true",
-        help="whether to use dummy dataset (for debugging or tests)",
-    )
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--cutoff", type=int, required=True)
 
@@ -125,12 +120,9 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
-    parser.add_argument("--eval_discrete_mot", action="store_true")
-    parser.add_argument("--mix_whole_batch", action="store_true")
-
     ## used by MoE (common)
     parser.add_argument(
-        "--should_evaluate_dynamic_groupsize",
+        "--eval_dynamic_groupsize",
         action="store_true",
         help="During evaluation, evaluate model with multiple group sizes",
     )
@@ -188,6 +180,7 @@ def introduce_parser_arguments(
     parser.add_argument("--kernel_type", type=str, default="relu")
     parser.add_argument("--nystrom", action="store_true")
     parser.add_argument("--xfavor", action="store_true")
+    parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
     parser.add_argument(
         "--ff_parallel_compute_fraction",
@@ -225,6 +218,11 @@ def introduce_parser_arguments(
         action="store_true",
         help="in grouped ExpertChoice, use one hot implementation with all "
         "linear operations performed using torch.bmm",
+    )
+    parser.add_argument(
+        "--use_dummy_dataset",
+        action="store_true",
+        help="whether to use dummy dataset (for debugging or tests)",
     )
 
     # experimental/legacy parameters
