@@ -45,9 +45,10 @@ class LayerManager:
 
     def prepare_for_logging(self, step):
         if (
-            step % self.logging_interval_light == 0
-            or (self.logging_interval_heavy > 0 and step % self.logging_interval_heavy)
-            == 0
+            self.logging_interval_light > 0
+            and step % self.logging_interval_light == 0
+            or self.logging_interval_heavy > 0
+            and step % self.logging_interval_heavy == 0
         ):
             for block_name, layer in self._layers:
                 if hasattr(layer, "prepare_for_logging"):

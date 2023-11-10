@@ -26,19 +26,42 @@ class ContinuousMoEMergeDifferentlyCommonBase(ContinuousMoeBaseClass):
 
     def init_core_parameters(self):
         self.lin1 = nn.Parameter(
-            get_init_weight((self.dm, self.n_experts, self.expert_size), fan_in=self.dm)
+            get_init_weight(
+                (self.dm, self.n_experts, self.expert_size),
+                fan_in=self.dm,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
         )
         self.lin2 = nn.Parameter(
             get_init_weight(
-                (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
+                (self.dm, self.n_experts, self.expert_size),
+                fan_in=self.expert_size,
+                init_type=self.init_type,
+                scale=self.init_scale,
             )
         )
         self.controller_base = nn.Parameter(
-            get_init_weight((self.dm, self.n_experts), fan_in=self.dm * 2)
+            get_init_weight(
+                (self.dm, self.n_experts),
+                fan_in=self.dm * 2,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
         )
         self.controller_merge = nn.Parameter(
-            get_init_weight((self.dm, self.n_experts), fan_in=self.dm * 2)
+            get_init_weight(
+                (self.dm, self.n_experts),
+                fan_in=self.dm * 2,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
         )
         self.controller_emit = nn.Parameter(
-            get_init_weight((self.dm, self.n_experts), fan_in=self.dm * 2)
+            get_init_weight(
+                (self.dm, self.n_experts),
+                fan_in=self.dm * 2,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
         )
