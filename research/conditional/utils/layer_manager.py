@@ -45,8 +45,10 @@ class LayerManager:
 
     def prepare_for_logging(self, step):
         if (
-            step % self.logging_interval_light == 0
-            or step % self.logging_interval_heavy == 0
+            self.logging_interval_light > 0
+            and step % self.logging_interval_light == 0
+            or self.logging_interval_heavy > 0
+            and step % self.logging_interval_heavy == 0
         ):
             for block_name, layer in self._layers:
                 if hasattr(layer, "prepare_for_logging"):
@@ -54,9 +56,11 @@ class LayerManager:
 
     def log(self, step):
         verbosity_levels = []
-        if step % self.logging_interval_heavy == 0:
+        if self.logging_interval_heavy > 0 and step % self.logging_interval_heavy == 0:
             verbosity_levels = [2, 1, 0]
-        elif step % self.logging_interval_light == 0:
+        elif (
+            self.logging_interval_light > 0 and step % self.logging_interval_light == 0
+        ):
             verbosity_levels = [1, 0]
 
         should_clean_up = len(verbosity_levels) > 0

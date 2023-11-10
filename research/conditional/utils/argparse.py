@@ -11,7 +11,7 @@ def introduce_parser_arguments(
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
-    parser.add_argument("--dff", type=int, required=True)
+    parser.add_argument("--dff", type=int, required=False)  # not used by granularity
     parser.add_argument("--n_att_heads", type=int, required=True)
     parser.add_argument("--dhead", type=int, default=None)
 
@@ -142,6 +142,21 @@ def introduce_parser_arguments(
         help="This argument is deprecated. Provide either (total_experts_width, n_experts, effective_dff) or (expert_size, n_experts, topk_fraction) instead.",
     )
     parser.add_argument("--total_experts_width", type=int)
+    parser.add_argument(
+        "--granularity",
+        type=int,
+        help="How smaller is each expert compared to standard MoE",
+    )
+    parser.add_argument(
+        "--expansion_rate",
+        type=int,
+        help="Factor by which we expand the number of parameters in FF",
+    )
+    parser.add_argument(
+        "--effective_dff_x",
+        type=int,
+        help="How much FLOPS we want to spend on FF, in multiples of d_model",
+    )
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
@@ -188,6 +203,12 @@ def introduce_parser_arguments(
         "--use_full_einsum",
         action="store_true",
         help="in grouped ExpertChoice, use squash all linears with einsum",
+    )
+    parser.add_argument(
+        "--use_torch_bmm",
+        action="store_true",
+        help="in grouped ExpertChoice, use one hot implementation with all "
+        "linear operations performed using torch.bmm",
     )
     parser.add_argument(
         "--use_dummy_dataset",

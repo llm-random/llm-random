@@ -2,7 +2,7 @@ parent: research/conditional/train/configs/baselines/gpt/expert_choice/common.ya
 md5_parent_hash: edf4943d6ae6d963a08c76dcb7d3ac8e
 
 params:
-  name: "expert_choice_small"
-  dmodel: 512
+  name: "expert_choice_mini"
+  dmodel: 256
   n_blocks: 4
-  n_att_heads: 8
+  n_att_heads: 4
