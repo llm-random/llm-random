@@ -10,7 +10,6 @@ from lizrd.core import misc
 from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Checkpoint, Linear
-from lizrd.core.distributed import wrap_in_fsdp
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -253,15 +252,6 @@ class Attention(LoggingLayer):
             init_scale=init_scale,
         )
         attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-        if attn_in_high_precision:
-            self.attention_mechanism = wrap_in_fsdp(
-                module=attention_mechanism,
-                rank=rank,
-                param_precision=torch.float32,
-                offload_params=offload_params,
-                cast_inputs=True,
-                output_cast_dtype=param_precision,
-            )
         self.attention_mechanism = attention_mechanism
 
     def forward(self, x):
