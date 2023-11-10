@@ -124,8 +124,8 @@ def main(
         ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
-        ddp_enabled=args.ddp,
-        fsdp_enabled=args.fsdp,
+        ddp_enabled=args.ddp_enabled,
+        fsdp_enabled=args.fsdp_enabled,
         fsdp_wrap_whole_transformer_blocks=args.wrap_blocks_in_fsdp,
         fsdp_wrap_attn_and_ff=args.wrap_attn_and_ff_in_fsdp,
         fsdp_param_precision=param_precision,
@@ -188,7 +188,7 @@ def main(
         eval_dataloader=eval_dataloader,
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
-        mixed_precision=False if args.fsdp else args.mixed_precision,
+        mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     introduce_parser_arguments(parser)
     args = parser.parse_args()
 
-    if args.ddp or args.fsdp:
+    if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 

@@ -265,7 +265,7 @@ def get_expert_choice_args(args, rank=None):
         "init_type": args.init_type,
         "init_scale": args.init_scale,
         "use_torch_bmm": args.use_torch_bmm,
-        "fsdp_enabled": args.fsdp,
+        "fsdp_enabled": args.fsdp_enabled,
         "rank": rank,
         "param_precision": torch.bfloat16 if args.mixed_precision else torch.float32,
         "offload_params": args.cpu_offload,
