@@ -41,7 +41,7 @@ class ConditionalTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
-    _calculate_loss: Optional[Callable] = None
+    _calculate_loss_and_backward_pass: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
@@ -78,7 +78,7 @@ class ConditionalTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
-        self._calculate_loss = make_loss_and_backprop_function(
+        self._calculate_loss_and_backward_pass = make_loss_and_backprop_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
         self.layer_manager = LayerManager(
@@ -347,13 +347,12 @@ class ConditionalTrainer:
                     tensor.data, self.gradient_accumulation_steps, i
                 )
 
-            cross_entropy_loss, aux_info = self._calculate_loss(
+            cross_entropy_loss, aux_info = self._calculate_loss_and_backward_pass(
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
                 scaler=self.scaler,
                 vocab_size=self.vocab_size,
-                backward_pass=should_optimize,
                 num_accumulated_batches=self.gradient_accumulation_steps,
             )
 
@@ -481,7 +480,7 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
         for name, tensor in processed_batch:
             tensor.data = tensor[:1].repeat(step + 1, 1).data
-        loss, _aux_info = self._calculate_loss(
+        loss, _aux_info = self._calculate_loss_and_backward_pass(
             batch=processed_batch,
             model=self.model,
             mixed_precision=self.mixed_precision,
@@ -515,7 +514,7 @@ class ConditionalTrainer:
             layer.expertsize = step + 1
             layer.init_core_parameters()
             layer.to(torch.device("cuda"))
-        loss, _ = self._calculate_loss(
+        loss, _ = self._calculate_loss_and_backward_pass(
             batch=processed_batch,
             model=self.model,
             mixed_precision=self.mixed_precision,

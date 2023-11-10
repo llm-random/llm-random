@@ -67,9 +67,9 @@ def chungized_llm_loss_and_backward_pass(
     vocab_size: int,
     scaler: torch.cuda.amp.GradScaler,
     n_chungs: int,
-    backward_pass: bool,
     num_accumulated_batches: int,
 ):
+    do_backward_pass = model.training
     if isinstance(model, DDP):
         model = model.module
     input_tokens = batch.input_ids
@@ -82,7 +82,7 @@ def chungized_llm_loss_and_backward_pass(
     ):
         encoder_output: torch.Tensor = model.encoder(input_tokens)
         encoder_output_det = encoder_output.detach()
-        if backward_pass:
+        if do_backward_pass:
             encoder_output_det.requires_grad = True
         chunged_inputs = torch.chunk(encoder_output_det, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
@@ -93,23 +93,26 @@ def chungized_llm_loss_and_backward_pass(
         for chunged_input, chunged_gt, chunged_mask in zip(
             chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
-            output = model.head(chunged_input)
+            partial_output = model.head(chunged_input)
             with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
-                chunged_gt = chunged_gt.to(output.device)
-                partial_loss_full = F.cross_entropy(
-                    output.reshape(-1, vocab_size),
+                chunged_gt = chunged_gt.to(partial_output.device)
+                chunged_mask = chunged_mask.to(partial_output.device)
+                partial_loss_unmasked = F.cross_entropy(
+                    partial_output.reshape(-1, vocab_size),
                     chunged_gt.reshape(-1).long(),
                     reduction="none",
                 )
-                partial_loss = partial_loss_full[chunged_mask.reshape(-1) == 1]
+                partial_loss = partial_loss_unmasked[chunged_mask.reshape(-1) == 1]
 
-                partial_correct_tokens = chunged_gt.long() == output.argmax(dim=-1)
+                partial_correct_tokens = chunged_gt.long() == partial_output.argmax(
+                    dim=-1
+                )
                 partial_correct_tokens = partial_correct_tokens.long().reshape(
                     -1
                 ) * chunged_mask.reshape(-1)
                 partial_correct_tokens = partial_correct_tokens.sum()
 
-            if backward_pass:
+            if do_backward_pass:
                 loss = partial_loss.sum() / num_masked_tokens / num_accumulated_batches
                 with torch.autocast(
                     device_type="cuda", enabled=False, dtype=torch.float16
@@ -118,7 +121,7 @@ def chungized_llm_loss_and_backward_pass(
             total_loss += partial_loss.sum()
             total_correct_tokens += partial_correct_tokens
 
-    if backward_pass:
+    if do_backward_pass:
         encoder_output.backward(encoder_output_det.grad)
 
     aux_info = {
@@ -136,9 +139,9 @@ def calculate_llm_loss_and_backward_pass(
     mixed_precision: bool,
     scaler: torch.cuda.amp.GradScaler,
     vocab_size: int,
-    backward_pass: bool,
     num_accumulated_batches: int,
 ):
+    do_backward_pass = model.training
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
@@ -159,7 +162,7 @@ def calculate_llm_loss_and_backward_pass(
     )
     mask_loss = mask_loss[mask.reshape(-1) == 1]
     loss = mask_loss.mean()
-    if backward_pass:
+    if do_backward_pass:
         loss = loss / num_accumulated_batches
         scaler.scale(loss).backward()
 
