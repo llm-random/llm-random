@@ -180,7 +180,7 @@ def get_attention_layer(args, rank):
         flash=args.flash_attention,
         init_type=args.init_type,
         init_scale=args.init_scale,
-        attn_in_high_precision=args.attn_in_high_precision,
+        attn_in_high_precision=args.fsdp_attn_in_high_precision,
         rank=rank,
         param_precision=torch.bfloat16 if args.mixed_precision else torch.float32,
         offload_params=args.cpu_offload,

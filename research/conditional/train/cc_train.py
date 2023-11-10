@@ -227,6 +227,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
     args = parser.parse_args()
+    print(f"version of torch: {torch.__version__}")
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)

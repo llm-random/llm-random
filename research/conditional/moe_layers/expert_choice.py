@@ -205,15 +205,6 @@ class ExpertChoiceFF(LoggingLayer):
             use_torch_bmm=use_torch_bmm,
             gate=gate,
         )
-        if fsdp_enabled:
-            expert_gating = wrap_in_fsdp(
-                module=expert_gating,
-                rank=rank,
-                param_precision=torch.float32,
-                offload_params=offload_params,
-                cast_inputs=True,
-                output_cast_dtype=param_precision,
-            )
         self.expert_gating = expert_gating
 
     def forward(self, x: torch.Tensor):

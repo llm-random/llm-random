@@ -33,7 +33,7 @@ def wrap_in_fsdp(
     if output_cast_dtype is not None:
         main_module = _create_single_fsdp_module(module, param_precision)
         casting_module = _create_single_fsdp_module(Noop(), output_cast_dtype)
-        wrapped = nn.Sequential([main_module, casting_module])
+        wrapped = nn.Sequential(main_module, casting_module)
     else:
         wrapped = _create_single_fsdp_module(module, param_precision)
 
