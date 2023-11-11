@@ -236,7 +236,7 @@ class LegacyContinuousMoE(ContinuousMoeBaseClass):
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
         x = self.merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
-        return x * (self.group_size * 1.0 / self.original_group_size)
+        return x
 
     def rearrange_for_grouping(self, x):
         """
