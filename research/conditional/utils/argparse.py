@@ -130,6 +130,7 @@ def introduce_parser_arguments(
 
     ## used often by Continuous MoE
 
+    parser.add_argument("--eval_discrete_mot", action="store_true")
     parser.add_argument("--emit_softmax_over_experts", action="store_true")
     parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument("--n_experts", type=int)

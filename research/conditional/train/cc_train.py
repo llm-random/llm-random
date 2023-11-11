@@ -209,6 +209,7 @@ def main(
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
         eval_dynamic_groupsize=args.eval_dynamic_groupsize,
+        eval_discrete_mot=args.eval_discrete_mot,
         decoding_interval=args.decoding_interval,
         eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
         eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
