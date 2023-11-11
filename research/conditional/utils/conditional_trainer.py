@@ -5,7 +5,6 @@ from types import SimpleNamespace as SN
 import time
 from typing import Callable, Iterable, Optional, Literal
 
-import numpy as np
 import torch
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
@@ -90,8 +89,9 @@ class ConditionalTrainer:
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
         )
-        # if temp training is delayed, disable it
+        # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
+        self._check_config()
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -156,7 +156,7 @@ class ConditionalTrainer:
                 except:
                     print("Decoding failed, skipping...")
 
-            if step % self.eval_interval == 0:
+            if step > 0 and self.eval_interval > 0 and step % self.eval_interval == 0:
                 self._eval_step(step)
 
             t2 = time.time()
@@ -256,11 +256,11 @@ class ConditionalTrainer:
         self._save_weights(step)
 
     def _eval_step(self, step: int):
-        batches = (self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches))
+        batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
         self._batches_eval_step(
             batches=batches,
             step=step,
-            eval_variant_name=None,
+            eval_variant_name="normal",
         )
         layers = [
             l
@@ -269,14 +269,12 @@ class ConditionalTrainer:
         ]
         if self.eval_dynamic_groupsize:
             original_group_size = layers[0].group_size
-            assert (
-                self.eval_min_group_size_logfactor <= self.eval_max_group_size_logfactor
-            )
             for log_group_size_factor in range(
-                self.eval_min_group_size_logfactor, self.eval_max_group_size_logfactor
+                self.eval_min_group_size_logfactor,
+                self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = (
-                    np.power(2, log_group_size_factor) * original_group_size
+                current_group_size = int(
+                    2**log_group_size_factor * original_group_size
                 )
                 assert isinstance(current_group_size, int)
                 with temp_modify_attr(layers, "group_size", current_group_size):
@@ -327,14 +325,15 @@ class ConditionalTrainer:
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
-            for name, loss_value in extra_losses.items():
-                self.logger.report_scalar(
-                    title=f"eval/{name}/{eval_variant_name}"
-                    if eval_variant_name is None
-                    else f"eval/{name}",
-                    value=loss_value / self.n_eval_batches,
-                    iteration=step,
-                )
+            if len(extra_losses) > 0:
+                for name, loss_value in extra_losses.items():
+                    self.logger.report_scalar(
+                        title=f"eval/{name}/{eval_variant_name}"
+                        if eval_variant_name is None
+                        else f"eval/{name}",
+                        value=loss_value / self.n_eval_batches,
+                        iteration=step,
+                    )
 
     def calculate_loss_and_maybe_optimize(
         self, processed_batch: LLMBatch, should_optimize: bool
@@ -520,3 +519,35 @@ class ConditionalTrainer:
         )
         self._optimize(loss, should_apply_gradient=True)
         self.logger.report_scalar(title="max expert size", value=step, iteration=step)
+
+    def _check_config(self):
+        if (
+            self.eval_max_group_size_logfactor is not None
+            or self.eval_min_group_size_logfactor is not None
+        ):
+            assert self.eval_max_group_size_logfactor is not None
+            assert self.eval_min_group_size_logfactor is not None
+            assert (
+                self.eval_min_group_size_logfactor <= self.eval_max_group_size_logfactor
+            )
+            moe_layers = [
+                layer
+                for name, layer in self.layer_manager._layers
+                if isinstance(layer, (ContinuousMoE, ExpertChoiceFF))
+            ]
+            group_sizes = [layer.group_size for layer in moe_layers]
+            for group_size in group_sizes:
+                assert 2**self.eval_min_group_size_logfactor * group_size >= 1, (
+                    f"Min group size {2**self.eval_min_group_size_logfactor * group_size} "
+                    f"cannot be lower than 1"
+                )
+                if self.model_type == "gpt":
+                    assert (
+                        2**self.eval_max_group_size_logfactor * group_size
+                        <= self.batch_size
+                    ), (
+                        f"Max group size {2**self.eval_max_group_size_logfactor * group_size} "
+                        f"exceeds batch size {self.batch_size}"
+                    )
+                else:
+                    raise NotImplementedError
