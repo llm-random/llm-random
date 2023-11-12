@@ -214,7 +214,6 @@ def introduce_parser_arguments(
 
     # experimental/legacy parameters
 
-    parser.add_argument("--hack_name", type=str, default=None)
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 
