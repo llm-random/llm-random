@@ -276,7 +276,6 @@ class ConditionalTrainer:
                 current_group_size = int(
                     2**log_group_size_factor * original_group_size
                 )
-                assert isinstance(current_group_size, int)
                 with temp_modify_attr(layers, "group_size", current_group_size):
                     self._batches_eval_step(
                         batches=batches,
@@ -325,15 +324,14 @@ class ConditionalTrainer:
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
-            if len(extra_losses) > 0:
-                for name, loss_value in extra_losses.items():
-                    self.logger.report_scalar(
-                        title=f"eval/{name}/{eval_variant_name}"
-                        if eval_variant_name is None
-                        else f"eval/{name}",
-                        value=loss_value / self.n_eval_batches,
-                        iteration=step,
-                    )
+            for name, loss_value in extra_losses.items():
+                self.logger.report_scalar(
+                    title=f"eval/{name}/{eval_variant_name}"
+                    if eval_variant_name is None
+                    else f"eval/{name}",
+                    value=loss_value / self.n_eval_batches,
+                    iteration=step,
+                )
 
     def calculate_loss_and_maybe_optimize(
         self, processed_batch: LLMBatch, should_optimize: bool
