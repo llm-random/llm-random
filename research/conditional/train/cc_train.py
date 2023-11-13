@@ -220,10 +220,11 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_process_logging=is_process_logging,
-        should_evaluate_dynamic_groupsize=args.should_evaluate_dynamic_groupsize,
+        eval_dynamic_groupsize=args.eval_dynamic_groupsize,
+        eval_discrete_mot=args.eval_discrete_mot,
         decoding_interval=args.decoding_interval,
-        min_eval_group_size=args.min_eval_group_size,
-        max_eval_group_size=args.max_eval_group_size,
+        eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
+        eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
     )
     trainer.train(args.n_steps)
