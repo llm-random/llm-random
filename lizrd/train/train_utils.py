@@ -62,13 +62,6 @@ def get_model(
             vocab_size, dm, init_type=init_type, init_scale=init_scale
         ).to(first_gpu),
     )
-    if fsdp_wrap_whole_transformer_blocks:
-        embedding_layer = wrap_in_fsdp(
-            module=embedding_layer,
-            rank=rank,
-            param_precision=fsdp_param_precision,
-            offload_params=fsdp_cpu_offloading,
-        )
 
     layer_dict = {
         "attention": attention_layer_fun,
@@ -89,24 +82,10 @@ def get_model(
         fsdp_param_precision=fsdp_param_precision,
         fsdp_cpu_offloading=fsdp_cpu_offloading,
     )
-    if fsdp_wrap_whole_transformer_blocks:
-        encoder_tower = wrap_in_fsdp(
-            module=encoder_tower,
-            rank=rank,
-            param_precision=fsdp_param_precision,
-            offload_params=fsdp_cpu_offloading,
-        )
 
     head = llm.PredictionHead(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(last_gpu)
-    if fsdp_wrap_whole_transformer_blocks:
-        head = wrap_in_fsdp(
-            module=head,
-            rank=rank,
-            param_precision=fsdp_param_precision,
-            offload_params=fsdp_cpu_offloading,
-        )
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
     if ddp_enabled:
