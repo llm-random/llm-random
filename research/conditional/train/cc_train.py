@@ -7,6 +7,7 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
