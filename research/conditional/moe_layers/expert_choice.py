@@ -102,7 +102,7 @@ class ExpertChoiceFF(LoggingLayer):
             else self.gating_postprocess_select
         )
 
-    def checkpoint_forward(self, x: torch.Tensor, cache: dict):
+    def checkpoint_forward(self, x: torch.Tensor, checkpoint_cache: Optional[dict]):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len = x.shape[0], x.shape[1]
         orig_bs, orig_seq_len = batch_size, seq_len
@@ -115,7 +115,9 @@ class ExpertChoiceFF(LoggingLayer):
             )
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
-        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
+        topk, topk_indices, topk_values = self.expert_gating(
+            x, batch_size, seq_len, checkpoint_cache
+        )
         if self.use_torch_bmm:
             x = self.full_bmm(x, topk_indices, topk_values, batch_size)
         elif self.use_full_einsum:
@@ -143,7 +145,7 @@ class ExpertChoiceFF(LoggingLayer):
         x: torch.Tensor,
         batch_size: int,
         seq_len: int,
-        cache: Optional[dict] = None,
+        checkpoint_cache: Optional[dict] = None,
     ):
         # expert embedding
         with measure_time(self, "expert_embedding"):
@@ -181,12 +183,15 @@ class ExpertChoiceFF(LoggingLayer):
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
             # n_experts batch_size seq_len -> n_experts topk, n_experts topk
-            if cache is None or "gating_topk_indices" not in cache:
+            if (
+                checkpoint_cache is None
+                or "gating_topk_indices" not in checkpoint_cache
+            ):
                 topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
-                if cache is not None:
-                    cache["gating_topk_indices"] = topk_indices
+                if checkpoint_cache is not None:
+                    checkpoint_cache["gating_topk_indices"] = topk_indices
             else:
-                topk_indices = cache["gating_topk_indices"]
+                topk_indices = checkpoint_cache["gating_topk_indices"]
                 topk_values = gate_out.gather(dim=1, index=topk_indices)
 
         with measure_time(self, "indexing_change"):
