@@ -33,9 +33,6 @@ class TestLearningStartAdatemp(GeneralTestCase):
         steps_until_start_temperature_learn=steps_until_start_temperature_learn,
     )
 
-    for name, module in module_list.items():
-        layer_manager._layers.append((name, module))
-
     for step in range(100):
         layer_manager.manage_learnable_temperature(step)
         for name, module in model.named_children():
@@ -70,8 +67,6 @@ class TestLearningStartAdatempPositive(GeneralTestCase):
         0,
         steps_until_start_temperature_learn=steps_until_start_temperature_learn,
     )
-    for name, module in module_list.items():
-        layer_manager._layers.append((name, module))
 
     for step in range(100):
         layer_manager.manage_learnable_temperature(step)
