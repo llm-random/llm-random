@@ -1,4 +1,5 @@
-from lizrd.core import nn, misc
+import torch
+from torch import nn
 import lizrd.core.initialization
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
@@ -44,11 +45,11 @@ class ContinuousMoEMergeDifferentlySimple(ContinuousMoeBaseClass):
         )
 
     def get_merge_and_emit_weights(self, x):
-        merge_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller_merge)
+        merge_logits = torch.einsum("B S c d, d e -> B S e c", x, self.controller_merge)
         self.update_cache_for_logging("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
         self.update_cache_for_logging("merge_weights", merge_weights)
-        emit_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller_emit)
+        emit_logits = torch.einsum("B S c d, d e -> B S e c", x, self.controller_emit)
         self.update_cache_for_logging("emit_logits", emit_logits)
         emit_weights = stable_softmax_temperature(emit_logits, self.temperature)
         self.update_cache_for_logging("emit_weights", emit_weights)

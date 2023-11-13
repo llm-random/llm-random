@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 import torch
-from lizrd.core import nn
+from torch import nn
 
 GLOBAL_TIMERS = dict()
 GLOBAL_NAMES = []

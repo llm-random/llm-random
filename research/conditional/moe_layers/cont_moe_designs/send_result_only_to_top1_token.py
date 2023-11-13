@@ -1,4 +1,4 @@
-from lizrd.core import misc
+import torch
 from lizrd.support import ash
 from research.conditional.archive.rogue_code import set_highest_index_one
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
@@ -12,7 +12,7 @@ class ContinuousMoETopmerge(ContinuousMoeBaseClass):
     """
 
     def get_merge_and_emit_weights(self, x):
-        merge_logits = misc.einsum("B S c d, d e -> B S e c", x, self.controller)
+        merge_logits = torch.einsum("B S c d, d e -> B S e c", x, self.controller)
         self.update_cache_for_logging("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
         self.update_cache_for_logging("merge_weights", merge_weights)

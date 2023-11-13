@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
 
-from lizrd.core import nn
+import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer

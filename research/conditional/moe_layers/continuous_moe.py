@@ -5,7 +5,8 @@ import einops
 import numpy as np
 import torch
 
-from lizrd.core import misc, nn
+from lizrd.core import misc
+import torch.nn as nn
 import lizrd.core.initialization
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -261,27 +262,25 @@ class LegacyContinuousMoE(ContinuousMoeBaseClass):
         return x
 
     def get_merge_and_emit_weights(self, x):
-        merge_logits = misc.einsum("B S g d, d e -> B S e g", x, self.controller)
+        merge_logits = torch.einsum("B S g d, d e -> B S e g", x, self.controller)
         self.update_cache_for_logging("merge_logits", merge_logits)
         merge_weights = stable_softmax_temperature(merge_logits, self.temperature)
         self.update_cache_for_logging("merge_weights", merge_weights)
         return merge_weights, merge_weights
 
     def merge_map_emit(self, x, merge_weights, emit_weights):
-        x = misc.einsum(
+        x = torch.einsum(
             "B S c d, B S e c, d e f -> B S e f",
             x,
             merge_weights,
             self.lin1,
-            use_opt_einsum=self.use_opt_einsum,
         )
         x = torch.relu_(x)
-        x = misc.einsum(
+        x = torch.einsum(
             "B S e f, d e f, B S e c -> B S c d",
             x,
             self.lin2,
             emit_weights,
-            use_opt_einsum=self.use_opt_einsum,
         )
         return x
 

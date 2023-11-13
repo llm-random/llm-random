@@ -1,7 +1,7 @@
 import dataclasses
 
 import torch
-from lizrd.core import misc, nn
+from torch import nn
 from lizrd.core.initialization import get_init_weight
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
@@ -18,7 +18,7 @@ class ContinuousMoESeparateWeightedParameters(ContinuousMoeBaseClass):
             self.merge_parameters_matrix_weight * self.controller_merge
             + (1 - self.merge_parameters_matrix_weight) * self.controller_base
         )
-        merge_logits = misc.einsum(
+        merge_logits = torch.einsum(
             "B S c d, d e -> B S e c", x, merge_combined_parameters
         )
         self.update_cache_for_logging("merge_logits", merge_logits)
@@ -29,7 +29,7 @@ class ContinuousMoESeparateWeightedParameters(ContinuousMoeBaseClass):
             self.emit_parameters_matrix_weight * self.controller_emit
             + (1 - self.emit_parameters_matrix_weight) * self.controller_base
         )
-        emit_logits = misc.einsum(
+        emit_logits = torch.einsum(
             "B S c d, d e -> B S e c", x, emit_combined_parameters
         )
         self.update_cache_for_logging("emit_logits", emit_logits)

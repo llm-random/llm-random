@@ -1,5 +1,5 @@
 import einops
-from lizrd.core import nn
+from torch import nn
 
 DISABLE_CHECKS = False
 

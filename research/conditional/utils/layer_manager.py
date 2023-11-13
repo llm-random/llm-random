@@ -6,7 +6,7 @@ from plotly import express as px
 
 import torch
 
-from lizrd.core import nn
+from torch import nn
 from lizrd.support.logging import get_current_logger
 
 

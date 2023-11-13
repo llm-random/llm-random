@@ -6,27 +6,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from lizrd.core import misc
-from lizrd.core.misc import default, Sum
+from lizrd.core.misc import Sum, decode_bias_string
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Checkpoint, Linear
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
-
-
-def decode_bias_string(bias):
-    assert bias in ["both", "first", "second", "none"]
-    if bias == "both":
-        bias_first = bias_second = True
-    elif bias == "first":
-        bias_first = True
-        bias_second = False
-    elif bias == "second":
-        bias_first = False
-        bias_second = True
-    else:
-        bias_first = bias_second = False
-    return bias_first, bias_second
 
 
 @ash.check("... d -> ... d")
@@ -109,45 +93,6 @@ class Parallel(nn.Module):
 
     def forward(self, x):
         return x + sum(layer(x) for layer in self.layers)
-
-
-@ash.check("... dinp -> ... a b")
-class SplitLastAxis(nn.Module):
-    def __init__(self, a, b):
-        super(SplitLastAxis, self).__init__()
-        self.a = a
-        self.b = b
-
-    def forward(self, x):
-        a, b = self.a, self.b
-        assert x.shape[-1] == a * b
-        result = x.view(x.shape[:-1] + (a, b))
-        assert result.shape[-2:] == (a, b)
-        # print("wtf", x.shape, result.shape)
-        return result
-
-
-@ash.check("... a b -> ... dout")
-class MergeLastAxis(nn.Module):
-    def forward(self, x):
-        result = x.reshape(x.shape[:-2] + (-1,))
-        # print('wtf', x.shape, result.shape)
-        return result
-
-
-@ash.check("... a b -> ... b a")
-class Transpose(nn.Module):
-    def forward(self, x):
-        # return einops.rearrange(x, '... a b -> ... b a')
-        return torch.transpose(x, -1, -2)
-
-
-@ash.check("... dinp -> ... dout")
-def LowRank(dinput, doutput, dlowrank):
-    return nn.Sequential(
-        Linear(dinput, dlowrank, bias=False),
-        Linear(dlowrank, doutput),
-    )
 
 
 def attention_mechanism(
@@ -288,7 +233,8 @@ def PreNormBlock(dmodel, layer, name):
 
 @ash.check("... d -> ... d")
 def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
-    residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
+    if residual_fn is None:
+        residual_fn = partial(PreNormBlock, dmodel=dmodel)
     residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
     if gradient_checkpointing:
         residual_layers = [Checkpoint(layer) for layer in residual_layers]
@@ -308,7 +254,6 @@ class TransformerTower(nn.Module):
         residual_fn: Optional[Callable] = None,
     ):
         super().__init__()
-        misc.check_layer_funs(*layer_dict.values())
         self.blocks = []
         self.model_fragmentation = (
             [] if model_fragmentation is None else model_fragmentation
