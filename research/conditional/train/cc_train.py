@@ -7,7 +7,6 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
@@ -136,12 +135,6 @@ def main(
         residual_fn=residual_fn,
         rank=rank,
     )
-
-    # make model data_distributed if necessary
-    if rank is not None:
-        print(f"Moving model to cuda:{rank}")
-        model = model.to(f"cuda:{rank}")
-        model = DDP(model, device_ids=[rank])
 
     if args.torch_compile:
         model = torch.compile(model)
