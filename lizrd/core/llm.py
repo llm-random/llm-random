@@ -420,12 +420,6 @@ class LLM(nn.Module):
         self.head = head
 
     def forward(self, *args, **kwargs):
-        return nn.Sequential(
-            OrderedDict(
-                [
-                    ("embedding", self.embedding_layer),
-                    ("encoder", self.encoder),
-                    ("head", self.head),
-                ]
-            )
-        )(*args, **kwargs)
+        return nn.Sequential(self.embedding_layer, self.encoder, self.head)(
+            *args, **kwargs
+        )
