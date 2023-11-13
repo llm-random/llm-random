@@ -9,11 +9,9 @@ import torch.nn.functional as F
 from lizrd.core.misc import Sum, decode_bias_string
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Checkpoint, Linear
-from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
 
-@ash.check("... d -> ... d")
 def FeedForward(
     dmodel,
     dff,
@@ -74,7 +72,6 @@ class EveryOtherLayer:
         return layer
 
 
-@ash.check("... -> ... ")
 class Residual(nn.Module):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -85,7 +82,6 @@ class Residual(nn.Module):
         return out + x
 
 
-@ash.check("... -> ... ")
 class Parallel(nn.Module):
     def __init__(self, *layers):
         super(Parallel, self).__init__()
@@ -133,7 +129,6 @@ def attention_mechanism(
     return output
 
 
-@ash.check("... d -> ... d")
 class Attention(LoggingLayer):
     def __init__(
         self,
@@ -231,7 +226,6 @@ def PreNormBlock(dmodel, layer, name):
     )
 
 
-@ash.check("... d -> ... d")
 def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     if residual_fn is None:
         residual_fn = partial(PreNormBlock, dmodel=dmodel)
@@ -241,7 +235,6 @@ def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     return nn.Sequential(*residual_layers)
 
 
-@ash.check("... d -> ... d")
 class TransformerTower(nn.Module):
     def __init__(
         self,
@@ -300,7 +293,6 @@ class TransformerTower(nn.Module):
         )
 
 
-@ash.check("... -> ... d")
 def TokenEmbedding(
     vocab_size,
     embedding_dim,
@@ -316,7 +308,6 @@ def TokenEmbedding(
     return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
 
 
-@ash.check("... -> ... d")
 class PositionalEmbedding(nn.Module):
     def __init__(
         self,
@@ -344,19 +335,16 @@ class PositionalEmbedding(nn.Module):
         return embeddings
 
 
-@ash.check("... -> ... d")
 def EmbeddingLayer(*layers):
     return Sum(*layers)
 
 
-@ash.check("... inp -> ... out")
 def PredictionHead(embedding_dim, output_size, init_type, init_scale):
     return Linear(
         embedding_dim, output_size, init_type=init_type, init_scale=init_scale
     )
 
 
-@ash.check("... -> ... out")
 class LLM(nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()

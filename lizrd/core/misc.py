@@ -4,10 +4,8 @@ from torch.utils.checkpoint import checkpoint
 
 from torch import nn
 from lizrd.core.initialization import get_init_weight
-from lizrd.support import ash
 
 
-@ash.check("... inp -> ... out")
 class Linear(torch.nn.Linear):
     def __init__(self, *args, init_type, init_scale, **kwargs):
         if "bias" not in kwargs:
