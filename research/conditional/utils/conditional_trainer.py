@@ -276,12 +276,13 @@ class ConditionalTrainer:
                 current_group_size = int(
                     2**log_group_size_factor * original_group_size
                 )
-                with temp_modify_attr(layers, "group_size", current_group_size):
-                    self._batches_eval_step(
-                        batches=batches,
-                        step=step,
-                        eval_variant_name=f"group size={current_group_size}",
-                    )
+                if current_group_size <= self.batch_size and current_group_size > 0:
+                    with temp_modify_attr(layers, "group_size", current_group_size):
+                        self._batches_eval_step(
+                            batches=batches,
+                            step=step,
+                            eval_variant_name=f"group size={current_group_size}",
+                        )
 
         if self.eval_discrete_mot:
             with temp_modify_attr(layers, "use_discrete_routing", True):
@@ -520,10 +521,7 @@ class ConditionalTrainer:
         self.logger.report_scalar(title="max expert size", value=step, iteration=step)
 
     def _check_config(self):
-        if (
-            self.eval_max_group_size_logfactor is not None
-            or self.eval_min_group_size_logfactor is not None
-        ):
+        if self.eval_dynamic_groupsize:
             assert self.eval_max_group_size_logfactor is not None
             assert self.eval_min_group_size_logfactor is not None
             assert (
