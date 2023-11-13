@@ -7,7 +7,6 @@ import torch.nn as nn
 import torch
 from torch.distributed.fsdp import wrap
 
-from lizrd.core.misc import Noop
 from research.conditional.moe_layers.expert_choice import ExpertGating
 from lizrd.core.llm import AttentionMechanism
 
@@ -101,9 +100,11 @@ def _monkey_wrap(
             return module, total_wrapped_numel
     return module, 0
 
+
 wrap._recursive_wrap = _monkey_wrap
 
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+
 
 def wrap_in_fsdp(
     module: nn.Module,
@@ -124,9 +125,13 @@ def wrap_in_fsdp(
                 param_dtype=precision,
                 reduce_dtype=torch.float32,
                 cast_forward_inputs=cast_inputs,
-                _module_classes_to_ignore=(ExpertGating, AttentionMechanism)
+                _module_classes_to_ignore=(
+                    ExpertGating,
+                    AttentionMechanism,
+                    nn.LayerNorm,
+                ),
             ),
-            # cpu_offload=CPUOffload(offload_params=offload_params),
+            cpu_offload=CPUOffload(offload_params=offload_params),
             auto_wrap_policy=partial(custom_auto_wrap_policy, min_num_params=int(1e04)),
         )
 
