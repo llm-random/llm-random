@@ -527,24 +527,3 @@ class ConditionalTrainer:
             assert (
                 self.eval_min_group_size_logfactor <= self.eval_max_group_size_logfactor
             )
-            moe_layers = [
-                layer
-                for name, layer in self.layer_manager._layers
-                if isinstance(layer, (ContinuousMoE, ExpertChoiceFF))
-            ]
-            group_sizes = [layer.group_size for layer in moe_layers]
-            for group_size in group_sizes:
-                assert 2**self.eval_min_group_size_logfactor * group_size >= 1, (
-                    f"Min group size {2**self.eval_min_group_size_logfactor * group_size} "
-                    f"cannot be lower than 1"
-                )
-                if self.model_type == "gpt":
-                    assert (
-                        2**self.eval_max_group_size_logfactor * group_size
-                        <= self.batch_size
-                    ), (
-                        f"Max group size {2**self.eval_max_group_size_logfactor * group_size} "
-                        f"exceeds batch size {self.batch_size}"
-                    )
-                else:
-                    raise NotImplementedError
