@@ -97,6 +97,6 @@ def check(signature, **kwargs_shape):
 
         return new_function
 
-    if DISABLE_CHECKS:
-        return noop_decorator
+    # if DISABLE_CHECKS:
+    return noop_decorator
     return decorator

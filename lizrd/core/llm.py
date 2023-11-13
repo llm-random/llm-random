@@ -10,7 +10,6 @@ from lizrd.core import misc
 from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Checkpoint, Linear
-from lizrd.core.distributed import wrap_in_fsdp
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -253,15 +252,6 @@ class Attention(LoggingLayer):
             init_scale=init_scale,
         )
         attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-        if attn_in_high_precision:
-            self.attention_mechanism = wrap_in_fsdp(
-                module=attention_mechanism,
-                rank=rank,
-                param_precision=torch.float32,
-                offload_params=offload_params,
-                cast_inputs=True,
-                output_cast_dtype=param_precision,
-            )
         self.attention_mechanism = attention_mechanism
 
     def forward(self, x):
@@ -337,13 +327,6 @@ class TransformerBlock(nn.Sequential):
         residual_layers = []
         for name, layer in layers:
             module = residual_fn(layer=layer, name=name)
-            if fsdp_wrap_attn_and_ff:
-                wrap_in_fsdp(
-                    rank=rank,
-                    module=residual_fn(layer=layer, name=name),
-                    param_precision=fsdp_param_precision,
-                    offload_params=fsdp_cpu_offloading,
-                )
             residual_layers.append(module)
 
         if gradient_checkpointing:
@@ -399,13 +382,6 @@ class TransformerTower(nn.Module):
             if current_device != torch.device("cpu"):
                 block = block.to(current_device)
 
-            if fsdp_wrap_whole_transformer_blocks:
-                block = wrap_in_fsdp(
-                    module=block,
-                    rank=rank,
-                    param_precision=fsdp_param_precision,
-                    offload_params=fsdp_cpu_offloading,
-                )
             name_and_block = (
                 f"block_{i_block}",
                 block,

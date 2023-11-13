@@ -60,6 +60,7 @@ def main(
     args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
 ):
+    print("START 2")
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
@@ -234,6 +235,8 @@ def main(
 
 
 if __name__ == "__main__":
+    print("START 1")
+    print(f"version of torch: {torch.__version__}")
     misc.print_available_gpus()
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)

@@ -1,12 +1,24 @@
 from typing import Optional
+from functools import partial
 
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import MixedPrecision, CPUOffload
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.nn as nn
 import torch
 
-from lizrd.core.misc import Noop
+from research.conditional.moe_layers.expert_choice import ExpertGating
+from lizrd.core.llm import AttentionMechanism
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+
+
+def custom_auto_wrap_policy(
+    module: nn.Module,
+    recurse: bool,
+    nonwrapped_numel: int,
+    # Additional custom arguments
+    min_num_params: int = int(1e8),
+) -> bool:
+    return nonwrapped_numel >= min_num_params
 
 
 def wrap_in_fsdp(
@@ -16,7 +28,6 @@ def wrap_in_fsdp(
     cast_inputs: bool = False,
     offload_params: bool = False,
     print_model: bool = False,
-    output_cast_dtype: Optional[torch.dtype] = None,
 ):
     def _create_single_fsdp_module(module_to_wrap, precision):
         return FSDP(
@@ -26,16 +37,17 @@ def wrap_in_fsdp(
                 param_dtype=precision,
                 reduce_dtype=torch.float32,
                 cast_forward_inputs=cast_inputs,
+                _module_classes_to_ignore=(
+                    ExpertGating,
+                    AttentionMechanism,
+                    nn.LayerNorm,
+                ),
             ),
             cpu_offload=CPUOffload(offload_params=offload_params),
+            auto_wrap_policy=partial(custom_auto_wrap_policy, min_num_params=int(1e04)),
         )
 
-    if output_cast_dtype is not None:
-        main_module = _create_single_fsdp_module(module, param_precision)
-        casting_module = _create_single_fsdp_module(Noop(), output_cast_dtype)
-        wrapped = nn.Sequential([main_module, casting_module])
-    else:
-        wrapped = _create_single_fsdp_module(module, param_precision)
+    wrapped = _create_single_fsdp_module(module, param_precision)
 
     if print_model:
         print("------- MODEL AFTER WRAPPING IN FSDP -------")
