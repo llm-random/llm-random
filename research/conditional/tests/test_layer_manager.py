@@ -33,10 +33,13 @@ class TestLearningStartAdatemp(GeneralTestCase):
         steps_until_start_temperature_learn=steps_until_start_temperature_learn,
     )
 
+    for name, module in module_list.items():
+        layer_manager._layers.append((name, module))
+
     for step in range(100):
         layer_manager.manage_learnable_temperature(step)
         for name, module in model.named_children():
-            if name.endswith("feedforward"):
+            if isinstance(module, ContinuousMoEAdaTemp):
                 if step == 0 or step == 9:
                     assert not module.temperature_emit.requires_grad
                     assert not module.temperature_merge.requires_grad
@@ -67,33 +70,13 @@ class TestLearningStartAdatempPositive(GeneralTestCase):
         0,
         steps_until_start_temperature_learn=steps_until_start_temperature_learn,
     )
+    for name, module in module_list.items():
+        layer_manager._layers.append((name, module))
 
     for step in range(100):
         layer_manager.manage_learnable_temperature(step)
         for name, module in model.named_children():
-            if name.endswith("feedforward"):
-                if step == 0 or step == 9:
-                    assert not module.temperature_emit.requires_grad
-                    assert not module.temperature_merge.requires_grad
-                elif step == 11 or step == 99:
-                    assert module.temperature_emit.requires_grad
-                    assert module.temperature_merge.requires_grad
-
-    model = nn.Sequential(module_list)
-
-    steps_until_start_temperature_learn = 10
-
-    layer_manager = LayerManager(
-        model,
-        0,
-        0,
-        steps_until_start_temperature_learn=steps_until_start_temperature_learn,
-    )
-
-    for step in range(100):
-        layer_manager.manage_learnable_temperature(step)
-        for name, module in model.named_children():
-            if name.endswith("feedforward"):
+            if isinstance(module, ContinuousMoEAdaTempPositive):
                 if step == 0 or step == 9:
                     assert not module.temperature_emit.requires_grad
                     assert not module.temperature_merge.requires_grad

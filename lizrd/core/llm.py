@@ -114,11 +114,17 @@ class Residual(LoggingLayer):
         residual_norms_mean = torch.mean(residual_norms)
         residual_norms_std = torch.std(residual_norms)
 
+        update_to_residual_ratio = update_norms / residual_norms
+        update_to_residual_ratio_mean = torch.mean(update_to_residual_ratio)
+        update_to_residual_ratio_std = torch.std(update_to_residual_ratio)
+
         return {
-            "update_norms_mean": update_norms_mean,
-            "update_norms_std": update_norms_std,
-            "residual_norms_mean": residual_norms_mean,
-            "residual_norms_std": residual_norms_std,
+            "update_norms/mean": update_norms_mean,
+            "update_norms/std": update_norms_std,
+            "residual_norms/mean": residual_norms_mean,
+            "residual_norms/std": residual_norms_std,
+            "update_to_residual_ratio/mean": update_to_residual_ratio_mean,
+            "update_to_residual_ratio/std": update_to_residual_ratio_std,
         }
 
 
@@ -299,7 +305,7 @@ def PreNormBlock(dmodel, layer, name):
         nn.Sequential(
             OrderedDict(
                 [
-                    (f"pre_norm_before_{name}", nn.LayerNorm(dmodel)),
+                    ("pre_norm", nn.LayerNorm(dmodel)),
                     (f"{name}", layer),
                 ]
             )
@@ -310,10 +316,13 @@ def PreNormBlock(dmodel, layer, name):
 @ash.check("... d -> ... d")
 def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
-    residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
+    residual_layers = [
+        (f"residual_pre_{name}", residual_fn(layer=layer, name=name))
+        for name, layer in layers
+    ]
     if gradient_checkpointing:
-        residual_layers = [Checkpoint(layer) for layer in residual_layers]
-    return nn.Sequential(*residual_layers)
+        residual_layers = [(name, Checkpoint(layer)) for name, layer in residual_layers]
+    return nn.Sequential(OrderedDict(residual_layers))
 
 
 @ash.check("... d -> ... d")
