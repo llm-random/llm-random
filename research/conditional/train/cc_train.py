@@ -137,6 +137,15 @@ def main(
         rank=rank,
     )
 
+    # make model data_distributed if necessary
+    if rank is not None:
+        print(f"Moving model to cuda:{rank}")
+        model = model.to(f"cuda:{rank}")
+        model = DDP(model, device_ids=[rank])
+
+    if args.torch_compile:
+        model = torch.compile(model)
+
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,

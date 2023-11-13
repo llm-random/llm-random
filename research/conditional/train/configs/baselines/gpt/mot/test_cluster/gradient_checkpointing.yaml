@@ -1,0 +1,13 @@
+parent: research/conditional/train/configs/baselines/gpt/mot/mini.yaml
+md5_parent_hash: f8e9b6016fa9112fea4c85dab1833ba2
+
+
+time: "00:30:00"
+
+params:
+  name: "gradient_checkpointing"
+  gradient_checkpointing: true
+  save_weights_interval: 1000
+  logging_interval_heavy: 1000
+  tags: ["cluster_test", "gradient_checkpointing"]
+  n_steps: 5000
