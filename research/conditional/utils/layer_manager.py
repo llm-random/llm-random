@@ -32,10 +32,11 @@ class LayerManager:
 
     def _register_layers(self, model):
         for name, layer in model.named_modules():
-            if name.endswith("feedforward"):
+            suffix = name.split(".")[-1]
+            if "pre_norm" in suffix:
                 block_name = self.extract_block_name(name)
-                self._layers.append((block_name, layer))
-            elif "pre_norm" in name.split(".")[-1]:
+                self._layers.append((f"{block_name}_{suffix}", layer))
+            elif suffix.endswith("feedforward"):
                 block_name = self.extract_block_name(name)
                 self._layers.append((block_name, layer))
 
