@@ -53,14 +53,11 @@ class ContinuousMoeBaseClass(LoggingLayer):
         self.original_group_size = self.group_size
 
     def forward(self, x):
-        self.update_cache_for_logging("mot_input_tokens", x)
         x = self.reshape_into_groups(x)
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
         x = self.merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
-        x = x * (self.group_size / self.original_group_size)
-        self.update_cache_for_logging("mot_token_updates", x)
-        return x
+        return x * (self.group_size / self.original_group_size)
 
     def reshape_into_groups(self, x):
         """
@@ -183,8 +180,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
         if self.group_size == 1:
             return log
 
-        # merge/emit weights and their statistics
-
         merge_logits = self.logging_cache["merge_logits"]
         merge_weights = self.logging_cache["merge_weights"]
         emit_weights = self.logging_cache["emit_weights"]
@@ -219,26 +214,6 @@ class ContinuousMoeBaseClass(LoggingLayer):
 
         log[f"logits/mean"] = 1e4 * (merge_logits * 1e-4).mean()
         log[f"logits/std"] = merge_logits.std()
-
-        # token updates and their statistics
-        input_tokens = self.logging_cache["mot_input_tokens"]
-        input_tokens_norms = torch.norm(input_tokens, dim=-1)
-
-        token_updates = self.logging_cache["mot_token_updates"]
-        token_updates_norms = torch.norm(token_updates, dim=-1)
-
-        log["token_updates_norm/mean"] = token_updates_norms.mean()
-        log["token_updates_norm/std"] = token_updates_norms.std()
-
-        log["input_tokens_norm/mean"] = input_tokens_norms.mean()
-        log["input_tokens_norm/std"] = input_tokens_norms.std()
-
-        log["MoT_update_to_token_ratio/mean"] = (
-            token_updates_norms / input_tokens_norms
-        ).mean()
-        log["MoT_update_to_token_ratio/std"] = (
-            token_updates_norms / input_tokens_norms
-        ).std()
 
         return log
 
