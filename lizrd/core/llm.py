@@ -91,14 +91,35 @@ class EveryOtherLayer:
 
 
 @ash.check("... -> ... ")
-class Residual(nn.Module):
+class Residual(LoggingLayer):
     def __init__(self, layer):
         super(Residual, self).__init__()
         self.layer = layer
 
     def forward(self, x):
         out = self.layer(x)
+        self.update_cache_for_logging("update", out)
+        self.update_cache_for_logging("residual_stream", x)
         return out + x
+
+    def log_heavy(self):
+        updates = self.logging_cache["update"]
+        residual_stream = self.logging_cache["residual_stream"]
+
+        update_norms = torch.norm(updates, dim=-1)
+        residual_norms = torch.norm(residual_stream, dim=-1)
+
+        update_norms_mean = torch.mean(update_norms)
+        update_norms_std = torch.std(update_norms)
+        residual_norms_mean = torch.mean(residual_norms)
+        residual_norms_std = torch.std(residual_norms)
+
+        return {
+            "update_norms_mean": update_norms_mean,
+            "update_norms_std": update_norms_std,
+            "residual_norms_mean": residual_norms_mean,
+            "residual_norms_std": residual_norms_std,
+        }
 
 
 @ash.check("... -> ... ")
@@ -278,7 +299,7 @@ def PreNormBlock(dmodel, layer, name):
         nn.Sequential(
             OrderedDict(
                 [
-                    ("pre_norm", nn.LayerNorm(dmodel)),
+                    (f"pre_norm_before_{name}", nn.LayerNorm(dmodel)),
                     (f"{name}", layer),
                 ]
             )

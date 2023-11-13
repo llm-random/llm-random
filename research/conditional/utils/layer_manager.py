@@ -33,15 +33,22 @@ class LayerManager:
     def _register_layers(self, model):
         for name, layer in model.named_modules():
             if name.endswith("feedforward"):
-                pattern = r"block_(\d+)"
-                match = re.search(pattern, name)
-                if match:
-                    block_name = match.group()
-                else:
-                    raise Exception(
-                        f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected."
-                    )
+                block_name = self.extract_block_name(name)
                 self._layers.append((block_name, layer))
+            elif "pre_norm" in name.split(".")[-1]:
+                block_name = self.extract_block_name(name)
+                self._layers.append((block_name, layer))
+
+    def extract_block_name(self, name):
+        pattern = r"block_(\d+)"
+        match = re.search(pattern, name)
+        if match:
+            block_name = match.group()
+        else:
+            raise Exception(
+                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected."
+            )
+        return block_name
 
     def prepare_for_logging(self, step):
         if (
