@@ -14,7 +14,7 @@ def custom_auto_wrap_policy(
     recurse: bool,
     nonwrapped_numel: int,
     # Additional custom arguments
-    min_num_params: int = int(1e8),
+    min_num_params: int,
 ) -> bool:
     return nonwrapped_numel >= min_num_params
 
