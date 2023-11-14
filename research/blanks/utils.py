@@ -122,21 +122,28 @@ def can_fit_blanks(
 
 def make_blanks_fixed_positions(x: torch.Tensor, blank_token_id: int):
     # stack overflow https://stackoverflow.com/questions/18196811/cumsum-reset-at-nan
+    # let's go with example x = [0, 1, 1, 0, 1] - 1 is blank
     final_positions = torch.zeros_like(x)
     for i, example in enumerate(x):
-        positions = torch.arange(0, len(example), device=example.device)
+        positions = torch.arange(
+            0, len(example), device=example.device
+        )  # start with [0, 1, 2, 3, 4]
         is_blank = example.eq(blank_token_id)
         n_blanks_up_to = is_blank.cumsum(0)
-        positions = positions - n_blanks_up_to  # adjecent blanks have the same position
+        positions = (
+            positions - n_blanks_up_to
+        )  # adjecent blanks have the same position as the token before them
+        # [0, 0, 0, 1, 1]
         is_not_blank = ~is_blank
         num_adjacent_blanks = torch.diff(
             n_blanks_up_to[is_not_blank],
             prepend=torch.zeros(1, device=example.device),
         ).long()  # for each non-blank token, how many blanks are immediately before it
+        # in example [0, 2]
         is_blank = is_blank.long()
         is_blank[
             is_not_blank
-        ] = -num_adjacent_blanks  # now it looks like [0, 1, 1, -2, 0, 1, 1, 1, -3, ..]
-        fixup = is_blank.cumsum(0)  # [0, 1, 2, 0, 0, 1, 2, 3, 0, ..]
-        final_positions[i, :] = positions + fixup
+        ] = -num_adjacent_blanks  # now is_blank is [0, 1, 1, -2, 1]
+        fixup = is_blank.cumsum(0)  # [0, 1, 2, 0, 1]
+        final_positions[i, :] = positions + fixup  # [0, 1, 2, 1, 2]
     return final_positions
