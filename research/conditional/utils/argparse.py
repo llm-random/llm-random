@@ -78,6 +78,12 @@ def introduce_parser_arguments(
         help="This argument is used only if fsdp_enabled is set to True. It is used to set the minimum number of parameters in a module to be wrapped in FSDP. If the number of parameters is smaller than this value, then the module is not wrapped in FSDP. This is useful for small modules, where the overhead of FSDP is too large compared to the compute of the module.",
         required=False,
     )
+    parser.add_argument(
+        "--model_parallelism_fragmentation",
+        type=str,
+        default=None,
+        help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
+    )
     parser.add_argument("--detect_anomaly", action="store_true")
     parser.add_argument("--flash_attention", action="store_true")
 
