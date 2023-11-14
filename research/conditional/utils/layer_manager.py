@@ -61,7 +61,7 @@ class LayerManager:
             block_name = match.group()
         else:
             raise Exception(
-                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected."
+                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected. Every Transformer block should be named 'block_[block_number]'"
             )
         return block_name
 
