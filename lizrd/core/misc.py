@@ -2,7 +2,6 @@ import torch
 import torch.nn
 from torch.utils.checkpoint import checkpoint
 
-from torch import nn
 from lizrd.core.initialization import get_init_weight
 
 
@@ -20,7 +19,7 @@ class Linear(torch.nn.Linear):
         )
 
 
-class Aggregate(nn.Module):
+class Aggregate(torch.nn.Module):
     def __init__(self, function, *layers):
         super(Aggregate, self).__init__()
         self.function = function
@@ -36,7 +35,7 @@ class Aggregate(nn.Module):
         return result
 
 
-class Chungus(nn.Module):
+class Chungus(torch.nn.Module):
     """
     https://i.ytimg.com/vi/inD-WWvtTW0/maxresdefault.jpg
     """
@@ -65,7 +64,7 @@ class Chungus(nn.Module):
         return torch.cat(output, dim=0)
 
 
-class Checkpoint(nn.Module):
+class Checkpoint(torch.nn.Module):
     def __init__(self, module):
         super(Checkpoint, self).__init__()
         self.module = module

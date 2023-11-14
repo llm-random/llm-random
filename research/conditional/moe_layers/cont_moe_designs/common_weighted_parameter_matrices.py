@@ -1,6 +1,6 @@
 import dataclasses
 import torch
-from torch import nn
+
 import lizrd.core.initialization
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
@@ -37,28 +37,28 @@ class ContinuousMoECommonWeightedParameters(ContinuousMoeBaseClass):
         return merge_weights, emit_weights
 
     def init_core_parameters(self):
-        self.parameters_matrix_weight = nn.Parameter(torch.Tensor([0.5]))
-        self.lin1 = nn.Parameter(
+        self.parameters_matrix_weight = torch.nn.Parameter(torch.Tensor([0.5]))
+        self.lin1 = torch.nn.Parameter(
             lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.dm
             )
         )
-        self.lin2 = nn.Parameter(
+        self.lin2 = torch.nn.Parameter(
             lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size), fan_in=self.expert_size
             )
         )
-        self.controller_base = nn.Parameter(
+        self.controller_base = torch.nn.Parameter(
             lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts), fan_in=self.dm * 2
             )
         )
-        self.controller_merge = nn.Parameter(
+        self.controller_merge = torch.nn.Parameter(
             lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts), fan_in=self.dm * 2
             )
         )
-        self.controller_emit = nn.Parameter(
+        self.controller_emit = torch.nn.Parameter(
             lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts), fan_in=self.dm * 2
             )

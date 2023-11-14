@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
 
-import torch.nn as nn
+
 from lizrd.core.initialization import get_init_weight
 from lizrd.support.logging import make_histogram
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -36,7 +36,7 @@ class TokenChoiceFF(LoggingLayer):
         self.capacity_factor = capacity_factor
         self.load_balancing_loss_weight = load_balancing_loss_weight
 
-        self.lin1_weight = nn.Parameter(
+        self.lin1_weight = torch.nn.Parameter(
             get_init_weight(
                 shape=(n_experts, dmodel, expert_size),
                 fan_in=dmodel,
@@ -44,7 +44,7 @@ class TokenChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         )
-        self.lin2_weight = nn.Parameter(
+        self.lin2_weight = torch.nn.Parameter(
             get_init_weight(
                 shape=(n_experts, expert_size, dmodel),
                 fan_in=int(n_experts * expert_size),
@@ -53,7 +53,7 @@ class TokenChoiceFF(LoggingLayer):
             )
         )
 
-        self.gate = nn.Parameter(
+        self.gate = torch.nn.Parameter(
             get_init_weight(
                 shape=(dmodel, n_experts),
                 fan_in=dmodel,

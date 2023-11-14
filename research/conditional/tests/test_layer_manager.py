@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from torch import nn
+import torch
 
 from lizrd.support.test_utils import GeneralTestCase
 from research.conditional.moe_layers.cont_moe_designs.learnable_temperature import (
@@ -22,7 +22,7 @@ class TestLearningStartAdatemp(GeneralTestCase):
             for i in range(10)
         ]
     )
-    model = nn.Sequential(module_list)
+    model = torch.nn.Sequential(module_list)
 
     steps_until_start_temperature_learn = 10
 
@@ -57,7 +57,7 @@ class TestLearningStartAdatempPositive(GeneralTestCase):
             for i in range(10)
         ]
     )
-    model = nn.Sequential(module_list)
+    model = torch.nn.Sequential(module_list)
 
     steps_until_start_temperature_learn = 10
 
@@ -79,7 +79,7 @@ class TestLearningStartAdatempPositive(GeneralTestCase):
                     assert module.temperature_emit.requires_grad
                     assert module.temperature_merge.requires_grad
 
-    model = nn.Sequential(module_list)
+    model = torch.nn.Sequential(module_list)
 
     steps_until_start_temperature_learn = 10
 

@@ -21,30 +21,13 @@ Use the baseline configuration as a template, which is in `research/conditional/
 By directories:
 * `lizrd` - main library
   * `core` - core code
-    * `bert.py` - main layers, bert model
-      * in the future, this should be split into layers, models, and some of it should be moved to research
     * `misc.py` - miscellanous functions
-    * `nn.py` - base Module layer, and classes from torch.nn
-  * `datasets` - data processing
-    * `wikibookdata.py` - data processing of standard BERT training datasets
   * `scripts` - scripts for running experiments
-    * `gen_run_trains.py` - generate shell scripts for running experiments
-    * `run_train.sh` - shell script for running a single experiment
   * `support` - support code
-    * `ash.py` - Assert Shapes on tensors
-    * `metrics.py` - logging metrics during training
-    * `profile.py` - for profiling models and layers
     * `test_utils.py` - testing utilities
-  * `train` - training code
-    * `bert_train.py` - main training script
 * `research` - experimental code
-    * `archived_code` - probably should be removed
-    * `initialization` - research on better initialization scheme
-    * `timing` - tests with profiling the main code
     * `conditional` - research on conditional computation (to be split from `core`)
-    * `nonlinearities` - research on smaller neurons
-    * `reinitialization` - research on recycling neurons
- 
+    * `blanks` - research on adding "thinking tokens" to transformers
 # License
 
 This project is licensed under the terms of the Apache License, Version 2.0.

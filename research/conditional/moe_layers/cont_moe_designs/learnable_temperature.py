@@ -2,7 +2,7 @@ import dataclasses
 
 import torch
 
-from torch import nn
+
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
 
@@ -20,18 +20,24 @@ class ContinuousMoEAdaTemp(ContinuousMoeBaseClass):
     def init_additional_parameters(self):
         if self.share_by_experts:
             if self.share_by_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.ones(1))
+                self.temperature_emit = torch.nn.Parameter(torch.ones(1))
                 self.temperature_merge = self.temperature_emit
             else:
-                self.temperature_emit = nn.Parameter(torch.ones(1))
-                self.temperature_merge = nn.Parameter(torch.ones(1))
+                self.temperature_emit = torch.nn.Parameter(torch.ones(1))
+                self.temperature_merge = torch.nn.Parameter(torch.ones(1))
         else:
             if self.share_by_emit_merge:
-                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
+                self.temperature_emit = torch.nn.Parameter(
+                    torch.ones(self.n_experts, 1)
+                )
                 self.temperature_merge = self.temperature_emit
             else:
-                self.temperature_emit = nn.Parameter(torch.ones(self.n_experts, 1))
-                self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
+                self.temperature_emit = torch.nn.Parameter(
+                    torch.ones(self.n_experts, 1)
+                )
+                self.temperature_merge = torch.nn.Parameter(
+                    torch.ones(self.n_experts, 1)
+                )
 
     def log_heavy(self):
         log = super().log_heavy()
