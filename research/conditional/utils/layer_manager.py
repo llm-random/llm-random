@@ -31,6 +31,11 @@ class LayerManager:
         self.steps_until_start_temperature_learn = steps_until_start_temperature_learn
 
     def _register_layers(self, model):
+        """
+        Iterates over all submodules and finds the ones that are of interest.
+        Currently, those are only the feedforward and residual blocks.
+        During model creation in llm.py/LLM, the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
+        """
         for name, layer in model.named_modules():
             registered_name = None
             suffix = name.split(".")[-1]
