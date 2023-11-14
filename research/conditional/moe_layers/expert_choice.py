@@ -118,10 +118,6 @@ class ExpertChoiceFF(LoggingLayer):
         n_gating_heatmaps: int = 4,
         group_size: int = 1,
         use_torch_bmm: bool = False,
-        fsdp_enabled: bool = False,
-        rank: Optional[int] = None,
-        param_precision: Optional[torch.dtype] = None,
-        offload_params: bool = False,
     ):
         """
         Args:
