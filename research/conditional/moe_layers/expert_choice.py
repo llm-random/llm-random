@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 import plotly.express as px
 import torch
 import torch.nn.functional as F
