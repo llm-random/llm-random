@@ -1,7 +1,12 @@
 from collections import OrderedDict
 from typing import Callable, Literal, Optional
 from lizrd.core import llm
-from research.blanks.utils import get_first_blanks_in_series, shift_left, shift_right
+from research.blanks.utils import (
+    get_first_blanks_in_series,
+    shift_left,
+    shift_right,
+    make_blanks_fixed_positions,
+)
 from typing import Literal
 from lizrd.core.initialization import get_init_weight
 
@@ -206,13 +211,13 @@ class BlankSeparateHead(torch.nn.Module):
         use_straight_through: bool = False,
     ):
         super().__init__()
-        self.linear = Linear(embedding_dim, output_size, bias=False)
+        self.linear = torch.nn.Linear(embedding_dim, output_size, bias=False)
         self.blank_token_id = blank_token_id
         self.n_blanks = n_blanks
 
         self.learnable_weights = learnable_weights
-        self.preblank_weight = nn.Parameter(torch.tensor(1.0))
-        self.blank_weight = nn.Parameter(torch.tensor(initial_blank_weight))
+        self.preblank_weight = torch.nn.Parameter(torch.tensor(1.0))
+        self.blank_weight = torch.nn.Parameter(torch.tensor(initial_blank_weight))
         self.use_straight_through = use_straight_through
 
     ...
@@ -282,7 +287,7 @@ class BlankEmbedding(torch.nn.Module):
         return embedding_output
 
 
-class BlankPositionalEmbedding(nn.Module):
+class BlankPositionalEmbedding(torch.nn.Module):
     def __init__(
         self,
         max_length,
@@ -292,7 +297,7 @@ class BlankPositionalEmbedding(nn.Module):
         blank_token_id: int,
     ):
         super(BlankPositionalEmbedding, self).__init__()
-        self.layer = nn.Embedding(max_length, embedding_dim)
+        self.layer = torch.nn.Embedding(max_length, embedding_dim)
         default_weight = self.layer.weight.data
         self.layer.weight.data = get_init_weight(
             shape=default_weight.shape,
@@ -304,24 +309,6 @@ class BlankPositionalEmbedding(nn.Module):
         self.blank_token_id = blank_token_id
 
     def forward(self, x):
-        # stack overflow https://stackoverflow.com/questions/18196811/cumsum-reset-at-nan
-        positions = torch.arange(0, x.shape[-1], device=x.device)
-        positions = positions * torch.ones_like(x)
-        blank_mask = x.eq(self.blank_token_id)
-        n_blanks_before = blank_mask.cumsum(dim=-1)
-        positions = (
-            positions - n_blanks_before
-        )  # adjecent blanks have the same position
-        not_blank_mask = ~blank_mask
-        num_adjecent_blanks = torch.diff(
-            n_blanks_before[not_blank_mask],
-            dim=-1,
-            prepend=torch.zeros_like(not_blank_mask[:, :1]),
-        )  # for each non-blank token, how many blanks are immediately before it
-        blank_mask[
-            not_blank_mask
-        ] = -num_adjecent_blanks  # now it looks like [0, 1, 1, -2, 0, 1, 1, 1, -3, ..]
-        fixup = blank_mask.cumsum(dim=-1)  # [0, 1, 2, 0, 0, 1, 2, 3, 0, ..]
-        positions = positions + fixup
+        positions = make_blanks_fixed_positions(x, self.blank_token_id)
         embeddings = self.layer(positions)
         return embeddings

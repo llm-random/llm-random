@@ -11,6 +11,7 @@ from research.blanks.utils import (
     shift_right,
     get_first_blanks_in_series,
     get_preblanks,
+    make_blanks_fixed_positions,
 )
 
 
@@ -105,3 +106,9 @@ class TestUtils(GeneralTestCase):
         self.assertFalse(
             can_fit_blanks(sequence_length, blank_insertion_point, n_blanks)
         )
+
+    def test_make_blanks_fixed_positions(self):
+        tokens = torch.tensor([[0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 1, 0]])
+        expected = torch.tensor([[0, 1, 1, 2], [0, 1, 2, 1], [0, 0, 1, 1]])
+        result = make_blanks_fixed_positions(tokens, 1)
+        self.assertTrue(torch.equal(result, expected))
