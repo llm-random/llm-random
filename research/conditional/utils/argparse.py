@@ -70,7 +70,6 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--fsdp_offload_params",
         action="store_true",
-        help='This option is NOT for turning on CPUOffloading. It is parameter to CPUOffloading class. "If True, then this offloads gradients to CPU as well, meaning that the optimizer step runs on CPU."',
     )
     parser.add_argument(
         "--fsdp_min_num_params",
