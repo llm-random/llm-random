@@ -108,7 +108,13 @@ class TestUtils(GeneralTestCase):
         )
 
     def test_make_blanks_fixed_positions(self):
-        tokens = torch.tensor([[0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 1, 0]])
-        expected = torch.tensor([[0, 1, 1, 2], [0, 1, 2, 1], [0, 0, 1, 1]])
-        result = make_blanks_fixed_positions(tokens, 1)
+        tokens = torch.tensor([[0, 0, 1, 1, 0], [0, 1, 1, 0, 0], [1, 1, 0, 1, 1]])
+        expected = torch.tensor([[0, 1, 2, 3, 2], [0, 1, 2, 1, 2], [0, 1, 0, 1, 2]])
+        result = make_blanks_fixed_positions(tokens, 1, n_blanks_block=2)
         self.assertTrue(torch.equal(result, expected))
+
+    def test_make_blanks_fixed_positions_throws(self):
+        tokens = torch.tensor([[0, 0, 1, 1], [0, 1, 0, 0]])
+        self.assertRaises(
+            ValueError, make_blanks_fixed_positions, tokens, 1, n_blanks_block=2
+        )

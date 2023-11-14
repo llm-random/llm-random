@@ -120,30 +120,32 @@ def can_fit_blanks(
     )
 
 
-def make_blanks_fixed_positions(x: torch.Tensor, blank_token_id: int):
-    # stack overflow https://stackoverflow.com/questions/18196811/cumsum-reset-at-nan
-    # let's go with example x = [0, 1, 1, 0, 1] - 1 is blank
-    final_positions = torch.zeros_like(x)
-    for i, example in enumerate(x):
-        positions = torch.arange(
-            0, len(example), device=example.device
-        )  # start with [0, 1, 2, 3, 4]
-        is_blank = example.eq(blank_token_id)
-        n_blanks_up_to = is_blank.cumsum(0)
-        positions = (
-            positions - n_blanks_up_to
-        )  # adjecent blanks have the same position as the token before them
-        # [0, 0, 0, 1, 1]
-        is_not_blank = ~is_blank
-        num_adjacent_blanks = torch.diff(
-            n_blanks_up_to[is_not_blank],
-            prepend=torch.zeros(1, device=example.device),
-        ).long()  # for each non-blank token, how many blanks are immediately before it
-        # in example [0, 2]
-        is_blank = is_blank.long()
-        is_blank[
-            is_not_blank
-        ] = -num_adjacent_blanks  # now is_blank is [0, 1, 1, -2, 1]
-        fixup = is_blank.cumsum(0)  # [0, 1, 2, 0, 1]
-        final_positions[i, :] = positions + fixup  # [0, 1, 2, 1, 2]
-    return final_positions
+def make_blanks_fixed_positions(
+    x: torch.Tensor, blank_token_id: int, n_blanks_block: int
+) -> torch.Tensor:
+    """Generates positions in a sequence taking blanks into account.
+    Assumes that every sequence of blanks is exactly n_blanks long.
+
+    Args:
+        x (torch.Tensor): Input tokens of shape (batch_size, seq_len).
+        blank_token_id (int): id of the blank token.
+        n_blanks (int): number of blanks in one block in the sequence.
+
+    Returns:
+        torch.Tensor: positions of tokens in the sequence taking blanks into account.
+    """
+    positions = torch.arange(0, x.shape[1], device=x.device).unsqueeze(0)
+    positions = positions.repeat(x.shape[0], 1)
+    is_blank = x.eq(blank_token_id)
+    n_blanks_up_to = is_blank.cumsum(dim=1)
+    positions = positions - n_blanks_up_to
+    n_blanks = is_blank.sum()
+    if n_blanks % n_blanks_block != 0:
+        raise ValueError(
+            f"""Number of blanks in the sequence must be divisible by {n_blanks_block}. 
+            It probably means that not all blocks of blanks are of the same length."""
+        )
+    positions[is_blank] += torch.arange(1, n_blanks_block + 1, device=x.device).repeat(
+        n_blanks // n_blanks_block
+    )
+    return positions
