@@ -9,9 +9,13 @@ from lizrd.core.misc import (
     EinMix,
 )
 from lizrd.core.misc import Chungus
-from lizrd.datasets.wikibookdata import get_processed_dataset
-from lizrd.support.test_utils import GeneralTestCase, heavy_test, skip_test
+from research.datasets import get_processed_dataset
+from lizrd.support.test_utils import GeneralTestCase, heavy_test
 from lizrd.train.train_utils import get_model
+from research.conditional.utils.model_utils import (
+    calculate_llm_loss,
+    chungized_llm_loss,
+)
 
 
 class TestDense(GeneralTestCase):
@@ -135,36 +139,46 @@ class TestChungus(GeneralTestCase):
 
 class TestChungizedCalculateLoss(GeneralTestCase):
     @heavy_test
-    @skip_test("Update this test to use the new datasets")
     def test_outputs_and_grads(self):
-        torch.manual_seed(0)
+        seed = 0
+        torch.manual_seed(seed)
 
         batch, seql, dm, heads, dff = 3, 32, 32, 4, 64
-        vocab_size = 30522
+        vocab_size = 50257
         n_blocks = 2
         device = torch.device("cpu")
-        mask_percentage = 0.15
         n_chungs = 3
 
         dataset = get_processed_dataset(
-            max_total_length=seql,
-            mask_percent=mask_percentage,
+            batch_size=batch,
+            sequence_length=seql,
             device=device,
             num_workers=1,
-            batch_size=batch,
-            seed=0,
-            model_type="bert",
+            seed=seed,
+            model_type="gpt",
+            dataset_type="c4",
             use_dummy_dataset=True,
+            dataset_split="train",
         )
 
         model = get_model(
             max_length=seql,
             vocab_size=vocab_size,
-            ff_layer_fun=lambda: llm.FeedForward(dm, dff),
-            attention_layer_fun=lambda: llm.Attention(dm, heads),
+            ff_layer_fun=lambda: llm.FeedForward(
+                dm, dff, init_type="kaiming_uniform", init_scale=1.0
+            ),
+            attention_layer_fun=lambda: llm.Attention(
+                dm,
+                heads,
+                causal=False,
+                init_type="kaiming_uniform",
+                init_scale=1.0,
+            ),
             dm=dm,
             n_blocks=n_blocks,
             device=device,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
         )
 
         with torch.no_grad():
@@ -175,14 +189,14 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         (
             loss_no_chung,
             aux_info_no_chung,
-        ) = calculate_bert_loss(
+        ) = calculate_llm_loss(
             batch=batch, model=model, mixed_precision=False, vocab_size=vocab_size
         )
 
         (
             loss_chung,
             aux_info_chung,
-        ) = chungized_bert_loss(
+        ) = chungized_llm_loss(
             batch=batch,
             model=model_chunged,
             mixed_precision=False,
