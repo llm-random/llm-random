@@ -34,7 +34,7 @@ class LayerManager:
         """
         Iterates over all submodules and finds the ones that are of interest.
         Currently, those are only the feedforward and residual blocks.
-        During model creation in llm.py/LLM, the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
+        During model creation in LLM[llm.py], the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
         """
         for name, layer in model.named_modules():
             registered_name = None
@@ -61,7 +61,7 @@ class LayerManager:
             block_name = match.group()
         else:
             raise Exception(
-                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected. Every Transformer block should be named 'block_[block_number]'"
+                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected. Every TransformerBlock [llm.py] should be named 'block_[block_number]'"
             )
         return block_name
 
