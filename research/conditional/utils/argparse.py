@@ -72,7 +72,6 @@ def introduce_parser_arguments(
         action="store_true",
         help='This option is NOT for turning on CPUOffloading. It is parameter to CPUOffloading class. "If True, then this offloads gradients to CPU as well, meaning that the optimizer step runs on CPU."',
     )
-    parser.add_argument("--cpu_offload", action="store_true")
     parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,
