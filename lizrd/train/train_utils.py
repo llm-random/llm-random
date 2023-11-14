@@ -38,10 +38,9 @@ def get_model(
     init_scale,
     ddp_enabled: bool,
     fsdp_enabled: bool,
-    fsdp_wrap_whole_transformer_blocks: bool,
-    fsdp_wrap_attn_and_ff: bool,
-    fsdp_param_precision: bool,
-    fsdp_cpu_offloading: bool,
+    fsdp_param_precision: torch.dtype,
+    fsdp_mixed_precision_ignore_classes: list,
+    fsdp_offload_params: bool,
     rank=None,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
@@ -76,11 +75,6 @@ def get_model(
         device,
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
-        rank=rank,
-        fsdp_wrap_whole_transformer_blocks=fsdp_wrap_whole_transformer_blocks,
-        fsdp_wrap_attn_and_ff=fsdp_wrap_attn_and_ff,
-        fsdp_param_precision=fsdp_param_precision,
-        fsdp_cpu_offloading=fsdp_cpu_offloading,
     )
 
     head = llm.PredictionHead(
@@ -96,7 +90,8 @@ def get_model(
             rank=rank,
             param_precision=fsdp_param_precision,
             cast_inputs=True,
-            offload_params=fsdp_cpu_offloading,
+            mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
+            offload_params=fsdp_offload_params,
             print_model=True,
         )
 

@@ -317,10 +317,6 @@ class TransformerBlock(nn.Sequential):
         layers,
         gradient_checkpointing,
         residual_fn,
-        fsdp_wrap_attn_and_ff=False,
-        rank=None,
-        fsdp_param_precision=torch.float32,
-        fsdp_cpu_offloading=False,
     ):
         residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
 
@@ -345,11 +341,6 @@ class TransformerTower(nn.Module):
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
-        rank=None,
-        fsdp_wrap_whole_transformer_blocks=False,
-        fsdp_wrap_attn_and_ff=False,
-        fsdp_param_precision=torch.float32,
-        fsdp_cpu_offloading=False,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -374,10 +365,6 @@ class TransformerTower(nn.Module):
                 layers_info,
                 gradient_checkpointing,
                 residual_fn,
-                fsdp_wrap_attn_and_ff=fsdp_wrap_attn_and_ff,
-                rank=rank,
-                fsdp_param_precision=fsdp_param_precision,
-                fsdp_cpu_offloading=fsdp_cpu_offloading,
             )
             if current_device != torch.device("cpu"):
                 block = block.to(current_device)

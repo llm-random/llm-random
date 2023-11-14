@@ -1,11 +1,14 @@
 from functools import partial
+from typing import Sequence, Type
 import torch
+from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
+from torch.nn.modules.batchnorm import _BatchNorm
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
-from lizrd.core.llm import Parallel
+from lizrd.core.llm import AttentionMechanism, Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -46,7 +49,7 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
     LegacyContinuousMoE,
 )
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
@@ -456,3 +459,13 @@ def get_ff_layer(args, rank=None):
             )
 
     return return_fn
+
+
+def get_mixed_precision_ignore_classes(ff_mode: str) -> Sequence[Type[torch.nn.Module]]:
+    if ff_mode == "expert_choice":
+        return [ExpertGating, AttentionMechanism, LayerNorm]
+    else:
+        print(
+            "f{ff_mode} do not have specified mixed precision ignore classes, returning default: (_BatchNorm,) "
+        )
+        return (_BatchNorm,)

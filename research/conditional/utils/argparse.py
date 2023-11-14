@@ -67,9 +67,11 @@ def introduce_parser_arguments(
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
     parser.add_argument("--ddp_enabled", action="store_true")
     parser.add_argument("--fsdp_enabled", action="store_true")
-    parser.add_argument("--wrap_blocks_in_fsdp", action="store_true")
-    parser.add_argument("--wrap_attn_and_ff_in_fsdp", action="store_true")
-    parser.add_argument("--fsdp_attn_in_high_precision", action="store_true")
+    parser.add_argument(
+        "--fsdp_offload_params",
+        action="store_true",
+        help='This option is NOT for turning on CPUOffloading. It is parameter to CPUOffloading class. "If True, then this offloads gradients to CPU as well, meaning that the optimizer step runs on CPU."',
+    )
     parser.add_argument("--cpu_offload", action="store_true")
     parser.add_argument(
         "--model_parallelism_fragmentation",

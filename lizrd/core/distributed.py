@@ -6,8 +6,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.nn as nn
 import torch
 
-from research.conditional.moe_layers.expert_choice import ExpertGating
-from lizrd.core.llm import AttentionMechanism
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 
@@ -25,11 +23,12 @@ def wrap_in_fsdp(
     module: nn.Module,
     rank: Optional[int],
     param_precision: torch.dtype,
-    cast_inputs: bool = False,
-    offload_params: bool = False,
-    print_model: bool = False,
+    cast_inputs: bool,
+    mixed_precision_ignore_classes: list,
+    offload_params: bool,
+    print_model: bool,
 ):
-    def _create_single_fsdp_module(module_to_wrap, precision):
+    def _create_single_fsdp_module(module_to_wrap: nn.Module, precision: torch.dtype):
         return FSDP(
             module_to_wrap,
             device_id=rank,
@@ -37,11 +36,7 @@ def wrap_in_fsdp(
                 param_dtype=precision,
                 reduce_dtype=torch.float32,
                 cast_forward_inputs=cast_inputs,
-                _module_classes_to_ignore=(
-                    ExpertGating,
-                    AttentionMechanism,
-                    nn.LayerNorm,
-                ),
+                _module_classes_to_ignore=mixed_precision_ignore_classes,
             ),
             cpu_offload=CPUOffload(offload_params=offload_params),
             auto_wrap_policy=partial(custom_auto_wrap_policy, min_num_params=int(1e04)),
