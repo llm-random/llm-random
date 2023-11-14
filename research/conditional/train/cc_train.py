@@ -133,6 +133,7 @@ def main(
         fsdp_param_precision=param_precision,
         fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
         fsdp_offload_params=args.fsdp_offload_params,
+        fsdp_min_num_params=args.fsdp_min_num_params,
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
