@@ -29,23 +29,20 @@ def wrap_in_fsdp(
     print_model: bool,
     min_num_params: int,
 ):
-    def _create_single_fsdp_module(module_to_wrap: nn.Module, precision: torch.dtype):
-        return FSDP(
-            module_to_wrap,
-            device_id=rank,
-            mixed_precision=MixedPrecision(
-                param_dtype=precision,
-                reduce_dtype=torch.float32,
-                cast_forward_inputs=cast_inputs,
-                _module_classes_to_ignore=mixed_precision_ignore_classes,
-            ),
-            cpu_offload=CPUOffload(offload_params=offload_params),
-            auto_wrap_policy=partial(
-                custom_auto_wrap_policy, min_num_params=min_num_params
-            ),
-        )
-
-    wrapped = _create_single_fsdp_module(module, param_precision)
+    wrapped = FSDP(
+        module,
+        device_id=rank,
+        mixed_precision=MixedPrecision(
+            param_dtype=param_precision,
+            reduce_dtype=torch.float32,
+            cast_forward_inputs=cast_inputs,
+            _module_classes_to_ignore=mixed_precision_ignore_classes,
+        ),
+        cpu_offload=CPUOffload(offload_params=offload_params),
+        auto_wrap_policy=partial(
+            custom_auto_wrap_policy, min_num_params=min_num_params
+        ),
+    )
 
     if print_model:
         print("------- MODEL AFTER WRAPPING IN FSDP -------")
