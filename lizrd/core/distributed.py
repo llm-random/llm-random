@@ -27,6 +27,7 @@ def wrap_in_fsdp(
     mixed_precision_ignore_classes: list,
     offload_params: bool,
     print_model: bool,
+    min_num_params: int,
 ):
     def _create_single_fsdp_module(module_to_wrap: nn.Module, precision: torch.dtype):
         return FSDP(
@@ -39,7 +40,9 @@ def wrap_in_fsdp(
                 _module_classes_to_ignore=mixed_precision_ignore_classes,
             ),
             cpu_offload=CPUOffload(offload_params=offload_params),
-            auto_wrap_policy=partial(custom_auto_wrap_policy, min_num_params=int(1e04)),
+            auto_wrap_policy=partial(
+                custom_auto_wrap_policy, min_num_params=min_num_params
+            ),
         )
 
     wrapped = _create_single_fsdp_module(module, param_precision)

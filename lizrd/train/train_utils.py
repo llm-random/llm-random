@@ -41,6 +41,7 @@ def get_model(
     fsdp_param_precision: torch.dtype,
     fsdp_mixed_precision_ignore_classes: list,
     fsdp_offload_params: bool,
+    fsdp_min_num_params: int,
     rank=None,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
@@ -93,6 +94,7 @@ def get_model(
             mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
             offload_params=fsdp_offload_params,
             print_model=True,
+            min_num_params=fsdp_min_num_params,
         )
 
     return model
