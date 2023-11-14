@@ -179,6 +179,12 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             device=device,
             init_type="kaiming_uniform",
             init_scale=1.0,
+            ddp_enabled=False,
+            fsdp_enabled=False,
+            fsdp_param_precision=None,
+            fsdp_mixed_precision_ignore_classes=None,
+            fsdp_offload_params=None,
+            fsdp_min_num_params=None,
         )
 
         with torch.no_grad():
