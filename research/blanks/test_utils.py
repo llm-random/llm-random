@@ -6,6 +6,8 @@ from research.blanks.utils import (
     shift_right,
     get_first_blanks_in_series,
     get_preblanks,
+    get_last_blanks_in_series,
+    make_blanks_attention_mask,
 )
 
 
@@ -44,4 +46,21 @@ class TestUtils(GeneralTestCase):
         is_blank = torch.tensor([[0, 1, 1, 0], [1, 0, 1, 1]])
         expected = torch.tensor([[1, 0, 0, 0], [0, 1, 0, 0]])
         result = get_preblanks(is_blank)
+        self.assertTrue(torch.equal(result, expected))
+
+    def test_get_last_blanks_in_series(self):
+        is_blank = torch.tensor([[0, 1, 1, 0], [1, 0, 1, 1]])
+        expected = torch.tensor([[0, 0, 1, 0], [1, 0, 0, 1]])
+        result = get_last_blanks_in_series(is_blank)
+        self.assertTrue(torch.equal(result, expected))
+
+    def test_make_blanks_attention_mask(self):
+        is_blank = torch.tensor([[0, 1, 1, 0], [1, 0, 1, 0]])
+        expected = torch.tensor(
+            [
+                [[0, 1, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [0, 1, 1, 0]],
+                [[0, 1, 1, 1], [1, 0, 1, 1], [1, 0, 0, 1], [1, 0, 1, 0]],
+            ]
+        )
+        result = make_blanks_attention_mask(is_blank)
         self.assertTrue(torch.equal(result, expected))
