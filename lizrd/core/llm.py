@@ -220,10 +220,6 @@ class Attention(LoggingLayer):
         causal,
         init_type: str,
         init_scale: float,
-        attn_in_high_precision: bool = False,
-        rank: Optional[int] = None,
-        param_precision: Optional[torch.dtype] = None,
-        offload_params: bool = False,
         dhead=None,
         flash=False,
     ):
