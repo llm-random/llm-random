@@ -2,9 +2,14 @@ from collections import OrderedDict
 from typing import Callable, Optional
 from lizrd.core import llm
 import lizrd.core.nn as nn
-from research.blanks.utils import get_first_blanks_in_series, shift_left, shift_right
+from research.blanks.utils import (
+    get_first_blanks_in_series,
+    shift_left,
+    shift_right,
+    make_blanks_attention_mask,
+)
 import research
-
+import torch.nn.functional as F
 
 import torch
 
@@ -194,7 +199,10 @@ class BlankLLM(nn.Module):
 
         self.head = head
 
+        self.attention_manager = BlankAttentionManager(self)
+
     def forward(self, *args, **kwargs):
+        self.attention_manager.set_mask(make_blanks_attention_mask(args[0]))
         if isinstance(self.head, BlankDiffPredictionHead):
             encoder_output = self.encoder.forward(*args, **kwargs)
             return self.head(encoder_output, *args, **kwargs)
@@ -221,3 +229,123 @@ class BlankEmbedding(nn.Module):
             preblank_embedding_output = shift_right(preblank_embedding_output)
             embedding_output.add_(preblank_embedding_output)
         return embedding_output
+
+
+class BlankAttentionManager:
+    def __init__(
+        self,
+        model,
+    ):
+        self._layers = []
+        self._register_layers(model)
+
+    def _register_layers(self, model):
+        for name, layer in model.named_modules():
+            if name.endswith("attention"):
+                self._layers.append(layer)
+
+    def set_mask(self, mask):
+        for layer in self._layers:
+            if isinstance(layer, BlankAttention):
+                layer.set_mask(mask)
+            else:
+                raise ValueError(
+                    f"Layer {layer} is not a BlankAttention layer (something is not yes)"
+                )
+
+
+class BlankAttention(nn.Module):
+    def __init__(
+        self,
+        dmodel,
+        heads,
+        causal,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
+        super(BlankAttention, self).__init__()
+        if dhead is None:
+            assert dmodel % heads == 0
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+
+        self.input_projection = nn.Linear(
+            dmodel,
+            3 * heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = nn.Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.mask = None
+
+    def set_mask(self, mask):
+        self.mask = mask
+
+    def forward(self, x):
+        projected = self.input_projection(x)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+
+        attention_output = custom_mask_attention_mechanism(
+            query=q,
+            key=k,
+            value=v,
+            dhead=self.dhead,
+            mask=self.mask,
+            flash=self.flash,
+        )
+
+        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
+
+        return output
+
+
+def custom_mask_attention_mechanism(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    dhead: int,
+    mask: torch.Tensor,
+    flash: bool,
+):
+    if flash:
+        with torch.backends.cuda.sdp_kernel(
+            enable_flash=True, enable_math=False, enable_mem_efficient=False
+        ):
+            output = F.scaled_dot_product_attention(
+                query=query,
+                key=key,
+                value=value,
+                attn_mask=mask == 0,
+            )
+    else:
+        # implementation without flash assumes other dim order
+        query = query.transpose(1, 2)
+        key = key.transpose(1, 2)
+        value = value.transpose(1, 2)
+
+        a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
+        a = a * (1 / dhead**0.5)
+        a.masked_fill_(mask, float("-inf"))
+        a = torch.softmax(a, dim=-1)
+        output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
+        output = output.transpose(1, 2)
+
+    return output

@@ -9,12 +9,12 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from lizrd.core import llm, misc
+from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
 from .datasets import get_processed_dataset
-from .model import get_model, get_ff_layer
+from .model import get_model, get_ff_layer, BlankAttention
 from lizrd.text import tokenizers
 from .tokenizers import BlankTokenizer
 
@@ -78,7 +78,9 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
+    attention_layer_fun = lambda: BlankAttention(
+        dhead=args.dhead, dmodel=args.dmodel
+    )  # THIS SHOULD CLASH IN MERGE
 
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
