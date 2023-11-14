@@ -257,6 +257,7 @@ def get_expert_choice_args(args):
         "group_by_batch": args.group_granular_moe_by_batch,
         "softmax_ungrouped": args.softmax_ungrouped,
         "one_hot_impl": args.granular_moe_one_hot_impl,
+        "moe_choice_activation": args.moe_choice_activation,
         "softmax_over": args.softmax_over,
         "use_full_einsum": args.use_full_einsum,
         "group_size": args.simulate_group_size,

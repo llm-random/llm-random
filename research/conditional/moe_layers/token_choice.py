@@ -84,7 +84,7 @@ class TokenChoiceFF(LoggingLayer):
         with measure_time(self, "softmax"):
             gate_out = torch.softmax(gate_out, dim=1)
 
-        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+        self.update_cache_for_logging("gate_activation_all_values", gate_out)
 
         # choose expert for each token
         with measure_time(self, "max_indices"):
@@ -170,8 +170,8 @@ class TokenChoiceFF(LoggingLayer):
     def log_heavy(self):
         return {
             "gradient_of_gate_distribution": make_histogram(self.gate.grad.flatten()),
-            "gate_softmax_all_values": make_histogram(
-                self.logging_cache["gate_softmax_all_values"].flatten()
+            "gate_activation_all_values": make_histogram(
+                self.logging_cache["gate_activation_all_values"].flatten()
             ),
             "tokens_per_expert_counts": make_histogram(
                 self.logging_cache["tokens_per_expert"]

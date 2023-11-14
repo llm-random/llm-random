@@ -1,0 +1,13 @@
+parent: research/conditional/train/configs/baselines/gpt/expert_choice/granularity/4/medium.yaml
+md5_parent_hash: 1c8b0ff4c2efd749bb86913ad052b8dd
+time: 1-00:00:00
+
+params:
+  name: "expert_choice_activation_test_medium"
+  ^moe_choice_activation: ["sigmoid", "softmax"]
+  loss_checkpoint_chungs: 8
+  torch_compile: true
+  logging_interval_heavy: 0
+  should_evaluate_dynamic_groupsize: true
+  min_eval_group_size: 32
+  max_eval_group_size: 256

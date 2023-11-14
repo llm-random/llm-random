@@ -27,6 +27,7 @@ class ExpertChoiceFF(LoggingLayer):
         one_hot_impl: bool = False,
         softmax_ungrouped: bool = False,
         use_full_einsum: bool = False,
+        moe_choice_activation: Literal["softmax", "sigmoid"] = "softmax",
         softmax_over: Literal["tokens", "experts"] = "tokens",
         n_gating_heatmaps: int = 4,
         group_size: int = 1,
@@ -60,8 +61,10 @@ class ExpertChoiceFF(LoggingLayer):
         assert (
             not self.one_hot_impl or self.group_by_batch
         ), "Not implemented, would require a lot of memory"
+        assert moe_choice_activation in ["softmax", "sigmoid"]
         assert softmax_over in ["tokens", "experts"]
         assert not self.softmax_ungrouped or self.group_by_batch
+        assert not self.softmax_ungrouped or self.moe_choice_activation == "softmax"
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
         assert not self.use_torch_bmm or not self.use_full_einsum  # Not implemented
 
@@ -90,6 +93,7 @@ class ExpertChoiceFF(LoggingLayer):
             )
         ).requires_grad_(True)
         self.ln = LayerNorm(dmodel)
+        self.moe_choice_activation = moe_choice_activation
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot
@@ -155,12 +159,15 @@ class ExpertChoiceFF(LoggingLayer):
         if not self.group_by_batch and not self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 
-        # perform softmax either over tokens for each expert or over experts for each token
-        with measure_time(self, "softmax"):
-            if self.softmax_over == "tokens":
-                gate_out = torch.softmax(gate_out, dim=1)
-            elif self.softmax_over == "experts":
-                gate_out = torch.softmax(gate_out, dim=0)
+        with measure_time(self, "choice_activation"):
+            if self.moe_choice_activation == "softmax":
+                # perform softmax either over tokens for each expert or over experts for each token
+                if self.softmax_over == "tokens":
+                    gate_out = torch.softmax(gate_out, dim=1)
+                elif self.softmax_over == "experts":
+                    gate_out = torch.softmax(gate_out, dim=0)
+            elif self.moe_choice_activation == "sigmoid":
+                gate_out = torch.sigmoid(gate_out)
 
         if self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
@@ -168,7 +175,7 @@ class ExpertChoiceFF(LoggingLayer):
         topk = round(self.topk_fraction * gate_out.shape[1])
         assert topk > 0, "topk is 0, increase topk_fraction or batch_size"
 
-        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+        self.update_cache_for_logging("gate_activation_all_values", gate_out)
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
             topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
@@ -185,7 +192,7 @@ class ExpertChoiceFF(LoggingLayer):
                 topk *= seq_len
 
         # cache values for logging
-        self.update_cache_for_logging("gate_softmax_topk_vals", topk_values)
+        self.update_cache_for_logging("gate_activation_topk_vals", topk_values)
         self.update_cache_for_logging("topk_indices", topk_indices)
         self.update_cache_for_logging("n_tokens", torch.Tensor([batch_size * seq_len]))
 
@@ -411,11 +418,11 @@ class ExpertChoiceFF(LoggingLayer):
         )  # make sure bincount takes into account the whole range of indexes
         indexes_choose_counts = chosen_indexes.bincount()
         return {
-            "gate_softmax_topk_vals": make_histogram(
-                self.logging_cache["gate_softmax_topk_vals"].flatten()
+            "gate_activation_topk_vals": make_histogram(
+                self.logging_cache["gate_activation_topk_vals"].flatten()
             ),
-            "gate_softmax_all_values": make_histogram(
-                self.logging_cache["gate_softmax_all_values"].flatten()
+            "gate_activation_all_values": make_histogram(
+                self.logging_cache["gate_activation_all_values"].flatten()
             ),
             "indexes_choose_counts": make_histogram(indexes_choose_counts),
             **{

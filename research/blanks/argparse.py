@@ -129,6 +129,12 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--total_experts_width", type=int)
     parser.add_argument("--effective_dff", type=int)
+    parser.add_argument(
+        "--moe_choice_activation",
+        type=str,
+        default="softmax",
+        help="Activation function for choice of expert as in Schmidhuber paper https://arxiv.org/pdf/2310.10837.pdf",
+    )
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
 

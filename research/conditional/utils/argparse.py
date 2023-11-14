@@ -174,6 +174,12 @@ def introduce_parser_arguments(
         help="How much FLOPS we want to spend on FF, in multiples of d_model",
     )
     parser.add_argument("--effective_dff", type=int)
+    parser.add_argument(
+        "--moe_choice_activation",
+        type=str,
+        default="softmax",
+        help="Activation function for choice of expert as in Schmidhuber paper https://arxiv.org/pdf/2310.10837.pdf",
+    )
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
     parser.add_argument("--simulate_group_size", type=int, default=1)
