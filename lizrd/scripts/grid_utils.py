@@ -1,9 +1,18 @@
+import argparse
 import copy
 import os
 import platform
+import pprint
 from enum import Enum
 from itertools import product
 from typing import List, Optional, Tuple
+
+from research.conditional.utils.argparse import (
+    introduce_parser_arguments as cc_introduce_parser_arguments,
+)
+from research.blanks.argparse import (
+    introduce_parser_arguments as blanks_introduce_parser_arguments,
+)
 
 
 class MachineBackend(Enum):
@@ -50,7 +59,7 @@ def get_cache_path(machine_backend: MachineBackend) -> str:
 
 
 def get_singularity_image(machine_backend: MachineBackend) -> str:
-    image_name = "sparsity_2023.08.29_09.26.31.sif"
+    image_name = "sparsity_2023.11.10_15.23.19.sif"
     common_dir = get_common_directory(machine_backend)
     return f"{common_dir}/images/{image_name}"
 
@@ -252,7 +261,6 @@ def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
     TIME = grid_args.get("time", "1-00:00:00")  ######
     RUNNER = grid_args["runner"]
     GRES = grid_args.get("gres", "gpu:1")
-    DRY_RUN = grid_args.get("dry_run", False)
     SINGULARITY_IMAGE = grid_args.get(
         "singularity_image", get_singularity_image(CLUSTER_NAME)
     )
@@ -317,3 +325,33 @@ def make_singularity_env_arguments(
         if len(variables_and_values) > 0
         else []
     )
+
+
+def check_for_argparse_correctness(grid: list[dict[str, str]]):
+    for i, (training_args, setup_args) in enumerate(grid):
+        training_args["n_gpus"] = setup_args["n_gpus"]
+        runner_params = translate_to_argparse(training_args)
+        runner = setup_args["runner"]
+        assert runner in [
+            "research.conditional.train.cc_train",
+            "research.blanks.train",
+        ], f"Unknown runner: {setup_args['runner']} \nIf a new one was implemented, include it here as well"
+
+        parser = argparse.ArgumentParser()
+        if runner == "research.conditional.train.cc_train":
+            parser = cc_introduce_parser_arguments(parser)
+        else:
+            parser = blanks_introduce_parser_arguments(parser)
+
+        try:
+            args, extra = parser.parse_known_args(runner_params)
+            if extra != []:
+                print("Config:")
+                pprint.pprint(runner_params)
+                raise ValueError(f"Unknown arguments: {extra}")
+
+        except SystemExit as e:
+            print(f"Error in config {i}: {e}")
+            print("Config:")
+            pprint.pprint(runner_params)
+            raise e

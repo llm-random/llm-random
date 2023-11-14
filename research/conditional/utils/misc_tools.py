@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 import torch
 
 
@@ -41,3 +43,20 @@ def stable_softmax_temperature(x, temperature, dim=-1):
 def entropy(x, dim):
     ent = -torch.sum(x * torch.log(x + 1e-8), dim=dim)
     return ent
+
+
+# context manager
+@contextmanager
+def temp_modify_attr(
+    layers: list[torch.nn.Module], attribute_name, new_attribute_value
+):
+    """
+    modify the attribute of a list of layers to a new value, and then restore the original value
+    """
+    original_attribute_values = []
+    for layer in layers:
+        original_attribute_values.append(getattr(layer, attribute_name))
+        setattr(layer, attribute_name, new_attribute_value)
+    yield
+    for layer, original_attribute_value in zip(layers, original_attribute_values):
+        setattr(layer, attribute_name, original_attribute_value)

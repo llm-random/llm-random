@@ -11,7 +11,7 @@ def introduce_parser_arguments(
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
-    parser.add_argument("--dff", type=int, required=True)
+    parser.add_argument("--dff", type=int, required=False)  # not used by granularity
     parser.add_argument("--n_att_heads", type=int, required=True)
     parser.add_argument("--dhead", type=int, default=None)
 
@@ -63,6 +63,7 @@ def introduce_parser_arguments(
     parser.add_argument("--gradient_checkpointing", action="store_true")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--mixed_precision", action="store_true")
+    parser.add_argument("--torch_compile", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
     parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument(
@@ -108,8 +109,29 @@ def introduce_parser_arguments(
     parser.add_argument("--load_weights_path", type=str, default=None)
 
     # paremeters for specific experiments
+
+    ## used by MoE (common)
+    parser.add_argument(
+        "--eval_dynamic_groupsize",
+        action="store_true",
+        help="During evaluation, evaluate model with multiple group sizes",
+    )
+    parser.add_argument(
+        "--eval_min_group_size_logfactor",
+        type=int,
+        default=None,
+        help="During evaluation, the smallest group size is group_size * 2**eval_min_group_size_logfactor",
+    )
+    parser.add_argument(
+        "--eval_max_group_size_logfactor",
+        type=int,
+        default=None,
+        help="During evaluation, the largest group size is group_size * 2**eval_max_group_size_logfactor",
+    )
+
     ## used often by Continuous MoE
 
+    parser.add_argument("--eval_discrete_mot", action="store_true")
     parser.add_argument("--emit_softmax_over_experts", action="store_true")
     parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument("--n_experts", type=int)
@@ -120,9 +142,8 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
-    parser.add_argument("--should_evaluate_dynamic_groupsize", action="store_true")
 
-    ## used by MoE (some specific, some common)
+    ## used by MoE (specific)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
@@ -137,13 +158,25 @@ def introduce_parser_arguments(
         help="This argument is deprecated. Provide either (total_experts_width, n_experts, effective_dff) or (expert_size, n_experts, topk_fraction) instead.",
     )
     parser.add_argument("--total_experts_width", type=int)
+    parser.add_argument(
+        "--granularity",
+        type=int,
+        help="How smaller is each expert compared to standard MoE",
+    )
+    parser.add_argument(
+        "--expansion_rate",
+        type=int,
+        help="Factor by which we expand the number of parameters in FF",
+    )
+    parser.add_argument(
+        "--effective_dff_x",
+        type=int,
+        help="How much FLOPS we want to spend on FF, in multiples of d_model",
+    )
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
     parser.add_argument("--simulate_group_size", type=int, default=1)
-    parser.add_argument("--min_eval_group_size", type=int, default=0)
-    parser.add_argument("--max_eval_group_size", type=int, default=0)
-
     parser.add_argument("--kernel_r", type=int, default=256)
     parser.add_argument("--redraw_projections_interval", type=int, default=100)
     parser.add_argument("--no_kernel_norm", action="store_true")
@@ -183,6 +216,12 @@ def introduce_parser_arguments(
         "--use_full_einsum",
         action="store_true",
         help="in grouped ExpertChoice, use squash all linears with einsum",
+    )
+    parser.add_argument(
+        "--use_torch_bmm",
+        action="store_true",
+        help="in grouped ExpertChoice, use one hot implementation with all "
+        "linear operations performed using torch.bmm",
     )
     parser.add_argument(
         "--use_dummy_dataset",
