@@ -34,7 +34,7 @@ class LayerManager:
         """
         Iterates over all submodules and finds the ones that are of interest.
         Currently, those are only the feedforward and residual blocks.
-        During model creation in LLM[llm.py], the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
+        During model creation in LLM [llm.py], the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
         """
         for name, layer in model.named_modules():
             registered_name = None
