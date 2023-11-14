@@ -2,6 +2,7 @@ from collections import OrderedDict
 
 from torch import nn
 
+from lizrd.core.llm import Residual
 from lizrd.support.test_utils import GeneralTestCase
 from research.conditional.moe_layers.cont_moe_designs.learnable_temperature import (
     ContinuousMoEAdaTemp,
@@ -13,16 +14,21 @@ from research.conditional.utils.layer_manager import LayerManager
 
 
 class TestLearningStartAdatemp(GeneralTestCase):
-    module_list = OrderedDict(
-        [
-            (
-                f"block_{i}_feedforward",
-                ContinuousMoEAdaTemp(1, 1, 1, 1, 1, 1.0, "kaiming_uniform", 1.0, None),
+    layers = []
+    for i in range(10):
+        mot = ContinuousMoEAdaTemp(1, 1, 1, 1, 1, 1.0, "kaiming_uniform", 1.0, None)
+        residual = Residual(
+            nn.Sequential(
+                OrderedDict(
+                    [
+                        ("pre_norm", nn.LayerNorm(1)),
+                        ("feedforward", mot),
+                    ]
+                )
             )
-            for i in range(10)
-        ]
-    )
-    model = nn.Sequential(module_list)
+        )
+        layers.append((f"block_{i}", residual))
+    model = nn.Sequential(OrderedDict(layers))
 
     steps_until_start_temperature_learn = 10
 
@@ -46,18 +52,21 @@ class TestLearningStartAdatemp(GeneralTestCase):
 
 
 class TestLearningStartAdatempPositive(GeneralTestCase):
-    module_list = OrderedDict(
-        [
-            (
-                f"block_{i}_feedforward",
-                ContinuousMoEAdaTempPositive(
-                    1, 1, 1, 1, 1, 1.0, "kaiming_uniform", 1.0, None
-                ),
+    layers = []
+    for i in range(10):
+        mot = ContinuousMoEAdaTemp(1, 1, 1, 1, 1, 1.0, "kaiming_uniform", 1.0, None)
+        residual = Residual(
+            nn.Sequential(
+                OrderedDict(
+                    [
+                        ("pre_norm", nn.LayerNorm(1)),
+                        ("feedforward", mot),
+                    ]
+                )
             )
-            for i in range(10)
-        ]
-    )
-    model = nn.Sequential(module_list)
+        )
+        layers.append((f"block_{i}", residual))
+    model = nn.Sequential(OrderedDict(layers))
 
     steps_until_start_temperature_learn = 10
 
