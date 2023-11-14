@@ -1,22 +1,13 @@
 from typing import Optional
 from functools import partial
 
+from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.distributed.fsdp import MixedPrecision, CPUOffload
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.nn as nn
 import torch
 
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-
-
-def custom_auto_wrap_policy(
-    module: nn.Module,
-    recurse: bool,
-    nonwrapped_numel: int,
-    # Additional custom arguments
-    min_num_params: int,
-) -> bool:
-    return nonwrapped_numel >= min_num_params
 
 
 def wrap_in_fsdp(
@@ -29,6 +20,11 @@ def wrap_in_fsdp(
     print_model: bool,
     min_num_params: int,
 ):
+    auto_wrap_policy = (
+        partial(size_based_auto_wrap_policy, min_num_params=min_num_params)
+        if min_num_params is not None
+        else size_based_auto_wrap_policy
+    )
     wrapped = FSDP(
         module,
         device_id=rank,
@@ -39,9 +35,7 @@ def wrap_in_fsdp(
             _module_classes_to_ignore=mixed_precision_ignore_classes,
         ),
         cpu_offload=CPUOffload(offload_params=offload_params),
-        auto_wrap_policy=partial(
-            custom_auto_wrap_policy, min_num_params=min_num_params
-        ),
+        auto_wrap_policy=auto_wrap_policy,
     )
 
     if print_model:
