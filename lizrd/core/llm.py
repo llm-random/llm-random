@@ -91,14 +91,41 @@ class EveryOtherLayer:
 
 
 @ash.check("... -> ... ")
-class Residual(nn.Module):
+class Residual(LoggingLayer):
     def __init__(self, layer):
         super(Residual, self).__init__()
         self.layer = layer
 
     def forward(self, x):
         out = self.layer(x)
+        self.update_cache_for_logging("update", out)
+        self.update_cache_for_logging("residual_stream", x)
         return out + x
+
+    def log_heavy(self):
+        updates = self.logging_cache["update"]
+        residual_stream = self.logging_cache["residual_stream"]
+
+        update_norms = torch.norm(updates, dim=-1)
+        residual_norms = torch.norm(residual_stream, dim=-1)
+
+        update_norms_mean = torch.mean(update_norms)
+        update_norms_std = torch.std(update_norms)
+        residual_norms_mean = torch.mean(residual_norms)
+        residual_norms_std = torch.std(residual_norms)
+
+        update_to_residual_ratio = update_norms / residual_norms
+        update_to_residual_ratio_mean = torch.mean(update_to_residual_ratio)
+        update_to_residual_ratio_std = torch.std(update_to_residual_ratio)
+
+        return {
+            "update_norms/mean": update_norms_mean,
+            "update_norms/std": update_norms_std,
+            "residual_norms/mean": residual_norms_mean,
+            "residual_norms/std": residual_norms_std,
+            "update_to_residual_ratio/mean": update_to_residual_ratio_mean,
+            "update_to_residual_ratio/std": update_to_residual_ratio_std,
+        }
 
 
 @ash.check("... -> ... ")
@@ -289,10 +316,12 @@ def PreNormBlock(dmodel, layer, name):
 @ash.check("... d -> ... d")
 def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
-    residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
+    residual_layers = [
+        (f"residual", residual_fn(layer=layer, name=name)) for name, layer in layers
+    ]
     if gradient_checkpointing:
-        residual_layers = [Checkpoint(layer) for layer in residual_layers]
-    return nn.Sequential(*residual_layers)
+        residual_layers = [(name, Checkpoint(layer)) for name, layer in residual_layers]
+    return nn.Sequential(OrderedDict(residual_layers))
 
 
 @ash.check("... d -> ... d")
