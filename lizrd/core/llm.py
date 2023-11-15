@@ -317,7 +317,8 @@ def PreNormBlock(dmodel, layer, name):
 def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
     residual_layers = [
-        (f"residual", residual_fn(layer=layer, name=name)) for name, layer in layers
+        (f"residual_{name}", residual_fn(layer=layer, name=name))
+        for name, layer in layers
     ]
     if gradient_checkpointing:
         residual_layers = [(name, Checkpoint(layer)) for name, layer in residual_layers]
