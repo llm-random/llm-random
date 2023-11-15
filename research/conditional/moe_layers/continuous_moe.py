@@ -219,8 +219,8 @@ class ContinuousMoeBaseClass(LoggingLayer):
             log[f"{name}/normalised_entropy/mean"] = normalized_entropy.mean()
             log[f"{name}/normalised_entropy/std"] = normalized_entropy.std()
 
-        log[f"logits/mean"] = 1e4 * (merge_logits * 1e-4).mean()
-        log[f"logits/std"] = merge_logits.std()
+        log[f"merge_logits/mean"] = 1e4 * (merge_logits * 1e-4).mean()
+        log[f"merge_logits/std"] = merge_logits.std()
 
         return log
 
