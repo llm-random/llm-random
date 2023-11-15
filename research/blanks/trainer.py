@@ -221,12 +221,6 @@ class BlankTrainer:
                 value=total_loss / self.n_eval_batches,
                 iteration=step,
             )
-            print(
-                f"Total correct tokens in {self.n_eval_batches}: {total_correct_tokens}"
-            )
-            print(
-                f"Total masked tokens in {self.n_eval_batches}: {total_masked_tokens}"
-            )
             self.logger.report_scalar(
                 title="eval/accuracy",
                 value=total_correct_tokens / total_masked_tokens,

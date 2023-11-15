@@ -5,9 +5,6 @@ def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
-    parser.add_argument(
-        "--model_type", type=str, choices=["gpt", "bert"], required=True
-    )
     parser.add_argument("--tokenizer", type=str, choices=["gpt", "bert"], required=True)
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
