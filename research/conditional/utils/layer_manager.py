@@ -31,17 +31,39 @@ class LayerManager:
         self.steps_until_start_temperature_learn = steps_until_start_temperature_learn
 
     def _register_layers(self, model):
+        """
+        Iterates over all submodules and finds the ones that are of interest.
+        Currently, those are only the feedforward and residual blocks.
+        During model creation in LLM [llm.py], the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
+        """
         for name, layer in model.named_modules():
-            if name.endswith("feedforward"):
-                pattern = r"block_(\d+)"
-                match = re.search(pattern, name)
-                if match:
-                    block_name = match.group()
-                else:
-                    raise Exception(
-                        f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected."
-                    )
-                self._layers.append((block_name, layer))
+            registered_name = None
+            suffix = name.split(".")[-1]
+
+            if suffix == "residual":
+                block_name = self.extract_block_name(name)
+                residual_block_type = (
+                    "feedforward"
+                    if hasattr(layer.layer, "feedforward")
+                    else "attention"
+                )
+                registered_name = f"{block_name}_{residual_block_type}_residual"
+            elif suffix == "feedforward":
+                registered_name = self.extract_block_name(name)
+
+            if registered_name is not None:
+                self._layers.append((registered_name, layer))
+
+    def extract_block_name(self, name):
+        pattern = r"block_(\d+)"
+        match = re.search(pattern, name)
+        if match:
+            block_name = match.group()
+        else:
+            raise Exception(
+                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected. Every TransformerBlock [llm.py] should be named 'block_[block_number]'"
+            )
+        return block_name
 
     def prepare_for_logging(self, step):
         if (
