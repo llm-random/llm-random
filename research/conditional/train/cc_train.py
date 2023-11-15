@@ -110,9 +110,7 @@ def main(
         os.makedirs(args.save_weights_path, exist_ok=True)
 
     param_precision = torch.bfloat16 if args.mixed_precision else torch.float32
-    fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignore_classes(
-        args.ff_mode
-    )
+    fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignore_classes(args)
 
     model = get_model(
         max_length=args.cutoff,

@@ -453,11 +453,10 @@ def get_ff_layer(args, rank=None):
     return return_fn
 
 
-def get_mixed_precision_ignore_classes(ff_mode: str) -> Sequence[Type[torch.nn.Module]]:
-    if ff_mode == "expert_choice":
-        return [ExpertGating, AttentionMechanism, LayerNorm]
-    else:
-        print(
-            "f{ff_mode} do not have specified mixed precision ignore classes, returning default: (_BatchNorm,) "
-        )
-        return (_BatchNorm,)
+def get_mixed_precision_ignore_classes(args) -> Sequence[Type[torch.nn.Module]]:
+    ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
+
+    if args.fsdp_higher_attention_precision:
+        ignored_classes += [AttentionMechanism]
+
+    return ignored_classes

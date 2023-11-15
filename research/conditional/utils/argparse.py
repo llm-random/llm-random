@@ -77,6 +77,7 @@ def introduce_parser_arguments(
         default=int(1e8),
         help="This argument is used only if fsdp_enabled is set to True. It is used to set the minimum number of parameters in a module to be wrapped in FSDP. If the number of parameters is smaller than this value, then the module is not wrapped in FSDP. This is useful for small modules, where the overhead of FSDP is too large compared to the compute of the module.",
     )
+    parser.add_argument("--fsdp_higher_attention_precision", action="store_true")
     parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,
