@@ -2,18 +2,14 @@ from collections import OrderedDict
 from typing import Callable, Literal, Optional
 from lizrd.core import llm
 import lizrd.core.nn as nn
-<<<<<<< HEAD
 from research.blanks.utils import (
     get_first_blanks_in_series,
     shift_left,
     shift_right,
     make_blanks_attention_mask,
 )
-import research
 import torch.nn.functional as F
-=======
 from research.blanks.utils import get_first_blanks_in_series, shift_left, shift_right
->>>>>>> mp-blanx-eval
 
 import torch
 
