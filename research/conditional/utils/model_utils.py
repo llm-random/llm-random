@@ -71,7 +71,8 @@ def chungized_llm_loss(
 
     def make_custom_forward():
         def custom_forward(*inputs):
-            output = model.head(inputs[0])
+            x, gt, mask = inputs
+            output = model.head(x)
             with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
                 gt = inputs[1]
                 mask = inputs[2]
@@ -95,7 +96,8 @@ def chungized_llm_loss(
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
-        encoder_output = model.encoder(input_tokens)
+        embeddings = model.embedding_layer(input_tokens)
+        encoder_output = model.encoder(embeddings)
         chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
@@ -211,11 +213,29 @@ def get_expert_choice_args(args, rank=None):
         and args.topk_fraction is not None
         and args.n_experts is not None
     ) and (args.effective_dff is None and args.total_experts_width is None)
+    set_arguments_option3 = (  # this should be the default
+        args.granularity is not None
+        and args.expansion_rate is not None
+        and args.effective_dff_x is not None
+    )
 
-    if not set_arguments_option1 and not set_arguments_option2:
+    if (
+        not set_arguments_option1
+        and not set_arguments_option2
+        and not set_arguments_option3
+    ):
         raise AssertionError(
-            "You must specify either total_experts_width, effective_dff, and n_experts or expert_size, topk_fraction, and n_experts"
+            "You must specify either total_experts_width, effective_dff, and n_experts "
+            "or expert_size, topk_fraction, and n_experts "
+            "or granularity, expansion_rate, and effective_dff_x "
         )
+
+    if set_arguments_option3:
+        # 4 is the standard dff_x, we assume it's defined relative to that
+        dff_x = 4
+        args.total_experts_width = args.dmodel * dff_x * args.expansion_rate
+        args.n_experts = args.expansion_rate * args.granularity
+        args.effective_dff = args.effective_dff_x * args.dmodel
 
     if args.total_experts_width is not None:
         expert_size = args.total_experts_width / args.n_experts
@@ -250,6 +270,7 @@ def get_expert_choice_args(args, rank=None):
         "rank": rank,
         "param_precision": torch.bfloat16 if args.mixed_precision else torch.float32,
         "offload_params": args.cpu_offload,
+        "use_torch_bmm": args.use_torch_bmm,
     }
 
 
