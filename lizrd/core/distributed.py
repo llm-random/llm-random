@@ -32,6 +32,7 @@ def wrap_in_fsdp(
                 cast_forward_inputs=cast_inputs,
             ),
             cpu_offload=CPUOffload(offload_params=offload_params),
+            # use_orig_params=True,
         )
 
     if cast_outputs_to is not None:

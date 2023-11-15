@@ -139,9 +139,6 @@ def main(
     if args.torch_compile:
         model = torch.compile(model)
 
-    if args.torch_compile:
-        model = torch.compile(model)
-
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
