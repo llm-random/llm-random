@@ -33,6 +33,7 @@ def get_processed_dataset(
     model_type: Literal["bert", "gpt"] = "bert",
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
+    use_fast_packer: bool = False,
     dataset_split: str = "train",
 ):
     if dataset_type == "wikibook":
@@ -49,13 +50,16 @@ def get_processed_dataset(
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
     if model_type == "bert":
+        if use_fast_packer:
+            raise NotImplementedError("Fast packer not implemented for BERT")
         packer = packers.BERTPacker(
             sequence_length=sequence_length,
             dataset=dataset,
             tokenizer_maker=tokenizers.BertTokenizer,
         )
     elif model_type == "gpt":
-        packer = packers.GPTPacker(
+        packer_maker = packers.GPTPackerFast if use_fast_packer else packers.GPTPacker
+        packer = packer_maker(
             sequence_length=sequence_length,
             dataset=dataset,
             tokenizer_maker=tokenizers.GPTTokenizer,
