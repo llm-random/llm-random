@@ -206,3 +206,40 @@ class GPTPacker(
         calculate_loss = [1] * len(target_ids)
 
         return LLMExample(input_ids, target_ids, calculate_loss)
+
+
+class GPTPackerFast(
+    AbstractPacker,
+):
+    def __init__(
+        self,
+        sequence_length: int,
+        dataset: AbstractDataset,
+        tokenizer_maker: Callable[[], AbstractTokenizer],
+        seed: Optional[int] = None,
+    ):
+        super().__init__(
+            sequence_length,
+            dataset,
+            tokenizer_maker,
+            seed=seed,
+        )
+        self.buffer: List[int] = []
+
+    def get_sample(self) -> LLMExample:
+        """
+        Sample examples from the dataset until we reach the desired sequence length.
+        """
+        eot_id = self.tokenizer.eot_id
+        assert eot_id is not None
+
+        while len(self.buffer) < (self.sequence_length + 1):
+            document = self.dataset.get_document()
+            tokens = self.tokenizer.text_to_ids(document)
+            self.buffer.extend(tokens + [eot_id])
+
+        input_ids = self.buffer[: self.sequence_length]
+        target_ids = self.buffer[1 : self.sequence_length + 1]
+        self.buffer = self.buffer[self.sequence_length :]
+
+        return LLMExample(input_ids, target_ids, [1] * self.sequence_length)

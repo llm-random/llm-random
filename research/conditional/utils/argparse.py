@@ -232,6 +232,11 @@ def introduce_parser_arguments(
         action="store_true",
         help="whether to use dummy dataset (for debugging or tests)",
     )
+    parser.add_argument(
+        "--use_fast_packer",
+        action="store_true",
+        help="whether to use fast packer (num_workers should be at least equal to batch_size)",
+    )
 
     # experimental/legacy parameters
 
