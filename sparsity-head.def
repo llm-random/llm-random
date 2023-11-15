@@ -3,6 +3,7 @@ From: sparsity-base.sif
 
 %files
     requirements.txt
+    install_requirements.sh
 
 %post
     export DEBIAN_FRONTEND=noninteractive
@@ -10,11 +11,9 @@ From: sparsity-base.sif
     python3 -m venv /opt/venv
     . /opt/venv/bin/activate
 
-    cat requirements.txt
+    ./install_requirements.sh
 
-    python3 -m pip install -U pip
-    python3 -m pip install -r requirements.txt
-    python3 -m pip install -U multiprocess
+    ldconfig  # this fixes the problem with libcuda.so not being found when using torch.compie
 
 %runscript
     . /opt/venv/bin/activate

@@ -210,7 +210,6 @@ def get_expert_choice_args(args):
     set_arguments_option3 = (  # this should be the default
         args.granularity is not None
         and args.expansion_rate is not None
-        and args.dff_x is not None
         and args.effective_dff_x is not None
     )
 
@@ -261,6 +260,7 @@ def get_expert_choice_args(args):
         "group_size": args.simulate_group_size,
         "init_type": args.init_type,
         "init_scale": args.init_scale,
+        "use_torch_bmm": args.use_torch_bmm,
     }
 
 

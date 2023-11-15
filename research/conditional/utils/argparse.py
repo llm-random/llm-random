@@ -63,6 +63,7 @@ def introduce_parser_arguments(
     parser.add_argument("--gradient_checkpointing", action="store_true")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--mixed_precision", action="store_true")
+    parser.add_argument("--torch_compile", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
     parser.add_argument("--data_distributed", action="store_true")
     parser.add_argument(
@@ -200,6 +201,12 @@ def introduce_parser_arguments(
         help="in grouped ExpertChoice, use squash all linears with einsum",
     )
     parser.add_argument(
+        "--use_torch_bmm",
+        action="store_true",
+        help="in grouped ExpertChoice, use one hot implementation with all "
+        "linear operations performed using torch.bmm",
+    )
+    parser.add_argument(
         "--use_dummy_dataset",
         action="store_true",
         help="whether to use dummy dataset (for debugging or tests)",
@@ -207,7 +214,6 @@ def introduce_parser_arguments(
 
     # experimental/legacy parameters
 
-    parser.add_argument("--hack_name", type=str, default=None)
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 

@@ -134,6 +134,9 @@ def main(
         model = model.to(f"cuda:{rank}")
         model = DDP(model, device_ids=[rank])
 
+    if args.torch_compile:
+        model = torch.compile(model)
+
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
@@ -191,7 +194,6 @@ def main(
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
         lr_scheduler=scheduler,
-        hack_name=args.hack_name,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
