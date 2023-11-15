@@ -40,16 +40,9 @@ class LayerManager:
             registered_name = None
             suffix = name.split(".")[-1]
 
-            if suffix == "residual":
+            if suffix in ["residual_feedforward", "residual_attention", "feedforward"]:
                 block_name = self.extract_block_name(name)
-                residual_block_type = (
-                    "feedforward"
-                    if hasattr(layer.layer, "feedforward")
-                    else "attention"
-                )
-                registered_name = f"{block_name}_{residual_block_type}_residual"
-            elif suffix == "feedforward":
-                registered_name = self.extract_block_name(name)
+                registered_name = f"{block_name}/{suffix}"
 
             if registered_name is not None:
                 self._layers.append((registered_name, layer))
