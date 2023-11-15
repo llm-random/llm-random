@@ -80,7 +80,7 @@ class TestUtils(GeneralTestCase):
                 [[0, 1, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [0, 1, 1, 0]],
                 [[0, 1, 1, 1], [1, 0, 1, 1], [1, 0, 0, 1], [1, 0, 1, 0]],
             ]
-        )
+        ).bool()
         result = make_blanks_attention_mask(is_blank)
         self.assertTrue(torch.equal(result, expected))
 

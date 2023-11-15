@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Callable, Literal, Optional
+from typing import Callable, Literal, Optional, List
 from lizrd.core import llm
 import lizrd.core.nn as nn
 from research.blanks.utils import (
@@ -108,10 +108,9 @@ def get_ff_layer(args):
 
 
 def get_attention_layer(args):
-    attention_layer_fun = lambda: llm.Attention(
+    attention_layer_fun = lambda: BlankAttention(
         dmodel=args.dmodel,
         heads=args.n_att_heads,
-        causal=True,
         dhead=args.dhead,
         flash=True,
         init_type=args.init_type,
@@ -238,12 +237,12 @@ class BlankLLM(nn.Module):
         self.attention_manager = BlankAttentionManager(self)
 
     def forward(self, *args, **kwargs):
-        self.attention_manager.set_mask(make_blanks_attention_mask(args[0]))
-        if isinstance(self.head, BlankDiffPredictionHead):
-            encoder_output = self.encoder.forward(*args, **kwargs)
-            return self.head(encoder_output, *args, **kwargs)
-        else:
-            return self.full_model.forward(*args, **kwargs)
+        with self.attention_manager.set_mask(make_blanks_attention_mask(args[0])):
+            if isinstance(self.head, BlankDiffPredictionHead):
+                encoder_output = self.encoder.forward(*args, **kwargs)
+                return self.head(encoder_output, *args, **kwargs)
+            else:
+                return self.full_model.forward(*args, **kwargs)
 
 
 class BlankEmbedding(nn.Module):
@@ -278,35 +277,11 @@ class BlankEmbedding(nn.Module):
         return embedding_output
 
 
-class BlankAttentionManager:
-    def __init__(
-        self,
-        model,
-    ):
-        self._layers = []
-        self._register_layers(model)
-
-    def _register_layers(self, model):
-        for name, layer in model.named_modules():
-            if name.endswith("attention"):
-                self._layers.append(layer)
-
-    def set_mask(self, mask):
-        for layer in self._layers:
-            if isinstance(layer, BlankAttention):
-                layer.set_mask(mask)
-            else:
-                raise ValueError(
-                    f"Layer {layer} is not a BlankAttention layer (something is not yes)"
-                )
-
-
 class BlankAttention(nn.Module):
     def __init__(
         self,
-        dmodel,
-        heads,
-        causal,
+        dmodel: int,
+        heads: int,
         init_type: str,
         init_scale: float,
         dhead=None,
@@ -319,7 +294,6 @@ class BlankAttention(nn.Module):
 
         self.heads = heads
         self.dhead = dhead
-        self.causal = causal
         self.flash = flash
 
         self.input_projection = nn.Linear(
@@ -338,8 +312,11 @@ class BlankAttention(nn.Module):
         )
         self.mask = None
 
-    def set_mask(self, mask):
+    def set_mask(self, mask: torch.Tensor):
         self.mask = mask
+
+    def remove_mask(self):
+        self.mask = None
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -380,7 +357,7 @@ def custom_mask_attention_mechanism(
                 query=query,
                 key=key,
                 value=value,
-                attn_mask=mask == 0,
+                attn_mask=~mask,
             )
     else:
         # implementation without flash assumes other dim order
@@ -396,3 +373,38 @@ def custom_mask_attention_mechanism(
         output = output.transpose(1, 2)
 
     return output
+
+
+class BlankAttentionManager:
+    def __init__(
+        self,
+        model: nn.Module,
+    ):
+        self._layers = []
+        self._register_layers(model)
+
+    def _register_layers(self, model: nn.Module):
+        for name, layer in model.named_modules():
+            if name.endswith("attention"):
+                if not isinstance(layer, BlankAttention):
+                    raise ValueError(
+                        f"Layer {layer} is not a BlankAttention layer (something is not yes)"
+                    )
+                self._layers.append(layer)
+
+    def set_mask(self, mask: torch.Tensor):
+        return MaskSetter(self._layers, mask)
+
+
+class MaskSetter:
+    def __init__(self, layers: List[BlankAttention], mask: torch.Tensor):
+        self.layers = layers
+        self.mask = mask
+
+    def __open__(self):
+        for layer in self.layers:
+            layer.set_mask(self.mask)
+
+    def __close__(self):
+        for layer in self.layers:
+            layer.remove_mask()

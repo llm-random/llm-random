@@ -156,6 +156,6 @@ def make_blanks_attention_mask(is_blank: torch.Tensor) -> torch.Tensor:
     for blanks, firsts, lasts in zip(is_blank, blanks_start, blanks_last):
         mask = torch.tril(torch.ones((len(blanks), len(blanks)))) == 0
         for first_ind, last_ind in zip(firsts.nonzero(), lasts.nonzero()):
-            mask[last_ind + 1 :, first_ind : last_ind + 1] = 1
+            mask[last_ind + 1 :, first_ind : last_ind + 1] = True
         tensors.append(mask)
     return torch.stack(tensors)
