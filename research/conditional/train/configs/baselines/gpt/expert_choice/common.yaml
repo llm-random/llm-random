@@ -8,11 +8,12 @@ params:
   ff_mode: expert_choice
   softmax_over: experts
   group_granular_moe_by_batch: true
-  use_full_einsum: true
+  use_torch_bmm: true
+  torch_compile: true
   granular_moe_one_hot_impl: true
 
   # params
-  expansion_rate: 32
+  expansion_rate: 64
   granularity: 1
   effective_dff_x: 4
   learning_rate: 1e-4

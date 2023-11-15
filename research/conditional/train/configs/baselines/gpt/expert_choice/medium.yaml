@@ -1,5 +1,6 @@
 parent: research/conditional/train/configs/baselines/gpt/expert_choice/common.yaml
 md5_parent_hash: edf4943d6ae6d963a08c76dcb7d3ac8e
+time: 1-00:00:00
 
 params:
   name: "expert_choice_medium"
