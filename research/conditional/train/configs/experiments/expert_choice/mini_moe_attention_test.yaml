@@ -1,0 +1,11 @@
+parent: research/conditional/train/configs/baselines/gpt/expert_choice/mini.yaml
+md5_parent_hash: 97c1d63fdb08bef5fc81d70b68b7db17
+time: 0-05:00:00
+
+params:
+  name: "expert_choice_attetnion_test_mini"
+  ^attention_mechanism: ["moe", "multihead"]
+  model_type: bert
+  dataset_type: wikibook
+  torch_compile: true
+  logging_interval_heavy: 0
