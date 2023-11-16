@@ -1,5 +1,5 @@
 parent: research/conditional/train/configs/baselines/gpt/expert_choice/medium.yaml
-md5_parent_hash: 45a0822dd2c7ca94d778c44ba43bed6a
+md5_parent_hash: 78c89eeb56ee3117dce88f875680f8bb
 
 params:
   name: "granular_16_medium"

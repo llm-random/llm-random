@@ -1,5 +1,5 @@
 parent: research/conditional/train/configs/baselines/gpt/expert_choice/mini.yaml
-md5_parent_hash: 97c1d63fdb08bef5fc81d70b68b7db17
+md5_parent_hash: d93bd6f7efdb7c055db08a16e13e72de
 
 params:
   name: "granular_16_mini"
