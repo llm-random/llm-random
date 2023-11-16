@@ -11,6 +11,7 @@ params:
   use_torch_bmm: true
   torch_compile: true
   granular_moe_one_hot_impl: true
+  layer_norm_in_expert_choice: false
 
   # params
   expansion_rate: 64
