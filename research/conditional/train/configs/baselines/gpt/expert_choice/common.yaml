@@ -14,7 +14,7 @@ params:
   layer_norm_in_expert_choice: false
 
   # params
-  expansion_rate: 64
+  expansion_rate: 32
   granularity: 1
   effective_dff_x: 4
   learning_rate: 1e-4

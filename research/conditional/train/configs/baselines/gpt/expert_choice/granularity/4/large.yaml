@@ -1,5 +1,5 @@
 parent: research/conditional/train/configs/baselines/gpt/expert_choice/large.yaml
-md5_parent_hash: 2f5d11fc253b6817dd9be124efd267f4
+md5_parent_hash: 5307a8c6b1db23be226728d48f8a060b
 
 params:
   name: "granular_4_large"
