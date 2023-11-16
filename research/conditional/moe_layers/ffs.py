@@ -3,7 +3,6 @@ import torch
 from torch.nn import functional as F
 
 from lizrd.core import misc
-from lizrd.core import nn
 from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
 from lizrd.core.misc import EinMix
 from lizrd.support import ash
@@ -12,7 +11,7 @@ from lizrd.core.initialization import get_init_weight, get_init_bias
 
 
 @ash.check("... d -> ... d")
-class RewrittenSplitFF(nn.Module):
+class RewrittenSplitFF(torch.nn.Module):
     def __init__(
         self,
         register_list,
@@ -33,12 +32,12 @@ class RewrittenSplitFF(nn.Module):
         self.nexperts = nexperts
         self.expertsize = expertsize
 
-        self.controller = nn.Parameter(
+        self.controller = torch.nn.Parameter(
             get_init_weight(
                 (dm, nexperts), fan_in=dm, init_type=init_type, init_scale=init_scale
             )
         )
-        self.f1 = nn.Parameter(
+        self.f1 = torch.nn.Parameter(
             get_init_weight(
                 (dm, nexperts, expertsize),
                 fan_in=dm,
@@ -46,7 +45,7 @@ class RewrittenSplitFF(nn.Module):
                 init_scale=init_scale,
             )
         )
-        self.f2 = nn.Parameter(
+        self.f2 = torch.nn.Parameter(
             get_init_weight(
                 (nexperts, expertsize, dm),
                 fan_in=(expertsize * nexperts / sparsity),
@@ -55,8 +54,8 @@ class RewrittenSplitFF(nn.Module):
             )
         )
 
-        self.f1b = nn.Parameter(get_init_bias((nexperts, expertsize)))
-        # self.f2b = nn.Parameter(misc.get_init_bias(
+        self.f1b = torch.nn.Parameter(get_init_bias((nexperts, expertsize)))
+        # self.f2b = torch.nn.Parameter(misc.get_init_bias(
         #     (nexperts, dm)))
 
         self.cp = "d e"
@@ -163,7 +162,7 @@ class RewrittenSplitFF(nn.Module):
 
 
 @ash.check("... d -> ... d")
-class SimpleSplitFF(nn.Module):
+class SimpleSplitFF(torch.nn.Module):
     def __init__(
         self,
         register_list,
@@ -193,21 +192,23 @@ class SimpleSplitFF(nn.Module):
 
         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
 
-        self.controller = nn.Parameter(get_init_weight((dm, totalexperts), fan_in=dm))
+        self.controller = torch.nn.Parameter(
+            get_init_weight((dm, totalexperts), fan_in=dm)
+        )
         self.cp = "d e"
         self.gp = "... t d"
         self.cout = "... t e"
         self.inner = "... e f"
 
-        self.bias = nn.Parameter(get_init_bias((totalexperts, expertsize)))
+        self.bias = torch.nn.Parameter(get_init_bias((totalexperts, expertsize)))
 
         self.f1p = "d e f"
-        self.f1 = nn.Parameter(
+        self.f1 = torch.nn.Parameter(
             get_init_weight((dm, totalexperts, expertsize), fan_in=dm)
         )
 
         self.f2p = "e f d"
-        self.f2 = nn.Parameter(
+        self.f2 = torch.nn.Parameter(
             get_init_weight(
                 (totalexperts, expertsize, dm),
                 fan_in=(expertsize * totalexperts / sparsity),
@@ -219,7 +220,7 @@ class SimpleSplitFF(nn.Module):
 
         self.ogp = self.gp.replace("...", "... b")
         self.controller_loss_weight = controller_loss_weight
-        # self.controller_bias = nn.Parameter(misc.get_init_bias(
+        # self.controller_bias = torch.nn.Parameter(misc.get_init_bias(
         #     (totalexperts, )))
 
         self.last_x = None
@@ -301,7 +302,7 @@ class SimpleSplitFF(nn.Module):
 
 
 @ash.check("... d -> ... d")
-class BatchSplitFF(nn.Module):
+class BatchSplitFF(torch.nn.Module):
     def __init__(
         self,
         register_list,
@@ -333,7 +334,7 @@ class BatchSplitFF(nn.Module):
 
         # assert expertsets == nexperts  # TODO: remove, it shouldn't be necessary
 
-        self.controller = nn.Parameter(
+        self.controller = torch.nn.Parameter(
             get_init_weight(
                 shape=(dm, totalexperts),
                 fan_in=dm,
@@ -346,10 +347,10 @@ class BatchSplitFF(nn.Module):
         self.cout = "... t e"
         self.inner = "... e f"
 
-        self.bias = nn.Parameter(get_init_bias((totalexperts, expertsize)))
+        self.bias = torch.nn.Parameter(get_init_bias((totalexperts, expertsize)))
 
         self.f1p = "d e f"
-        self.f1 = nn.Parameter(
+        self.f1 = torch.nn.Parameter(
             get_init_weight(
                 shape=(dm, totalexperts, expertsize),
                 fan_in=dm,
@@ -359,7 +360,7 @@ class BatchSplitFF(nn.Module):
         )
 
         self.f2p = "e f d"
-        self.f2 = nn.Parameter(
+        self.f2 = torch.nn.Parameter(
             get_init_weight(
                 (totalexperts, expertsize, dm),
                 fan_in=(expertsize * totalexperts / sparsity),
@@ -373,7 +374,7 @@ class BatchSplitFF(nn.Module):
 
         self.ogp = self.gp.replace("...", "... b")
         self.controller_loss_weight = controller_loss_weight
-        self.controller_bias = nn.Parameter(get_init_bias((totalexperts,)))
+        self.controller_bias = torch.nn.Parameter(get_init_bias((totalexperts,)))
 
         self.register_full_backward_hook(BatchSplitFF.backward_hook_batch_split_ff)
         self.last_x = None
@@ -548,17 +549,17 @@ class BatchSplitFF(nn.Module):
 
 
 @ash.check("... dinp -> ... dout")
-class FactoredDense(nn.Module):
+class FactoredDense(torch.nn.Module):
     def __init__(self, dinput, doutput, modules):
         super(FactoredDense, self).__init__()
         assert doutput % modules == 0
         dmodule = doutput // modules
 
-        self.gating = nn.Parameter(get_init_weight((modules, dinput), fan_in=1))
-        self.projection = nn.Parameter(
+        self.gating = torch.nn.Parameter(get_init_weight((modules, dinput), fan_in=1))
+        self.projection = torch.nn.Parameter(
             get_init_weight((dinput, dmodule), fan_in=dinput)
         )
-        self.bias = nn.Parameter(get_init_bias(doutput))
+        self.bias = torch.nn.Parameter(get_init_bias(doutput))
 
     def forward(self, x):
         y = misc.einsum(
@@ -591,15 +592,15 @@ def PermutationDense(dinput):
     #             wtflayers.append(layer)
     # random.shuffle(wtflayers)
 
-    return nn.Sequential(
-        # nn.Sequential(
+    return torch.nn.Sequential(
+        # torch.nn.Sequential(
         #     SplitLastAxis(sqdi, sqdi),
-        #     nn.Sequential(*wtflayers),
+        #     torch.nn.Sequential(*wtflayers),
         #     MergeLastAxis(),
         # ),
         TimerLayer(
             "verA",
-            nn.Sequential(
+            torch.nn.Sequential(
                 SplitLastAxis(sqdi, sqdi),
                 EinMix(
                     "... a b -> ... a c", weight_shape="a b c", a=sqdi, b=sqdi, c=sqdi
@@ -615,7 +616,7 @@ def PermutationDense(dinput):
                 MergeLastAxis(),
             ),
         ),
-        # TimerLayer('verB', nn.Sequential(
+        # TimerLayer('verB', torch.nn.Sequential(
         #     SplitLastAxis(sqdi, sqdi),
         #     EinMix('... a b -> ... a c',
         #            weight_shape='a b c',
@@ -629,7 +630,7 @@ def PermutationDense(dinput):
         #     MergeLastAxis(),
         # )),
         # EinSumLayer('...')
-        # TimerLayer('verB', nn.Sequential(
+        # TimerLayer('verB', torch.nn.Sequential(
         #     EinMix('... (a b) -> ... (a B)',
         #            weight_shape='a b B',
         #            a=sqdi, b=sqdi, B=sqdi),
@@ -654,14 +655,14 @@ def PermutationDense(dinput):
 
 @ash.check("... -> ...")
 def NoopDense():
-    return nn.Sequential()
+    return torch.nn.Sequential()
 
 
 @ash.check("... dinp -> ... dout")
 def FactoredDense(dinput, doutput, modules):
     assert doutput % modules == 0
     dmodule = doutput // modules
-    return nn.Sequential(
+    return torch.nn.Sequential(
         EinMix(
             "... dinp -> ... modules dinp",
             weight_shape="modules dinp",  # bias_shape='modules dinp',
@@ -678,15 +679,15 @@ def FactoredDense(dinput, doutput, modules):
     )
 
 
-class GeneralizedReLU(nn.Module):
+class GeneralizedReLU(torch.nn.Module):
     def __init__(self, ndim, bias=False):
         super(GeneralizedReLU, self).__init__()
         assert bias is False  # we assume bias was already added
         self.ndim = ndim
-        self.alpha = nn.Parameter(torch.zeros(ndim))
-        self.beta = nn.Parameter(torch.ones(ndim))
-        self.a = nn.Parameter(torch.zeros(ndim))
-        self.b = nn.Parameter(torch.zeros(ndim))
+        self.alpha = torch.nn.Parameter(torch.zeros(ndim))
+        self.beta = torch.nn.Parameter(torch.ones(ndim))
+        self.a = torch.nn.Parameter(torch.zeros(ndim))
+        self.b = torch.nn.Parameter(torch.zeros(ndim))
 
     def forward(self, x):
         above_zero = self.beta * x + self.b

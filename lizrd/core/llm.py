@@ -3,7 +3,6 @@ from typing import Literal, Callable, Optional
 from functools import partial
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
@@ -39,7 +38,7 @@ def FeedForward(
 ):
     bias_first, bias_second = decode_bias_string(bias)
 
-    return nn.Sequential(
+    return torch.nn.Sequential(
         OrderedDict(
             [
                 (
@@ -52,7 +51,7 @@ def FeedForward(
                         init_scale=init_scale,
                     ),
                 ),
-                ("relu", nn.ReLU(inplace=True)),
+                ("relu", torch.nn.ReLU(inplace=True)),
                 (
                     "logging_ff_post_relu",
                     Linear(
@@ -70,7 +69,9 @@ def FeedForward(
 
 class EveryOtherLayer:
     def __init__(
-        self, layer1_fn: Callable[[], nn.Module], layer2_fn: Callable[[], nn.Module]
+        self,
+        layer1_fn: Callable[[], torch.nn.Module],
+        layer2_fn: Callable[[], torch.nn.Module],
     ):
         """
         This class is used to alternate between two layers.
@@ -109,37 +110,18 @@ class Residual(LoggingLayer):
         update_norms = torch.norm(updates, dim=-1)
         residual_norms = torch.norm(residual_stream, dim=-1)
 
-        update_norms_mean = torch.mean(update_norms)
-        update_norms_std = torch.std(update_norms)
-        residual_norms_mean = torch.mean(residual_norms)
-        residual_norms_std = torch.std(residual_norms)
 
-        update_to_residual_ratio = update_norms / residual_norms
-        update_to_residual_ratio_mean = torch.mean(update_to_residual_ratio)
-        update_to_residual_ratio_std = torch.std(update_to_residual_ratio)
-
-        return {
-            "update_norms/mean": update_norms_mean,
-            "update_norms/std": update_norms_std,
-            "residual_norms/mean": residual_norms_mean,
-            "residual_norms/std": residual_norms_std,
-            "update_to_residual_ratio/mean": update_to_residual_ratio_mean,
-            "update_to_residual_ratio/std": update_to_residual_ratio_std,
-        }
-
-
-@ash.check("... -> ... ")
-class Parallel(nn.Module):
+class Parallel(torch.nn.Module):
     def __init__(self, *layers):
         super(Parallel, self).__init__()
-        self.layers = nn.ModuleList(layers)
+        self.layers = torch.nn.ModuleList(layers)
 
     def forward(self, x):
         return x + sum(layer(x) for layer in self.layers)
 
 
 @ash.check("... dinp -> ... a b")
-class SplitLastAxis(nn.Module):
+class SplitLastAxis(torch.nn.Module):
     def __init__(self, a, b):
         super(SplitLastAxis, self).__init__()
         self.a = a
@@ -155,7 +137,7 @@ class SplitLastAxis(nn.Module):
 
 
 @ash.check("... a b -> ... dout")
-class MergeLastAxis(nn.Module):
+class MergeLastAxis(torch.nn.Module):
     def forward(self, x):
         result = x.reshape(x.shape[:-2] + (-1,))
         # print('wtf', x.shape, result.shape)
@@ -163,7 +145,7 @@ class MergeLastAxis(nn.Module):
 
 
 @ash.check("... a b -> ... b a")
-class Transpose(nn.Module):
+class Transpose(torch.nn.Module):
     def forward(self, x):
         # return einops.rearrange(x, '... a b -> ... b a')
         return torch.transpose(x, -1, -2)
@@ -171,7 +153,7 @@ class Transpose(nn.Module):
 
 @ash.check("... dinp -> ... dout")
 def LowRank(dinput, doutput, dlowrank):
-    return nn.Sequential(
+    return torch.nn.Sequential(
         Linear(dinput, dlowrank, bias=False),
         Linear(dlowrank, doutput),
     )
@@ -275,10 +257,10 @@ class Attention(LoggingLayer):
         return output
 
 
-class ReZero(nn.Module):
+class ReZero(torch.nn.Module):
     def __init__(self, fn, init=0.0):
         super().__init__()
-        self.rezero_g = nn.Parameter(torch.tensor(init))
+        self.rezero_g = torch.nn.Parameter(torch.tensor(init))
         self.fn = fn
 
     def forward(self, x, **kwargs):
@@ -290,11 +272,11 @@ def RezeroBlock(dmodel, layer, name):
 
 
 def PostNormBlock(dmodel, layer, name):
-    return nn.Sequential(
+    return torch.nn.Sequential(
         OrderedDict(
             [
                 (f"{name}", Residual(layer)),
-                ("post_norm", nn.LayerNorm(dmodel)),
+                ("post_norm", torch.nn.LayerNorm(dmodel)),
             ]
         )
     )
@@ -302,10 +284,10 @@ def PostNormBlock(dmodel, layer, name):
 
 def PreNormBlock(dmodel, layer, name):
     return Residual(
-        nn.Sequential(
+        torch.nn.Sequential(
             OrderedDict(
                 [
-                    ("pre_norm", nn.LayerNorm(dmodel)),
+                    ("pre_norm", torch.nn.LayerNorm(dmodel)),
                     (f"{name}", layer),
                 ]
             )
@@ -322,11 +304,10 @@ def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
     ]
     if gradient_checkpointing:
         residual_layers = [(name, Checkpoint(layer)) for name, layer in residual_layers]
-    return nn.Sequential(OrderedDict(residual_layers))
+    return torch.nn.Sequential(OrderedDict(residual_layers))
 
 
-@ash.check("... d -> ... d")
-class TransformerTower(nn.Module):
+class TransformerTower(torch.nn.Module):
     def __init__(
         self,
         n_blocks,
@@ -362,7 +343,7 @@ class TransformerTower(nn.Module):
                 ).to(current_device),
             )
             self.blocks.append(name_and_block)
-        self.blocks = nn.Sequential(OrderedDict(self.blocks))
+        self.blocks = torch.nn.Sequential(OrderedDict(self.blocks))
 
     def forward(self, x):
         for i, block in enumerate(self.blocks):
@@ -398,11 +379,11 @@ def TokenEmbedding(
         init_type=init_type,
         scale=init_scale,
     )
-    return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
+    return torch.nn.Embedding(vocab_size, embedding_dim, _weight=weight)
 
 
 @ash.check("... -> ... d")
-class PositionalEmbedding(nn.Module):
+class PositionalEmbedding(torch.nn.Module):
     def __init__(
         self,
         max_length,
@@ -411,7 +392,7 @@ class PositionalEmbedding(nn.Module):
         init_scale: float,
     ):
         super(PositionalEmbedding, self).__init__()
-        self.layer = nn.Embedding(max_length, embedding_dim)
+        self.layer = torch.nn.Embedding(max_length, embedding_dim)
         default_weight = self.layer.weight.data
         self.layer.weight.data = get_init_weight(
             shape=default_weight.shape,
@@ -442,7 +423,7 @@ def PredictionHead(embedding_dim, output_size, init_type, init_scale):
 
 
 @ash.check("... -> ... out")
-class LLM(nn.Module):
+class LLM(torch.nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()
         self.embedding_layer = embedding_layer

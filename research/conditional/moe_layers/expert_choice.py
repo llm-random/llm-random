@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
@@ -65,7 +64,7 @@ class ExpertChoiceFF(LoggingLayer):
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
         assert not self.use_torch_bmm or not self.use_full_einsum  # Not implemented
 
-        self.lin1_weight = nn.Parameter(
+        self.lin1_weight = torch.nn.Parameter(
             get_init_weight(
                 (n_experts, dmodel, expert_size),
                 fan_in=dmodel,
@@ -73,7 +72,7 @@ class ExpertChoiceFF(LoggingLayer):
                 scale=init_scale,
             ),
         )
-        self.lin2_weight = nn.Parameter(
+        self.lin2_weight = torch.nn.Parameter(
             get_init_weight(
                 (n_experts, expert_size, dmodel),
                 fan_in=int(n_experts * expert_size * topk_fraction),
@@ -81,7 +80,7 @@ class ExpertChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         )
-        self.gate = nn.Parameter(
+        self.gate = torch.nn.Parameter(
             get_init_weight(
                 (dmodel, n_experts),
                 fan_in=dmodel,

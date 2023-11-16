@@ -1,6 +1,6 @@
 import torch
 
-from lizrd.core import misc, nn
+from lizrd.core import misc
 import lizrd.core.initialization
 from lizrd.support import ash
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
@@ -40,7 +40,7 @@ class ContinuousMoELayernorm(ContinuousMoeBaseClass):
 
     def init_core_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
-        self.lin1 = nn.Parameter(
+        self.lin1 = torch.nn.Parameter(
             lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.dm,
@@ -49,7 +49,7 @@ class ContinuousMoELayernorm(ContinuousMoeBaseClass):
             )
         )
 
-        self.lin2 = nn.Parameter(
+        self.lin2 = torch.nn.Parameter(
             lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.expert_size,
@@ -58,7 +58,7 @@ class ContinuousMoELayernorm(ContinuousMoeBaseClass):
             )
         )
         # controller: send a token of size dmodel to n_experts scalars
-        self.controller = nn.Parameter(
+        self.controller = torch.nn.Parameter(
             lizrd.core.initialization.get_init_weight(
                 (self.dm, self.n_experts),
                 fan_in=self.dm,
@@ -66,8 +66,8 @@ class ContinuousMoELayernorm(ContinuousMoeBaseClass):
                 scale=self.init_scale,
             )
         )
-        self.layernorm1 = nn.LayerNorm(self.dm)
-        self.layernorm2 = nn.LayerNorm(self.dm)
+        self.layernorm1 = torch.nn.LayerNorm(self.dm)
+        self.layernorm2 = torch.nn.LayerNorm(self.dm)
 
     def log_heavy(self):
         return {}

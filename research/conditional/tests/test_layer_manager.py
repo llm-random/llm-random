@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from torch import nn
+import torch
 
 from lizrd.core.llm import Residual
 from lizrd.support.test_utils import GeneralTestCase
@@ -18,17 +18,17 @@ class TestLearningStartAdatemp(GeneralTestCase):
     for i in range(10):
         mot = ContinuousMoEAdaTemp(1, 1, 1, 1, 1, 1.0, "kaiming_uniform", 1.0, None)
         residual = Residual(
-            nn.Sequential(
+            torch.nn.Sequential(
                 OrderedDict(
                     [
-                        ("pre_norm", nn.LayerNorm(1)),
+                        ("pre_norm", torch.nn.LayerNorm(1)),
                         ("feedforward", mot),
                     ]
                 )
             )
         )
         layers.append((f"block_{i}", residual))
-    model = nn.Sequential(OrderedDict(layers))
+    model = torch.nn.Sequential(OrderedDict(layers))
 
     steps_until_start_temperature_learn = 10
 
@@ -56,17 +56,17 @@ class TestLearningStartAdatempPositive(GeneralTestCase):
     for i in range(10):
         mot = ContinuousMoEAdaTemp(1, 1, 1, 1, 1, 1.0, "kaiming_uniform", 1.0, None)
         residual = Residual(
-            nn.Sequential(
+            torch.nn.Sequential(
                 OrderedDict(
                     [
-                        ("pre_norm", nn.LayerNorm(1)),
+                        ("pre_norm", torch.nn.LayerNorm(1)),
                         ("feedforward", mot),
                     ]
                 )
             )
         )
         layers.append((f"block_{i}", residual))
-    model = nn.Sequential(OrderedDict(layers))
+    model = torch.nn.Sequential(OrderedDict(layers))
 
     steps_until_start_temperature_learn = 10
 

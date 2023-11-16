@@ -6,7 +6,6 @@ from plotly import express as px
 
 import torch
 
-from lizrd.core import nn
 from lizrd.support.logging import get_current_logger
 
 
@@ -102,7 +101,7 @@ class LayerManager:
                     param.requires_grad = is_learning_temperature
 
 
-class LoggingLayer(nn.Module):
+class LoggingLayer(torch.nn.Module):
     def __init__(self):
         super().__init__()
         # info about position in model

@@ -4,12 +4,11 @@ import torch
 import torch.nn
 from torch.utils.checkpoint import checkpoint
 
-from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 
 
-class Noop(nn.Module):
+class Noop(torch.nn.Module):
     def __init__(self):
         super(Noop, self).__init__()
 
@@ -17,10 +16,10 @@ class Noop(nn.Module):
         return x
 
 
-class ParameterLayer(nn.Module):
+class ParameterLayer(torch.nn.Module):
     def __init__(self, tensor):
         super(ParameterLayer, self).__init__()
-        self.parameter = nn.Parameter(tensor)
+        self.parameter = torch.nn.Parameter(tensor)
 
     def forward(self, x):
         del x
@@ -34,7 +33,7 @@ def einsum(subscript, *operands, use_opt_einsum=False, **kwargs):
         return torch.einsum(subscript, *operands, **kwargs)
 
 
-class EinMix(nn.Module):
+class EinMix(torch.nn.Module):
     def __init__(self, signature, weight_shape=None, bias_shape=None, **kwargs):
         super(EinMix, self).__init__()
         self.change_anything = False
@@ -79,7 +78,7 @@ def DenseEinMix(dinp, dout):
 
 
 @ash.check("... inp -> ... out")
-class Linear(nn.Linear):
+class Linear(torch.nn.Linear):
     def __init__(self, *args, init_type, init_scale, **kwargs):
         if "bias" not in kwargs:
             kwargs["bias"] = False
@@ -95,16 +94,16 @@ class Linear(nn.Linear):
 
 def check_layer_funs(*layer_funs):
     for layer_fun in layer_funs:
-        if isinstance(layer_fun, nn.Module):
+        if isinstance(layer_fun, torch.nn.Module):
             raise TypeError(
-                "Expected layer function/lambda, got nn.Module: {}".format(
+                "Expected layer function/lambda, got torch.nn.Module: {}".format(
                     type(layer_fun)
                 )
             )
 
 
 @ash.check("... -> ...")
-class StopGradient(nn.Module):
+class StopGradient(torch.nn.Module):
     def __init__(self):
         super(StopGradient, self).__init__()
 
@@ -117,7 +116,7 @@ def stop_gradient(x):
 
 
 @ash.check("... -> ...")
-class StopValuePassGradient(nn.Module):
+class StopValuePassGradient(torch.nn.Module):
     def __init__(self):
         super(StopValuePassGradient, self).__init__()
 
@@ -125,11 +124,11 @@ class StopValuePassGradient(nn.Module):
         return x - x.detach()
 
 
-class Aggregate(nn.Module):
+class Aggregate(torch.nn.Module):
     def __init__(self, function, *layers):
         super(Aggregate, self).__init__()
         self.function = function
-        self.layers = nn.ModuleList(layers)
+        self.layers = torch.nn.ModuleList(layers)
 
     def forward(self, x):
         result = None
@@ -141,7 +140,7 @@ class Aggregate(nn.Module):
         return result
 
 
-class Chungus(nn.Module):
+class Chungus(torch.nn.Module):
     """
     https://i.ytimg.com/vi/inD-WWvtTW0/maxresdefault.jpg
     """
@@ -170,7 +169,7 @@ class Chungus(nn.Module):
         return torch.cat(output, dim=0)
 
 
-class Checkpoint(nn.Module):
+class Checkpoint(torch.nn.Module):
     def __init__(self, module):
         super(Checkpoint, self).__init__()
         self.module = module
@@ -300,7 +299,7 @@ def get_dmodel_magnitudes(
 
 def resolve_activation_name(activation: str) -> torch.nn.Module:
     if activation == "relu":
-        return nn.ReLU()
+        return torch.nn.ReLU()
     elif activation == "gelu":
         return torch.nn.GELU()
     elif activation == "silu":

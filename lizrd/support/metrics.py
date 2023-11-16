@@ -1,5 +1,4 @@
 import torch
-from lizrd.core import nn
 
 from lizrd.support import ash
 
@@ -35,7 +34,7 @@ class MetricWriter(object):
 METRIC_WRITER = MetricWriter()
 
 
-class GenericLog(nn.Module):
+class GenericLog(torch.nn.Module):
     def __init__(self, name, metric_writer=None, subname=None):
         super(GenericLog, self).__init__()
         self.name = name

@@ -1,5 +1,5 @@
 import einops
-from lizrd.core import nn
+import torch
 
 DISABLE_CHECKS = False
 
@@ -10,7 +10,7 @@ def assert_shape(pattern, tensor, **kwargs):
     einops.rearrange(tensor, f"{pattern} -> {pattern}", **kwargs)
 
 
-class Check(nn.Module):
+class Check(torch.nn.Module):
     def __init__(self, signature, layer, **kwargs):
         super(Check, self).__init__()
         self.inp_sig, self.out_sig = signature.split("->")
