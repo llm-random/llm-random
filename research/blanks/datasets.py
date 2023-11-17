@@ -4,9 +4,10 @@ from typing import Callable, Literal
 import torch
 from torch.utils.data import DataLoader
 
-from lizrd.text import datasets, data, tokenizers
+from lizrd.text import datasets, tokenizers
 from research.datasets import DataloaderWrapper, worker_init_fn
 from .packer import BlankEvalPacker, BlankPacker
+import research.blanks.data as data
 
 
 def get_processed_dataset(

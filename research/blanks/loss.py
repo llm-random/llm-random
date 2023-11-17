@@ -2,7 +2,7 @@ from functools import partial
 import torch
 from typing import Optional
 
-from lizrd.text.data import LLMBatch
+from .data import LLMBatch
 from torch.utils.checkpoint import checkpoint
 
 import torch.nn.functional as F
@@ -34,6 +34,7 @@ def chungized_llm_loss(
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
+    attention_mask = batch.attention_mask
 
     def make_custom_forward():
         def custom_forward(*inputs):
@@ -61,7 +62,7 @@ def chungized_llm_loss(
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
-        encoder_output = model.encoder(input_tokens)
+        encoder_output = model.encoder(input_tokens, attention_mask)
         chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
@@ -71,14 +72,19 @@ def chungized_llm_loss(
         total_correct_tokens = 0
         total_masked_tokens = 0
         for chunged_input, chunged_gt, chunged_mask in zip(
-            chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+            chunged_inputs,
+            chunged_non_masked_inputs,
+            chunged_non_masked_masks,
         ):
             (
                 partial_loss_output,
                 partial_correct_tokens,
                 partial_masked_tokens,
             ) = checkpoint(
-                make_custom_forward(), chunged_input, chunged_gt, chunged_mask
+                make_custom_forward(),
+                chunged_input,
+                chunged_gt,
+                chunged_mask,
             )
             num_tokens += partial_loss_output.shape[0]
             total_loss += partial_loss_output.sum()
@@ -105,11 +111,12 @@ def calculate_llm_loss(
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
+    attention_mask = batch.attention_mask
 
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
-        model_output = model(input_tokens)
+        model_output = model(input_tokens, attention_mask)
 
     # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
     gt_tokens = gt_tokens.to(model_output.device)

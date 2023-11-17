@@ -1,6 +1,6 @@
 from typing import Callable, Optional
 
-from lizrd.text.data import LLMExample
+from .data import LLMExample
 from lizrd.text.datasets import AbstractDataset
 from lizrd.text.packers import GPTPacker
 from lizrd.text.tokenizers import AbstractTokenizer
@@ -9,6 +9,7 @@ from research.blanks.utils import (
     get_last_point_to_fit_blanks,
     insert_blanks_input,
     insert_blanks_target,
+    make_blanks_attention_mask,
 )
 
 
@@ -50,9 +51,15 @@ class BlankPacker(GPTPacker):
             target_tokens, blank_insertion_point, self.n_blanks
         )
 
+        att_mask = make_blanks_attention_mask(
+            seq_len, blank_insertion_point, self.n_blanks
+        )
+
         assert sample.should_calculate_loss == [1] * seq_len
 
-        return LLMExample(input_tokens, target_tokens, sample.should_calculate_loss)
+        return LLMExample(
+            input_tokens, target_tokens, sample.should_calculate_loss, att_mask
+        )
 
 
 class BlankEvalPacker(GPTPacker):
@@ -93,8 +100,12 @@ class BlankEvalPacker(GPTPacker):
             )
             should_calculate_loss = [0] * seq_len
             should_calculate_loss[blank_insertion_point + self.n_blanks - 1] = 1
+            att_mask = make_blanks_attention_mask(
+                seq_len, blank_insertion_point, self.n_blanks
+            )
         else:
             should_calculate_loss = [0] * seq_len
             should_calculate_loss[blank_insertion_point - 1] = 1
+            att_mask = make_blanks_attention_mask(seq_len, blank_insertion_point, 0)
 
-        return LLMExample(input_tokens, target_tokens, should_calculate_loss)
+        return LLMExample(input_tokens, target_tokens, should_calculate_loss, att_mask)

@@ -1,6 +1,7 @@
 from typing import List
 import torch
 import torch.nn.functional as F
+import numpy as np
 
 
 def shift_left(x: torch.Tensor):
@@ -120,26 +121,23 @@ def can_fit_blanks(
     )
 
 
-def make_blanks_attention_mask(is_blank: torch.Tensor) -> torch.Tensor:
+def make_blanks_attention_mask(seq_len, blanks_insertion_point, n_blanks) -> np.ndarray:
     """Generates attention mask input with blanks.
 
     Generates causal mask, where no tokens can attend to blanks except those that are in the same block and after the blank.
 
     Args:
-        is_blank (torch.Tensor): which tokens are blank tokens
+        seq_len (int): length of the sequence
+        blanks_insertion_point (int): where the blanks are inserted
+        n_blanks (int): number of blanks in one block in the sequence
 
     Returns:
-        torch.Tensor: where to fill -inf in the attention layer
+        torch.Tensor: which pairs take part in attention
     """
-    blanks_start = get_first_blanks_in_series(is_blank)
-    blanks_last = get_last_blanks_in_series(is_blank)
-    tensors = []
-    for blanks, firsts, lasts in zip(is_blank, blanks_start, blanks_last):
-        mask = torch.tril(torch.ones((len(blanks), len(blanks)))) == 0
-        for first_ind, last_ind in zip(firsts.nonzero(), lasts.nonzero()):
-            mask[last_ind + 1 :, first_ind : last_ind + 1] = True
-        tensors.append(mask)
-    return torch.stack(tensors)
+    mask = np.tril(np.ones((seq_len, seq_len), dtype=np.bool))
+    blanks_insertion_end = blanks_insertion_point + n_blanks
+    mask[blanks_insertion_end:, blanks_insertion_point:blanks_insertion_end] = False
+    return mask
 
 
 def make_blanks_fixed_positions(

@@ -1,5 +1,5 @@
 import torch
-
+import numpy as np
 from lizrd.support.test_utils import GeneralTestCase
 from research.blanks.utils import (
     can_fit_blanks,
@@ -75,15 +75,11 @@ class TestUtils(GeneralTestCase):
         self.assertTrue(torch.equal(result, expected))
 
     def test_make_blanks_attention_mask(self):
-        is_blank = torch.tensor([[0, 1, 1, 0], [1, 0, 1, 0]])
-        expected = torch.tensor(
-            [
-                [[0, 1, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [0, 1, 1, 0]],
-                [[0, 1, 1, 1], [1, 0, 1, 1], [1, 0, 0, 1], [1, 0, 1, 0]],
-            ]
-        ).bool()
-        result = make_blanks_attention_mask(is_blank)
-        self.assertTrue(torch.equal(result, expected))
+        expected = np.array(
+            [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 0], [1, 0, 0, 1]],
+        ).astype(np.bool)
+        result = make_blanks_attention_mask(4, 1, 2)
+        self.assertTrue(np.all(np.equal(result, expected)))
 
     def test_insert_blanks_input(self):
         input_sequence = [1, 2, 3, 4, 5]

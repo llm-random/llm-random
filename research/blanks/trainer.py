@@ -11,7 +11,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from research.blanks.model import BlankDiffPredictionHead
 
-from lizrd.text.data import LLMBatch
+from .data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 
 from .loss import make_loss_function
