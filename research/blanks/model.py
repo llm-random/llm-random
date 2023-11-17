@@ -365,7 +365,7 @@ class BlankAttention(torch.nn.Module):
             key=k,
             value=v,
             dhead=self.dhead,
-            mask=self.mask,
+            mask=self.mask.to(x.device),
             flash=self.flash,
         )
 
