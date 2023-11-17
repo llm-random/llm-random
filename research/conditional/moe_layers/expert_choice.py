@@ -31,6 +31,7 @@ class ExpertChoiceFF(LoggingLayer):
         n_gating_heatmaps: int = 4,
         group_size: int = 1,
         use_torch_bmm: bool = False,
+        use_layer_norm: bool = True,
     ):
         """
         Args:
@@ -56,6 +57,7 @@ class ExpertChoiceFF(LoggingLayer):
         self.use_full_einsum = use_full_einsum
         self.group_size = group_size
         self.use_torch_bmm = use_torch_bmm
+        self.use_layer_norm = use_layer_norm
 
         assert (
             not self.one_hot_impl or self.group_by_batch
@@ -89,7 +91,7 @@ class ExpertChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel)
+        self.ln = LayerNorm(dmodel) if use_layer_norm else None
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot
@@ -127,8 +129,9 @@ class ExpertChoiceFF(LoggingLayer):
                 x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
             )
 
-        with measure_time(self, "layer_norm"):
-            x = self.ln(x)
+        if self.use_layer_norm:
+            with measure_time(self, "layer_norm"):
+                x = self.ln(x)
 
         if self.group_size > 1:
             x = x.reshape(orig_bs, orig_seq_len, self.dmodel)

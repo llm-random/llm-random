@@ -263,6 +263,7 @@ def get_expert_choice_args(args):
         "init_type": args.init_type,
         "init_scale": args.init_scale,
         "use_torch_bmm": args.use_torch_bmm,
+        "use_layer_norm": args.layer_norm_in_expert_choice,
     }
 
 
