@@ -37,6 +37,7 @@ def get_model(
     blanks_learnable_weights: bool = False,
     blank_initial_weight: float = 1.0,
     blanks_straight_through: bool = False,
+    use_blank_positional_embedding: bool = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -45,15 +46,21 @@ def get_model(
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
+    if use_blank_positional_embedding:
+        positional_embedding = BlankPositionalEmbedding(
+            max_length,
+            dm,
+            init_type=init_type,
+            init_scale=init_scale,
+            blank_token_id=blank_id,
+        ).to(first_gpu)
+    else:
+        positional_embedding = llm.PositionalEmbedding(
+            max_length, dm, init_type=init_type, init_scale=init_scale
+        ).to(first_gpu)
     if n_blanks > 0 and blanks_add_embedding:
         embedding_layer = llm.EmbeddingLayer(
-            BlankPositionalEmbedding(
-                max_length,
-                dm,
-                init_type=init_type,
-                init_scale=init_scale,
-                blank_token_id=blank_id,
-            ).to(first_gpu),
+            positional_embedding,
             BlankEmbedding(
                 vocab_size,
                 dm,
@@ -65,9 +72,7 @@ def get_model(
         )
     else:
         embedding_layer = llm.EmbeddingLayer(
-            llm.PositionalEmbedding(
-                max_length, dm, init_type=init_type, init_scale=init_scale
-            ).to(first_gpu),
+            positional_embedding,
             llm.TokenEmbedding(
                 vocab_size, dm, init_type=init_type, init_scale=init_scale
             ).to(first_gpu),
