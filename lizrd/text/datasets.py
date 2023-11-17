@@ -33,14 +33,19 @@ class WikiBookDataset(AbstractDataset):
         assert split in ["train", "eval"]
         self.split = split
 
+        print("loading dataset")
+
         self.dataset_wiki = load_dataset(
             "wikipedia", f"20220301.{'simple' if use_dummy_dataset else 'en'}"
         )["train"]
+
+        print("loaded dataset wikipedia")
         self.dataset_book = (
             load_dataset("bookcorpus")["train"]
             if not use_dummy_dataset
             else self.dataset_wiki
         )
+        print("loaded dataset bookcorpus")
 
         self.bookcorpus_chance = len(self.dataset_book) / len(self.dataset_wiki)
 

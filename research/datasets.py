@@ -9,8 +9,10 @@ from lizrd.text import datasets, packers, data, tokenizers
 
 class DataloaderWrapper:
     def __init__(self, dataloader: DataLoader, device: torch.device):
+        print("getting generator inside DataloaderWrapper")
         self.generator = iter(dataloader)
         self.device = device
+        print("got generator inside DataloaderWrapper")
 
     def get_batch(self) -> data.LLMBatch:
         return next(self.generator).to(self.device)
@@ -35,6 +37,7 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
 ):
+    print("getting dataset inside get_processed_dataset")
     if dataset_type == "wikibook":
         dataset = datasets.WikiBookDataset(
             use_dummy_dataset=use_dummy_dataset,
@@ -48,6 +51,8 @@ def get_processed_dataset(
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
+    print("got dataset inside get_processed_dataset")
+    print("getting packer inside get_processed_dataset")
     if model_type == "bert":
         packer = packers.BERTPacker(
             sequence_length=sequence_length,
@@ -63,6 +68,9 @@ def get_processed_dataset(
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
+    print("got packer inside get_processed_dataset")
+
+    print("getting dataloader inside get_processed_dataset")
     dataloader = DataLoader(
         packer,
         num_workers=num_workers,
@@ -72,5 +80,6 @@ def get_processed_dataset(
         shuffle=False,
         pin_memory=True,
     )
+    print("got dataloader inside get_processed_dataset")
 
     return DataloaderWrapper(dataloader, device)

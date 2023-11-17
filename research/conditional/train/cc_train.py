@@ -91,6 +91,7 @@ def main(
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
 
+    print("starting")
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args, rank)
     attention_layer_fun = get_attention_layer(args, rank=rank)
@@ -112,6 +113,7 @@ def main(
     param_precision = torch.bfloat16 if args.mixed_precision else torch.float32
     fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignore_classes(args)
 
+    print("getting model")
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -137,6 +139,7 @@ def main(
         residual_fn=residual_fn,
         rank=rank,
     )
+    print("got model")
 
     if args.torch_compile:
         model = torch.compile(model)
@@ -162,22 +165,29 @@ def main(
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
     }
+    print("getting train dataloader")
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs, dataset_split="train"
     )
+    print("got train dataloader")
+    print("getting eval dataloader")
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
     )
+    print("got eval dataloader")
 
     # in case of data parallelism, only gpu:0 should log
     is_process_logging = True if rank is None or rank == 0 else False
 
+    print("getting logger")
     if is_process_logging:
         logger = get_logger(args, model, VOCAB_SIZE)
     else:
         logger = None
+    print("got logger")
 
+    print("logging batch")
     if args.model_type == "gpt" and is_process_logging:
         log_batch(
             train_dataloader,
@@ -185,7 +195,9 @@ def main(
             if args.model_type == "gpt"
             else tokenizers.BertTokenizer,
         )
+    print("logged batch")
 
+    print("getting trainer")
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
@@ -222,6 +234,8 @@ def main(
         eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
     )
+    print("got trainer")
+    print("starting training")
     trainer.train(args.n_steps)
 
     if rank is not None:
