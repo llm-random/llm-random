@@ -37,7 +37,7 @@ def get_model(
     blanks_learnable_weights: bool = False,
     blank_initial_weight: float = 1.0,
     blanks_straight_through: bool = False,
-    use_blank_positional_embedding: bool = False,
+    blanks_use_custom_positional_embedding: bool = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -46,7 +46,7 @@ def get_model(
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
-    if use_blank_positional_embedding:
+    if blanks_use_custom_positional_embedding:
         positional_embedding = BlankPositionalEmbedding(
             max_length,
             dm,
