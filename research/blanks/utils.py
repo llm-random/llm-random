@@ -118,3 +118,34 @@ def can_fit_blanks(
     return blank_insertion_point <= get_last_point_to_fit_blanks(
         sequence_length, n_blanks
     )
+
+
+def make_blanks_fixed_positions(
+    x: torch.Tensor, blank_token_id: int, n_blanks_block: int
+) -> torch.Tensor:
+    """Generates positions in a sequence taking blanks into account.
+    Assumes that every sequence of blanks is exactly n_blanks long.
+
+    Args:
+        x (torch.Tensor): Input tokens of shape (batch_size, seq_len).
+        blank_token_id (int): id of the blank token.
+        n_blanks (int): number of blanks in one block in the sequence.
+
+    Returns:
+        torch.Tensor: positions of tokens in the sequence taking blanks into account.
+    """
+    positions = torch.arange(0, x.shape[1], device=x.device).unsqueeze(0)
+    positions = positions.repeat(x.shape[0], 1)
+    is_blank = x.eq(blank_token_id)
+    n_blanks_up_to = is_blank.cumsum(dim=1)
+    positions = positions - n_blanks_up_to
+    n_blanks = is_blank.sum()
+    if n_blanks % n_blanks_block != 0:
+        raise ValueError(
+            f"""Number of blanks in the sequence must be divisible by {n_blanks_block}. 
+            It probably means that not all blocks of blanks are of the same length."""
+        )
+    positions[is_blank] += torch.arange(1, n_blanks_block + 1, device=x.device).repeat(
+        n_blanks // n_blanks_block
+    )
+    return positions
