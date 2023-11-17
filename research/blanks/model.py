@@ -131,7 +131,7 @@ def get_custom_attention_layer(args):
         dmodel=args.dmodel,
         heads=args.n_att_heads,
         dhead=args.dhead,
-        flash=True,
+        flash=False,
         init_type=args.init_type,
         init_scale=args.init_scale,
     )
@@ -329,14 +329,14 @@ class BlankAttention(torch.nn.Module):
         self.dhead = dhead
         self.flash = flash
 
-        self.input_projection = torch.nn.Linear(
+        self.input_projection = misc.Linear(
             dmodel,
             3 * heads * dhead,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.output_projection = torch.nn.Linear(
+        self.output_projection = misc.Linear(
             heads * dhead,
             dmodel,
             bias=False,
@@ -422,6 +422,7 @@ class BlankAttentionManager:
                 self._layers.append(layer)
 
     def set_mask(self, mask: torch.Tensor):
+        mask.unsqueeze_(1)
         return MaskSetter(self._layers, mask)
 
 
@@ -430,11 +431,11 @@ class MaskSetter:
         self.layers = layers
         self.mask = mask
 
-    def __open__(self):
+    def __enter__(self):
         for layer in self.layers:
             layer.set_mask(self.mask)
 
-    def __close__(self):
+    def __exit__(self, exc_type, exc_value, exc_traceback):
         for layer in self.layers:
             layer.remove_mask()
 
