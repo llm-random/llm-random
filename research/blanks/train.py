@@ -10,7 +10,6 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
-from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
@@ -126,6 +125,7 @@ def main(
         blanks_learnable_weights=args.blanks_learnable_weights,
         blank_initial_weight=args.blank_initial_weight,
         blanks_straight_through=args.blanks_use_straight_through,
+        blanks_use_custom_positional_embedding=args.blanks_use_custom_positional_embedding,
     )
 
     # make model data_distributed if necessary

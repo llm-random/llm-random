@@ -5,9 +5,6 @@ def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
-    parser.add_argument(
-        "--model_type", type=str, choices=["gpt", "bert"], required=True
-    )
     parser.add_argument("--tokenizer", type=str, choices=["gpt", "bert"], required=True)
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
@@ -198,6 +195,7 @@ def introduce_parser_arguments(
     parser.add_argument("--blanks_learnable_weights", action="store_true")
     parser.add_argument("--blank_initial_weight", type=float, default=1.0)
     parser.add_argument("--blanks_use_straight_through", action="store_true")
+    parser.add_argument("--blanks_use_custom_positional_embedding", action="store_true")
     parser.add_argument("--blanks_use_custom_attention", action="store_true")
 
     return parser

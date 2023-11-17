@@ -2,7 +2,6 @@ from collections import defaultdict
 import os.path
 import copy
 from types import SimpleNamespace as SN
-import time
 from typing import Callable, Iterable, Optional, Literal
 
 import torch
@@ -48,7 +47,6 @@ class ConditionalTrainer:
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
-    hack_name: str = None
     save_weights_path: str = None
     save_weights_interval: int = 1000
     load_weights_path: str = None
@@ -93,33 +91,6 @@ class ConditionalTrainer:
         self.layer_manager.manage_learnable_temperature(0)
         self._check_config()
 
-    def _restore_weights(self):
-        if self.load_weights_path is not None:
-            if os.path.exists(self.load_weights_path):
-                print(f"Loading weights from {self.load_weights_path}")
-                checkpoint = torch.load(self.load_weights_path)
-                self.model.load_state_dict(checkpoint["model"], strict=False)
-                self.optimizer.load_state_dict(checkpoint["optimizer"])
-                self.scaler.load_state_dict(checkpoint["scaler"])
-            else:
-                print(
-                    f"No weights found at {self.load_weights_path}, training from scratch"
-                )
-
-    def _save_weights(self, step):
-        if (
-            self.save_weights_path is not None
-            and self.save_weights_interval > 0
-            and step % self.save_weights_interval == 0
-        ):
-            checkpoint = {
-                "model": self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-                "scaler": self.scaler.state_dict(),
-            }
-            torch.save(checkpoint, os.path.join(self.save_weights_path, f"{step}.pth"))
-            print(f"Weights saved to {self.save_weights_path} (step {step})")
-
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
 
@@ -132,19 +103,13 @@ class ConditionalTrainer:
         Train the model for n_steps steps.
         """
         self._before_train_operations()
-        self._restore_weights()
+        if self.load_weights_path is not None:
+            self._load_model_weights()
+
         for step in range(n_steps + 1):
-            t0 = time.time()
-
-            if self.hack_name is not None:
-                self._hack(self.hack_name, step)
-            else:
-                self._train_step(step)
-
-            t1 = time.time()
-            if step % 1000 == 0:
-                print(f"Step {step}")
-
+            self._train_step(step)
+            if step > 0 and self.eval_interval > 0 and step % self.eval_interval == 0:
+                self._eval_step(step)
             if (
                 self.model_type == "gpt"
                 and self.decoding_interval > 0
@@ -155,84 +120,7 @@ class ConditionalTrainer:
                     self._decode_samples(step)
                 except:
                     print("Decoding failed, skipping...")
-
-            if step > 0 and self.eval_interval > 0 and step % self.eval_interval == 0:
-                self._eval_step(step)
-
-            t2 = time.time()
             self._after_step_operations(step)
-
-            t3 = time.time()
-
-            self.total_time_trainsteps += t1 - t0
-            self.total_time_decoding += t2 - t1
-            self.total_time_afterstep += t3 - t2
-
-            if step % 1000 == 0 and self.is_process_logging:
-                total_time = (
-                    self.total_time_trainsteps
-                    + self.total_time_decoding
-                    + self.total_time_afterstep
-                )
-                self.logger.report_scalar(
-                    title="time/trainstep_fraction",
-                    value=self.total_time_trainsteps / total_time,
-                    iteration=step,
-                )
-                self.logger.report_scalar(
-                    title="time/decoding_fraction",
-                    value=self.total_time_decoding / total_time,
-                    iteration=step,
-                )
-                self.logger.report_scalar(
-                    title="time/afterstep_fraction",
-                    value=self.total_time_afterstep / total_time,
-                    iteration=step,
-                )
-
-    def _decode_samples(self, step):
-        examples = [
-            "1, 2, 3, 4, 5",
-            "Our Father, who art in heaven,",
-            "Warsaw -> Poland Paris -> France Berlin ->",
-            "Speech at a funeral of a fly: ",
-        ]
-        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-        for example in examples:
-            tokens = torch.tensor(
-                tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))
-            ).to(self.train_dataloader.device)
-            output_tokens = decode_single_example(
-                self.model,
-                self.max_sequence_length,
-                tokens,
-                tokenizer._convert_token_to_id("<|endoftext|>"),
-            )
-            decoded_output = tokenizer.decode(output_tokens)
-            print(f"{example}: {decoded_output}")
-            self.logger.report_text(
-                title=f"decoding_sample/{example}",
-                value=decoded_output,
-                iteration=step,
-            )
-
-    def _optimize(self, loss, should_apply_gradient=False):
-        # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-        loss /= self.gradient_accumulation_steps
-        if self.gradient_accumulation_steps == 1:
-            self.optimizer.zero_grad()
-        # clear computation graph, store gradients
-        self.scaler.scale(loss).backward()
-        if should_apply_gradient:
-            if self.gradient_clipping is not None:
-                self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
-            self.scaler.step(self.optimizer)
-            if self.gradient_accumulation_steps > 1:
-                self.optimizer.zero_grad()
-            self.scaler.update()
 
     def _train_step(
         self,
@@ -248,91 +136,12 @@ class ConditionalTrainer:
             processed_batch, should_optimize=True
         )
         if self.is_process_logging:
-            self._log_train_stats(loss, step, aux_info)
+            self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
-            self._log_heavy(step)
+            self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
-
-    def _eval_step(self, step: int):
-        batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
-        self._batches_eval_step(
-            batches=batches,
-            step=step,
-            eval_variant_name="normal",
-        )
-        layers = [
-            l
-            for _, l in self.layer_manager._layers
-            if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
-        ]
-        if self.eval_dynamic_groupsize:
-            original_group_size = layers[0].group_size
-            for log_group_size_factor in range(
-                self.eval_min_group_size_logfactor,
-                self.eval_max_group_size_logfactor + 1,
-            ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
-                if current_group_size <= self.batch_size and current_group_size > 0:
-                    with temp_modify_attr(layers, "group_size", current_group_size):
-                        self._batches_eval_step(
-                            batches=batches,
-                            step=step,
-                            eval_variant_name=f"group size={current_group_size}",
-                        )
-
-        if self.eval_discrete_mot:
-            with temp_modify_attr(layers, "use_discrete_routing", True):
-                self._batches_eval_step(
-                    batches=batches,
-                    step=step,
-                    eval_variant_name="discrete MoT routing",
-                )
-
-    def _batches_eval_step(
-        self, batches: Iterable[LLMBatch], step: int, eval_variant_name: Optional[str]
-    ):
-        self.model.eval()
-        total_loss = 0.0
-        total_correct_tokens = 0
-        total_masked_tokens = 0
-        extra_losses = defaultdict(float)
-        for processed_batch in batches:
-            with torch.no_grad():
-                loss, aux_info = self.calculate_loss_and_maybe_optimize(
-                    processed_batch, should_optimize=False
-                )
-            total_loss += loss
-            total_correct_tokens += aux_info["correct_tokens"]
-            total_masked_tokens += aux_info["total_masked_tokens"]
-            for name, loss_value in aux_info["losses"].items():
-                extra_losses[name] += loss_value
-        if self.is_process_logging:
-            self.logger.report_scalar(
-                title=f"eval/total_loss/{eval_variant_name}"
-                if eval_variant_name
-                else "eval/total_loss",
-                value=total_loss / self.n_eval_batches,
-                iteration=step,
-            )
-            self.logger.report_scalar(
-                title=f"eval/accuracy/{eval_variant_name}"
-                if eval_variant_name
-                else "eval/accuracy",
-                value=total_correct_tokens / total_masked_tokens,
-                iteration=step,
-            )
-            for name, loss_value in extra_losses.items():
-                self.logger.report_scalar(
-                    title=f"eval/{name}/{eval_variant_name}"
-                    if eval_variant_name is None
-                    else f"eval/{name}",
-                    value=loss_value / self.n_eval_batches,
-                    iteration=step,
-                )
 
     def calculate_loss_and_maybe_optimize(
         self, processed_batch: LLMBatch, should_optimize: bool
@@ -381,7 +190,124 @@ class ConditionalTrainer:
             "losses": losses,
         }
 
-    def _log_train_stats(self, loss_value, step, aux_info):
+    def _optimize(self, loss, should_apply_gradient=False):
+        # since we sum gradients averaged over multiple smaller batches, we need to normalize here
+        loss /= self.gradient_accumulation_steps
+        if self.gradient_accumulation_steps == 1:
+            self.optimizer.zero_grad()
+        # clear computation graph, store gradients
+        self.scaler.scale(loss).backward()
+        if should_apply_gradient:
+            if self.gradient_clipping is not None:
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
+            self.scaler.step(self.optimizer)
+            if self.gradient_accumulation_steps > 1:
+                self.optimizer.zero_grad()
+            self.scaler.update()
+
+    def _eval_step(self, step: int):
+        batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
+        self._eval_single_variant(
+            batches=batches,
+            step=step,
+            variant_name="normal",
+        )
+        layers = [
+            l
+            for _, l in self.layer_manager._layers
+            if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
+        ]
+        if self.eval_dynamic_groupsize:
+            original_group_size = layers[0].group_size
+            for log_group_size_factor in range(
+                self.eval_min_group_size_logfactor,
+                self.eval_max_group_size_logfactor + 1,
+            ):
+                current_group_size = int(
+                    2**log_group_size_factor * original_group_size
+                )
+                if current_group_size <= self.batch_size and current_group_size > 0:
+                    with temp_modify_attr(layers, "group_size", current_group_size):
+                        self._eval_single_variant(
+                            batches=batches,
+                            step=step,
+                            variant_name=f"group size={current_group_size}",
+                        )
+
+        if self.eval_discrete_mot:
+            with temp_modify_attr(layers, "use_discrete_routing", True):
+                self._eval_single_variant(
+                    batches=batches,
+                    step=step,
+                    variant_name="discrete MoT routing",
+                )
+
+    def _eval_single_variant(
+        self, batches: Iterable[LLMBatch], step: int, variant_name: str
+    ):
+        self.model.eval()
+        total_loss = 0.0
+        total_correct_tokens = 0
+        total_masked_tokens = 0
+        extra_losses = defaultdict(float)
+        for processed_batch in batches:
+            with torch.no_grad():
+                loss, aux_info = self.calculate_loss_and_maybe_optimize(
+                    processed_batch, should_optimize=False
+                )
+            total_loss += loss
+            total_correct_tokens += aux_info["correct_tokens"]
+            total_masked_tokens += aux_info["total_masked_tokens"]
+            for name, loss_value in aux_info["losses"].items():
+                extra_losses[name] += loss_value
+        if self.is_process_logging:
+            self.logger.report_scalar(
+                title=f"eval/total_loss/{variant_name}",
+                value=total_loss / self.n_eval_batches,
+                iteration=step,
+            )
+            self.logger.report_scalar(
+                title=f"eval/accuracy/{variant_name}",
+                value=total_correct_tokens / total_masked_tokens,
+                iteration=step,
+            )
+            for name, loss_value in extra_losses.items():
+                self.logger.report_scalar(
+                    title=f"eval/{name}/{variant_name}",
+                    value=loss_value / self.n_eval_batches,
+                    iteration=step,
+                )
+
+    def _decode_samples(self, step):
+        examples = [
+            "1, 2, 3, 4, 5",
+            "Our Father, who art in heaven,",
+            "Warsaw -> Poland Paris -> France Berlin ->",
+            "Speech at a funeral of a fly: ",
+        ]
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        for example in examples:
+            tokens = torch.tensor(
+                tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))
+            ).to(self.train_dataloader.device)
+            output_tokens = decode_single_example(
+                self.model,
+                self.max_sequence_length,
+                tokens,
+                tokenizer._convert_token_to_id("<|endoftext|>"),
+            )
+            decoded_output = tokenizer.decode(output_tokens)
+            print(f"{example}: {decoded_output}")
+            self.logger.report_text(
+                title=f"decoding_sample/{example}",
+                value=decoded_output,
+                iteration=step,
+            )
+
+    def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
@@ -390,7 +316,7 @@ class ConditionalTrainer:
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
             stats.acc += loss_value
-            if step % stats.interval == 0 and step > 0:
+            if stats.interval > 0 and step > 0 and step % stats.interval == 0:
                 self.logger.report_scalar(
                     title=name,
                     value=stats.acc / stats.interval,
@@ -398,8 +324,8 @@ class ConditionalTrainer:
                 )
                 stats.acc = 0.0
 
-    def _log_heavy(self, step):
-        g_metrics, w_metrics = {}, {}
+    def _log_weights_and_gradients(self, step):
+        g_norms, w_norms = {}, {}
         if (
             self.logging_interval_heavy > 0
             and step % self.logging_interval_heavy == 0
@@ -409,21 +335,18 @@ class ConditionalTrainer:
             for name, value in self.model.named_parameters():
                 if value.grad is not None:
                     norm = torch.linalg.norm(value.grad)
-                    g_metrics[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
+                    g_norms[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
                 if value.requires_grad:
                     norm = torch.linalg.norm(value)
-                    w_metrics[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
-            g_metrics[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
-                torch.tensor(list(g_metrics.values()))
+                    w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
+            g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
+                torch.tensor(list(g_norms.values()))
             )
-            w_metrics[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
-                torch.tensor(list(w_metrics.values()))
+            w_norms[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
+                torch.tensor(list(w_norms.values()))
             )
-            self._log_dict({**g_metrics, **w_metrics}, step)
-
-    def _log_dict(self, metrics, step):
-        for k, v in metrics.items():
-            self.logger.report_scalar(title=k, value=v, iteration=step)
+            for name, value in {**g_norms, **w_norms}.items():
+                self.logger.report_scalar(title=name, value=value, iteration=step)
 
     def _log_fraction_dataset_processed(self, step):
         processed = step * self.batch_size * self.max_sequence_length
@@ -461,64 +384,31 @@ class ConditionalTrainer:
                 )
             self.auxiliary_losses_accumulator.clear()
 
-    def _hack(self, hack_name, step):
-        if hack_name == "batch_size":
-            self._hack_for_batch_size(step)
-        elif hack_name == "expert_size":
-            self._hack_for_contmoe_expert_size(step)
+    def _save_weights(self, step):
+        if (
+            self.save_weights_path is not None
+            and self.save_weights_interval > 0
+            and step % self.save_weights_interval == 0
+        ):
+            checkpoint = {
+                "model": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "scaler": self.scaler.state_dict(),
+            }
+            torch.save(checkpoint, os.path.join(self.save_weights_path, f"{step}.pth"))
+            print(f"Weights saved to {self.save_weights_path} (step {step})")
+
+    def _load_model_weights(self):
+        if os.path.exists(self.load_weights_path):
+            print(f"Loading weights from {self.load_weights_path}")
+            checkpoint = torch.load(self.load_weights_path)
+            self.model.load_state_dict(checkpoint["model"], strict=False)
+            self.optimizer.load_state_dict(checkpoint["optimizer"])
+            self.scaler.load_state_dict(checkpoint["scaler"])
         else:
-            raise ValueError(f"Unknown hack {hack_name}")
-
-    def _hack_for_batch_size(
-        self,
-        step,
-    ):
-        """
-        This is a hack to easily determine the maximal batch size that can be used with given GPU memory and model size.
-        """
-        self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        for name, tensor in processed_batch:
-            tensor.data = tensor[:1].repeat(step + 1, 1).data
-        loss, _aux_info = self._calculate_loss(
-            batch=processed_batch,
-            model=self.model,
-            mixed_precision=self.mixed_precision,
-            vocab_size=self.vocab_size,
-        )
-        self._optimize(loss, should_apply_gradient=True)
-        if self.is_process_logging:
-            self.logger.report_scalar(
-                title="max batch size", value=step * self.n_gpus, iteration=step
+            raise ValueError(
+                f"Path {self.load_weights_path} does not exist. Aborting ..."
             )
-
-    def _hack_for_contmoe_expert_size(
-        self,
-        step,
-    ):
-        """
-        This is a hack to easily determine the maximal batch size that can be used with given GPU memory and model size.
-        """
-        assert all(
-            [
-                isinstance(layer, ContinuousMoE)
-                for name, layer in self.layer_manager._layers
-            ]
-        )
-        self.model.train()
-        processed_batch = self.train_dataloader.get_batch()
-        for block_name, layer in self.layer_manager._layers:
-            layer.expertsize = step + 1
-            layer.init_core_parameters()
-            layer.to(torch.device("cuda"))
-        loss = self._calculate_loss(
-            batch=processed_batch,
-            model=self.model,
-            mixed_precision=self.mixed_precision,
-            vocab_size=self.vocab_size,
-        )
-        self._optimize(loss, should_apply_gradient=True)
-        self.logger.report_scalar(title="max expert size", value=step, iteration=step)
 
     def _check_config(self):
         if self.eval_dynamic_groupsize:

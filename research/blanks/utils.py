@@ -67,25 +67,6 @@ def get_last_blanks_in_series(is_blank: torch.Tensor):
     return blank_end
 
 
-def get_last_blanks_in_series(is_blank: torch.Tensor):
-    blank_end = (
-        (
-            F.conv1d(
-                is_blank[:, None, :].float(),
-                torch.tensor([0.0, 1.0, -1.0], device=is_blank.device).reshape(
-                    1, 1, -1
-                ),
-                padding="same",
-            )
-            == 1
-        )
-        .float()
-        .squeeze_(1)
-    )
-
-    return blank_end
-
-
 def get_preblanks(is_blank: torch.Tensor):
     first_blanks = get_first_blanks_in_series(is_blank)
     preblanks = shift_left(first_blanks)
@@ -159,3 +140,34 @@ def make_blanks_attention_mask(is_blank: torch.Tensor) -> torch.Tensor:
             mask[last_ind + 1 :, first_ind : last_ind + 1] = True
         tensors.append(mask)
     return torch.stack(tensors)
+
+
+def make_blanks_fixed_positions(
+    x: torch.Tensor, blank_token_id: int, n_blanks_block: int
+) -> torch.Tensor:
+    """Generates positions in a sequence taking blanks into account.
+    Assumes that every sequence of blanks is exactly n_blanks long.
+
+    Args:
+        x (torch.Tensor): Input tokens of shape (batch_size, seq_len).
+        blank_token_id (int): id of the blank token.
+        n_blanks (int): number of blanks in one block in the sequence.
+
+    Returns:
+        torch.Tensor: positions of tokens in the sequence taking blanks into account.
+    """
+    positions = torch.arange(0, x.shape[1], device=x.device).unsqueeze(0)
+    positions = positions.repeat(x.shape[0], 1)
+    is_blank = x.eq(blank_token_id)
+    n_blanks_up_to = is_blank.cumsum(dim=1)
+    positions = positions - n_blanks_up_to
+    n_blanks = is_blank.sum()
+    if n_blanks % n_blanks_block != 0:
+        raise ValueError(
+            f"""Number of blanks in the sequence must be divisible by {n_blanks_block}. 
+            It probably means that not all blocks of blanks are of the same length."""
+        )
+    positions[is_blank] += torch.arange(1, n_blanks_block + 1, device=x.device).repeat(
+        n_blanks // n_blanks_block
+    )
+    return positions

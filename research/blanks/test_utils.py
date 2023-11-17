@@ -13,6 +13,7 @@ from research.blanks.utils import (
     get_preblanks,
     get_last_blanks_in_series,
     make_blanks_attention_mask,
+    make_blanks_fixed_positions,
 )
 
 
@@ -123,4 +124,16 @@ class TestUtils(GeneralTestCase):
         n_blanks = 2
         self.assertFalse(
             can_fit_blanks(sequence_length, blank_insertion_point, n_blanks)
+        )
+
+    def test_make_blanks_fixed_positions(self):
+        tokens = torch.tensor([[0, 0, 1, 1, 0], [0, 1, 1, 0, 0], [1, 1, 0, 1, 1]])
+        expected = torch.tensor([[0, 1, 2, 3, 2], [0, 1, 2, 1, 2], [0, 1, 0, 1, 2]])
+        result = make_blanks_fixed_positions(tokens, 1, n_blanks_block=2)
+        self.assertTrue(torch.equal(result, expected))
+
+    def test_make_blanks_fixed_positions_throws(self):
+        tokens = torch.tensor([[0, 0, 1, 1], [0, 1, 0, 0]])
+        self.assertRaises(
+            ValueError, make_blanks_fixed_positions, tokens, 1, n_blanks_block=2
         )
