@@ -130,7 +130,7 @@ def get_custom_attention_layer(args):
         dmodel=args.dmodel,
         heads=args.n_att_heads,
         dhead=args.dhead,
-        flash=False,
+        flash=True,
         init_type=args.init_type,
         init_scale=args.init_scale,
     )
