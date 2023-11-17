@@ -9,7 +9,7 @@ params:
   softmax_over: experts
   group_granular_moe_by_batch: true
   use_torch_bmm: true
-  torch_compile: true
+  torch_compile: false
   granular_moe_one_hot_impl: true
   layer_norm_in_expert_choice: false
 
