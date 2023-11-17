@@ -52,6 +52,7 @@ def get_model(
             init_type=init_type,
             init_scale=init_scale,
             blank_token_id=blank_id,
+            n_blanks=n_blanks,
         ).to(first_gpu)
     else:
         positional_embedding = llm.PositionalEmbedding(
@@ -299,6 +300,7 @@ class BlankPositionalEmbedding(torch.nn.Module):
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
         blank_token_id: int,
+        n_blanks: int,
     ):
         super(BlankPositionalEmbedding, self).__init__()
         self.layer = torch.nn.Embedding(max_length, embedding_dim)
@@ -311,8 +313,11 @@ class BlankPositionalEmbedding(torch.nn.Module):
             dtype=default_weight.dtype,
         )
         self.blank_token_id = blank_token_id
+        self.n_blanks = n_blanks
 
     def forward(self, x):
-        positions = make_blanks_fixed_positions(x, self.blank_token_id)
+        positions = make_blanks_fixed_positions(
+            x, self.blank_token_id, n_blanks_block=self.n_blanks
+        )
         embeddings = self.layer(positions)
         return embeddings
