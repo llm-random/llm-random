@@ -7,7 +7,6 @@ from research.blanks.utils import (
     shift_right,
     make_blanks_fixed_positions,
 )
-from typing import Literal
 from lizrd.core.initialization import get_init_weight
 
 
@@ -216,7 +215,7 @@ class BlankSeparateHead(torch.nn.Module):
         use_straight_through: bool = False,
     ):
         super().__init__()
-        self.linear = torch.nn.Linear(embedding_dim, output_size, bias=False)
+        self.linear = misc.Linear(embedding_dim, output_size, bias=False)
         self.blank_token_id = blank_token_id
         self.n_blanks = n_blanks
 
