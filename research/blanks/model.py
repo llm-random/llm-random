@@ -107,12 +107,26 @@ def get_ff_layer(args):
         raise NotImplementedError(f"ff_mode {args.ff_mode} not implemented")
 
 
-def get_attention_layer(args):
+def get_custom_attention_layer(args):
     attention_layer_fun = lambda: BlankAttention(
         dmodel=args.dmodel,
         heads=args.n_att_heads,
         dhead=args.dhead,
         flash=True,
+        init_type=args.init_type,
+        init_scale=args.init_scale,
+    )
+
+    return attention_layer_fun
+
+
+def get_normal_attention_layer(args):
+    attention_layer_fun = lambda: llm.Attention(
+        dmodel=args.dmodel,
+        heads=args.n_att_heads,
+        dhead=args.dhead,
+        flash=True,
+        causal=True,
         init_type=args.init_type,
         init_scale=args.init_scale,
     )
@@ -384,12 +398,8 @@ class BlankAttentionManager:
         self._register_layers(model)
 
     def _register_layers(self, model: nn.Module):
-        for name, layer in model.named_modules():
-            if name.endswith("attention"):
-                if not isinstance(layer, BlankAttention):
-                    raise ValueError(
-                        f"Layer {layer} is not a BlankAttention layer (something is not yes)"
-                    )
+        for _, layer in model.named_modules():
+            if isinstance(layer, BlankAttention):
                 self._layers.append(layer)
 
     def set_mask(self, mask: torch.Tensor):
