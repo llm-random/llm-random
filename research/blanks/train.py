@@ -111,7 +111,9 @@ def main(
         init_type=args.init_type,
         init_scale=args.init_scale,
         n_blanks=args.n_blanks,
-        blank_id=50257,
+        blank_ids=torch.tensor(
+            BlankTokenizer.BLANK_IDS[: args.n_blanks], device=DEVICE, dtype=torch.int
+        ),
         blanks_add_embedding=args.blanks_add_embedding,
         blanks_residual=args.blanks_residual,
         blanks_learnable_weights=args.blanks_learnable_weights,

@@ -3,6 +3,7 @@ from typing import Callable, Literal, Optional
 from lizrd.core import llm
 from research.blanks.utils import (
     get_first_blanks_in_series,
+    get_is_blank,
     shift_left,
     shift_right,
     make_blanks_fixed_positions,
@@ -26,11 +27,11 @@ def get_model(
     device: torch.device,
     init_type,
     init_scale,
+    blank_ids: torch.Tensor,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     n_blanks: int = 0,
-    blank_id: int = 0,
     blanks_residual: bool = False,
     blanks_add_embedding: bool = False,
     blanks_learnable_weights: bool = False,
@@ -51,7 +52,7 @@ def get_model(
             dm,
             init_type=init_type,
             init_scale=init_scale,
-            blank_token_id=blank_id,
+            blank_tokens_ids=blank_ids,
             n_blanks=n_blanks,
         ).to(first_gpu)
     else:
@@ -64,7 +65,7 @@ def get_model(
             BlankEmbedding(
                 vocab_size,
                 dm,
-                blank_token_id=blank_id,
+                blank_tokens_ids=blank_ids,
                 n_blanks=n_blanks,
                 init_type=init_type,
                 init_scale=init_scale,
@@ -96,7 +97,7 @@ def get_model(
             vocab_size,
             init_type=init_type,
             init_scale=init_scale,
-            blank_token_id=blank_id,
+            blank_tokens_ids=blank_ids,
             n_blanks=n_blanks,
             learnable_weights=blanks_learnable_weights,
             initial_blank_weight=blank_initial_weight,
@@ -145,7 +146,7 @@ class BlankDiffPredictionHead(torch.nn.Module):
         output_size: int,
         init_type: str,
         init_scale: float,
-        blank_token_id: int,
+        blank_tokens_ids: torch.Tensor,
         n_blanks: int,
         learnable_weights: bool,
         initial_blank_weight: float,
@@ -159,7 +160,7 @@ class BlankDiffPredictionHead(torch.nn.Module):
             init_scale=init_scale,
             bias=False,
         )
-        self.blank_token_id = blank_token_id
+        self.blank_tokens_ids = blank_tokens_ids
         self.n_blanks = n_blanks
 
         self.learnable_weights = learnable_weights
@@ -168,7 +169,7 @@ class BlankDiffPredictionHead(torch.nn.Module):
         self.use_straight_through = use_straight_through
 
     def forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
-        is_blank = model_input.eq(self.blank_token_id)
+        is_blank = get_is_blank(model_input, self.blank_tokens_ids)
         is_first_blank = get_first_blanks_in_series(is_blank)
         is_preblank = shift_left(is_first_blank)
         preblank_encoder_output = encoder_output * is_preblank.unsqueeze(-1)
@@ -265,7 +266,7 @@ class BlankEmbedding(torch.nn.Module):
         self,
         vocab_size: int,
         embedding_dim: int,
-        blank_token_id: int,
+        blank_tokens_ids: torch.Tensor,
         n_blanks: int,
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
@@ -277,12 +278,12 @@ class BlankEmbedding(torch.nn.Module):
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.blank_token_id = blank_token_id
+        self.blank_tokens_ids = blank_tokens_ids
         self.n_blanks = n_blanks
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         embedding_output = self.embedding(x)
-        is_blank = x.eq(self.blank_token_id)
+        is_blank = get_is_blank(x, self.blank_tokens_ids)
         is_first_blank = get_first_blanks_in_series(is_blank)
         is_preblank = shift_left(is_first_blank)
         preblank_embedding_output = embedding_output * is_preblank.unsqueeze(-1)
@@ -299,7 +300,7 @@ class BlankPositionalEmbedding(torch.nn.Module):
         embedding_dim,
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
-        blank_token_id: int,
+        blank_tokens_ids: torch.Tensor,
         n_blanks: int,
     ):
         super(BlankPositionalEmbedding, self).__init__()
@@ -312,12 +313,12 @@ class BlankPositionalEmbedding(torch.nn.Module):
             scale=init_scale,
             dtype=default_weight.dtype,
         )
-        self.blank_token_id = blank_token_id
+        self.blank_tokens_ids = blank_tokens_ids
         self.n_blanks = n_blanks
 
     def forward(self, x):
         positions = make_blanks_fixed_positions(
-            x, self.blank_token_id, n_blanks_block=self.n_blanks
+            x, self.blank_tokens_ids, n_blanks_block=self.n_blanks
         )
         embeddings = self.layer(positions)
         return embeddings

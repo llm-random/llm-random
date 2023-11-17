@@ -37,6 +37,7 @@ class BlankTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
+    blank_ids: List[int]
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -58,7 +59,6 @@ class BlankTrainer:
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
     n_blanks: int = 0
-    blank_id: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
