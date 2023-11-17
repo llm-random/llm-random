@@ -98,9 +98,12 @@ class BlankDiffPredictionHead(nn.Module):
         learnable_weights: bool,
         initial_blank_weight: float,
         use_straight_through: bool = False,
+        use_separate_blank_head: bool = False,
     ):
         super(BlankDiffPredictionHead, self).__init__()
         self.linear = nn.Linear(embedding_dim, output_size, bias=False)
+        if use_separate_blank_head:
+            self.blank_head = nn.Linear(embedding_dim, output_size)
         self.blank_token_id = blank_token_id
         self.n_blanks = n_blanks
 
@@ -146,7 +149,7 @@ class BlankDiffPredictionHead(nn.Module):
         return self.linear(encoder_output)
 
 
-class BlankSeparateHead(nn.Module):
+class BlankDiffPredictionHead(nn.Module):
     def __init__(
         self,
         embedding_dim: int,
@@ -157,8 +160,9 @@ class BlankSeparateHead(nn.Module):
         initial_blank_weight: float,
         use_straight_through: bool = False,
     ):
-        super().__init__()
-        self.linear = nn.Linear(embedding_dim, output_size, bias=False)
+        super(BlankDiffPredictionHead, self).__init__()
+        self.regular_head = nn.Linear(embedding_dim, output_size, bias=False)
+        self.blank_head = nn.Linear(embedding_dim, output_size, bias=False)
         self.blank_token_id = blank_token_id
         self.n_blanks = n_blanks
 
@@ -167,7 +171,54 @@ class BlankSeparateHead(nn.Module):
         self.blank_weight = nn.Parameter(torch.tensor(initial_blank_weight))
         self.use_straight_through = use_straight_through
 
-    ...
+    def non_residual_forward(
+        self, encoder_output: torch.Tensor, model_input: torch.Tensor
+    ):
+        is_blank = model_input.eq(self.blank_token_id)
+        is_not_blanks = ~is_blank
+        assert is_not_blanks.dtype == is_blank.dtype == torch.bool
+        assert self.regular_head.bias == self.blank_head.bias == None
+        return self.regular_head(
+            encoder_output * is_not_blanks.unsqueeze(-1)
+        ) + self.blank_head(encoder_output * is_blank.unsqueeze(-1))
+
+    def residual_forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
+        is_blank = model_input.eq(self.blank_token_id)
+        is_first_blank = get_first_blanks_in_series(is_blank)
+        is_preblank = shift_left(is_first_blank)
+        preblank_output = encoder_output * is_preblank.unsqueeze(-1)
+        if self.learnable_weights:
+            is_not_blank = ~is_blank
+            assert is_not_blank.dtype == torch.bool
+            if self.use_straight_through:
+                encoder_output = (
+                    (encoder_output * is_not_blank.unsqueeze(-1))
+                    + (
+                        encoder_output.detach()
+                        * is_blank.unsqueeze(-1)
+                        * abs(self.blank_weight)
+                    )
+                    + (
+                        encoder_output * is_blank.unsqueeze(-1)
+                        - encoder_output.detach() * is_blank.unsqueeze(-1)
+                    )
+                )
+            else:
+                encoder_output = (encoder_output * is_not_blank.unsqueeze(-1)) + (
+                    encoder_output * is_blank.unsqueeze(-1) * abs(self.blank_weight)
+                )
+
+            for _ in range(self.n_blanks):
+                preblank_encoder_output = shift_right(preblank_encoder_output)
+                encoder_output.add_(preblank_encoder_output * abs(self.preblank_weight))
+        else:
+            for _ in range(self.n_blanks):
+                preblank_encoder_output = shift_right(preblank_encoder_output)
+                encoder_output.add_(preblank_encoder_output)
+
+    def forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
+        ...
+        # return self.linear(encoder_output)
 
 
 class BlankLLM(nn.Module):
