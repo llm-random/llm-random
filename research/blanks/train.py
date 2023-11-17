@@ -83,7 +83,7 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    if args.blanks_use_custom_attention:
+    if args.blanks_use_custom_attention and args.n_blanks > 0:
         attention_layer_fun = get_custom_attention_layer(args)
     else:
         attention_layer_fun = get_normal_attention_layer(args)
