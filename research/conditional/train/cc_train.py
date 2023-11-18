@@ -22,8 +22,9 @@ from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
-    get_mixed_precision_ignore_classes,
+    get_mixed_precision_ignored_classes,
     get_residual_layer,
+    unpack_module_names,
 )
 
 
@@ -111,7 +112,9 @@ def main(
         os.makedirs(args.save_weights_path, exist_ok=True)
 
     param_precision = torch.bfloat16 if args.mixed_precision else torch.float32
-    fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignore_classes(args)
+
+    fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
+    fsdp_modules_to_wrap = unpack_module_names(args.fsdp_modules_to_wrap)
 
     print("getting model")
     model = get_model(
@@ -134,6 +137,7 @@ def main(
         fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
         fsdp_offload_params=args.fsdp_offload_params,
         fsdp_min_num_params=args.fsdp_min_num_params,
+        fsdp_classes_to_wrap=fsdp_modules_to_wrap,
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,

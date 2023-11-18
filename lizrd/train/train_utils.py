@@ -39,9 +39,10 @@ def get_model(
     ddp_enabled: bool,
     fsdp_enabled: bool,
     fsdp_param_precision: torch.dtype,
-    fsdp_mixed_precision_ignore_classes: list,
+    fsdp_mixed_precision_ignore_classes: list[torch.nn.Module],
     fsdp_offload_params: bool,
     fsdp_min_num_params: int,
+    fsdp_classes_to_wrap: tuple[torch.nn.Module],
     rank=None,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
@@ -95,6 +96,7 @@ def get_model(
             offload_params=fsdp_offload_params,
             print_model=True,
             min_num_params=fsdp_min_num_params,
+            modules_to_wrap=fsdp_classes_to_wrap,
         )
 
     return model

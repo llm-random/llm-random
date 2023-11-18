@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Sequence, Type
+from typing import Type, Union
 import torch
 from torch.nn import LayerNorm
 import torch.nn.functional as F
@@ -8,7 +8,7 @@ from torch.nn.modules.batchnorm import _BatchNorm
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
-from lizrd.core.llm import AttentionMechanism, Parallel
+from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -453,10 +453,36 @@ def get_ff_layer(args, rank=None):
     return return_fn
 
 
-def get_mixed_precision_ignore_classes(args) -> Sequence[Type[torch.nn.Module]]:
+def unpack_module_names(packed_names) -> Union[tuple[Type[torch.nn.Module]], None]:
+    """
+    Unpacks a comma-separated list of module names into a tuple of modules.
+    """
+    names = []
+    if packed_names is None:
+        return None
+    for name in packed_names.split(","):
+        if name == "Attention":
+            names.append(llm.Attention)
+        if name == "AttentionMechanism":
+            names.append(llm.AttentionMechanism)
+        elif name == "FeedForward":
+            names.append(llm.FeedForward)
+        elif name == "TransformerBlock":
+            names.append(llm.TransformerBlock)
+        elif name == "EmbeddingLayer":
+            names.append(llm.EmbeddingLayer)
+        elif name == "PredictionHead":
+            names.append(llm.PredictionHead)
+        else:
+            raise ValueError(f"Unknown name {name}")
+    return tuple(names)
+
+
+def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
     ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
 
-    if args.fsdp_higher_attention_precision:
-        ignored_classes += [AttentionMechanism]
+    selective_precision_modules = unpack_module_names(args.selective_precision_modules)
+    if selective_precision_modules is not None:
+        ignored_classes += list(selective_precision_modules)
 
     return ignored_classes
