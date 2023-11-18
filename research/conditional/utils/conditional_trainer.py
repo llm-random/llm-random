@@ -64,7 +64,7 @@ class ConditionalTrainer:
     eval_min_group_size_logfactor: int = 0
     eval_max_group_size_logfactor: int = 0
     eval_discrete_mot: bool = False
-    is_process_logging: bool = True
+    is_logging_process: bool = True
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
 
@@ -149,7 +149,7 @@ class ConditionalTrainer:
                 self.model_type == "gpt"
                 and self.decoding_interval > 0
                 and step % self.decoding_interval == 0
-                and self.is_process_logging
+                and self.is_logging_process
             ):
                 try:
                     self._decode_samples(step)
@@ -168,7 +168,7 @@ class ConditionalTrainer:
             self.total_time_decoding += t2 - t1
             self.total_time_afterstep += t3 - t2
 
-            if step % 1000 == 0 and self.is_process_logging:
+            if step % 1000 == 0 and self.is_logging_process:
                 total_time = (
                     self.total_time_trainsteps
                     + self.total_time_decoding
@@ -239,7 +239,7 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
-        if self.is_process_logging:
+        if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
 
@@ -247,7 +247,7 @@ class ConditionalTrainer:
         loss, aux_info = self.calculate_loss_and_maybe_optimize(
             processed_batch, should_optimize=True
         )
-        if self.is_process_logging:
+        if self.is_logging_process:
             self._log_train_stats(loss, step, aux_info)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
@@ -310,7 +310,7 @@ class ConditionalTrainer:
             total_masked_tokens += aux_info["total_masked_tokens"]
             for name, loss_value in aux_info["losses"].items():
                 extra_losses[name] += loss_value
-        if self.is_process_logging:
+        if self.is_logging_process:
             self.logger.report_scalar(
                 title=f"eval/total_loss/{eval_variant_name}"
                 if eval_variant_name
@@ -487,7 +487,7 @@ class ConditionalTrainer:
             vocab_size=self.vocab_size,
         )
         self._optimize(loss, should_apply_gradient=True)
-        if self.is_process_logging:
+        if self.is_logging_process:
             self.logger.report_scalar(
                 title="max batch size", value=step * self.n_gpus, iteration=step
             )

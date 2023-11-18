@@ -1,6 +1,6 @@
 import copy
 from collections import defaultdict
-from typing import Callable, Optional
+from typing import Callable, Optional, Type, Union
 import os
 
 import numpy as np
@@ -39,10 +39,10 @@ def get_model(
     ddp_enabled: bool,
     fsdp_enabled: bool,
     fsdp_param_precision: torch.dtype,
-    fsdp_mixed_precision_ignore_classes: list[torch.nn.Module],
+    fsdp_mixed_precision_ignore_classes: list[Type[torch.nn.Module]],
     fsdp_offload_params: bool,
     fsdp_min_num_params: int,
-    fsdp_classes_to_wrap: tuple[torch.nn.Module],
+    fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
     rank=None,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
@@ -96,7 +96,7 @@ def get_model(
             offload_params=fsdp_offload_params,
             print_model=True,
             min_num_params=fsdp_min_num_params,
-            modules_to_wrap=fsdp_classes_to_wrap,
+            modules_to_wrap=fsdp_modules_to_wrap,
         )
 
     return model

@@ -174,9 +174,8 @@ def calculate_llm_loss(
     return loss, aux_info
 
 
-def get_attention_layer(args, rank):
+def get_attention_layer(args):
     causal = args.model_type == "gpt"
-
     attention_layer_fun = lambda: llm.Attention(
         dmodel=args.dmodel,
         heads=args.n_att_heads,
@@ -201,7 +200,7 @@ def get_residual_layer(args):
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
 
-def get_expert_choice_args(args, rank=None):
+def get_expert_choice_args(args):
     set_arguments_option1 = (
         args.total_experts_width is not None
         and args.effective_dff is not None
@@ -343,7 +342,7 @@ def get_common_mot_kwargs(args):
     }
 
 
-def get_ff_layer(args, rank=None):
+def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
@@ -402,7 +401,7 @@ def get_ff_layer(args, rank=None):
     elif args.ff_mode == "cont_moe_legacy":
         return_fn = lambda: LegacyContinuousMoE(**get_common_mot_kwargs(args))
     elif args.ff_mode == "expert_choice":
-        ff_args = get_expert_choice_args(args, rank)
+        ff_args = get_expert_choice_args(args)
         return_fn = partial(ExpertChoiceFF, **ff_args)
     elif args.ff_mode == "expert_choice_with_parallel_ff":
         expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
