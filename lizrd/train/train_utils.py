@@ -10,7 +10,6 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
 
 from lizrd.core import llm
 from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
-from lizrd.core.llm import TransformerBlock, EmbeddingLayer, PredictionHead
 
 
 def get_model(
@@ -30,8 +29,8 @@ def get_model(
     fsdp_offload_params: bool,
     fsdp_min_num_params: int,
     fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
+    gradient_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     rank=None,
-    gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
 ):
@@ -60,7 +59,6 @@ def get_model(
         n_blocks,
         dm,
         layer_dict,
-        gradient_checkpointing,
         device,
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
@@ -86,10 +84,8 @@ def get_model(
             modules_to_wrap=fsdp_modules_to_wrap,
         )
 
-    if gradient_checkpointing:
-        check_fn = lambda x: isinstance(
-            x, (TransformerBlock, EmbeddingLayer, PredictionHead)
-        )
+    if gradient_checkpointing_modules is not None:
+        check_fn = lambda x: isinstance(x, gradient_checkpointing_modules)
         non_reentrant_wrapper = partial(
             checkpoint_wrapper,
             checkpoint_impl=CheckpointImpl.NO_REENTRANT,

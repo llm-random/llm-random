@@ -3,7 +3,6 @@ import torch
 
 from lizrd.core import llm
 from lizrd.core.misc import (
-    Checkpoint,
     DenseEinMix,
     Linear,
     EinMix,
@@ -223,52 +222,6 @@ class TestChungizedCalculateLoss(GeneralTestCase):
 
         for param_name, param in model.named_parameters():
             assert torch.isclose(param.grad, chunged_dict[param_name].grad).all()
-
-
-class TestCheckpoint(GeneralTestCase):
-    def test_checkpoint(self):
-        torch.manual_seed(0)
-        # create a simple Sequential model
-        model = torch.nn.Sequential(
-            torch.nn.Linear(100, 20),
-            torch.nn.Linear(20, 10),
-            torch.nn.Linear(10, 20),
-        )
-
-        model_checkpointed = torch.nn.Sequential(
-            torch.nn.Linear(100, 20),
-            Checkpoint(torch.nn.Linear(20, 10)),
-            torch.nn.Linear(10, 20),
-        )
-
-        # clone the model weights
-        for (name, param), (name_checkpointed, param_checkpointed) in zip(
-            model.named_parameters(), model_checkpointed.named_parameters()
-        ):
-            param_checkpointed.data = param.data.clone()
-
-        x = torch.rand(100, 100)
-        outputs = {}
-        grads = {}
-        for model, name in [[model, "vanilla"], [model_checkpointed, "checkpointed"]]:
-            outputs[name] = model(x)
-
-            model.zero_grad()
-            outputs[name].sum().backward()
-            grads[name] = {}
-            for param_name, param in model.named_parameters():
-                grads[name][param_name] = param.grad.data.clone()
-
-        # compare the output and parameters gradients
-        assert torch.isclose(
-            outputs["vanilla"], outputs["checkpointed"]
-        ).all(), f" output failed, log of difference is: {torch.log10((outputs['vanilla'] - outputs['checkpointed']).abs().max())}, max difference is: {((output_original - output_checkpointed).abs().max())}, argmax is {((output_original - output_checkpointed).abs().argmax())}"
-        for grad, grad_checkpointed in zip(
-            grads["vanilla"].values(), grads["checkpointed"].values()
-        ):
-            assert torch.isclose(
-                grad, grad_checkpointed
-            ).all(), f"parameter {name} failed, log of difference is: {torch.log10((grad - grad_checkpointed).abs().max())}"
 
 
 class TestModelParallel(GeneralTestCase):
