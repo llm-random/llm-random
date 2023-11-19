@@ -209,8 +209,8 @@ if __name__ == "__main__":
         print(f"running experiment {i} from {job_name}...")
         PROCESS_CALL_FUNCTION(subprocess_args, env)
         sleep(5)
-        if interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL:
-            print(
-                "Ran only the first experiment in (interactive mode or local run). Aborting..."
-            )
-            break
+        # if interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL:
+        #     print(
+        #         "Ran only the first experiment in (interactive mode or local run). Aborting..."
+        #     )
+        #     break

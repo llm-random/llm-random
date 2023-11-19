@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from lizrd.core import misc
 from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
-from lizrd.core.misc import Checkpoint, Linear
+from lizrd.core.misc import Linear
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -334,7 +334,7 @@ def PreNormBlock(dmodel, layer, name):
 
 @ash.check("... d -> ... d")
 class TransformerBlock(nn.Module):
-    def __init__(self, dmodel, layers, gradient_checkpointing, residual_fn):
+    def __init__(self, dmodel, layers, residual_fn):
         super(TransformerBlock, self).__init__()
 
         residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
@@ -342,12 +342,6 @@ class TransformerBlock(nn.Module):
             (f"residual_{name}", residual_fn(layer=layer, name=name))
             for name, layer in layers
         ]
-
-        if gradient_checkpointing:
-            residual_layers = [
-                (name, Checkpoint(layer)) for name, layer in residual_layers
-            ]
-
         self.block = nn.Sequential(OrderedDict(residual_layers))
 
     def forward(self, x):
@@ -361,7 +355,6 @@ class TransformerTower(nn.Module):
         n_blocks,
         dmodel,
         layer_dict,
-        gradient_checkpointing: bool = False,
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
@@ -387,7 +380,6 @@ class TransformerTower(nn.Module):
             block = TransformerBlock(
                 dmodel,
                 layers_info,
-                gradient_checkpointing,
                 residual_fn,
             )
             if current_device != torch.device("cpu"):
