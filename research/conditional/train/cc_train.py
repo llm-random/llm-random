@@ -111,10 +111,28 @@ def main(
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
 
-    fsdp_param_precision = torch.bfloat16 if args.mixed_precision else torch.float32
+    if args.mixed_precision:
+        if args.mixed_precision_dtype == "float16":
+            args.mixed_precision_dtype = torch.float16
+        elif args.mixed_precision_dtype == "bfloat16":
+            args.mixed_precision_dtype = torch.bfloat16
+        else:
+            raise ValueError(
+                f"Unknown mixed precision dtype: {args.mixed_precision_dtype}"
+            )
 
-    fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
-    fsdp_modules_to_wrap = unpack_module_names(args.fsdp_modules_to_wrap)
+    if args.fsdp_enabled:
+        fsdp_param_precision = args.mixed_precision_dtype
+        if fsdp_param_precision == "float16":
+            raise Exception(
+                "Our FSDP implementation currently does not support float16 precision (no distributed GradScaler implemented). Please use bfloat16 or float32."
+            )
+        fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
+        fsdp_modules_to_wrap = unpack_module_names(args.fsdp_modules_to_wrap)
+    else:
+        fsdp_param_precision = None
+        fsdp_mixed_precision_ignore_classes = None
+        fsdp_modules_to_wrap = None
 
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)
@@ -146,6 +164,7 @@ def main(
         residual_fn=residual_fn,
         rank=rank,
     )
+
     if args.torch_compile:
         model = torch.compile(model)
 
@@ -204,6 +223,7 @@ def main(
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
         mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
+        mixed_precision_dtype=args.mixed_precision_dtype,
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,

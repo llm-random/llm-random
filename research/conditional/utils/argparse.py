@@ -63,6 +63,12 @@ def introduce_parser_arguments(
     parser.add_argument("--gradient_checkpointing", action="store_true")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--mixed_precision", action="store_true")
+    parser.add_argument(
+        "--mixed_precision_dtype",
+        type=str,
+        choices=["float16", "bfloat16"],
+        default=None,
+    )
     parser.add_argument("--torch_compile", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
     parser.add_argument("--ddp_enabled", action="store_true")

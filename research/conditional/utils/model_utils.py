@@ -67,6 +67,7 @@ def chungized_llm_loss(
     mixed_precision: bool,
     vocab_size: int,
     n_chungs: int,
+    mixed_precision_dtype: torch.dtype,
 ):
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
@@ -76,7 +77,9 @@ def chungized_llm_loss(
         def custom_forward(*inputs):
             x, gt, mask = inputs
             output = model.head(x)
-            with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
+            with torch.autocast(
+                device_type="cuda", enabled=False, dtype=mixed_precision_dtype
+            ):
                 gt = inputs[1]
                 mask = inputs[2]
                 gt = gt.to(output.device)
@@ -97,7 +100,7 @@ def chungized_llm_loss(
         return custom_forward
 
     with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
     ):
         embeddings = model.embedding_layer(input_tokens)
         encoder_output = model.encoder(embeddings)
@@ -138,13 +141,14 @@ def calculate_llm_loss(
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
+    mixed_precision_dtype: torch.dtype,
 ):
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
 
     with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
     ):
         model_output = model(input_tokens)
 
