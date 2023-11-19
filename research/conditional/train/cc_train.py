@@ -208,7 +208,6 @@ def main(
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
         lr_scheduler=scheduler,
-        hack_name=args.hack_name,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,

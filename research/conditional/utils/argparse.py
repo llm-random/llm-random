@@ -224,6 +224,7 @@ def introduce_parser_arguments(
     )
 
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
+    parser.add_argument("--layer_norm_in_expert_choice", action="store_true")
     parser.add_argument("--granular_moe_one_hot_impl", action="store_true")
     parser.add_argument(
         "--softmax_ungrouped",
@@ -249,7 +250,6 @@ def introduce_parser_arguments(
 
     # experimental/legacy parameters
 
-    parser.add_argument("--hack_name", type=str, default=None)
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 
