@@ -143,7 +143,9 @@ def main(
             torch.float16,
         ], "Flash attention requires bfloat16 or float16 precision. Please set `--mixed_precision_dtype bfloat16` or `--mixed_precision_dtype float16`."
 
-    gradient_checkpointing_modules = unpack_module_names(args.gradient_checkpointing)
+    gradient_checkpointing_modules = unpack_module_names(
+        args.gradient_checkpointing_modules
+    )
 
     ff_layer_fun = get_ff_layer(args)
     attention_layer_fun = get_attention_layer(args)

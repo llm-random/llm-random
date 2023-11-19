@@ -60,7 +60,12 @@ def introduce_parser_arguments(
     parser.add_argument("--num_workers", type=int, default=8)
 
     # training tricks for memory and speed
-    parser.add_argument("--gradient_checkpointing", action="store_true")
+    parser.add_argument(
+        "--gradient_checkpointing_modules",
+        type=str,
+        default=None,
+        help="comma-separated list of modules whose forward pass should be checkpointed",
+    )
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--mixed_precision", action="store_true")
     parser.add_argument(
