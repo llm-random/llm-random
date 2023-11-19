@@ -111,7 +111,7 @@ def main(
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
 
-    param_precision = torch.bfloat16 if args.mixed_precision else torch.float32
+    fsdp_param_precision = torch.bfloat16 if args.mixed_precision else torch.float32
 
     fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
     fsdp_modules_to_wrap = unpack_module_names(args.fsdp_modules_to_wrap)
@@ -136,7 +136,7 @@ def main(
         init_scale=args.init_scale,
         ddp_enabled=args.ddp_enabled,
         fsdp_enabled=args.fsdp_enabled,
-        fsdp_param_precision=param_precision,
+        fsdp_param_precision=fsdp_param_precision,
         fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
         fsdp_offload_params=args.fsdp_offload_params,
         fsdp_min_num_params=args.fsdp_min_num_params,
