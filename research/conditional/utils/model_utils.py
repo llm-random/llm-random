@@ -485,7 +485,9 @@ def unpack_module_names(packed_names) -> Union[tuple[Type[torch.nn.Module]], Non
 def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
     ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
 
-    selective_precision_modules = unpack_module_names(args.selective_precision_modules)
+    selective_precision_modules = unpack_module_names(
+        args.fsdp_selective_precision_modules
+    )
     if selective_precision_modules is not None:
         ignored_classes += list(selective_precision_modules)
 
