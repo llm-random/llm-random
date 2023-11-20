@@ -25,7 +25,7 @@ from research.conditional.utils.model_utils import (
     get_attention_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
-    unpack_module_names,
+    get_classes_from_module_names,
 )
 
 
@@ -111,7 +111,7 @@ def main(
     if args.fsdp_enabled:
         fsdp_param_precision = args.mixed_precision_dtype
         fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
-        fsdp_modules_to_wrap = unpack_module_names(args.fsdp_modules_to_wrap)
+        fsdp_modules_to_wrap = get_classes_from_module_names(args.fsdp_modules_to_wrap)
     else:
         fsdp_param_precision = None
         fsdp_mixed_precision_ignore_classes = None
@@ -120,7 +120,7 @@ def main(
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
     is_logging_process = True if rank is None or rank == 0 else False
 
-    gradient_checkpointing_modules = unpack_module_names(
+    gradient_checkpointing_modules = get_classes_from_module_names(
         args.gradient_checkpointing_modules
     )
 
