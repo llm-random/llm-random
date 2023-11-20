@@ -10,7 +10,7 @@ params:
     mixed_precision_dtype: bfloat16
     flash_attention: true
     fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
-#    gradient_checkpointing_modules: "TransformerBlock,EmbeddingLayer,PredictionHead"
+    gradient_checkpointing_modules: "TransformerBlock,EmbeddingLayer,PredictionHead"
     gradient_accumulation_steps: 2
 
 
