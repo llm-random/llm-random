@@ -239,8 +239,8 @@ class ExpertChoiceFF(LoggingLayer):
                 x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
             )
 
-        with measure_time(self, "layer_norm"):
-            x = self.ln(x)
+        # with measure_time(self, "layer_norm"):
+        #     x = self.ln(x)
 
         if self.group_size > 1:
             x = x.reshape(orig_bs, orig_seq_len, self.dmodel)
