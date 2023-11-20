@@ -29,7 +29,7 @@ def get_model(
     fsdp_offload_params: bool,
     fsdp_min_num_params: int,
     fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
-    gradient_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
+    activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     is_logging_process: bool,
     rank=None,
     model_fragmentation: Optional[list[int]] = None,
@@ -86,8 +86,8 @@ def get_model(
             is_logging_process=is_logging_process,
         )
 
-    if gradient_checkpointing_modules is not None:
-        check_fn = lambda x: isinstance(x, gradient_checkpointing_modules)
+    if activation_checkpointing_modules is not None:
+        check_fn = lambda x: isinstance(x, activation_checkpointing_modules)
         non_reentrant_wrapper = partial(
             checkpoint_wrapper,
             checkpoint_impl=CheckpointImpl.NO_REENTRANT,

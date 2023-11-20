@@ -61,10 +61,10 @@ def introduce_parser_arguments(
 
     # training tricks for memory and speed
     parser.add_argument(
-        "--gradient_checkpointing_modules",
+        "--activation_checkpointing_modules",
         type=str,
         default=None,
-        help="comma-separated list of modules whose forward pass should be checkpointed",
+        help="comma-separated list of modules whose forward pass should be checkpointed. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
     )
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--mixed_precision", action="store_true")
@@ -92,9 +92,14 @@ def introduce_parser_arguments(
         "--fsdp_modules_to_wrap",
         type=str,
         default=None,
-        help="This argument is used only if fsdp_enabled is set to True. It is used to set the list of modules that should be wrapped in FSDP. This is an alternative to wrapping using fsdp_min_num_of_params.",
+        help="This argument is used only if fsdp_enabled is set to True. It is used to set the list of modules that should be wrapped in FSDP. This is an alternative to wrapping using fsdp_min_num_of_params. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
     )
-    parser.add_argument("--fsdp_selective_precision_modules", type=str, default=None)
+    parser.add_argument(
+        "--fsdp_selective_precision_modules",
+        type=str,
+        default=None,
+        help="comma-separated list of modules whose parameters should be wrapped in FSDP with a different precision than the rest of the model. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
+    )
     parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,

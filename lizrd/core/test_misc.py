@@ -185,7 +185,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             fsdp_offload_params=None,
             fsdp_min_num_params=None,
             fsdp_modules_to_wrap=None,
-            gradient_checkpointing_modules=None,
+            activation_checkpointing_modules=None,
             is_logging_process=True,
         )
 

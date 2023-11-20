@@ -120,8 +120,8 @@ def main(
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
     is_logging_process = True if rank is None or rank == 0 else False
 
-    gradient_checkpointing_modules = get_classes_from_module_names(
-        args.gradient_checkpointing_modules
+    activation_checkpointing_modules = get_classes_from_module_names(
+        args.activation_checkpointing_modules
     )
 
     ff_layer_fun = get_ff_layer(args)
@@ -149,7 +149,7 @@ def main(
         fsdp_offload_params=args.fsdp_offload_params,
         fsdp_min_num_params=args.fsdp_min_num_params,
         fsdp_modules_to_wrap=fsdp_modules_to_wrap,
-        gradient_checkpointing_modules=gradient_checkpointing_modules,
+        activation_checkpointing_modules=activation_checkpointing_modules,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
