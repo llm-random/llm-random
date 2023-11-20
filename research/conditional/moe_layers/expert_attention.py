@@ -1,15 +1,14 @@
 from typing import Literal
-import plotly.express as px
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
-from torch.nn import LayerNorm
 
 from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.llm import attention_mechanism
 from lizrd.core.misc import Linear
 from lizrd.support.logging import make_histogram
+from research.conditional.moe_layers.expert_choice import make_heatmap
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 
@@ -19,43 +18,42 @@ class ExpertChoiceAttention(LoggingLayer):
         self,
         dmodel: int,
         n_experts: int,
-        expert_size: int,
-        topk_fraction: float,
+        expert_dhead: int,
+        topk: int,
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
         softmax_over: Literal["tokens", "experts"] = "experts",
         n_gating_heatmaps: int = 4,
-        **kwargs,  # FIXME(KKrol): ignoring too much args
+        flash: bool = False,
     ):
         """
         Args:
             dmodel: dimension of the input
             n_experts: number of experts
-            expert_size: size of each expert
-            topk_fraction: fraction of tokens that will be chosen for each expert
+            expert_dhead: size of each expert
+            topk: number of tokens that will be chosen for each expert
         """
         super().__init__()
 
         self.dmodel = dmodel
-        self.n_experts = n_experts // 2  # FIXME(KKrol): mem-fixing
-        self.exp_dhead = expert_size // 2  # FIXME(KKrol): mem-fixing
-        self.topk_fraction = topk_fraction
+        self.n_experts = n_experts
+        self.expert_dhead = expert_dhead
+        self.topk = topk
         self.n_gating_heatmaps = n_gating_heatmaps
-        self.causal = False  # FIXME(KKrol): hardcode
-        self.flash = False  # FIXME(KKrol): hardcode
+        self.flash = flash
 
         assert softmax_over in ["tokens", "experts"]
 
-        self.lin1_weight = nn.Parameter(
+        self.input_projection = nn.Parameter(
             get_init_weight(
-                (self.n_experts, self.dmodel, 3 * self.exp_dhead),
+                (self.n_experts, self.dmodel, 3 * self.expert_dhead),
                 fan_in=self.dmodel,
                 init_type=init_type,
                 scale=init_scale,
             ),
         )
         self.output_projection = Linear(
-            self.n_experts * self.exp_dhead,
+            self.n_experts * self.expert_dhead,
             self.dmodel,
             bias=False,
             init_type=init_type,
@@ -69,7 +67,6 @@ class ExpertChoiceAttention(LoggingLayer):
                 scale=init_scale,
             )
         ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel)
         self.softmax_over = softmax_over
 
     def forward(self, x: torch.Tensor):
@@ -78,7 +75,7 @@ class ExpertChoiceAttention(LoggingLayer):
 
         topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
         x, one_hot = self.extract_with_linear(
-            x, topk_indices, seq_len, self.lin1_weight
+            x, topk_indices, seq_len, self.input_projection
         )  # FIXME(KKrol): its einsum
 
         q, k, v = torch.chunk(x, chunks=3, dim=-1)
@@ -87,8 +84,8 @@ class ExpertChoiceAttention(LoggingLayer):
             query=q,
             key=k,
             value=v,
-            dhead=self.exp_dhead,
-            causal=self.causal,
+            dhead=self.expert_dhead,
+            causal=False,  # encoder-only
             flash=self.flash,
         ).transpose(0, 1)
 
@@ -124,13 +121,10 @@ class ExpertChoiceAttention(LoggingLayer):
             elif self.softmax_over == "experts":
                 gate_out = torch.softmax(gate_out, dim=0)
 
-        topk = seq_len // 4  # FIXME(KKrol): hard-code
-        assert topk > 0, "topk is 0, increase topk_fraction or batch_size"
-
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
-            topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=-1)
+            topk_values, topk_indices = torch.topk(gate_out, k=self.topk, dim=-1)
 
         # cache values for logging
         self.update_cache_for_logging("gate_softmax_topk_vals", topk_values)
@@ -186,12 +180,3 @@ class ExpertChoiceAttention(LoggingLayer):
                 for i in range(min(self.n_gating_heatmaps, self.n_experts))
             },
         }
-
-
-def make_heatmap(tensor, expert_num, **kwargs):
-    logits_for_expert = tensor[expert_num]
-    batch_size, seq_len = logits_for_expert.shape
-    flatten_dist = logits_for_expert.flatten()
-    dist_for_expert = torch.softmax(flatten_dist.float(), dim=-1)
-    dist_for_expert = dist_for_expert.reshape(batch_size, seq_len)
-    return px.imshow(dist_for_expert.detach().cpu().numpy(), **kwargs)

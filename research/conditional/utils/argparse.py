@@ -12,7 +12,9 @@ def introduce_parser_arguments(
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
-    parser.add_argument("--n_att_heads", type=int, required=True)
+    parser.add_argument("--n_att_heads", type=int)
+    parser.add_argument("--n_att_experts", type=int)
+    parser.add_argument("--att_topk", type=int)
     parser.add_argument("--dhead", type=int, default=None)
 
     # other model hyperparameters
