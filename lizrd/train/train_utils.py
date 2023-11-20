@@ -30,6 +30,7 @@ def get_model(
     fsdp_min_num_params: int,
     fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
     gradient_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
+    is_logging_process: bool,
     rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
@@ -82,6 +83,7 @@ def get_model(
             print_model=True,
             min_num_params=fsdp_min_num_params,
             modules_to_wrap=fsdp_modules_to_wrap,
+            is_logging_process=is_logging_process,
         )
 
     if gradient_checkpointing_modules is not None:

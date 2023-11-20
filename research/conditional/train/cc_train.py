@@ -143,6 +143,9 @@ def main(
             torch.float16,
         ], "Flash attention requires bfloat16 or float16 precision. Please set `--mixed_precision_dtype bfloat16` or `--mixed_precision_dtype float16`."
 
+    # in case of data parallelism (DDP/FSDP), only gpu:0 should log
+    is_logging_process = True if rank is None or rank == 0 else False
+
     gradient_checkpointing_modules = unpack_module_names(
         args.gradient_checkpointing_modules
     )
@@ -175,6 +178,7 @@ def main(
         gradient_checkpointing_modules=gradient_checkpointing_modules,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
+        is_logging_process=is_logging_process,
         rank=rank,
     )
 
@@ -211,9 +215,6 @@ def main(
         **common_dataloaders_kwargs,
         dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
     )
-
-    # in case of data parallelism (DDP/FSDP), only gpu:0 should log
-    is_logging_process = True if rank is None or rank == 0 else False
 
     if is_logging_process:
         logger = get_logger(args, model, VOCAB_SIZE)

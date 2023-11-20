@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch
 
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp.wrap import ModuleWrapPolicy
 
 
 def wrap_in_ddp(
@@ -27,6 +28,7 @@ def wrap_in_fsdp(
     print_model: bool,
     min_num_params: int,
     modules_to_wrap: tuple[Type[nn.Module]],
+    is_logging_process: bool,
 ):
     if modules_to_wrap is not None and min_num_params is not None:
         raise Exception(
@@ -38,19 +40,7 @@ def wrap_in_fsdp(
         )
 
     if modules_to_wrap is not None:
-
-        def explicit_wrap_policy(
-            module: nn.Module,
-            recurse: bool,
-            nonwrapped_numel: int,
-            _modules_to_wrap: tuple[Type[nn.Module]],
-        ) -> bool:
-            return isinstance(module, _modules_to_wrap)
-
-        assert isinstance(modules_to_wrap, tuple)
-
-        wrap_policy = partial(explicit_wrap_policy, _modules_to_wrap=modules_to_wrap)
-
+        wrap_policy = ModuleWrapPolicy(modules_to_wrap)
     else:
         wrap_policy = (
             partial(size_based_auto_wrap_policy, min_num_params=min_num_params)
@@ -71,7 +61,7 @@ def wrap_in_fsdp(
         auto_wrap_policy=wrap_policy,
     )
 
-    if print_model:
+    if print_model and is_logging_process:
         print("------- MODEL AFTER WRAPPING IN FSDP -------")
         print(wrapped)
         print("--------------------------------------------")
