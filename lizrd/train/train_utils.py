@@ -1,8 +1,15 @@
-from typing import Callable, Optional
+from functools import partial
+from typing import Callable, Optional, Union, Type
 
 import torch
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+    checkpoint_wrapper,
+    CheckpointImpl,
+    apply_activation_checkpointing,
+)
 
 from lizrd.core import llm
+from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
 
 
 def get_model(
@@ -15,7 +22,16 @@ def get_model(
     device: torch.device,
     init_type,
     init_scale,
-    gradient_checkpointing: bool = False,
+    ddp_enabled: bool,
+    fsdp_enabled: bool,
+    fsdp_param_precision: torch.dtype,
+    fsdp_mixed_precision_ignore_classes: list[Type[torch.nn.Module]],
+    fsdp_offload_params: bool,
+    fsdp_min_num_params: int,
+    fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
+    activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
+    is_logging_process: bool,
+    rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
 ):
@@ -35,13 +51,15 @@ def get_model(
         ).to(first_gpu),
     )
 
-    layer_dict = {"attention": attention_layer_fun, "feedforward": ff_layer_fun}
+    layer_dict = {
+        "attention": attention_layer_fun,
+        "feedforward": ff_layer_fun,
+    }
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
         layer_dict,
-        gradient_checkpointing,
         device,
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
@@ -52,5 +70,30 @@ def get_model(
     ).to(last_gpu)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
+    if ddp_enabled:
+        model = wrap_in_ddp(module=model, rank=rank)
+    elif fsdp_enabled:
+        model = wrap_in_fsdp(
+            module=model,
+            rank=rank,
+            param_precision=fsdp_param_precision,
+            cast_inputs=True,
+            mixed_precision_ignored_classes=fsdp_mixed_precision_ignore_classes,
+            offload_params=fsdp_offload_params,
+            print_model=True,
+            min_num_params=fsdp_min_num_params,
+            modules_to_wrap=fsdp_modules_to_wrap,
+            is_logging_process=is_logging_process,
+        )
+
+    if activation_checkpointing_modules is not None:
+        check_fn = lambda x: isinstance(x, activation_checkpointing_modules)
+        non_reentrant_wrapper = partial(
+            checkpoint_wrapper,
+            checkpoint_impl=CheckpointImpl.NO_REENTRANT,
+        )
+        apply_activation_checkpointing(
+            model, check_fn=check_fn, checkpoint_wrapper_fn=non_reentrant_wrapper
+        )
 
     return model

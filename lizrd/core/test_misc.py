@@ -3,7 +3,6 @@ import torch
 
 from lizrd.core import llm
 from lizrd.core.misc import (
-    Checkpoint,
     DenseEinMix,
     Linear,
     EinMix,
@@ -179,6 +178,15 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             device=device,
             init_type="kaiming_uniform",
             init_scale=1.0,
+            ddp_enabled=False,
+            fsdp_enabled=False,
+            fsdp_param_precision=None,
+            fsdp_mixed_precision_ignore_classes=None,
+            fsdp_offload_params=None,
+            fsdp_min_num_params=None,
+            fsdp_modules_to_wrap=None,
+            activation_checkpointing_modules=None,
+            is_logging_process=True,
         )
 
         with torch.no_grad():
@@ -190,7 +198,11 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             loss_no_chung,
             aux_info_no_chung,
         ) = calculate_llm_loss(
-            batch=batch, model=model, mixed_precision=False, vocab_size=vocab_size
+            batch=batch,
+            model=model,
+            mixed_precision=False,
+            vocab_size=vocab_size,
+            mixed_precision_dtype=torch.float16,
         )
 
         (
@@ -202,6 +214,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             mixed_precision=False,
             vocab_size=vocab_size,
             n_chungs=n_chungs,
+            mixed_precision_dtype=torch.float16,
         )
 
         loss_no_chung.backward()
@@ -217,52 +230,6 @@ class TestChungizedCalculateLoss(GeneralTestCase):
 
         for param_name, param in model.named_parameters():
             assert torch.isclose(param.grad, chunged_dict[param_name].grad).all()
-
-
-class TestCheckpoint(GeneralTestCase):
-    def test_checkpoint(self):
-        torch.manual_seed(0)
-        # create a simple Sequential model
-        model = torch.nn.Sequential(
-            torch.nn.Linear(100, 20),
-            torch.nn.Linear(20, 10),
-            torch.nn.Linear(10, 20),
-        )
-
-        model_checkpointed = torch.nn.Sequential(
-            torch.nn.Linear(100, 20),
-            Checkpoint(torch.nn.Linear(20, 10)),
-            torch.nn.Linear(10, 20),
-        )
-
-        # clone the model weights
-        for (name, param), (name_checkpointed, param_checkpointed) in zip(
-            model.named_parameters(), model_checkpointed.named_parameters()
-        ):
-            param_checkpointed.data = param.data.clone()
-
-        x = torch.rand(100, 100)
-        outputs = {}
-        grads = {}
-        for model, name in [[model, "vanilla"], [model_checkpointed, "checkpointed"]]:
-            outputs[name] = model(x)
-
-            model.zero_grad()
-            outputs[name].sum().backward()
-            grads[name] = {}
-            for param_name, param in model.named_parameters():
-                grads[name][param_name] = param.grad.data.clone()
-
-        # compare the output and parameters gradients
-        assert torch.isclose(
-            outputs["vanilla"], outputs["checkpointed"]
-        ).all(), f" output failed, log of difference is: {torch.log10((outputs['vanilla'] - outputs['checkpointed']).abs().max())}, max difference is: {((output_original - output_checkpointed).abs().max())}, argmax is {((output_original - output_checkpointed).abs().argmax())}"
-        for grad, grad_checkpointed in zip(
-            grads["vanilla"].values(), grads["checkpointed"].values()
-        ):
-            assert torch.isclose(
-                grad, grad_checkpointed
-            ).all(), f"parameter {name} failed, log of difference is: {torch.log10((grad - grad_checkpointed).abs().max())}"
 
 
 class TestModelParallel(GeneralTestCase):

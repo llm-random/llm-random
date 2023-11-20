@@ -170,22 +170,6 @@ class Chungus(nn.Module):
         return torch.cat(output, dim=0)
 
 
-class Checkpoint(nn.Module):
-    def __init__(self, module):
-        super(Checkpoint, self).__init__()
-        self.module = module
-
-    def custom(self):
-        def custom_forward(*inputs):
-            output = self.module(inputs[0])
-            return output
-
-        return custom_forward
-
-    def forward(self, x):
-        return checkpoint(self.custom(), x)
-
-
 def Sum(*layers):
     return Aggregate((lambda x, y: x + y), *layers)
 
