@@ -227,6 +227,8 @@ class AttentionMechanism(nn.Module):
         value: torch.Tensor,
         dhead: int,
         causal: bool,
+        *args,
+        **kwargs,
     ):
         return attention_mechanism(
             query=query,

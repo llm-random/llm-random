@@ -8,9 +8,10 @@ params:
     fsdp_enabled: true
     mixed_precision: true
     mixed_precision_dtype: bfloat16
-    flash_attention: true
+    flash_attention: false
     fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
-    activation_checkpointing_modules: "TransformerBlock,EmbeddingLayer,PredictionHead"
+    activation_checkpointing_modules: "TransformerBlock,EmbeddingLayer,PredictionHead,AttentionMechanism"
+    fsdp_selective_precision_modules: "AttentionMechanism"
     gradient_accumulation_steps: 2
 
 
