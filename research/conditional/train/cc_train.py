@@ -117,6 +117,11 @@ def main(
         fsdp_mixed_precision_ignore_classes = None
         fsdp_modules_to_wrap = None
 
+    if args.mixed_precision_dtype == "float16":
+        args.mixed_precision_dtype = torch.float16
+    elif args.mixed_precision_dtype == "bfloat16":
+        args.mixed_precision_dtype = torch.bfloat16
+
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
     is_logging_process = True if rank is None or rank == 0 else False
 
