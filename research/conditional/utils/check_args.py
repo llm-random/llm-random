@@ -25,3 +25,8 @@ def check_args(args):
             torch.bfloat16,
             torch.float16,
         ], "Flash attention requires bfloat16 or float16 precision. Please set `--mixed_precision_dtype bfloat16` or `--mixed_precision_dtype float16`."
+
+    if args.fsdp_enabled:
+        assert (
+            args.mixed_precision_dtype != "float16"
+        ), "Our FSDP implementation currently does not support float16 precision (no distributed GradScaler implemented). Please use bfloat16 or float32."

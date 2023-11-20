@@ -110,9 +110,6 @@ def main(
 
     if args.fsdp_enabled:
         fsdp_param_precision = args.mixed_precision_dtype
-        assert (
-            fsdp_param_precision != "float16"
-        ), "Our FSDP implementation currently does not support float16 precision (no distributed GradScaler implemented). Please use bfloat16 or float32."
         fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
         fsdp_modules_to_wrap = unpack_module_names(args.fsdp_modules_to_wrap)
     else:
