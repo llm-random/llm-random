@@ -30,14 +30,12 @@ def wrap_in_fsdp(
     modules_to_wrap: tuple[Type[nn.Module]],
     is_logging_process: bool,
 ):
-    if modules_to_wrap is not None and min_num_params is not None:
-        raise Exception(
-            "The FSDP arguments `modules_to_wrap` and `min_num_params` are mutually exclusive. Either supply one, or the other."
-        )
-    if modules_to_wrap is None and min_num_params is None:
-        raise Exception(
-            "FSDP wrapping policy unspecified. Either `modules_to_wrap` or `min_num_params` must be supplied."
-        )
+    assert (
+        modules_to_wrap is not None and min_num_params is not None
+    ), "The FSDP arguments `modules_to_wrap` and `min_num_params` are mutually exclusive. Either supply one, or the other."
+    assert (
+        modules_to_wrap is None and min_num_params is None
+    ), "FSDP wrapping policy unspecified. Either `modules_to_wrap` or `min_num_params` must be supplied."
 
     if modules_to_wrap is not None:
         wrap_policy = ModuleWrapPolicy(modules_to_wrap)
