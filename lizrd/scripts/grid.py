@@ -83,19 +83,19 @@ if __name__ == "__main__":
 
     check_for_argparse_correctness(grid)
 
-    # if not CLUSTER_NAME == MachineBackend.LOCAL:
-    #     if not interactive_debug_session:
-    #         user_input = input(
-    #             f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
-    #             f"Continue? [Y/n]"
-    #         )
-    #     else:
-    #         user_input = input(
-    #             "Will run an INTERACTIVE experiment, which will be the first one from the supplied configs. \nContinue? [Y/n]"
-    #         )
-    #     if user_input.lower() not in ("", "y", "Y"):
-    #         print("Aborting...")
-    #         exit(1)
+    if not CLUSTER_NAME == MachineBackend.LOCAL:
+        if not interactive_debug_session:
+            user_input = input(
+                f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
+                f"Continue? [Y/n]"
+            )
+        else:
+            user_input = input(
+                "Will run an INTERACTIVE experiment, which will be the first one from the supplied configs. \nContinue? [Y/n]"
+            )
+        if user_input.lower() not in ("", "y", "Y"):
+            print("Aborting...")
+            exit(1)
 
     if CLUSTER_NAME != MachineBackend.LOCAL:
         first_exp_training_args, _ = grid[0]
@@ -209,8 +209,8 @@ if __name__ == "__main__":
         print(f"running experiment {i} from {job_name}...")
         PROCESS_CALL_FUNCTION(subprocess_args, env)
         sleep(5)
-        # if interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL:
-        #     print(
-        #         "Ran only the first experiment in (interactive mode or local run). Aborting..."
-        #     )
-        #     break
+        if interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL:
+            print(
+                "Ran only the first experiment in (interactive mode or local run). Aborting..."
+            )
+            break
