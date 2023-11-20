@@ -1,11 +1,11 @@
 parent: research/conditional/train/configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 17e23fa8efdf44ed2a84b8e15941039c
 interactive_debug: true
-cuda_visible: "0"
-n_gpus: 1
+cuda_visible: "0,1"
+n_gpus: 2
 time: "26:00:00"
 params:
-    fsdp_enabled: false
+    fsdp_enabled: true
     mixed_precision: true
     mixed_precision_dtype: bfloat16
     flash_attention: true
