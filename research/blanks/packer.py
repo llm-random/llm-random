@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 
 from lizrd.text.data import LLMExample
 from lizrd.text.datasets import AbstractDataset
@@ -19,6 +19,7 @@ class BlankPacker(GPTPacker):
         dataset: AbstractDataset,
         tokenizer_maker: Callable[[], AbstractTokenizer],
         n_blanks: int,
+        blanks_ids: List[int],
         seed: Optional[int] = None,
     ):
         super().__init__(
@@ -29,11 +30,11 @@ class BlankPacker(GPTPacker):
         )
 
         self.n_blanks = n_blanks
+        self.blanks_ids = blanks_ids
+
+        assert len(self.blanks_ids) == self.n_blanks
 
     def get_sample(self) -> LLMExample:
-        assert self.tokenizer.blanks_ids is not None
-        blank_ids = self.tokenizer.blanks_ids[: self.n_blanks]
-
         sample = super().get_sample()
 
         input_tokens = sample.input_ids
@@ -44,7 +45,7 @@ class BlankPacker(GPTPacker):
             1, get_last_point_to_fit_blanks(seq_len, self.n_blanks)
         )
         input_tokens = insert_blanks_input(
-            input_tokens, blank_ids, blank_insertion_point, self.n_blanks
+            input_tokens, self.blanks_ids, blank_insertion_point, self.n_blanks
         )
         target_tokens = insert_blanks_target(
             target_tokens, blank_insertion_point, self.n_blanks
@@ -62,6 +63,7 @@ class BlankEvalPacker(GPTPacker):
         dataset: AbstractDataset,
         tokenizer_maker: Callable[[], AbstractTokenizer],
         n_blanks: int,
+        blanks_ids: List[int],
         seed: Optional[int] = None,
     ):
         super().__init__(
@@ -72,11 +74,11 @@ class BlankEvalPacker(GPTPacker):
         )
 
         self.n_blanks = n_blanks
+        self.blanks_ids = blanks_ids
+
+        assert len(self.blanks_ids) == self.n_blanks
 
     def get_sample(self) -> LLMExample:
-        assert self.tokenizer.blanks_ids is not None
-        blank_ids = self.tokenizer.blanks_ids[: self.n_blanks]
-
         sample = super().get_sample()
 
         input_tokens = sample.input_ids
@@ -86,7 +88,7 @@ class BlankEvalPacker(GPTPacker):
         blank_insertion_point = self.py_rng.randint(1, seq_len - 1)
         if can_fit_blanks(seq_len, blank_insertion_point, self.n_blanks):
             input_tokens = insert_blanks_input(
-                input_tokens, blank_ids, blank_insertion_point, self.n_blanks
+                input_tokens, self.blanks_ids, blank_insertion_point, self.n_blanks
             )
             target_tokens = insert_blanks_target(
                 target_tokens, blank_insertion_point, self.n_blanks

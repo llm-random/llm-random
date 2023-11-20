@@ -14,9 +14,11 @@ from research.blanks.utils import (
 )
 
 
-def make_loss_function(loss_checkpoint_chungs: int, n_blanks: int = 0):
+def make_loss_function(
+    loss_checkpoint_chungs: int, n_blanks: int = 0, blanks_ids: List[int] = []
+):
     if loss_checkpoint_chungs == 0:
-        return partial(calculate_llm_loss, n_blanks=n_blanks)
+        return partial(calculate_llm_loss, n_blanks=n_blanks, blanks_ids=blanks_ids)
     else:
         if n_blanks > 0:
             raise NotImplementedError(

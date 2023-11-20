@@ -1,7 +1,7 @@
 import argparse
 import os
 import random
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 import socket
 
 import torch
@@ -72,6 +72,11 @@ def main(
 
     VOCAB_SIZE = BlankTokenizer.VOCAB_SIZE
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    BLANKS_IDS: List[int] = (
+        BlankTokenizer.BLANK_IDS[: args.n_blanks]
+        if args.blanks_use_multiple_embeddings
+        else BlankTokenizer.BLANK_IDS[:1] * args.n_blanks
+    )
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
@@ -111,9 +116,8 @@ def main(
         init_type=args.init_type,
         init_scale=args.init_scale,
         n_blanks=args.n_blanks,
-        blank_ids=torch.tensor(
-            BlankTokenizer.BLANK_IDS[: args.n_blanks], device=DEVICE, dtype=torch.int
-        ),
+        blanks_use_multiple_embeddings=args.blanks_use_multiple_embeddings,
+        blank_ids=torch.tensor(BLANKS_IDS, device=DEVICE, dtype=torch.int),
         blanks_add_embedding=args.blanks_add_embedding,
         blanks_residual=args.blanks_residual,
         blanks_learnable_weights=args.blanks_learnable_weights,
@@ -148,9 +152,11 @@ def main(
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
         "tokenizer_maker": BlankTokenizer,
+        "n_blanks": args.n_blanks,
+        "blanks_ids": BLANKS_IDS,
     }
     train_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs, dataset_split="train", n_blanks=args.n_blanks
+        **common_dataloaders_kwargs, dataset_split="train"
     )
 
     # TODO: replace eval_dataloader with something more sensible
@@ -163,7 +169,6 @@ def main(
             if args.dataset_type == "c4" and args.use_dummy_dataset
             else "validation"
         ),
-        n_blanks=args.n_blanks,
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
@@ -201,6 +206,7 @@ def main(
         is_process_logging=is_process_logging,
         decoding_logging_steps=args.decoding_logging_steps,
         n_blanks=args.n_blanks,
+        blanks_ids=BLANKS_IDS,
     )
     trainer.train(args.n_steps)
 

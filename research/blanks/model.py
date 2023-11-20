@@ -28,6 +28,7 @@ def get_model(
     init_type,
     init_scale,
     blank_ids: torch.Tensor,
+    blanks_use_multiple_embeddings: bool,
     gradient_checkpointing: bool = False,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
