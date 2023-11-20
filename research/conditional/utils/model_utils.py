@@ -183,7 +183,9 @@ def calculate_llm_loss(
 
 
 def get_attention_layer(args):
-    if args.attention_mechanism == "multihead":
+    assert not args.n_att_heads or not args.n_att_experts
+
+    if args.n_att_heads:
         causal = args.model_type == "gpt"
         attention_layer_fun = lambda: llm.Attention(
             dmodel=args.dmodel,
@@ -195,14 +197,25 @@ def get_attention_layer(args):
             init_scale=args.init_scale,
         )
         return attention_layer_fun
-    elif args.attention_mechanism == "moe":
-        ff_args = get_expert_choice_args(args)
-        attention_layer_fun = partial(ExpertChoiceAttention, **ff_args)
+    elif args.n_att_experts:
+        assert args.att_topk, "att_topk must be specified when using moe in attention"
+        assert (
+            args.dhead
+        ), "dhead must be specified when using moe in attention - default seq_len/4"
+        att_args = {
+            "dmodel": args.dmodel,
+            "n_experts": args.n_att_experts,
+            "expert_dhead": args.dhead,
+            "topk": args.att_topk,
+            "softmax_over": args.softmax_over,
+            "init_type": args.init_type,
+            "init_scale": args.init_scale,
+            "flash": args.flash_attention,
+        }
+        attention_layer_fun = partial(ExpertChoiceAttention, **att_args)
         return attention_layer_fun
 
-    raise NotImplementedError(
-        f"Attention Mechanism {args.attention_mechanism} not implemented"
-    )
+    raise NotImplementedError(f"You must specify either n_att_heads or n_att_experts")
 
 
 def get_residual_layer(args):
@@ -282,6 +295,40 @@ def get_expert_choice_args(args):
         "init_scale": args.init_scale,
         "use_torch_bmm": args.use_torch_bmm,
         "use_layer_norm": args.layer_norm_in_expert_choice,
+    }
+
+
+def get_expert_attention_args(args):
+    if args.total_experts_width is not None:
+        expert_size = args.total_experts_width / args.n_experts
+        assert expert_size == int(expert_size)
+        args.expert_size = int(expert_size)
+
+        experts_per_token = args.effective_dff / expert_size
+
+        topk_fraction = experts_per_token / args.n_experts
+        assert 0.0 <= topk_fraction <= 1.0
+        args.topk_fraction = topk_fraction
+    else:
+        experts_per_token = args.topk_fraction * args.n_experts
+        args.effective_dff = experts_per_token * args.expert_size
+        args.total_experts_width = args.expert_size * args.n_experts
+
+    return {
+        "dmodel": args.dmodel,
+        "n_experts": args.n_experts,
+        "expert_size": args.expert_size,
+        "topk_fraction": args.topk_fraction,
+        "random_perm": args.expert_random_perm,
+        "group_by_batch": args.group_granular_moe_by_batch,
+        "softmax_ungrouped": args.softmax_ungrouped,
+        "one_hot_impl": args.granular_moe_one_hot_impl,
+        "softmax_over": args.softmax_over,
+        "use_full_einsum": args.use_full_einsum,
+        "group_size": args.simulate_group_size,
+        "init_type": args.init_type,
+        "init_scale": args.init_scale,
+        "use_torch_bmm": args.use_torch_bmm,
     }
 
 
