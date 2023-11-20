@@ -457,7 +457,9 @@ def get_ff_layer(args):
     return return_fn
 
 
-def unpack_module_names(packed_names) -> Union[tuple[Type[torch.nn.Module]], None]:
+def get_classes_from_module_names(
+    packed_names,
+) -> Union[tuple[Type[torch.nn.Module]], None]:
     """
     Unpacks a comma-separated list of module names into a tuple of modules.
     """
@@ -491,7 +493,7 @@ def unpack_module_names(packed_names) -> Union[tuple[Type[torch.nn.Module]], Non
 def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
     ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
 
-    selective_precision_modules = unpack_module_names(
+    selective_precision_modules = get_classes_from_module_names(
         args.fsdp_selective_precision_modules
     )
     if selective_precision_modules is not None:
