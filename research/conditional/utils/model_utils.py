@@ -485,6 +485,10 @@ def get_classes_from_module_names(
             names.append(llm.EmbeddingLayer)
         elif name == "PredictionHead":
             names.append(llm.PredictionHead)
+        elif name == "ExpertChoiceFF":
+            names.append(ExpertChoiceFF)
+        elif name == "ExpertGating":
+            names.append(ExpertGating)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(names)
