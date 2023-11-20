@@ -1,5 +1,6 @@
 import torch
 
+
 def check_args(args):
     if args.granularity_expert_config:
         print(
@@ -15,7 +16,6 @@ def check_args(args):
             raise ValueError(
                 f"Unknown mixed precision dtype: {args.mixed_precision_dtype}"
             )
-
 
     if args.flash_attention:
         assert (
