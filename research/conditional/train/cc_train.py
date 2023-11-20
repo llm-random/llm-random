@@ -15,6 +15,7 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
+from research.conditional.utils.check_args import check_args
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
@@ -71,20 +72,16 @@ def main(
         if len(extra):
             print("Unknown args:", extra)
 
+    check_args(args)
     if args.save_weights_path is not None:
         filename = args.save_weights_path.split("/")[-1]
         assert (
             "." not in filename
-        ), f"Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
+        ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
         random_string = generate_random_string(10)
         args.save_weights_path = os.path.join(args.save_weights_path, random_string)
         args.save_weights_path = os.path.abspath(args.save_weights_path)
         os.makedirs(args.save_weights_path, exist_ok=True)
-
-    if args.granularity_expert_config:
-        print(
-            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
-        )
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -111,37 +108,17 @@ def main(
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
 
-    if args.mixed_precision:
-        if args.mixed_precision_dtype == "float16":
-            args.mixed_precision_dtype = torch.float16
-        elif args.mixed_precision_dtype == "bfloat16":
-            args.mixed_precision_dtype = torch.bfloat16
-        else:
-            raise ValueError(
-                f"Unknown mixed precision dtype: {args.mixed_precision_dtype}"
-            )
-
     if args.fsdp_enabled:
         fsdp_param_precision = args.mixed_precision_dtype
-        if fsdp_param_precision == "float16":
-            raise Exception(
-                "Our FSDP implementation currently does not support float16 precision (no distributed GradScaler implemented). Please use bfloat16 or float32."
-            )
+        assert (
+            fsdp_param_precision != "float16"
+        ), "Our FSDP implementation currently does not support float16 precision (no distributed GradScaler implemented). Please use bfloat16 or float32."
         fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
         fsdp_modules_to_wrap = unpack_module_names(args.fsdp_modules_to_wrap)
     else:
         fsdp_param_precision = None
         fsdp_mixed_precision_ignore_classes = None
         fsdp_modules_to_wrap = None
-
-    if args.flash_attention:
-        assert (
-            args.mixed_precision
-        ), "Flash attention requires mixed precision to be enabled. Please set `--mixed_precision True`."
-        assert args.mixed_precision_dtype in [
-            torch.bfloat16,
-            torch.float16,
-        ], "Flash attention requires bfloat16 or float16 precision. Please set `--mixed_precision_dtype bfloat16` or `--mixed_precision_dtype float16`."
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
     is_logging_process = True if rank is None or rank == 0 else False
