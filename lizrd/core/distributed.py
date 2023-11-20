@@ -30,8 +30,8 @@ def wrap_in_fsdp(
     modules_to_wrap: tuple[Type[nn.Module]],
     is_logging_process: bool,
 ):
-    assert (modules_to_wrap is not None and min_num_params) is not None or (
-        modules_to_wrap is None and min_num_params is None
+    assert (modules_to_wrap is None and min_num_params is not None) or (
+        modules_to_wrap is not None and min_num_params is None
     ), "The FSDP arguments `modules_to_wrap` and `min_num_params` are mutually exclusive. Either supply one, or the other."
 
     if modules_to_wrap is not None:
