@@ -48,7 +48,7 @@ def wrap_in_fsdp(
         device_id=rank,
         mixed_precision=MixedPrecision(
             param_dtype=param_precision,
-            reduce_dtype=torch.float32,
+            reduce_dtype=param_precision,
             cast_forward_inputs=cast_inputs,
             _module_classes_to_ignore=mixed_precision_ignored_classes,
         ),

@@ -184,6 +184,9 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             fsdp_mixed_precision_ignore_classes=None,
             fsdp_offload_params=None,
             fsdp_min_num_params=None,
+            fsdp_modules_to_wrap=None,
+            gradient_checkpointing_modules=None,
+            is_logging_process=True,
         )
 
         with torch.no_grad():
@@ -195,7 +198,11 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             loss_no_chung,
             aux_info_no_chung,
         ) = calculate_llm_loss(
-            batch=batch, model=model, mixed_precision=False, vocab_size=vocab_size
+            batch=batch,
+            model=model,
+            mixed_precision=False,
+            vocab_size=vocab_size,
+            mixed_precision_dtype=torch.float16,
         )
 
         (
@@ -207,6 +214,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             mixed_precision=False,
             vocab_size=vocab_size,
             n_chungs=n_chungs,
+            mixed_precision_dtype=torch.float16,
         )
 
         loss_no_chung.backward()
