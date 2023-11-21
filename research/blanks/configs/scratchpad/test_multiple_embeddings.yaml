@@ -1,0 +1,25 @@
+parent: research/blanks/configs/small.yaml
+md5_parent_hash: a7b1172a6e9248fe3db923bcc5e2b405
+time: "0-12:00:00"
+runner: "research.blanks.train"
+cuda_visible: "7"
+
+params:
+  tokenizer: gpt
+
+  # blanx args
+  ^n_blanks: [5]
+  ^blanks_residual: [true]
+  ^blanks_add_embedding: [false]
+  blanks_learnable_weights: true
+  ^blank_initial_weight: [0.00001]
+  ^blanks_use_straight_through: [true]
+  batch_size: 256
+  dataset_type: c4
+  ^blanks_use_multiple_embeddings: [true, false]
+
+  # LOCAL:
+  # dataset_type: wikibook
+  # batch_size: 2
+  # use_dummy_dataset: true
+  # num_workers: 0
