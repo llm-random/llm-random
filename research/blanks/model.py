@@ -172,8 +172,8 @@ class BlankDiffPredictionHead(torch.nn.Module):
         is_first_blank = get_first_blanks_in_series(is_blank)
         is_preblank = shift_left(is_first_blank)
 
-        current_positions = is_preblank.unsqueeze(-1)
-        encoder_accumulator = encoder_output * current_positions
+        current_accumulator_positions = is_preblank.unsqueeze(-1)
+        encoder_accumulator = encoder_output * current_accumulator_positions
 
         if self.learnable_weights:
             is_not_blank = ~is_blank
@@ -197,17 +197,21 @@ class BlankDiffPredictionHead(torch.nn.Module):
                 )
 
             for _ in range(self.n_blanks):
-                current_positions = shift_right(current_positions)
+                current_accumulator_positions = shift_right(
+                    current_accumulator_positions
+                )
                 encoder_accumulator = shift_right(encoder_accumulator)
-                encoder_output.add_(encoder_accumulator)
-                encoder_accumulator = encoder_output * current_positions
+                encoder_output.add_(encoder_accumulator * abs(self.preblank_weight))
+                encoder_accumulator = encoder_output * current_accumulator_positions
 
         else:
             for _ in range(self.n_blanks):
-                current_positions = shift_right(current_positions)
+                current_accumulator_positions = shift_right(
+                    current_accumulator_positions
+                )
                 encoder_accumulator = shift_right(encoder_accumulator)
                 encoder_output.add_(encoder_accumulator)
-                encoder_accumulator = encoder_output * current_positions
+                encoder_accumulator = encoder_output * current_accumulator_positions
 
         return self.linear(encoder_output)
 
