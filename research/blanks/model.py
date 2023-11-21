@@ -297,13 +297,13 @@ class BlankEmbedding(torch.nn.Module):
         is_blank = x.eq(self.blank_token_id)
         is_first_blank = get_first_blanks_in_series(is_blank)
         is_preblank = shift_left(is_first_blank)
-        current_positions = is_preblank.unsqueeze(-1)
-        embedding_accumulator = embedding_output * current_positions
+        current_accumulator_positions = is_preblank.unsqueeze(-1)
+        embedding_accumulator = embedding_output * current_accumulator_positions
         for _ in range(self.n_blanks):
-            current_positions = shift_right(current_positions)
+            current_accumulator_positions = shift_right(current_accumulator_positions)
             embedding_accumulator = shift_right(embedding_accumulator)
             embedding_output.add_(embedding_accumulator)
-            embedding_accumulator = embedding_output * current_positions
+            embedding_accumulator = embedding_output * current_accumulator_positions
         return embedding_output
 
 
