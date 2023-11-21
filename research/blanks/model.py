@@ -150,7 +150,6 @@ class BlankDiffPredictionHead(torch.nn.Module):
         learnable_weights: bool,
         initial_blank_weight: float,
         use_straight_through: bool = False,
-        use_separate_blank_head: bool = False,
     ):
         super(BlankDiffPredictionHead, self).__init__()
         self.linear = misc.Linear(
@@ -222,6 +221,8 @@ class BlankSeparateHead(torch.nn.Module):
         self,
         embedding_dim: int,
         output_size: int,
+        init_type: str,
+        init_scale: float,
         blank_token_id: int,
         n_blanks: int,
         learnable_weights: bool,
@@ -229,7 +230,20 @@ class BlankSeparateHead(torch.nn.Module):
         use_straight_through: bool = False,
     ):
         super().__init__()
-        self.linear = misc.Linear(embedding_dim, output_size, bias=False)
+        self.regular_head = misc.Linear(
+            embedding_dim,
+            output_size,
+            init_type=init_type,
+            init_scale=init_scale,
+            bias=False,
+        )
+        self.blank_head = misc.Linear(
+            embedding_dim,
+            output_size,
+            init_type=init_type,
+            init_scale=init_scale,
+            bias=False,
+        )
         self.blank_token_id = blank_token_id
         self.n_blanks = n_blanks
 
@@ -251,14 +265,17 @@ class BlankSeparateHead(torch.nn.Module):
 
     def residual_forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
         is_blank = model_input.eq(self.blank_token_id)
+        is_not_blank = ~is_blank
+        assert is_not_blank.dtype == torch.bool
+
         is_first_blank = get_first_blanks_in_series(is_blank)
         is_preblank = shift_left(is_first_blank)
-        preblank_output = encoder_output * is_preblank.unsqueeze(-1)
+        current_accumulator_positions = is_preblank.unsqueeze(-1)
+        accumulator = non_blanks_output * current_accumulator_positions
+
         if self.learnable_weights:
-            is_not_blank = ~is_blank
-            assert is_not_blank.dtype == torch.bool
             if self.use_straight_through:
-                encoder_output = (
+                full_output = (
                     (encoder_output * is_not_blank.unsqueeze(-1))
                     + (
                         encoder_output.detach()
@@ -271,17 +288,27 @@ class BlankSeparateHead(torch.nn.Module):
                     )
                 )
             else:
-                encoder_output = (encoder_output * is_not_blank.unsqueeze(-1)) + (
-                    encoder_output * is_blank.unsqueeze(-1) * abs(self.blank_weight)
-                )
+                blanks_output = blanks_output * abs(self.blank_weight)
 
             for _ in range(self.n_blanks):
-                preblank_encoder_output = shift_right(preblank_encoder_output)
-                encoder_output.add_(preblank_encoder_output * abs(self.preblank_weight))
+                current_accumulator_positions = shift_right(
+                    current_accumulator_positions
+                )
+                accumulator = shift_right(accumulator)
+                full_output.add_(accumulator * abs(self.preblank_weight))
+                accumulator.add_(blanks_output * current_accumulator_positions)
         else:
+            non_blanks_output = self.regular_head(
+                encoder_output * is_not_blank.unsqueeze(-1)
+            )
+            blanks_output = self.blank_head(encoder_output * is_blank.unsqueeze(-1))
+            full_output = non_blanks_output + blanks_output
+            summing_positions = is_preblank.unsqueeze(-1)
+
             for _ in range(self.n_blanks):
-                preblank_encoder_output = shift_right(preblank_encoder_output)
-                encoder_output.add_(preblank_encoder_output)
+                full_output.add_(shift_right(full_output * summing_positions))
+
+        return full_output
 
     def forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
         ...
