@@ -14,11 +14,11 @@ params:
   blanks_learnable_weights: true
   ^blank_initial_weight: [0.00001]
   ^blanks_use_straight_through: [true]
-  # batch_size: 256
-  # dataset_type: c4
+  batch_size: 256
+  dataset_type: c4
 
   # LOCAL:
-  dataset_type: wikibook
-  batch_size: 2
-  use_dummy_dataset: true
-  num_workers: 0
+  # dataset_type: wikibook
+  # batch_size: 2
+  # use_dummy_dataset: true
+  # num_workers: 0

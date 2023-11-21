@@ -6,7 +6,8 @@ matplotlib==3.5.1
 opt-einsum==3.3.0
 line-profiler==4.0.3
 einops==0.4.0
-tensorflow==2.8.0
+tensorflow==2.8.0; sys_platform != 'darwin'
+tensorflow~=2.13.0; sys_platform == 'darwin'
 datasets==2.14.6
 transformers==4.29.1
 apache-beam==2.47.0

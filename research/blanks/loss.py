@@ -120,8 +120,6 @@ def calculate_llm_loss(
         gt_tokens.reshape(-1).long(),
         reduction="none",
     )
-    mask_loss = mask_loss[mask.reshape(-1) == 1]
-    loss = mask_loss.mean()
 
     blanks_losses = {}
     if n_blanks > 0:
@@ -143,10 +141,15 @@ def calculate_llm_loss(
                         assert not input_tokens[nth_blank_mask == 1].eq(blank_id).any()
                     else:
                         assert input_tokens[nth_blank_mask == 1].eq(blank_id).all()
+
                     nth_blank_loss = (nth_blank_mask.reshape(-1) * mask_loss).sum()
+
                     blanks_losses[f"blank_{n}_loss"] = (
                         nth_blank_loss / nth_blanks_count if nth_blanks_count > 0 else 0
                     )
+
+    mask_loss = mask_loss[mask.reshape(-1) == 1]
+    loss = mask_loss.mean()
 
     correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
     correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)

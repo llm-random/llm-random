@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from lizrd.text import datasets, data, tokenizers
 from research.datasets import DataloaderWrapper, worker_init_fn
-from .packer import BlankPacker
+from .packer import BlankEvalPacker, BlankPacker
 
 
 def get_processed_dataset(
@@ -34,12 +34,22 @@ def get_processed_dataset(
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
-    packer = BlankPacker(
-        sequence_length=sequence_length,
-        dataset=dataset,
-        tokenizer_maker=tokenizer_maker,
-        n_blanks=n_blanks,
-    )
+    if dataset_split == "train":
+        packer = BlankPacker(
+            sequence_length=sequence_length,
+            dataset=dataset,
+            tokenizer_maker=tokenizer_maker,
+            n_blanks=n_blanks,
+        )
+    elif dataset_split in ["eval", "validation"]:
+        packer = BlankEvalPacker(
+            sequence_length=sequence_length,
+            dataset=dataset,
+            tokenizer_maker=tokenizer_maker,
+            n_blanks=n_blanks,
+        )
+    else:
+        raise ValueError(f"Unknown dataset split: {dataset_split}")
 
     dataloader = DataLoader(
         packer,

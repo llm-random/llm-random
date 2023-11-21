@@ -9,12 +9,12 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from lizrd.core import llm, misc
+from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
 from .datasets import get_processed_dataset
-from .model import get_model, get_ff_layer
+from .model import get_attention_layer, get_model, get_ff_layer
 from lizrd.text import tokenizers
 from .tokenizers import BlankTokenizer
 
@@ -78,7 +78,7 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
+    attention_layer_fun = get_attention_layer(args)
 
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
@@ -108,14 +108,16 @@ def main(
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=None,
+        init_type=args.init_type,
+        init_scale=args.init_scale,
         n_blanks=args.n_blanks,
         blank_id=50257,
         blanks_add_embedding=args.blanks_add_embedding,
         blanks_residual=args.blanks_residual,
         blanks_learnable_weights=args.blanks_learnable_weights,
-        #
         blank_initial_weight=args.blank_initial_weight,
         blanks_straight_through=args.blanks_use_straight_through,
+        blanks_use_custom_positional_embedding=args.blanks_use_custom_positional_embedding,
     )
 
     # make model data_distributed if necessary
