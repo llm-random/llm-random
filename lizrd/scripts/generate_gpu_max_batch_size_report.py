@@ -1,90 +1,91 @@
 import yaml
 import argparse
-import json
 import pandas as pd
 
 from lizrd.support.misc import merge_dicts
+from research.conditional.utils.model_utils import get_model_fit_gpu_info
+
+
+def load_standard_model_config(model_name):
+    assert model_name in ["mini", "small", "medium", "base", "large"]
+    config_filepath = (
+        f"research/conditional/train/configs/baselines/gpt/dense/{model_name}.yaml"
+    )
+
+    with open(config_filepath, "r") as f:
+        baseline_config = yaml.safe_load(f)
+        params = baseline_config["params"]
+
+    return params
 
 
 def main(
-    gradient_checkpointing: bool,
-    group_sizes: [int],
     models: [str],
-    report_files: [str],
-    output_file,
+    const_params: dict,
+    param_to_compare: str,
+    values_to_compare: [int],
+    database_path: [str],
+    output_report_path: str,
+    batch_sizes: [int],
 ):
-    params_per_model = {}
+    """
+    Database is a key-value database that stores values similar to this:
+    {"batch_size": 2, "dff": 3072, "dmodel": 768, "group_size": 2, "n_att_heads": 12, "n_blocks": 12} -> "initialized/training/finished"
+    """
 
+    results = []
     for model_name in models:
-        filepath = f"research/conditional/train/configs/baselines/gpt/{model_name}.yaml"
+        model_params = load_standard_model_config(model_name)
+        model_params.update(const_params)
 
-        with open(filepath, "r") as f:
-            baseline_config = yaml.safe_load(f)
-            params_per_model[model_name] = baseline_config["params"]
+        model_results = [model_name]
+        for value in values_to_compare:
+            model_params[param_to_compare] = value
+            max_batch_size = 1e9
+            for batch_size in batch_sizes:
+                model_params["batch_size"] = batch_size
+                value = model_results.append(
+                    get_model_fit_gpu_info(model_params, database_path)
+                )
+                if value < max_batch_size:
+                    max_batch_size = value
+            model_results.append(max_batch_size)
 
-    result_dict = {}
-    for report_file in report_files:
-        with open(report_file) as file:
-            report_dict = json.load(file)
-            result_dict = merge_dicts(result_dict, report_dict)
-
-    prepared_data = []
-    for model_name in models:
-        # Get from result_dict a current model results
-        model_params = params_per_model[model_name]
-        results = result_dict
-        while "group_size" not in results.keys():
-            param = list(results.keys())[0]
-            results = results[param]
-            results = results[str(model_params[param])]
-
-        # Get the biggest batch_size that fit for each group_size
-        model_results = results["group_size"]
-        group_sizes_best_batch_sizes = []
-        for group_size in group_sizes:
-            group_results = model_results[str(group_size)]
-            gradient_checkpointing_results = group_results["gradient_checkpointing"]
-            gradient_checkpointing_results = gradient_checkpointing_results[
-                str(gradient_checkpointing)
-            ]
-
-            max_true_batch_size = max(
-                (
-                    int(k)
-                    for k, v in gradient_checkpointing_results["batch_size"].items()
-                    if v
-                ),
-                default=-1,
-            )
-            group_sizes_best_batch_sizes.append(max_true_batch_size)
-
-        prepared_data.append([model_name] + group_sizes_best_batch_sizes)
-
-    df = pd.DataFrame(prepared_data, columns=["model_name \ group_size"] + group_sizes)
-    df.to_csv(output_file, sep="\t", index=False)
+    df = pd.DataFrame(results, columns=["model_name \ group_size"] + values_to_compare)
+    df.to_csv(output_report_path, sep="\t", index=False)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate raport model fits")
-    parser.add_argument(
-        "--gradient_checkpointing",
-        action="store_true",
-        help="Is table for gradient_checkpointing=True",
-    )
-    parser.add_argument("--input_files", default="gpu_usage_report.json", type=str)
-    parser.add_argument("--group_sizes", default="2,4,8,16,32,64,128,256", type=str)
-    parser.add_argument(
-        "--output_file", default="gpu_max_batch_size_report.csv", type=str
-    )
+    parser = argparse.ArgumentParser(description="Generate raport GPU model fits")
     parser.add_argument("--models", default="mini,small,medium,base", type=str)
+    parser.add_argument(
+        "--const_params",
+        default="dff=3072,dmodel=768,n_att_heads=12,n_blocks=12",
+        type=str,
+    )
+    parser.add_argument("--param_to_compare", default="group_size", type=str)
+    parser.add_argument("--values_to_compare", default="32,64,128", type=str)
+    parser.add_argument("--database_path", default="max_batch", type=str)
+    parser.add_argument(
+        "--output_report_path",
+        default="max_batch_size_gpu_model_fits_report.csv",
+        type=str,
+    )
+    parser.add_argument("--batch_sizes", default="32,64,128", type=str)
     args = parser.parse_args()
-    group_sizes = group_sizes = [int(x) for x in args.group_sizes.split(",")]
+    values_to_compare = [int(x) for x in args.values_to_compare.split(",")]
     models = args.models.split(",")
-    report_files = args.input_files.split(",")
+    const_params = merge_dicts(
+        *[dict([tuple(x.split("="))]) for x in args.const_params.split(",")]
+    )
+    batch_sizes = [int(x) for x in args.batch_sizes.split(",")]
+
     main(
-        args.gradient_checkpointing,
-        group_sizes,
         models,
-        report_files,
-        args.output_file,
+        const_params,
+        args.param_to_compare,
+        values_to_compare,
+        args.database_path,
+        args.output_report_path,
+        batch_sizes,
     )

@@ -139,7 +139,9 @@ def main(
     attention_layer_fun = get_attention_layer(args)
     residual_fn = get_residual_layer(args)
 
-    model_fit_gpu_info_params = get_argument_attributes(args)
+    model_fit_gpu_info_params = get_argument_attributes(
+        args, args.model_fit_gpu_info_params
+    )
     update_model_fit_gpu_info(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
     )
@@ -200,9 +202,13 @@ def main(
         **common_dataloaders_kwargs, dataset_split="train"
     )
 
+    eval_split = (
+        "eval"
+        if args.dataset_type == "wikibook"
+        else ("train" if args.use_dummy_dataset else "validation")
+    )
     eval_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs,
-        dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
+        **common_dataloaders_kwargs, dataset_split=eval_split
     )
 
     if is_logging_process:

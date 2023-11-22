@@ -81,7 +81,11 @@ def get_yaml_md5(file_path):
 
 
 def get_argument_attributes(args: Any, params: list) -> Dict[str, Any]:
-    if args.model_fit_gpu_info_database_path is not None:
+    if (
+        args.model_fit_gpu_info_database_path is not None
+        and args.model_fit_gpu_info_params is not None
+    ):
+        params = args.model_fit_gpu_info_params.split(",")
         return {param: getattr(args, param) for param in params}
 
 
