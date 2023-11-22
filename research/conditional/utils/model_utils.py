@@ -1,9 +1,12 @@
 from functools import partial
 import json
 from diskcache import Cache
+from typing import Type, Union
 import torch
+from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
+from torch.nn.modules.batchnorm import _BatchNorm
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
@@ -48,7 +51,7 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
     LegacyContinuousMoE,
 )
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
@@ -66,6 +69,7 @@ def chungized_llm_loss(
     mixed_precision: bool,
     vocab_size: int,
     n_chungs: int,
+    mixed_precision_dtype: torch.dtype,
 ):
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
@@ -73,8 +77,11 @@ def chungized_llm_loss(
 
     def make_custom_forward():
         def custom_forward(*inputs):
-            output = model.head(inputs[0])
-            with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
+            x, gt, mask = inputs
+            output = model.head(x)
+            with torch.autocast(
+                device_type="cuda", enabled=False, dtype=mixed_precision_dtype
+            ):
                 gt = inputs[1]
                 mask = inputs[2]
                 gt = gt.to(output.device)
@@ -95,9 +102,10 @@ def chungized_llm_loss(
         return custom_forward
 
     with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
     ):
-        encoder_output = model.encoder(input_tokens)
+        embeddings = model.embedding_layer(input_tokens)
+        encoder_output = model.encoder(embeddings)
         chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
@@ -135,13 +143,14 @@ def calculate_llm_loss(
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
+    mixed_precision_dtype: torch.dtype,
 ):
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
 
     with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
     ):
         model_output = model(input_tokens)
 
@@ -173,7 +182,6 @@ def calculate_llm_loss(
 
 def get_attention_layer(args):
     causal = args.model_type == "gpt"
-
     attention_layer_fun = lambda: llm.Attention(
         dmodel=args.dmodel,
         heads=args.n_att_heads,
@@ -209,11 +217,29 @@ def get_expert_choice_args(args):
         and args.topk_fraction is not None
         and args.n_experts is not None
     ) and (args.effective_dff is None and args.total_experts_width is None)
+    set_arguments_option3 = (  # this should be the default
+        args.granularity is not None
+        and args.expansion_rate is not None
+        and args.effective_dff_x is not None
+    )
 
-    if not set_arguments_option1 and not set_arguments_option2:
+    if (
+        not set_arguments_option1
+        and not set_arguments_option2
+        and not set_arguments_option3
+    ):
         raise AssertionError(
-            "You must specify either total_experts_width, effective_dff, and n_experts or expert_size, topk_fraction, and n_experts"
+            "You must specify either total_experts_width, effective_dff, and n_experts "
+            "or expert_size, topk_fraction, and n_experts "
+            "or granularity, expansion_rate, and effective_dff_x "
         )
+
+    if set_arguments_option3:
+        # 4 is the standard dff_x, we assume it's defined relative to that
+        dff_x = 4
+        args.total_experts_width = args.dmodel * dff_x * args.expansion_rate
+        args.n_experts = args.expansion_rate * args.granularity
+        args.effective_dff = args.effective_dff_x * args.dmodel
 
     if args.total_experts_width is not None:
         expert_size = args.total_experts_width / args.n_experts
@@ -244,6 +270,8 @@ def get_expert_choice_args(args):
         "group_size": args.simulate_group_size,
         "init_type": args.init_type,
         "init_scale": args.init_scale,
+        "use_torch_bmm": args.use_torch_bmm,
+        "use_layer_norm": args.layer_norm_in_expert_choice,
     }
 
 
@@ -429,6 +457,55 @@ def get_ff_layer(args):
             )
 
     return return_fn
+
+
+def get_classes_from_module_names(
+    packed_names,
+) -> Union[tuple[Type[torch.nn.Module]], None]:
+    """
+    Unpacks a comma-separated list of module names into a tuple of modules.
+    """
+    names = []
+    if packed_names is None:
+        return None
+    for name in packed_names.split(","):
+        if name == "Attention":
+            names.append(llm.Attention)
+        if name == "AttentionMechanism":
+            names.append(llm.AttentionMechanism)
+        elif name == "FeedForward":
+            names.append(llm.FeedForward)
+        elif name == "Residual":
+            names.append(llm.Residual)
+        elif name == "TransformerBlock":
+            names.append(llm.TransformerBlock)
+        elif name == "TransformerTower":
+            names.append(llm.TransformerTower)
+        elif name == "LLM":
+            names.append(llm.LLM)
+        elif name == "EmbeddingLayer":
+            names.append(llm.EmbeddingLayer)
+        elif name == "PredictionHead":
+            names.append(llm.PredictionHead)
+        elif name == "ExpertChoiceFF":
+            names.append(ExpertChoiceFF)
+        elif name == "ExpertGating":
+            names.append(ExpertGating)
+        else:
+            raise ValueError(f"Unknown name {name}")
+    return tuple(names)
+
+
+def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
+    ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
+
+    selective_precision_modules = get_classes_from_module_names(
+        args.fsdp_selective_precision_modules
+    )
+    if selective_precision_modules is not None:
+        ignored_classes += list(selective_precision_modules)
+
+    return ignored_classes
 
 
 def update_model_fit_gpu_info(database: str, params: dict, value: str):

@@ -1,0 +1,8 @@
+parent: research/conditional/train/configs/baselines/gpt/expert_choice/granularity/4/mini.yaml
+md5_parent_hash: 9f77360bd05e611dd2c3f85348c09f4e
+time: 0-05:00:00
+
+params:
+  name: "torch_compile_compare"
+  ^torch_compile: [true, false]
+  logging_interval_heavy: 0

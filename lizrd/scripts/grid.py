@@ -22,6 +22,7 @@ from lizrd.scripts.grid_utils import (
     get_setup_args_with_defaults,
     translate_to_argparse,
     make_singularity_env_arguments,
+    check_for_argparse_correctness,
 )
 from lizrd.support.code_copying import copy_code
 from lizrd.support.misc import load_with_inheritance
@@ -79,6 +80,8 @@ if __name__ == "__main__":
         minutes_per_exp = timestr_to_minutes(setup_args["time"])
         total_minutes_from_this_grid = n_experiments * minutes_per_exp
         total_minutes += total_minutes_from_this_grid
+
+    check_for_argparse_correctness(grid)
 
     if not CLUSTER_NAME == MachineBackend.LOCAL:
         if not interactive_debug_session:

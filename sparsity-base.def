@@ -7,6 +7,6 @@ From: nvidia/cuda:11.7.1-runtime-ubuntu22.04
     apt-get -y update
     apt-get -y upgrade
 
-    apt-get -y install python3.10-venv git virtualenv python3-pip python3-dev libc++-15-dev libc++abi-15-dev
+    apt-get -y install python3.10-venv git virtualenv python3-pip python3-dev libc++-15-dev libc++abi-15-dev nvidia-cuda-toolkit wget curl
 
     python3 -m pip install -U pip

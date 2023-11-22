@@ -1,15 +1,9 @@
-parent: research/conditional/train/configs/baselines/gpt/medium.yaml
-md5_parent_hash: 335962f2f67ef04105ef58db9f3da0d7
+parent: research/conditional/train/configs/baselines/gpt/expert_choice/common.yaml
+md5_parent_hash: 57ef07a709fbc3cfe388503a66614ca8
+time: 1-00:00:00
 
 params:
-  # technical/common params
-  ff_mode: expert_choice
-  softmax_over: experts
-  group_granular_moe_by_batch: true
-  use_full_einsum: true
-  granular_moe_one_hot_impl: true
-  decoding_interval: 0
-
-  # params of expert choice
-  effective_dff: 2048
-  
+  name: "expert_choice_medium"
+  dmodel: 512
+  n_blocks: 8
+  n_att_heads: 8

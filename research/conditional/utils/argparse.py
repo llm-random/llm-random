@@ -11,7 +11,7 @@ def introduce_parser_arguments(
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
-    parser.add_argument("--dff", type=int, required=True)
+    parser.add_argument("--dff", type=int, required=False)  # not used by granularity
     parser.add_argument("--n_att_heads", type=int, required=True)
     parser.add_argument("--dhead", type=int, default=None)
 
@@ -60,11 +60,46 @@ def introduce_parser_arguments(
     parser.add_argument("--num_workers", type=int, default=8)
 
     # training tricks for memory and speed
-    parser.add_argument("--gradient_checkpointing", action="store_true")
+    parser.add_argument(
+        "--activation_checkpointing_modules",
+        type=str,
+        default=None,
+        help="comma-separated list of modules whose forward pass should be checkpointed. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
+    )
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--mixed_precision", action="store_true")
+    parser.add_argument(
+        "--mixed_precision_dtype",
+        type=str,
+        choices=["float16", "bfloat16"],
+        default=None,
+    )
+    parser.add_argument("--torch_compile", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
-    parser.add_argument("--data_distributed", action="store_true")
+    parser.add_argument("--ddp_enabled", action="store_true")
+    parser.add_argument("--fsdp_enabled", action="store_true")
+    parser.add_argument(
+        "--fsdp_offload_params",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--fsdp_min_num_params",
+        type=int,
+        default=None,
+        help="This argument is used only if fsdp_enabled is set to True. It is used to set the minimum number of parameters in a module to be wrapped in FSDP. If the number of parameters is smaller than this value, then the module is not wrapped in FSDP. This is useful for small modules, where the overhead of FSDP is too large compared to the compute of the module.",
+    )
+    parser.add_argument(
+        "--fsdp_modules_to_wrap",
+        type=str,
+        default=None,
+        help="This argument is used only if fsdp_enabled is set to True. It is used to set the list of modules that should be wrapped in FSDP. This is an alternative to wrapping using fsdp_min_num_of_params. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
+    )
+    parser.add_argument(
+        "--fsdp_selective_precision_modules",
+        type=str,
+        default=None,
+        help="comma-separated list of modules whose parameters should be wrapped in FSDP with a different precision than the rest of the model. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
+    )
     parser.add_argument(
         "--model_parallelism_fragmentation",
         type=str,
@@ -111,8 +146,29 @@ def introduce_parser_arguments(
     parser.add_argument("--load_weights_path", type=str, default=None)
 
     # paremeters for specific experiments
+
+    ## used by MoE (common)
+    parser.add_argument(
+        "--eval_dynamic_groupsize",
+        action="store_true",
+        help="During evaluation, evaluate model with multiple group sizes",
+    )
+    parser.add_argument(
+        "--eval_min_group_size_logfactor",
+        type=int,
+        default=None,
+        help="During evaluation, the smallest group size is group_size * 2**eval_min_group_size_logfactor",
+    )
+    parser.add_argument(
+        "--eval_max_group_size_logfactor",
+        type=int,
+        default=None,
+        help="During evaluation, the largest group size is group_size * 2**eval_max_group_size_logfactor",
+    )
+
     ## used often by Continuous MoE
 
+    parser.add_argument("--eval_discrete_mot", action="store_true")
     parser.add_argument("--emit_softmax_over_experts", action="store_true")
     parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument("--n_experts", type=int)
@@ -123,9 +179,8 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_experts", action="store_true")
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
-    parser.add_argument("--should_evaluate_dynamic_groupsize", action="store_true")
 
-    ## used by MoE (some specific, some common)
+    ## used by MoE (specific)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
@@ -140,13 +195,25 @@ def introduce_parser_arguments(
         help="This argument is deprecated. Provide either (total_experts_width, n_experts, effective_dff) or (expert_size, n_experts, topk_fraction) instead.",
     )
     parser.add_argument("--total_experts_width", type=int)
+    parser.add_argument(
+        "--granularity",
+        type=int,
+        help="How smaller is each expert compared to standard MoE",
+    )
+    parser.add_argument(
+        "--expansion_rate",
+        type=int,
+        help="Factor by which we expand the number of parameters in FF",
+    )
+    parser.add_argument(
+        "--effective_dff_x",
+        type=int,
+        help="How much FLOPS we want to spend on FF, in multiples of d_model",
+    )
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
     parser.add_argument("--simulate_group_size", type=int, default=1)
-    parser.add_argument("--min_eval_group_size", type=int, default=0)
-    parser.add_argument("--max_eval_group_size", type=int, default=0)
-
     parser.add_argument("--kernel_r", type=int, default=256)
     parser.add_argument("--redraw_projections_interval", type=int, default=100)
     parser.add_argument("--no_kernel_norm", action="store_true")
@@ -176,6 +243,7 @@ def introduce_parser_arguments(
     )
 
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
+    parser.add_argument("--layer_norm_in_expert_choice", action="store_true")
     parser.add_argument("--granular_moe_one_hot_impl", action="store_true")
     parser.add_argument(
         "--softmax_ungrouped",
@@ -188,6 +256,12 @@ def introduce_parser_arguments(
         help="in grouped ExpertChoice, use squash all linears with einsum",
     )
     parser.add_argument(
+        "--use_torch_bmm",
+        action="store_true",
+        help="in grouped ExpertChoice, use one hot implementation with all "
+        "linear operations performed using torch.bmm",
+    )
+    parser.add_argument(
         "--use_dummy_dataset",
         action="store_true",
         help="whether to use dummy dataset (for debugging or tests)",
@@ -195,7 +269,6 @@ def introduce_parser_arguments(
 
     # experimental/legacy parameters
 
-    parser.add_argument("--hack_name", type=str, default=None)
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 

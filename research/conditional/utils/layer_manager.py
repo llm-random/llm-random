@@ -31,22 +31,39 @@ class LayerManager:
         self.steps_until_start_temperature_learn = steps_until_start_temperature_learn
 
     def _register_layers(self, model):
+        """
+        Iterates over all submodules and finds the ones that are of interest.
+        Currently, those are only the feedforward and residual blocks.
+        During model creation in LLM [llm.py], the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
+        """
         for name, layer in model.named_modules():
-            if name.endswith("feedforward"):
-                pattern = r"block_(\d+)"
-                match = re.search(pattern, name)
-                if match:
-                    block_name = match.group()
-                else:
-                    raise Exception(
-                        f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected."
-                    )
-                self._layers.append((block_name, layer))
+            registered_name = None
+            suffix = name.split(".")[-1]
+
+            if suffix in ["residual_feedforward", "residual_attention", "feedforward"]:
+                block_name = self.extract_block_name(name)
+                registered_name = f"{block_name}/{suffix}"
+
+            if registered_name is not None:
+                self._layers.append((registered_name, layer))
+
+    def extract_block_name(self, name):
+        pattern = r"block_(\d+)"
+        match = re.search(pattern, name)
+        if match:
+            block_name = match.group()
+        else:
+            raise Exception(
+                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected. Every TransformerBlock [llm.py] should be named 'block_[block_number]'"
+            )
+        return block_name
 
     def prepare_for_logging(self, step):
         if (
-            step % self.logging_interval_light == 0
-            or step % self.logging_interval_heavy == 0
+            self.logging_interval_light > 0
+            and step % self.logging_interval_light == 0
+            or self.logging_interval_heavy > 0
+            and step % self.logging_interval_heavy == 0
         ):
             for block_name, layer in self._layers:
                 if hasattr(layer, "prepare_for_logging"):
@@ -54,9 +71,11 @@ class LayerManager:
 
     def log(self, step):
         verbosity_levels = []
-        if step % self.logging_interval_heavy == 0:
+        if self.logging_interval_heavy > 0 and step % self.logging_interval_heavy == 0:
             verbosity_levels = [2, 1, 0]
-        elif step % self.logging_interval_light == 0:
+        elif (
+            self.logging_interval_light > 0 and step % self.logging_interval_light == 0
+        ):
             verbosity_levels = [1, 0]
 
         should_clean_up = len(verbosity_levels) > 0

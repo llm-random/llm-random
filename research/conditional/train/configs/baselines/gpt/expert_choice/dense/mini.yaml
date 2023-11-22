@@ -1,0 +1,11 @@
+parent: research/conditional/train/configs/baselines/gpt/dense/mini.yaml
+md5_parent_hash: 549895edc027ef23656e1f8b7e2ffaab
+time: 0-05:00:00
+
+params:
+  learning_rate: 1e-4
+  torch_compile: true
+
+  # init
+  init_type: truncated_normal
+  init_scale: 0.1

@@ -157,4 +157,5 @@ tmp_plots/
 
 # models saved locally
 models/
+model_ckpt/
 full_config*.yaml

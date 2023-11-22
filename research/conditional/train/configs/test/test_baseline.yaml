@@ -12,6 +12,7 @@ params:
   project_name: "pmtest/llm-random-tests"
   name: "baseline_test"
   mixed_precision: true
+  mixed_precision_dtype: "float16"
   tags:
     - "test"
   use_neptune: true

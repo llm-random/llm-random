@@ -1,0 +1,9 @@
+parent: research/conditional/train/configs/baselines/gpt/common.yaml
+md5_parent_hash: 94cd964259d1065e3ed2e26028f4865a
+name: medium_effective_dff_grid
+
+params:
+  dmodel: 512
+  ^dff: [1536, 2048, 3072]
+  n_blocks: 8
+  n_att_heads: 8
