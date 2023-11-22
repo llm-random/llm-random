@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Union
 import plotly.express as px
 import torch
 import torch.nn.functional as F
@@ -9,6 +9,7 @@ from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
+from lizrd.train import checkpointing
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 
@@ -36,6 +37,7 @@ class ExpertGating(LoggingLayer):
         self.random_perm = random_perm
         self.use_torch_bmm = use_torch_bmm
         self.gate = gate
+        self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
 
     def forward(self, x: torch.Tensor, batch_size: int, seq_len: int):
         # expert embedding
@@ -72,7 +74,29 @@ class ExpertGating(LoggingLayer):
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
-            topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+            if (
+                checkpointing.is_in_first_forward()
+                and checkpointing.is_in_second_forward()
+            ):
+                raise NotImplementedError(
+                    "Both first and second forward are = TRUE. You are probably using wrapped and nested checkpointed modules, which is not supported with ExpertGating."
+                )
+
+            if (
+                checkpointing.is_in_first_forward()
+                or not checkpointing.is_in_second_forward()
+            ):
+                topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+                if checkpointing.is_in_first_forward():
+                    self._checkpointed_topk_indices = topk_indices
+
+            if checkpointing.is_in_second_forward():
+                assert self._checkpointed_topk_indices is not None
+                topk_values = torch.gather(
+                    input=gate_out,
+                    dim=1,
+                    index=self._checkpointed_topk_indices,
+                )
 
         with measure_time(self, "indexing_change"):
             if self.group_by_batch and not self.one_hot_impl:
