@@ -15,11 +15,11 @@ from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from research.conditional.utils.record_gpu_ram_availability import (
-    record_gpu_ram_availability,
-)
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.model_utils import make_loss_function
+from research.conditional.utils.model_utils import (
+    make_loss_function,
+    update_model_fit_gpu_info,
+)
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
@@ -68,8 +68,8 @@ class ConditionalTrainer:
     is_process_logging: bool = True
     should_evaluate_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
-    gpu_usage_report_params: [str] = None
-    gpu_usage_report_path: str = None
+    model_fit_gpu_info_database_path: str = None
+    model_fit_gpu_info_params: [str] = None
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -124,13 +124,17 @@ class ConditionalTrainer:
 
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
-        record_gpu_ram_availability(
-            self.gpu_usage_report_path, self.gpu_usage_report_params, False
+        update_model_fit_gpu_info(
+            self.model_fit_gpu_info_database_path,
+            self.model_fit_gpu_info_params,
+            "training_started",
         )
 
     def _after_train_operations(self):
-        record_gpu_ram_availability(
-            self.gpu_usage_report_path, self.gpu_usage_report_params, True
+        update_model_fit_gpu_info(
+            self.model_fit_gpu_info_database_path,
+            self.model_fit_gpu_info_params,
+            "training_finished",
         )
 
     def _after_step_operations(self, step):

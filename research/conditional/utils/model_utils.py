@@ -1,4 +1,6 @@
 from functools import partial
+import json
+from diskcache import Cache
 import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
@@ -427,3 +429,13 @@ def get_ff_layer(args):
             )
 
     return return_fn
+
+
+def update_model_fit_gpu_info(database: str, params: dict, value: str):
+    """
+    This function is used to records whether a model with given params fits in gpu.
+    """
+    if database is not None and params is not None:
+        with Cache(database) as cache:
+            serialized_params = json.dumps(params, sort_keys=True)
+            cache[serialized_params] = value

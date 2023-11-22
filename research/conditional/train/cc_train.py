@@ -12,7 +12,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
-    create_list_of_params_for_report,
+    get_argument_attributes,
     generate_random_string,
     set_seed,
 )
@@ -28,6 +28,7 @@ from research.conditional.utils.model_utils import (
     get_ff_layer,
     get_attention_layer,
     get_residual_layer,
+    update_model_fit_gpu_info,
 )
 
 
@@ -113,6 +114,10 @@ def main(
         args.save_weights_path = os.path.abspath(args.save_weights_path)
         os.makedirs(args.save_weights_path, exist_ok=True)
 
+    model_fit_gpu_info_params = get_argument_attributes(args)
+    update_model_fit_gpu_info(
+        args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
+    )
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -183,12 +188,6 @@ def main(
             else tokenizers.BertTokenizer,
         )
 
-    params_for_report = (
-        create_list_of_params_for_report(args)
-        if args.gpu_usage_report_params is not None
-        else None
-    )
-
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
@@ -223,8 +222,8 @@ def main(
         min_eval_group_size=args.min_eval_group_size,
         max_eval_group_size=args.max_eval_group_size,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
-        gpu_usage_report_params=params_for_report,
-        gpu_usage_report_path=args.gpu_usage_report_path,
+        model_fit_gpu_info_database_path=args.model_fit_gpu_info_database_path,
+        model_fit_gpu_info_params=model_fit_gpu_info_params,
     )
     trainer.train(args.n_steps)
 
