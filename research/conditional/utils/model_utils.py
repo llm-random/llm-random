@@ -504,3 +504,31 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         ignored_classes += list(selective_precision_modules)
 
     return ignored_classes
+
+
+def get_nonemb_flops_per_step(args) -> int:
+    flops_att = (
+        (args.dmodel**2 * args.cutoff + args.cutoff**2 * args.dmodel)
+        * args.batch_size
+        * args.n_blocks
+    )
+    flops_linear = 8 * args.dmodel * args.batch_size * args.n_blocks * args.cutoff
+    if args.ff_mode == "expert_choice":
+        # assumes affective_dff=dff
+        ec_args = get_expert_choice_args(args)
+        topk = args.batch_size * ec_args["topk_fraction"]
+        flops_onehot = (
+            ec_args["n_experts"]
+            * topk
+            * args.dmodel
+            * args.batch_size
+            * args.n_blocks
+            * args.cutoff
+        )
+        flops_router = flops_onehot / topk
+        flops_ff = flops_onehot + flops_router + flops_linear
+    else:
+        # TODO: implement for mot
+        flops_ff = flops_linear
+
+    return args.n_gpus * (flops_att + flops_ff)

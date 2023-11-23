@@ -26,6 +26,7 @@ from research.conditional.utils.model_utils import (
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     get_classes_from_module_names,
+    get_nonemb_flops_per_step,
 )
 
 
@@ -195,6 +196,8 @@ def main(
         dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
     )
 
+    flops_per_step = get_nonemb_flops_per_step(args)
+
     if is_logging_process:
         logger = get_logger(args, model, VOCAB_SIZE)
     else:
@@ -243,6 +246,7 @@ def main(
         eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
         eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
+        flops_per_step=flops_per_step,
     )
     trainer.train(args.n_steps)
 

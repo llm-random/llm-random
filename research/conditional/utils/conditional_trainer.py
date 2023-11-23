@@ -42,6 +42,7 @@ class ConditionalTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
+    flops_per_step: int
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -335,6 +336,16 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
+                )
+                self.logger.report_scalar(
+                    title=f"{name}_flops",
+                    value=stats.acc / stats.interval,
+                    iteration=step * self.flops_per_step,
+                )
+                self.logger.report_scalar(
+                    title=f"{name}_tokens",
+                    value=stats.acc / stats.interval,
+                    iteration=step * self.batch_size * self.max_sequence_length,
                 )
                 stats.acc = 0.0
 
