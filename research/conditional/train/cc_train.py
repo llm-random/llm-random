@@ -33,6 +33,7 @@ from research.conditional.utils.model_utils import (
     get_residual_layer,
     get_classes_from_module_names,
     update_model_fit_gpu_info,
+    get_nonemb_flops_per_step,
 )
 
 
@@ -212,6 +213,8 @@ def main(
         **common_dataloaders_kwargs, dataset_split=eval_split
     )
 
+    flops_per_step = get_nonemb_flops_per_step(args)
+
     if is_logging_process:
         logger = get_logger(args, model, VOCAB_SIZE)
     else:
@@ -277,6 +280,7 @@ def main(
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
+        flops_per_step=flops_per_step,
     )
     trainer.train(args.n_steps)
 

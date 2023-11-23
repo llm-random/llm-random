@@ -537,3 +537,31 @@ def disable_profile_schedule_fn(_: int) -> ProfilerAction:
     Passing this function to the profiler as a scheduler disables profiling
     """
     return ProfilerAction.NONE
+
+
+def get_nonemb_flops_per_step(args) -> int:
+    flops_att = (
+        (args.dmodel**2 * args.cutoff + args.cutoff**2 * args.dmodel)
+        * args.batch_size
+        * args.n_blocks
+    )
+    flops_linear = 8 * args.dmodel * args.batch_size * args.n_blocks * args.cutoff
+    if args.ff_mode == "expert_choice":
+        # assumes affective_dff=dff
+        ec_args = get_expert_choice_args(args)
+        topk = args.batch_size * ec_args["topk_fraction"]
+        flops_onehot = (
+            ec_args["n_experts"]
+            * topk
+            * args.dmodel
+            * args.batch_size
+            * args.n_blocks
+            * args.cutoff
+        )
+        flops_router = flops_onehot / topk
+        flops_ff = flops_onehot + flops_router + flops_linear
+    else:
+        # TODO: implement for mot
+        flops_ff = flops_linear
+
+    return args.n_gpus * (flops_att + flops_ff)
