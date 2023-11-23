@@ -5,6 +5,7 @@ from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
 import torch
+from torch.profiler import profile, ProfilerActivity
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
@@ -66,6 +67,10 @@ class ConditionalTrainer:
     is_logging_process: bool = True
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
+    save_trace_path: str = "traces"
+    trace_wait: int = 1
+    trace_warmup: int = 3
+    trace_active: int = 2
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -108,21 +113,39 @@ class ConditionalTrainer:
         if self.load_weights_path is not None:
             self._load_model_weights()
 
-        for step in range(n_steps + 1):
-            self._train_step(step)
-            if step > 0 and self.eval_interval > 0 and step % self.eval_interval == 0:
-                self._eval_step(step)
-            if (
-                self.model_type == "gpt"
-                and self.decoding_interval > 0
-                and step % self.decoding_interval == 0
-                and self.is_logging_process
-            ):
-                try:
-                    self._decode_samples(step)
-                except:
-                    print("Decoding failed, skipping...")
-            self._after_step_operations(step)
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            schedule=torch.profiler.schedule(
+                wait=self.trace_wait,
+                warmup=self.trace_warmup,
+                active=self.trace_active,
+            ),
+            profile_memory=True,
+            on_trace_ready=lambda p: p.export_chrome_trace(
+                f"{self.save_trace_path}/trace_{str(p.step_num)}.json"
+            ),
+        ) as p:
+            for step in range(n_steps + 1):
+                self._train_step(step)
+                p.step()
+
+                if (
+                    step > 0
+                    and self.eval_interval > 0
+                    and step % self.eval_interval == 0
+                ):
+                    self._eval_step(step)
+                if (
+                    self.model_type == "gpt"
+                    and self.decoding_interval > 0
+                    and step % self.decoding_interval == 0
+                    and self.is_logging_process
+                ):
+                    try:
+                        self._decode_samples(step)
+                    except:
+                        print("Decoding failed, skipping...")
+                self._after_step_operations(step)
 
     def _train_step(
         self,
