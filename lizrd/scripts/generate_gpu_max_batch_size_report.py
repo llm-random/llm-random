@@ -1,8 +1,28 @@
+"""
+    Assumtion here is that we already run grid of shorts experiments to test if model fits in a GPU memory.
+
+    Args:
+        --models : list of models to compare (e.g."mini,small,medium")
+        --param_to_compare : parameter on we compare our model (e.g. "group_size")
+        --values_to_compare : values of above parameter to compare, 
+            probably you want to take them from a grid(e.g. "32,64,128") 
+        --database_path : path to DiskCache database with recorderd results from a grid
+        --output_report_path : path to output report
+
+    We save result in a following format:
+    serialize dictionary with params: e.g. {"batch_size": 2, "dmodel": 768, "group_size": 2} 
+    and treat it as a key in database.
+    value is one of:
+    - "initalized" is when we have a model with given params, but we didn't start get to start a training 
+    (probably model itself did not fit in a GPU memory).
+    - "failure" is when we have a model with given params, but we didn't finish training (probably OOM error ).
+    - "success" otherwise.
+
+"""
 import yaml
 import argparse
 import pandas as pd
 
-from lizrd.support.misc import merge_dicts
 from research.conditional.utils.model_utils import get_model_fit_gpu_info
 
 
@@ -28,11 +48,6 @@ def main(
     output_report_path: str,
     batch_sizes: [int],
 ):
-    """
-    Database is a key-value database that stores values similar to this:
-    {"batch_size": 2, "dff": 3072, "dmodel": 768, "group_size": 2, "n_att_heads": 12, "n_blocks": 12} -> "initialized/training/finished"
-    """
-
     results = []
     for model_name in models:
         model_params = load_standard_model_config(model_name)
@@ -41,15 +56,14 @@ def main(
         model_results = [model_name]
         for value in values_to_compare:
             model_params[param_to_compare] = value
-            max_batch_size = 1e9
+            max_batch_size = -1
             for batch_size in batch_sizes:
                 model_params["batch_size"] = batch_size
-                value = model_results.append(
-                    get_model_fit_gpu_info(model_params, database_path)
-                )
-                if value < max_batch_size:
-                    max_batch_size = value
+                value = get_model_fit_gpu_info(database_path, model_params)
+                if value == "success" and batch_size > max_batch_size:
+                    max_batch_size = batch_size
             model_results.append(max_batch_size)
+        results.append(model_results)
 
     df = pd.DataFrame(results, columns=["model_name \ group_size"] + values_to_compare)
     df.to_csv(output_report_path, sep="\t", index=False)
@@ -60,7 +74,6 @@ if __name__ == "__main__":
     parser.add_argument("--models", default="mini,small,medium,base", type=str)
     parser.add_argument(
         "--const_params",
-        default="dff=3072,dmodel=768,n_att_heads=12,n_blocks=12",
         type=str,
     )
     parser.add_argument("--param_to_compare", default="group_size", type=str)
@@ -75,8 +88,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     values_to_compare = [int(x) for x in args.values_to_compare.split(",")]
     models = args.models.split(",")
-    const_params = merge_dicts(
-        *[dict([tuple(x.split("="))]) for x in args.const_params.split(",")]
+    const_params = (
+        {*[dict([tuple(x.split("="))]) for x in args.const_params.split(",")]}
+        if args.const_params is not None and args.const_params != ""
+        else {}
     )
     batch_sizes = [int(x) for x in args.batch_sizes.split(",")]
 

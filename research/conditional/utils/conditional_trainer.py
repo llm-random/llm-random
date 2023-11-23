@@ -103,14 +103,14 @@ class ConditionalTrainer:
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
-            "training_started",
+            "failure",
         )
 
     def _after_train_operations(self):
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
-            "training_finished",
+            "success",
         )
 
     def _after_step_operations(self, step):
@@ -140,6 +140,7 @@ class ConditionalTrainer:
                 except:
                     print("Decoding failed, skipping...")
             self._after_step_operations(step)
+        self._after_train_operations()
 
     def _train_step(
         self,
