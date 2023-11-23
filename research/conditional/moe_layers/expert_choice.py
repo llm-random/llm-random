@@ -74,6 +74,11 @@ class ExpertGating(LoggingLayer):
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         with measure_time(self, "topk"):
+            checkpointing_enabled = (
+                checkpointing.is_in_first_forward()
+                or checkpointing.is_in_second_forward()
+            )
+
             if (
                 checkpointing.is_in_first_forward()
                 and checkpointing.is_in_second_forward()
@@ -82,21 +87,24 @@ class ExpertGating(LoggingLayer):
                     "Both first and second forward are = TRUE. You are probably using wrapped and nested checkpointed modules, which is not supported with ExpertGating."
                 )
 
-            if (
-                checkpointing.is_in_first_forward()
-                or not checkpointing.is_in_second_forward()
-            ):
-                topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+            if checkpointing_enabled:
+                # In first forward we discard the first result of topk (topk_values)
+                # and instead use gather.
+                # This is needed if activation checkpointing is used, because
+                # torch aligns tensors in both forward passes by the order in
+                # which they are created and that is the easiest way to do that.
                 if checkpointing.is_in_first_forward():
-                    self._checkpointed_topk_indices = topk_indices
+                    with torch.no_grad():
+                        _, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+                        self._checkpointed_topk_indices = topk_indices
 
-            if checkpointing.is_in_second_forward():
-                assert self._checkpointed_topk_indices is not None
-                topk_values = torch.gather(
-                    input=gate_out,
-                    dim=1,
-                    index=self._checkpointed_topk_indices,
-                )
+                if checkpointing.is_in_second_forward():
+                    with torch.no_grad():
+                        topk_indices = self._checkpointed_topk_indices
+
+                topk_values = gate_out.gather(dim=1, index=topk_indices)
+            else:
+                topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
 
         with measure_time(self, "indexing_change"):
             if self.group_by_batch and not self.one_hot_impl:
