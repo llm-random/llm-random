@@ -30,6 +30,7 @@ class ConditionalTrainer:
     eval_dataloader: DataloaderWrapper
     vocab_size: int
     mixed_precision: bool
+    mixed_precision_dtype: torch.dtype
     logger: Optional[AbstractLogger]
     model_type: Literal["bert", "gpt"]
     dataset_type: Literal["wikibook", "c4"]
@@ -62,12 +63,13 @@ class ConditionalTrainer:
     eval_min_group_size_logfactor: int = 0
     eval_max_group_size_logfactor: int = 0
     eval_discrete_mot: bool = False
-    is_process_logging: bool = True
+    is_logging_process: bool = True
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
 
     def __attrs_post_init__(self):
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
+        if self.mixed_precision_dtype == torch.float16:
+            self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.loss_accumulators = {
             f"loss_interval/{i}": SN(acc=0.0, interval=i)
             for i in self.loss_log_intervals
@@ -114,7 +116,7 @@ class ConditionalTrainer:
                 self.model_type == "gpt"
                 and self.decoding_interval > 0
                 and step % self.decoding_interval == 0
-                and self.is_process_logging
+                and self.is_logging_process
             ):
                 try:
                     self._decode_samples(step)
@@ -127,7 +129,7 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
-        if self.is_process_logging:
+        if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
 
@@ -135,7 +137,7 @@ class ConditionalTrainer:
         loss, aux_info = self.calculate_loss_and_maybe_optimize(
             processed_batch, should_optimize=True
         )
-        if self.is_process_logging:
+        if self.is_logging_process:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
@@ -163,6 +165,7 @@ class ConditionalTrainer:
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
+                mixed_precision_dtype=self.mixed_precision_dtype,
                 vocab_size=self.vocab_size,
             )
 
@@ -196,17 +199,28 @@ class ConditionalTrainer:
         if self.gradient_accumulation_steps == 1:
             self.optimizer.zero_grad()
         # clear computation graph, store gradients
-        self.scaler.scale(loss).backward()
+        if self.scaler is None:
+            loss.backward()
+        else:
+            self.scaler.scale(loss).backward()
         if should_apply_gradient:
-            if self.gradient_clipping is not None:
-                self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
-            self.scaler.step(self.optimizer)
+            if self.scaler is None:
+                if self.gradient_clipping is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.gradient_clipping
+                    )
+                self.optimizer.step()
+            else:
+                if self.gradient_clipping is not None:
+                    self.scaler.unscale_(self.optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.gradient_clipping
+                    )
+                self.scaler.step(self.optimizer)
+                if self.scaler is not None:
+                    self.scaler.update()
             if self.gradient_accumulation_steps > 1:
                 self.optimizer.zero_grad()
-            self.scaler.update()
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
@@ -263,7 +277,7 @@ class ConditionalTrainer:
             total_masked_tokens += aux_info["total_masked_tokens"]
             for name, loss_value in aux_info["losses"].items():
                 extra_losses[name] += loss_value
-        if self.is_process_logging:
+        if self.is_logging_process:
             self.logger.report_scalar(
                 title=f"eval/total_loss/{variant_name}",
                 value=total_loss / self.n_eval_batches,
@@ -393,8 +407,10 @@ class ConditionalTrainer:
             checkpoint = {
                 "model": self.model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
-                "scaler": self.scaler.state_dict(),
             }
+            if self.scaler is not None:
+                checkpoint["scaler"] = self.scaler.state_dict()
+
             torch.save(checkpoint, os.path.join(self.save_weights_path, f"{step}.pth"))
             print(f"Weights saved to {self.save_weights_path} (step {step})")
 
@@ -404,7 +420,8 @@ class ConditionalTrainer:
             checkpoint = torch.load(self.load_weights_path)
             self.model.load_state_dict(checkpoint["model"], strict=False)
             self.optimizer.load_state_dict(checkpoint["optimizer"])
-            self.scaler.load_state_dict(checkpoint["scaler"])
+            if self.scaler is not None:
+                self.scaler.load_state_dict(checkpoint["scaler"])
         else:
             raise ValueError(
                 f"Path {self.load_weights_path} does not exist. Aborting ..."
