@@ -1,5 +1,7 @@
 """
-    Assumtion here is that we already run grid of shorts experiments to test if model fits in a GPU memory.
+    This script generates a report of max batch size for a given models and a given parameter.
+    We assume that we already run grid of short experiments to test if model fits in a GPU memory with records in some database.
+    (i.e. used 'model_fit_gpu_info_database_path' and 'model_fit_gpu_info_params' in the training).
 
     Args:
         --models : list of models to compare (e.g."mini,small,medium")
@@ -9,15 +11,17 @@
         --database_path : path to DiskCache database with recorderd results from a grid
         --output_report_path : path to output report
 
-    We save result in a following format:
-    serialize dictionary with params: e.g. {"batch_size": 2, "dmodel": 768, "group_size": 2} 
-    and treat it as a key in database.
-    value is one of:
+    In data base we have result saved in a following format:
+    Key is serialized dictionary with params: e.g. {"batch_size": 2, "dmodel": 768, "group_size": 2}.
+    Value is one of:
     - "initalized" is when we have a model with given params, but we didn't start get to start a training 
     (probably model itself did not fit in a GPU memory).
     - "failure" is when we have a model with given params, but we didn't finish training (probably OOM error ).
     - "success" otherwise.
 
+    Generated report is a csv analogous to:
+    model_name \ group_size	32	64	128	256	512
+    base	training_finished	-1	-1	-1	-1
 """
 import yaml
 import argparse
