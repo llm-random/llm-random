@@ -87,7 +87,6 @@ def get_model(
         n_blocks,
         dm,
         layer_dict,
-        gradient_checkpointing,
         device,
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
