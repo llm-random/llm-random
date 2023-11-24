@@ -21,6 +21,7 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
     n_blanks: int = 0,
+    use_only_last_blank_loss: bool = False,
 ):
     if dataset_type == "wikibook":
         dataset = datasets.WikiBookDataset(
@@ -41,6 +42,7 @@ def get_processed_dataset(
             dataset=dataset,
             tokenizer_maker=tokenizer_maker,
             n_blanks=n_blanks,
+            use_only_last_blank_loss=use_only_last_blank_loss,
         )
     elif dataset_split in ["eval", "validation"]:
         packer = BlankEvalPacker(

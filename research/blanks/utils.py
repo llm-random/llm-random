@@ -109,6 +109,16 @@ def insert_blanks_target(
     )[: len(target_sequence)]
 
 
+def make_blanks_loss_mask(
+    target_sequence_len: int, blank_insertion_point: int, n_blanks: int
+) -> List[int]:
+    return (
+        [1] * blank_insertion_point
+        + [0] * (n_blanks - 1)
+        + [1] * (target_sequence_len - blank_insertion_point - n_blanks + 1)
+    )
+
+
 def get_last_point_to_fit_blanks(sequence_length: int, n_blanks: int) -> int:
     return sequence_length - n_blanks
 

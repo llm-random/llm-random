@@ -150,6 +150,7 @@ def main(
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
         "tokenizer_maker": BlankTokenizer,
+        "use_only_last_blank_loss": args.blanks_use_only_last_blank_loss,
     }
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs, dataset_split="train", n_blanks=args.n_blanks
