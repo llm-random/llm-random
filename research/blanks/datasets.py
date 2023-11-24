@@ -56,7 +56,7 @@ def get_processed_dataset(
         packer,
         num_workers=num_workers,
         batch_size=batch_size,
-        collate_fn=data.LLMBatch,
+        collate_fn=data.BlanxBatch,
         worker_init_fn=partial(worker_init_fn, seed),
         shuffle=False,
         pin_memory=True,

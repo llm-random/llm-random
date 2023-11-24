@@ -1,6 +1,6 @@
 from typing import Callable, Optional
 
-from .data import LLMExample
+from .data import BlanxExample
 from lizrd.text.datasets import AbstractDataset
 from lizrd.text.packers import GPTPacker
 from lizrd.text.tokenizers import AbstractTokenizer
@@ -31,7 +31,7 @@ class BlankPacker(GPTPacker):
 
         self.n_blanks = n_blanks
 
-    def get_sample(self) -> LLMExample:
+    def get_sample(self) -> BlanxExample:
         blank_id = self.tokenizer.blank_id
         assert blank_id is not None
 
@@ -57,7 +57,7 @@ class BlankPacker(GPTPacker):
 
         assert sample.should_calculate_loss == [1] * seq_len
 
-        return LLMExample(
+        return BlanxExample(
             input_tokens, target_tokens, sample.should_calculate_loss, att_mask
         )
 
@@ -80,7 +80,7 @@ class BlankEvalPacker(GPTPacker):
 
         self.n_blanks = n_blanks
 
-    def get_sample(self) -> LLMExample:
+    def get_sample(self) -> BlanxExample:
         blank_id = self.tokenizer.blank_id
         assert blank_id is not None
 
@@ -108,4 +108,6 @@ class BlankEvalPacker(GPTPacker):
             should_calculate_loss[blank_insertion_point - 1] = 1
             att_mask = make_blanks_attention_mask(seq_len, blank_insertion_point, 0)
 
-        return LLMExample(input_tokens, target_tokens, should_calculate_loss, att_mask)
+        return BlanxExample(
+            input_tokens, target_tokens, should_calculate_loss, att_mask
+        )

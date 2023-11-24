@@ -15,8 +15,7 @@ from lizrd.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
 from .datasets import get_processed_dataset
 from .model import (
-    get_custom_attention_layer,
-    get_normal_attention_layer,
+    get_attention_layer,
     get_model,
     get_ff_layer,
 )
@@ -83,10 +82,7 @@ def main(
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    if args.blanks_use_custom_attention and args.n_blanks > 0:
-        attention_layer_fun = get_custom_attention_layer(args)
-    else:
-        attention_layer_fun = get_normal_attention_layer(args)
+    attention_layer_fun = get_attention_layer(args)
 
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [

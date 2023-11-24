@@ -6,7 +6,7 @@ from attr import dataclass
 
 
 @dataclass
-class LLMExample(object):
+class BlanxExample(object):
     input_ids: List[int]
     target_ids: List[int]
     should_calculate_loss: List[
@@ -15,8 +15,8 @@ class LLMExample(object):
     attention_mask: np.ndarray
 
 
-class LLMBatch:
-    def __init__(self, examples: List[LLMExample]):
+class BlanxBatch:
+    def __init__(self, examples: List[BlanxExample]):
         self.input_ids = self._make_tensor([example.input_ids for example in examples])
         self.target_ids = self._make_tensor(
             [example.target_ids for example in examples]
@@ -57,7 +57,7 @@ class LLMBatch:
         )
         return self.input_ids.device
 
-    def to(self, device) -> "LLMBatch":
+    def to(self, device) -> "BlanxBatch":
         self.input_ids = self.input_ids.to(device)
         self.target_ids = self.target_ids.to(device)
         self.should_calculate_loss = self.should_calculate_loss.to(device)

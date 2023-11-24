@@ -2,7 +2,7 @@ from functools import partial
 import torch
 from typing import Optional
 
-from .data import LLMBatch
+from .data import BlanxBatch
 from torch.utils.checkpoint import checkpoint
 
 import torch.nn.functional as F
@@ -25,7 +25,7 @@ def make_loss_function(loss_checkpoint_chungs: int, n_blanks: int = 0):
 
 
 def chungized_llm_loss(
-    batch: LLMBatch,
+    batch: BlanxBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
@@ -101,7 +101,7 @@ def chungized_llm_loss(
 
 
 def calculate_llm_loss(
-    batch: LLMBatch,
+    batch: BlanxBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
