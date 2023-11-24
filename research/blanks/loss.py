@@ -128,7 +128,6 @@ def calculate_llm_loss(
     if n_blanks > 0:
         assert len(blanks_ids) > 0
         with torch.no_grad():
-            # is_blank = input_tokens.isin(blanks)
             is_blank = get_is_blank(input_tokens, blanks_ids)
             total_blanks_count = is_blank.sum()
             if total_blanks_count > 0:
