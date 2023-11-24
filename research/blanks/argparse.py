@@ -197,5 +197,6 @@ def introduce_parser_arguments(
     parser.add_argument("--blanks_use_straight_through", action="store_true")
     parser.add_argument("--blanks_use_custom_positional_embedding", action="store_true")
     parser.add_argument("--blanks_use_multiple_embeddings", action="store_true")
+    parser.add_argument("--blanks_use_custom_attention", action="store_true")
 
     return parser

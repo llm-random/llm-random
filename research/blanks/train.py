@@ -14,7 +14,11 @@ from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
 from .datasets import get_processed_dataset
-from .model import get_attention_layer, get_model, get_ff_layer
+from .model import (
+    get_attention_layer,
+    get_model,
+    get_ff_layer,
+)
 from lizrd.text import tokenizers
 from .tokenizers import BlankTokenizer
 
