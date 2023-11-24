@@ -83,12 +83,12 @@ class TestUtils(GeneralTestCase):
 
     def test_insert_blanks_input(self):
         input_sequence = [1, 2, 3, 4, 5]
-        blank_id = 0
+        blank_ids = [101, 102]
         blank_insertion_point = 2
         n_blanks = 2
-        expected = [1, 2, 0, 0, 3]
+        expected = [1, 2, 101, 102, 3]
         result = insert_blanks_input(
-            input_sequence, blank_id, blank_insertion_point, n_blanks
+            input_sequence, blank_ids, blank_insertion_point, n_blanks
         )
         self.assertEqual(result, expected)
 
