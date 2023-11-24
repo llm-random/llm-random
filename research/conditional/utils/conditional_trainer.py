@@ -16,7 +16,10 @@ from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import temp_modify_attr
-from research.conditional.utils.model_utils import make_loss_function
+from research.conditional.utils.model_utils import (
+    make_loss_function,
+    update_model_fit_gpu_info,
+)
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
@@ -66,6 +69,8 @@ class ConditionalTrainer:
     is_logging_process: bool = True
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
+    model_fit_gpu_info_database_path: str = None
+    model_fit_gpu_info_params: [str] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -95,6 +100,18 @@ class ConditionalTrainer:
 
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
+        update_model_fit_gpu_info(
+            self.model_fit_gpu_info_database_path,
+            self.model_fit_gpu_info_params,
+            "failure",
+        )
+
+    def _after_train_operations(self):
+        update_model_fit_gpu_info(
+            self.model_fit_gpu_info_database_path,
+            self.model_fit_gpu_info_params,
+            "success",
+        )
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
@@ -123,6 +140,7 @@ class ConditionalTrainer:
                 except:
                     print("Decoding failed, skipping...")
             self._after_step_operations(step)
+        self._after_train_operations()
 
     def _train_step(
         self,
