@@ -173,7 +173,10 @@ class BlankDiffPredictionHead(torch.nn.Module):
         is_blank = get_is_blank(model_input, self.blank_tokens_ids)
         is_first_blank = get_first_blanks_in_series(is_blank)
         is_preblank = shift_left(is_first_blank)
-        preblank_encoder_output = encoder_output * is_preblank.unsqueeze(-1)
+
+        current_accumulator_positions = is_preblank.unsqueeze(-1)
+        encoder_accumulator = encoder_output * current_accumulator_positions
+
         if self.learnable_weights:
             is_not_blank = ~is_blank
             assert is_not_blank.dtype == torch.bool
@@ -196,12 +199,21 @@ class BlankDiffPredictionHead(torch.nn.Module):
                 )
 
             for _ in range(self.n_blanks):
-                preblank_encoder_output = shift_right(preblank_encoder_output)
-                encoder_output.add_(preblank_encoder_output * abs(self.preblank_weight))
+                current_accumulator_positions = shift_right(
+                    current_accumulator_positions
+                )
+                encoder_accumulator = shift_right(encoder_accumulator)
+                encoder_output.add_(encoder_accumulator * abs(self.preblank_weight))
+                encoder_accumulator = encoder_output * current_accumulator_positions
+
         else:
             for _ in range(self.n_blanks):
-                preblank_encoder_output = shift_right(preblank_encoder_output)
-                encoder_output.add_(preblank_encoder_output)
+                current_accumulator_positions = shift_right(
+                    current_accumulator_positions
+                )
+                encoder_accumulator = shift_right(encoder_accumulator)
+                encoder_output.add_(encoder_accumulator)
+                encoder_accumulator = encoder_output * current_accumulator_positions
 
         return self.linear(encoder_output)
 
@@ -287,10 +299,13 @@ class BlankEmbedding(torch.nn.Module):
         is_blank = get_is_blank(x, self.blank_tokens_ids)
         is_first_blank = get_first_blanks_in_series(is_blank)
         is_preblank = shift_left(is_first_blank)
-        preblank_embedding_output = embedding_output * is_preblank.unsqueeze(-1)
+        current_accumulator_positions = is_preblank.unsqueeze(-1)
+        embedding_accumulator = embedding_output * current_accumulator_positions
         for _ in range(self.n_blanks):
-            preblank_embedding_output = shift_right(preblank_embedding_output)
-            embedding_output.add_(preblank_embedding_output)
+            current_accumulator_positions = shift_right(current_accumulator_positions)
+            embedding_accumulator = shift_right(embedding_accumulator)
+            embedding_output.add_(embedding_accumulator)
+            embedding_accumulator = embedding_output * current_accumulator_positions
         return embedding_output
 
 
