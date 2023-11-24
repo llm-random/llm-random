@@ -136,6 +136,9 @@ def introduce_parser_arguments(
     parser.add_argument("--git_branch", type=str, default=None)
     parser.add_argument("--decoding_interval", type=int, default=0)
 
+    parser.add_argument("--model_fit_gpu_info_database_path", type=str, default=None)
+    parser.add_argument("--model_fit_gpu_info_params", type=str, default=None)
+
     # model versioning
 
     parser.add_argument("--save_weights_path", type=str, default=None)
