@@ -1,6 +1,8 @@
 parent: research/conditional/train/configs/baselines/gpt/expert_choice/medium.yaml
-md5_parent_hash: a908e39286affa31314df1b9bed8ad73
+md5_parent_hash: 27fc0993c16973ac3b512a9983fefce6
 
 params:
   name: "granular_4_medium"
   granularity: 4
+  cutoff: 128
+  batch_size: 128
