@@ -3,6 +3,6 @@ md5_parent_hash: 862d1b7a188a7eddb8b8fa0293682da8
 
 params:
   dmodel: 1024
-  dff: 2048
+  dff: 4096
   n_blocks: 24
   n_att_heads: 16
