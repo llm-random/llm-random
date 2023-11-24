@@ -334,18 +334,17 @@ class BlankTrainer:
                     iteration=step,
                 )
             else:
-                for x in range(self.n_blanks + 1):
-                    for y in range(x):
-                        # log diff
-                        name = f"blank_{x}_loss - blank_{y}_loss"
-                        self.logger.report_scalar(
-                            title=name,
-                            value=(
-                                aux_info["blanks_losses"][f"blank_{x}_loss"]
-                                - aux_info["blanks_losses"][f"blank_{y}_loss"]
-                            ),
-                            iteration=step,
-                        )
+                for x in range(1, self.n_blanks + 1):
+                    # log diff
+                    name = f"blank_{x}_loss - blank_{x-1}_loss"
+                    self.logger.report_scalar(
+                        title=name,
+                        value=(
+                            aux_info["blanks_losses"][f"blank_{x}_loss"]
+                            - aux_info["blanks_losses"][f"blank_{x-1}_loss"]
+                        ),
+                        iteration=step,
+                    )
 
     def _log_heavy(self, step):
         g_metrics, w_metrics = {}, {}
