@@ -59,6 +59,7 @@ class BlankTrainer:
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
     n_blanks: int = 0
+    use_only_last_blank_loss: bool = False
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -323,18 +324,28 @@ class BlankTrainer:
                     value=value,
                     iteration=step,
                 )
-            for x in range(self.n_blanks + 1):
-                for y in range(x):
-                    # log diff
-                    name = f"blank_{x}_loss - blank_{y}_loss"
-                    self.logger.report_scalar(
-                        title=name,
-                        value=(
-                            aux_info["blanks_losses"][f"blank_{x}_loss"]
-                            - aux_info["blanks_losses"][f"blank_{y}_loss"]
-                        ),
-                        iteration=step,
-                    )
+            if self.use_only_last_blank_loss:
+                self.logger.report_scalar(
+                    title=f"blank_{self.n_blanks}_loss - blank_0_loss",
+                    value=(
+                        aux_info["blanks_losses"][f"blank_{self.n_blanks}_loss"]
+                        - aux_info["blanks_losses"]["blank_0_loss"]
+                    ),
+                    iteration=step,
+                )
+            else:
+                for x in range(self.n_blanks + 1):
+                    for y in range(x):
+                        # log diff
+                        name = f"blank_{x}_loss - blank_{y}_loss"
+                        self.logger.report_scalar(
+                            title=name,
+                            value=(
+                                aux_info["blanks_losses"][f"blank_{x}_loss"]
+                                - aux_info["blanks_losses"][f"blank_{y}_loss"]
+                            ),
+                            iteration=step,
+                        )
 
     def _log_heavy(self, step):
         g_metrics, w_metrics = {}, {}
