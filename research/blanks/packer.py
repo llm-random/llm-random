@@ -10,6 +10,7 @@ from research.blanks.utils import (
     insert_blanks_input,
     insert_blanks_target,
     make_blanks_attention_mask,
+    make_blanks_loss_mask,
 )
 
 
@@ -22,6 +23,7 @@ class BlankPacker(GPTPacker):
         n_blanks: int,
         blanks_ids: List[int],
         seed: Optional[int] = None,
+        use_only_last_blank_loss: bool = False,
     ):
         super().__init__(
             sequence_length,
@@ -34,6 +36,7 @@ class BlankPacker(GPTPacker):
         self.blanks_ids = blanks_ids
 
         assert len(self.blanks_ids) == self.n_blanks
+        self.use_only_last_blank_loss = use_only_last_blank_loss
 
     def get_sample(self) -> BlanxExample:
         sample = super().get_sample()
@@ -51,15 +54,21 @@ class BlankPacker(GPTPacker):
         target_tokens = insert_blanks_target(
             target_tokens, blank_insertion_point, self.n_blanks
         )
+        if self.use_only_last_blank_loss:
+            should_calculate_loss = make_blanks_loss_mask(
+                seq_len, blank_insertion_point, self.n_blanks
+            )
+            assert len(should_calculate_loss) == seq_len
+        else:
+            should_calculate_loss = sample.should_calculate_loss
+            assert should_calculate_loss == [1] * seq_len
 
         att_mask = make_blanks_attention_mask(
             seq_len, blank_insertion_point, self.n_blanks
         )
 
-        assert sample.should_calculate_loss == [1] * seq_len
-
         return BlanxExample(
-            input_tokens, target_tokens, sample.should_calculate_loss, att_mask
+            input_tokens, target_tokens, should_calculate_loss, att_mask
         )
 
 

@@ -158,6 +158,7 @@ def main(
         "tokenizer_maker": BlankTokenizer,
         "n_blanks": args.n_blanks,
         "blanks_ids": BLANKS_IDS,
+        "use_only_last_blank_loss": args.blanks_use_only_last_blank_loss,
     }
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs, dataset_split="train"
@@ -211,6 +212,7 @@ def main(
         decoding_logging_steps=args.decoding_logging_steps,
         n_blanks=args.n_blanks,
         blanks_ids=BLANKS_IDS,
+        use_only_last_blank_loss=args.blanks_use_only_last_blank_loss,
     )
     trainer.train(args.n_steps)
 
