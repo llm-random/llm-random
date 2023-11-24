@@ -11,7 +11,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from research.blanks.model import BlankDiffPredictionHead
 
-from lizrd.text.data import LLMBatch
+from .data import BlanxBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 
 from .loss import make_loss_function
@@ -234,7 +234,7 @@ class BlankTrainer:
                 )
 
     def calculate_loss_and_maybe_optimize(
-        self, processed_batch: LLMBatch, should_optimize: bool
+        self, processed_batch: BlanxBatch, should_optimize: bool
     ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         total_cross_entropy_loss = 0.0
