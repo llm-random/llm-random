@@ -1,6 +1,6 @@
 from functools import partial
 import torch
-from typing import Optional
+from typing import List
 
 from .data import BlanxBatch
 from torch.utils.checkpoint import checkpoint
@@ -9,13 +9,16 @@ import torch.nn.functional as F
 
 from research.blanks.utils import (
     get_first_blanks_in_series,
+    get_is_blank,
     iterate_through_nth_blanks_masks,
 )
 
 
-def make_loss_function(loss_checkpoint_chungs: int, n_blanks: int = 0):
+def make_loss_function(
+    loss_checkpoint_chungs: int, n_blanks: int = 0, blanks_ids: List[int] = []
+):
     if loss_checkpoint_chungs == 0:
-        return partial(calculate_llm_loss, n_blanks=n_blanks)
+        return partial(calculate_llm_loss, n_blanks=n_blanks, blanks_ids=blanks_ids)
     else:
         if n_blanks > 0:
             raise NotImplementedError(
@@ -105,8 +108,8 @@ def calculate_llm_loss(
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
-    n_blanks: int = 0,
-    blank_id: Optional[int] = 50257,
+    blanks_ids: List[int],
+    n_blanks: int,
 ):
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
@@ -130,9 +133,9 @@ def calculate_llm_loss(
 
     blanks_losses = {}
     if n_blanks > 0:
-        assert blank_id is not None
+        assert len(blanks_ids) > 0
         with torch.no_grad():
-            is_blank = input_tokens.eq(blank_id)
+            is_blank = get_is_blank(input_tokens, blanks_ids)
             total_blanks_count = is_blank.sum()
             if total_blanks_count > 0:
                 blank_start = get_first_blanks_in_series(is_blank)
@@ -145,9 +148,13 @@ def calculate_llm_loss(
                     nth_blanks_count = nth_blank_mask.sum()
                     assert nth_blanks_count * n_blanks == total_blanks_count
                     if n == 0:
-                        assert not input_tokens[nth_blank_mask == 1].eq(blank_id).any()
+                        assert not get_is_blank(
+                            input_tokens[nth_blank_mask == 1], blanks_ids
+                        ).any()
                     else:
-                        assert input_tokens[nth_blank_mask == 1].eq(blank_id).all()
+                        assert get_is_blank(
+                            input_tokens[nth_blank_mask == 1], blanks_ids
+                        ).all()
 
                     nth_blank_loss = (nth_blank_mask.reshape(-1) * mask_loss).sum()
 

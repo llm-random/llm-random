@@ -5,10 +5,12 @@ from transformers import GPT2TokenizerFast
 from lizrd.text.tokenizers import AbstractTokenizer, disable_tokenizer_warnings
 
 NUM_RESERVED_TOKENS = 100
+MAX_BLANKS = 50
 
 
 class BlankTokenizer(AbstractTokenizer):
     VOCAB_SIZE = 50257 + NUM_RESERVED_TOKENS
+    BLANK_IDS = list(range(50257, 50257 + MAX_BLANKS))
 
     def add_tokens(self, tokens: List[str]):
         self.tokenizer.add_tokens(tokens)
@@ -22,9 +24,17 @@ class BlankTokenizer(AbstractTokenizer):
         self.eot_id = self.tokenizer.convert_tokens_to_ids("<|endoftext|>")
         assert isinstance(self.eot_id, int)
 
-        blank_text = "<|blank|>"
-        self.add_tokens([blank_text])
-        self.blank_id = self.tokenizer(blank_text)["input_ids"][0]
+        blank_token_template = "<|blank_{blank_id}|>"
+        blank_tokens = [
+            blank_token_template.format(blank_id=i) for i in range(MAX_BLANKS)
+        ]
+        self.add_tokens(blank_tokens)
+        self.blank_ids = [
+            self.tokenizer(blank_token_text)["input_ids"][0]
+            for blank_token_text in blank_tokens
+        ]
+
+        assert self.blank_ids == BlankTokenizer.BLANK_IDS
 
         self.tokenizer.add_tokens(
             [

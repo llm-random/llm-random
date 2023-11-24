@@ -3,7 +3,7 @@ import os.path
 import copy
 from types import SimpleNamespace as SN
 import time
-from typing import Callable, Optional, Literal
+from typing import Callable, List, Optional, Literal
 
 import torch
 from attr import define
@@ -37,6 +37,7 @@ class BlankTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
+    blanks_ids: List[int]
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -58,7 +59,6 @@ class BlankTrainer:
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
     n_blanks: int = 0
-    blank_id: int = 0
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -75,6 +75,7 @@ class BlankTrainer:
         self._calculate_loss = make_loss_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
             n_blanks=self.n_blanks,
+            blanks_ids=self.blanks_ids,
         )
 
     def _restore_weights(self):
