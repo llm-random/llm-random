@@ -139,6 +139,15 @@ def introduce_parser_arguments(
     parser.add_argument("--model_fit_gpu_info_database_path", type=str, default=None)
     parser.add_argument("--model_fit_gpu_info_params", type=str, default=None)
 
+    # profiler parameters
+    parser.add_argument("--profiler_enabled", action="store_true")
+    parser.add_argument("--profiler_trace_path", type=str, default=None)
+    parser.add_argument("--profiler_schedule_wait", type=int, default=None)
+    parser.add_argument("--profiler_schedule_warmup", type=int, default=None)
+    parser.add_argument("--profiler_schedule_active", type=int, default=None)
+    parser.add_argument("--profiler_schedule_repeat", type=int, default=None)
+    parser.add_argument("--profiler_schedule_skip_first", type=int, default=None)
+
     # model versioning
 
     parser.add_argument("--save_weights_path", type=str, default=None)

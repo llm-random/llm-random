@@ -7,6 +7,7 @@ from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 from torch.nn.modules.batchnorm import _BatchNorm
+from torch.profiler import ProfilerAction
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
@@ -526,3 +527,10 @@ def get_model_fit_gpu_info(database: str, params: dict):
         with Cache(database) as cache:
             serialized_params = json.dumps(params, sort_keys=True)
             return cache[serialized_params]
+
+
+def disable_profile_schedule_fn(_: int) -> ProfilerAction:
+    """
+    Passing this function to profiler will disable profiling
+    """
+    return ProfilerAction.NONE

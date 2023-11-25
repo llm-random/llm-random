@@ -72,10 +72,9 @@ class ConditionalTrainer:
     steps_until_start_temperature_learn: int = -1
     model_fit_gpu_info_database_path: str = None
     model_fit_gpu_info_params: [str] = None
-    save_trace_path: str = "traces"
-    trace_wait: int = 1
-    trace_warmup: int = 3
-    trace_active: int = 2
+    profiler_enabled: bool = False
+    profiler_trace_path: str = None
+    profiler_schedule: None = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -132,19 +131,20 @@ class ConditionalTrainer:
 
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-            schedule=torch.profiler.schedule(
-                wait=self.trace_wait,
-                warmup=self.trace_warmup,
-                active=self.trace_active,
+            schedule=self.profiler_schedule,
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                self.profiler_trace_path
             ),
+            record_shapes=True,
             profile_memory=True,
-            on_trace_ready=lambda p: p.export_chrome_trace(
-                f"{self.save_trace_path}/trace_{str(p.step_num)}.json"
-            ),
+            with_stack=True,
+            with_flops=True,
+            with_modules=True,
         ) as p:
             for step in range(n_steps + 1):
                 self._train_step(step)
-                p.step()
+                if self.profiler_enabled:
+                    p.step()
 
                 if (
                     step > 0

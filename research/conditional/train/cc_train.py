@@ -25,6 +25,7 @@ from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
+    disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
@@ -224,6 +225,18 @@ def main(
             else tokenizers.BertTokenizer,
         )
 
+    profiler_schedule = (
+        torch.profiler.schedule(
+            wait=args.profiler_schedule_wait,
+            warmup=args.profiler_schedule_warmup,
+            active=args.profiler_schedule_active,
+            repeat=args.profiler_schedule_repeat,
+            skip_first=args.profiler_schedule_skip_first,
+        )
+        if args.profiler_enabled
+        else disable_profile_schedule_fn
+    )
+
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
@@ -261,6 +274,9 @@ def main(
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
         model_fit_gpu_info_database_path=args.model_fit_gpu_info_database_path,
         model_fit_gpu_info_params=model_fit_gpu_info_params,
+        profiler_enabled=args.profiler_enabled,
+        profiler_trace_path=args.profiler_trace_path,
+        profiler_schedule=profiler_schedule,
     )
     trainer.train(args.n_steps)
 
