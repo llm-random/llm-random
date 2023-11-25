@@ -1,4 +1,6 @@
 from functools import partial
+import json
+from diskcache import Cache
 from typing import Type, Union
 import torch
 from torch.nn import LayerNorm
@@ -504,3 +506,23 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         ignored_classes += list(selective_precision_modules)
 
     return ignored_classes
+
+
+def update_model_fit_gpu_info(database: str, params: dict, value: str):
+    """
+    This function is used to records whether a model with given params fits in gpu.
+    """
+    if database is not None and params is not None:
+        with Cache(database) as cache:
+            serialized_params = json.dumps(params, sort_keys=True)
+            cache[serialized_params] = value
+
+
+def get_model_fit_gpu_info(database: str, params: dict):
+    """
+    This function is used to records whether a model with given params fits in gpu.
+    """
+    if database is not None and params is not None:
+        with Cache(database) as cache:
+            serialized_params = json.dumps(params, sort_keys=True)
+            return cache[serialized_params]

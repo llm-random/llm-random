@@ -10,7 +10,11 @@ from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
-from lizrd.support.misc import generate_random_string, set_seed
+from lizrd.support.misc import (
+    get_argument_attributes,
+    generate_random_string,
+    set_seed,
+)
 from lizrd.train.train_utils import (
     get_model,
 )
@@ -21,11 +25,13 @@ from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
+    get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     get_classes_from_module_names,
+    update_model_fit_gpu_info,
 )
 
 
@@ -133,6 +139,12 @@ def main(
     attention_layer_fun = get_attention_layer(args)
     residual_fn = get_residual_layer(args)
 
+    model_fit_gpu_info_params = get_argument_attributes(
+        args, args.model_fit_gpu_info_params
+    )
+    update_model_fit_gpu_info(
+        args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
+    )
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -190,9 +202,13 @@ def main(
         **common_dataloaders_kwargs, dataset_split="train"
     )
 
+    eval_split = (
+        "eval"
+        if args.dataset_type == "wikibook"
+        else ("train" if args.use_dummy_dataset else "validation")
+    )
     eval_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs,
-        dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
+        **common_dataloaders_kwargs, dataset_split=eval_split
     )
 
     if is_logging_process:
@@ -243,6 +259,8 @@ def main(
         eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
         eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
+        model_fit_gpu_info_database_path=args.model_fit_gpu_info_database_path,
+        model_fit_gpu_info_params=model_fit_gpu_info_params,
     )
     trainer.train(args.n_steps)
 
