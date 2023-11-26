@@ -12,8 +12,8 @@ from research.datasets import get_processed_dataset
 from lizrd.support.test_utils import GeneralTestCase, heavy_test
 from lizrd.train.train_utils import get_model
 from research.conditional.utils.model_utils import (
-    calculate_llm_loss,
-    chungized_llm_loss,
+    calculate_llm_loss_and_backward_pass,
+    chungized_llm_loss_and_backward_pass,
 )
 
 
@@ -197,24 +197,26 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         (
             loss_no_chung,
             aux_info_no_chung,
-        ) = calculate_llm_loss(
+        ) = calculate_llm_loss_and_backward_pass(
             batch=batch,
             model=model,
             mixed_precision=False,
             vocab_size=vocab_size,
             mixed_precision_dtype=torch.float16,
+            gradient_accumulation_steps=1,
         )
 
         (
             loss_chung,
             aux_info_chung,
-        ) = chungized_llm_loss(
+        ) = chungized_llm_loss_and_backward_pass(
             batch=batch,
             model=model_chunged,
             mixed_precision=False,
             vocab_size=vocab_size,
             n_chungs=n_chungs,
             mixed_precision_dtype=torch.float16,
+            gradient_accumulation_steps=1,
         )
 
         loss_no_chung.backward()

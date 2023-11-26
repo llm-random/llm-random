@@ -6,7 +6,6 @@ from typing import Type, Union
 import torch
 from torch.nn import LayerNorm
 import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
 from torch.nn.modules.batchnorm import _BatchNorm
 
 from lizrd.core import llm
