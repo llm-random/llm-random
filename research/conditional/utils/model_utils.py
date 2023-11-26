@@ -531,6 +531,6 @@ def get_model_fit_gpu_info(database: str, params: dict):
 
 def disable_profile_schedule_fn(_: int) -> ProfilerAction:
     """
-    Passing this function to profiler will disable profiling
+    Passing this function to the profiler as a scheduler disables profiling
     """
     return ProfilerAction.NONE
