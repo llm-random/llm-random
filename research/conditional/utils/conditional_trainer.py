@@ -192,11 +192,16 @@ class ConditionalTrainer:
             # clear computation graph, store gradients, only apply gradients at the end
             should_apply_gradient = i == self.gradient_accumulation_steps - 1
 
-            additional_loss_to_optimize = torch.zeros_like(
-                cross_entropy_loss, requires_grad=True
-            )
-            for key, value in aux_info["losses"].items():
-                additional_loss_to_optimize += value
+            if len(aux_info["losses"]) > 0:
+                additional_loss_to_optimize = torch.zeros_like(
+                    cross_entropy_loss,
+                    device=cross_entropy_loss.device,
+                    requires_grad=True,
+                )
+                for key, value in aux_info["losses"].items():
+                    additional_loss_to_optimize = additional_loss_to_optimize + value
+            else:
+                additional_loss_to_optimize = None
 
             if should_optimize:
                 self._optimize(
@@ -216,14 +221,15 @@ class ConditionalTrainer:
             "losses": losses,
         }
 
-    def _optimize(self, loss, should_apply_gradient=False):
+    def _optimize(self, additional_loss, should_apply_gradient=False):
         # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-        loss /= self.gradient_accumulation_steps
-        # clear computation graph, store gradients
-        if self.scaler is None:
-            loss.backward()
-        else:
-            self.scaler.scale(loss).backward()
+        if additional_loss is not None:
+            additional_loss /= self.gradient_accumulation_steps
+            # clear computation graph, store gradients
+            if self.scaler is None:
+                additional_loss.backward()
+            else:
+                self.scaler.scale(additional_loss).backward()
         if should_apply_gradient:
             if self.scaler is None:
                 if self.gradient_clipping is not None:
