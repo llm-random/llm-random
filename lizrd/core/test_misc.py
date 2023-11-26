@@ -147,6 +147,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         n_blocks = 2
         device = torch.device("cpu")
         n_chungs = 3
+        scaler = torch.cuda.amp.GradScaler()
 
         dataset = get_processed_dataset(
             batch_size=batch,
@@ -204,6 +205,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             vocab_size=vocab_size,
             mixed_precision_dtype=torch.float16,
             gradient_accumulation_steps=1,
+            scaler=scaler,
         )
 
         (
@@ -217,6 +219,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             n_chungs=n_chungs,
             mixed_precision_dtype=torch.float16,
             gradient_accumulation_steps=1,
+            scaler=scaler,
         )
 
         assert torch.isclose(loss_no_chung, loss_chung)

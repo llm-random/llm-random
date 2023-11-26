@@ -185,6 +185,7 @@ class ConditionalTrainer:
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
                 gradient_accumulation_steps=self.gradient_accumulation_steps,
+                scaler=self.scaler,
                 vocab_size=self.vocab_size,
             )
 
