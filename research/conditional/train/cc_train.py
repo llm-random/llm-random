@@ -7,23 +7,31 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
-from lizrd.support.misc import generate_random_string, set_seed
+from lizrd.support.misc import (
+    get_argument_attributes,
+    generate_random_string,
+    set_seed,
+)
 from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
+from research.conditional.utils.check_args import check_args
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
+    get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
+    get_mixed_precision_ignored_classes,
     get_residual_layer,
+    get_classes_from_module_names,
+    update_model_fit_gpu_info,
 )
 
 
@@ -60,6 +68,9 @@ def main(
     args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
 ):
+    """
+    rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
+    """
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
@@ -67,10 +78,16 @@ def main(
         if len(extra):
             print("Unknown args:", extra)
 
-    if args.granularity_expert_config:
-        print(
-            "`--granularity_expert_config` is deprecated. Missing granularity arguments are now always computed automatically."
-        )
+    check_args(args)
+    if args.save_weights_path is not None:
+        filename = args.save_weights_path.split("/")[-1]
+        assert (
+            "." not in filename
+        ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
+        random_string = generate_random_string(10)
+        args.save_weights_path = os.path.join(args.save_weights_path, random_string)
+        args.save_weights_path = os.path.abspath(args.save_weights_path)
+        os.makedirs(args.save_weights_path, exist_ok=True)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -81,6 +98,7 @@ def main(
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
+
     VOCAB_SIZE = (
         tokenizers.BertTokenizer.VOCAB_SIZE
         if args.model_type == "bert"
@@ -91,24 +109,42 @@ def main(
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
 
-    data_distributed = True if rank is not None else False
-    ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = get_attention_layer(args)
-    residual_fn = get_residual_layer(args)
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
-    if args.save_weights_path is not None:
-        filename = args.save_weights_path.split("/")[-1]
-        assert (
-            "." not in filename
-        ), f"Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
-        random_string = generate_random_string(10)
-        args.save_weights_path = os.path.join(args.save_weights_path, random_string)
-        args.save_weights_path = os.path.abspath(args.save_weights_path)
-        os.makedirs(args.save_weights_path, exist_ok=True)
 
+    if args.mixed_precision_dtype == "float16":
+        args.mixed_precision_dtype = torch.float16
+    elif args.mixed_precision_dtype == "bfloat16":
+        args.mixed_precision_dtype = torch.bfloat16
+
+    if args.fsdp_enabled:
+        fsdp_param_precision = args.mixed_precision_dtype
+        fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
+        fsdp_modules_to_wrap = get_classes_from_module_names(args.fsdp_modules_to_wrap)
+    else:
+        fsdp_param_precision = None
+        fsdp_mixed_precision_ignore_classes = None
+        fsdp_modules_to_wrap = None
+
+    # in case of data parallelism (DDP/FSDP), only gpu:0 should log
+    is_logging_process = True if rank is None or rank == 0 else False
+
+    activation_checkpointing_modules = get_classes_from_module_names(
+        args.activation_checkpointing_modules
+    )
+
+    ff_layer_fun = get_ff_layer(args)
+    attention_layer_fun = get_attention_layer(args)
+    residual_fn = get_residual_layer(args)
+
+    model_fit_gpu_info_params = get_argument_attributes(
+        args, args.model_fit_gpu_info_params
+    )
+    update_model_fit_gpu_info(
+        args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
+    )
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -120,19 +156,25 @@ def main(
         if rank is None
         else torch.device(
             "cpu"
-        ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
+        ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
-        gradient_checkpointing=args.gradient_checkpointing,
+        ddp_enabled=args.ddp_enabled,
+        fsdp_enabled=args.fsdp_enabled,
+        fsdp_param_precision=fsdp_param_precision,
+        fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
+        fsdp_offload_params=args.fsdp_offload_params,
+        fsdp_min_num_params=args.fsdp_min_num_params,
+        fsdp_modules_to_wrap=fsdp_modules_to_wrap,
+        activation_checkpointing_modules=activation_checkpointing_modules,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
+        is_logging_process=is_logging_process,
+        rank=rank,
     )
 
-    # make model data_distributed if necessary
-    if rank is not None:
-        print(f"Moving model to cuda:{rank}")
-        model = model.to(f"cuda:{rank}")
-        model = DDP(model, device_ids=[rank])
+    if args.torch_compile:
+        model = torch.compile(model)
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -143,13 +185,14 @@ def main(
 
     scheduler = get_scheduler(args)
 
+    data_distributed = args.ddp_enabled or args.fsdp_enabled
+    batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
+
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
         "device": DEVICE,
         "num_workers": args.num_workers,
-        "batch_size": args.batch_size // args.n_gpus
-        if data_distributed
-        else args.batch_size,
+        "batch_size": batch_size,
         "seed": args.data_seed if data_seeds is None else data_seeds[rank],
         "model_type": args.model_type,
         "dataset_type": args.dataset_type,
@@ -158,20 +201,22 @@ def main(
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs, dataset_split="train"
     )
+
+    eval_split = (
+        "eval"
+        if args.dataset_type == "wikibook"
+        else ("train" if args.use_dummy_dataset else "validation")
+    )
     eval_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs,
-        dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
+        **common_dataloaders_kwargs, dataset_split=eval_split
     )
 
-    # in case of data parallelism, only gpu:0 should log
-    is_process_logging = True if rank is None or rank == 0 else False
-
-    if is_process_logging:
+    if is_logging_process:
         logger = get_logger(args, model, VOCAB_SIZE)
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_process_logging:
+    if args.model_type == "gpt" and is_logging_process:
         log_batch(
             train_dataloader,
             tokenizer_maker=tokenizers.GPTTokenizer
@@ -186,12 +231,12 @@ def main(
         eval_dataloader=eval_dataloader,
         vocab_size=VOCAB_SIZE,
         mask_percent=args.mask_percent,
-        mixed_precision=args.mixed_precision,
+        mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
+        mixed_precision_dtype=args.mixed_precision_dtype,
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
         lr_scheduler=scheduler,
-        hack_name=args.hack_name,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
@@ -207,12 +252,15 @@ def main(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
-        is_process_logging=is_process_logging,
-        should_evaluate_dynamic_groupsize=args.should_evaluate_dynamic_groupsize,
+        is_logging_process=is_logging_process,
+        eval_dynamic_groupsize=args.eval_dynamic_groupsize,
+        eval_discrete_mot=args.eval_discrete_mot,
         decoding_interval=args.decoding_interval,
-        min_eval_group_size=args.min_eval_group_size,
-        max_eval_group_size=args.max_eval_group_size,
+        eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
+        eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
+        model_fit_gpu_info_database_path=args.model_fit_gpu_info_database_path,
+        model_fit_gpu_info_params=model_fit_gpu_info_params,
     )
     trainer.train(args.n_steps)
 
@@ -226,9 +274,7 @@ if __name__ == "__main__":
     introduce_parser_arguments(parser)
     args = parser.parse_args()
 
-    if args.data_distributed == False:
-        main(None, args=args)
-    else:
+    if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 
@@ -241,3 +287,5 @@ if __name__ == "__main__":
             args=[data_seeds, port, args],
             nprocs=args.n_gpus,
         )
+    else:
+        main(None, args=args)

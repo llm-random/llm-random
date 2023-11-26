@@ -1,6 +1,13 @@
 from functools import partial
+
+# import json
+# from diskcache import Cache
+from typing import Type, Union
 import torch
+from torch.nn import LayerNorm
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
+from torch.nn.modules.batchnorm import _BatchNorm
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
@@ -45,7 +52,7 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
     LegacyContinuousMoE,
 )
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -68,6 +75,7 @@ def chungized_llm_loss_and_backward_pass(
     scaler: torch.cuda.amp.GradScaler,
     n_chungs: int,
     gradient_accumulation_steps: int,
+    mixed_precision_dtype: torch.dtype,
 ):
     do_backward_pass = model.training
     if isinstance(model, DDP):
@@ -77,9 +85,10 @@ def chungized_llm_loss_and_backward_pass(
     mask = batch.should_calculate_loss
 
     with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
     ):
-        encoder_output: torch.Tensor = model.encoder(input_tokens)
+        embeddings = model.embedding_layer(input_tokens)
+        encoder_output: torch.Tensor = model.encoder(embeddings)
         gt_tokens = gt_tokens.to(encoder_output.device)
         mask = mask.to(encoder_output.device)
         num_masked_tokens = mask.sum()
@@ -96,7 +105,9 @@ def chungized_llm_loss_and_backward_pass(
             chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
             partial_output = model.head(chunged_input)
-            with torch.autocast(device_type="cuda", enabled=False, dtype=torch.float16):
+            with torch.autocast(
+                device_type="cuda", enabled=False, dtype=mixed_precision_dtype
+            ):
                 partial_loss_unmasked = F.cross_entropy(
                     partial_output.reshape(-1, vocab_size),
                     chunged_gt.reshape(-1).long(),
@@ -117,7 +128,7 @@ def chungized_llm_loss_and_backward_pass(
                     partial_loss.sum() / num_masked_tokens / gradient_accumulation_steps
                 )
                 with torch.autocast(
-                    device_type="cuda", enabled=False, dtype=torch.float16
+                    device_type="cuda", enabled=False, dtype=mixed_precision_dtype
                 ):
                     scaler.scale(loss).backward()
             total_loss += partial_loss.sum()
@@ -142,6 +153,7 @@ def calculate_llm_loss_and_backward_pass(
     scaler: torch.cuda.amp.GradScaler,
     vocab_size: int,
     gradient_accumulation_steps: int,
+    mixed_precision_dtype: torch.dtype,
 ):
     do_backward_pass = model.training
     input_tokens = batch.input_ids
@@ -149,7 +161,7 @@ def calculate_llm_loss_and_backward_pass(
     mask = batch.should_calculate_loss
 
     with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=torch.float16
+        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
     ):
         model_output = model(input_tokens)
 
@@ -183,7 +195,6 @@ def calculate_llm_loss_and_backward_pass(
 
 def get_attention_layer(args):
     causal = args.model_type == "gpt"
-
     attention_layer_fun = lambda: llm.Attention(
         dmodel=args.dmodel,
         heads=args.n_att_heads,
@@ -273,6 +284,7 @@ def get_expert_choice_args(args):
         "init_type": args.init_type,
         "init_scale": args.init_scale,
         "use_torch_bmm": args.use_torch_bmm,
+        "use_layer_norm": args.layer_norm_in_expert_choice,
     }
 
 
@@ -458,3 +470,74 @@ def get_ff_layer(args):
             )
 
     return return_fn
+
+
+def get_classes_from_module_names(
+    packed_names,
+) -> Union[tuple[Type[torch.nn.Module]], None]:
+    """
+    Unpacks a comma-separated list of module names into a tuple of modules.
+    """
+    names = []
+    if packed_names is None:
+        return None
+    for name in packed_names.split(","):
+        if name == "Attention":
+            names.append(llm.Attention)
+        if name == "AttentionMechanism":
+            names.append(llm.AttentionMechanism)
+        elif name == "FeedForward":
+            names.append(llm.FeedForward)
+        elif name == "Residual":
+            names.append(llm.Residual)
+        elif name == "TransformerBlock":
+            names.append(llm.TransformerBlock)
+        elif name == "TransformerTower":
+            names.append(llm.TransformerTower)
+        elif name == "LLM":
+            names.append(llm.LLM)
+        elif name == "EmbeddingLayer":
+            names.append(llm.EmbeddingLayer)
+        elif name == "PredictionHead":
+            names.append(llm.PredictionHead)
+        elif name == "ExpertChoiceFF":
+            names.append(ExpertChoiceFF)
+        elif name == "ExpertGating":
+            names.append(ExpertGating)
+        else:
+            raise ValueError(f"Unknown name {name}")
+    return tuple(names)
+
+
+def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
+    ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
+
+    selective_precision_modules = get_classes_from_module_names(
+        args.fsdp_selective_precision_modules
+    )
+    if selective_precision_modules is not None:
+        ignored_classes += list(selective_precision_modules)
+
+    return ignored_classes
+
+
+def update_model_fit_gpu_info(database: str, params: dict, value: str):
+    """
+    This function is used to records whether a model with given params fits in gpu.
+    """
+    # if database is not None and params is not None:
+    #     with Cache(database) as cache:
+    #         serialized_params = json.dumps(params, sort_keys=True)
+    #         cache[serialized_params] = value
+    print(database, params)
+
+
+def get_model_fit_gpu_info(database: str, params: dict):
+    """
+    This function is used to records whether a model with given params fits in gpu.
+    """
+    # if database is not None and params is not None:
+    #     with Cache(database) as cache:
+    #         serialized_params = json.dumps(params, sort_keys=True)
+    #         return cache[serialized_params]
+    print(database, params)

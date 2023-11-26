@@ -7,9 +7,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
-from lizrd.core.misc import default, Sum
+from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
-from lizrd.core.misc import Checkpoint, Linear
+from lizrd.core.misc import Linear
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -52,7 +52,7 @@ def FeedForward(
                         init_scale=init_scale,
                     ),
                 ),
-                ("relu", nn.ReLU(inplace=True)),
+                ("relu", nn.ReLU()),
                 (
                     "logging_ff_post_relu",
                     Linear(
@@ -91,14 +91,41 @@ class EveryOtherLayer:
 
 
 @ash.check("... -> ... ")
-class Residual(nn.Module):
+class Residual(LoggingLayer):
     def __init__(self, layer):
         super(Residual, self).__init__()
         self.layer = layer
 
     def forward(self, x):
         out = self.layer(x)
+        self.update_cache_for_logging("update", out)
+        self.update_cache_for_logging("residual_stream", x)
         return out + x
+
+    def log_heavy(self):
+        updates = self.logging_cache["update"]
+        residual_stream = self.logging_cache["residual_stream"]
+
+        update_norms = torch.norm(updates, dim=-1)
+        residual_norms = torch.norm(residual_stream, dim=-1)
+
+        update_norms_mean = torch.mean(update_norms)
+        update_norms_std = torch.std(update_norms)
+        residual_norms_mean = torch.mean(residual_norms)
+        residual_norms_std = torch.std(residual_norms)
+
+        update_to_residual_ratio = update_norms / residual_norms
+        update_to_residual_ratio_mean = torch.mean(update_to_residual_ratio)
+        update_to_residual_ratio_std = torch.std(update_to_residual_ratio)
+
+        return {
+            "update_norms/mean": update_norms_mean,
+            "update_norms/std": update_norms_std,
+            "residual_norms/mean": residual_norms_mean,
+            "residual_norms/std": residual_norms_std,
+            "update_to_residual_ratio/mean": update_to_residual_ratio_mean,
+            "update_to_residual_ratio/std": update_to_residual_ratio_std,
+        }
 
 
 @ash.check("... -> ... ")
@@ -188,6 +215,31 @@ def attention_mechanism(
     return output
 
 
+class AttentionMechanism(nn.Module):
+    def __init__(self, use_flash_attention: bool, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.use_flash_attention = use_flash_attention
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        dhead: int,
+        causal: bool,
+        *args,
+        **kwargs,
+    ):
+        return attention_mechanism(
+            query=query,
+            key=key,
+            value=value,
+            dhead=dhead,
+            causal=causal,
+            flash=self.use_flash_attention,
+        )
+
+
 @ash.check("... d -> ... d")
 class Attention(LoggingLayer):
     def __init__(
@@ -224,6 +276,7 @@ class Attention(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
 
     def forward(self, x):
         projected = self.input_projection(x)
@@ -234,13 +287,8 @@ class Attention(LoggingLayer):
         ).transpose(1, 2)
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
 
-        attention_output = attention_mechanism(
-            query=q,
-            key=k,
-            value=v,
-            dhead=self.dhead,
-            causal=self.causal,
-            flash=self.flash,
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
         )
 
         output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
@@ -287,12 +335,19 @@ def PreNormBlock(dmodel, layer, name):
 
 
 @ash.check("... d -> ... d")
-def TransformerBlock(dmodel, layers, gradient_checkpointing, residual_fn):
-    residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
-    residual_layers = [residual_fn(layer=layer, name=name) for name, layer in layers]
-    if gradient_checkpointing:
-        residual_layers = [Checkpoint(layer) for layer in residual_layers]
-    return nn.Sequential(*residual_layers)
+class TransformerBlock(nn.Module):
+    def __init__(self, dmodel, layers, residual_fn):
+        super(TransformerBlock, self).__init__()
+
+        residual_fn = default(residual_fn, partial(PreNormBlock, dmodel=dmodel))
+        residual_layers = [
+            (f"residual_{name}", residual_fn(layer=layer, name=name))
+            for name, layer in layers
+        ]
+        self.block = nn.Sequential(OrderedDict(residual_layers))
+
+    def forward(self, x):
+        return self.block(x)
 
 
 @ash.check("... d -> ... d")
@@ -302,7 +357,6 @@ class TransformerTower(nn.Module):
         n_blocks,
         dmodel,
         layer_dict,
-        gradient_checkpointing: bool = False,
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
@@ -325,11 +379,17 @@ class TransformerTower(nn.Module):
                 layer.block_number = i_block
 
             _, current_device = self.get_current_device(i_block)
+            block = TransformerBlock(
+                dmodel,
+                layers_info,
+                residual_fn,
+            )
+            if current_device != torch.device("cpu"):
+                block = block.to(current_device)
+
             name_and_block = (
                 f"block_{i_block}",
-                TransformerBlock(
-                    dmodel, layers_info, gradient_checkpointing, residual_fn
-                ).to(current_device),
+                block,
             )
             self.blocks.append(name_and_block)
         self.blocks = nn.Sequential(OrderedDict(self.blocks))
@@ -399,41 +459,28 @@ class PositionalEmbedding(nn.Module):
         return embeddings
 
 
-@ash.check("... -> ... d")
-def EmbeddingLayer(*layers):
-    return Sum(*layers)
+class EmbeddingLayer(Aggregate):
+    def __init__(self, *layers):
+        super(EmbeddingLayer, self).__init__((lambda x, y: x + y), *layers)
 
 
-@ash.check("... inp -> ... out")
-def PredictionHead(embedding_dim, output_size, init_type, init_scale):
-    return Linear(
-        embedding_dim, output_size, init_type=init_type, init_scale=init_scale
-    )
+class PredictionHead(Linear):
+    def __init__(self, embedding_dim, output_size, init_type, init_scale):
+        super(PredictionHead, self).__init__(
+            embedding_dim, output_size, init_type=init_type, init_scale=init_scale
+        )
 
 
 @ash.check("... -> ... out")
 class LLM(nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()
-
-        self.encoder = nn.Sequential(
-            OrderedDict(
-                [
-                    ("embedding_layer", embedding_layer),
-                    ("encoder", encoder_tower),
-                ]
-            )
-        )
-        self.full_model = nn.Sequential(
-            OrderedDict(
-                [
-                    ("embedding_layer", embedding_layer),
-                    ("encoder", encoder_tower),
-                    ("head", head),
-                ]
-            )
-        )
+        self.embedding_layer = embedding_layer
+        self.encoder = encoder_tower
         self.head = head
 
     def forward(self, *args, **kwargs):
-        return self.full_model.forward(*args, **kwargs)
+        x = self.embedding_layer(*args, **kwargs)
+        x = self.encoder(x)
+        x = self.head(x)
+        return x

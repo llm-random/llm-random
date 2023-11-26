@@ -1,21 +1,24 @@
 from functools import partial
 import torch
-from typing import Optional
+from typing import List
 
-from lizrd.text.data import LLMBatch
+from .data import BlanxBatch
 from torch.utils.checkpoint import checkpoint
 
 import torch.nn.functional as F
 
 from research.blanks.utils import (
     get_first_blanks_in_series,
+    get_is_blank,
     iterate_through_nth_blanks_masks,
 )
 
 
-def make_loss_function(loss_checkpoint_chungs: int, n_blanks: int = 0):
+def make_loss_function(
+    loss_checkpoint_chungs: int, n_blanks: int = 0, blanks_ids: List[int] = []
+):
     if loss_checkpoint_chungs == 0:
-        return partial(calculate_llm_loss, n_blanks=n_blanks)
+        return partial(calculate_llm_loss, n_blanks=n_blanks, blanks_ids=blanks_ids)
     else:
         if n_blanks > 0:
             raise NotImplementedError(
@@ -25,7 +28,7 @@ def make_loss_function(loss_checkpoint_chungs: int, n_blanks: int = 0):
 
 
 def chungized_llm_loss(
-    batch: LLMBatch,
+    batch: BlanxBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
@@ -34,6 +37,7 @@ def chungized_llm_loss(
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
+    attention_mask = batch.attention_mask
 
     def make_custom_forward():
         def custom_forward(*inputs):
@@ -61,7 +65,7 @@ def chungized_llm_loss(
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
-        encoder_output = model.encoder(input_tokens)
+        encoder_output = model.encoder(input_tokens, attention_mask)
         chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
@@ -71,14 +75,19 @@ def chungized_llm_loss(
         total_correct_tokens = 0
         total_masked_tokens = 0
         for chunged_input, chunged_gt, chunged_mask in zip(
-            chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
+            chunged_inputs,
+            chunged_non_masked_inputs,
+            chunged_non_masked_masks,
         ):
             (
                 partial_loss_output,
                 partial_correct_tokens,
                 partial_masked_tokens,
             ) = checkpoint(
-                make_custom_forward(), chunged_input, chunged_gt, chunged_mask
+                make_custom_forward(),
+                chunged_input,
+                chunged_gt,
+                chunged_mask,
             )
             num_tokens += partial_loss_output.shape[0]
             total_loss += partial_loss_output.sum()
@@ -95,21 +104,22 @@ def chungized_llm_loss(
 
 
 def calculate_llm_loss(
-    batch: LLMBatch,
+    batch: BlanxBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
-    n_blanks: int = 0,
-    blank_id: Optional[int] = 50257,
+    blanks_ids: List[int],
+    n_blanks: int,
 ):
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
+    attention_mask = batch.attention_mask
 
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=torch.float16
     ):
-        model_output = model(input_tokens)
+        model_output = model(input_tokens, attention_mask)
 
     # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
     gt_tokens = gt_tokens.to(model_output.device)
@@ -120,14 +130,12 @@ def calculate_llm_loss(
         gt_tokens.reshape(-1).long(),
         reduction="none",
     )
-    mask_loss = mask_loss[mask.reshape(-1) == 1]
-    loss = mask_loss.mean()
 
     blanks_losses = {}
     if n_blanks > 0:
-        assert blank_id is not None
+        assert len(blanks_ids) > 0
         with torch.no_grad():
-            is_blank = input_tokens.eq(blank_id)
+            is_blank = get_is_blank(input_tokens, blanks_ids)
             total_blanks_count = is_blank.sum()
             if total_blanks_count > 0:
                 blank_start = get_first_blanks_in_series(is_blank)
@@ -140,13 +148,22 @@ def calculate_llm_loss(
                     nth_blanks_count = nth_blank_mask.sum()
                     assert nth_blanks_count * n_blanks == total_blanks_count
                     if n == 0:
-                        assert not input_tokens[nth_blank_mask == 1].eq(blank_id).any()
+                        assert not get_is_blank(
+                            input_tokens[nth_blank_mask == 1], blanks_ids
+                        ).any()
                     else:
-                        assert input_tokens[nth_blank_mask == 1].eq(blank_id).all()
+                        assert get_is_blank(
+                            input_tokens[nth_blank_mask == 1], blanks_ids
+                        ).all()
+
                     nth_blank_loss = (nth_blank_mask.reshape(-1) * mask_loss).sum()
+
                     blanks_losses[f"blank_{n}_loss"] = (
                         nth_blank_loss / nth_blanks_count if nth_blanks_count > 0 else 0
                     )
+
+    mask_loss = mask_loss[mask.reshape(-1) == 1]
+    loss = mask_loss.mean()
 
     correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
     correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)

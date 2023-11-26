@@ -1,7 +1,7 @@
 import argparse
 import os
 import random
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 import socket
 
 import torch
@@ -9,12 +9,16 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from lizrd.core import llm, misc
+from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
 from .datasets import get_processed_dataset
-from .model import get_model, get_ff_layer
+from .model import (
+    get_attention_layer,
+    get_model,
+    get_ff_layer,
+)
 from lizrd.text import tokenizers
 from .tokenizers import BlankTokenizer
 
@@ -72,13 +76,18 @@ def main(
 
     VOCAB_SIZE = BlankTokenizer.VOCAB_SIZE
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    BLANKS_IDS: List[int] = (
+        BlankTokenizer.BLANK_IDS[: args.n_blanks]
+        if args.blanks_use_multiple_embeddings
+        else BlankTokenizer.BLANK_IDS[:1] * args.n_blanks
+    )
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
 
     data_distributed = True if rank is not None else False
     ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = lambda: llm.Attention(args.dmodel, args.n_att_heads)
+    attention_layer_fun = get_attention_layer(args)
 
     if args.model_parallelism_fragmentation is not None:
         args.model_parallelism_fragmentation = [
@@ -108,14 +117,17 @@ def main(
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=None,
+        init_type=args.init_type,
+        init_scale=args.init_scale,
         n_blanks=args.n_blanks,
-        blank_id=50257,
+        blanks_use_multiple_embeddings=args.blanks_use_multiple_embeddings,
+        blank_ids=torch.tensor(BLANKS_IDS, device=DEVICE, dtype=torch.int),
         blanks_add_embedding=args.blanks_add_embedding,
         blanks_residual=args.blanks_residual,
         blanks_learnable_weights=args.blanks_learnable_weights,
-        #
         blank_initial_weight=args.blank_initial_weight,
         blanks_straight_through=args.blanks_use_straight_through,
+        blanks_use_custom_positional_embedding=args.blanks_use_custom_positional_embedding,
     )
 
     # make model data_distributed if necessary
@@ -144,9 +156,12 @@ def main(
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
         "tokenizer_maker": BlankTokenizer,
+        "n_blanks": args.n_blanks,
+        "blanks_ids": BLANKS_IDS,
+        "use_only_last_blank_loss": args.blanks_use_only_last_blank_loss,
     }
     train_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs, dataset_split="train", n_blanks=args.n_blanks
+        **common_dataloaders_kwargs, dataset_split="train"
     )
 
     # TODO: replace eval_dataloader with something more sensible
@@ -159,7 +174,6 @@ def main(
             if args.dataset_type == "c4" and args.use_dummy_dataset
             else "validation"
         ),
-        n_blanks=args.n_blanks,
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
@@ -197,6 +211,8 @@ def main(
         is_process_logging=is_process_logging,
         decoding_logging_steps=args.decoding_logging_steps,
         n_blanks=args.n_blanks,
+        blanks_ids=BLANKS_IDS,
+        use_only_last_blank_loss=args.blanks_use_only_last_blank_loss,
     )
     trainer.train(args.n_steps)
 
