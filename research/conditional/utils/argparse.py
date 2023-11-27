@@ -258,6 +258,11 @@ def introduce_parser_arguments(
         help="in grouped ExpertChoice, use squash all linears with einsum",
     )
     parser.add_argument(
+        "--use_einsum_attention",
+        action="store_true",
+        help="in MoAtt experts attention, use einsum instead of bmm",
+    )
+    parser.add_argument(
         "--use_torch_bmm",
         action="store_true",
         help="in grouped ExpertChoice, use one hot implementation with all "
