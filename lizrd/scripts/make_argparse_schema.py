@@ -61,13 +61,53 @@ def create_schema(parser: argparse.ArgumentParser) -> dict:
         "type": "object",
         "properties": {
             "parent": {"description": "Path to the parent yaml", "type": "string"},
+            "gres": {
+                "description": "Resources (slurm)",
+                "type": "string",
+            },
             "md5_parent_hash": {
-                "description": "MD5 hash of the parrent yaml",
+                "description": "MD5 hash of the parent yaml",
                 "type": "string",
             },
             "time": {
-                "description": "How long the training will take",
-                "type": "str",
+                "description": "How long the training will take (slurm)",
+                "type": "string",
+            },
+            "runs_multiplier": {
+                "description": "How many times to run the training",
+                "type": "integer",
+            },
+            "runner": {
+                "description": "Which runner to use",
+                "type": "string",
+            },
+            "cpus_per_gpu": {
+                "description": "How many cpus to use per gpu (slurm)",
+                "type": "integer",
+            },
+            "nodelist": {
+                "description": "Which nodes to use (slurm)",
+                "type": "string",
+            },
+            "singularity_image": {
+                "description": "Path to singularity image",
+                "type": "string",
+            },
+            "cuda_visible": {
+                "description": "Which gpus can be used (entropy_gpu)",
+                "type": "string",
+            },
+            "hf_datasets_cache": {
+                "description": "Path to datasets cache (huggingface)",
+                "type": "string",
+            },
+            "interactive_debug": {
+                "description": "Whether to run in interactive debug mode",
+                "type": "boolean",
+            },
+            "n_gpus": {
+                "description": "How many gpus to use",
+                "type": "integer",
             },
             "params": {
                 "description": "Parameters that will be passed to the script",
