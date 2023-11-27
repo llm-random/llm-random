@@ -12,7 +12,6 @@ from lizrd.core.initialization import get_init_weight
 
 import torch
 
-from lizrd.core import llm
 import lizrd.core.misc as misc
 
 
@@ -37,6 +36,7 @@ def get_model(
     blank_initial_weight: float = 1.0,
     blanks_straight_through: bool = False,
     blanks_use_custom_positional_embedding: bool = False,
+    blanks_use_separate_head: bool = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -91,17 +91,24 @@ def get_model(
     )
 
     if n_blanks > 0 and blanks_residual:
-        head = BlankDiffPredictionHead(
-            dm,
-            vocab_size,
-            init_type=init_type,
-            init_scale=init_scale,
-            blank_token_id=blank_id,
-            n_blanks=n_blanks,
-            learnable_weights=blanks_learnable_weights,
-            initial_blank_weight=blank_initial_weight,
-            use_straight_through=blanks_straight_through,
-        ).to(last_gpu)
+        shared_args = {
+            "embedding_dim": dm,
+            "output_size": vocab_size,
+            "init_type": init_type,
+            "init_scale": init_scale,
+            "blank_token_id": blank_id,
+            "n_blanks": n_blanks,
+            "learnable_weights": blanks_learnable_weights,
+            "initial_blank_weight": blank_initial_weight,
+            "use_straight_through": blanks_straight_through,
+        }
+
+        if blanks_use_separate_head:
+            head = BlankSeparateHead(
+                **shared_args, use_residual_blank=blanks_residual
+            ).to(last_gpu)
+        else:
+            head = BlankDiffPredictionHead(**shared_args).to(last_gpu)
     else:
         head = llm.PredictionHead(
             dm, vocab_size, init_type=init_type, init_scale=init_scale

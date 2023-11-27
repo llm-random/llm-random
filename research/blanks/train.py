@@ -118,6 +118,7 @@ def main(
         blank_initial_weight=args.blank_initial_weight,
         blanks_straight_through=args.blanks_use_straight_through,
         blanks_use_custom_positional_embedding=args.blanks_use_custom_positional_embedding,
+        blanks_use_separate_head=args.blanks_use_separate_head,
     )
 
     # make model data_distributed if necessary
