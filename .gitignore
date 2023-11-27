@@ -159,3 +159,6 @@ tmp_plots/
 models/
 model_ckpt/
 full_config*.yaml
+
+# yaml / json schemas
+schema.json
