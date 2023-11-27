@@ -93,11 +93,12 @@ class BlankTrainer:
                 )
 
     def _save_weights(self, step):
-        print("Saving weights... ")
         if (
-            self.save_weights_path is not None
+            self.save_weights_interval > 0
+            and self.save_weights_path is not None
             and step % self.save_weights_interval == 0
         ):
+            print("Saving weights... ")
             checkpoint = {
                 "model": self.model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
