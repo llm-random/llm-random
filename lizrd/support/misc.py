@@ -2,7 +2,7 @@ import datetime
 import hashlib
 import random
 import string
-from typing import Optional, List, Tuple, Set
+from typing import Any, Dict, Optional, List, Tuple, Set
 
 import yaml
 
@@ -78,6 +78,15 @@ def get_yaml_md5(file_path):
         file_data = f.read()  # read file data into memory
         hash_md5 = hashlib.md5(file_data).hexdigest()
     return hash_md5
+
+
+def get_argument_attributes(args: Any, params: list) -> Dict[str, Any]:
+    if (
+        args.model_fit_gpu_info_database_path is not None
+        and args.model_fit_gpu_info_params is not None
+    ):
+        params = args.model_fit_gpu_info_params.split(",")
+        return {param: getattr(args, param) for param in params}
 
 
 def set_seed(seed):
