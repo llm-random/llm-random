@@ -247,6 +247,7 @@ def get_attention_layer(args):
             "init_type": args.init_type,
             "init_scale": args.init_scale,
             "flash": args.flash_attention,
+            "use_einsum": args.use_einsum_attention,
         }
         attention_layer_fun = partial(ExpertChoiceAttention, **att_args)
         return attention_layer_fun
@@ -331,40 +332,6 @@ def get_expert_choice_args(args):
         "init_scale": args.init_scale,
         "use_torch_bmm": args.use_torch_bmm,
         "use_layer_norm": args.layer_norm_in_expert_choice,
-    }
-
-
-def get_expert_attention_args(args):
-    if args.total_experts_width is not None:
-        expert_size = args.total_experts_width / args.n_experts
-        assert expert_size == int(expert_size)
-        args.expert_size = int(expert_size)
-
-        experts_per_token = args.effective_dff / expert_size
-
-        topk_fraction = experts_per_token / args.n_experts
-        assert 0.0 <= topk_fraction <= 1.0
-        args.topk_fraction = topk_fraction
-    else:
-        experts_per_token = args.topk_fraction * args.n_experts
-        args.effective_dff = experts_per_token * args.expert_size
-        args.total_experts_width = args.expert_size * args.n_experts
-
-    return {
-        "dmodel": args.dmodel,
-        "n_experts": args.n_experts,
-        "expert_size": args.expert_size,
-        "topk_fraction": args.topk_fraction,
-        "random_perm": args.expert_random_perm,
-        "group_by_batch": args.group_granular_moe_by_batch,
-        "softmax_ungrouped": args.softmax_ungrouped,
-        "one_hot_impl": args.granular_moe_one_hot_impl,
-        "softmax_over": args.softmax_over,
-        "use_full_einsum": args.use_full_einsum,
-        "group_size": args.simulate_group_size,
-        "init_type": args.init_type,
-        "init_scale": args.init_scale,
-        "use_torch_bmm": args.use_torch_bmm,
     }
 
 
