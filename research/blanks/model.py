@@ -92,25 +92,24 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    if n_blanks > 0 and blanks_residual:
-        shared_args = {
-            "embedding_dim": dm,
-            "output_size": vocab_size,
-            "init_type": init_type,
-            "init_scale": init_scale,
-            "blank_tokens_ids": blank_ids,
-            "n_blanks": n_blanks,
-            "learnable_weights": blanks_learnable_weights,
-            "initial_blank_weight": blank_initial_weight,
-            "use_straight_through": blanks_straight_through,
-        }
+    shared_args = {
+        "embedding_dim": dm,
+        "output_size": vocab_size,
+        "init_type": init_type,
+        "init_scale": init_scale,
+        "blank_tokens_ids": blank_ids,
+        "n_blanks": n_blanks,
+        "learnable_weights": blanks_learnable_weights,
+        "initial_blank_weight": blank_initial_weight,
+        "use_straight_through": blanks_straight_through,
+    }
 
-        if blanks_use_separate_head:
-            head = BlankSeparateHead(
-                **shared_args, use_residual_blank=blanks_residual
-            ).to(last_gpu)
-        else:
-            head = BlankDiffPredictionHead(**shared_args).to(last_gpu)
+    if n_blanks > 0 and blanks_use_separate_head:
+        head = BlankSeparateHead(**shared_args, use_residual_blank=blanks_residual).to(
+            last_gpu
+        )
+    elif n_blanks > 0 and blanks_residual:
+        head = BlankDiffPredictionHead(**shared_args).to(last_gpu)
     else:
         head = llm.PredictionHead(
             dm, vocab_size, init_type=init_type, init_scale=init_scale
@@ -245,8 +244,8 @@ class BlankSeparateHead(torch.nn.Module):
         n_blanks: int,
         learnable_weights: bool,
         initial_blank_weight: float,
-        use_straight_through: bool = False,
-        use_residual_blank: bool = False,
+        use_straight_through: bool,
+        use_residual_blank: bool,
     ):
         super().__init__()
         self.regular_head = misc.Linear(
@@ -281,6 +280,7 @@ class BlankSeparateHead(torch.nn.Module):
     def non_residual_forward(
         self, encoder_output: torch.Tensor, model_input: torch.Tensor
     ):
+        # print("non residual")
         is_blank = get_is_blank(model_input, self.blank_tokens_ids)
         is_not_blanks = ~is_blank
         assert is_not_blanks.dtype == is_blank.dtype == torch.bool
@@ -290,7 +290,8 @@ class BlankSeparateHead(torch.nn.Module):
         ) + self.blank_head(encoder_output * is_blank.unsqueeze(-1))
 
     def residual_forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
-        is_blank = model_input.eq(self.blank_token_id)
+        print("residual")
+        is_blank = get_is_blank(model_input, self.blank_tokens_ids)
         is_not_blank = ~is_blank
         assert is_not_blank.dtype == torch.bool
 
@@ -378,7 +379,7 @@ class BlankLLM(torch.nn.Module):
 
     def forward(self, input_tokens, attention_mask):
         with self.attention_manager.set_mask(attention_mask):
-            if isinstance(self.head, BlankDiffPredictionHead):
+            if isinstance(self.head, (BlankDiffPredictionHead, BlankSeparateHead)):
                 encoder_output = self.encoder.forward(input_tokens)
                 return self.head(encoder_output, input_tokens)
             else:
