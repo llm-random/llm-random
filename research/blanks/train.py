@@ -102,8 +102,12 @@ def main(
         args.save_weights_path = os.path.abspath(args.save_weights_path)
         os.makedirs(args.save_weights_path, exist_ok=True)
 
+    sequence_length_with_blanks = args.cutoff + (
+        args.n_blanks if args.blanks_insert_blanks_without_replacement else 0
+    )
+
     model = get_model(
-        max_length=args.cutoff,
+        max_length=sequence_length_with_blanks,
         vocab_size=VOCAB_SIZE,
         ff_layer_fun=ff_layer_fun,
         attention_layer_fun=attention_layer_fun,
@@ -159,6 +163,7 @@ def main(
         "n_blanks": args.n_blanks,
         "blanks_ids": BLANKS_IDS,
         "use_only_last_blank_loss": args.blanks_use_only_last_blank_loss,
+        "insert_blanks_without_replacement": args.blanks_insert_blanks_without_replacement,
     }
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs, dataset_split="train"

@@ -199,5 +199,8 @@ def introduce_parser_arguments(
     parser.add_argument("--blanks_use_multiple_embeddings", action="store_true")
     parser.add_argument("--blanks_use_custom_attention", action="store_true")
     parser.add_argument("--blanks_use_only_last_blank_loss", action="store_true")
+    parser.add_argument(
+        "--blanks_insert_blanks_without_replacement", action="store_true"
+    )
 
     return parser
