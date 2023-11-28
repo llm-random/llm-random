@@ -7,7 +7,6 @@ from fancy_einsum import einsum
 from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.llm import attention_mechanism
-from lizrd.core.misc import Linear
 from lizrd.support.logging import make_histogram
 from research.conditional.moe_layers.expert_choice import make_heatmap
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -20,7 +19,7 @@ class ExpertChoiceAttention(LoggingLayer):
         dmodel: int,
         n_experts: int,
         expert_dhead: int,
-        topk: int,
+        topk_denominator: int,
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
         softmax_over: Literal["tokens", "experts"] = "experts",
@@ -40,7 +39,7 @@ class ExpertChoiceAttention(LoggingLayer):
         self.dmodel = dmodel
         self.n_experts = n_experts
         self.expert_dhead = expert_dhead
-        self.topk = topk
+        self.topk_denominator = topk_denominator
         self.n_gating_heatmaps = n_gating_heatmaps
         self.flash = flash
         self.use_einsum = use_einsum
@@ -55,12 +54,13 @@ class ExpertChoiceAttention(LoggingLayer):
                 scale=init_scale,
             ),
         )
-        self.output_projection = Linear(
-            self.n_experts * self.expert_dhead,
-            self.dmodel,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
+        self.output_projection = nn.Parameter(
+            get_init_weight(
+                (self.n_experts * self.expert_dhead, self.dmodel),
+                fan_in=self.n_experts * self.expert_dhead // self.topk_denominator,
+                init_type=init_type,
+                scale=init_scale,
+            ),
         )
         self.gate = nn.Parameter(
             get_init_weight(
@@ -111,6 +111,12 @@ class ExpertChoiceAttention(LoggingLayer):
                 "-> batch_size seq_len n_exp exp_size",
                 attention_output,
                 one_hot,
+            ).flatten(-2)
+            attention_output = einsum(
+                "batch_size seq_len NEXP_EXPSIZE, NEXP_EXPSIZE dmodel"
+                "-> batch_size seq_len dmodel",
+                attention_output,
+                self.output_projection,
             )
         else:
             one_hot = one_hot.transpose(2, 3)
@@ -119,12 +125,16 @@ class ExpertChoiceAttention(LoggingLayer):
             # n_exp x batch_size x topk    x exp_size       <- attention_output
             # ---------------------------------------
             # n_exp x batch_size x seq_len x exp_size
-            attention_output = torch.matmul(one_hot, attention_output).permute(
-                1, 2, 0, 3
+            attention_output = (
+                torch.matmul(one_hot, attention_output).permute(1, 2, 0, 3).flatten(-2)
             )
+            # MATMUL:
+            # batch_size x seq_len      x NEXP_EXPSIZE           <- attention_output
+            #              NEXP_EXPSIZE x dmodel                 <- output_projection
+            # ---------------------------------------
+            # batch_size x seq_len      x dmodel
 
-        # Output projection
-        attention_output = self.output_projection(attention_output.flatten(-2))
+            attention_output = torch.matmul(attention_output, self.output_projection)
 
         with measure_time(self, "moatt_layer_norm"):
             attention_output = self.ln(attention_output)
@@ -132,6 +142,7 @@ class ExpertChoiceAttention(LoggingLayer):
         return attention_output
 
     def expert_gating(self, x: torch.Tensor, batch_size: int, seq_len: int):
+        topk = seq_len // self.topk_denominator
         # expert embedding
         with measure_time(self, "moatt_expert_embedding"):
             gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
@@ -149,7 +160,7 @@ class ExpertChoiceAttention(LoggingLayer):
         self.update_cache_for_logging("moatt_gate_softmax_all_values", gate_out)
         # choose topk tokens for each expert
         with measure_time(self, "moatt_topk"):
-            topk_values, topk_indices = torch.topk(gate_out, k=self.topk, dim=-1)
+            topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=-1)
 
         # cache values for logging
         self.update_cache_for_logging("moatt_gate_softmax_topk_vals", topk_values)
