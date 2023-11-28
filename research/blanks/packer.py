@@ -22,7 +22,7 @@ class BlankPacker(GPTPacker):
         tokenizer_maker: Callable[[], AbstractTokenizer],
         n_blanks: int,
         blanks_ids: List[int],
-        insert_blanks_without_replacement: bool,
+        extend_sequence_by_n_blanks: bool,
         seed: Optional[int] = None,
         use_only_last_blank_loss: bool = False,
     ):
@@ -38,7 +38,7 @@ class BlankPacker(GPTPacker):
 
         assert len(self.blanks_ids) == self.n_blanks
         self.use_only_last_blank_loss = use_only_last_blank_loss
-        self.insert_blanks_without_replacement = insert_blanks_without_replacement
+        self.extend_sequence_by_n_blanks = extend_sequence_by_n_blanks
 
     def get_sample(self) -> BlanxExample:
         sample = super().get_sample()
@@ -46,7 +46,7 @@ class BlankPacker(GPTPacker):
         input_tokens = sample.input_ids
         target_tokens = sample.target_ids
         seq_len = len(input_tokens)
-        if self.insert_blanks_without_replacement:
+        if self.extend_sequence_by_n_blanks:
             input_tokens.extend(
                 [0] * self.n_blanks
             )  # will be cut off by inserting blanks
@@ -89,7 +89,7 @@ class BlankEvalPacker(GPTPacker):
         tokenizer_maker: Callable[[], AbstractTokenizer],
         n_blanks: int,
         blanks_ids: List[int],
-        insert_blanks_without_replacement: bool,
+        extend_sequence_by_n_blanks: bool,
         seed: Optional[int] = None,
     ):
         super().__init__(
@@ -101,7 +101,7 @@ class BlankEvalPacker(GPTPacker):
 
         self.n_blanks = n_blanks
         self.blanks_ids = blanks_ids
-        self.insert_blanks_without_replacement = insert_blanks_without_replacement
+        self.extend_sequence_by_n_blanks = extend_sequence_by_n_blanks
 
         assert len(self.blanks_ids) == self.n_blanks
 
@@ -115,7 +115,7 @@ class BlankEvalPacker(GPTPacker):
         # this will not see extended input, so it will generate valid position for blanks if we extend the input
         blank_insertion_point = self.py_rng.randint(1, seq_len - 1)
 
-        if self.insert_blanks_without_replacement:
+        if self.extend_sequence_by_n_blanks:
             input_tokens.extend([0] * self.n_blanks)
             target_tokens.extend([0] * self.n_blanks)
             seq_len += self.n_blanks

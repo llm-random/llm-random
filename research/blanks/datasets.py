@@ -23,7 +23,7 @@ def get_processed_dataset(
     n_blanks: int = 0,
     blanks_ids: List[int] = [],
     use_only_last_blank_loss: bool = False,
-    insert_blanks_without_replacement: bool = False,
+    extend_sequence_by_n_blanks: bool = False,
 ):
     if dataset_type == "wikibook":
         dataset = datasets.WikiBookDataset(
@@ -46,7 +46,7 @@ def get_processed_dataset(
             n_blanks=n_blanks,
             blanks_ids=blanks_ids,
             use_only_last_blank_loss=use_only_last_blank_loss,
-            insert_blanks_without_replacement=insert_blanks_without_replacement,
+            extend_sequence_by_n_blanks=extend_sequence_by_n_blanks,
         )
     elif dataset_split in ["eval", "validation"]:
         packer = BlankEvalPacker(
@@ -55,7 +55,7 @@ def get_processed_dataset(
             tokenizer_maker=tokenizer_maker,
             n_blanks=n_blanks,
             blanks_ids=blanks_ids,
-            insert_blanks_without_replacement=insert_blanks_without_replacement,
+            extend_sequence_by_n_blanks=extend_sequence_by_n_blanks,
         )
     else:
         raise ValueError(f"Unknown dataset split: {dataset_split}")

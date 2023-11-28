@@ -103,7 +103,7 @@ def main(
         os.makedirs(args.save_weights_path, exist_ok=True)
 
     sequence_length_with_blanks = args.cutoff + (
-        args.n_blanks if args.blanks_insert_blanks_without_replacement else 0
+        args.n_blanks if args.blanks_extend_sequence_by_n_blanks else 0
     )
 
     model = get_model(
@@ -163,7 +163,7 @@ def main(
         "n_blanks": args.n_blanks,
         "blanks_ids": BLANKS_IDS,
         "use_only_last_blank_loss": args.blanks_use_only_last_blank_loss,
-        "insert_blanks_without_replacement": args.blanks_insert_blanks_without_replacement,
+        "extend_sequence_by_n_blanks": args.blanks_extend_sequence_by_n_blanks,
     }
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs, dataset_split="train"
