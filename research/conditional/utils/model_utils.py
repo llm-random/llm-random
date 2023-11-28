@@ -219,9 +219,7 @@ def calculate_llm_loss_and_backward_pass(
 
 
 def get_attention_layer(args):
-    assert not args.n_att_heads or not args.n_att_experts
-
-    if args.n_att_heads:
+    if not args.att_topk_denominator or args.att_topk_denominator == 1:
         causal = args.model_type == "gpt"
         attention_layer_fun = lambda: llm.Attention(
             dmodel=args.dmodel,
@@ -233,26 +231,24 @@ def get_attention_layer(args):
             init_scale=args.init_scale,
         )
         return attention_layer_fun
-    elif args.n_att_experts:
-        assert args.att_topk, "att_topk must be specified when using moe in attention"
-        assert (
-            args.dhead
-        ), "dhead must be specified when using moe in attention - default seq_len/4"
-        att_args = {
-            "dmodel": args.dmodel,
-            "n_experts": args.n_att_experts,
-            "expert_dhead": args.dhead,
-            "topk": args.att_topk,
-            "softmax_over": args.softmax_over,
-            "init_type": args.init_type,
-            "init_scale": args.init_scale,
-            "flash": args.flash_attention,
-            "use_einsum": args.use_einsum_attention,
-        }
-        attention_layer_fun = partial(ExpertChoiceAttention, **att_args)
-        return attention_layer_fun
-
-    raise NotImplementedError(f"You must specify either n_att_heads or n_att_experts")
+    dhead = args.dhead
+    if dhead is None:
+        assert args.dmodel % args.n_att_heads == 0
+        dhead = args.dmodel // args.n_att_heads
+    n_experts = round(args.n_att_heads * args.att_topk_denominator**2)
+    att_args = {
+        "dmodel": args.dmodel,
+        "n_experts": n_experts,
+        "expert_dhead": dhead,
+        "topk_denominator": args.att_topk_denominator,
+        "softmax_over": args.softmax_over,
+        "init_type": args.init_type,
+        "init_scale": args.init_scale,
+        "flash": args.flash_attention,
+        "use_einsum": args.use_einsum_attention,
+    }
+    attention_layer_fun = partial(ExpertChoiceAttention, **att_args)
+    return attention_layer_fun
 
 
 def get_residual_layer(args):
