@@ -216,6 +216,9 @@ class ConditionalTrainer:
             for key, value in aux_info["losses"].items():
                 loss_to_optimize += value
 
+            # since we sum gradients averaged over multiple smaller batches, we need to normalize here
+            loss_to_optimize /= self.gradient_accumulation_steps
+
             if should_optimize:
                 self._optimize(
                     loss_to_optimize, should_apply_gradient=should_apply_gradient
@@ -234,8 +237,6 @@ class ConditionalTrainer:
         }
 
     def _optimize(self, loss, should_apply_gradient=False):
-        # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-        loss /= self.gradient_accumulation_steps
         if self.gradient_accumulation_steps == 1:
             self.optimizer.zero_grad()
         # clear computation graph, store gradients
@@ -283,7 +284,11 @@ class ConditionalTrainer:
                 current_group_size = int(
                     2**log_group_size_factor * original_group_size
                 )
-                if current_group_size <= self.batch_size and current_group_size > 0:
+                if (
+                    current_group_size
+                    <= self.batch_size // self.gradient_accumulation_steps
+                    and current_group_size > 0
+                ):
                     with temp_modify_attr(layers, "group_size", current_group_size):
                         self._eval_single_variant(
                             batches=batches,
