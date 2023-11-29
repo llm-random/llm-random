@@ -44,7 +44,7 @@ By directories:
     * `conditional` - research on conditional computation (to be split from `core`)
     * `nonlinearities` - research on smaller neurons
     * `reinitialization` - research on recycling neurons
- 
+
 # License
 
 This project is licensed under the terms of the Apache License, Version 2.0.
