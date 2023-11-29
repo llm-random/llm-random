@@ -4,6 +4,7 @@ from lizrd.core import llm
 from research.blanks.utils import (
     get_first_blanks_in_series,
     get_is_blank,
+    iterate_through_nth_blanks_masks,
     shift_left,
     shift_right,
     make_blanks_fixed_positions,
@@ -292,6 +293,7 @@ class BlankSeparateHead(torch.nn.Module):
     def residual_forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
         print("residual")
         is_blank = get_is_blank(model_input, self.blank_tokens_ids)
+        blank_start = get_first_blanks_in_series(is_blank)
         is_not_blank = ~is_blank
         assert is_not_blank.dtype == torch.bool
 
@@ -300,19 +302,20 @@ class BlankSeparateHead(torch.nn.Module):
 
         if self.learnable_weights:
             if self.use_straight_through:
-                full_output = self.regular_head(
-                    encoder_output * is_not_blank.unsqueeze(-1)
-                ) + self.blank_head(
-                    (
-                        encoder_output.detach()
-                        * is_blank.unsqueeze(-1)
-                        * abs(self.blank_weight)
-                    )
-                    + (
-                        encoder_output * is_blank.unsqueeze(-1)
-                        - encoder_output.detach() * is_blank.unsqueeze(-1)
-                    )
-                )
+                # full_output = self.regular_head(
+                #     encoder_output * is_not_blank.unsqueeze(-1)
+                # ) + self.blank_head(
+                #     (
+                #         encoder_output.detach()
+                #         * is_blank.unsqueeze(-1)
+                #         * abs(self.blank_weight)
+                #     )
+                #     + (
+                #         encoder_output * is_blank.unsqueeze(-1)
+                #         - encoder_output.detach() * is_blank.unsqueeze(-1)
+                #     )
+                # )
+                raise NotImplementedError()
             else:
                 non_blanks_output = self.regular_head(
                     encoder_output * is_not_blank.unsqueeze(-1)
@@ -322,13 +325,16 @@ class BlankSeparateHead(torch.nn.Module):
                 )
                 full_output = non_blanks_output + blanks_output
 
-            summing_positions = is_preblank.unsqueeze(-1)
-
-            for _ in range(self.n_blanks):
-                full_output.add_(
-                    shift_right(full_output * summing_positions)
-                    * abs(self.preblank_weight)
+            prev_mask = is_preblank.bool()
+            for _, nth_blank_mask in enumerate(
+                iterate_through_nth_blanks_masks(
+                    blank_start.bool(), self.n_blanks, include_preblank=False
                 )
+            ):
+                full_output[nth_blank_mask] = full_output[prev_mask] + self.blank_head(
+                    encoder_output[nth_blank_mask]
+                )
+                prev_mask = nth_blank_mask
 
         else:
             non_blanks_output = self.regular_head(
@@ -336,10 +342,17 @@ class BlankSeparateHead(torch.nn.Module):
             )
             blanks_output = self.blank_head(encoder_output * is_blank.unsqueeze(-1))
             full_output = non_blanks_output + blanks_output
-            summing_positions = is_preblank.unsqueeze(-1)
 
-            for _ in range(self.n_blanks):
-                full_output.add_(shift_right(full_output * summing_positions))
+            prev_mask = is_preblank.bool()
+            for _, nth_blank_mask in enumerate(
+                iterate_through_nth_blanks_masks(
+                    blank_start.bool(), self.n_blanks, include_preblank=False
+                )
+            ):
+                full_output[nth_blank_mask] = self.preblank_weight * full_output[
+                    prev_mask
+                ] + self.blank_weight * self.blank_head(encoder_output[nth_blank_mask])
+                prev_mask = nth_blank_mask
 
         return full_output
 
