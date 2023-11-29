@@ -325,16 +325,15 @@ class BlankTrainer:
                     value=value,
                     iteration=step,
                 )
-            if self.use_only_last_blank_loss:
-                self.logger.report_scalar(
-                    title=f"blank_{self.n_blanks}_loss - blank_0_loss",
-                    value=(
-                        aux_info["blanks_losses"][f"blank_{self.n_blanks}_loss"]
-                        - aux_info["blanks_losses"]["blank_0_loss"]
-                    ),
-                    iteration=step,
-                )
-            else:
+            self.logger.report_scalar(
+                title="blank_last_loss - blank_0_loss",
+                value=(
+                    aux_info["blanks_losses"][f"blank_{self.n_blanks}_loss"]
+                    - aux_info["blanks_losses"]["blank_0_loss"]
+                ),
+                iteration=step,
+            )
+            if not self.use_only_last_blank_loss:
                 for x in range(1, self.n_blanks + 1):
                     # log diff
                     name = f"blank_{x}_loss - blank_{x-1}_loss"
