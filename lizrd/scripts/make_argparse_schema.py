@@ -2,7 +2,7 @@
 Creates a json schema from argparse parser. Useful to get editor support for configs.
 Example usage (VSCode):
     1. Install https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml
-    2. $ python make_argparse_schema.py research/blanks/argparse.py > research/blanks/schema.json
+    2. $ python lizrd/scripts/make_argparse_schema.py research/blanks/argparse.py > research/blanks/schema.json
     3. Add the following to ./.vscode/settings.json:
         "yaml.schemas": {
             "research/blanks/schema.json": ["research/blanks/configs/**/*.yaml"]
