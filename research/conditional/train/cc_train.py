@@ -3,8 +3,6 @@ import os
 import random
 from typing import Callable, Optional
 import socket
-from cProfile import Profile
-from pstats import SortKey, Stats
 
 import torch
 import torch.multiprocessing as mp
@@ -189,22 +187,14 @@ def main(
         "use_dummy_dataset": args.use_dummy_dataset,
     }
 
-    with Profile() as profile:
-        train_dataloader = get_processed_dataset(
-            **common_dataloaders_kwargs, dataset_split="train"
-        )
-        profile.dump_stats("profile_results.profile")
-        stats = Stats("profile_results.profile")
-        stats.strip_dirs().sort_stats(SortKey.CALLS).print_stats("profile_results.txt")
+    train_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs, dataset_split="train"
+    )
 
-    print("Finished profiling dataloader creation.")
-
-    eval_dataloader = train_dataloader
-
-    # eval_dataloader = get_processed_dataset(
-    #     **common_dataloaders_kwargs,
-    #     dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
-    # )
+    eval_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs,
+        dataset_split=("eval" if args.dataset_type == "wikibook" else "validation"),
+    )
 
     if is_logging_process:
         logger = get_logger(args, model, VOCAB_SIZE)
