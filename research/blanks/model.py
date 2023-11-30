@@ -291,7 +291,7 @@ class BlankSeparateHead(torch.nn.Module):
         ) + self.blank_head(encoder_output * is_blank.unsqueeze(-1))
 
     def residual_forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
-        print("residual")
+        # print("residual")
         is_blank = get_is_blank(model_input, self.blank_tokens_ids)
         blank_start = get_first_blanks_in_series(is_blank)
         is_not_blank = ~is_blank
@@ -317,41 +317,28 @@ class BlankSeparateHead(torch.nn.Module):
                 # )
                 raise NotImplementedError()
             else:
-                non_blanks_output = self.regular_head(
+                full_output = self.regular_head(
                     encoder_output * is_not_blank.unsqueeze(-1)
                 )
-                blanks_output = self.blank_head(
-                    encoder_output * is_blank.unsqueeze(-1) * abs(self.blank_weight)
-                )
-                full_output = non_blanks_output + blanks_output
 
             prev_mask = is_preblank.bool()
-            for _, nth_blank_mask in enumerate(
-                iterate_through_nth_blanks_masks(
-                    blank_start.bool(), self.n_blanks, include_preblank=False
-                )
+            for nth_blank_mask in iterate_through_nth_blanks_masks(
+                blank_start.bool(), self.n_blanks, include_preblank=False
+            ):
+                full_output[nth_blank_mask] = self.preblank_weight * full_output[
+                    prev_mask
+                ] + self.blank_head(self.blank_weight * encoder_output[nth_blank_mask])
+                prev_mask = nth_blank_mask
+
+        else:
+            full_output = self.regular_head(encoder_output * is_not_blank.unsqueeze(-1))
+            prev_mask = is_preblank.bool()
+            for nth_blank_mask in iterate_through_nth_blanks_masks(
+                blank_start.bool(), self.n_blanks, include_preblank=False
             ):
                 full_output[nth_blank_mask] = full_output[prev_mask] + self.blank_head(
                     encoder_output[nth_blank_mask]
                 )
-                prev_mask = nth_blank_mask
-
-        else:
-            non_blanks_output = self.regular_head(
-                encoder_output * is_not_blank.unsqueeze(-1)
-            )
-            blanks_output = self.blank_head(encoder_output * is_blank.unsqueeze(-1))
-            full_output = non_blanks_output + blanks_output
-
-            prev_mask = is_preblank.bool()
-            for _, nth_blank_mask in enumerate(
-                iterate_through_nth_blanks_masks(
-                    blank_start.bool(), self.n_blanks, include_preblank=False
-                )
-            ):
-                full_output[nth_blank_mask] = self.preblank_weight * full_output[
-                    prev_mask
-                ] + self.blank_weight * self.blank_head(encoder_output[nth_blank_mask])
                 prev_mask = nth_blank_mask
 
         return full_output

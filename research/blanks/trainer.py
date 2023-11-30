@@ -301,12 +301,13 @@ class BlankTrainer:
                 )
                 stats.acc = 0.0
         if self.n_blanks > 0 and len(aux_info["blanks_losses"]) > 0:
-            if isinstance(self.model.head, BlankDiffPredictionHead):
+            if getattr(self.model.head, "preblank_weight", None) is not None:
                 self.logger.report_scalar(
                     title=f"blank_head/preblank_weight",
                     value=abs(self.model.head.preblank_weight.item()),
                     iteration=step,
                 )
+            if getattr(self.model.head, "blank_weight", None) is not None:
                 self.logger.report_scalar(
                     title=f"blank_head/blank_weight",
                     value=abs(self.model.head.blank_weight.item()),

@@ -14,7 +14,7 @@ def shift_left(x: torch.Tensor):
         Tensor of shape (batch_size, seq_len) or (batch_size, seq_len, hidden_size).
     """
 
-    return torch.cat([x[:, 1:], x[:, :1] * 0], dim=1)
+    return torch.cat([x[:, 1:], x[:, :1] * 0], dim=1).type(x.dtype)
 
 
 def shift_right(x: torch.Tensor):
@@ -26,8 +26,7 @@ def shift_right(x: torch.Tensor):
     Returns:
         Tensor of shape (batch_size, seq_len) or (batch_size, seq_len, hidden_size).
     """
-
-    return torch.cat([x[:, :1] * 0, x[:, :-1]], dim=1)
+    return torch.cat([x[:, :1] * 0, x[:, :-1]], dim=1).type(x.dtype)
 
 
 def get_first_blanks_in_series(is_blank: torch.Tensor):
