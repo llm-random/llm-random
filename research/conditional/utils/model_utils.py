@@ -81,45 +81,57 @@ def chungized_llm_loss_and_backward_pass(
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
 
+    # this is here, so python releases memory before backprop
+    def calculate_partial_loss_and_correct_tokens(
+        chunged_input, chunged_gt, chunged_mask
+    ):
+        # we don't want to have a reference to this while backproping, because this will prevent python from releasing memory
+        partial_output = model.head(chunged_input)
+        with torch.autocast(
+            device_type="cuda", enabled=False, dtype=mixed_precision_dtype
+        ):
+            partial_loss_unmasked = F.cross_entropy(
+                partial_output.reshape(-1, vocab_size),
+                chunged_gt.reshape(-1).long(),
+                reduction="none",
+            )
+            partial_loss = partial_loss_unmasked[chunged_mask.reshape(-1) == 1]
+
+            partial_correct_tokens = chunged_gt.long() == partial_output.argmax(dim=-1)
+            partial_correct_tokens = partial_correct_tokens.long().reshape(
+                -1
+            ) * chunged_mask.reshape(-1)
+            partial_correct_tokens = partial_correct_tokens.sum()
+        return partial_loss, partial_correct_tokens
+
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
     ):
-        embeddings = model.embedding_layer(input_tokens)
-        encoder_output: torch.Tensor = model.encoder(embeddings)
+        encoder_output: torch.Tensor = model.encoder(
+            model.embedding_layer(input_tokens)
+        )
         gt_tokens = gt_tokens.to(encoder_output.device)
         mask = mask.to(encoder_output.device)
         num_masked_tokens = mask.sum()
-        encoder_output_det = encoder_output.detach()
         if do_backward_pass:
-            encoder_output_det.requires_grad = True
-        chunged_inputs = torch.chunk(encoder_output_det, n_chungs, dim=0)
+            encoder_output.retain_grad()
+        chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
         total_loss = 0
         total_correct_tokens = 0
+        # we need to tell torch what parameters we want to optimize, because we don't want to optimize the encoder for every chunk
+        parameters_in_chung = tuple(model.head.parameters()) + (encoder_output,)
         for chunged_input, chunged_gt, chunged_mask in zip(
             chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
-            partial_output = model.head(chunged_input)
-            with torch.autocast(
-                device_type="cuda", enabled=False, dtype=mixed_precision_dtype
-            ):
-                partial_loss_unmasked = F.cross_entropy(
-                    partial_output.reshape(-1, vocab_size),
-                    chunged_gt.reshape(-1).long(),
-                    reduction="none",
-                )
-                partial_loss = partial_loss_unmasked[chunged_mask.reshape(-1) == 1]
-
-                partial_correct_tokens = chunged_gt.long() == partial_output.argmax(
-                    dim=-1
-                )
-                partial_correct_tokens = partial_correct_tokens.long().reshape(
-                    -1
-                ) * chunged_mask.reshape(-1)
-                partial_correct_tokens = partial_correct_tokens.sum()
-
+            (
+                partial_loss,
+                partial_correct_tokens,
+            ) = calculate_partial_loss_and_correct_tokens(
+                chunged_input, chunged_gt, chunged_mask
+            )
             if do_backward_pass:
                 loss = (
                     partial_loss.sum() / num_masked_tokens / gradient_accumulation_steps
@@ -128,14 +140,18 @@ def chungized_llm_loss_and_backward_pass(
                     device_type="cuda", enabled=False, dtype=mixed_precision_dtype
                 ):
                     if scaler is not None:
-                        scaler.scale(loss).backward()
+                        scaler.scale(loss).backward(
+                            inputs=parameters_in_chung,
+                        )
                     else:
-                        loss.backward()
+                        loss.backward(
+                            inputs=parameters_in_chung,
+                        )
             total_loss += partial_loss.sum()
             total_correct_tokens += partial_correct_tokens
 
     if do_backward_pass:
-        encoder_output.backward(encoder_output_det.grad)
+        encoder_output.backward(encoder_output.grad)
 
     aux_info = {
         "correct_tokens": total_correct_tokens,
@@ -160,32 +176,37 @@ def calculate_llm_loss_and_backward_pass(
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
 
-    with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
-    ):
-        model_output = model(input_tokens)
+    # this is sort of a hack to make python release memory before backprop
+    def calculate_loss_and_stats():
+        nonlocal input_tokens, gt_tokens, mask, model
+        with torch.autocast(
+            device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
+        ):
+            model_output = model(input_tokens)
 
-    # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
-    gt_tokens = gt_tokens.to(model_output.device)
-    mask = mask.to(model_output.device)
+        # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
+        gt_tokens = gt_tokens.to(model_output.device)
+        mask = mask.to(model_output.device)
 
-    mask_loss = F.cross_entropy(
-        model_output.reshape(-1, vocab_size),
-        gt_tokens.reshape(-1).long(),
-        reduction="none",
-    )
-    mask_loss = mask_loss[mask.reshape(-1) == 1]
-    loss = mask_loss.mean() / gradient_accumulation_steps
+        mask_loss = F.cross_entropy(
+            model_output.reshape(-1, vocab_size),
+            gt_tokens.reshape(-1).long(),
+            reduction="none",
+        )
+        correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+        correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+        correct_tokens = correct_tokens.sum()
+        total_masked_tokens = mask.sum()
+        mask_loss = mask_loss[mask.reshape(-1) == 1]
+        loss = mask_loss.mean() / gradient_accumulation_steps
+        return loss, correct_tokens, total_masked_tokens
+
+    loss, correct_tokens, total_masked_tokens = calculate_loss_and_stats()
     if do_backward_pass:
         if scaler is not None:
             scaler.scale(loss).backward()
         else:
             loss.backward()
-
-    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
-    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-    correct_tokens = correct_tokens.sum()
-    total_masked_tokens = mask.sum()
 
     aux_info = {
         "correct_tokens": correct_tokens,
