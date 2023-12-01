@@ -185,10 +185,12 @@ def attention_mechanism(
     causal: bool,
     flash: bool,
 ):
+    print("In attention mechanism")
     if flash:
         with torch.backends.cuda.sdp_kernel(
             enable_flash=True, enable_math=False, enable_mem_efficient=False
         ):
+            print(f"In flash attention. Query dtype: {query.dtype}")
             output = F.scaled_dot_product_attention(
                 query=query,
                 key=key,
@@ -197,6 +199,7 @@ def attention_mechanism(
                 is_causal=causal,
             )
     else:
+        print("Other implementation")
         # implementation without flash assumes other dim order
         query = query.transpose(1, 2)
         key = key.transpose(1, 2)
