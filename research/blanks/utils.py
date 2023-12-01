@@ -149,7 +149,7 @@ def make_blanks_attention_mask(seq_len, blanks_insertion_point, n_blanks) -> np.
     Returns:
         torch.Tensor: which pairs take part in attention
     """
-    mask = np.tril(np.ones((seq_len, seq_len), dtype=np.bool))
+    mask = np.tril(np.ones((seq_len, seq_len), dtype=bool))
     blanks_insertion_end = blanks_insertion_point + n_blanks
     mask[blanks_insertion_end:, blanks_insertion_point:blanks_insertion_end] = False
     return mask
