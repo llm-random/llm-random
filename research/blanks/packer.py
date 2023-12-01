@@ -1,5 +1,7 @@
 from typing import Callable, Optional, List
 
+from research.blanks import globs
+
 from .data import BlanxExample
 from lizrd.text.datasets import AbstractDataset
 from lizrd.text.packers import GPTPacker
@@ -12,6 +14,7 @@ from research.blanks.utils import (
     make_blanks_attention_mask,
     make_blanks_loss_mask,
 )
+import multiprocessing as mp
 
 
 class BlankPacker(GPTPacker):
@@ -34,11 +37,21 @@ class BlankPacker(GPTPacker):
         )
 
         self.n_blanks = n_blanks
+        self.n_blanks_glob = mp.Value("i", 0)
         self.blanks_ids = blanks_ids
 
-        assert len(self.blanks_ids) == self.n_blanks
+        # assert len(self.blanks_ids) == self.n_blanks
         self.use_only_last_blank_loss = use_only_last_blank_loss
         self.extend_sequence_by_n_blanks = extend_sequence_by_n_blanks
+        # self.n_blanks = mp.Value("i", n_blanks)
+
+    @property
+    def n_blanks(self):
+        return self.n_blanks_glob.value
+
+    @n_blanks.setter
+    def n_blanks(self, value):
+        ...
 
     def get_sample(self) -> BlanxExample:
         sample = super().get_sample()
@@ -58,7 +71,10 @@ class BlankPacker(GPTPacker):
             1, get_last_point_to_fit_blanks(seq_len, self.n_blanks)
         )
         input_tokens = insert_blanks_input(
-            input_tokens, self.blanks_ids, blank_insertion_point, self.n_blanks
+            input_tokens,
+            self.blanks_ids[: self.n_blanks],
+            blank_insertion_point,
+            self.n_blanks,
         )
         target_tokens = insert_blanks_target(
             target_tokens, blank_insertion_point, self.n_blanks
@@ -103,7 +119,17 @@ class BlankEvalPacker(GPTPacker):
         self.blanks_ids = blanks_ids
         self.extend_sequence_by_n_blanks = extend_sequence_by_n_blanks
 
-        assert len(self.blanks_ids) == self.n_blanks
+        self.n_blanks_glob = mp.Value("i", 0)
+
+        # assert len(self.blanks_ids) == self.n_blanks
+
+    @property
+    def n_blanks(self):
+        return self.n_blanks_glob.value
+
+    @n_blanks.setter
+    def n_blanks(self, value):
+        ...
 
     def get_sample(self) -> BlanxExample:
         sample = super().get_sample()
@@ -111,7 +137,7 @@ class BlankEvalPacker(GPTPacker):
         input_tokens = sample.input_ids
         target_tokens = sample.target_ids
         seq_len = len(input_tokens)
-
+        print(f"using {self.n_blanks} blanks")
         # this will not see extended input, so it will generate valid position for blanks if we extend the input
         blank_insertion_point = self.py_rng.randint(1, seq_len - 1)
 
@@ -123,7 +149,10 @@ class BlankEvalPacker(GPTPacker):
 
         if can_fit_blanks(seq_len, blank_insertion_point, self.n_blanks):
             input_tokens = insert_blanks_input(
-                input_tokens, self.blanks_ids, blank_insertion_point, self.n_blanks
+                input_tokens,
+                self.blanks_ids[: self.n_blanks],
+                blank_insertion_point,
+                self.n_blanks,
             )
             target_tokens = insert_blanks_target(
                 target_tokens, blank_insertion_point, self.n_blanks

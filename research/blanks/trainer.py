@@ -9,6 +9,7 @@ import torch
 from attr import define
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
+from research.blanks import globs
 from research.blanks.model import BlankDiffPredictionHead
 
 from .data import BlanxBatch
@@ -38,6 +39,7 @@ class BlankTrainer:
     batch_size: int
     lr_scheduler: AbstractLRScheduler
     blanks_ids: List[int]
+    max_n_blanks: int
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -73,11 +75,11 @@ class BlankTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
-        self._calculate_loss = make_loss_function(
-            loss_checkpoint_chungs=self.loss_checkpoint_chungs,
-            n_blanks=self.n_blanks,
-            blanks_ids=self.blanks_ids,
-        )
+        # self._calculate_loss = make_loss_function(
+        #     loss_checkpoint_chungs=self.loss_checkpoint_chungs,
+        #     n_blanks=self.n_blanks,
+        #     blanks_ids=self.blanks_ids,
+        # )
 
     def _restore_weights(self):
         if self.load_weights_path is not None:
@@ -119,7 +121,29 @@ class BlankTrainer:
         """
         self._before_train_operations()
         self._restore_weights()
+        self.n_blanks = 0
+        self._calculate_loss = make_loss_function(
+            loss_checkpoint_chungs=self.loss_checkpoint_chungs,
+            n_blanks=self.n_blanks,
+            blanks_ids=self.blanks_ids,
+        )
         for step in range(n_steps + 1):
+            if step > 0 and step % globs.curriculum_step == 0:
+                # globs.n_blanks.value = min(globs.n_blanks.value + 1, self.max_n_blanks)
+                n_blanks = globs.get_n_blanks()
+                new_n_blanks = min(n_blanks + 1, self.max_n_blanks)
+                globs.set_n_blanks(new_n_blanks)
+                self.n_blanks = new_n_blanks
+                print(f"blanks: {self.n_blanks - 1} -> {self.n_blanks}")
+                for _ in range(100):
+                    self.eval_dataloader.get_batch()
+                    self.train_dataloader.get_batch()
+                self._calculate_loss = make_loss_function(
+                    loss_checkpoint_chungs=self.loss_checkpoint_chungs,
+                    n_blanks=self.n_blanks,
+                    blanks_ids=self.blanks_ids,
+                )
+
             t0 = time.time()
 
             if self.hack_name is not None:

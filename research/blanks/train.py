@@ -12,6 +12,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from lizrd.core import misc
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
+from research.blanks import globs
 from research.datasets import DataloaderWrapper
 from .datasets import get_processed_dataset
 from .model import (
@@ -181,6 +182,10 @@ def main(
         ),
     )
 
+    globs.curriculum_step = args.curriculum_step
+    globs.train_dataloader = train_dataloader
+    globs.eval_dataloader = eval_dataloader
+
     logger = get_logger(args, model, VOCAB_SIZE)
 
     # in case of data parallelism, only gpu:0 should log
@@ -216,6 +221,7 @@ def main(
         is_process_logging=is_process_logging,
         decoding_logging_steps=args.decoding_logging_steps,
         n_blanks=args.n_blanks,
+        max_n_blanks=args.n_blanks,
         blanks_ids=BLANKS_IDS,
         use_only_last_blank_loss=args.blanks_use_only_last_blank_loss,
     )

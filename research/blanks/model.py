@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from typing import Callable, Literal, Optional, List
 from lizrd.core import llm
+from research.blanks import globs
 from research.blanks.utils import (
     get_first_blanks_in_series,
     get_is_blank,
@@ -178,6 +179,18 @@ class BlankDiffPredictionHead(torch.nn.Module):
         self.blank_weight = torch.nn.Parameter(torch.tensor(initial_blank_weight))
         self.use_straight_through = use_straight_through
 
+    @property
+    def x_blanks(self):
+        return globs.get_n_blanks()
+
+    @property
+    def n_blanks(self):
+        return globs.get_n_blanks()
+
+    @n_blanks.setter
+    def n_blanks(self, value):
+        ...
+
     def forward(self, encoder_output: torch.Tensor, model_input: torch.Tensor):
         is_blank = get_is_blank(model_input, self.blank_tokens_ids)
         is_first_blank = get_first_blanks_in_series(is_blank)
@@ -207,6 +220,7 @@ class BlankDiffPredictionHead(torch.nn.Module):
                     encoder_output * is_blank.unsqueeze(-1) * abs(self.blank_weight)
                 )
 
+            # breakpoint()
             for _ in range(self.n_blanks):
                 current_accumulator_positions = shift_right(
                     current_accumulator_positions
@@ -305,6 +319,14 @@ class BlankEmbedding(torch.nn.Module):
         )
         self.blank_tokens_ids = blank_tokens_ids
         self.n_blanks = n_blanks
+
+    @property
+    def n_blanks(self):
+        return globs.get_n_blanks()
+
+    @n_blanks.setter
+    def n_blanks(self, value):
+        ...
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         embedding_output = self.embedding(x)
@@ -473,6 +495,14 @@ class BlankPositionalEmbedding(torch.nn.Module):
         )
         self.blank_tokens_ids = blank_tokens_ids
         self.n_blanks = n_blanks
+
+    @property
+    def n_blanks(self):
+        return globs.get_n_blanks()
+
+    @n_blanks.setter
+    def n_blanks(self, value):
+        ...
 
     def forward(self, x):
         positions = make_blanks_fixed_positions(
