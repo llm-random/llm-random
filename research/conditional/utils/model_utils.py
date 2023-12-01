@@ -539,10 +539,11 @@ def get_model_fit_gpu_info(database: str, params: dict):
     """
     This function is used to records whether a model with given params fits in gpu.
     """
-    if database is not None and params is not None:
-        with Cache(database) as cache:
-            serialized_params = json.dumps(params, sort_keys=True)
-            return cache[serialized_params]
+    # if database is not None and params is not None:
+    #     with Cache(database) as cache:
+    #         serialized_params = json.dumps(params, sort_keys=True)
+    #         return cache[serialized_params]
+    print(database, params)
 
 
 def disable_profile_schedule_fn(_: int) -> ProfilerAction:
