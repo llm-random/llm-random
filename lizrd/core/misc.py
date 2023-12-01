@@ -79,7 +79,7 @@ def DenseEinMix(dinp, dout):
 
 
 @ash.check("... inp -> ... out")
-class Linear(nn.Linear):
+class LizrdLinear(nn.Linear):
     def __init__(self, *args, init_type, init_scale, **kwargs):
         if "bias" not in kwargs:
             kwargs["bias"] = False

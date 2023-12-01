@@ -4,7 +4,7 @@ import torch
 from lizrd.core import llm
 from lizrd.core.misc import (
     DenseEinMix,
-    Linear,
+    LizrdLinear,
     EinMix,
 )
 from lizrd.core.misc import Chungus
@@ -36,14 +36,14 @@ class TestDense(GeneralTestCase):
 class TestLinear(GeneralTestCase):
     def test_basic(self):
         batch, dinp, dout = 4, 32, 64
-        layer = Linear(dinp, dout, init_type="kaiming_uniform", init_scale=1.0)
+        layer = LizrdLinear(dinp, dout, init_type="kaiming_uniform", init_scale=1.0)
         input = torch.normal(0.0, 1.0, (batch, dinp))
         output = layer(input)
         self.assertShape(output, (batch, dout))
 
     def test_more_dims(self):
         batch, seql, dinp, dout = 4, 8, 32, 64
-        layer = Linear(
+        layer = LizrdLinear(
             dinp,
             dout,
             init_type="kaiming_uniform",

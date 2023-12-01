@@ -14,7 +14,7 @@ from lizrd.core.initialization import get_init_weight
 import torch
 
 from lizrd.core import llm
-import lizrd.core.misc as misc
+from lizrd.core.misc import LizrdLinear
 import torch.nn.functional as F
 
 
@@ -163,7 +163,7 @@ class BlankDiffPredictionHead(torch.nn.Module):
         use_straight_through: bool = False,
     ):
         super(BlankDiffPredictionHead, self).__init__()
-        self.linear = misc.Linear(
+        self.linear = LizrdLinear(
             embedding_dim,
             output_size,
             init_type=init_type,
@@ -239,7 +239,7 @@ class BlankSeparateHead(torch.nn.Module):
         use_straight_through: bool = False,
     ):
         super().__init__()
-        self.linear = misc.Linear(embedding_dim, output_size, bias=False)
+        self.linear = LizrdLinear(embedding_dim, output_size, bias=False)
         self.blank_token_id = blank_token_id
         self.n_blanks = n_blanks
 
@@ -340,14 +340,14 @@ class BlankAttention(torch.nn.Module):
         self.dhead = dhead
         self.flash = flash
 
-        self.input_projection = misc.Linear(
+        self.input_projection = LizrdLinear(
             dmodel,
             3 * heads * dhead,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.output_projection = misc.Linear(
+        self.output_projection = LizrdLinear(
             heads * dhead,
             dmodel,
             bias=False,

@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from lizrd.core import misc
 from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
-from lizrd.core.misc import Linear
+from lizrd.core.misc import LizrdLinear
 from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -44,7 +44,7 @@ def FeedForward(
             [
                 (
                     "logging_ff_pre_relu",
-                    Linear(
+                    LizrdLinear(
                         dmodel,
                         dff,
                         bias=bias_first,
@@ -55,7 +55,7 @@ def FeedForward(
                 ("relu", nn.ReLU()),
                 (
                     "logging_ff_post_relu",
-                    Linear(
+                    LizrdLinear(
                         dff,
                         dmodel,
                         bias=bias_second,
@@ -172,8 +172,8 @@ class Transpose(nn.Module):
 @ash.check("... dinp -> ... dout")
 def LowRank(dinput, doutput, dlowrank):
     return nn.Sequential(
-        Linear(dinput, dlowrank, bias=False),
-        Linear(dlowrank, doutput),
+        LizrdLinear(dinput, dlowrank, bias=False),
+        LizrdLinear(dlowrank, doutput),
     )
 
 
@@ -262,14 +262,14 @@ class Attention(LoggingLayer):
         self.causal = causal
         self.flash = flash
 
-        self.input_projection = Linear(
+        self.input_projection = LizrdLinear(
             dmodel,
             3 * heads * dhead,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.output_projection = Linear(
+        self.output_projection = LizrdLinear(
             heads * dhead,
             dmodel,
             bias=False,
@@ -464,7 +464,7 @@ class EmbeddingLayer(Aggregate):
         super(EmbeddingLayer, self).__init__((lambda x, y: x + y), *layers)
 
 
-class PredictionHead(Linear):
+class PredictionHead(LizrdLinear):
     def __init__(self, embedding_dim, output_size, init_type, init_scale):
         super(PredictionHead, self).__init__(
             embedding_dim, output_size, init_type=init_type, init_scale=init_scale

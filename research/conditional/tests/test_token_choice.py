@@ -1,6 +1,6 @@
 import torch
 from torch.nn import Sequential, ReLU
-from lizrd.core.misc import Linear, propagate_forward_pass_cache
+from lizrd.core.misc import LizrdLinear, propagate_forward_pass_cache
 
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
@@ -29,11 +29,11 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         lin = Sequential(
-            Linear(
+            LizrdLinear(
                 dm, exp_size, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
             ReLU(),
-            Linear(
+            LizrdLinear(
                 exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
         )

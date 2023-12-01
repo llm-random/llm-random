@@ -7,7 +7,7 @@ from fancy_einsum import einsum
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
-from lizrd.core.misc import Linear
+from lizrd.core.misc import LizrdLinear
 
 
 def mock_topk_factory(topk_fn):
@@ -207,11 +207,11 @@ class TestExpertChoice(GeneralTestCase):
         seql = 2
         topk_fraction = 1
         lin = Sequential(
-            Linear(
+            LizrdLinear(
                 dm, exp_size, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
             ReLU(),
-            Linear(
+            LizrdLinear(
                 exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
         )
