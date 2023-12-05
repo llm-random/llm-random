@@ -1,7 +1,7 @@
 import argparse
 import os
 import random
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 import socket
 
 import torch
@@ -14,7 +14,11 @@ from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
 from .datasets import get_processed_dataset
-from .model import get_attention_layer, get_model, get_ff_layer
+from .model import (
+    get_attention_layer,
+    get_model,
+    get_ff_layer,
+)
 from lizrd.text import tokenizers
 from .tokenizers import BlankTokenizer
 
@@ -72,6 +76,11 @@ def main(
 
     VOCAB_SIZE = BlankTokenizer.VOCAB_SIZE
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    BLANKS_IDS: List[int] = (
+        BlankTokenizer.BLANK_IDS[: args.n_blanks]
+        if args.blanks_use_multiple_embeddings
+        else BlankTokenizer.BLANK_IDS[:1] * args.n_blanks
+    )
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
@@ -93,8 +102,12 @@ def main(
         args.save_weights_path = os.path.abspath(args.save_weights_path)
         os.makedirs(args.save_weights_path, exist_ok=True)
 
+    sequence_length_with_blanks = args.cutoff + (
+        args.n_blanks if args.blanks_extend_sequence_by_n_blanks else 0
+    )
+
     model = get_model(
-        max_length=args.cutoff,
+        max_length=sequence_length_with_blanks,
         vocab_size=VOCAB_SIZE,
         ff_layer_fun=ff_layer_fun,
         attention_layer_fun=attention_layer_fun,
@@ -111,7 +124,8 @@ def main(
         init_type=args.init_type,
         init_scale=args.init_scale,
         n_blanks=args.n_blanks,
-        blank_id=50257,
+        blanks_use_multiple_embeddings=args.blanks_use_multiple_embeddings,
+        blank_ids=torch.tensor(BLANKS_IDS, device=DEVICE, dtype=torch.int),
         blanks_add_embedding=args.blanks_add_embedding,
         blanks_residual=args.blanks_residual,
         blanks_learnable_weights=args.blanks_learnable_weights,
@@ -146,9 +160,13 @@ def main(
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
         "tokenizer_maker": BlankTokenizer,
+        "n_blanks": args.n_blanks,
+        "blanks_ids": BLANKS_IDS,
+        "use_only_last_blank_loss": args.blanks_use_only_last_blank_loss,
+        "extend_sequence_by_n_blanks": args.blanks_extend_sequence_by_n_blanks,
     }
     train_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs, dataset_split="train", n_blanks=args.n_blanks
+        **common_dataloaders_kwargs, dataset_split="train"
     )
 
     # TODO: replace eval_dataloader with something more sensible
@@ -161,7 +179,6 @@ def main(
             if args.dataset_type == "c4" and args.use_dummy_dataset
             else "validation"
         ),
-        n_blanks=args.n_blanks,
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
@@ -199,6 +216,8 @@ def main(
         is_process_logging=is_process_logging,
         decoding_logging_steps=args.decoding_logging_steps,
         n_blanks=args.n_blanks,
+        blanks_ids=BLANKS_IDS,
+        use_only_last_blank_loss=args.blanks_use_only_last_blank_loss,
     )
     trainer.train(args.n_steps)
 

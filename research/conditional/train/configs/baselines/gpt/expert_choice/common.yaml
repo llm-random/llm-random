@@ -11,7 +11,8 @@ params:
   use_torch_bmm: true
   torch_compile: false
   granular_moe_one_hot_impl: true
-  layer_norm_in_expert_choice: false
+  layer_norm_in_expert_choice: true
+  mixed_precision_dtype: "bfloat16"
 
   # params
   expansion_rate: 32
