@@ -1,7 +1,7 @@
 scalings:
   - name: "Granular"
     tags:
-      - "ludziej_grid_interact"
+      - "fixed_grid_wd"
     power_laws:
       - - "n_params"
       - - "granularity"
@@ -10,6 +10,16 @@ scalings:
         - "n_params"
       - - "granularity"
         - "n_steps"
-    plot_dim: "n_params"
+    plot_dims:
+    - - "flops"
+      - "n_params"
+      - "n_steps"
+#    - - "flops"
+#      - "n_params"
+#    - - "flops"
+#      - "n_steps"
+#    - - "granularity"
+#    - - "n_steps"
+#    - - "n_params"
 project_name: "pmtest/llm-random"
 num_opt_steps: 100000
