@@ -490,7 +490,13 @@ def get_ff_layer(args):
             )
         else:
             return_fn = llm.EveryOtherLayer(
-                return_fn, lambda: llm.FeedForward(args.dmodel, args.dff)
+                return_fn,
+                lambda: llm.FeedForward(
+                    args.dmodel,
+                    args.dff,
+                    init_type=args.init_type,
+                    init_scale=args.init_scale,
+                ),
             )
 
     return return_fn
