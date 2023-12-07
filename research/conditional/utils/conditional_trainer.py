@@ -370,9 +370,9 @@ class ConditionalTrainer:
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
-                title=f"flops_processed",
-                value=step * self.flops_per_step,
-                iteration=step,
+            title=f"flops_processed",
+            value=step * self.flops_per_step,
+            iteration=step,
         )
         self.logger.report_scalar(
             title=f"tokens_processed",
