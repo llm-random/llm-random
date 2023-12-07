@@ -370,6 +370,16 @@ class ConditionalTrainer:
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
+                title=f"flops_processed",
+                value=step * self.flops_per_step,
+                iteration=step,
+        )
+        self.logger.report_scalar(
+            title=f"tokens_processed",
+            value=step * self.batch_size * self.max_sequence_length,
+            iteration=step,
+        )
+        self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
         )
         if self.dataset_type == "c4":
