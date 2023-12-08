@@ -1,5 +1,5 @@
 parent: research/conditional/train/configs/baselines/gpt/dense/common.yaml
-md5_parent_hash: 862d1b7a188a7eddb8b8fa0293682da8
+md5_parent_hash: a01146f0cb09e2418906d6e104aef664
 
 params:
   dmodel: 768
