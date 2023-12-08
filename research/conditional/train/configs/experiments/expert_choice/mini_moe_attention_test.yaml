@@ -1,15 +1,14 @@
 parent: research/conditional/train/configs/baselines/gpt/expert_choice/mini.yaml
-md5_parent_hash: 97c1d63fdb08bef5fc81d70b68b7db17
+md5_parent_hash: 20ca7f40fd5c119a6c45b5b0e93ac19d
 time: 0-05:00:00
 
 params:
-  name: "expert_choice_attention_test_mini"
-  n_att_experts: 128
-  n_att_heads: 0
-  dhead: 64
-  att_topk: 32
+  name: "256_MoAtt_mini_vanilla"
+  mixed_precision_dtype: "bfloat16"
+  ^ff_mode: [vanilla]
+  dff: 1024
+  ^cutoff: [256]
+  ^att_topk_denominator: [4]
   flash_attention: false
   model_type: bert
-  dataset_type: wikibook
-#  torch_compile: true
-#  logging_interval_heavy: 0
+  dataset_type: c4
