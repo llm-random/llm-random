@@ -1,0 +1,16 @@
+parent: research/conditional/train/configs/baselines/gpt/expert_choice/granularity/4/medium.yaml
+md5_parent_hash: 63e9ffcf6c874298e0b021158969854b
+time: 1-00:00:00
+
+params:
+  name: "2_1/2_1024_top4_MoAtt_medium_vanilla"
+  mixed_precision_dtype: "bfloat16"
+  ^ff_mode: [vanilla]
+  dff: 2048
+  ^cutoff: [1024]
+  ^batch_size: [16]
+  ^att_topk_denominator: [4]
+#  ^learning_rate: [1e-5, 3e-5, 3e-4, 1e-3]
+  flash_attention: false
+  model_type: bert
+  dataset_type: c4
