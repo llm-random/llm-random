@@ -280,5 +280,17 @@ def introduce_parser_arguments(
 
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
+    parser.add_argument(
+        "--norm_type",
+        type=str,
+        choices=[
+            "layer_norm",
+            "rms_norm",
+            "learnable_rms_norm_coarse",
+            "learnable_rms_norm_fine",
+        ],
+        default="layer_norm",
+        required=False,
+    )
 
     return parser
