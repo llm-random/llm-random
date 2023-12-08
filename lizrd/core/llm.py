@@ -310,34 +310,45 @@ class RMSNorm(nn.Module):
         return x * self.g + self.b
 
 
-class LearnableRMSNormCoarse(nn.Module):
-    def __init__(self, dmodel, eps=1e-8):
+class LearnableRMSNormCoarse(LoggingLayer):
+    def __init__(self, dmodel, eps=1e-8, init_p=0):
         super().__init__()
         self.eps = eps
 
         self.g = nn.Parameter(torch.ones(dmodel))
         self.b = nn.Parameter(torch.zeros(dmodel))
-        self.p = nn.Parameter(torch.zeros(1))
+        self.p = nn.Parameter(torch.ones(1) * init_p)
 
     def forward(self, x):
         norm = torch.mean(x**2, dim=-1, keepdim=True)
         x = x * torch.pow(norm + self.eps, -self.p)
         return x * self.g + self.b
 
+    def log_heavy(self):
+        return {
+            "normalization/p": self.p,
+        }
 
-class LearnableRMSNormFine(nn.Module):
-    def __init__(self, dmodel, eps=1e-8):
+
+class LearnableRMSNormFine(LoggingLayer):
+    def __init__(self, dmodel, eps=1e-8, init_p=0):
         super().__init__()
         self.eps = eps
 
         self.g = nn.Parameter(torch.ones(dmodel))
         self.b = nn.Parameter(torch.zeros(dmodel))
-        self.ps = nn.Parameter(torch.zeros(dmodel))
+        self.ps = nn.Parameter(torch.ones(dmodel) * init_p)
 
     def forward(self, x):
         norm = torch.mean(x**2, dim=-1, keepdim=True)
         x = x * torch.pow(norm + self.eps, -self.ps)
         return x * self.g + self.b
+
+    def log_heavy(self):
+        return {
+            "normalization/p-mean": torch.mean(self.ps),
+            "normalization/p-std": torch.std(self.ps),
+        }
 
 
 class ReZero(nn.Module):

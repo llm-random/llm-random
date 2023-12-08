@@ -45,6 +45,8 @@ class LayerManager:
                 "residual_attention",
                 "feedforward",
                 "expert_gating",
+                "pre_norm",
+                "post_norm",
             ]:
                 block_name = self.extract_block_name(name)
                 registered_name = f"{block_name}/{suffix}"

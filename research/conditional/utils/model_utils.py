@@ -233,14 +233,15 @@ def get_attention_layer(args):
 
 
 def get_residual_layer(args):
+    init_learnable_p = args.init_learnable_p
     if args.norm_type == "layer_norm":
         norm_class = LayerNorm
     elif args.norm_type == "rms_norm":
         norm_class = llm.RMSNorm
     elif args.norm_type == "learnable_rms_norm_coarse":
-        norm_class = llm.LearnableRMSNormCoarse
+        norm_class = partial(llm.LearnableRMSNormCoarse, init_p=init_learnable_p)
     elif args.norm_type == "learnable_rms_norm_fine":
-        norm_class = llm.LearnableRMSNormFine
+        norm_class = partial(llm.LearnableRMSNormFine, init_p=init_learnable_p)
     else:
         raise NotImplementedError(f"Norm type {args.norm_type} not implemented")
     if args.residual_mode == "pre_norm":

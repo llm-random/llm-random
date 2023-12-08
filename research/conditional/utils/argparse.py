@@ -293,4 +293,6 @@ def introduce_parser_arguments(
         required=False,
     )
 
+    parser.add_argument("--init_learnable_p", type=float, default=0.0)
+
     return parser
