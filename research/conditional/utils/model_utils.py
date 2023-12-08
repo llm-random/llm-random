@@ -1,3 +1,4 @@
+import math
 from functools import partial
 
 # import json
@@ -235,7 +236,14 @@ def get_attention_layer(args):
     if dhead is None:
         assert args.dmodel % args.n_att_heads == 0
         dhead = args.dmodel // args.n_att_heads
-    n_experts = round(args.n_att_heads * args.att_topk_denominator**2)
+    n_heads_multiplier = 2 ** round(
+        math.log2(
+            (2 * args.dmodel + args.cutoff)
+            * args.att_topk_denominator**2
+            / (args.cutoff + 2 * args.dmodel * args.att_topk_denominator)
+        )
+    )
+    n_experts = n_heads_multiplier * args.n_att_heads
     att_args = {
         "dmodel": args.dmodel,
         "n_experts": n_experts,
