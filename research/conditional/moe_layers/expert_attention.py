@@ -32,7 +32,7 @@ class ExpertChoiceAttention(LoggingLayer):
             dmodel: dimension of the input
             n_experts: number of experts
             expert_dhead: size of each expert
-            topk: number of tokens that will be chosen for each expert
+            topk_denominator: 1/topk_denominator tokens will be chosen from the sequence
         """
         super().__init__()
 
