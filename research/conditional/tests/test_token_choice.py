@@ -1,3 +1,4 @@
+from copy import deepcopy
 import torch
 from torch.nn import Sequential, ReLU
 from lizrd.core.misc import Linear, propagate_forward_pass_cache
@@ -73,3 +74,27 @@ class TestTokenChoice(GeneralTestCase):
             lin[2].weight.grad,
             token_choice_layer.lin2_weight.grad.squeeze(0).transpose(0, 1),
         )
+
+    def test_einsum_vs_matmul(self):
+        batch = 3
+        dm = 5
+        experts = 7
+        exp_size = 11
+        seq_len = 13
+        x = torch.rand((batch, seq_len, dm))
+        einsum_module = TokenChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            5.0,
+            load_balancing_loss_weight=0.1,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
+
+        matmul_module = deepcopy(einsum_module)
+        matmul_module.use_einsum = False
+
+        propagate_forward_pass_cache(einsum_module)
+        propagate_forward_pass_cache(matmul_module)
+        self.assertTensorAlmostEqual(matmul_module(x), einsum_module(x))
