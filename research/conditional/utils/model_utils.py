@@ -507,39 +507,41 @@ def get_classes_from_module_names(
     """
     Unpacks a comma-separated list of module names into a tuple of modules.
     """
-    names = []
+    classes = []
     if packed_names is None:
         return None
     for name in packed_names.split(","):
         if name == "Attention":
-            names.append(llm.Attention)
+            classes.append(llm.Attention)
         if name == "AttentionMechanism":
-            names.append(llm.AttentionMechanism)
+            classes.append(llm.AttentionMechanism)
         elif name == "FeedForward":
-            names.append(llm.FeedForward)
+            classes.append(llm.FeedForward)
         elif name == "Residual":
-            names.append(llm.Residual)
+            classes.append(llm.Residual)
         elif name == "TransformerBlock":
-            names.append(llm.TransformerBlock)
+            classes.append(llm.TransformerBlock)
         elif name == "TransformerTower":
-            names.append(llm.TransformerTower)
+            classes.append(llm.TransformerTower)
         elif name == "LLM":
-            names.append(llm.LLM)
+            classes.append(llm.LLM)
         elif name == "EmbeddingLayer":
-            names.append(llm.EmbeddingLayer)
+            classes.append(llm.EmbeddingLayer)
         elif name == "PredictionHead":
-            names.append(llm.PredictionHead)
+            classes.append(llm.PredictionHead)
         elif name == "ExpertChoiceFF":
-            names.append(ExpertChoiceFF)
+            classes.append(ExpertChoiceFF)
         elif name == "ExpertGating":
-            names.append(ExpertGating)
+            classes.append(ExpertGating)
+        elif name == "Softmax":
+            classes.append(torch.nn.Softmax)
         else:
             raise ValueError(f"Unknown name {name}")
-    return tuple(names)
+    return tuple(classes)
 
 
 def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
-    ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
+    ignored_classes = [ExpertGating, LayerNorm, _BatchNorm, torch.nn.Softmax]
 
     selective_precision_modules = get_classes_from_module_names(
         args.fsdp_selective_precision_modules
