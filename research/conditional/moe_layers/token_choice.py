@@ -92,28 +92,8 @@ class TokenChoiceFF(LoggingLayer):
             gate_out = torch.softmax(gate_out, dim=1)
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
-        checkpointing_enabled = (
-            checkpointing.is_in_first_forward() or checkpointing.is_in_second_forward()
-        )
-        # choose expert for each token
-        with measure_time(self, "max_indices"):
-            if checkpointing_enabled:
-                if checkpointing.is_in_first_forward():
-                    with torch.no_grad():
-                        expert_index = torch.argmax(gate_out, dim=1, keepdim=True)
-                        self._checkpointed_expert_index = expert_index
 
-                if checkpointing.is_in_second_forward():
-                    with torch.no_grad():
-                        expert_index = self._checkpointed_expert_index
-                        assert isinstance(expert_index, torch.Tensor)
-
-                expert_gate = torch.gather(
-                    gate_out, dim=1, index=expert_index
-                ).squeeze()
-                expert_index = expert_index.squeeze()
-            else:
-                expert_gate, expert_index = torch.max(gate_out, dim=1)
+        expert_gate, expert_index = self.choose_expert(gate_out)
         with measure_time(self, "create_expert_mask"):
             expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
 
@@ -202,6 +182,27 @@ class TokenChoiceFF(LoggingLayer):
         output = output.reshape((batch_size, seq_len, self.dmodel))
 
         return output
+
+    def choose_expert(self, gate_out) -> tuple[torch.Tensor, torch.Tensor]:
+        checkpointing_enabled = (
+            checkpointing.is_in_first_forward() or checkpointing.is_in_second_forward()
+        )
+        if checkpointing_enabled:
+            if checkpointing.is_in_first_forward():
+                with torch.no_grad():
+                    expert_index = torch.argmax(gate_out, dim=1, keepdim=True)
+                    self._checkpointed_expert_index = expert_index
+
+            if checkpointing.is_in_second_forward():
+                with torch.no_grad():
+                    expert_index = self._checkpointed_expert_index
+                    assert isinstance(expert_index, torch.Tensor)
+
+            expert_gate = torch.gather(gate_out, dim=1, index=expert_index).squeeze()
+            expert_index = expert_index.squeeze()
+        else:
+            expert_gate, expert_index = torch.max(gate_out, dim=1)
+        return expert_gate, expert_index
 
     def log_heavy(self):
         return {
