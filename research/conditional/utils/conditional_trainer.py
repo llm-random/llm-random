@@ -211,6 +211,13 @@ class ConditionalTrainer:
                 vocab_size=self.vocab_size,
             )
 
+            total_cross_entropy_loss += cross_entropy_loss.item()
+            correct_tokens_value += aux_info["correct_tokens"]
+            total_masked_tokens_value += aux_info["total_masked_tokens"]
+
+            for key, value in aux_info["losses"].items():
+                losses[key] = losses.get(key, 0) + value
+
             # clear computation graph, store gradients, only apply gradients at the end
             should_apply_gradient = i == self.gradient_accumulation_steps - 1
 
@@ -230,12 +237,6 @@ class ConditionalTrainer:
                     additional_loss_to_optimize,
                     should_apply_gradient=should_apply_gradient,
                 )
-            total_cross_entropy_loss += cross_entropy_loss.item()
-            correct_tokens_value += aux_info["correct_tokens"]
-            total_masked_tokens_value += aux_info["total_masked_tokens"]
-
-            for key, value in aux_info["losses"].items():
-                losses[key] = losses.get(key, 0) + value
 
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
