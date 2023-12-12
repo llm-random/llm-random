@@ -252,6 +252,8 @@ def get_residual_layer(args):
         return partial(llm.RezeroBlock, dmodel=args.dmodel)
     elif args.residual_mode == "both_norm":
         return partial(llm.BothNormBlock, dmodel=args.dmodel, norm_class=norm_class)
+    elif args.residual_mode == "mix_norm":
+        return partial(llm.BothMixNormBlock, dmodel=args.dmodel)
     else:
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
