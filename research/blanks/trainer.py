@@ -3,7 +3,7 @@ import os.path
 import copy
 from types import SimpleNamespace as SN
 import time
-from typing import Callable, Optional, Literal
+from typing import Callable, List, Optional, Literal
 
 import torch
 from attr import define
@@ -37,6 +37,7 @@ class BlankTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
+    blanks_ids: List[int]
     _calculate_loss: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -58,7 +59,7 @@ class BlankTrainer:
     total_time_afterstep: float = 0.0
     is_process_logging: bool = True
     n_blanks: int = 0
-    blank_id: int = 0
+    use_only_last_blank_loss: bool = False
 
     def __attrs_post_init__(self):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
@@ -75,6 +76,7 @@ class BlankTrainer:
         self._calculate_loss = make_loss_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
             n_blanks=self.n_blanks,
+            blanks_ids=self.blanks_ids,
         )
 
     def _restore_weights(self):
@@ -91,11 +93,12 @@ class BlankTrainer:
                 )
 
     def _save_weights(self, step):
-        print("Saving weights... ")
         if (
-            self.save_weights_path is not None
+            self.save_weights_interval > 0
+            and self.save_weights_path is not None
             and step % self.save_weights_interval == 0
         ):
+            print("Saving weights... ")
             checkpoint = {
                 "model": self.model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
@@ -322,15 +325,23 @@ class BlankTrainer:
                     value=value,
                     iteration=step,
                 )
-            for x in range(self.n_blanks + 1):
-                for y in range(x):
+            self.logger.report_scalar(
+                title="blank_last_loss - blank_0_loss",
+                value=(
+                    aux_info["blanks_losses"][f"blank_{self.n_blanks}_loss"]
+                    - aux_info["blanks_losses"]["blank_0_loss"]
+                ),
+                iteration=step,
+            )
+            if not self.use_only_last_blank_loss:
+                for x in range(1, self.n_blanks + 1):
                     # log diff
-                    name = f"blank_{x}_loss - blank_{y}_loss"
+                    name = f"blank_{x}_loss - blank_{x-1}_loss"
                     self.logger.report_scalar(
                         title=name,
                         value=(
                             aux_info["blanks_losses"][f"blank_{x}_loss"]
-                            - aux_info["blanks_losses"][f"blank_{y}_loss"]
+                            - aux_info["blanks_losses"][f"blank_{x-1}_loss"]
                         ),
                         iteration=step,
                     )

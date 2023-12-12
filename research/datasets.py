@@ -36,12 +36,14 @@ def get_processed_dataset(
     dataset_split: str = "train",
 ):
     if dataset_type == "wikibook":
-        dataset = datasets.WikiBookDataset(
+        dataset = partial(
+            datasets.WikiBookDataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
         )
     elif dataset_type == "c4":
-        dataset = datasets.C4Dataset(
+        dataset = partial(
+            datasets.C4Dataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
         )
@@ -57,7 +59,7 @@ def get_processed_dataset(
     elif model_type == "gpt":
         packer = packers.GPTPacker(
             sequence_length=sequence_length,
-            dataset=dataset,
+            dataset_maker=dataset,
             tokenizer_maker=tokenizers.GPTTokenizer,
         )
     else:

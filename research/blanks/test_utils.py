@@ -14,6 +14,7 @@ from research.blanks.utils import (
     get_last_blanks_in_series,
     make_blanks_attention_mask,
     make_blanks_fixed_positions,
+    make_blanks_loss_mask,
 )
 
 
@@ -77,18 +78,18 @@ class TestUtils(GeneralTestCase):
     def test_make_blanks_attention_mask(self):
         expected = np.array(
             [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 0], [1, 0, 0, 1]],
-        ).astype(np.bool)
+        ).astype(bool)
         result = make_blanks_attention_mask(4, 1, 2)
         self.assertTrue(np.all(np.equal(result, expected)))
 
     def test_insert_blanks_input(self):
         input_sequence = [1, 2, 3, 4, 5]
-        blank_id = 0
+        blank_ids = [101, 102]
         blank_insertion_point = 2
         n_blanks = 2
-        expected = [1, 2, 0, 0, 3]
+        expected = [1, 2, 101, 102, 3]
         result = insert_blanks_input(
-            input_sequence, blank_id, blank_insertion_point, n_blanks
+            input_sequence, blank_ids, blank_insertion_point, n_blanks
         )
         self.assertEqual(result, expected)
 
@@ -133,3 +134,13 @@ class TestUtils(GeneralTestCase):
         self.assertRaises(
             ValueError, make_blanks_fixed_positions, tokens, 1, n_blanks_block=2
         )
+
+    def test_make_blanks_loss_mask(self):
+        target_sequence_len = 5
+        blank_insertion_point = 2
+        n_blanks = 2
+        expected = [1, 1, 0, 1, 1]
+        result = make_blanks_loss_mask(
+            target_sequence_len, blank_insertion_point, n_blanks
+        )
+        self.assertEqual(result, expected)
