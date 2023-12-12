@@ -5,6 +5,7 @@ from fancy_einsum import einsum
 from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support.logging import make_histogram
+from lizrd.train import checkpointing
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 
@@ -37,6 +38,7 @@ class TokenChoiceFF(LoggingLayer):
         self.capacity_factor = capacity_factor
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
+        self._checkpointed_expert_index = None
 
         self.lin1_weight = nn.Parameter(
             get_init_weight(
@@ -90,11 +92,28 @@ class TokenChoiceFF(LoggingLayer):
             gate_out = torch.softmax(gate_out, dim=1)
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
-
+        checkpointing_enabled = (
+            checkpointing.is_in_first_forward() or checkpointing.is_in_second_forward()
+        )
         # choose expert for each token
         with measure_time(self, "max_indices"):
-            expert_gate, expert_index = torch.max(gate_out, dim=1)
+            if checkpointing_enabled:
+                if checkpointing.is_in_first_forward():
+                    with torch.no_grad():
+                        expert_index = torch.argmax(gate_out, dim=1, keepdim=True)
+                        self._checkpointed_expert_index = expert_index
 
+                if checkpointing.is_in_second_forward():
+                    with torch.no_grad():
+                        expert_index = self._checkpointed_expert_index
+                        assert isinstance(expert_index, torch.Tensor)
+
+                expert_gate = torch.gather(
+                    gate_out, dim=1, index=expert_index
+                ).squeeze()
+                expert_index = expert_index.squeeze()
+            else:
+                expert_gate, expert_index = torch.max(gate_out, dim=1)
         with measure_time(self, "create_expert_mask"):
             expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
 
