@@ -516,7 +516,7 @@ def get_classes_from_module_names(
     for name in packed_names.split(","):
         if name == "Attention":
             classes.append(llm.Attention)
-        if name == "AttentionMechanism":
+        elif name == "AttentionMechanism":
             classes.append(llm.AttentionMechanism)
         elif name == "FeedForward":
             classes.append(llm.FeedForward)
