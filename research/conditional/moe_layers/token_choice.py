@@ -78,19 +78,19 @@ class TokenChoiceRouter(LoggingLayer):
         with measure_time(self, "calculate aux loss"):
             position_in_expert_mask = position_in_expert.bool()
             tokens_per_expert = position_in_expert_mask.sum(dim=0, dtype=gate_out.dtype)
-            load_balancing_loss = calculate_load_balancing_loss(
-                self.load_balancing_loss_weight,
-                gate_out,
-                tokens_per_expert,
-                use_einsum=self.use_einsum,
-            )
+            # load_balancing_loss = calculate_load_balancing_loss(
+            #     self.load_balancing_loss_weight,
+            #     gate_out,
+            #     tokens_per_expert,
+            #     use_einsum=self.use_einsum,
+            # )
 
-            if "load_balancing_losses" not in self.forward_pass_cache:
-                self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
-            else:
-                self.forward_pass_cache["load_balancing_losses"].append(
-                    load_balancing_loss
-                )
+            # if "load_balancing_losses" not in self.forward_pass_cache:
+            #     self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
+            # else:
+            #     self.forward_pass_cache["load_balancing_losses"].append(
+            #         load_balancing_loss
+            #     )
 
         # mask out tokens that are not in capacity
         expert_mask_flat = expert_mask.sum(dim=1)
@@ -99,7 +99,7 @@ class TokenChoiceRouter(LoggingLayer):
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
         self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
-        self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
+        # self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
         # group tokens indices by expert it should be processed by
         with measure_time(self, "experts_lists"):
             indices_of_tokens_for_expert = [
@@ -251,7 +251,7 @@ class TokenChoiceFF(LoggingLayer):
             "tokens_per_expert_counts": make_histogram(
                 self.logging_cache["tokens_per_expert"]
             ),
-            "load_balancing_loss": self.logging_cache["load_balancing_loss"],
+            # "load_balancing_loss": self.logging_cache["load_balancing_loss"],
         }
 
 
