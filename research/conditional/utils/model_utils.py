@@ -53,7 +53,10 @@ from research.conditional.moe_layers.continuous_moe import (
     LegacyContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
-from research.conditional.moe_layers.token_choice import TokenChoiceFF
+from research.conditional.moe_layers.token_choice import (
+    TokenChoiceFF,
+    TokenChoiceRouter,
+)
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -535,13 +538,21 @@ def get_classes_from_module_names(
             classes.append(ExpertGating)
         elif name == "Softmax":
             classes.append(torch.nn.Softmax)
+        elif name == "TokenChoiceRouter":
+            classes.append(TokenChoiceRouter)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)
 
 
 def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
-    ignored_classes = [ExpertGating, LayerNorm, _BatchNorm, torch.nn.Softmax]
+    ignored_classes = [
+        ExpertGating,
+        LayerNorm,
+        _BatchNorm,
+        torch.nn.Softmax,
+        TokenChoiceRouter,
+    ]
 
     selective_precision_modules = get_classes_from_module_names(
         args.fsdp_selective_precision_modules

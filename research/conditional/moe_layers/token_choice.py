@@ -9,51 +9,25 @@ from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 
 
-class TokenChoiceFF(LoggingLayer):
+class TokenChoiceRouter(LoggingLayer):
     def __init__(
         self,
         dmodel: int,
         n_experts: int,
-        expert_size: int,
         capacity_factor: float,
         load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
         use_einsum: bool = False,
     ):
-        """
-        Args:
-            dmodel: dimension of the input
-            n_experts: number of experts
-            expert_size: size of each expert
-            capacity_factor: scalar that determines how many tokens can be assigned to each expert
-            load_balancing_loss_weight: weight of the auxillary loss
-        """
         super().__init__()
 
-        self.dmodel = dmodel
         self.n_experts = n_experts
-        self.expert_size = expert_size
         self.capacity_factor = capacity_factor
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
+        self.dmodel = dmodel
 
-        self.lin1_weight = nn.Parameter(
-            get_init_weight(
-                shape=(n_experts, dmodel, expert_size),
-                fan_in=dmodel,
-                init_type=init_type,
-                scale=init_scale,
-            )
-        )
-        self.lin2_weight = nn.Parameter(
-            get_init_weight(
-                shape=(n_experts, expert_size, dmodel),
-                fan_in=int(n_experts * expert_size),
-                init_type=init_type,
-                scale=init_scale,
-            )
-        )
         self.gate = nn.Parameter(
             get_init_weight(
                 shape=(dmodel, n_experts),
@@ -62,7 +36,6 @@ class TokenChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         )
-        self.softmax = torch.nn.Softmax(dim=1)
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -87,7 +60,7 @@ class TokenChoiceFF(LoggingLayer):
 
         # perform softmax over experts for each token
         with measure_time(self, "softmax"):
-            gate_out = self.softmax(gate_out)
+            gate_out = torch.softmax(gate_out, dim=1)
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
 
@@ -143,6 +116,69 @@ class TokenChoiceFF(LoggingLayer):
             for i, indices in enumerate(indices_of_tokens_for_expert):
                 experts_input[i, : len(indices)] = x[indices]
 
+        return experts_input, indices_of_tokens_for_expert, expert_gate
+
+
+class TokenChoiceFF(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_experts: int,
+        expert_size: int,
+        capacity_factor: float,
+        load_balancing_loss_weight: float,
+        init_type: str,
+        init_scale: float,
+        use_einsum: bool = False,
+    ):
+        """
+        Args:
+            dmodel: dimension of the input
+            n_experts: number of experts
+            expert_size: size of each expert
+            capacity_factor: scalar that determines how many tokens can be assigned to each expert
+            load_balancing_loss_weight: weight of the auxillary loss
+        """
+        super().__init__()
+
+        self.dmodel = dmodel
+        self.n_experts = n_experts
+        self.expert_size = expert_size
+        self.capacity_factor = capacity_factor
+        self.load_balancing_loss_weight = load_balancing_loss_weight
+        self.use_einsum = use_einsum
+
+        self.lin1_weight = nn.Parameter(
+            get_init_weight(
+                shape=(n_experts, dmodel, expert_size),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+        self.lin2_weight = nn.Parameter(
+            get_init_weight(
+                shape=(n_experts, expert_size, dmodel),
+                fan_in=int(n_experts * expert_size),
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+
+        self.router = TokenChoiceRouter(
+            dmodel=dmodel,
+            n_experts=n_experts,
+            capacity_factor=capacity_factor,
+            load_balancing_loss_weight=load_balancing_loss_weight,
+            init_type=init_type,
+            init_scale=init_scale,
+            use_einsum=use_einsum,
+        )
+
+    def forward(self, x: torch.Tensor):
+        batch_size, seq_len, _ = x.shape
+
+        experts_input, indices_of_tokens_for_expert, expert_gate = self.router(x)
         with measure_time(self, "process_by_experts"):
             if self.use_einsum:
                 experts_output = einsum(
