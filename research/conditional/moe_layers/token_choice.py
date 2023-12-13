@@ -56,7 +56,6 @@ class TokenChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         )
-
         self.gate = nn.Parameter(
             get_init_weight(
                 shape=(dmodel, n_experts),
@@ -65,6 +64,7 @@ class TokenChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         )
+        self.softmax = torch.nn.Softmax(dim=1)
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -89,7 +89,7 @@ class TokenChoiceFF(LoggingLayer):
 
         # perform softmax over experts for each token
         with measure_time(self, "softmax"):
-            gate_out = torch.softmax(gate_out, dim=1)
+            gate_out = self.softmax(gate_out)
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
 
