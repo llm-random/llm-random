@@ -362,6 +362,7 @@ def retrieve_additional_losses(model: torch.nn.Module):
         load_balancing_losses = torch.stack(load_balancing_losses)
         load_balancing_loss = torch.mean(load_balancing_losses)
         losses["load_balancing_loss"] = load_balancing_loss
+        model.forward_pass_cache["load_balancing_losses"] = []
 
     return losses
 

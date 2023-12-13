@@ -186,7 +186,6 @@ class TokenChoiceFF(LoggingLayer):
 
     def log_heavy(self):
         return {
-            "gradient_of_gate_distribution": make_histogram(self.gate.grad.flatten()),
             "gate_softmax_all_values": make_histogram(
                 self.logging_cache["gate_softmax_all_values"].flatten()
             ),
