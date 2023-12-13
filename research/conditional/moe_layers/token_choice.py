@@ -179,6 +179,8 @@ class TokenChoiceFF(LoggingLayer):
         batch_size, seq_len, _ = x.shape
 
         experts_input, indices_of_tokens_for_expert, expert_gate = self.router(x)
+        x = x.flatten(start_dim=0, end_dim=1)
+
         with measure_time(self, "process_by_experts"):
             if self.use_einsum:
                 experts_output = einsum(
