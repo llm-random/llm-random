@@ -36,7 +36,8 @@ def get_processed_dataset(
     dataset_split: str = "train",
 ):
     if dataset_type == "wikibook":
-        dataset = datasets.WikiBookDataset(
+        dataset = partial(
+            datasets.WikiBookDataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
         )

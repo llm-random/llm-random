@@ -31,6 +31,8 @@ class AbstractPacker(ABC, IterableDataset):
         self.dataset_maker = dataset_maker
         self.tokenizer_maker = tokenizer_maker
         self.sequence_length = sequence_length
+        self.np_rng = np.random.default_rng(seed)
+        self.py_rng = random.Random(seed)
         self.seed = seed
 
     def set_rng(self, seed: Optional[int] = None):
