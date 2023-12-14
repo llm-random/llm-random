@@ -24,6 +24,7 @@ from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
+from research.conditional.utils.set_granular_auto_args import set_granular_auto_args
 from research.conditional.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
@@ -80,6 +81,8 @@ def main(
             print("Unknown args:", extra)
 
     check_args(args)
+    if args.set_granular_auto_args:
+        args = set_granular_auto_args(args)
     if args.save_weights_path is not None:
         filename = args.save_weights_path.split("/")[-1]
         assert (

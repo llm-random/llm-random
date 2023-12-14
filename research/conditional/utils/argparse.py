@@ -275,6 +275,8 @@ def introduce_parser_arguments(
         action="store_true",
         help="whether to use dummy dataset (for debugging or tests)",
     )
+    parser.add_argument("--set_granular_auto_args", action="store_true")
+    parser.add_argument("--batch_size_per_gpu", type=int, required=False)
 
     # experimental/legacy parameters
 
