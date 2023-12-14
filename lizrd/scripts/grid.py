@@ -168,7 +168,7 @@ if __name__ == "__main__":
                 f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
                 f"--job-name={job_name}",
                 f"--time={setup_args['time']}",
-                "--mem-per-cpu=8",
+                "--mem-per-cpu=8G",
                 setup_args["nodelist"],
                 get_grid_entrypoint(CLUSTER_NAME),
                 "singularity",
