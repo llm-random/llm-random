@@ -5,6 +5,7 @@ def set_granular_auto_args(args):
     )
 
     args = set_model_config(args)
+    args.batch_size = 2048
     args.gradient_accumulation_steps = int(8 / args.n_gpus)
     args.final_lr_fraction = 0.1
     args.final_lr_step = args.n_steps
