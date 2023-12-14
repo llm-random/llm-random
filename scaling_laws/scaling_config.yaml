@@ -2,24 +2,28 @@ scalings:
   - name: "Granular"
     tags:
       - "fixed_grid_wd"
+    fixed:
+      expansion_rate: 64
     power_laws:
+      - - "granularity"
       - - "n_params"
-      - - "granularity"
+        - "granularity"
       - - "n_steps"
-      - - "granularity"
-        - "n_params"
-      - - "granularity"
-        - "n_steps"
+        - "granularity"
     plot_dims:
+    - - "predicted_loss"
+      - "granularity"
+    - - "predicted_loss"
+      - "n_steps"
+    - - "predicted_loss"
+      - "n_params"
     - - "flops"
       - "n_params"
       - "n_steps"
-#    - - "flops"
-#      - "n_params"
-#    - - "flops"
-#      - "n_steps"
-#    - - "granularity"
-#    - - "n_steps"
-#    - - "n_params"
+    - - "flops"
+      - "n_steps"
+    - - "granularity"
+    - - "n_steps"
+    - - "n_params"
 project_name: "pmtest/llm-random"
-num_opt_steps: 100000
+num_opt_steps: 10000
