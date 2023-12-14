@@ -47,3 +47,5 @@ def set_model_config(args):
         args.dff = 3072
         args.n_blocks = 12
         args.n_att_heads = 12
+
+    return args
