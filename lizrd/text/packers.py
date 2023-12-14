@@ -21,16 +21,19 @@ class AbstractPacker(ABC, IterableDataset):
     def __init__(
         self,
         sequence_length: int,
-        dataset: AbstractDataset,
+        dataset_maker: Callable[[], AbstractDataset],
         tokenizer_maker: Callable[[], AbstractTokenizer],
         seed: Optional[int] = None,
     ):
         super().__init__()
         self._tokenizer = None
-        self.dataset = dataset
+        self._dataset = None
+        self.dataset_maker = dataset_maker
         self.tokenizer_maker = tokenizer_maker
         self.sequence_length = sequence_length
-        self.set_rng(seed)
+        self.np_rng = np.random.default_rng(seed)
+        self.py_rng = random.Random(seed)
+        self.seed = seed
 
     def set_rng(self, seed: Optional[int] = None):
         np_rng = np.random.default_rng(seed)
@@ -48,6 +51,13 @@ class AbstractPacker(ABC, IterableDataset):
     @abstractmethod
     def get_sample(self) -> LLMExample:
         raise NotImplementedError()
+
+    @property
+    def dataset(self) -> AbstractDataset:
+        if self._dataset is None:
+            self._dataset = self.dataset_maker()
+            self._dataset.set_rng(self.seed)
+        return self._dataset
 
     @property
     def tokenizer(self) -> AbstractTokenizer:
@@ -167,13 +177,13 @@ class GPTPacker(
     def __init__(
         self,
         sequence_length: int,
-        dataset: AbstractDataset,
+        dataset_maker: AbstractDataset,
         tokenizer_maker: Callable[[], AbstractTokenizer],
         seed: Optional[int] = None,
     ):
         super().__init__(
             sequence_length,
-            dataset,
+            dataset_maker,
             tokenizer_maker,
             seed=seed,
         )

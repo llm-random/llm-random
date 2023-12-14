@@ -19,6 +19,7 @@ class TokenChoiceFF(LoggingLayer):
         load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
+        use_einsum: bool = False,
     ):
         """
         Args:
@@ -35,6 +36,7 @@ class TokenChoiceFF(LoggingLayer):
         self.expert_size = expert_size
         self.capacity_factor = capacity_factor
         self.load_balancing_loss_weight = load_balancing_loss_weight
+        self.use_einsum = use_einsum
 
         self.lin1_weight = nn.Parameter(
             get_init_weight(
@@ -52,7 +54,6 @@ class TokenChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         )
-
         self.gate = nn.Parameter(
             get_init_weight(
                 shape=(dmodel, n_experts),
@@ -61,6 +62,7 @@ class TokenChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         )
+        self.softmax = torch.nn.Softmax(dim=1)
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -71,18 +73,21 @@ class TokenChoiceFF(LoggingLayer):
         x = x.flatten(start_dim=0, end_dim=1)
 
         with measure_time(self, "expert_embedding"):
-            gate_out = einsum(
-                "n_tokens dmodel, dmodel n_experts -> n_tokens n_experts",
-                x,
-                self.gate,
-            )
+            if self.use_einsum:
+                gate_out = einsum(
+                    "n_tokens dmodel, dmodel n_experts -> n_tokens n_experts",
+                    x,
+                    self.gate,
+                )
+            else:
+                gate_out = torch.matmul(x, self.gate)
 
         assert gate_out.shape == (n_tokens, self.n_experts)
         capacity = int(self.capacity_factor * n_tokens / self.n_experts)
 
         # perform softmax over experts for each token
         with measure_time(self, "softmax"):
-            gate_out = torch.softmax(gate_out, dim=1)
+            gate_out = self.softmax(gate_out)
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
 
@@ -102,7 +107,10 @@ class TokenChoiceFF(LoggingLayer):
             position_in_expert_mask = position_in_expert.bool()
             tokens_per_expert = position_in_expert_mask.sum(dim=0, dtype=gate_out.dtype)
             load_balancing_loss = calculate_load_balancing_loss(
-                self.load_balancing_loss_weight, gate_out, tokens_per_expert
+                self.load_balancing_loss_weight,
+                gate_out,
+                tokens_per_expert,
+                use_einsum=self.use_einsum,
             )
 
             if "load_balancing_losses" not in self.forward_pass_cache:
@@ -136,18 +144,24 @@ class TokenChoiceFF(LoggingLayer):
                 experts_input[i, : len(indices)] = x[indices]
 
         with measure_time(self, "process_by_experts"):
-            experts_output = einsum(
-                "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
-                experts_input,
-                self.lin1_weight,
-            )
-            experts_output = F.relu(experts_output)
+            if self.use_einsum:
+                experts_output = einsum(
+                    "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
+                    experts_input,
+                    self.lin1_weight,
+                )
+            else:
+                experts_output = torch.matmul(experts_input, self.lin1_weight)
 
-            experts_output = einsum(
-                "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
-                experts_output,
-                self.lin2_weight,
-            ).to(x.dtype)
+            experts_output = F.relu(experts_output)
+            if self.use_einsum:
+                experts_output = einsum(
+                    "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
+                    experts_output,
+                    self.lin2_weight,
+                ).to(x.dtype)
+            else:
+                experts_output = torch.matmul(experts_output, self.lin2_weight)
 
         output = torch.zeros_like(x)
 
@@ -159,9 +173,12 @@ class TokenChoiceFF(LoggingLayer):
 
         # multiply output by softmax values
         with measure_time(self, "multiply_output_by_softmax"):
-            output = einsum(
-                "n_tokens dmodel, n_tokens -> n_tokens dmodel", output, expert_gate
-            )
+            if self.use_einsum:
+                output = einsum(
+                    "n_tokens dmodel, n_tokens -> n_tokens dmodel", output, expert_gate
+                )
+            else:
+                output = output * expert_gate.unsqueeze(dim=1)
 
         output = output.reshape((batch_size, seq_len, self.dmodel))
 
@@ -184,6 +201,7 @@ def calculate_load_balancing_loss(
     alpha: float,
     softmax_per_token: torch.Tensor,
     n_tokens_in_each_expert: torch.Tensor,
+    use_einsum: bool = False,
 ):
     """
     Calculates the load balancing loss for the token choice layer.
@@ -197,6 +215,9 @@ def calculate_load_balancing_loss(
 
     per_expert_softmax_sum = torch.mean(softmax_per_token, dim=0)
 
-    dot_product = einsum("i,i->", per_expert_softmax_sum, n_tokens_in_each_expert)
+    if use_einsum:
+        dot_product = einsum("i, i ->", per_expert_softmax_sum, n_tokens_in_each_expert)
+    else:
+        dot_product = torch.dot(per_expert_softmax_sum, n_tokens_in_each_expert)
     load_balancing_loss = alpha * n_experts * dot_product / n_tokens
     return load_balancing_loss

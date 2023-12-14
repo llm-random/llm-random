@@ -1,15 +1,13 @@
-from functools import partial
 from typing import Callable, Optional, Union, Type
 
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
-    checkpoint_wrapper,
-    CheckpointImpl,
     apply_activation_checkpointing,
 )
 
 from lizrd.core import llm
 from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
+from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 
 
 def get_model(
@@ -88,12 +86,10 @@ def get_model(
 
     if activation_checkpointing_modules is not None:
         check_fn = lambda x: isinstance(x, activation_checkpointing_modules)
-        non_reentrant_wrapper = partial(
-            checkpoint_wrapper,
-            checkpoint_impl=CheckpointImpl.NO_REENTRANT,
-        )
         apply_activation_checkpointing(
-            model, check_fn=check_fn, checkpoint_wrapper_fn=non_reentrant_wrapper
+            model,
+            check_fn=check_fn,
+            checkpoint_wrapper_fn=make_checkpoint_wrapper_function(),
         )
 
     return model

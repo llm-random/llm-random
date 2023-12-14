@@ -78,7 +78,7 @@ class TestUtils(GeneralTestCase):
     def test_make_blanks_attention_mask(self):
         expected = np.array(
             [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 0], [1, 0, 0, 1]],
-        ).astype(np.bool)
+        ).astype(bool)
         result = make_blanks_attention_mask(4, 1, 2)
         self.assertTrue(np.all(np.equal(result, expected)))
 

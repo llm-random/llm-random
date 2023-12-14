@@ -1,3 +1,5 @@
+from functools import partial
+
 from lizrd.support.test_utils import GeneralTestCase, heavy_test
 from lizrd.text.data import LLMBatch
 from .datasets import WikiBookDataset
@@ -12,7 +14,7 @@ from torch.utils.data import DataLoader
 class TestCombinations(GeneralTestCase):
     @heavy_test
     def test_integration(self):
-        dataset = WikiBookDataset(1, True)
+        dataset = partial(WikiBookDataset, 1, True)
         tokenizer_maker = GPTTokenizer
         packer = GPTPacker(512, dataset, tokenizer_maker)
 

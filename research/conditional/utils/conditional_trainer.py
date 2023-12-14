@@ -5,6 +5,7 @@ from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
 import torch
+from torch.profiler import profile, ProfilerActivity
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
@@ -15,9 +16,9 @@ from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
+from research.conditional.utils.model_utils import make_loss_and_backprop_function
 from research.conditional.utils.misc_tools import temp_modify_attr
 from research.conditional.utils.model_utils import (
-    make_loss_function,
     update_model_fit_gpu_info,
 )
 from research.datasets import DataloaderWrapper
@@ -45,7 +46,7 @@ class ConditionalTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
-    _calculate_loss: Optional[Callable] = None
+    _calculate_loss_and_backward_pass: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
@@ -71,6 +72,9 @@ class ConditionalTrainer:
     steps_until_start_temperature_learn: int = -1
     model_fit_gpu_info_database_path: str = None
     model_fit_gpu_info_params: [str] = None
+    profiler_enabled: bool = False
+    profiler_trace_path: str = None
+    profiler_schedule: None = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -85,7 +89,7 @@ class ConditionalTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
-        self._calculate_loss = make_loss_function(
+        self._calculate_loss_and_backward_pass = make_loss_and_backprop_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
         self.layer_manager = LayerManager(
@@ -125,22 +129,40 @@ class ConditionalTrainer:
         if self.load_weights_path is not None:
             self._load_model_weights()
 
-        for step in range(n_steps + 1):
-            self._train_step(step)
-            if step > 0 and self.eval_interval > 0 and step % self.eval_interval == 0:
-                self._eval_step(step)
-            if (
-                self.model_type == "gpt"
-                and self.decoding_interval > 0
-                and step % self.decoding_interval == 0
-                and self.is_logging_process
-            ):
-                try:
-                    self._decode_samples(step)
-                except:
-                    print("Decoding failed, skipping...")
-            self._after_step_operations(step)
-        self._after_train_operations()
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            schedule=self.profiler_schedule,
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                self.profiler_trace_path
+            ),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True,
+            with_flops=True,
+            with_modules=True,
+        ) as p:
+            for step in range(n_steps + 1):
+                self._train_step(step)
+                if self.profiler_enabled:
+                    p.step()
+
+                if (
+                    step > 0
+                    and self.eval_interval > 0
+                    and step % self.eval_interval == 0
+                ):
+                    self._eval_step(step)
+                if (
+                    self.model_type == "gpt"
+                    and self.decoding_interval > 0
+                    and step % self.decoding_interval == 0
+                    and self.is_logging_process
+                ):
+                    try:
+                        self._decode_samples(step)
+                    except:
+                        print("Decoding failed, skipping...")
+                self._after_step_operations(step)
 
     def _train_step(
         self,
@@ -179,27 +201,34 @@ class ConditionalTrainer:
                     tensor.data, self.gradient_accumulation_steps, i
                 )
 
-            cross_entropy_loss, aux_info = self._calculate_loss(
+            cross_entropy_loss, aux_info = self._calculate_loss_and_backward_pass(
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
+                gradient_accumulation_steps=self.gradient_accumulation_steps,
+                scaler=self.scaler,
                 vocab_size=self.vocab_size,
             )
 
             # clear computation graph, store gradients, only apply gradients at the end
             should_apply_gradient = i == self.gradient_accumulation_steps - 1
 
-            loss_to_optimize = cross_entropy_loss
-            for key, value in aux_info["losses"].items():
-                loss_to_optimize += value
-
-            # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-            loss_to_optimize /= self.gradient_accumulation_steps
+            if len(aux_info["losses"]) > 0:
+                additional_loss_to_optimize = torch.zeros_like(
+                    cross_entropy_loss,
+                    device=cross_entropy_loss.device,
+                    requires_grad=True,
+                )
+                for key, value in aux_info["losses"].items():
+                    additional_loss_to_optimize = additional_loss_to_optimize + value
+            else:
+                additional_loss_to_optimize = None
 
             if should_optimize:
                 self._optimize(
-                    loss_to_optimize, should_apply_gradient=should_apply_gradient
+                    additional_loss_to_optimize,
+                    should_apply_gradient=should_apply_gradient,
                 )
             total_cross_entropy_loss += cross_entropy_loss.item()
             correct_tokens_value += aux_info["correct_tokens"]
@@ -214,14 +243,15 @@ class ConditionalTrainer:
             "losses": losses,
         }
 
-    def _optimize(self, loss, should_apply_gradient=False):
-        if self.gradient_accumulation_steps == 1:
-            self.optimizer.zero_grad()
-        # clear computation graph, store gradients
-        if self.scaler is None:
-            loss.backward()
-        else:
-            self.scaler.scale(loss).backward()
+    def _optimize(self, additional_loss, should_apply_gradient=False):
+        # since we sum gradients averaged over multiple smaller batches, we need to normalize here
+        if additional_loss is not None:
+            additional_loss /= self.gradient_accumulation_steps
+            # clear computation graph, store gradients
+            if self.scaler is None:
+                additional_loss.backward()
+            else:
+                self.scaler.scale(additional_loss).backward()
         if should_apply_gradient:
             if self.scaler is None:
                 if self.gradient_clipping is not None:
@@ -238,8 +268,7 @@ class ConditionalTrainer:
                 self.scaler.step(self.optimizer)
                 if self.scaler is not None:
                     self.scaler.update()
-            if self.gradient_accumulation_steps > 1:
-                self.optimizer.zero_grad()
+            self.optimizer.zero_grad()
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
