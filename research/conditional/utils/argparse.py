@@ -277,6 +277,7 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--set_granular_auto_args", action="store_true")
     parser.add_argument("--batch_size_per_gpu", type=int, required=False)
+    parser.add_argument("--granular_model_config", type=str, required=False)
 
     # experimental/legacy parameters
 
