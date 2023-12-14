@@ -233,14 +233,6 @@ def main(
     else:
         logger = None
 
-    print(model)
-
-    logger.report_scalar(
-        title="model/num_learnable_parameters",
-        value=no_learnable_parameters,
-        iteration=0,
-    )
-
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
             train_dataloader,
