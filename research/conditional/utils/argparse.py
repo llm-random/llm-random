@@ -281,4 +281,11 @@ def introduce_parser_arguments(
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 
+    # mamba
+    parser.add_argument("--mamba_mode", type=str, default="vanilla")
+    parser.add_argument(
+        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
+    )
+    parser.add_argument("--no_positional_embedding", action="store_true")
+
     return parser

@@ -501,6 +501,15 @@ def get_ff_layer(args):
     return return_fn
 
 
+def get_mamba_layer(args):
+    import mamba_ssm
+
+    if args.mamba_mode == "vanilla":
+        return_fn = lambda: mamba_ssm.Mamba(d_model=args.dmodel)
+
+    return return_fn
+
+
 def get_classes_from_module_names(
     packed_names,
 ) -> Union[tuple[Type[torch.nn.Module]], None]:
