@@ -204,8 +204,6 @@ def main(
         f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
     )
 
-    exit()
-
     if args.torch_compile:
         model = torch.compile(model)
 
