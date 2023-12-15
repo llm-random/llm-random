@@ -154,6 +154,8 @@ def main(
             block_modules[module_name] = get_ff_layer(args)
         elif module_name == "mamba":
             block_modules[module_name] = get_mamba_layer(args)
+        else:
+            raise ValueError(f"Unknown module name: {module_name}")
 
     model = get_model(
         max_length=args.cutoff,
