@@ -539,8 +539,28 @@ def get_mamba_layer(args):
         return_fn = lambda: mamba_ssm.Mamba(
             d_model=args.dmodel, expand=args.mamba_expansion
         )
+    elif args.mamba_mode == "out_proj_moe":
+
+        def modified_mamba():
+            mamba = mamba_ssm.Mamba(d_model=args.dmodel)
+            mamba.out_proj = ExpertChoiceFF(
+                dmodel=mamba.d_inner,
+                doutput=mamba.d_model,
+                n_experts=4,
+                expert_size=mamba.d_inner,
+                topk_fraction=0.5,
+                softmax_over="experts",
+                init_type="kaiming_uniform",
+                init_scale=0.1,
+                #  FIXME(KKrol): Hardcoded values
+            )
+            return mamba
+
+        return_fn = modified_mamba
+
     else:
         raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
+
     return return_fn
 
 
