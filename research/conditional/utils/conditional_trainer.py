@@ -249,14 +249,13 @@ class ConditionalTrainer:
         }
 
     def _optimize(self, loss, should_apply_gradient=False):
-        if self.gradient_accumulation_steps == 1:
-            self.optimizer.zero_grad()
         # clear computation graph, store gradients
         if self.scaler is None:
             loss.backward()
         else:
             self.scaler.scale(loss).backward()
         if should_apply_gradient:
+            # inspect and apply gradients
             if self.scaler is None:
                 if self.gradient_clipping is not None:
                     torch.nn.utils.clip_grad_norm_(
@@ -272,8 +271,8 @@ class ConditionalTrainer:
                 self.scaler.step(self.optimizer)
                 if self.scaler is not None:
                     self.scaler.update()
-            if self.gradient_accumulation_steps > 1:
-                self.optimizer.zero_grad()
+            # clear gradients
+            self.optimizer.zero_grad()
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]

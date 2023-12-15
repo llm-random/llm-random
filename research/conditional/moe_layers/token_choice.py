@@ -5,8 +5,138 @@ from fancy_einsum import einsum
 from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support.logging import make_histogram
+from lizrd.train import checkpointing
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
+
+
+class TokenChoiceRouter(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_experts: int,
+        capacity_factor: float,
+        load_balancing_loss_weight: float,
+        init_type: str,
+        init_scale: float,
+        use_einsum: bool = False,
+    ):
+        super().__init__()
+
+        self.n_experts = n_experts
+        self.capacity_factor = capacity_factor
+        self.load_balancing_loss_weight = load_balancing_loss_weight
+        self.use_einsum = use_einsum
+        self.dmodel = dmodel
+        self._checkpointed_expert_index = None
+
+        self.gate = nn.Parameter(
+            get_init_weight(
+                shape=(dmodel, n_experts),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+
+    def forward(self, x: torch.Tensor):
+        # x is (batch, seq_len, dmodel)
+        batch_size, seq_len, _ = x.shape
+        n_tokens = batch_size * seq_len
+        self.update_cache_for_logging("n_tokens", torch.Tensor([n_tokens]))
+
+        x = x.flatten(start_dim=0, end_dim=1)
+
+        with measure_time(self, "expert_embedding"):
+            if self.use_einsum:
+                gate_out = einsum(
+                    "n_tokens dmodel, dmodel n_experts -> n_tokens n_experts",
+                    x,
+                    self.gate,
+                )
+            else:
+                gate_out = torch.matmul(x, self.gate)
+
+        assert gate_out.shape == (n_tokens, self.n_experts)
+        capacity = int(self.capacity_factor * n_tokens / self.n_experts)
+
+        # perform softmax over experts for each token
+        with measure_time(self, "softmax"):
+            gate_out = torch.softmax(gate_out, dim=1)
+
+        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+
+        expert_gate, expert_index = self.choose_expert(gate_out)
+        with measure_time(self, "create_expert_mask"):
+            expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
+
+        with measure_time(self, "calculate expert indexes"):
+            position_in_expert = torch.cumsum(expert_mask, dim=0) * expert_mask
+            in_capacity_tokens_mask = torch.lt(position_in_expert, capacity)
+            expert_mask *= in_capacity_tokens_mask
+
+        with measure_time(self, "calculate aux loss"):
+            position_in_expert_mask = position_in_expert.bool()
+            tokens_per_expert = position_in_expert_mask.sum(dim=0, dtype=gate_out.dtype)
+            load_balancing_loss = calculate_load_balancing_loss(
+                self.load_balancing_loss_weight,
+                gate_out,
+                tokens_per_expert,
+                use_einsum=self.use_einsum,
+            )
+
+            if "load_balancing_losses" not in self.forward_pass_cache:
+                self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
+            else:
+                self.forward_pass_cache["load_balancing_losses"].append(
+                    load_balancing_loss
+                )
+
+        # mask out tokens that are not in capacity
+        expert_mask_flat = expert_mask.sum(dim=1)
+        expert_gate *= expert_mask_flat
+
+        self.update_cache_for_logging("gate_softmax_values", expert_gate)
+        self.update_cache_for_logging("max_indices", expert_index)
+        self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
+        self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
+        # group tokens indices by expert it should be processed by
+        with measure_time(self, "experts_lists"):
+            indices_of_tokens_for_expert = [
+                single_expert_mask.nonzero(as_tuple=True)[0]
+                for single_expert_mask in expert_mask.transpose(0, 1)
+            ]
+
+        # create empty input and  assign only tokens to be processed
+        experts_input = torch.zeros(
+            self.n_experts, capacity, self.dmodel, dtype=x.dtype, device=x.device
+        )
+        with measure_time(self, "assign_tokens_to_input"):
+            for i, indices in enumerate(indices_of_tokens_for_expert):
+                experts_input[i, : len(indices)] = x[indices]
+
+        return experts_input, indices_of_tokens_for_expert, expert_gate
+
+    def choose_expert(self, gate_out) -> tuple[torch.Tensor, torch.Tensor]:
+        checkpointing_enabled = (
+            checkpointing.is_in_first_forward() or checkpointing.is_in_second_forward()
+        )
+        if checkpointing_enabled:
+            if checkpointing.is_in_first_forward():
+                with torch.no_grad():
+                    expert_index = torch.argmax(gate_out, dim=1, keepdim=True)
+                    self._checkpointed_expert_index = expert_index
+
+            if checkpointing.is_in_second_forward():
+                with torch.no_grad():
+                    expert_index = self._checkpointed_expert_index
+                    assert isinstance(expert_index, torch.Tensor)
+
+            expert_gate = torch.gather(gate_out, dim=1, index=expert_index).squeeze()
+            expert_index = expert_index.squeeze()
+        else:
+            expert_gate, expert_index = torch.max(gate_out, dim=1)
+        return expert_gate, expert_index
 
 
 class TokenChoiceFF(LoggingLayer):
@@ -55,93 +185,21 @@ class TokenChoiceFF(LoggingLayer):
             )
         )
 
-        self.gate = nn.Parameter(
-            get_init_weight(
-                shape=(dmodel, n_experts),
-                fan_in=dmodel,
-                init_type=init_type,
-                scale=init_scale,
-            )
+        self.router = TokenChoiceRouter(
+            dmodel=dmodel,
+            n_experts=n_experts,
+            capacity_factor=capacity_factor,
+            load_balancing_loss_weight=load_balancing_loss_weight,
+            init_type=init_type,
+            init_scale=init_scale,
+            use_einsum=use_einsum,
         )
 
     def forward(self, x: torch.Tensor):
-        # x is (batch, seq_len, dmodel)
         batch_size, seq_len, _ = x.shape
-        n_tokens = batch_size * seq_len
-        self.update_cache_for_logging("n_tokens", torch.Tensor([n_tokens]))
 
+        experts_input, indices_of_tokens_for_expert, expert_gate = self.router(x)
         x = x.flatten(start_dim=0, end_dim=1)
-
-        with measure_time(self, "expert_embedding"):
-            if self.use_einsum:
-                gate_out = einsum(
-                    "n_tokens dmodel, dmodel n_experts -> n_tokens n_experts",
-                    x,
-                    self.gate,
-                )
-            else:
-                gate_out = torch.matmul(x, self.gate)
-
-        assert gate_out.shape == (n_tokens, self.n_experts)
-        capacity = int(self.capacity_factor * n_tokens / self.n_experts)
-
-        # perform softmax over experts for each token
-        with measure_time(self, "softmax"):
-            gate_out = torch.softmax(gate_out, dim=1)
-
-        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
-
-        # choose expert for each token
-        with measure_time(self, "max_indices"):
-            expert_gate, expert_index = torch.max(gate_out, dim=1)
-
-        with measure_time(self, "create_expert_mask"):
-            expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
-
-        with measure_time(self, "calculate expert indexes"):
-            position_in_expert = torch.cumsum(expert_mask, dim=0) * expert_mask
-            in_capacity_tokens_mask = torch.lt(position_in_expert, capacity)
-            expert_mask *= in_capacity_tokens_mask
-
-        with measure_time(self, "calculate aux loss"):
-            position_in_expert_mask = position_in_expert.bool()
-            tokens_per_expert = position_in_expert_mask.sum(dim=0, dtype=gate_out.dtype)
-            load_balancing_loss = calculate_load_balancing_loss(
-                self.load_balancing_loss_weight,
-                gate_out,
-                tokens_per_expert,
-                use_einsum=self.use_einsum,
-            )
-
-            if "load_balancing_losses" not in self.forward_pass_cache:
-                self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
-            else:
-                self.forward_pass_cache["load_balancing_losses"].append(
-                    load_balancing_loss
-                )
-
-        # mask out tokens that are not in capacity
-        expert_mask_flat = expert_mask.sum(dim=1)
-        expert_gate *= expert_mask_flat
-
-        self.update_cache_for_logging("gate_softmax_values", expert_gate)
-        self.update_cache_for_logging("max_indices", expert_index)
-        self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
-        self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
-        # group tokens indices by expert it should be processed by
-        with measure_time(self, "experts_lists"):
-            indices_of_tokens_for_expert = [
-                single_expert_mask.nonzero(as_tuple=True)[0]
-                for single_expert_mask in expert_mask.transpose(0, 1)
-            ]
-
-        # create empty input and  assign only tokens to be processed
-        experts_input = torch.zeros(
-            self.n_experts, capacity, self.dmodel, dtype=x.dtype, device=x.device
-        )
-        with measure_time(self, "assign_tokens_to_input"):
-            for i, indices in enumerate(indices_of_tokens_for_expert):
-                experts_input[i, : len(indices)] = x[indices]
 
         with measure_time(self, "process_by_experts"):
             if self.use_einsum:
@@ -192,7 +250,7 @@ class TokenChoiceFF(LoggingLayer):
             "tokens_per_expert_counts": make_histogram(
                 self.logging_cache["tokens_per_expert"]
             ),
-            "load_balancing_loss": self.logging_cache["load_balancing_loss"],
+            "load_balancing_loss": self.logging_cache["load_balancing_loss"].item(),
         }
 
 

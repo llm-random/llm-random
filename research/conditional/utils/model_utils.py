@@ -1,7 +1,4 @@
 from functools import partial
-
-# import json
-# from diskcache import Cache
 from typing import Type, Union
 import torch
 from torch.nn import LayerNorm
@@ -54,7 +51,10 @@ from research.conditional.moe_layers.continuous_moe import (
     LegacyContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
-from research.conditional.moe_layers.token_choice import TokenChoiceFF
+from research.conditional.moe_layers.token_choice import (
+    TokenChoiceFF,
+    TokenChoiceRouter,
+)
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -330,8 +330,9 @@ def retrieve_additional_losses(model: torch.nn.Module):
         load_balancing_losses = torch.stack(load_balancing_losses)
         load_balancing_loss = torch.mean(load_balancing_losses)
         losses["load_balancing_loss"] = load_balancing_loss
+        for _, value in model.forward_pass_cache.items():
+            del value
         model.forward_pass_cache["load_balancing_losses"] = []
-
     return losses
 
 
@@ -476,39 +477,48 @@ def get_classes_from_module_names(
     """
     Unpacks a comma-separated list of module names into a tuple of modules.
     """
-    names = []
+    classes = []
     if packed_names is None:
         return None
     for name in packed_names.split(","):
         if name == "Attention":
-            names.append(llm.Attention)
-        if name == "AttentionMechanism":
-            names.append(llm.AttentionMechanism)
+            classes.append(llm.Attention)
+        elif name == "AttentionMechanism":
+            classes.append(llm.AttentionMechanism)
         elif name == "FeedForward":
-            names.append(llm.FeedForward)
+            classes.append(llm.FeedForward)
         elif name == "Residual":
-            names.append(llm.Residual)
+            classes.append(llm.Residual)
         elif name == "TransformerBlock":
-            names.append(llm.TransformerBlock)
+            classes.append(llm.TransformerBlock)
         elif name == "TransformerTower":
-            names.append(llm.TransformerTower)
+            classes.append(llm.TransformerTower)
         elif name == "LLM":
-            names.append(llm.LLM)
+            classes.append(llm.LLM)
         elif name == "EmbeddingLayer":
-            names.append(llm.EmbeddingLayer)
+            classes.append(llm.EmbeddingLayer)
         elif name == "PredictionHead":
-            names.append(llm.PredictionHead)
+            classes.append(llm.PredictionHead)
         elif name == "ExpertChoiceFF":
-            names.append(ExpertChoiceFF)
+            classes.append(ExpertChoiceFF)
         elif name == "ExpertGating":
-            names.append(ExpertGating)
+            classes.append(ExpertGating)
+        elif name == "Softmax":
+            classes.append(torch.nn.Softmax)
+        elif name == "TokenChoiceRouter":
+            classes.append(TokenChoiceRouter)
         else:
             raise ValueError(f"Unknown name {name}")
-    return tuple(names)
+    return tuple(classes)
 
 
 def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
-    ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
+    ignored_classes = [
+        ExpertGating,
+        LayerNorm,
+        _BatchNorm,
+        TokenChoiceRouter,
+    ]
 
     selective_precision_modules = get_classes_from_module_names(
         args.fsdp_selective_precision_modules
