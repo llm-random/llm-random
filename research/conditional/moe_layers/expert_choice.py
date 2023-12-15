@@ -1,4 +1,4 @@
-from typing import Literal, Union
+from typing import Literal, Union, Optional
 import plotly.express as px
 import torch
 import torch.nn.functional as F
@@ -180,6 +180,7 @@ class ExpertChoiceFF(LoggingLayer):
         topk_fraction: float,
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
+        doutput: Optional[int] = None,
         random_perm: bool = False,
         group_by_batch: bool = False,
         one_hot_impl: bool = False,
@@ -204,6 +205,8 @@ class ExpertChoiceFF(LoggingLayer):
         super().__init__()
 
         self.dmodel = dmodel
+        if doutput is None:
+            self.doutput = dmodel
         self.n_experts = n_experts
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
@@ -234,7 +237,7 @@ class ExpertChoiceFF(LoggingLayer):
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
-                (n_experts, expert_size, dmodel),
+                (n_experts, expert_size, self.doutput),
                 fan_in=int(n_experts * expert_size * topk_fraction),
                 init_type=init_type,
                 scale=init_scale,
@@ -378,8 +381,8 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "gating_postprocess_with_linear"):
             return einsum(
                 "n_exp topk seq_len exp_size, n_exp topk seq_len, "
-                "n_exp topk seq_len batch_size, n_exp exp_size dmodel"
-                "-> batch_size seq_len dmodel",
+                "n_exp topk seq_len batch_size, n_exp exp_size doutput"
+                "-> batch_size seq_len doutput",
                 x,
                 topk_values,
                 one_hot,
@@ -464,7 +467,7 @@ class ExpertChoiceFF(LoggingLayer):
 
             # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
             x = einsum(
-                "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
+                "n_exp topk exp_size, n_exp exp_size doutput -> n_exp topk doutput",
                 x,
                 self.lin2_weight,
             )
