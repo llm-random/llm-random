@@ -550,7 +550,6 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         ExpertGating,
         LayerNorm,
         _BatchNorm,
-        torch.nn.Softmax,
         TokenChoiceRouter,
     ]
 
