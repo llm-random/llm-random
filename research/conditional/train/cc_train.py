@@ -9,10 +9,12 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
+from lizrd.core.llm import EmbeddingLayer
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
     generate_random_string,
+    get_n_learnable_parameters,
     set_seed,
 )
 from lizrd.train.train_utils import (
@@ -185,11 +187,24 @@ def main(
         include_positional_embedding=(not args.no_positional_embedding),
     )
 
-    n_learnable_parameters = sum(
-        p.numel() for p in model.parameters() if p.requires_grad
-    )
+    n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters
     print(f"Number of learnable parameters: {n_learnable_parameters:_}")
+
+    embedding = [m for m in model.modules() if isinstance(m, EmbeddingLayer)][0]
+    head = model.head
+
+    n_learnable_nonembedding_parameters = (
+        n_learnable_parameters
+        - get_n_learnable_parameters(embedding)
+        - get_n_learnable_parameters(head)
+    )
+    args.n_learnable_nonembedding_parameters = n_learnable_nonembedding_parameters
+    print(
+        f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
+    )
+
+    exit()
 
     if args.torch_compile:
         model = torch.compile(model)
