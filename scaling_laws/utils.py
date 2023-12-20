@@ -17,6 +17,13 @@ def unique_values_with_indices(data):
     return sorted(indices.items())
 
 
+def get_groups_by_dim(group_dims, scaling_law):
+    dicts = [params.dict() for params in scaling_law.runs]
+    group_values = [tuple([params[d] for d in group_dims]) for params in dicts]
+    groups = unique_values_with_indices(group_values)
+    return groups
+
+
 def neptune_connect(project_name):
     api_token = os.environ["NEPTUNE_API_TOKEN"]
     return neptune.init_project(api_token=api_token, project=project_name)
@@ -43,10 +50,3 @@ def read_yaml_file():
             return data
         except yaml.YAMLError as exc:
             print(exc)
-
-
-def get_groups_by_dim(group_dims, scaling_law):
-    dicts = [params.dict() for params in scaling_law.runs]
-    group_values = [tuple([params[d] for d in group_dims]) for params in dicts]
-    groups = unique_values_with_indices(group_values)
-    return groups

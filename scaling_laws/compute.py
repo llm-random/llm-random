@@ -25,6 +25,7 @@ def plot_loss_vs_predicted_loss(scaling_law, group_by="granularity"):
     legend = plt.legend()
     plt.title(f"Loss vs predicted loss for {scaling_law.name}")
     plt.tight_layout()
+    plt.savefig(f"{scaling_law.name}_error_{group_by}.png")
     plt.show()
 
 
@@ -36,7 +37,7 @@ def plot_params(scaling_law, plot_dim, plot_points=1000):
     plt.figure(dpi=200)
     A = np.array([math.log10(r.dict()[axis_dim]) for r in scaling_law.runs])
     B = np.array([math.log(r.loss) for r in scaling_law.runs])
-    A_values = np.linspace(A.min(), A.max() + 0.5*(A.max() - A.min()), plot_points)
+    A_values = np.linspace(A.min(), A.max() + 2.0*(A.max() - A.min()), plot_points)
     plot_minimal = axis_dim == "flops"
 
     group_dims = sorted(list(scaling_law.params_set - set(plot_dim)))
@@ -72,25 +73,33 @@ def plot_params(scaling_law, plot_dim, plot_points=1000):
     plt.tight_layout()
     legend = plt.legend(loc='upper right')
     legend.get_frame().set_alpha(0.4)
+    plt.savefig(f"{scaling_law.name}_{axis_dim}|{'|'.join(plot_dim[1:])}.png")
     plt.show()
 
 
-def one_scaling(project, tags, power_laws, name, plot_dims, num_opt_steps, fixed, **_):
+def one_scaling(project, tags, power_laws, name, num_opt_steps, fixed, use_chinchilla, **_):
     runs = download_batch_sizes_from_neptune(project, tags, fixed)
-    scaling_law = ScalingLaw(name, runs, power_laws, fixed)
-    scaling_law.optimize(num_steps=num_opt_steps)
-    print(f"Final scaling law approximation loss: {scaling_law()}")
+    scaling_law = ScalingLaw(name, runs, power_laws, fixed, use_chinchilla=use_chinchilla)
+    eval = scaling_law.optimize(num_steps=num_opt_steps)
+    print(f"Final scaling law approximation RMSE: {scaling_law()[1]}")
+    return scaling_law
+
+
+def compute_scaling_laws(project_name, scalings, plot_dims, config, **_):
+    project = neptune_connect(project_name)
+    scaling_laws = [one_scaling(project=project, **s_config, **config)
+                    for s_config in scalings]
+
     for plot_dim in plot_dims:
-        plot_params(scaling_law, plot_dim)
+        for scaling_law in scaling_laws:
+            plot_params(scaling_law, plot_dim)
 
 
-def compute_scaling_laws():
+def run_from_config():
     config = read_yaml_file()
     print(config)
-    project = neptune_connect(config["project_name"])
-    for scaling_config in config["scalings"]:
-        one_scaling(project=project, **scaling_config, **config)
+    compute_scaling_laws(**config, config=config)
 
 
 if __name__ == "__main__":
-    compute_scaling_laws()
+    run_from_config()

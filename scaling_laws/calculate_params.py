@@ -3,8 +3,8 @@ from scipy.optimize import minimize_scalar
 
 
 dmodel_const = 64
-ff_const = 8
-router_const = 6
+ff_const = 4
+router_const = 1
 batch_size = 256
 seq_len = 256
 grad_accum = 8
@@ -35,7 +35,8 @@ class TrainRun:
         self.flops = calculate_flops(**self.dict())
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_steps == args_final_lr_step and \
-                        all([getattr(self, k) == v for k, v in fixed.items()])
+                        all([getattr(self, k) == v for k, v in fixed.items()]) and \
+                        (self.n_params > 20000000 or self.n_steps > 20000 and self.granularity <= 32)     # TODO: remove this hack
 
     def dict(self):
         return self.__dict__
