@@ -106,6 +106,29 @@ class LayerManager:
                 if name in ["temperature_merge", "temperature_emit"]:
                     param.requires_grad = is_learning_temperature
 
+    def flip_chimera_mode(self):
+        for _, l in self._layers:
+            if hasattr(l, "current_mode"):
+                if l.current_mode == "mot":
+                    l.current_mode = "switch"
+                    print("switching to switch")
+                elif l.current_mode == "switch":
+                    l.current_mode = "mot"
+                    print("switching to mot")
+                else:
+                    raise ValueError("current_mode not set")
+
+    def set_chimera_mode(self, mode):
+        for _, l in self._layers:
+            if hasattr(l, "current_mode"):
+                l.current_mode = mode
+
+    def get_chimera_mode(self):
+        for _, l in self._layers:
+            if hasattr(l, "current_mode"):
+                return l.current_mode
+        raise ValueError("current_mode not set")
+
 
 class LoggingLayer(nn.Module):
     def __init__(self):

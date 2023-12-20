@@ -190,6 +190,7 @@ def introduce_parser_arguments(
     parser.add_argument("--flop_matched", action="store_true")
 
     ## used by MoE (specific)
+    parser.add_argument("--possible_modes_packed", type=str, default="mot,switch")
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,

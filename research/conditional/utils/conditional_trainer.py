@@ -13,6 +13,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
+from research.conditional.moe_layers.chimera import MoEChimera
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
@@ -120,6 +121,7 @@ class ConditionalTrainer:
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
+        self.layer_manager.flip_chimera_mode()
 
     def train(self, n_steps: int):
         """
@@ -233,7 +235,7 @@ class ConditionalTrainer:
                 for value in losses.values():
                     additional_loss_to_optimize = additional_loss_to_optimize + value
             else:
-                additional_loss_to_optimize = None
+                additional_loss_to_optimize = 0.0
 
             loss_to_optimize = cross_entropy_loss + additional_loss_to_optimize
 
@@ -276,16 +278,28 @@ class ConditionalTrainer:
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
-        self._eval_single_variant(
-            batches=batches,
-            step=step,
-            variant_name="normal",
-        )
         layers = [
             l
             for _, l in self.layer_manager._layers
-            if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
+            if isinstance(l, (ContinuousMoE, ExpertChoiceFF, MoEChimera))
         ]
+        if all([not hasattr(l, "current_mode") for l in layers]):
+            self._eval_single_variant(
+                batches=batches,
+                step=step,
+                variant_name="normal",
+            )
+        else:
+            possible_modes = [
+                l.possible_modes_packed for l in layers if hasattr(l, "current_mode")
+            ][0]
+            for mode in possible_modes:
+                with temp_modify_attr(layers, "current_mode", mode):
+                    self._eval_single_variant(
+                        batches=batches,
+                        step=step,
+                        variant_name=f"mode={mode}",
+                    )
         if self.eval_dynamic_groupsize:
             original_group_size = layers[0].group_size
             for log_group_size_factor in range(
