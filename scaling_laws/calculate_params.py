@@ -14,8 +14,6 @@ class TrainRun:
     def __init__(
         self,
         loss_interval_1000,
-        args_granularity,
-        args_expansion_rate,
         args_dmodel,
         args_n_steps,
         args_n_blocks,
@@ -23,6 +21,8 @@ class TrainRun:
         step,
         sys_state,
         fixed,
+        args_granularity=1,
+        args_expansion_rate=1,
         **_,
     ):
         self.loss = loss_interval_1000
@@ -36,7 +36,8 @@ class TrainRun:
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_steps == args_final_lr_step and \
                         all([getattr(self, k) == v for k, v in fixed.items()]) and \
-                        (self.n_params > 20000000 or self.n_steps > 20000 and self.granularity < 32)     # TODO: remove this hack
+                        (self.n_params > 20000000 or self.n_steps > 20000 or self.expansion_rate == 1) and \
+                        (self.granularity < 32)  # TODO: remove this hack and ^this
 
     def dict(self):
         return self.__dict__
