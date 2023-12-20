@@ -9,10 +9,12 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
+from lizrd.core.llm import EmbeddingLayer
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
     generate_random_string,
+    get_n_learnable_parameters,
     set_seed,
 )
 from lizrd.train.train_utils import (
@@ -29,6 +31,7 @@ from research.conditional.utils.model_utils import (
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
+    get_mamba_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     get_classes_from_module_names,
@@ -136,8 +139,6 @@ def main(
         args.activation_checkpointing_modules
     )
 
-    ff_layer_fun = get_ff_layer(args)
-    attention_layer_fun = get_attention_layer(args)
     residual_fn = get_residual_layer(args)
 
     model_fit_gpu_info_params = get_argument_attributes(
@@ -146,11 +147,22 @@ def main(
     update_model_fit_gpu_info(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
     )
+
+    block_modules = {}
+    for module_name in args.block_modules:
+        if module_name == "attention":
+            block_modules[module_name] = get_attention_layer(args)
+        elif module_name == "feedforward":
+            block_modules[module_name] = get_ff_layer(args)
+        elif module_name == "mamba":
+            block_modules[module_name] = get_mamba_layer(args)
+        else:
+            raise ValueError(f"Unknown module name: {module_name}")
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
-        ff_layer_fun=ff_layer_fun,
-        attention_layer_fun=attention_layer_fun,
+        block_modules=block_modules,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
         device=DEVICE
@@ -172,6 +184,24 @@ def main(
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
         rank=rank,
+        include_positional_embedding=(not args.no_positional_embedding),
+    )
+
+    n_learnable_parameters = get_n_learnable_parameters(model)
+    args.n_learnable_parameters = n_learnable_parameters
+    print(f"Number of learnable parameters: {n_learnable_parameters:_}")
+
+    embedding = [m for m in model.modules() if isinstance(m, EmbeddingLayer)][0]
+    head = model.head
+
+    n_learnable_nonembedding_parameters = (
+        n_learnable_parameters
+        - get_n_learnable_parameters(embedding)
+        - get_n_learnable_parameters(head)
+    )
+    args.n_learnable_nonembedding_parameters = n_learnable_nonembedding_parameters
+    print(
+        f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
     )
 
     if args.torch_compile:
