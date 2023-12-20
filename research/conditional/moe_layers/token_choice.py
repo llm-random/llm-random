@@ -179,7 +179,7 @@ class TokenChoiceFF(LoggingLayer):
         self.lin2_weight = nn.Parameter(
             get_init_weight(
                 shape=(n_experts, expert_size, dmodel),
-                fan_in=int(n_experts * expert_size),
+                fan_in=int(expert_size),
                 init_type=init_type,
                 scale=init_scale,
             )
