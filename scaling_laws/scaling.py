@@ -135,7 +135,7 @@ class ScalingLaw(nn.Module):
             self.load_state_dict(torch.load(self.checkpoint_name))
             return
         optimizer = torch.optim.AdamW(self.parameters(), lr=0.01)
-        scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1, end_factor=0.02, total_iters=num_steps)
+        scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1, end_factor=0.01, total_iters=num_steps)
         self.train()
         min_eval = (np.inf, -1)
         with trange(num_steps) as iterator:
