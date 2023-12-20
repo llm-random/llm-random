@@ -162,7 +162,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         )
 
         layers = {
-            "feedforward": lambda: lambda: llm.FeedForward(
+            "feedforward": lambda: llm.FeedForward(
                 dm, dff, init_type="kaiming_uniform", init_scale=1.0
             ),
             "attention": lambda: llm.Attention(
