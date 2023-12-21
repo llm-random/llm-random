@@ -2,7 +2,7 @@ from collections import defaultdict
 import os.path
 import copy
 from types import SimpleNamespace as SN
-from typing import Callable, Iterable, Optional, Literal
+from typing import Callable, Iterable, Optional, Literal, Any
 
 import torch
 from torch.profiler import profile, ProfilerActivity
@@ -75,7 +75,8 @@ class ConditionalTrainer:
     model_fit_gpu_info_params: [str] = None
     profiler_enabled: bool = False
     profiler_trace_path: str = None
-    profiler_schedule: None = None
+    profiler_schedule: Any = None
+    chimera_schedule: int = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -121,7 +122,9 @@ class ConditionalTrainer:
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
-        self.layer_manager.flip_chimera_mode()
+        if self.chimera_schedule is not None:
+            mode = self.layer_manager.get_chimera_mode(step, self.chimera_schedule)
+            self.layer_manager.set_chimera_mode(mode)
 
     def train(self, n_steps: int):
         """
@@ -171,6 +174,7 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
+        self.optimizer.zero_grad()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
@@ -273,8 +277,6 @@ class ConditionalTrainer:
                 self.scaler.step(self.optimizer)
                 if self.scaler is not None:
                     self.scaler.update()
-            # clear gradients
-            self.optimizer.zero_grad()
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
@@ -283,16 +285,18 @@ class ConditionalTrainer:
             for _, l in self.layer_manager._layers
             if isinstance(l, (ContinuousMoE, ExpertChoiceFF, MoEChimera))
         ]
-        if all([not hasattr(l, "current_mode") for l in layers]):
+        if self.chimera_schedule is None:
             self._eval_single_variant(
                 batches=batches,
                 step=step,
                 variant_name="normal",
             )
         else:
+            print("Evaluating chimera variants")
             possible_modes = [
-                l.possible_modes_packed for l in layers if hasattr(l, "current_mode")
+                l.possible_modes for l in layers if hasattr(l, "current_mode")
             ][0]
+            print(f"possible modes: {possible_modes}")
             for mode in possible_modes:
                 with temp_modify_attr(layers, "current_mode", mode):
                     self._eval_single_variant(

@@ -106,28 +106,52 @@ class LayerManager:
                 if name in ["temperature_merge", "temperature_emit"]:
                     param.requires_grad = is_learning_temperature
 
-    def flip_chimera_mode(self):
-        for _, l in self._layers:
-            if hasattr(l, "current_mode"):
-                if l.current_mode == "mot":
-                    l.current_mode = "switch"
-                    print("switching to switch")
-                elif l.current_mode == "switch":
-                    l.current_mode = "mot"
-                    print("switching to mot")
-                else:
-                    raise ValueError("current_mode not set")
-
     def set_chimera_mode(self, mode):
         for _, l in self._layers:
             if hasattr(l, "current_mode"):
-                l.current_mode = mode
+                l.set_mode(mode)
 
-    def get_chimera_mode(self):
-        for _, l in self._layers:
-            if hasattr(l, "current_mode"):
-                return l.current_mode
-        raise ValueError("current_mode not set")
+    def get_chimera_mode(self, step, schedule_type_id):
+        """
+        this is temporary code that implements different mode schedules. in total, thee will be 6 schedules:
+        1.mot-> switch @30K
+        2.mot->switch @ 100K
+        3.ec x switch
+        4.ec -> switch @30K
+        5.mot x ec
+        6.mot -> ec @30K
+        where x means "alternate between the two" and -> means "switch to the second one at the given step"
+
+        note: all schedules start with 1 step each of all modes involved
+        """
+        modes_involved = []
+        if schedule_type_id == 1:
+            modes_involved = ["mot", "switch"]
+        elif schedule_type_id == 2:
+            modes_involved = ["mot", "switch"]
+        elif schedule_type_id == 3:
+            modes_involved = ["ec", "switch"]
+        elif schedule_type_id == 4:
+            modes_involved = ["ec", "switch"]
+        elif schedule_type_id == 5:
+            modes_involved = ["mot", "ec"]
+        elif schedule_type_id == 6:
+            modes_involved = ["mot", "ec"]
+
+        if step == 0:
+            return modes_involved[0]
+        elif step == 1:
+            return modes_involved[1]
+        else:
+            round_robin_schedule = schedule_type_id in [3, 5]
+            if round_robin_schedule:
+                return modes_involved[step % 2]
+            else:
+                cutoff_step = 30000 if schedule_type_id in [1, 4, 6] else 100000
+                if step < cutoff_step:
+                    return modes_involved[0]
+                else:
+                    return modes_involved[1]
 
 
 class LoggingLayer(nn.Module):

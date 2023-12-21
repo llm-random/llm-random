@@ -13,7 +13,6 @@ class MoEChimera(LoggingLayer):
     mot: lambda: LoggingLayer
     ec: lambda: LoggingLayer
     switch: lambda: LoggingLayer
-    possible_modes_packed: str
     dmodel: int
     n_experts: int
     expert_size: int
@@ -26,7 +25,7 @@ class MoEChimera(LoggingLayer):
             self.expert_size % self.n_experts == 0
         ), f"expert_size {self.expert_size} must be divisible by n_experts {self.n_experts}. We might support other granularities in the future."
         self.current_mode = "mot"
-        self.possible_modes = self.possible_modes_packed.split(",")
+        self.possible_modes = []
         # instantiate submodules
         self.mot = self.mot()
         self.ec = self.ec()
@@ -82,6 +81,8 @@ class MoEChimera(LoggingLayer):
             "switch",
         ], f"mode {mode} not supported. It must be one of ['mot', 'ec', 'switch']"
         self.current_mode = mode
+        if mode not in self.possible_modes:
+            self.possible_modes.append(mode)
 
     def get_current_module(self):
         if self.current_mode == "mot":
