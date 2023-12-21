@@ -69,7 +69,7 @@ class PowerLaw(nn.Module):
 
 
 class ScalingLaw(nn.Module):
-    def __init__(self, name, runs, power_laws, fixed, use_chinchilla=True, eps=1e-5):
+    def __init__(self, name, runs, power_laws, fixed, cmap, use_chinchilla=True, eps=1e-5, **_):
         super().__init__()
         self.runs = runs
         self.name = name
@@ -77,6 +77,7 @@ class ScalingLaw(nn.Module):
         self.use_chinchilla = use_chinchilla
         self.L0 = init(eps)
         self.loss = torch.nn.HuberLoss(delta=0.01)
+        self.cmap = cmap
         self.power_laws = nn.ModuleList([PowerLaw(names, eps, use_chinchilla) for names in power_laws])
         self.params_set = set(chain(*(set(p.names) for p in self.power_laws)))
         self.fixed_params = fixed

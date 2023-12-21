@@ -1,16 +1,17 @@
 scalings:
-#  - name: "dense"
-#    tags:
-#      - "zubr_dense_grid"
-#    fixed:
-#      expansion_rate: 1
-#      granularity: 1
-#    power_laws:
-#      - - "n_params"
-#      - - "n_steps"
-#    use_chinchilla: true
-#    num_opt_steps: 10000
-  - name: "Granular_10"
+  - name: "dense"
+    tags:
+      - "zubr_dense_grid"
+    fixed:
+      expansion_rate: 1
+      granularity: 1
+    power_laws:
+      - - "n_params"
+      - - "n_steps"
+    use_chinchilla: true
+    num_opt_steps: 40000
+    cmap: copper
+  - name: "Granular_9"
     tags:
       - "fixed_grid_wd"
     fixed:
@@ -23,6 +24,7 @@ scalings:
         - "granularity"
     use_chinchilla: true
     num_opt_steps: 10000
+    cmap: rainbow
 plot_dims:
   - - "predicted_loss"
     - "granularity"
