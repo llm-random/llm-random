@@ -138,10 +138,8 @@ class LayerManager:
         elif schedule_type_id == 6:
             modes_involved = ["mot", "ec"]
 
-        if step == 0:
-            return modes_involved[0]
-        elif step == 1:
-            return modes_involved[1]
+        if step < len(modes_involved):
+            return modes_involved[step]
         else:
             round_robin_schedule = schedule_type_id in [3, 5]
             if round_robin_schedule:

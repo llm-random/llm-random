@@ -11,6 +11,65 @@ from research.conditional.utils.misc_tools import stable_softmax_temperature, en
 from research.conditional.utils.layer_manager import LoggingLayer
 
 
+class MoTRouter(torch.nn.Module):
+    def __init__(self, dmodel, n_experts, init_type, init_scale):
+        super().__init__()
+        self.dmodel = dmodel
+        self.n_experts = n_experts
+        self.init_type = init_type
+        self.init_scale = init_scale
+
+        self.lin1 = torch.nn.Parameter(
+            lizrd.core.initialization.get_init_weight(
+                shape=(self.n_experts, self.dmodel, self.dmodel),
+                fan_in=self.dmodel,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
+        )
+        self.lin2 = torch.nn.Parameter(
+            lizrd.core.initialization.get_init_weight(
+                shape=(self.n_experts, self.dmodel, self.dmodel),
+                fan_in=self.dmodel,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
+        )
+        self.controller = torch.nn.Parameter(
+            lizrd.core.initialization.get_init_weight(
+                shape=(self.dmodel, self.n_experts),
+                fan_in=self.dmodel,
+                init_type=self.init_type,
+                scale=self.init_scale,
+            )
+        )
+
+    def forward(self, x):
+        # shape of x is (free_dimension, split_dimension // group_size, group_size, dmodel)
+        merge_logits = torch.matmul(x, self.controller)
+        self.update_cache_for_logging("merge_logits", merge_logits)
+        # shape of merge_logits is (free_dimension, agrr_dimension // group_size, group_size, n_experts)
+        temp_merge, temp_emit = self.get_temperature()
+        merge_softmax_dim = -2
+        emit_softmax_dim = -1 if self.emit_softmax_over_experts else -2
+
+        merge_weights = stable_softmax_temperature(
+            merge_logits, temp_merge, dim=merge_softmax_dim
+        )
+        # on default we use the same weights for emitting and merging, but if the temperature is learnable or we want to take softmax over experts for emitting, we will use different weights
+        if isinstance(temp_merge, torch.nn.Parameter) or self.emit_softmax_over_experts:
+            emit_weights = stable_softmax_temperature(
+                merge_logits, temp_emit, dim=emit_softmax_dim
+            )
+        else:
+            emit_weights = merge_weights
+        self.update_cache_for_logging("merge_weights", merge_weights)
+        self.update_cache_for_logging("emit_weights", emit_weights)
+        if self.use_discrete_routing:
+            merge_weights = argmax_one_hot(merge_weights, dim=merge_softmax_dim)
+            emit_weights = argmax_one_hot(emit_weights, dim=emit_softmax_dim)
+        return merge_weights, emit_weights
+
 @dataclasses.dataclass(eq=False, repr=False)
 class ContinuousMoeBaseClass(LoggingLayer):
     """
