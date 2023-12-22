@@ -372,7 +372,7 @@ def PostNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
         OrderedDict(
             [
                 (f"{name}", Residual(layer)),
-                ("post_norm", norm_class(dmodel)),
+                (f"{name}_post_norm", norm_class(dmodel)),
             ]
         )
     )
@@ -383,7 +383,7 @@ def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
         nn.Sequential(
             OrderedDict(
                 [
-                    ("pre_norm", norm_class(dmodel)),
+                    (f"{name}_pre_norm", norm_class(dmodel)),
                     (f"{name}", layer),
                 ]
             )
@@ -401,14 +401,14 @@ def BothNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
                         nn.Sequential(
                             OrderedDict(
                                 [
-                                    ("pre_norm", norm_class(dmodel)),
+                                    (f"{name}_pre_norm", norm_class(dmodel)),
                                     (f"{name}", layer),
                                 ]
                             )
                         )
                     ),
                 ),
-                ("post_norm", norm_class(dmodel)),
+                (f"{name}_post_norm", norm_class(dmodel)),
             ]
         )
     )

@@ -40,14 +40,17 @@ class LayerManager:
             registered_name = None
             suffix = name.split(".")[-1]
 
-            if suffix in [
-                "residual_feedforward",
-                "residual_attention",
-                "feedforward",
-                "expert_gating",
-                "pre_norm",
-                "post_norm",
-            ]:
+            if (
+                suffix
+                in [
+                    "residual_feedforward",
+                    "residual_attention",
+                    "feedforward",
+                    "expert_gating",
+                ]
+                or "post_norm" in suffix
+                or "pre_norm" in suffix
+            ):
                 block_name = self.extract_block_name(name)
                 registered_name = f"{block_name}/{suffix}"
 
