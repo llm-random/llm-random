@@ -53,7 +53,10 @@ from research.conditional.moe_layers.continuous_moe import (
     LegacyContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
-from research.conditional.moe_layers.token_choice import TokenChoiceFF
+from research.conditional.moe_layers.token_choice import (
+    TokenChoiceFF,
+    TokenChoiceRouter,
+)
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -110,19 +113,20 @@ def chungized_llm_loss_and_backward_pass(
         encoder_output: torch.Tensor = model.encoder(
             model.embedding_layer(input_tokens)
         )
+        encoder_output_detach = encoder_output.detach()
+        encoder_output_detach.requires_grad = True
         gt_tokens = gt_tokens.to(encoder_output.device)
         mask = mask.to(encoder_output.device)
         num_masked_tokens = mask.sum()
         if do_backward_pass:
             encoder_output.retain_grad()
-        chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
+        chunged_inputs = torch.chunk(encoder_output_detach, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
         total_loss = 0
         total_correct_tokens = 0
         # we need to tell torch what parameters we want to optimize, because we don't want to optimize the encoder for every chunk
-        parameters_in_chung = tuple(model.head.parameters()) + (encoder_output,)
         for chunged_input, chunged_gt, chunged_mask in zip(
             chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
@@ -140,18 +144,14 @@ def chungized_llm_loss_and_backward_pass(
                     device_type="cuda", enabled=False, dtype=mixed_precision_dtype
                 ):
                     if scaler is not None:
-                        scaler.scale(loss).backward(
-                            inputs=parameters_in_chung,
-                        )
+                        scaler.scale(loss).backward()
                     else:
-                        loss.backward(
-                            inputs=parameters_in_chung,
-                        )
+                        loss.backward()
             total_loss += partial_loss.sum()
             total_correct_tokens += partial_correct_tokens
 
     if do_backward_pass:
-        encoder_output.backward(encoder_output.grad)
+        encoder_output.backward(encoder_output_detach.grad)
 
     aux_info = {
         "correct_tokens": total_correct_tokens,
@@ -477,9 +477,11 @@ def get_ff_layer(args):
         return_fn = lambda: TokenChoiceFF(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
-            expert_size=args.effective_dff,
+            expert_size=args.expert_size,
             capacity_factor=args.capacity_factor,
             load_balancing_loss_weight=args.load_balancing_loss_weight,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
@@ -517,45 +519,64 @@ def get_ff_layer(args):
     return return_fn
 
 
+def get_mamba_layer(args):
+    import mamba_ssm
+
+    if args.mamba_mode == "vanilla":
+        return_fn = lambda: mamba_ssm.Mamba(d_model=args.dmodel)
+    else:
+        raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
+    return return_fn
+
+
 def get_classes_from_module_names(
     packed_names,
 ) -> Union[tuple[Type[torch.nn.Module]], None]:
     """
     Unpacks a comma-separated list of module names into a tuple of modules.
     """
-    names = []
+    classes = []
     if packed_names is None:
         return None
     for name in packed_names.split(","):
         if name == "Attention":
-            names.append(llm.Attention)
-        if name == "AttentionMechanism":
-            names.append(llm.AttentionMechanism)
+            classes.append(llm.Attention)
+        elif name == "AttentionMechanism":
+            classes.append(llm.AttentionMechanism)
         elif name == "FeedForward":
-            names.append(llm.FeedForward)
+            classes.append(llm.FeedForward)
         elif name == "Residual":
-            names.append(llm.Residual)
+            classes.append(llm.Residual)
         elif name == "TransformerBlock":
-            names.append(llm.TransformerBlock)
+            classes.append(llm.TransformerBlock)
         elif name == "TransformerTower":
-            names.append(llm.TransformerTower)
+            classes.append(llm.TransformerTower)
         elif name == "LLM":
-            names.append(llm.LLM)
+            classes.append(llm.LLM)
         elif name == "EmbeddingLayer":
-            names.append(llm.EmbeddingLayer)
+            classes.append(llm.EmbeddingLayer)
         elif name == "PredictionHead":
-            names.append(llm.PredictionHead)
+            classes.append(llm.PredictionHead)
         elif name == "ExpertChoiceFF":
-            names.append(ExpertChoiceFF)
+            classes.append(ExpertChoiceFF)
         elif name == "ExpertGating":
-            names.append(ExpertGating)
+            classes.append(ExpertGating)
+        elif name == "Softmax":
+            classes.append(torch.nn.Softmax)
+        elif name == "TokenChoiceRouter":
+            classes.append(TokenChoiceRouter)
         else:
             raise ValueError(f"Unknown name {name}")
-    return tuple(names)
+    return tuple(classes)
 
 
 def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
-    ignored_classes = [ExpertGating, LayerNorm, _BatchNorm]
+    ignored_classes = [
+        ExpertGating,
+        LayerNorm,
+        _BatchNorm,
+        TokenChoiceRouter,
+    ]
 
     selective_precision_modules = get_classes_from_module_names(
         args.fsdp_selective_precision_modules

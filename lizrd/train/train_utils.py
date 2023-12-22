@@ -1,22 +1,19 @@
-from functools import partial
 from typing import Callable, Optional, Union, Type
 
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
-    checkpoint_wrapper,
-    CheckpointImpl,
     apply_activation_checkpointing,
 )
 
 from lizrd.core import llm
 from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
+from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 
 
 def get_model(
     max_length: int,
     vocab_size: int,
-    ff_layer_fun: Callable[[], torch.nn.Module],
-    attention_layer_fun: Callable[[], torch.nn.Module],
+    block_modules: dict[str, Callable[[], torch.nn.Module]],
     dm: int,
     n_blocks: int,
     device: torch.device,
@@ -34,6 +31,7 @@ def get_model(
     rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
+    include_positional_embedding: bool = True,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -42,24 +40,24 @@ def get_model(
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
-    embedding_layer = llm.EmbeddingLayer(
-        llm.PositionalEmbedding(
-            max_length, dm, init_type=init_type, init_scale=init_scale
-        ).to(first_gpu),
-        llm.TokenEmbedding(
-            vocab_size, dm, init_type=init_type, init_scale=init_scale
-        ).to(first_gpu),
-    )
+    embedding_components = [
+        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
+    ]
 
-    layer_dict = {
-        "attention": attention_layer_fun,
-        "feedforward": ff_layer_fun,
-    }
+    if include_positional_embedding:
+        embedding_components.append(
+            llm.PositionalEmbedding(
+                max_length, dm, init_type=init_type, init_scale=init_scale
+            )
+        )
+
+    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
+
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
         n_blocks,
         dm,
-        layer_dict,
+        block_modules,
         device,
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
@@ -88,12 +86,10 @@ def get_model(
 
     if activation_checkpointing_modules is not None:
         check_fn = lambda x: isinstance(x, activation_checkpointing_modules)
-        non_reentrant_wrapper = partial(
-            checkpoint_wrapper,
-            checkpoint_impl=CheckpointImpl.NO_REENTRANT,
-        )
         apply_activation_checkpointing(
-            model, check_fn=check_fn, checkpoint_wrapper_fn=non_reentrant_wrapper
+            model,
+            check_fn=check_fn,
+            checkpoint_wrapper_fn=make_checkpoint_wrapper_function(),
         )
 
     return model
