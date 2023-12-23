@@ -8,6 +8,7 @@ from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
@@ -83,6 +84,9 @@ def chungized_llm_loss_and_backward_pass(
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
+
+    if isinstance(model, DDP):
+        model = model.module
 
     # this is here, so python releases memory before backprop
     def calculate_partial_loss_and_correct_tokens(
