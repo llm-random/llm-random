@@ -205,8 +205,7 @@ class ExpertChoiceFF(LoggingLayer):
         super().__init__()
 
         self.dmodel = dmodel
-        if doutput is None:
-            self.doutput = dmodel
+        self.doutput = dmodel if doutput is None else doutput
         self.n_experts = n_experts
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
@@ -251,7 +250,7 @@ class ExpertChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel) if use_layer_norm else None
+        self.ln = LayerNorm(self.doutput) if use_layer_norm else None
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot
@@ -308,7 +307,7 @@ class ExpertChoiceFF(LoggingLayer):
                 x = self.ln(x)
 
         if self.group_size > 1:
-            x = x.reshape(orig_bs, orig_seq_len, self.dmodel)
+            x = x.reshape(orig_bs, orig_seq_len, self.doutput)
 
         return x
 
@@ -471,7 +470,7 @@ class ExpertChoiceFF(LoggingLayer):
                 x,
                 self.lin2_weight,
             )
-            ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.dmodel)
+            ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.doutput)
         return x
 
     def gating_postprocess_onehot(
@@ -506,15 +505,15 @@ class ExpertChoiceFF(LoggingLayer):
         # add tokens that have been processed by more than one expert
         with measure_time(self, "add_tokens_many_experts"):
             z = (
-                torch.zeros((batch_size * seq_len, self.dmodel))
+                torch.zeros((batch_size * seq_len, self.doutput))
                 .type(x.type())
                 .to(x.device)
             )
 
             z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
-            # reshape to (batch_size, seq_len, dmodel)
-            x = z.reshape((batch_size, seq_len, self.dmodel))
+            # reshape to (batch_size, seq_len, doutput)
+            x = z.reshape((batch_size, seq_len, self.doutput))
         return x
 
     def log_light(self):
