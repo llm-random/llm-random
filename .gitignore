@@ -154,6 +154,7 @@ research/reinitialization/scripts/jk_scripts
 jk_train/
 
 tmp_plots/
+scaling_laws/plots
 
 # models saved locally
 models/

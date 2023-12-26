@@ -21,7 +21,7 @@ class TrainRun:
         step,
         sys_state,
         fixed,
-        args_granularity=1,
+        args_granularity=0,
         args_expansion_rate=1,
         **_,
     ):
@@ -143,7 +143,7 @@ def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, 
 
 #    res = minimize_scalar(function)
 #    res_der = minimize_scalar(function_der)
-    res_raw = minimize_scalar(fun2)
+    res_raw = minimize_scalar(fun2)  #, options=dict(disp=1))   , method='bounded', bounds=(1, 1e6))
 
     dmodel = res_raw.x
     #dmodel_der = res_der.x

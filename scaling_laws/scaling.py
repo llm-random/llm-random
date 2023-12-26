@@ -16,19 +16,21 @@ def init(eps):
 
 
 class PowerLaw(nn.Module):
-    def __init__(self, names, eps=1e-5, use_chinchilla=True, with_interaction=True):
+    def __init__(self, names, eps=1e-5, use_chinchilla=True, exp_inter=False, poly_inter=True, **_):
         super(PowerLaw, self).__init__()
         self.use_chinchilla = use_chinchilla
-        self.with_interaction = with_interaction
+        self.exp_inter = exp_inter
+        self.poly_inter = poly_inter
         self.p = init(-eps)
         self.names = names
         if not self.use_chinchilla:
             self.name = "*".join([name if self.use_chinchilla else f"ln({name})" for name in names])
         elif len(names) == 2:
-            self.a, self.b, self.c = map(init, [eps]*3)
+            self.a, self.b = init(eps), init(eps)
+            self.c = init(eps) if self.poly_inter else 0
             self.name, self.condition = self.names
-            if with_interaction:
-                self.i, self.pi = init(eps), init(eps)  # TODO, this is controversial
+            if exp_inter:
+                self.i, self.pi = init(eps), (init(eps) if poly_inter else 0)
         elif len(names) == 1:
             self.a, self.b, self.c = 0, 0, init(eps)
             self.name = self.names[0]
@@ -48,7 +50,7 @@ class PowerLaw(nn.Module):
             if condition is None:
                 return self.c * param ** self.p
             scaling = (self.a * condition ** self.b + self.c) * param ** self.p
-            if self.with_interaction:
+            if self.exp_inter:
                 scaling *= (torch.exp(self.i*(torch.log(condition)*torch.log(param))) + self.pi)
             return scaling
 
@@ -57,10 +59,12 @@ class PowerLaw(nn.Module):
 
     def __repr__(self):
         if self.use_chinchilla and len(self.names) == 2:
-            text = f"({self.a.item():.2}*{self.condition}**{self.b.item():.2} " \
-                   f"+ {self.c.item():.2})*{self.name}**{self.p.item():.2}"
-            if self.with_interaction:
-                text += f"*(exp({self.i.item():.2}*ln({self.condition})*ln({self.name})) + {self.pi.item():.2})"
+            text = f"{self.a.item():.2}*{self.condition}**{self.b.item():.2}"
+            text = f"({text}+{self.c.item():.2})" if self.poly_inter else text
+            text += f"*{self.name}**{self.p.item():.2}"
+            if self.exp_inter:
+                poly_text = f"{self.name}**({self.i.item()}*ln({self.condition}))"
+                text += f"*({poly_text}+{self.pi.item():.2})" if self.poly_inter else f"*{poly_text}"
             return text
         elif self.use_chinchilla and len(self.names) == 1:
             return f"{self.c.item():.2}*{self.name}**{self.p.item():.2}"
@@ -69,7 +73,7 @@ class PowerLaw(nn.Module):
 
 
 class ScalingLaw(nn.Module):
-    def __init__(self, name, runs, power_laws, fixed, cmap, use_chinchilla=True, eps=1e-5, **_):
+    def __init__(self, name, runs, power_laws, fixed, cmap, use_chinchilla=True, eps=1e-5, **params):
         super().__init__()
         self.runs = runs
         self.name = name
@@ -78,7 +82,7 @@ class ScalingLaw(nn.Module):
         self.L0 = init(eps)
         self.loss = torch.nn.HuberLoss(delta=0.01)
         self.cmap = cmap
-        self.power_laws = nn.ModuleList([PowerLaw(names, eps, use_chinchilla) for names in power_laws])
+        self.power_laws = nn.ModuleList([PowerLaw(names, eps, use_chinchilla, **params) for names in power_laws])
         self.params_set = set(chain(*(set(p.names) for p in self.power_laws)))
         self.fixed_params = fixed
 
@@ -119,24 +123,25 @@ class ScalingLaw(nn.Module):
 
     def resolve_params(self, **params):
         lacking = [k for k in self.params_set if k not in params]
+        params.update(self.fixed_params)
         if len(lacking) == 0:
             pass
         elif len(lacking) == 1 and lacking[0] == "n_steps" and "flops" in params:
-            params.update(calculate_n_steps_from_flops(**params, **self.fixed_params))
+            params.update(calculate_n_steps_from_flops(**params))
         elif len(lacking) == 1 and lacking[0] == "n_params" and "flops" in params:
-            params.update(calculate_n_params_from_flops(**params, **self.fixed_params))
+            params.update(calculate_n_params_from_flops(**params))
         elif len(lacking) == 2 and "n_params" in lacking and "n_steps" in lacking and "flops" in params:
-            params.update(calculate_n_params_and_steps_from_flops(**params, scaling_laws=self, **self.fixed_params))
+            params.update(calculate_n_params_and_steps_from_flops(**params, scaling_laws=self))
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
         return self.expected_logloss(**params).detach().numpy()
 
-    def optimize(self, num_steps, early_stop=10000):
+    def optimize(self, num_steps, lr, final_lr_fr, early_stop=10000):
         if os.path.exists(self.checkpoint_name):
             self.load_state_dict(torch.load(self.checkpoint_name))
             return
-        optimizer = torch.optim.AdamW(self.parameters(), lr=0.01)
-        scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1, end_factor=0.01, total_iters=num_steps)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=lr)
+        scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1, end_factor=final_lr_fr, total_iters=num_steps)
         self.train()
         min_eval = (np.inf, -1)
         with trange(num_steps) as iterator:
