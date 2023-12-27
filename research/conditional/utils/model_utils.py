@@ -57,6 +57,9 @@ from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
     TokenChoiceRouter,
 )
+from research.conditional.moe_layers._token_choice_deprecated import (
+    TokenChoiceFF as TokenChoiceFFDeprecated,
+)
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -466,6 +469,16 @@ def get_ff_layer(args):
             capacity_factor=args.capacity_factor,
             load_balancing_loss_weight=args.load_balancing_loss_weight,
             routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
+    elif args.ff_mode == "token_choice_deprecated":
+        return_fn = lambda: TokenChoiceFFDeprecated(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            capacity_factor=args.capacity_factor,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
             init_scale=args.init_scale,
             init_type=args.init_type,
         )
