@@ -5,14 +5,23 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
 from scaling_laws.scaling import ScalingLaw
-from scaling_laws.utils import neptune_connect, download_batch_sizes_from_neptune, \
-    read_yaml_file, get_groups_by_dim
+from scaling_laws.utils import (
+    neptune_connect,
+    download_batch_sizes_from_neptune,
+    read_yaml_file,
+    get_groups_by_dim,
+)
 
 
 def plot_loss_vs_predicted_loss(scaling_law, group_by="granularity"):
     groups = get_groups_by_dim(group_by, scaling_law)
     colors = cm.rainbow(np.linspace(0, 1, len(groups)))
-    A = np.array([scaling_law.expected_logloss(**r.dict()).detach().numpy() for r in scaling_law.runs])
+    A = np.array(
+        [
+            scaling_law.expected_logloss(**r.dict()).detach().numpy()
+            for r in scaling_law.runs
+        ]
+    )
     B = np.array([math.log(r.loss) for r in scaling_law.runs])
     plt.figure(dpi=200)
     for (group, indices), color in zip(groups, colors):
@@ -42,11 +51,19 @@ def plot_params(scaling_laws, plot_dim, extrapolate_factor=2.0, plot_points=100,
     if axis_dim == "flops_save":
         flops_save = True
         axis_dim = "flops"
-    scaling_laws = [s for s in scaling_laws if axis_dim in s.params_set or axis_dim == "flops"]
+    scaling_laws = [
+        s for s in scaling_laws if axis_dim in s.params_set or axis_dim == "flops"
+    ]
     plt.figure(dpi=250)
     top, bottom = -np.inf, np.inf
-    all_A = np.array([math.log10(r.dict()[axis_dim]) for s in scaling_laws for r in s.runs])
-    A_values = np.linspace(all_A.min(), all_A.max() + extrapolate_factor*(all_A.max() - all_A.min()), plot_points)
+    all_A = np.array(
+        [math.log10(r.dict()[axis_dim]) for s in scaling_laws for r in s.runs]
+    )
+    A_values = np.linspace(
+        all_A.min(),
+        all_A.max() + extrapolate_factor * (all_A.max() - all_A.min()),
+        plot_points,
+    )
     for scaling_law in scaling_laws:
         A = np.array([math.log10(r.dict()[axis_dim]) for r in scaling_law.runs])
         B = np.array([math.log(r.loss) for r in scaling_law.runs])
@@ -60,9 +77,18 @@ def plot_params(scaling_laws, plot_dim, extrapolate_factor=2.0, plot_points=100,
         B_predictions, names = [], []
         for (group, indices), color in zip(groups, colors):
             group_dict = dict(zip(group_dims, group))
-            names.append(f"{scaling_law.name} {' '.join(f'{name}={int(val)}' for name, val in group_dict.items())}")
+            names.append(
+                f"{scaling_law.name} {' '.join(f'{name}={int(val)}' for name, val in group_dict.items())}"
+            )
             plt.scatter(A[indices], B[indices], color=color, s=5)
-            B_predictions.append([scaling_law.resolve_params(**group_dict, **{axis_dim: np.power(10, a)}) for a in A_values])
+            B_predictions.append(
+                [
+                    scaling_law.resolve_params(
+                        **group_dict, **{axis_dim: np.power(10, a)}
+                    )
+                    for a in A_values
+                ]
+            )
 
         B_predictions = np.array(B_predictions)
         is_min = B_predictions.min(axis=0) == B_predictions
@@ -71,20 +97,34 @@ def plot_params(scaling_laws, plot_dim, extrapolate_factor=2.0, plot_points=100,
             if not plot_minimal:
                 plt.plot(A_values, B_p, color=color, label=name)
                 continue
-            plt.plot(A_values[~minimal], B_p[~minimal], color=color, linestyle="--", linewidth=0.7, alpha=0.5)
-            plt.plot(A_values[minimal], B_p[minimal], color=color, linestyle="-", linewidth=2, label=name)
-        top = max(top, min(B.max() + 0.2*(B.max() - B.min()), B_predictions.max()))
+            plt.plot(
+                A_values[~minimal],
+                B_p[~minimal],
+                color=color,
+                linestyle="--",
+                linewidth=0.7,
+                alpha=0.5,
+            )
+            plt.plot(
+                A_values[minimal],
+                B_p[minimal],
+                color=color,
+                linestyle="-",
+                linewidth=2,
+                label=name,
+            )
+        top = max(top, min(B.max() + 0.2 * (B.max() - B.min()), B_predictions.max()))
         bottom = min(bottom, min(B_predictions.min(), B.min()))
 
-    plt.title('\n'.join([str(s) for s in scaling_laws]), wrap=True, fontsize=5)
-    plt.rc('font', size=7)
+    plt.title("\n".join([str(s) for s in scaling_laws]), wrap=True, fontsize=5)
+    plt.rc("font", size=7)
     plt.ylim(top=top, bottom=bottom)
-    plt.rc('legend', fontsize=5)
-    plt.rc('axes', titlesize=6, labelsize=6)
+    plt.rc("legend", fontsize=5)
+    plt.rc("axes", titlesize=6, labelsize=6)
     plt.xlabel(f"log10({axis_dim})")
     plt.ylabel("ln(perplexity)")
     plt.tight_layout()
-    legend = plt.legend(loc='upper right')
+    legend = plt.legend(loc="upper right")
     legend.get_frame().set_alpha(0.4)
     filename = f"scaling_laws/plots/{'_'.join([s.name for s in scaling_laws])}/{axis_dim}|{'|'.join(plot_dim[1:])}.png"
     os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -96,14 +136,17 @@ def one_scaling(project, tags, num_opt_steps, lr, final_lr_fr, fixed, **params):
     runs = download_batch_sizes_from_neptune(project, tags, fixed)
     scaling_law = ScalingLaw(runs=runs, fixed=fixed, **params)
     _ = scaling_law.optimize(num_steps=num_opt_steps, lr=lr, final_lr_fr=final_lr_fr)
-    print(f"Final {scaling_law.name} scaling law approximation RMSE: {scaling_law()[1]}")
+    print(
+        f"Final {scaling_law.name} scaling law approximation RMSE: {scaling_law()[1]}"
+    )
     return scaling_law
 
 
 def compute_scaling_laws(project_name, scalings, plot_dims, config, **params):
     project = neptune_connect(project_name)
-    scaling_laws = [one_scaling(project=project, **s_config, **config)
-                    for s_config in scalings]
+    scaling_laws = [
+        one_scaling(project=project, **s_config, **config) for s_config in scalings
+    ]
 
     for plot_dim in plot_dims:
         plot_params(scaling_laws, plot_dim, **params)

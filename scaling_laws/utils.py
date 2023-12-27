@@ -39,10 +39,12 @@ def download_batch_sizes_from_neptune(project, tags, fixed):
     return all
 
 
-def read_yaml_file():
-    parser = argparse.ArgumentParser(description="Read a yaml file")
-    parser.add_argument("config_path", type=str, help="Path to the YAML file")
-    args = parser.parse_args()
+def read_yaml_file(path=None):
+    if path is None:
+        parser = argparse.ArgumentParser(description="Read a yaml file")
+        parser.add_argument("config_path", type=str, help="Path to the YAML file")
+        args = parser.parse_args()
+        path = args.config_path
 
     with open(args.config_path, "r") as stream:
         try:

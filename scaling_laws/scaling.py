@@ -7,8 +7,11 @@ from torch.optim import lr_scheduler as lr_scheduler
 from tqdm import trange
 import os
 
-from scaling_laws.calculate_params import calculate_n_steps_from_flops, calculate_n_params_from_flops, \
-    calculate_n_params_and_steps_from_flops
+from scaling_laws.calculate_params import (
+    calculate_n_steps_from_flops,
+    calculate_n_params_from_flops,
+    calculate_n_params_and_steps_from_flops,
+)
 
 
 def init(eps):
@@ -16,7 +19,15 @@ def init(eps):
 
 
 class PowerLaw(nn.Module):
-    def __init__(self, names, eps=1e-5, use_chinchilla=True, exp_inter=False, poly_inter=True, **_):
+    def __init__(
+        self,
+        names,
+        eps=1e-5,
+        use_chinchilla=True,
+        exp_inter=False,
+        poly_inter=True,
+        **_,
+    ):
         super(PowerLaw, self).__init__()
         self.use_chinchilla = use_chinchilla
         self.exp_inter = exp_inter
@@ -24,7 +35,9 @@ class PowerLaw(nn.Module):
         self.p = init(-eps)
         self.names = names
         if not self.use_chinchilla:
-            self.name = "*".join([name if self.use_chinchilla else f"ln({name})" for name in names])
+            self.name = "*".join(
+                [name if self.use_chinchilla else f"ln({name})" for name in names]
+            )
         elif len(names) == 2:
             self.a, self.b = init(eps), init(eps)
             self.c = init(eps) if self.poly_inter else 0
@@ -48,10 +61,13 @@ class PowerLaw(nn.Module):
         if self.use_chinchilla:
             param, condition = self.get_tensors(params)
             if condition is None:
-                return self.c * param ** self.p
-            scaling = (self.a * condition ** self.b + self.c) * param ** self.p
+                return self.c * param**self.p
+            scaling = (self.a * condition**self.b + self.c) * param**self.p
             if self.exp_inter:
-                scaling *= (torch.exp(self.i*(torch.log(condition)*torch.log(param))) + self.pi)
+                scaling *= (
+                    torch.exp(self.i * (torch.log(condition) * torch.log(param)))
+                    + self.pi
+                )
             return scaling
 
         params = [torch.log(x) for x in self.get_tensors(params)]
@@ -64,7 +80,11 @@ class PowerLaw(nn.Module):
             text += f"*{self.name}**{self.p.item():.2}"
             if self.exp_inter:
                 poly_text = f"{self.name}**({self.i.item()}*ln({self.condition}))"
-                text += f"*({poly_text}+{self.pi.item():.2})" if self.poly_inter else f"*{poly_text}"
+                text += (
+                    f"*({poly_text}+{self.pi.item():.2})"
+                    if self.poly_inter
+                    else f"*{poly_text}"
+                )
             return text
         elif self.use_chinchilla and len(self.names) == 1:
             return f"{self.c.item():.2}*{self.name}**{self.p.item():.2}"
@@ -73,7 +93,17 @@ class PowerLaw(nn.Module):
 
 
 class ScalingLaw(nn.Module):
-    def __init__(self, name, runs, power_laws, fixed, cmap, use_chinchilla=True, eps=1e-5, **params):
+    def __init__(
+        self,
+        name,
+        runs,
+        power_laws,
+        fixed,
+        cmap,
+        use_chinchilla=True,
+        eps=1e-5,
+        **params,
+    ):
         super().__init__()
         self.runs = runs
         self.name = name
@@ -82,7 +112,9 @@ class ScalingLaw(nn.Module):
         self.L0 = init(eps)
         self.loss = torch.nn.HuberLoss(delta=0.01)
         self.cmap = cmap
-        self.power_laws = nn.ModuleList([PowerLaw(names, eps, use_chinchilla, **params) for names in power_laws])
+        self.power_laws = nn.ModuleList(
+            [PowerLaw(names, eps, use_chinchilla, **params) for names in power_laws]
+        )
         self.params_set = set(chain(*(set(p.names) for p in self.power_laws)))
         self.fixed_params = fixed
 
@@ -97,7 +129,9 @@ class ScalingLaw(nn.Module):
 
     def expected_logloss(self, get_log=True, **params):
         val = self.L0 + sum([p(**params) for p in self.power_laws])
-        return torch.log(val) if (self.use_chinchilla and get_log) else val  # TODO check if it's ok?
+        return (
+            torch.log(val) if (self.use_chinchilla and get_log) else val
+        )  # TODO check if it's ok?
 
     def __repr__(self):
         return (
@@ -109,17 +143,17 @@ class ScalingLaw(nn.Module):
         y_pred = self.expected_logloss(**params, get_log=False)
         if self.use_chinchilla:
             y = torch.tensor(loss)
-            eval_se = (y_pred - y)**2
+            eval_se = (y_pred - y) ** 2
             return self.loss(y_pred, y), eval_se
         else:
             y = torch.log(torch.tensor(loss))
-            eval_se = (y_pred - y)**2
+            eval_se = (y_pred - y) ** 2
             return self.loss(y_pred, y), eval_se
 
     def forward(self):
         losses, se = zip(*[self.calc_loss(run.dict(), run.loss) for run in self.runs])
-        rmse = (sum(se)/len(self.runs))**.5
-        return sum(losses)/len(self.runs), rmse
+        rmse = (sum(se) / len(self.runs)) ** 0.5
+        return sum(losses) / len(self.runs), rmse
 
     def resolve_params(self, **params):
         lacking = [k for k in self.params_set if k not in params]
@@ -130,8 +164,15 @@ class ScalingLaw(nn.Module):
             params.update(calculate_n_steps_from_flops(**params))
         elif len(lacking) == 1 and lacking[0] == "n_params" and "flops" in params:
             params.update(calculate_n_params_from_flops(**params))
-        elif len(lacking) == 2 and "n_params" in lacking and "n_steps" in lacking and "flops" in params:
-            params.update(calculate_n_params_and_steps_from_flops(**params, scaling_laws=self))
+        elif (
+            len(lacking) == 2
+            and "n_params" in lacking
+            and "n_steps" in lacking
+            and "flops" in params
+        ):
+            params.update(
+                calculate_n_params_and_steps_from_flops(**params, scaling_laws=self)
+            )
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
         return self.expected_logloss(**params).detach().numpy()
@@ -141,14 +182,18 @@ class ScalingLaw(nn.Module):
             self.load_state_dict(torch.load(self.checkpoint_name))
             return
         optimizer = torch.optim.AdamW(self.parameters(), lr=lr)
-        scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1, end_factor=final_lr_fr, total_iters=num_steps)
+        scheduler = lr_scheduler.LinearLR(
+            optimizer, start_factor=1, end_factor=final_lr_fr, total_iters=num_steps
+        )
         self.train()
         min_eval = (np.inf, -1)
         with trange(num_steps) as iterator:
             for i in iterator:
                 optimizer.zero_grad()
                 loss, rmse = self()
-                iterator.set_description(f"Optimizing, error={rmse:.4} (loss={loss:.4}) {str(self)}")
+                iterator.set_description(
+                    f"Optimizing, error={rmse:.4} (loss={loss:.4}) {str(self)}"
+                )
                 loss.backward()
                 optimizer.step()
                 scheduler.step()
