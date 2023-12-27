@@ -270,9 +270,12 @@ class TestTokenChoice(GeneralTestCase):
         propagate_forward_pass_cache(token_choice_layer)
 
         with torch.no_grad():
+            # make sure the gating is the same for both experts
             token_choice_layer.router.gate.data[
                 :, 0
             ] = token_choice_layer.router.gate.data[:, 1]
+
+            # copy weights from experts to layer
             token_choice_layer.lin1_weight.data[0] = (
                 expert1[0].weight.data.transpose(0, 1).unsqueeze(0)
             )
@@ -287,6 +290,8 @@ class TestTokenChoice(GeneralTestCase):
             )
         # make sure weights act the same
         input_data = torch.rand((batch, seql, dm))
+
+        # because scores are the same, the output is the average of the two experts
         output_lin = (expert1(input_data) + expert2(input_data)) / 2
         output_token_choice = token_choice_layer(input_data)
 
