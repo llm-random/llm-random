@@ -198,7 +198,7 @@ class TestTokenChoice(GeneralTestCase):
             exp_size,
             5.0,
             load_balancing_loss_weight=0.1,
-            experts_per_token=1,
+            routing_top_k=1,
             init_type="kaiming_uniform",
             init_scale=1.0,
         )
@@ -265,7 +265,7 @@ class TestTokenChoice(GeneralTestCase):
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
-            experts_per_token=2,
+            routing_top_k=2,
         )
         propagate_forward_pass_cache(token_choice_layer)
 

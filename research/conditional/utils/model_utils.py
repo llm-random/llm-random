@@ -465,7 +465,7 @@ def get_ff_layer(args):
             expert_size=args.expert_size,
             capacity_factor=args.capacity_factor,
             load_balancing_loss_weight=args.load_balancing_loss_weight,
-            experts_per_token=args.experts_per_token,
+            routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
         )

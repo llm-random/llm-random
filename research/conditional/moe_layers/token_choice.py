@@ -19,7 +19,7 @@ class TokenChoiceRouter(LoggingLayer):
         load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
-        experts_per_token: int = 1,
+        routing_top_k: int = 1,
         use_einsum: bool = False,
     ):
         super().__init__()
@@ -29,7 +29,7 @@ class TokenChoiceRouter(LoggingLayer):
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
         self.dmodel = dmodel
-        self.experts_per_token = experts_per_token
+        self.routing_top_k = routing_top_k
         self._checkpointed_expert_index = None
 
         self.gate = nn.Parameter(
@@ -61,7 +61,7 @@ class TokenChoiceRouter(LoggingLayer):
 
         assert gate_out.shape == (n_tokens, self.n_experts)
         capacity = int(
-            self.capacity_factor * n_tokens * self.experts_per_token / self.n_experts
+            self.capacity_factor * n_tokens * self.routing_top_k / self.n_experts
         )
 
         # perform softmax over experts for each token
@@ -75,7 +75,7 @@ class TokenChoiceRouter(LoggingLayer):
             expanded_expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
             assert expanded_expert_mask.shape == (
                 n_tokens,
-                self.experts_per_token,
+                self.routing_top_k,
                 self.n_experts,
             )
             expert_mask = expanded_expert_mask.sum(dim=1)
@@ -87,8 +87,7 @@ class TokenChoiceRouter(LoggingLayer):
             total_in_capacity_tokens = in_capacity_tokens_mask.sum().item()
             self.update_cache_for_logging(
                 "dropped_tokens_ratio",
-                (n_tokens - total_in_capacity_tokens)
-                / (n_tokens * self.experts_per_token),
+                (n_tokens - total_in_capacity_tokens) / (n_tokens * self.routing_top_k),
             )
             expert_mask *= in_capacity_tokens_mask
 
@@ -102,12 +101,12 @@ class TokenChoiceRouter(LoggingLayer):
                 use_einsum=self.use_einsum,
             )
 
-            if "load_balancing_losses" not in self.forward_pass_cache:
-                self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
-            else:
-                self.forward_pass_cache["load_balancing_losses"].append(
-                    load_balancing_loss
-                )
+            # if "load_balancing_losses" not in self.forward_pass_cache:
+            #     self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
+            # else:
+            #     self.forward_pass_cache["load_balancing_losses"].append(
+            #         load_balancing_loss
+            #     )
 
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
@@ -139,9 +138,7 @@ class TokenChoiceRouter(LoggingLayer):
         if checkpointing_enabled:
             if checkpointing.is_in_first_forward():
                 with torch.no_grad():
-                    _, expert_index = torch.topk(
-                        gate_out, k=self.experts_per_token, dim=1
-                    )
+                    _, expert_index = torch.topk(gate_out, k=self.routing_top_k, dim=1)
                     self._checkpointed_expert_index = expert_index
 
             if checkpointing.is_in_second_forward():
@@ -152,7 +149,7 @@ class TokenChoiceRouter(LoggingLayer):
             expert_gate = torch.gather(gate_out, dim=1, index=expert_index)
         else:
             expert_gate, expert_index = torch.topk(
-                gate_out, k=self.experts_per_token, dim=1
+                gate_out, k=self.routing_top_k, dim=1
             )
         return expert_gate, expert_index
 
@@ -182,7 +179,7 @@ class TokenChoiceFF(LoggingLayer):
         load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
-        experts_per_token: int = 1,
+        routing_top_k: int = 1,
         use_einsum: bool = False,
     ):
         """
@@ -226,7 +223,7 @@ class TokenChoiceFF(LoggingLayer):
             load_balancing_loss_weight=load_balancing_loss_weight,
             init_type=init_type,
             init_scale=init_scale,
-            experts_per_token=experts_per_token,
+            routing_top_k=routing_top_k,
             use_einsum=use_einsum,
         )
 
@@ -258,14 +255,14 @@ class TokenChoiceFF(LoggingLayer):
 
         output = torch.zeros_like(x)
 
-        # here we would like to multiply by gating
         with measure_time(self, "assign_tokens_to_output"):
-            for i in range(self.n_experts):
-                output[indices_of_tokens_for_expert[i]] += experts_output[
-                    i, : len(indices_of_tokens_for_expert[i])
-                ] * masked_expert_gate[indices_of_tokens_for_expert[i], i].unsqueeze(
-                    dim=1
-                )
+            for expert_id in range(self.n_experts):
+                tokens_to_update = indices_of_tokens_for_expert[expert_id]
+                num_of_tokens_to_update = len(tokens_to_update)
+
+                output[tokens_to_update] += experts_output[
+                    expert_id, :num_of_tokens_to_update
+                ] * masked_expert_gate[tokens_to_update, expert_id].unsqueeze(dim=1)
 
         output = output.reshape((batch_size, seq_len, self.dmodel))
 
