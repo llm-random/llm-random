@@ -158,7 +158,7 @@ class Parallel(nn.Module):
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
-        return x + sum(layer(x) for layer in self.layers)
+        return sum(layer(x) for layer in self.layers)
 
 
 @ash.check("... dinp -> ... a b")
