@@ -41,7 +41,9 @@ class ExpertGating(LoggingLayer):
         self.gate = gate
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
 
-    def forward(self, x: torch.Tensor, batch_size: int, seq_len: int):
+    def forward(
+        self, x: torch.Tensor, batch_size: int, seq_len: int, topk_over_dim: int = 1
+    ):
         # expert embedding
         with measure_time(self, "expert_embedding"):
             if self.use_torch_bmm:
@@ -56,7 +58,7 @@ class ExpertGating(LoggingLayer):
                     self.gate,
                 )
 
-        # each expert chooses k within dimension 1
+        # each expert chooses k within dimension topk_over_dim
         if not self.group_by_batch and not self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 
@@ -70,7 +72,7 @@ class ExpertGating(LoggingLayer):
         if self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 
-        topk = round(self.topk_fraction * gate_out.shape[1])
+        topk = round(self.topk_fraction * gate_out.shape[topk_over_dim])
         assert topk > 0, "topk is 0, increase topk_fraction or batch_size"
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
@@ -97,16 +99,20 @@ class ExpertGating(LoggingLayer):
                 # which they are created and that is the easiest way to do that.
                 if checkpointing.is_in_first_forward():
                     with torch.no_grad():
-                        _, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+                        _, topk_indices = torch.topk(
+                            gate_out, k=topk, dim=topk_over_dim
+                        )
                         self._checkpointed_topk_indices = topk_indices
 
                 if checkpointing.is_in_second_forward():
                     with torch.no_grad():
                         topk_indices = self._checkpointed_topk_indices
 
-                topk_values = gate_out.gather(dim=1, index=topk_indices)
+                topk_values = gate_out.gather(dim=topk_over_dim, index=topk_indices)
             else:
-                topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+                topk_values, topk_indices = torch.topk(
+                    gate_out, k=topk, dim=topk_over_dim
+                )
 
         if self.group_by_batch and not self.one_hot_impl:
             with measure_time(self, "indexing_change"):
@@ -277,6 +283,7 @@ class ExpertChoiceFF(LoggingLayer):
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
+        token_choice = not self.training
         batch_size, seq_len = x.shape[0], x.shape[1]
         orig_bs, orig_seq_len = batch_size, seq_len
 
@@ -288,17 +295,24 @@ class ExpertChoiceFF(LoggingLayer):
             )
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
-        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
-        if self.use_torch_bmm:
-            x = self.full_bmm(x, topk_indices, topk_values, batch_size)
-        elif self.use_full_einsum:
-            x = self.full_einsum(x, topk_indices, topk_values, batch_size)
+        topk, topk_indices, topk_values = self.expert_gating(
+            x, batch_size, seq_len, topk_over_dim=2 if token_choice else 1
+        )
+        if token_choice:
+            x = self.token_full_einsum(x, topk_indices, topk_values, seq_len)
         else:
-            x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
-            x = self.feed_forward(x, topk)
-            x = self.gating_postprocess(
-                x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
-            )
+            if self.use_torch_bmm:
+                x = self.full_bmm(x, topk_indices, topk_values, batch_size)
+            elif self.use_full_einsum:
+                x = self.full_einsum(x, topk_indices, topk_values, batch_size)
+            else:
+                x, one_hot = self.extract_chosen_tokens(
+                    x, topk, topk_indices, batch_size
+                )
+                x = self.feed_forward(x, topk)
+                x = self.gating_postprocess(
+                    x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
+                )
 
         if self.use_layer_norm:
             with measure_time(self, "layer_norm"):
@@ -324,6 +338,21 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "reshape"):
             x = x.reshape((self.n_experts, topk, self.dmodel))
         return x, one_hot
+
+    def token_extract_with_linear(
+        self, x: torch.Tensor, topk_indices: torch.Tensor, seq_len, weight
+    ):
+        with measure_time(self, "gate_preprocess_with_linear"):
+            one_hot = F.one_hot(topk_indices, num_classes=seq_len).type(x.dtype)
+            x = einsum(
+                "batch_size seq_len dmodel, n_exp batch_size topk seq_len, "
+                "n_exp dmodel exp_size "
+                "-> n_exp batch_size topk exp_size",
+                x,
+                one_hot,
+                weight,
+            )
+            return x, one_hot
 
     def extract_with_linear(
         self, x: torch.Tensor, topk_indices: torch.Tensor, batch_size, weight
@@ -374,6 +403,20 @@ class ExpertChoiceFF(LoggingLayer):
         assert x.shape == (n_exp, seq_len * topk, exp_size)
         return x, one_hot_perm
 
+    def token_gating_postprocess_onehot_with_linear(
+        self, x, topk_values, one_hot, weight
+    ):
+        with measure_time(self, "gating_postprocess_with_linear"):
+            return einsum(
+                "n_exp batch_size topk exp_size, n_exp batch_size topk, "
+                "n_exp batch_size topk seq_len, n_exp exp_size dmodel"
+                "-> batch_size seq_len dmodel",
+                x,
+                topk_values,
+                one_hot,
+                weight,
+            )
+
     def gating_postprocess_onehot_with_linear(self, x, topk_values, one_hot, weight):
         with measure_time(self, "gating_postprocess_with_linear"):
             return einsum(
@@ -414,6 +457,18 @@ class ExpertChoiceFF(LoggingLayer):
             x = torch.bmm(one_hot, x).permute(1, 0, 2)
 
         assert x.shape == (batch_size, seq_len, dmodel)
+        return x
+
+    def token_full_einsum(
+        self, x: torch.Tensor, topk_indices: torch.Tensor, topk_values, seq_len
+    ):
+        x, one_hot = self.token_extract_with_linear(
+            x, topk_indices, seq_len, self.lin1_weight
+        )
+        x = F.relu(x)
+        x = self.token_gating_postprocess_onehot_with_linear(
+            x, topk_values, one_hot, self.lin2_weight
+        )
         return x
 
     def full_einsum(
