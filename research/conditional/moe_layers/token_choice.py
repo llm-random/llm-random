@@ -103,12 +103,12 @@ class TokenChoiceRouter(LoggingLayer):
                 use_einsum=self.use_einsum,
             )
 
-            # if "load_balancing_losses" not in self.forward_pass_cache:
-            #     self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
-            # else:
-            #     self.forward_pass_cache["load_balancing_losses"].append(
-            #         load_balancing_loss
-            #     )
+            if "load_balancing_losses" not in self.forward_pass_cache:
+                self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
+            else:
+                self.forward_pass_cache["load_balancing_losses"].append(
+                    load_balancing_loss
+                )
 
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
