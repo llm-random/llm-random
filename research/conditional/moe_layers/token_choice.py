@@ -84,6 +84,12 @@ class TokenChoiceRouter(LoggingLayer):
         with measure_time(self, "calculate expert indexes"):
             position_in_expert = torch.cumsum(expert_mask, dim=0) * expert_mask
             in_capacity_tokens_mask = torch.lt(position_in_expert, capacity)
+            total_in_capacity_tokens = in_capacity_tokens_mask.sum().item()
+            self.update_cache_for_logging(
+                "dropped_tokens_ratio",
+                (n_tokens - total_in_capacity_tokens)
+                / (n_tokens * self.experts_per_token),
+            )
             expert_mask *= in_capacity_tokens_mask
 
         with measure_time(self, "calculate aux loss"):
@@ -149,6 +155,21 @@ class TokenChoiceRouter(LoggingLayer):
                 gate_out, k=self.experts_per_token, dim=1
             )
         return expert_gate, expert_index
+
+    def log_heavy(self):
+        return {
+            "gradient_of_gate_distribution": make_histogram(
+                self.gate.grad.flatten()
+            ),  # move
+            "gate_softmax_all_values": make_histogram(
+                self.logging_cache["gate_softmax_all_values"].flatten()  # move
+            ),
+            "tokens_per_expert_counts": make_histogram(
+                self.logging_cache["tokens_per_expert"]
+            ),
+            "load_balancing_loss": self.logging_cache["load_balancing_loss"],
+            "dropped_tokens_ratio": self.logging_cache["dropped_tokens_ratio"],
+        }
 
 
 class TokenChoiceFF(LoggingLayer):
@@ -249,18 +270,6 @@ class TokenChoiceFF(LoggingLayer):
         output = output.reshape((batch_size, seq_len, self.dmodel))
 
         return output
-
-    def log_heavy(self):
-        return {
-            "gradient_of_gate_distribution": make_histogram(self.gate.grad.flatten()),
-            "gate_softmax_all_values": make_histogram(
-                self.logging_cache["gate_softmax_all_values"].flatten()
-            ),
-            "tokens_per_expert_counts": make_histogram(
-                self.logging_cache["tokens_per_expert"]
-            ),
-            "load_balancing_loss": self.logging_cache["load_balancing_loss"],
-        }
 
 
 def calculate_load_balancing_loss(
