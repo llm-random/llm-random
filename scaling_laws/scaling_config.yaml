@@ -1,5 +1,5 @@
 scalings:
-  - name: "dense_2"
+  - name: "dense_3"
     tags:
       - "zubr_dense_grid"
     fixed:
@@ -13,7 +13,7 @@ scalings:
     lr: 0.01
     final_lr_fr: 0.01
     cmap: copper
-  - name: "Granular_13"
+  - name: "Granular_17"
     tags:
       - "fixed_grid_wd"
     fixed:
@@ -49,5 +49,15 @@ plot_dims:
   - - "n_steps"
   - - "n_params"
 extrapolate_factor: 4.0
+show_model_sizes:
+  10M: 10e6
+  100M: 100e6
+  500M: 500e6
+  1B: 1e9
+  3B: 3e9
+  7B: 7e9
+  70B: 70e9
+  500B: 500e9
+  1T: 1e12
 plot_points: 100
 project_name: "pmtest/llm-random"

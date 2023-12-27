@@ -35,8 +35,8 @@ class TrainRun:
         self.flops = calculate_flops(**self.dict())
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_steps == args_final_lr_step and \
-                        all([getattr(self, k) == v for k, v in fixed.items()]) and \
-                        (self.n_params > 20000000 or self.n_steps > 20000 or self.expansion_rate == 1) and \
+                        all([getattr(self, k) == v for k, v in fixed.items()])  and \
+                        (self.n_params > 20000000 or self.n_steps > 20000 or self.expansion_rate == 1)  and \
                         (self.granularity < 32)  # TODO: remove this hack and ^this
 
     def dict(self):
@@ -60,11 +60,11 @@ def calculate_block_flops(dmodel, expansion_rate, granularity, **_):
 
 def calculate_params(dmodel, expansion_rate, n_blocks, **_):
     # assume no params in routing and embeddings
-    return dmodel**2 * (expansion_rate + 4) * n_blocks
+    return dmodel**2 * 4*(2*expansion_rate + 1) * n_blocks
 
 
 def calculate_model_params_from_laws(expansion_rate, n_params, **_):
-    params_const = n_params / (expansion_rate + 4)
+    params_const = n_params / (4*(2*expansion_rate + 1))
     # TODO it's stupid but our configs kinda follow this
     # TODO check if this assumtion is aligned with standard scaling laws assumtion that flops ~ params*iter
     # we assume dmodel = dmodel_const * n_blocks
@@ -82,6 +82,12 @@ def calculate_n_steps_from_flops(flops, **params):
     new_params = dict(n_steps=n_steps, **model_params)
     assert np.isclose(calculate_flops(**params, **new_params), flops)
     return new_params
+
+
+def calculate_n_steps_from_dmodel(flops, dmodel, expansion_rate, granularity):
+    return dmodel_const*flops / \
+           (dmodel**2*(ff_const*dmodel+router_const*granularity*expansion_rate)
+            * batch_size * seq_len * grad_accum)
 
 
 def calculate_n_params_from_flops(flops, n_steps, expansion_rate, granularity, **params):
@@ -119,7 +125,7 @@ def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, 
     # https://www.wolframalpha.com/input?i2d=true&i=%22D%5B%5C%2840%29Subscript%5Bx%2Cp%5D%2BSubscript%5Bc%2Cp%5DLog%5Bg%5D%5C%2841%29Log%5BDivide%5BPower%5Bd%2C3%5D%5C%2840%29z%2B4%5C%2841%29%2CSubscript%5Bd%2Cc%5D%5D%5D+%2B+Subscript%5Bx%2Cg%5DLog%5Bg%5D%2Cd%5D+%2B+%5C%2840%29Subscript%5Bx%2Cn%5D%2BSubscript%5Bc%2Cn%5DLog%5Bg%5D%5C%2841%29Log%5BDivide%5BSubscript%5Bd%2Cc%5Df%2CPower%5Bd%2C2%5D%5C%2840%298d+%2B+6z*g%5C%2841%29%5D%5D%22
     # solve for d
     p_fun = lambda d: calculate_params(dmodel=d, n_blocks=d/dmodel_const, expansion_rate=expansion_rate)
-    n_fun = lambda d: dmodel_const*flops / (d**2*(ff_const*d+router_const*granularity*expansion_rate) * batch_size * seq_len * grad_accum)
+    n_fun = lambda d: calculate_n_steps_from_dmodel(flops=flops, dmodel=d, expansion_rate=expansion_rate, granularity=granularity)
     n_fun_slow = lambda d: calculate_n_steps_from_flops(flops=flops, n_params=p_fun(d), expansion_rate=expansion_rate, granularity=granularity)['n_steps']
 
 #    L_fun = lambda d: L + x_p*log(p_fun(d)) + x_n*log(n_fun(d)) + x_g*log(g) + \

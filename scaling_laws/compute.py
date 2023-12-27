@@ -33,7 +33,7 @@ def plot_loss_vs_predicted_loss(scaling_law, group_by="granularity"):
     plt.show()
 
 
-def plot_params(scaling_laws, plot_dim, extrapolate_factor=2.0, plot_points=100, **_):
+def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0, plot_points=100, **_):
     axis_dim = plot_dim[0]
     if axis_dim == "predicted_loss":
         for scaling_law in scaling_laws:
@@ -42,12 +42,14 @@ def plot_params(scaling_laws, plot_dim, extrapolate_factor=2.0, plot_points=100,
     if axis_dim == "flops_save":
         flops_save = True
         axis_dim = "flops"
+    full_flops = axis_dim == "flops" and len(plot_dim) == 3
     scaling_laws = [s for s in scaling_laws if axis_dim in s.params_set or axis_dim == "flops"]
+    show_model_sizes = {k: (v, np.inf, dict(flops=np.inf)) for k, v in show_model_sizes.items()}
     plt.figure(dpi=250)
     top, bottom = -np.inf, np.inf
     all_A = np.array([math.log10(r.dict()[axis_dim]) for s in scaling_laws for r in s.runs])
     A_values = np.linspace(all_A.min(), all_A.max() + extrapolate_factor*(all_A.max() - all_A.min()), plot_points)
-    for scaling_law in scaling_laws:
+    for ii, scaling_law in enumerate(scaling_laws):
         A = np.array([math.log10(r.dict()[axis_dim]) for r in scaling_law.runs])
         B = np.array([math.log(r.loss) for r in scaling_law.runs])
         plot_minimal = axis_dim == "flops"
@@ -62,12 +64,20 @@ def plot_params(scaling_laws, plot_dim, extrapolate_factor=2.0, plot_points=100,
             group_dict = dict(zip(group_dims, group))
             names.append(f"{scaling_law.name} {' '.join(f'{name}={int(val)}' for name, val in group_dict.items())}")
             plt.scatter(A[indices], B[indices], color=color, s=5)
-            B_predictions.append([scaling_law.resolve_params(**group_dict, **{axis_dim: np.power(10, a)}) for a in A_values])
+            results = [scaling_law.resolve_params(**group_dict, **{axis_dim: np.power(10, a)}) for a in A_values]
+            if full_flops:
+                for pred, params in results:
+                    for k, (size, perplexity, old_params) in show_model_sizes.items():
+                        if pred < perplexity and params['n_params'] >= float(size) and old_params['flops'] > params['flops']:
+                            show_model_sizes[k] = (size, pred, params)
+            b_preds, _ = zip(*results)
+            B_predictions.append(b_preds)
+
 
         B_predictions = np.array(B_predictions)
         is_min = B_predictions.min(axis=0) == B_predictions
 
-        for B_p, color, name, minimal in zip(B_predictions, colors, names, is_min):
+        for B_p, color, name, minimal in zip(B_predictions,  colors, names, is_min):
             if not plot_minimal:
                 plt.plot(A_values, B_p, color=color, label=name)
                 continue
@@ -75,6 +85,11 @@ def plot_params(scaling_laws, plot_dim, extrapolate_factor=2.0, plot_points=100,
             plt.plot(A_values[minimal], B_p[minimal], color=color, linestyle="-", linewidth=2, label=name)
         top = max(top, min(B.max() + 0.2*(B.max() - B.min()), B_predictions.max()))
         bottom = min(bottom, min(B_predictions.min(), B.min()))
+
+        if full_flops:
+            for k, (size, perplexity, params) in show_model_sizes.items():
+                plt.scatter(math.log10(params['flops']), perplexity, color="black", s=6, marker='x')
+                plt.text(math.log10(params['flops']), perplexity, f"{k} steps={params['n_steps']:.2E}", color="grey", fontsize=4, rotation=30 + ii*30)
 
     plt.title('\n'.join([str(s) for s in scaling_laws]), wrap=True, fontsize=5)
     plt.rc('font', size=7)
@@ -97,6 +112,7 @@ def one_scaling(project, tags, num_opt_steps, lr, final_lr_fr, fixed, **params):
     scaling_law = ScalingLaw(runs=runs, fixed=fixed, **params)
     _ = scaling_law.optimize(num_steps=num_opt_steps, lr=lr, final_lr_fr=final_lr_fr)
     print(f"Final {scaling_law.name} scaling law approximation RMSE: {scaling_law()[1]}")
+    scaling_law.present_values_as_chinchila()
     return scaling_law
 
 

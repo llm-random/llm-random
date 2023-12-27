@@ -51,25 +51,31 @@ class PowerLaw(nn.Module):
                 return self.c * param ** self.p
             scaling = (self.a * condition ** self.b + self.c) * param ** self.p
             if self.exp_inter:
-                scaling *= (torch.exp(self.i*(torch.log(condition)*torch.log(param))) + self.pi)
+                scaling *= (param**(self.i*(torch.log(condition))) + self.pi)
             return scaling
 
         params = [torch.log(x) for x in self.get_tensors(params)]
         return torch.prod(torch.stack(params)) * self.p
 
+    def repr_no_cond(self, condition_val):
+        if self.exp_inter:
+            return "Cant calculate"  # TODO?
+        a = (self.a * condition_val ** self.b + self.c)
+        return f"{a:6.4f}*{self.name}**{self.p.item():6.4f}"
+
     def __repr__(self):
         if self.use_chinchilla and len(self.names) == 2:
-            text = f"{self.a.item():.2}*{self.condition}**{self.b.item():.2}"
-            text = f"({text}+{self.c.item():.2})" if self.poly_inter else text
-            text += f"*{self.name}**{self.p.item():.2}"
+            text = f"{self.a.item():6.4f}*{self.condition}**{self.b.item():6.4f}"
+            text = f"({text}+{self.c.item():6.4f})" if self.poly_inter else text
+            text += f"*{self.name}**{self.p.item():6.4f}"
             if self.exp_inter:
-                poly_text = f"{self.name}**({self.i.item()}*ln({self.condition}))"
-                text += f"*({poly_text}+{self.pi.item():.2})" if self.poly_inter else f"*{poly_text}"
+                poly_text = f"{self.name}**({self.i.item():6.4f}*ln({self.condition}))"
+                text += f"*({poly_text}+{self.pi.item():6.4f})" if self.poly_inter else f"*{poly_text}"
             return text
         elif self.use_chinchilla and len(self.names) == 1:
-            return f"{self.c.item():.2}*{self.name}**{self.p.item():.2}"
+            return f"{self.c.item():6.4f}*{self.name}**{self.p.item():6.4f}"
         else:
-            return f"{self.p.item():.2}*{self.name}"
+            return f"{self.p.item():6.4f}*{self.name}"
 
 
 class ScalingLaw(nn.Module):
@@ -85,6 +91,19 @@ class ScalingLaw(nn.Module):
         self.power_laws = nn.ModuleList([PowerLaw(names, eps, use_chinchilla, **params) for names in power_laws])
         self.params_set = set(chain(*(set(p.names) for p in self.power_laws)))
         self.fixed_params = fixed
+
+    def present_values_as_chinchila(self):
+        if not self.use_chinchilla:
+            return
+        print(f"{str(self)}")
+        if 'granularity' not in self.fixed_params:
+            for g in [2**g_i for g_i in range(0, 8)]:
+                constant = self.L0.item() + sum([p(granularity=g) for p in self.power_laws if p.names[0] == 'granularity'])
+                print(
+                    f"For constant granularity={g} Scaling \"{self.name}\" "
+                    f"{' + '.join([p.repr_no_cond(g) for p in self.power_laws if p.names[0] != 'granularity'])}"
+                    f" + {constant:6.3f}"
+                )
 
     def get_param_for(self, *names):
         for p in self.power_laws:
@@ -102,7 +121,7 @@ class ScalingLaw(nn.Module):
     def __repr__(self):
         return (
             f"Scaling \"{self.name}\" {' + '.join([str(p) for p in self.power_laws])}"
-            f" + {self.L0.item():.3}"
+            f" + {self.L0.item():5.3f}"
         )
 
     def calc_loss(self, params, loss):
@@ -134,7 +153,7 @@ class ScalingLaw(nn.Module):
             params.update(calculate_n_params_and_steps_from_flops(**params, scaling_laws=self))
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
-        return self.expected_logloss(**params).detach().numpy()
+        return self.expected_logloss(**params).detach().numpy(), params
 
     def optimize(self, num_steps, lr, final_lr_fr, early_stop=10000):
         if os.path.exists(self.checkpoint_name):
@@ -148,7 +167,7 @@ class ScalingLaw(nn.Module):
             for i in iterator:
                 optimizer.zero_grad()
                 loss, rmse = self()
-                iterator.set_description(f"Optimizing, error={rmse:.4} (loss={loss:.4}) {str(self)}")
+                iterator.set_description(f"Optimizing, error={rmse:7.5f} (loss={loss:7.5f}) {str(self)}")
                 loss.backward()
                 optimizer.step()
                 scheduler.step()
