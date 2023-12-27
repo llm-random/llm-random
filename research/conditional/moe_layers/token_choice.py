@@ -84,12 +84,14 @@ class TokenChoiceRouter(LoggingLayer):
         with measure_time(self, "calculate expert indexes"):
             position_in_expert = torch.cumsum(expert_mask, dim=0) * expert_mask
             in_capacity_tokens_mask = torch.lt(position_in_expert, capacity)
-            total_in_capacity_tokens = in_capacity_tokens_mask.sum().item()
+            expert_mask *= in_capacity_tokens_mask
+            n_selected_tokens = expert_mask.sum().item()
+
             self.update_cache_for_logging(
                 "dropped_tokens_ratio",
-                (n_tokens - total_in_capacity_tokens) / (n_tokens * self.routing_top_k),
+                ((n_tokens * self.routing_top_k) - n_selected_tokens)
+                / (n_tokens * self.routing_top_k),
             )
-            expert_mask *= in_capacity_tokens_mask
 
         with measure_time(self, "calculate aux loss"):
             position_in_expert_mask = position_in_expert.bool()
@@ -155,9 +157,6 @@ class TokenChoiceRouter(LoggingLayer):
 
     def log_heavy(self):
         return {
-            "gradient_of_gate_distribution": make_histogram(
-                self.gate.grad.flatten()
-            ),  # move
             "gate_softmax_all_values": make_histogram(
                 self.logging_cache["gate_softmax_all_values"].flatten()  # move
             ),
