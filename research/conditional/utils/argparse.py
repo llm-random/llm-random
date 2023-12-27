@@ -233,6 +233,12 @@ def introduce_parser_arguments(
     parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
     parser.add_argument(
+        "--experts_per_token",
+        type=int,
+        default=1,
+        help="TopK (how many experts a token is routed to) in Token Choice",
+    )
+    parser.add_argument(
         "--ff_parallel_compute_fraction",
         type=float,
         default=0.5,
