@@ -30,6 +30,7 @@ def neptune_connect(project_name):
 
 
 def download_batch_sizes_from_neptune(project, tags, fixed):
+    print("Downloading data from Neptune...")
     table = pd.concat([project.fetch_runs_table(tag=tag).to_pandas() for tag in tags])
     table.rename(columns=lambda x: x.replace("/", "_"), inplace=True)
     table = [TrainRun(**row, fixed=fixed) for _, row in table.iterrows()]

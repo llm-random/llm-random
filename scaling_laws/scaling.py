@@ -31,7 +31,7 @@ class PowerLaw(nn.Module):
             self.c = init(eps) if self.poly_inter else 0
             self.name, self.condition = self.names
             if exp_inter:
-                self.i, self.pi = init(eps), (init(eps) if poly_inter else 0)
+                self.i = init(eps)
         elif len(names) == 1:
             self.a, self.b, self.c = 0, 0, init(eps)
             self.name = self.names[0]
@@ -52,7 +52,7 @@ class PowerLaw(nn.Module):
                 return self.c * param ** self.p
             scaling = (self.a * condition ** self.b + self.c) * param ** self.p
             if self.exp_inter:
-                scaling *= (param**(self.i*(torch.log(condition))) + self.pi)
+                scaling *= param**(self.i*(torch.log(condition)))
             return scaling
 
         params = [torch.log(x) for x in self.get_tensors(params)]
@@ -70,8 +70,7 @@ class PowerLaw(nn.Module):
             text = f"({text}+{self.c.item():6.4f})" if self.poly_inter else text
             text += f"*{self.name}**{self.p.item():6.4f}"
             if self.exp_inter:
-                poly_text = f"{self.name}**({self.i.item():6.4f}*ln({self.condition}))"
-                text += f"*({poly_text}+{self.pi.item():6.4f})" if self.poly_inter else f"*{poly_text}"
+                text += f"*{self.name}**({self.i.item():6.4f}*ln({self.condition}))"
             return text
         elif self.use_chinchilla and len(self.names) == 1:
             return f"{self.c.item():6.4f}*{self.name}**{self.p.item():6.4f}"
@@ -213,6 +212,7 @@ class ScalingLaw(nn.Module):
     def closure(self):
         self.zero_grad()
         loss, rmse = self()
+        loss *= 1
         loss.backward()
         return loss.item()
 

@@ -61,24 +61,27 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
         cm_f = cm.get_cmap(scaling_law.cmap)
         colors = cm_f(np.linspace(0, 1, len(groups)))
 
-        B_predictions, names = [], []
+        B_predictions, B_opt_params, names = [], [], []
         for (group, indices), color in zip(groups, colors):
             group_dict = dict(zip(group_dims, group))
             names.append(f"{scaling_law.name} {' '.join(f'{name}={int(val)}' for name, val in group_dict.items())}")
             plt.scatter(A[indices], B[indices], color=color, s=5)
             results = [scaling_law.resolve_params(**group_dict, **{axis_dim: np.power(10, a)}) for a in A_values]
-            if full_flops:
-                for pred, params in results:
-                    for k, (size, perplexity, old_params) in model_sizes.items():
-                        if pred < perplexity and params['n_params'] >= float(size) and old_params['flops'] > params['flops']:
-                            model_sizes[k] = (size, pred, params)
-            b_preds, _ = zip(*results)
+            b_preds, b_opt_params = zip(*results)
             B_predictions.append(b_preds)
+            B_opt_params.append(b_opt_params)
 
         B_predictions = np.array(B_predictions)
         is_min = B_predictions.min(axis=0) == B_predictions
 
-        for B_p, color, name, minimal in zip(B_predictions,  colors, names, is_min):
+        for B_p, b_opt, color, name, minimal in zip(B_predictions, B_opt_params, colors, names, is_min):
+            if full_flops:
+                for i, (pred, params) in enumerate(zip(B_p, b_opt)):
+                    if not minimal[i]:
+                        continue
+                    for k, (size, perplexity, old_params) in model_sizes.items():
+                        if pred < perplexity and params['n_params'] >= float(size) and old_params['flops'] > params['flops']:
+                            model_sizes[k] = (size, pred, params)
             if not plot_minimal:
                 plt.plot(A_values, B_p, color=color, label=name)
                 continue
@@ -89,14 +92,14 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
 
         if full_flops:
             for k, (size, perplexity, params) in model_sizes.items():
-                if not np.isfinite(perplexity):
+                if not np.isfinite(perplexity) and perplexity > 0:
                     continue
                 plt.scatter(math.log10(params['flops']), perplexity, color="black", s=6, marker='x')
-                plt.text(math.log10(params['flops']), perplexity, f"{k} steps={params['n_steps']:.2E}", color="grey", fontsize=4, rotation=30 + ii*30)
+                plt.text(math.log10(params['flops']), perplexity, f"{k} steps={params['n_steps']:.2E}", color="grey", fontsize=4, rotation=30 + ii*10)
 
     plt.title('\n'.join([str(s) for s in scaling_laws]), wrap=True, fontsize=5)
     plt.rc('font', size=7)
-    plt.ylim(top=top, bottom=bottom)
+    plt.ylim(top=top, bottom=bottom if np.isfinite(bottom) else 0)
     plt.rc('legend', fontsize=5)
     plt.rc('axes', titlesize=6, labelsize=6)
     plt.xlabel(f"log10({axis_dim})")
