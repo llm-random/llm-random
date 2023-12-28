@@ -70,7 +70,9 @@ class TokenChoiceRouter(LoggingLayer):
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
 
-        expert_gate, expert_index = self.choose_expert(gate_out)
+        with measure_time(self, "choose_expert"):
+            expert_gate, expert_index = self.choose_expert(gate_out)
+
         with measure_time(self, "create_expert_mask"):
             expanded_expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
             assert expanded_expert_mask.shape == (
@@ -81,21 +83,28 @@ class TokenChoiceRouter(LoggingLayer):
             expert_mask = expanded_expert_mask.sum(dim=1)
             assert expert_mask.shape == (n_tokens, self.n_experts)
 
-        with measure_time(self, "calculate expert indexes"):
-            position_in_expert = torch.cumsum(expert_mask, dim=0) * expert_mask
-            in_capacity_tokens_mask = torch.lt(position_in_expert, capacity)
-            expert_mask *= in_capacity_tokens_mask
-            n_selected_tokens = expert_mask.sum().item()
+        # group tokens indices by expert it should be processed by
+        with measure_time(self, "experts_lists"):
+            indices_of_tokens_for_expert = [
+                single_expert_mask.nonzero(as_tuple=True)[0][: (capacity - 1)]
+                for single_expert_mask in expert_mask.transpose(0, 1)
+            ]
 
-            self.update_cache_for_logging(
-                "dropped_tokens_ratio",
-                ((n_tokens * self.routing_top_k) - n_selected_tokens)
-                / (n_tokens * self.routing_top_k),
-            )
+        with measure_time(self, "create_truncated_mask"):
+            truncated_expert_mask = torch.zeros_like(expert_mask)
+            for i, indices in enumerate(indices_of_tokens_for_expert):
+                truncated_expert_mask[indices, i] = 1
+
+        n_selected_tokens = truncated_expert_mask.sum().item()
+
+        self.update_cache_for_logging(
+            "dropped_tokens_ratio",
+            ((n_tokens * self.routing_top_k) - n_selected_tokens)
+            / (n_tokens * self.routing_top_k),
+        )
 
         with measure_time(self, "calculate aux loss"):
-            position_in_expert_mask = position_in_expert.bool()
-            tokens_per_expert = position_in_expert_mask.sum(dim=0, dtype=gate_out.dtype)
+            tokens_per_expert = expert_mask.sum(dim=0, dtype=gate_out.dtype)
             load_balancing_loss = calculate_load_balancing_loss(
                 self.load_balancing_loss_weight,
                 gate_out,
@@ -103,25 +112,17 @@ class TokenChoiceRouter(LoggingLayer):
                 use_einsum=self.use_einsum,
             )
 
-            if "load_balancing_losses" not in self.forward_pass_cache:
-                self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
-            else:
-                self.forward_pass_cache["load_balancing_losses"].append(
-                    load_balancing_loss
-                )
+        if "load_balancing_losses" not in self.forward_pass_cache:
+            self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
+        else:
+            self.forward_pass_cache["load_balancing_losses"].append(load_balancing_loss)
 
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
         self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
         self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
-        # group tokens indices by expert it should be processed by
-        with measure_time(self, "experts_lists"):
-            indices_of_tokens_for_expert = [
-                single_expert_mask.nonzero(as_tuple=True)[0]
-                for single_expert_mask in expert_mask.transpose(0, 1)
-            ]
 
-        masked_expert_gate = gate_out * expert_mask
+        masked_expert_gate = gate_out * truncated_expert_mask
 
         # create empty input and  assign only tokens to be processed
         experts_input = torch.zeros(

@@ -196,7 +196,7 @@ class TestTokenChoice(GeneralTestCase):
             dm,
             experts,
             exp_size,
-            5.0,
+            1.0,
             load_balancing_loss_weight=0.1,
             routing_top_k=1,
             init_type="kaiming_uniform",
@@ -206,14 +206,15 @@ class TestTokenChoice(GeneralTestCase):
             dm,
             experts,
             exp_size,
-            5.0,
+            1.0,
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
         )
-        old_tc.lin1_weight.data = tc.lin1_weight.data
-        old_tc.lin2_weight.data = tc.lin2_weight.data
-        old_tc.router.gate.data = tc.router.gate.data
+        with torch.no_grad():
+            old_tc.lin1_weight.data = tc.lin1_weight.data.clone()
+            old_tc.lin2_weight.data = tc.lin2_weight.data.clone()
+            old_tc.router.gate.data = tc.router.gate.data.clone()
 
         propagate_forward_pass_cache(tc)
         propagate_forward_pass_cache(old_tc)
@@ -226,6 +227,19 @@ class TestTokenChoice(GeneralTestCase):
         self.assertTensorAlmostEqual(
             output_new_implementation, output_old_implementation
         )
+
+        (
+            output_new_implementation.sum()
+            + sum(tc.forward_pass_cache["load_balancing_losses"])
+        ).backward()
+        (
+            output_old_implementation.sum()
+            + sum(old_tc.forward_pass_cache["load_balancing_losses"])
+        ).backward()
+
+        self.assertTensorAlmostEqual(tc.lin1_weight.grad, old_tc.lin1_weight.grad)
+        self.assertTensorAlmostEqual(tc.lin2_weight.grad, old_tc.lin2_weight.grad)
+        self.assertTensorAlmostEqual(tc.router.gate.grad, old_tc.router.gate.grad)
 
     def test_topk2_equivalence_linear(self):
         """
