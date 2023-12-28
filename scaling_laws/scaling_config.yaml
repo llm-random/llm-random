@@ -1,5 +1,5 @@
 scalings:
-  - name: "dense_3"
+  - name: "dense_4"
     tags:
       - "zubr_dense_grid"
     fixed:
@@ -13,7 +13,7 @@ scalings:
     lr: 0.01
     final_lr_fr: 0.01
     cmap: copper
-  - name: "Granular_17"
+  - name: "Granular_18"
     tags:
       - "fixed_grid_wd"
     fixed:
@@ -49,6 +49,11 @@ plot_dims:
   - - "n_steps"
   - - "n_params"
 extrapolate_factor: 4.0
+use_scipy: true
+load_model: false
+opt_log_loss: false
+huber_delta: 0.001
+weight_decay: 0.00000
 show_model_sizes:
   10M: 10e6
   100M: 100e6
