@@ -296,10 +296,10 @@ class ExpertChoiceFF(LoggingLayer):
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
         topk, topk_indices, topk_values = self.expert_gating(
-            x, batch_size, seq_len, topk_over_dim=2 if token_choice else 1
+            x, batch_size, seq_len, topk_over_dim=0 if token_choice else 1
         )
         if token_choice:
-            x = self.token_full_einsum(x, topk_indices, topk_values, seq_len)
+            x = self.token_full_einsum(x, topk_indices, topk_values, self.n_experts)
         else:
             if self.use_torch_bmm:
                 x = self.full_bmm(x, topk_indices, topk_values, batch_size)
@@ -340,16 +340,17 @@ class ExpertChoiceFF(LoggingLayer):
         return x, one_hot
 
     def token_extract_with_linear(
-        self, x: torch.Tensor, topk_indices: torch.Tensor, seq_len, weight
+        self, x: torch.Tensor, topk_indices: torch.Tensor, n_experts, weight
     ):
         with measure_time(self, "gate_preprocess_with_linear"):
-            one_hot = F.one_hot(topk_indices, num_classes=seq_len).type(x.dtype)
+            one_hot = F.one_hot(topk_indices, num_classes=n_experts).type(x.dtype)
+            squashed_hot = torch.sum(one_hot, dim=0)
             x = einsum(
-                "batch_size seq_len dmodel, n_exp batch_size topk seq_len, "
+                "batch_size seq_len dmodel, batch_size seq_len n_exp, "
                 "n_exp dmodel exp_size "
-                "-> n_exp batch_size topk exp_size",
+                "-> n_exp batch_size seq_len exp_size",
                 x,
-                one_hot,
+                squashed_hot,
                 weight,
             )
             return x, one_hot
@@ -408,8 +409,8 @@ class ExpertChoiceFF(LoggingLayer):
     ):
         with measure_time(self, "gating_postprocess_with_linear"):
             return einsum(
-                "n_exp batch_size topk exp_size, n_exp batch_size topk, "
-                "n_exp batch_size topk seq_len, n_exp exp_size dmodel"
+                "n_exp batch_size seq_len exp_size, topk batch_size seq_len, "
+                "topk batch_size seq_len n_exp, n_exp exp_size dmodel"
                 "-> batch_size seq_len dmodel",
                 x,
                 topk_values,
@@ -460,10 +461,10 @@ class ExpertChoiceFF(LoggingLayer):
         return x
 
     def token_full_einsum(
-        self, x: torch.Tensor, topk_indices: torch.Tensor, topk_values, seq_len
+        self, x: torch.Tensor, topk_indices: torch.Tensor, topk_values, n_experts
     ):
         x, one_hot = self.token_extract_with_linear(
-            x, topk_indices, seq_len, self.lin1_weight
+            x, topk_indices, n_experts, self.lin1_weight
         )
         x = F.relu(x)
         x = self.token_gating_postprocess_onehot_with_linear(
