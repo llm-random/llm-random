@@ -113,20 +113,19 @@ def chungized_llm_loss_and_backward_pass(
         encoder_output: torch.Tensor = model.encoder(
             model.embedding_layer(input_tokens)
         )
-        encoder_output_detach = encoder_output.detach()
-        encoder_output_detach.requires_grad = True
         gt_tokens = gt_tokens.to(encoder_output.device)
         mask = mask.to(encoder_output.device)
         num_masked_tokens = mask.sum()
         if do_backward_pass:
             encoder_output.retain_grad()
-        chunged_inputs = torch.chunk(encoder_output_detach, n_chungs, dim=0)
+        chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
         total_loss = 0
         total_correct_tokens = 0
         # we need to tell torch what parameters we want to optimize, because we don't want to optimize the encoder for every chunk
+        parameters_in_chung = tuple(model.head.parameters()) + (encoder_output,)
         for chunged_input, chunged_gt, chunged_mask in zip(
             chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
@@ -144,14 +143,18 @@ def chungized_llm_loss_and_backward_pass(
                     device_type="cuda", enabled=False, dtype=mixed_precision_dtype
                 ):
                     if scaler is not None:
-                        scaler.scale(loss).backward()
+                        scaler.scale(loss).backward(
+                            inputs=parameters_in_chung,
+                        )
                     else:
-                        loss.backward()
+                        loss.backward(
+                            inputs=parameters_in_chung,
+                        )
             total_loss += partial_loss.sum()
             total_correct_tokens += partial_correct_tokens
 
     if do_backward_pass:
-        encoder_output.backward(encoder_output_detach.grad)
+        encoder_output.backward(encoder_output.grad)
 
     aux_info = {
         "correct_tokens": total_correct_tokens,
