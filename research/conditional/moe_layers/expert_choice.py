@@ -42,96 +42,100 @@ class ExpertGating(LoggingLayer):
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
 
     def forward(self, x: torch.Tensor, batch_size: int, seq_len: int):
-        # expert embedding
-        with measure_time(self, "expert_embedding"):
-            if self.use_torch_bmm:
-                gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
-                gate_out = torch.bmm(x, gate).permute(2, 0, 1)
-                assert gate_out.shape == (self.n_experts, batch_size, seq_len)
-            else:
-                gate_out = einsum(
-                    "batch_size seq_len dmodel, dmodel n_experts "
-                    "-> n_experts batch_size seq_len ",
-                    x,
-                    self.gate,
+        with torch.autocast(device_type="cuda", enabled=False):
+            x = x.to(torch.float32)
+            # expert embedding
+            with measure_time(self, "expert_embedding"):
+                if self.use_torch_bmm:
+                    gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
+                    gate_out = torch.bmm(x, gate).permute(2, 0, 1)
+                    assert gate_out.shape == (self.n_experts, batch_size, seq_len)
+                else:
+                    gate_out = einsum(
+                        "batch_size seq_len dmodel, dmodel n_experts "
+                        "-> n_experts batch_size seq_len ",
+                        x,
+                        self.gate,
+                    )
+
+            # each expert chooses k within dimension 1
+            if not self.group_by_batch and not self.softmax_ungrouped:
+                gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+
+            # perform softmax either over tokens for each expert or over experts for each token
+            with measure_time(self, "softmax"):
+                if self.softmax_over == "tokens":
+                    gate_out = torch.softmax(gate_out, dim=1)
+                elif self.softmax_over == "experts":
+                    gate_out = torch.softmax(gate_out, dim=0)
+
+            if self.softmax_ungrouped:
+                gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+
+            topk = round(self.topk_fraction * gate_out.shape[1])
+            assert topk > 0, "topk is 0, increase topk_fraction or batch_size"
+
+            self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+            # choose topk tokens for each expert
+            with measure_time(self, "topk"):
+                checkpointing_enabled = (
+                    checkpointing.is_in_first_forward()
+                    or checkpointing.is_in_second_forward()
                 )
 
-        # each expert chooses k within dimension 1
-        if not self.group_by_batch and not self.softmax_ungrouped:
-            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+                if (
+                    checkpointing.is_in_first_forward()
+                    and checkpointing.is_in_second_forward()
+                ):
+                    raise NotImplementedError(
+                        "Both first and second forward are = TRUE. You are probably using wrapped and nested checkpointed modules, which is not supported with ExpertGating."
+                    )
 
-        # perform softmax either over tokens for each expert or over experts for each token
-        with measure_time(self, "softmax"):
-            if self.softmax_over == "tokens":
-                gate_out = torch.softmax(gate_out, dim=1)
-            elif self.softmax_over == "experts":
-                gate_out = torch.softmax(gate_out, dim=0)
+                if checkpointing_enabled:
+                    # In first forward we discard the first result of topk (topk_values)
+                    # and instead use gather.
+                    # This is needed if activation checkpointing is used, because
+                    # torch aligns tensors in both forward passes by the order in
+                    # which they are created and that is the easiest way to do that.
+                    if checkpointing.is_in_first_forward():
+                        with torch.no_grad():
+                            _, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+                            self._checkpointed_topk_indices = topk_indices
 
-        if self.softmax_ungrouped:
-            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+                    if checkpointing.is_in_second_forward():
+                        with torch.no_grad():
+                            topk_indices = self._checkpointed_topk_indices
 
-        topk = round(self.topk_fraction * gate_out.shape[1])
-        assert topk > 0, "topk is 0, increase topk_fraction or batch_size"
+                    topk_values = gate_out.gather(dim=1, index=topk_indices)
+                else:
+                    topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
 
-        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
-        # choose topk tokens for each expert
-        with measure_time(self, "topk"):
-            checkpointing_enabled = (
-                checkpointing.is_in_first_forward()
-                or checkpointing.is_in_second_forward()
+            if self.group_by_batch and not self.one_hot_impl:
+                with measure_time(self, "indexing_change"):
+                    topk *= seq_len
+                    # change indexing to recall to batch_size x seq_len
+                    row_number = torch.arange(seq_len).to(topk_indices.device)
+                    topk_indices = topk_indices * seq_len + row_number
+                    topk_indices = topk_indices.reshape(self.n_experts, topk)
+                    topk_values = topk_values.reshape(self.n_experts, topk)
+            elif self.group_by_batch:
+                topk *= seq_len
+
+            # cache values for logging
+            self.update_cache_for_logging("gate_softmax_topk_vals", topk_values)
+            self.update_cache_for_logging("topk_indices", topk_indices)
+            self.update_cache_for_logging(
+                "n_tokens", torch.Tensor([batch_size * seq_len])
             )
 
-            if (
-                checkpointing.is_in_first_forward()
-                and checkpointing.is_in_second_forward()
-            ):
-                raise NotImplementedError(
-                    "Both first and second forward are = TRUE. You are probably using wrapped and nested checkpointed modules, which is not supported with ExpertGating."
-                )
+            # Randomly permute tokens for experts if random_perm is True
+            # Note this is not total randomness, since topk values are already chosen
+            if self.random_perm:
+                topk_values = topk_values.flatten()[
+                    torch.randperm(self.n_experts * topk)
+                ].reshape((self.n_experts, topk))
 
-            if checkpointing_enabled:
-                # In first forward we discard the first result of topk (topk_values)
-                # and instead use gather.
-                # This is needed if activation checkpointing is used, because
-                # torch aligns tensors in both forward passes by the order in
-                # which they are created and that is the easiest way to do that.
-                if checkpointing.is_in_first_forward():
-                    with torch.no_grad():
-                        _, topk_indices = torch.topk(gate_out, k=topk, dim=1)
-                        self._checkpointed_topk_indices = topk_indices
-
-                if checkpointing.is_in_second_forward():
-                    with torch.no_grad():
-                        topk_indices = self._checkpointed_topk_indices
-
-                topk_values = gate_out.gather(dim=1, index=topk_indices)
-            else:
-                topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
-
-        if self.group_by_batch and not self.one_hot_impl:
-            with measure_time(self, "indexing_change"):
-                topk *= seq_len
-                # change indexing to recall to batch_size x seq_len
-                row_number = torch.arange(seq_len).to(topk_indices.device)
-                topk_indices = topk_indices * seq_len + row_number
-                topk_indices = topk_indices.reshape(self.n_experts, topk)
-                topk_values = topk_values.reshape(self.n_experts, topk)
-        elif self.group_by_batch:
-            topk *= seq_len
-
-        # cache values for logging
-        self.update_cache_for_logging("gate_softmax_topk_vals", topk_values)
-        self.update_cache_for_logging("topk_indices", topk_indices)
-        self.update_cache_for_logging("n_tokens", torch.Tensor([batch_size * seq_len]))
-
-        # Randomly permute tokens for experts if random_perm is True
-        # Note this is not total randomness, since topk values are already chosen
-        if self.random_perm:
-            topk_values = topk_values.flatten()[
-                torch.randperm(self.n_experts * topk)
-            ].reshape((self.n_experts, topk))
-
-        return topk, topk_indices, topk_values
+            return topk, topk_indices, topk_values
 
     def log_time(self):
         return {}
