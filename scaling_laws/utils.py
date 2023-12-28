@@ -46,7 +46,7 @@ def read_yaml_file(path=None):
         args = parser.parse_args()
         path = args.config_path
 
-    with open(args.config_path, "r") as stream:
+    with open(path, "r") as stream:
         try:
             data = yaml.safe_load(stream)
             return data

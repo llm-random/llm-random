@@ -1,0 +1,53 @@
+scalings:
+  - name: "dense_2"
+    tags:
+      - "zubr_dense_grid"
+    fixed:
+      expansion_rate: 1
+      granularity: 0
+    power_laws:
+      - - "n_params"
+      - - "n_steps"
+    use_chinchilla: true
+    num_opt_steps: 10
+    lr: 0.01
+    final_lr_fr: 0.01
+    cmap: copper
+  - name: "Granular_13"
+    tags:
+      - "fixed_grid_wd"
+    fixed:
+      expansion_rate: 64
+    power_laws:
+      - - "granularity"
+      - - "n_params"
+        - "granularity"
+      - - "n_steps"
+        - "granularity"
+    use_chinchilla: true
+    exp_inter: false
+    poly_inter: true
+    num_opt_steps: 100000
+    lr: 0.01
+    final_lr_fr: 0.01
+    cmap: rainbow
+plot_dims:
+  - - "predicted_loss"
+    - "granularity"
+  - - "predicted_loss"
+    - "n_steps"
+  - - "predicted_loss"
+    - "n_params"
+  - - "flops"
+    - "n_params"
+    - "n_steps"
+  - - "flops"
+    - "n_steps"
+  - - "flops"
+    - "n_params"
+  - - "granularity"
+  - - "n_steps"
+  - - "n_params"
+extrapolate_factor: 4.0
+plot_points: 100
+project_name: "pmtest/llm-random"
