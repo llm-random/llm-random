@@ -174,7 +174,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 *singularity_env_arguments,
-                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
+                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']},/raid:/raid",
                 "--nv",
                 setup_args["singularity_image"],
                 "python3",

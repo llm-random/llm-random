@@ -2,8 +2,10 @@ from abc import abstractmethod
 import random
 from typing import Optional
 
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 import numpy as np
+
+from lizrd.scripts.grid_utils import MachineBackend, get_machine_backend
 
 
 class AbstractDataset:
@@ -94,7 +96,17 @@ class C4Dataset(AbstractDataset):
                 )
             self.dataset = load_dataset("stas/c4-en-10k", split=split)
         else:
-            self.dataset = load_dataset("c4", "en", split=split)
+            if get_machine_backend() == MachineBackend.IDEAS:
+                if split == "eval":
+                    self.dataset = load_from_disk(
+                        "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+                    )
+                elif split == "train":
+                    self.dataset = load_from_disk(
+                        "/raid/NFS_SHARE/datasets/c4/train/c4_train"
+                    )
+            else:
+                self.dataset = load_dataset("c4", "en", split=split)
 
     def get_document(self) -> str:
         return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]

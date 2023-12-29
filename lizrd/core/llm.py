@@ -36,8 +36,16 @@ def FeedForward(
     init_type: Literal["kaiming_uniform", "truncated_normal"],
     init_scale: float,
     bias: Literal["both", "first", "second", "none"] = "both",
+    activation: Literal["relu", "silu"] = "relu",
 ):
     bias_first, bias_second = decode_bias_string(bias)
+
+    if activation == "relu":
+        activation_module = nn.ReLU()
+    elif activation == "silu":
+        activation_module = nn.SiLU()
+    else:
+        raise ValueError(f"Unknown activation: {activation}")
 
     return nn.Sequential(
         OrderedDict(
@@ -52,7 +60,7 @@ def FeedForward(
                         init_scale=init_scale,
                     ),
                 ),
-                ("relu", nn.ReLU()),
+                ("activation", activation_module),
                 (
                     "logging_ff_post_relu",
                     Linear(

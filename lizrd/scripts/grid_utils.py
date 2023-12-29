@@ -29,7 +29,7 @@ def get_machine_backend() -> MachineBackend:
         return MachineBackend.ENTROPY
     elif "athena" in node:
         return MachineBackend.ATHENA
-    elif node == "login01":
+    elif node == "login01" or node == "gpu01":
         return MachineBackend.IDEAS
     elif node == "4124gs01":
         return MachineBackend.ENTROPY_GPU
