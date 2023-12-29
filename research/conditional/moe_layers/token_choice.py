@@ -124,8 +124,6 @@ class TokenChoiceRouter(LoggingLayer):
 
         masked_expert_gate = gate_out * truncated_expert_mask
 
-        masked_expert_gate = gate_out * expert_mask
-
         # create empty input and  assign only tokens to be processed
         experts_input = torch.zeros(
             self.n_experts, capacity, self.dmodel, dtype=x.dtype, device=x.device
