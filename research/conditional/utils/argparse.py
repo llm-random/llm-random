@@ -53,6 +53,8 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
     )
+    parser.add_argument("--train_dataset_path", type=str, required=False, default=None)
+    parser.add_argument("--eval_dataset_path", type=str, required=False, default=None)
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--cutoff", type=int, required=True)
 
