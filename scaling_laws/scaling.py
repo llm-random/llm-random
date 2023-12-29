@@ -212,7 +212,7 @@ class ScalingLaw(nn.Module):
     def closure(self):
         self.zero_grad()
         loss, rmse = self()
-        loss *= 1
+        loss *= 1  # for >1, this was a trick to help with numerical stability
         loss.backward()
         return loss.item()
 
