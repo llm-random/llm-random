@@ -1,0 +1,21 @@
+Bootstrap: localimage
+From: sparsity-base.sif
+
+%files
+    requirements.txt
+    mamba_requirements.txt
+    install_requirements.sh
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    python3 -m venv /opt/venv
+    . /opt/venv/bin/activate
+
+    ./install_requirements.sh
+
+    ldconfig /usr/lib64-nvidia # this fixes the problem with libcuda.so not being found when using torch.compile
+
+%runscript
+    . /opt/venv/bin/activate
+    $@

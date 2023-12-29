@@ -45,10 +45,10 @@ class LayerManager:
                 "residual_attention",
                 "feedforward",
                 "expert_gating",
+                "router",
             ]:
                 block_name = self.extract_block_name(name)
                 registered_name = f"{block_name}/{suffix}"
-
             if registered_name is not None:
                 self._layers.append((registered_name, layer))
 
@@ -87,7 +87,10 @@ class LayerManager:
 
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
-                if isinstance(layer, LoggingLayer):
+                if isinstance(layer, LoggingLayer) or (
+                    isinstance(layer, torch.distributed.fsdp.FullyShardedDataParallel)
+                    and isinstance(layer._fsdp_wrapped_module, LoggingLayer)
+                ):
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
                         logging_name = block_name + "/" + name
@@ -138,6 +141,8 @@ class LoggingLayer(nn.Module):
                     self.logging_cache[key] = value
             elif isinstance(value, torch.Tensor):
                 self.logging_cache[key] = value.clone().detach().cpu()
+            elif isinstance(value, float) or isinstance(value, int):
+                self.logging_cache[key] = value
             else:
                 raise NotImplementedError
 
