@@ -87,7 +87,10 @@ class LayerManager:
 
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
-                if isinstance(layer, LoggingLayer):
+                if isinstance(layer, LoggingLayer) or (
+                    isinstance(layer, torch.distributed.fsdp.FullyShardedDataParallel)
+                    and isinstance(layer._fsdp_wrapped_module, LoggingLayer)
+                ):
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
                         logging_name = block_name + "/" + name
