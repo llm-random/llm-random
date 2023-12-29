@@ -4,7 +4,7 @@ from scipy.optimize import minimize_scalar
 
 dmodel_const = 64
 ff_const = 4
-router_const = 1
+router_const = 4
 batch_size = 256
 seq_len = 256
 grad_accum = 8
