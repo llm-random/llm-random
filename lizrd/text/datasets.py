@@ -2,7 +2,7 @@ from abc import abstractmethod
 import random
 from typing import Optional
 
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 import numpy as np
 
 
@@ -84,10 +84,13 @@ class C4Dataset(AbstractDataset):
         seed: Optional[int] = None,
         split: str = "train",
         use_dummy_dataset: bool = False,
+        dataset_path: Optional[str] = None,
     ):
         super().__init__(seed=seed)
         assert split in ["train", "validation"]
-        if use_dummy_dataset:
+        if dataset_path is not None:
+            self.dataset = load_from_disk(dataset_path)
+        elif use_dummy_dataset:
             if split != "train":
                 raise NameError(
                     "Dummy dataset only supports train split for C4 dataset"

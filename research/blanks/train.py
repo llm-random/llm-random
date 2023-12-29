@@ -166,7 +166,9 @@ def main(
         "extend_sequence_by_n_blanks": args.blanks_extend_sequence_by_n_blanks,
     }
     train_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs, dataset_split="train"
+        **common_dataloaders_kwargs,
+        dataset_split="train",
+        dataset_path=args.train_dataset_path,
     )
 
     # TODO: replace eval_dataloader with something more sensible
@@ -179,6 +181,7 @@ def main(
             if args.dataset_type == "c4" and args.use_dummy_dataset
             else "validation"
         ),
+        dataset_path=args.eval_dataset_path,
     )
 
     logger = get_logger(args, model, VOCAB_SIZE)
