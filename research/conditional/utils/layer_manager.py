@@ -91,7 +91,6 @@ class LayerManager:
                     isinstance(layer, torch.distributed.fsdp.FullyShardedDataParallel)
                     and isinstance(layer._fsdp_wrapped_module, LoggingLayer)
                 ):
-                    print("logging layer")
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
                         logging_name = block_name + "/" + name
