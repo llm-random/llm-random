@@ -197,20 +197,24 @@ def attention_mechanism(
                 is_causal=causal,
             )
     else:
-        # implementation without flash assumes other dim order
-        query = query.transpose(1, 2)
-        key = key.transpose(1, 2)
-        value = value.transpose(1, 2)
+        with torch.autocast(device_type="cuda", enabled=False):
+            query = query.to(torch.float32)
+            key = key.to(torch.float32)
+            value = value.to(torch.float32)
+            # implementation without flash assumes other dim order
+            query = query.transpose(1, 2)
+            key = key.transpose(1, 2)
+            value = value.transpose(1, 2)
 
-        a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
-        a = a * (1 / dhead**0.5)
-        if causal:
-            a.masked_fill_(
-                torch.tril(torch.ones_like(a)) == 0, float("-inf")
-            )  # mask out future tokens
-        a = torch.softmax(a, dim=-1)
-        output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
-        output = output.transpose(1, 2)
+            a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
+            a = a * (1 / dhead**0.5)
+            if causal:
+                a.masked_fill_(
+                    torch.tril(torch.ones_like(a)) == 0, float("-inf")
+                )  # mask out future tokens
+            a = torch.softmax(a, dim=-1)
+            output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
+            output = output.transpose(1, 2)
 
     return output
 
@@ -360,6 +364,7 @@ class TransformerTower(nn.Module):
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
+        devices: Optional[list[torch.device]] = None,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -368,6 +373,7 @@ class TransformerTower(nn.Module):
             [] if model_fragmentation is None else model_fragmentation
         )
         self.device = device
+        self.devices = devices
 
         for i_block in range(n_blocks):
             layers_info = [
@@ -408,7 +414,10 @@ class TransformerTower(nn.Module):
 
         for i, split_num in enumerate(self.model_fragmentation):
             if split_num > block_num:
-                return block_num in self.model_fragmentation, torch.device(f"cuda:{i}")
+                if self.devices is None:
+                    return block_num in self.model_fragmentation, torch.device(f"cuda:{i}")
+                else:
+                    return block_num in self.model_fragmentation, self.devices[i]
 
         return block_num in self.model_fragmentation, torch.device(
             f"cuda:{len(self.model_fragmentation)}"

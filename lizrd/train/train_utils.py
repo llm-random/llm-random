@@ -32,13 +32,17 @@ def get_model(
     rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
+    devices: list[torch.device] = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
         last_gpu = device
-    else:
+    elif devices is None:
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
+    else:
+        first_gpu = devices[0]
+        last_gpu = devices[-1]
 
     embedding_layer = llm.EmbeddingLayer(
         llm.PositionalEmbedding(
