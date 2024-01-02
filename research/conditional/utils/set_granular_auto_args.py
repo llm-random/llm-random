@@ -27,6 +27,7 @@ def set_model_config(args):
         "medium",
         "base_4",
         "base",
+        "base_14",
     )
 
     if args.granular_model_config == "mini":
@@ -58,6 +59,11 @@ def set_model_config(args):
         args.dmodel = 768
         args.dff = 3072
         args.n_blocks = 12
+        args.n_att_heads = 12
+    elif args.granular_model_config == "base_14":
+        args.dmodel = 768
+        args.dff = 3072
+        args.n_blocks = 14
         args.n_att_heads = 12
 
     return args
