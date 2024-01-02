@@ -59,13 +59,21 @@ class PowerLaw(nn.Module):
             yield None
 
     def forward(self, **params):
+        assert True, "Zrobiłem zmiany w tej funkcji, naprawię potem"
         if self.use_chinchilla:
             param, condition = self.get_tensors(params)
             if condition is None:
-                return self.c * param**self.p
-            scaling = (self.a * condition**self.b + self.c) * param**self.p
+                return torch.log(torch.abs(self.c)) * param ** torch.log(
+                    torch.abs(self.p)
+                )
+            scaling = (
+                torch.log(torch.abs(self.a)) * condition ** torch.log(torch.abs(self.b))
+                + torch.log(torch.abs(self.c))
+            ) * param ** torch.log(torch.abs(self.p))
             if self.exp_inter:
-                scaling *= param ** (self.i * (torch.log(condition)))
+                scaling *= param ** (
+                    torch.log(torch.abs(self.i)) * (torch.log(torch.abs(condition)))
+                )
             return scaling
 
         params = [torch.log(x) for x in self.get_tensors(params)]
