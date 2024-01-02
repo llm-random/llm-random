@@ -4,7 +4,7 @@ from scipy.optimize import minimize_scalar
 
 dmodel_const = 64
 ff_const = 4
-router_const = 1
+router_const = 4
 batch_size = 256
 seq_len = 256
 grad_accum = 8
@@ -44,7 +44,7 @@ class TrainRun:
                 or self.expansion_rate == 1
             )
             and (self.granularity < 32)
-        )  # TODO: remove this hack and ^this
+        )  # TODO: remove this hack and ^this, filer small axp and high granularity
 
     def dict(self):
         return self.__dict__
@@ -67,11 +67,11 @@ def calculate_block_flops(dmodel, expansion_rate, granularity, **_):
 
 def calculate_params(dmodel, expansion_rate, n_blocks, **_):
     # assume no params in routing and embeddings
-    return dmodel**2 * (expansion_rate + 4) * n_blocks
+    return dmodel**2 * 4 * (2 * expansion_rate + 1) * n_blocks
 
 
 def calculate_model_params_from_laws(expansion_rate, n_params, **_):
-    params_const = n_params / (expansion_rate + 4)
+    params_const = n_params / (4 * (2 * expansion_rate + 1))
     # TODO it's stupid but our configs kinda follow this
     # TODO check if this assumtion is aligned with standard scaling laws assumtion that flops ~ params*iter
     # we assume dmodel = dmodel_const * n_blocks
@@ -89,6 +89,20 @@ def calculate_n_steps_from_flops(flops, **params):
     new_params = dict(n_steps=n_steps, **model_params)
     assert np.isclose(calculate_flops(**params, **new_params), flops)
     return new_params
+
+
+def calculate_n_steps_from_dmodel(flops, dmodel, expansion_rate, granularity):
+    return (
+        dmodel_const
+        * flops
+        / (
+            dmodel**2
+            * (ff_const * dmodel + router_const * granularity * expansion_rate)
+            * batch_size
+            * seq_len
+            * grad_accum
+        )
+    )
 
 
 def calculate_n_params_from_flops(
@@ -136,16 +150,8 @@ def calculate_n_params_and_steps_from_flops(
     p_fun = lambda d: calculate_params(
         dmodel=d, n_blocks=d / dmodel_const, expansion_rate=expansion_rate
     )
-    n_fun = (
-        lambda d: dmodel_const
-        * flops
-        / (
-            d**2
-            * (ff_const * d + router_const * granularity * expansion_rate)
-            * batch_size
-            * seq_len
-            * grad_accum
-        )
+    n_fun = lambda d: calculate_n_steps_from_dmodel(
+        flops=flops, dmodel=d, expansion_rate=expansion_rate, granularity=granularity
     )
     n_fun_slow = lambda d: calculate_n_steps_from_flops(
         flops=flops,
@@ -158,8 +164,8 @@ def calculate_n_params_and_steps_from_flops(
     #        c_n*log(g)*log(n_fun(d)) + c_p*log(g)*log(p_fun(d))
 
     fun2 = (
-        lambda d: scaling_laws.expected_logloss(
-            granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d), get_log=False
+        lambda d: scaling_laws.formula(
+            granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d)
         )
         .detach()
         .item()

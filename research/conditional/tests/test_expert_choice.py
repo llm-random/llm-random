@@ -4,10 +4,18 @@ import torch
 import torch.nn.functional as F
 from torch.nn import Sequential, ReLU, Identity
 from fancy_einsum import einsum
+from lizrd.train.checkpointing import (
+    first_forward_manager,
+    make_checkpoint_wrapper_function,
+    second_forward_manager,
+)
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
 from lizrd.core.misc import Linear
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+    apply_activation_checkpointing,
+)
 
 
 def mock_topk_factory(topk_fn):
@@ -267,3 +275,72 @@ class TestExpertChoice(GeneralTestCase):
         self.assertTensorAlmostEqual(
             lin[2].weight.grad, ec.lin2_weight.grad.squeeze(0).transpose(0, 1)
         )
+
+    def test_checkpointing(self):
+        """
+        Test that checkpointing implementation is equivalent to non-checkpointed one.
+        """
+        batch = 2
+        dm = 3
+        experts = 5
+        exp_size = 7
+        seql = 11
+        topk_fraction = 0.5
+
+        ec = ExpertChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
+
+        x = torch.rand((batch, seql, dm))
+
+        output_no_checkpointing = ec(x)
+        with first_forward_manager():
+            output_checkpointing_1st_forward = ec(x)
+
+        with second_forward_manager():
+            output_checkpointing_2nd_forward = ec(x)
+
+        self.assertTensorAlmostEqual(
+            output_no_checkpointing, output_checkpointing_1st_forward
+        )
+        self.assertTensorAlmostEqual(
+            output_no_checkpointing, output_checkpointing_2nd_forward
+        )
+
+    def test_checkpointing_compatibility(self):
+        """
+        Test that checkpointing when the module is actually checkpointed.
+        """
+        batch = 2
+        dm = 3
+        experts = 5
+        exp_size = 7
+        seql = 11
+        topk_fraction = 0.5
+
+        non_reentrant_wrapper = make_checkpoint_wrapper_function()
+
+        ec = torch.nn.Sequential(
+            ExpertChoiceFF(
+                dm,
+                experts,
+                exp_size,
+                topk_fraction,
+                init_type="kaiming_uniform",
+                init_scale=1.0,
+            )
+        )
+
+        apply_activation_checkpointing(
+            ec,
+            check_fn=lambda module: isinstance(module, ExpertChoiceFF),
+            checkpoint_wrapper_fn=non_reentrant_wrapper,
+        )
+        x = torch.rand((batch, seql, dm))
+        loss = ec(x).reshape(-1).sum()
+        loss.backward()
