@@ -10,6 +10,7 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
+from research.conditional.moe_layers.chimera import MoEChimera
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -54,6 +55,9 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, Expert
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
     TokenChoiceRouter,
+)
+from research.conditional.moe_layers._token_choice_deprecated import (
+    TokenChoiceFF as TokenChoiceFFDeprecated,
 )
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
@@ -255,8 +259,8 @@ def get_expert_choice_args(args):
         args.topk_fraction = topk_fraction
     else:
         experts_per_token = args.topk_fraction * args.n_experts
-        args.effective_dff = experts_per_token * args.expert_size
-        args.total_experts_width = args.expert_size * args.n_experts
+        effective_dff = experts_per_token * args.expert_size
+        total_experts_width = args.expert_size * args.n_experts
 
     return {
         "dmodel": args.dmodel,
@@ -326,13 +330,10 @@ def retrieve_additional_losses(model: torch.nn.Module):
         return losses
 
     if "load_balancing_losses" in model.forward_pass_cache:
-        load_balancing_losses = model.forward_pass_cache["load_balancing_losses"]
+        load_balancing_losses = model.forward_pass_cache.pop("load_balancing_losses")
         load_balancing_losses = torch.stack(load_balancing_losses)
         load_balancing_loss = torch.mean(load_balancing_losses)
         losses["load_balancing_loss"] = load_balancing_loss
-        for _, value in model.forward_pass_cache.items():
-            del value
-        model.forward_pass_cache["load_balancing_losses"] = []
     return losses
 
 
@@ -344,7 +345,7 @@ def get_common_mot_kwargs(args):
         "group_size": args.group_size,
         "sparsity_dim": args.sparsity_dim,
         "temperature": args.temperature,
-        "expert_size": args.expert_size,
+        "expert_size": None,
         "use_opt_einsum": args.use_opt_einsum,
         "flop_matched": args.flop_matched,
         "init_type": args.init_type,
@@ -353,7 +354,7 @@ def get_common_mot_kwargs(args):
     }
 
 
-def get_ff_layer(args):
+def get_ff_layers(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
@@ -432,6 +433,17 @@ def get_ff_layer(args):
             expert_size=args.expert_size,
             capacity_factor=args.capacity_factor,
             load_balancing_loss_weight=args.load_balancing_loss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
+    elif args.ff_mode == "token_choice_deprecated":
+        return_fn = lambda: TokenChoiceFFDeprecated(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            capacity_factor=args.capacity_factor,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
             init_scale=args.init_scale,
             init_type=args.init_type,
         )
@@ -448,6 +460,29 @@ def get_ff_layer(args):
             no_average_attn=args.no_average_attn,
             nystrom=args.nystrom,
             xfavor=args.xfavor,
+        )
+    elif args.ff_mode == "moe_chimera":
+        mot = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
+        ec = lambda: ExpertChoiceFF(**get_expert_choice_args(args))
+        switch = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            capacity_factor=args.capacity_factor,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
+
+        return_fn = lambda: MoEChimera(
+            mot=mot,
+            ec=ec,
+            switch=switch,
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

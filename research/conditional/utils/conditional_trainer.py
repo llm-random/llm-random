@@ -2,7 +2,7 @@ from collections import defaultdict
 import os.path
 import copy
 from types import SimpleNamespace as SN
-from typing import Callable, Iterable, Optional, Literal
+from typing import Callable, Iterable, Optional, Literal, Any
 
 import torch
 from torch.profiler import profile, ProfilerActivity
@@ -13,6 +13,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
+from research.conditional.moe_layers.chimera import MoEChimera
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
@@ -74,7 +75,8 @@ class ConditionalTrainer:
     model_fit_gpu_info_params: [str] = None
     profiler_enabled: bool = False
     profiler_trace_path: str = None
-    profiler_schedule: None = None
+    profiler_schedule: Any = None
+    chimera_schedule: int = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -120,6 +122,9 @@ class ConditionalTrainer:
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
+        if self.chimera_schedule is not None:
+            mode = self.layer_manager.get_chimera_mode(step, self.chimera_schedule)
+            self.layer_manager.set_chimera_mode(mode)
 
     def train(self, n_steps: int):
         """
@@ -169,6 +174,7 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
+        self.optimizer.zero_grad()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
@@ -233,7 +239,7 @@ class ConditionalTrainer:
                 for value in losses.values():
                     additional_loss_to_optimize = additional_loss_to_optimize + value
             else:
-                additional_loss_to_optimize = None
+                additional_loss_to_optimize = 0.0
 
             loss_to_optimize = cross_entropy_loss + additional_loss_to_optimize
 
@@ -271,21 +277,33 @@ class ConditionalTrainer:
                 self.scaler.step(self.optimizer)
                 if self.scaler is not None:
                     self.scaler.update()
-            # clear gradients
-            self.optimizer.zero_grad()
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
-        self._eval_single_variant(
-            batches=batches,
-            step=step,
-            variant_name="normal",
-        )
         layers = [
             l
             for _, l in self.layer_manager._layers
-            if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
+            if isinstance(l, (ContinuousMoE, ExpertChoiceFF, MoEChimera))
         ]
+        if self.chimera_schedule is None:
+            self._eval_single_variant(
+                batches=batches,
+                step=step,
+                variant_name="normal",
+            )
+        else:
+            print("Evaluating chimera variants")
+            possible_modes = [
+                l.possible_modes for l in layers if hasattr(l, "current_mode")
+            ][0]
+            print(f"possible modes: {possible_modes}")
+            for mode in possible_modes:
+                with temp_modify_attr(layers, "current_mode", mode):
+                    self._eval_single_variant(
+                        batches=batches,
+                        step=step,
+                        variant_name=f"mode={mode}",
+                    )
         if self.eval_dynamic_groupsize:
             original_group_size = layers[0].group_size
             for log_group_size_factor in range(

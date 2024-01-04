@@ -9,10 +9,12 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
+from lizrd.core.llm import EmbeddingLayer
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
     generate_random_string,
+    get_n_learnable_parameters,
     set_seed,
 )
 from lizrd.train.train_utils import (
@@ -26,8 +28,7 @@ from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
     disable_profile_schedule_fn,
-    get_classes_from_module_names,
-    get_ff_layer,
+    get_ff_layers,
     get_attention_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
@@ -136,7 +137,15 @@ def main(
         args.activation_checkpointing_modules
     )
 
-    ff_layer_fun = get_ff_layer(args)
+    if args.general_ff_layer_config is not None:
+        ff_layers = args.general_ff_layer_config.split(",")
+        ff_layer_funs = []
+        for layer in ff_layers:
+            args.ff_mode = layer
+            ff_layer_funs.append(get_ff_layers(args))
+    else:
+        ff_layer_funs = get_ff_layers(args)
+
     attention_layer_fun = get_attention_layer(args)
     residual_fn = get_residual_layer(args)
 
@@ -149,7 +158,7 @@ def main(
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
-        ff_layer_fun=ff_layer_fun,
+        ff_layer_fun=ff_layer_funs,
         attention_layer_fun=attention_layer_fun,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
@@ -172,6 +181,23 @@ def main(
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
         rank=rank,
+    )
+
+    n_learnable_parameters = get_n_learnable_parameters(model)
+    args.n_learnable_parameters = n_learnable_parameters
+    print(f"Number of learnable parameters: {n_learnable_parameters:_}")
+
+    embedding = [m for m in model.modules() if isinstance(m, EmbeddingLayer)][0]
+    head = model.head
+
+    n_learnable_nonembedding_parameters = (
+        n_learnable_parameters
+        - get_n_learnable_parameters(embedding)
+        - get_n_learnable_parameters(head)
+    )
+    args.n_learnable_nonembedding_parameters = n_learnable_nonembedding_parameters
+    print(
+        f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
     )
 
     if args.torch_compile:
@@ -278,6 +304,7 @@ def main(
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
+        chimera_schedule=args.chimera_schedule,
     )
     trainer.train(args.n_steps)
 
