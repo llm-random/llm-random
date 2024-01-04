@@ -157,6 +157,7 @@ def introduce_parser_arguments(
     # paremeters for specific experiments
 
     ## used by MoE (common)
+    parser.add_argument("--general_ff_layer_config", type=str, default=None)
     parser.add_argument(
         "--eval_dynamic_groupsize",
         action="store_true",
@@ -233,6 +234,12 @@ def introduce_parser_arguments(
     parser.add_argument("--xfavor", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
+    parser.add_argument(
+        "--routing_top_k",
+        type=int,
+        default=1,
+        help="TopK (how many experts a token is routed to) in Token Choice",
+    )
     parser.add_argument(
         "--ff_parallel_compute_fraction",
         type=float,

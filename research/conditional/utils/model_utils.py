@@ -56,6 +56,9 @@ from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
     TokenChoiceRouter,
 )
+from research.conditional.moe_layers._token_choice_deprecated import (
+    TokenChoiceFF as TokenChoiceFFDeprecated,
+)
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -327,13 +330,10 @@ def retrieve_additional_losses(model: torch.nn.Module):
         return losses
 
     if "load_balancing_losses" in model.forward_pass_cache:
-        load_balancing_losses = model.forward_pass_cache["load_balancing_losses"]
+        load_balancing_losses = model.forward_pass_cache.pop("load_balancing_losses")
         load_balancing_losses = torch.stack(load_balancing_losses)
         load_balancing_loss = torch.mean(load_balancing_losses)
         losses["load_balancing_loss"] = load_balancing_loss
-        for _, value in model.forward_pass_cache.items():
-            del value
-        model.forward_pass_cache["load_balancing_losses"] = []
     return losses
 
 
@@ -354,7 +354,7 @@ def get_common_mot_kwargs(args):
     }
 
 
-def get_ff_layer(args):
+def get_ff_layers(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
@@ -428,6 +428,17 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "token_choice":
         return_fn = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            capacity_factor=args.capacity_factor,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
+    elif args.ff_mode == "token_choice_deprecated":
+        return_fn = lambda: TokenChoiceFFDeprecated(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_size=args.expert_size,

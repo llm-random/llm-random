@@ -45,10 +45,10 @@ class LayerManager:
                 "residual_attention",
                 "feedforward",
                 "expert_gating",
+                "router",
             ]:
                 block_name = self.extract_block_name(name)
                 registered_name = f"{block_name}/{suffix}"
-
             if registered_name is not None:
                 self._layers.append((registered_name, layer))
 
@@ -138,10 +138,8 @@ class LayerManager:
         elif schedule_type_id == 6:
             modes_involved = ["mot", "ec"]
 
-        if step == 0:
-            return modes_involved[0]
-        elif step == 1:
-            return modes_involved[1]
+        if step < len(modes_involved):
+            return modes_involved[step]
         else:
             round_robin_schedule = schedule_type_id in [3, 5]
             if round_robin_schedule:
@@ -171,7 +169,7 @@ class LoggingLayer(nn.Module):
     def clean_up_after_logging(self):
         assert self.logging_switch
         self.logging_switch = False
-        self.logging_cache = {}
+        self.logging_cache.clear()
 
     def prepare_for_logging(self):
         self.logging_switch = True
@@ -185,6 +183,8 @@ class LoggingLayer(nn.Module):
                     self.logging_cache[key] = value
             elif isinstance(value, torch.Tensor):
                 self.logging_cache[key] = value.clone().detach().cpu()
+            elif isinstance(value, float) or isinstance(value, int):
+                self.logging_cache[key] = value
             else:
                 raise NotImplementedError
 

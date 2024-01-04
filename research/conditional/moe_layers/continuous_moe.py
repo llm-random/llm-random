@@ -54,12 +54,10 @@ class ContinuousMoeBaseClass(LoggingLayer):
         self.init_additional_parameters()
 
     def forward(self, x):
-        # residual = x
         x = self.reshape_into_groups(x)
         merge_weights, emit_weights = self.get_merge_and_emit_weights(x)
         x = self.merge_map_emit(x, merge_weights, emit_weights)
         x = self.reshape_into_original(x)
-        # x = self.layer_norm(x + residual)
         return x
 
     def reshape_into_groups(self, x):
@@ -235,7 +233,7 @@ class ContinuousMoE(ContinuousMoeBaseClass):
 def argmax_one_hot(x: torch.Tensor, dim: int):
     max_values, _ = x.max(dim=dim, keepdim=True)
     return torch.where(
-        condition=x == max_values,
+        condition=max_values == x,
         input=torch.Tensor([1.0]).to(dtype=x.dtype, device=x.device),
         other=torch.Tensor([0.0]).to(dtype=x.dtype, device=x.device),
         out=x,
