@@ -166,6 +166,27 @@ def calculate_llm_loss(
     gt_tokens = gt_tokens.to(model_output.device)
     mask = mask.to(model_output.device)
 
+    if not model.training:
+        bs = gt_tokens.shape[0]
+        seqlen = gt_tokens.shape[1]
+        gt_tokens_first_half = gt_tokens[: bs // 2]
+        gt_tokens_second_half = gt_tokens[bs // 2 :]
+        # randomly select either the token from the first half or the second half
+        gt_tokens_random_mask = torch.randint(
+            0,
+            2,
+            size=(bs // 2, seqlen),
+            device=gt_tokens.device,
+        )
+        gt_tokens = torch.where(
+            gt_tokens_random_mask == 0, gt_tokens_first_half, gt_tokens_second_half
+        )
+        mask = torch.where(
+            gt_tokens_random_mask == 0,
+            mask[: bs // 2],
+            mask[bs // 2 :],
+        )
+
     mask_loss = F.cross_entropy(
         model_output.reshape(-1, vocab_size),
         gt_tokens.reshape(-1).long(),

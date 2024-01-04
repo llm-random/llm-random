@@ -481,6 +481,9 @@ class LLM(nn.Module):
 
     def forward(self, *args, **kwargs):
         x = self.embedding_layer(*args, **kwargs)
+        if self.training:
+            bs = x.shape[0]
+            x = x[: bs // 2] + x[bs // 2 :]
         x = self.encoder(x)
         x = self.head(x)
         return x
