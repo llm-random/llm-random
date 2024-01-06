@@ -76,7 +76,13 @@ class ConditionalTrainer:
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: Any = None
-    chimera_schedule: int = None
+    chimera_option: str = None
+    chimera_first_mode: str = None
+    chimera_second_mode: str = None
+    chimera_warmup_constant_steps: int = None
+    chimera_final_schedule_step: int = None
+    chimera_start_prob: float = None
+    chimera_end_prob: float = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -99,10 +105,17 @@ class ConditionalTrainer:
             self.logging_interval_light,
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
+            self.chimera_option,
+            self.chimera_first_mode,
+            self.chimera_second_mode,
+            self.chimera_warmup_constant_steps,
+            self.chimera_final_schedule_step,
+            self.chimera_start_prob,
+            self.chimera_end_prob,
         )
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
-        self._check_config()
+        self._check_config()  # TODO check values
 
     def _before_train_operations(self):
         propagate_forward_pass_cache(self.model)
@@ -122,9 +135,10 @@ class ConditionalTrainer:
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
-        if self.chimera_schedule is not None:
-            mode = self.layer_manager.get_chimera_mode(step, self.chimera_schedule)
-            self.layer_manager.set_chimera_mode(mode)
+
+    def _before_step_operations(self, step):
+        if self.layer_manager.modes_probabiltiy_scheduler is not None:
+            self.layer_manager.change_chimera_mode(step)
 
     def train(self, n_steps: int):
         """
@@ -147,6 +161,7 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(n_steps + 1):
+                self._before_step_operations(step)
                 self._train_step(step)
                 if self.profiler_enabled:
                     p.step()
@@ -285,7 +300,7 @@ class ConditionalTrainer:
             for _, l in self.layer_manager._layers
             if isinstance(l, (ContinuousMoE, ExpertChoiceFF, MoEChimera))
         ]
-        if self.chimera_schedule is None:
+        if self.chimera_option is None:
             self._eval_single_variant(
                 batches=batches,
                 step=step,

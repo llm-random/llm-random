@@ -192,6 +192,14 @@ def introduce_parser_arguments(
 
     ## used by MoE (specific)
     parser.add_argument("--chimera_schedule", type=int, default=None)
+    parser.add_argument("--chimera_option", type=str, default=None)
+    parser.add_argument("--chimera_first_mode", type=str, default=None)
+    parser.add_argument("--chimera_second_mode", type=str, default=None)
+    parser.add_argument("--chimera_warmup_constant_steps", type=int, default=None)
+    parser.add_argument("--chimera_final_schedule_step", type=int, default=None)
+    parser.add_argument("--chimera_start_prob", type=float, default=None)
+    parser.add_argument("--chimera_end_prob", type=float, default=None)
+
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,

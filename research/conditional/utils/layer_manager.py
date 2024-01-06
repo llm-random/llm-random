@@ -5,9 +5,39 @@ from typing import Union
 from plotly import express as px
 
 import torch
-
+import random
 from lizrd.core import nn
 from lizrd.support.logging import get_current_logger
+import math
+
+
+class ProbabilityScheduler:
+    def __init__(
+        self,
+        warmup_constant_steps: int,
+        start_value: float,
+        final_value: float,
+        final_schedule_step: int,
+    ):
+        self.warmup_constant_steps = warmup_constant_steps
+        self.start_value = start_value
+        self.final_schedule_step = final_schedule_step
+        self.final_value = final_value
+
+    def get_value(self, step: int):
+        if step < self.warmup_constant_steps:
+            return self.start_value
+        elif step < self.final_schedule_step:
+            return self.final_value + 0.5 * (self.start_value - self.final_value) * (
+                1
+                + math.cos(
+                    math.pi
+                    * (step - self.warmup_constant_steps)
+                    / (self.final_schedule_step - self.warmup_constant_steps)
+                )
+            )
+        else:
+            return self.final_value
 
 
 class LayerManager:
@@ -22,6 +52,13 @@ class LayerManager:
         logging_interval_light,
         logging_interval_heavy,
         steps_until_start_temperature_learn,
+        chimera_option: str = None,
+        first_mode: str = None,
+        second_mode: str = None,
+        warmup_constant_steps: int = None,
+        final_schedule_step: int = None,
+        start_prob: float = None,
+        end_prob: float = None,
     ):
         self._layers = []
         self._register_layers(model)
@@ -29,6 +66,21 @@ class LayerManager:
         self.logging_interval_light = logging_interval_light
         self.logging_interval_heavy = logging_interval_heavy
         self.steps_until_start_temperature_learn = steps_until_start_temperature_learn
+
+        assert first_mode in ["mot", "ec", "switch"] or first_mode == None
+        assert second_mode in ["mot", "ec", "switch"] or second_mode == None
+        self.chimera_option = chimera_option
+        self.first_mode = first_mode
+        self.second_mode = second_mode
+        if (
+            warmup_constant_steps is not None
+            and start_prob is not None
+            and end_prob is not None
+            and final_schedule_step is not None
+        ):
+            self.modes_probabiltiy_scheduler = ProbabilityScheduler(
+                warmup_constant_steps, start_prob, end_prob, final_schedule_step
+            )
 
     def _register_layers(self, model):
         """
@@ -87,7 +139,9 @@ class LayerManager:
 
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
-                if isinstance(layer, LoggingLayer):
+                if isinstance(layer, LoggingLayer) and not hasattr(
+                    layer, "chimera_layer"
+                ):
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
                         logging_name = block_name + "/" + name
@@ -99,6 +153,13 @@ class LayerManager:
                 if isinstance(layer, LoggingLayer):
                     layer.clean_up_after_logging()
 
+        if self.modes_probabiltiy_scheduler is not None:
+            self.logger.report_scalar(
+                title="chimera_prob",
+                value=self.modes_probabiltiy_scheduler.get_value(step),
+                iteration=step,
+            )
+
     def manage_learnable_temperature(self, step):
         is_learning_temperature = step >= self.steps_until_start_temperature_learn
         for block_name, layer in self._layers:
@@ -106,50 +167,28 @@ class LayerManager:
                 if name in ["temperature_merge", "temperature_emit"]:
                     param.requires_grad = is_learning_temperature
 
-    def set_chimera_mode(self, mode):
+    def change_chimera_mode_step_independent(self, step):
+        mode = self._draw_next_mode(step)
         for _, l in self._layers:
             if hasattr(l, "current_mode"):
                 l.set_mode(mode)
 
-    def get_chimera_mode(self, step, schedule_type_id):
-        """
-        this is temporary code that implements different mode schedules. in total, thee will be 6 schedules:
-        1.mot-> switch @30K
-        2.mot->switch @ 100K
-        3.ec x switch
-        4.ec -> switch @30K
-        5.mot x ec
-        6.mot -> ec @30K
-        where x means "alternate between the two" and -> means "switch to the second one at the given step"
+    def change_chimera_mode_layer_independent(self, step):
+        for _, l in self._layers:
+            if hasattr(l, "current_mode"):
+                mode = self._draw_next_mode(step)
+                l.set_mode(mode)
 
-        note: all schedules start with 1 step each of all modes involved
-        """
-        modes_involved = []
-        if schedule_type_id == 1:
-            modes_involved = ["mot", "switch"]
-        elif schedule_type_id == 2:
-            modes_involved = ["mot", "switch"]
-        elif schedule_type_id == 3:
-            modes_involved = ["ec", "switch"]
-        elif schedule_type_id == 4:
-            modes_involved = ["ec", "switch"]
-        elif schedule_type_id == 5:
-            modes_involved = ["mot", "ec"]
-        elif schedule_type_id == 6:
-            modes_involved = ["mot", "ec"]
+    def _draw_next_mode(self, step):
+        probability = self.modes_probabiltiy_scheduler.get_value(step)
+        mode = self.first_mode if random.random() < probability else self.second_mode
+        return mode
 
-        if step < len(modes_involved):
-            return modes_involved[step]
+    def change_chimera_mode(self, step):  # , schedule_type_id):
+        if self.chimera_option == "step_independent":
+            self.change_chimera_mode_step_independent(step)
         else:
-            round_robin_schedule = schedule_type_id in [3, 5]
-            if round_robin_schedule:
-                return modes_involved[step % 2]
-            else:
-                cutoff_step = 30000 if schedule_type_id in [1, 4, 6] else 100000
-                if step < cutoff_step:
-                    return modes_involved[0]
-                else:
-                    return modes_involved[1]
+            self.change_chimera_mode_layer_independent(step)
 
 
 class LoggingLayer(nn.Module):

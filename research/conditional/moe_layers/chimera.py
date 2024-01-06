@@ -8,7 +8,9 @@ from research.conditional.utils.layer_manager import LoggingLayer
 
 @dataclasses.dataclass(eq=False, repr=False)
 class MoEChimera(LoggingLayer):
-    """Mixture-of-Experts Chimera layer. Expert and controller weights are shared between a Mot, EC and Switch submodules."""
+    """Mixture-of-Experts Chimera layer. Expert and controller weights are shared between a Mot, EC and Switch submodules.
+    start_prob refers to probability of choosing first mode. If start_prob != end_prob, then we change probabilities gradually using cosine scheduler
+    """
 
     mot: lambda: LoggingLayer
     ec: lambda: LoggingLayer
@@ -73,6 +75,13 @@ class MoEChimera(LoggingLayer):
         self.switch.lin1_weight = self.lin1
         self.switch.lin2_weight = self.lin2
         self.switch.router.gate = self.controller
+        self.ec.chimera_layer = True
+        self.ec.expert_gating.chimera_layer = True
+
+        self.mot.chimera_layer = True
+
+        self.switch.chimera_layer = True
+        self.switch.router.chimera_layer = True
 
     def set_mode(self, mode):
         assert mode in [

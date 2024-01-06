@@ -304,7 +304,13 @@ def main(
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
-        chimera_schedule=args.chimera_schedule,
+        chimera_option=args.chimera_option,
+        chimera_first_mode=args.chimera_first_mode,
+        chimera_second_mode=args.chimera_second_mode,
+        chimera_warmup_constant_steps=args.chimera_warmup_constant_steps,
+        chimera_final_schedule_step=args.chimera_final_schedule_step,
+        chimera_start_prob=args.chimera_start_prob,
+        chimera_end_prob=args.chimera_end_prob,
     )
     trainer.train(args.n_steps)
 
