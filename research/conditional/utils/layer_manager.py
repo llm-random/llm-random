@@ -66,7 +66,6 @@ class LayerManager:
         self.logging_interval_light = logging_interval_light
         self.logging_interval_heavy = logging_interval_heavy
         self.steps_until_start_temperature_learn = steps_until_start_temperature_learn
-
         assert first_mode in ["mot", "ec", "switch"] or first_mode == None
         assert second_mode in ["mot", "ec", "switch"] or second_mode == None
         self.chimera_option = chimera_option
@@ -81,6 +80,8 @@ class LayerManager:
             self.modes_probabiltiy_scheduler = ProbabilityScheduler(
                 warmup_constant_steps, start_prob, end_prob, final_schedule_step
             )
+        else:
+            self.modes_probabiltiy_scheduler = None
 
     def _register_layers(self, model):
         """
@@ -187,8 +188,10 @@ class LayerManager:
     def change_chimera_mode(self, step):  # , schedule_type_id):
         if self.chimera_option == "step_independent":
             self.change_chimera_mode_step_independent(step)
-        else:
+        elif self.chimera_option == "layer_independent":
             self.change_chimera_mode_layer_independent(step)
+        else:
+            raise ValueError("Unknown chimera mode")
 
 
 class LoggingLayer(nn.Module):
