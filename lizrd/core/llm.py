@@ -371,7 +371,10 @@ class TransformerTower(nn.Module):
 
         for i_block in range(n_blocks):
             layers_info = [
-                (name, layer_fun()) for name, layer_fun in layer_dict.items()
+                (name, layer_fun())
+                if type(layer_fun) is not list
+                else (name, layer_fun[i_block]())
+                for name, layer_fun in layer_dict.items()
             ]
 
             for name, layer in layers_info:
