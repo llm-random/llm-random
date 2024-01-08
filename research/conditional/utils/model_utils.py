@@ -551,13 +551,20 @@ def get_vanilla_mamba_layer(args):
 
 
 def get_mamba_layer(args):
-    import mamba_ssm
+    # import mamba_ssm
 
     if args.mamba_mode == "vanilla":
-        return_fn = lambda: mamba_ssm.Mamba(
-            d_model=args.dmodel,
-            expand=args.mamba_expansion,
-            # use_fast_path=False,  # don't use fast path when comparing clock time to moe in mamba
+        return_fn = None
+        # return_fn = lambda: mamba_ssm.Mamba(
+        #     d_model=args.dmodel,
+        #     expand=args.mamba_expansion,
+        #     # use_fast_path=False,  # don't use fast path when comparing clock time to moe in mamba
+        # )
+    elif args.mamba_mode == "titram":
+        from research.conditional.moe_layers.titram import TiTraMamba
+
+        return_fn = lambda: TiTraMamba(
+            dmodel=args.dmodel, init_type=args.init_type, init_scale=args.init_scale
         )
     elif args.mamba_mode in [
         "out_proj_moe",
