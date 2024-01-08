@@ -1,20 +1,11 @@
-# import mamba_ssm
 from typing import Literal
 
+import mamba_ssm
 import torch
 
 from lizrd.core import nn
 from lizrd.core.initialization import get_init_weight
 from research.conditional.utils.layer_manager import LoggingLayer
-
-
-class DummyMamba:
-    def __init__(self, d_model):
-        self.dmodel = d_model
-
-    def forward(self, x: torch.Tensor):
-        batch_size, seq_len = x.shape[0], x.shape[1]
-        return torch.rand(batch_size, seq_len, self.dmodel)
 
 
 class TiTraMamba(LoggingLayer):
@@ -26,8 +17,7 @@ class TiTraMamba(LoggingLayer):
     ):
         super().__init__()
         self.dmodel = dmodel
-        # self.mamba = mamba_ssm.Mamba(d_model=self.dmodel)
-        self.mamba = DummyMamba(d_model=self.dmodel)
+        self.mamba = mamba_ssm.Mamba(d_model=self.dmodel)
         self.regression = nn.Parameter(
             get_init_weight(
                 self.dmodel,
