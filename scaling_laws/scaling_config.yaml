@@ -16,6 +16,9 @@ scalings:
   - name: "Granular_18"
     tags:
       - "fixed_grid_wd"
+    tags_negative:
+      - "gran_grid_failed"
+      - "lr_steps_bug"
     fixed:
       expansion_rate: 64
     power_laws:
@@ -53,7 +56,7 @@ use_scipy: true
 load_model: false
 opt_log_loss: false
 huber_delta: 0.001
-weight_decay: 0.00000
+weight_decay: 0.000001
 show_model_sizes:
   10M: 10e6
   100M: 100e6

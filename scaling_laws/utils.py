@@ -29,15 +29,16 @@ def neptune_connect(project_name):
     return neptune.init_project(api_token=api_token, project=project_name)
 
 
-def download_batch_sizes_from_neptune(project, tags, fixed):
+def download_batch_sizes_from_neptune(project, tags, tags_negative, fixed):
     print("Downloading data from Neptune...")
     table = pd.concat([project.fetch_runs_table(tag=tag).to_pandas() for tag in tags])
     table.rename(columns=lambda x: x.replace("/", "_"), inplace=True)
-    table = [TrainRun(**row, fixed=fixed) for _, row in table.iterrows()]
+    table = [row for _, row in table.iterrows() if all(tag not in tags_negative for tag in row["sys_tags"].split(','))]
+    table = [TrainRun(**row, fixed=fixed) for row in table]
     proper = np.average([t.finished for t in table])
-    all = [t for t in table if t.finished]
-    print(f"{len(all)} ({proper*100:.2f}%) of runs finished properly")
-    return all
+    runs = [t for t in table if t.finished]
+    print(f"{len(runs)} ({proper*100:.2f}%) of runs finished properly")
+    return runs
 
 
 def read_yaml_file():

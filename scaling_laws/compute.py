@@ -113,8 +113,8 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
     plt.show()
 
 
-def one_scaling(project, tags, fixed, **params):
-    runs = download_batch_sizes_from_neptune(project, tags, fixed)
+def one_scaling(project, tags, fixed, tags_negative=(), **params):
+    runs = download_batch_sizes_from_neptune(project, tags, tags_negative, fixed)
     scaling_law = ScalingLaw(runs=runs, fixed=fixed, **params)
     rmse = scaling_law.optimize()
     print(f"Final {scaling_law.name} scaling law approximation RMSE: {rmse}")
