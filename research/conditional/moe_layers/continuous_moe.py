@@ -123,7 +123,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
         )
         # x shape is (free_dimension, split_dimension // group_size, n_experts, dmodel) ||| lin1 shape is (n_experts, dmodel, expert_size)
         x = torch.bmm(x.view(-1, self.n_experts, self.dm).transpose(0, 1), self.lin1)
-        x = torch.relu_(x)
+        x = self.swish(x)
         # x shape is (n_experts, free_dimension * aggr_dimension // group_size, expert_size) ||| lin2 shape is (n_experts, expert_size, dmodel)
         x = torch.bmm(x, self.lin2)
         # x shape is (n_experts, free_dimension * aggr_dimension // group_size, dmodel)
@@ -175,6 +175,8 @@ class ContinuousMoeBaseClass(LoggingLayer):
                 scale=self.init_scale,
             )
         )
+
+        self.swish = torch.nn.SiLU()
 
     def init_additional_parameters(self):
         pass
