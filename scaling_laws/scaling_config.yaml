@@ -8,7 +8,6 @@ scalings:
     power_laws:
       - - "n_params"
       - - "n_steps"
-    use_chinchilla: true
     num_opt_steps: 100000
     lr: 0.01
     final_lr_fr: 0.01
@@ -27,7 +26,6 @@ scalings:
         - "granularity"
       - - "n_steps"
         - "granularity"
-    use_chinchilla: true
     exp_inter: false
     poly_inter: true
     num_opt_steps: 100000
