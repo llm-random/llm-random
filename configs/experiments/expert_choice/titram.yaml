@@ -1,0 +1,15 @@
+parent: research/conditional/train/configs/baselines/gpt/expert_choice/common.yaml
+md5_parent_hash: e77f2dc37d71eca59d57b3035424e6ea
+singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.14_18.26.37.sif
+time: 1-00:00:00
+
+params:
+  name: "mamba_titram"
+  tags: ["lookback_weight", "mean_one"]
+  n_steps: 100_000
+  dmodel: 512
+  n_blocks: 8
+  n_att_heads: 8
+  mixed_precision_dtype: bfloat16
+  block_modules: ["mamba"]
+  ^mamba_mode: [titram]
