@@ -311,6 +311,7 @@ def main(
         chimera_final_schedule_step=args.chimera_final_schedule_step,
         chimera_start_prob=args.chimera_start_prob,
         chimera_end_prob=args.chimera_end_prob,
+        upcycling_step=args.upcycling_step,
     )
     trainer.train(args.n_steps)
 

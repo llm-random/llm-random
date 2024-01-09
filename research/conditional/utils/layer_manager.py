@@ -59,6 +59,7 @@ class LayerManager:
         final_schedule_step: int = None,
         start_prob: float = None,
         end_prob: float = None,
+        upcycling_step: int = None,
     ):
         self._layers = []
         self._register_layers(model)
@@ -82,6 +83,7 @@ class LayerManager:
             )
         else:
             self.modes_probabiltiy_scheduler = None
+        self.upcycling_step = upcycling_step
 
     def _register_layers(self, model):
         """
@@ -192,6 +194,12 @@ class LayerManager:
             self.change_chimera_mode_layer_independent(step)
         else:
             raise ValueError("Unknown chimera mode")
+
+    def upcycle_if_needed(self, step):
+        if self.upcycling_step is not None and step == self.upcycling_step:
+            for _, l in self._layers:
+                if hasattr(l, "current_mode"):
+                    l.change_to_mot()
 
 
 class LoggingLayer(nn.Module):

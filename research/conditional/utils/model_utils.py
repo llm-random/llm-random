@@ -60,6 +60,7 @@ from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
 )
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
+from research.conditional.moe_layers.upcycling import MoEUpcycling
 
 
 def make_loss_function(loss_checkpoint_chungs: int):
@@ -484,6 +485,25 @@ def get_ff_layers(args):
             init_type=args.init_type,
             init_scale=args.init_scale,
         )
+    elif args.ff_mode == "upcycling":
+        assert (
+            args.n_experts == args.group_size
+        ), "We want to use exactly the same trained FF-layer"
+        mot = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
+        vanilla = lambda: llm.FeedForward(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
+
+        return_fn = lambda: MoEUpcycling(
+            mot=mot,
+            vanilla=vanilla,
+            # dmodel=args.dmodel,
+            # n_experts=args.n_experts,
+            # expert_size=args.expert_size,
+            # init_type=args.init_type,
+            # init_scale=args.init_scale,
+        )
+
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 

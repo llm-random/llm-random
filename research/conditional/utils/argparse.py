@@ -199,6 +199,7 @@ def introduce_parser_arguments(
     parser.add_argument("--chimera_final_schedule_step", type=int, default=None)
     parser.add_argument("--chimera_start_prob", type=float, default=None)
     parser.add_argument("--chimera_end_prob", type=float, default=None)
+    parser.add_argument("--upcycling_step", type=float, default=None)
 
     parser.add_argument(
         "--load_balancing_loss_weight",
