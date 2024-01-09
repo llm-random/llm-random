@@ -35,9 +35,9 @@ class TrainRun:
         self.flops = calculate_flops(**self.dict())
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_steps == args_final_lr_step and \
-                        all([getattr(self, k) == v for k, v in fixed.items()]) #  and \
-#                        (self.n_params > 20000000 or self.n_steps > 20000 or self.expansion_rate == 1)  and \
-#                        (self.granularity < 32)  # TODO: remove this hack and ^this, filer small axp and high granularity
+                        all([getattr(self, k) == v for k, v in fixed.items()])   and \
+                        (self.n_params > 20000000 or self.n_steps > 20000 or self.expansion_rate == 1)  and \
+                        (self.granularity < 32)  # TODO: remove this hack and ^this, filer small axp and high granularity
 
     def dict(self):
         return self.__dict__
@@ -131,7 +131,7 @@ def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, 
 #    L_fun = lambda d: L + x_p*log(p_fun(d)) + x_n*log(n_fun(d)) + x_g*log(g) + \
 #        c_n*log(g)*log(n_fun(d)) + c_p*log(g)*log(p_fun(d))
 
-    fun2 = lambda d: scaling_laws.formula(granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d)).detach().item()
+    fun2 = lambda d: scaling_laws.expected_loss(granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d)).detach().item()
 #    function = lambda d: L_fun(d)
 #    function_der = lambda d: (
 #        (c_n*log(g) + x_n)*log((f*d_c)/(d**2*(8*d + 6*g*z))) +

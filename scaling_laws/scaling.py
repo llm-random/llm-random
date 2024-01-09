@@ -7,6 +7,7 @@ from torch.optim import lr_scheduler as lr_scheduler
 from tqdm import trange
 import os
 from scipy.optimize import minimize
+import math
 
 from scaling_laws.calculate_params import calculate_n_steps_from_flops, calculate_n_params_from_flops, \
     calculate_n_params_and_steps_from_flops
@@ -14,6 +15,14 @@ from scaling_laws.calculate_params import calculate_n_steps_from_flops, calculat
 
 def init(eps):
     return nn.Parameter(torch.tensor(eps))
+
+
+# that's log(a*param**b + c), assuming a and c are given in log
+def logsumexp_poly(a, b, c, param):
+    if param is None:
+        return c
+    c1 = b * param + a
+    return c1 if c is None else torch.logsumexp(torch.stack([c1, c]), dim=0)
 
 
 class PowerLaw(nn.Module):
@@ -25,12 +34,12 @@ class PowerLaw(nn.Module):
         self.names = names
         if len(names) == 2:
             self.a, self.b = init(eps), init(eps)
-            self.c = init(eps) if self.poly_inter else 0
+            self.c = init(eps) if self.poly_inter else torch.tensor(0)
             self.name, self.condition = self.names
             if exp_inter:
                 self.i = init(eps)
         elif len(names) == 1:
-            self.a, self.b, self.c = 0, 0, init(eps)
+            self.a, self.b, self.c = torch.tensor(0), torch.tensor(0), init(eps)
             self.name = self.names[0]
 
     def get_tensors(self, params):
@@ -38,37 +47,47 @@ class PowerLaw(nn.Module):
             param = params.get(name, None)
             if param is None:
                 raise Exception(f"No {name} param found in {params})")
-            yield torch.tensor(param)
+            yield torch.log(torch.tensor(param))
         if len(self.names) == 1:
             yield None
 
     def forward(self, **params):
         param, condition = self.get_tensors(params)
-        if condition is None:
-            return self.c * param ** self.p
-        scaling = (self.a * condition ** self.b + self.c) * param ** self.p
+        log_multiplier = self.get_logmultiplier(condition)
+        scaling = logsumexp_poly(log_multiplier, self.p, None, param)
         if self.exp_inter:
-            scaling *= param**(self.i*(torch.log(condition)))
+            scaling += self.i*param*condition
         return scaling
+
+    def get_logmultiplier(self, condition_val=None):
+        return logsumexp_poly(self.a, self.b, self.c, condition_val)
+
+    def get_nocond_params(self):
+        return
 
     def repr_no_cond(self, condition_val):
         if self.exp_inter:
             return "Cant calculate"  # TODO?
-        a = (self.a * condition_val ** self.b + self.c)
+        a = torch.exp(self.get_logmultiplier(condition_val))
         return f"{a:6.4f}*{self.name}**{self.p.item():6.4f}"
 
     def __repr__(self):
+        p, a, b, c = self.get_scaled_params()
         if len(self.names) == 2:
-            text = f"{self.a.item():6.4f}*{self.condition}**{self.b.item():6.4f}"
-            text = f"({text}+{self.c.item():6.4f})" if self.poly_inter else text
-            text += f"*{self.name}**{self.p.item():6.4f}"
+            text = f"{a:6.4f}*{self.condition}**{b:6.4f}"
+            text = f"({text}+{c:6.4f})" if self.poly_inter else text
+            text += f"*{self.name}**{p:6.4f}"
             if self.exp_inter:
                 text += f"*{self.name}**({self.i.item():6.4f}*ln({self.condition}))"
             return text
         elif len(self.names) == 1:
-            return f"{self.c.item():6.4f}*{self.name}**{self.p.item():6.4f}"
+            return f"{c:6.4f}*{self.name}**{p:6.4f}"
         else:
-            return f"{self.p.item():6.4f}*{self.name}"
+            raise Exception("Not implemented")
+
+    def get_scaled_params(self):
+        ret = [self.p, torch.exp(self.a), self.b, torch.exp(self.c)]
+        return [x.detach().item() for x in ret]
 
 
 class ScalingLaw(nn.Module):
@@ -106,42 +125,31 @@ class ScalingLaw(nn.Module):
     def get_param_for(self, *names):
         for p in self.power_laws:
             if set(p.names) == set(names):
-                ret = [p.p, p.a, p.b, p.c]
-                return [x.detach().item() if x != 0 else x for x in ret]
+                return p.get_scaled_params()
         return 0
 
     def formula(self, **params):
-        return self.L0 + sum([p(**params) for p in self.power_laws])
-#        parts = [self.L0] + [p(**params) for p in self.power_laws]
-#        return torch.logsumexp(torch.stack(parts), dim=0)
+        parts = [self.L0] + [p(**params) for p in self.power_laws]
+        return torch.logsumexp(torch.stack(parts), dim=0)
+
+    def expected_loss(self, **params):
+        return torch.exp(self.formula(**params))
 
     def expected_logloss(self, **params):
-        return torch.log(self.formula(**params))
+        return self.formula(**params)
 
     def __repr__(self):
         return (
             f"Scaling \"{self.name}\" {' + '.join([str(p) for p in self.power_laws])}"
-            f" + {self.L0.item():5.3f}"
+            f" + {torch.exp(self.L0).item():5.3f}"
         )
 
-    def calc_y_and_preds(self):  # not for non-chinchilla
-        y = torch.tensor([run.loss for run in self.runs])
-        y_pred = torch.stack([self.formula(**run.dict()) for run in self.runs])
-        return y, y_pred
-
-    def calc_loss(self, params, loss):
-        y_pred = self.formula(**params)
-        y = torch.tensor(loss)
-        eval_se = (y_pred - y)**2
-        if self.opt_log_loss:
-            y, y_pred = torch.log(y), torch.log(y_pred)
-        return self.loss(y_pred, y), eval_se
-
     def forward(self):
-        y, y_pred = self.calc_y_and_preds()
-        rmse = (torch.mean((y_pred - y)**2))**.5
-        if self.opt_log_loss:
-            y, y_pred = torch.log(y), torch.log(y_pred)
+        y = torch.tensor([math.log(run.loss) if self.opt_log_loss else run.loss for run in self.runs])
+        loss_fun = self.expected_logloss if self.opt_log_loss else self.expected_loss
+        y_pred = torch.stack([loss_fun(**run.dict()) for run in self.runs])
+        error =  torch.exp(y_pred) - torch.exp(y) if self.opt_log_loss else y_pred - y
+        rmse = (torch.mean(error**2))**.5
         weight_decay = sum(torch.norm(p) for p in self.parameters())
         loss = self.loss(y_pred, y)
         loss += weight_decay*self.weight_decay

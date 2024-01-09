@@ -21,7 +21,7 @@ scalings:
     fixed:
       expansion_rate: 64
     power_laws:
-      - - "granularity"
+#      - - "granularity"
       - - "n_params"
         - "granularity"
       - - "n_steps"
@@ -49,12 +49,12 @@ plot_dims:
   - - "granularity"
 #  - - "n_steps"
 #  - - "n_params"
-extrapolate_factor: 4.0
+extrapolate_factor: 3.0
 use_scipy: true
 load_model: false
-opt_log_loss: false
-huber_delta: 0.001
-weight_decay: 0.000001
+opt_log_loss: true
+huber_delta: 0.1
+weight_decay: 0.00001
 show_model_sizes:
   10M: 10e6
   100M: 100e6
