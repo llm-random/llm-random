@@ -17,7 +17,7 @@ def init(eps):
     return nn.Parameter(tensor(eps))
 
 
-def tensor(value=0):
+def tensor(value=0.):
     return torch.tensor(value, dtype=torch.float64)
 
 
@@ -34,7 +34,7 @@ class PowerLaw(nn.Module):
         super(PowerLaw, self).__init__()
         self.exp_inter = exp_inter
         self.poly_inter = poly_inter
-        self.p = init(-eps)
+        self.p = init(-eps)  #  tensor(-0.3)
         self.names = names
         if len(names) == 2:
             self.a, self.b = init(eps), init(eps)
@@ -74,7 +74,7 @@ class PowerLaw(nn.Module):
     def repr_no_cond(self, condition_val):
         if self.exp_inter:
             return "Cant calculate"  # TODO?
-        a, b = self.get_nocond_params(condition_val)
+        a, b = self.get_nocond_params(math.log(condition_val))
         return f"{a.item():6.4f}*{self.name}**{b.item():6.4f}"
 
     def __repr__(self):
@@ -97,13 +97,13 @@ class PowerLaw(nn.Module):
 
 
 class ScalingLaw(nn.Module):
-    def __init__(self, name, runs, power_laws, fixed, cmap, eps=1e-5, num_opt_steps=None, lr=None,
+    def __init__(self, name, runs, power_laws, fixed, cmap, eps=1e-5, num_opt_steps=None, scaling_bias=None, lr=None,
                  final_lr_fr=None, use_scipy=False, load_model=False, opt_log_loss=False, weight_decay=0, huber_delta=0.1, **params):
         super().__init__()
         self.runs = runs
         self.name = name
         self.checkpoint_name = f"scaling_laws/checkpoints/{name}_model.ckpt"
-        self.L0 = init(eps)  # tensor(math.log(0.87))  #
+        self.L0 = tensor(math.log(scaling_bias)) if scaling_bias is not None else init(eps)
         self.loss = torch.nn.HuberLoss(delta=huber_delta) if huber_delta > 0 else torch.nn.MSELoss()
         self.cmap = cmap
         self.power_laws = nn.ModuleList([PowerLaw(names, eps, **params) for names in power_laws])

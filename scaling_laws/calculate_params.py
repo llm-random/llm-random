@@ -29,15 +29,18 @@ class TrainRun:
         self.granularity = args_granularity
         self.expansion_rate = args_expansion_rate
         self.dmodel = args_dmodel
-        self.n_steps = args_n_steps
+        self.n_opt_steps = args_n_steps
+        self.n_steps = self.n_opt_steps * batch_size * seq_len * grad_accum
+        self.n_tokens = self.n_steps
         self.n_blocks = args_n_blocks
         self.n_params = calculate_params(**self.dict())
         self.flops = calculate_flops(**self.dict())
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
-                        step == self.n_steps == args_final_lr_step and \
-                        all([getattr(self, k) == v for k, v in fixed.items()])   and \
-                        (self.n_params > 200000000 or self.n_steps > 20000) # and \
-#                        (self.granularity < 32)  # TODO: remove this hack and ^this, filer small axp and high granularity
+                        step == self.n_opt_steps == args_final_lr_step and \
+                        all([getattr(self, k) == v for k, v in fixed.items()])  and \
+                        (self.granularity < 32) and \
+                        (self.n_params > 200000000 or self.n_opt_steps > 20000)
+                            # TODO: remove this hack and ^this, filer small axp and high granularity
 
     def dict(self):
         return self.__dict__
@@ -55,7 +58,7 @@ def calculate_block_flops(dmodel, expansion_rate, granularity, **_):
     router = dmodel * expansion_rate * granularity * router_const
     einsum = 0  # current assumption
     attn = 0  # current assumption
-    return (ff + einsum + router + attn) * batch_size * seq_len * grad_accum
+    return ff + einsum + router + attn
 
 
 def calculate_params(dmodel, expansion_rate, n_blocks, **_):
@@ -86,8 +89,7 @@ def calculate_n_steps_from_flops(flops, **params):
 
 def calculate_n_steps_from_dmodel(flops, dmodel, expansion_rate, granularity):
     return dmodel_const*flops / \
-           (dmodel**2*(ff_const*dmodel+router_const*granularity*expansion_rate)
-            * batch_size * seq_len * grad_accum)
+           (dmodel**2*(ff_const*dmodel+router_const*granularity*expansion_rate))
 
 
 def calculate_n_params_from_flops(flops, n_steps, expansion_rate, granularity, **params):
@@ -96,7 +98,7 @@ def calculate_n_params_from_flops(flops, n_steps, expansion_rate, granularity, *
     a = ff_const
     b = router_const*granularity*expansion_rate
     c = 0
-    d = - flops * dmodel_const / (n_steps * batch_size * seq_len * grad_accum)
+    d = - flops * dmodel_const / n_steps
     roots = np.roots([a, b, c, d])
     dmodel = np.real(roots[np.isreal(roots) & (roots > 0)][0])
 
