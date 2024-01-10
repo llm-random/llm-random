@@ -103,7 +103,7 @@ class ScalingLaw(nn.Module):
         self.runs = runs
         self.name = name
         self.checkpoint_name = f"scaling_laws/checkpoints/{name}_model.ckpt"
-        self.L0 = init(eps)
+        self.L0 = init(eps)  # tensor(math.log(0.87))  #
         self.loss = torch.nn.HuberLoss(delta=huber_delta) if huber_delta > 0 else torch.nn.MSELoss()
         self.cmap = cmap
         self.power_laws = nn.ModuleList([PowerLaw(names, eps, **params) for names in power_laws])
