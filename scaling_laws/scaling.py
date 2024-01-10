@@ -14,7 +14,11 @@ from scaling_laws.calculate_params import calculate_n_steps_from_flops, calculat
 
 
 def init(eps):
-    return nn.Parameter(torch.tensor(eps))
+    return nn.Parameter(tensor(eps))
+
+
+def tensor(value=0):
+    return torch.tensor(value, dtype=torch.float64)
 
 
 # that's log(a*param**b + c), assuming a and c are given in log
@@ -34,12 +38,12 @@ class PowerLaw(nn.Module):
         self.names = names
         if len(names) == 2:
             self.a, self.b = init(eps), init(eps)
-            self.c = init(eps) if self.poly_inter else torch.tensor(0)
+            self.c = init(eps) if self.poly_inter else tensor()
             self.name, self.condition = self.names
             if exp_inter:
                 self.i = init(eps)
         elif len(names) == 1:
-            self.a, self.b, self.c = torch.tensor(0), torch.tensor(0), init(eps)
+            self.a, self.b, self.c = tensor(), tensor(), init(eps)
             self.name = self.names[0]
 
     def get_tensors(self, params):
@@ -47,7 +51,7 @@ class PowerLaw(nn.Module):
             param = params.get(name, None)
             if param is None:
                 raise Exception(f"No {name} param found in {params})")
-            yield torch.log(torch.tensor(param))
+            yield torch.log(tensor(param))
         if len(self.names) == 1:
             yield None
 
@@ -62,14 +66,16 @@ class PowerLaw(nn.Module):
     def get_logmultiplier(self, condition_val=None):
         return logsumexp_poly(self.a, self.b, self.c, condition_val)
 
-    def get_nocond_params(self):
-        return
+    def get_nocond_params(self, condition_val):
+        a = torch.exp(self.get_logmultiplier(condition_val))
+        b = self.p
+        return a, b
 
     def repr_no_cond(self, condition_val):
         if self.exp_inter:
             return "Cant calculate"  # TODO?
-        a = torch.exp(self.get_logmultiplier(condition_val))
-        return f"{a:6.4f}*{self.name}**{self.p.item():6.4f}"
+        a, b = self.get_nocond_params(condition_val)
+        return f"{a.item():6.4f}*{self.name}**{b.item():6.4f}"
 
     def __repr__(self):
         p, a, b, c = self.get_scaled_params()
@@ -115,7 +121,7 @@ class ScalingLaw(nn.Module):
         print(f"{str(self)}")
         if 'granularity' not in self.fixed_params:
             for g in [2**g_i for g_i in range(0, 8)]:
-                constant = self.L0.item() + sum([p(granularity=g) for p in self.power_laws if p.names[0] == 'granularity'])
+                constant = self.get_constant() + sum([torch.exp(p(granularity=g)) for p in self.power_laws if p.names[0] == 'granularity'])
                 print(
                     f"For constant granularity={g} Scaling \"{self.name}\" "
                     f"{' + '.join([p.repr_no_cond(g) for p in self.power_laws if p.names[0] != 'granularity'])}"
@@ -127,6 +133,9 @@ class ScalingLaw(nn.Module):
             if set(p.names) == set(names):
                 return p.get_scaled_params()
         return 0
+
+    def get_constant(self):
+        return torch.exp(self.L0).item()
 
     def formula(self, **params):
         parts = [self.L0] + [p(**params) for p in self.power_laws]
@@ -141,14 +150,14 @@ class ScalingLaw(nn.Module):
     def __repr__(self):
         return (
             f"Scaling \"{self.name}\" {' + '.join([str(p) for p in self.power_laws])}"
-            f" + {torch.exp(self.L0).item():5.3f}"
+            f" + {self.get_constant():5.3f}"
         )
 
     def forward(self):
-        y = torch.tensor([math.log(run.loss) if self.opt_log_loss else run.loss for run in self.runs])
+        y = tensor([math.log(run.loss) if self.opt_log_loss else run.loss for run in self.runs])
         loss_fun = self.expected_logloss if self.opt_log_loss else self.expected_loss
         y_pred = torch.stack([loss_fun(**run.dict()) for run in self.runs])
-        error =  torch.exp(y_pred) - torch.exp(y) if self.opt_log_loss else y_pred - y
+        error = torch.exp(y_pred) - torch.exp(y) if self.opt_log_loss else y_pred - y
         rmse = (torch.mean(error**2))**.5
         weight_decay = sum(torch.norm(p) for p in self.parameters())
         loss = self.loss(y_pred, y)

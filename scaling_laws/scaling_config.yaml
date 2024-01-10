@@ -8,9 +8,6 @@ scalings:
     power_laws:
       - - "n_params"
       - - "n_steps"
-    num_opt_steps: 100000
-    lr: 0.01
-    final_lr_fr: 0.01
     cmap: copper
   - name: "Granular_18"
     tags:
@@ -25,12 +22,9 @@ scalings:
       - - "n_params"
         - "granularity"
       - - "n_steps"
-        - "granularity"
+#        - "granularity"
     exp_inter: false
     poly_inter: true
-    num_opt_steps: 100000
-    lr: 0.01
-    final_lr_fr: 0.01
     cmap: rainbow
 plot_dims:
 #  - - "predicted_loss"

@@ -36,7 +36,7 @@ class TrainRun:
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_steps == args_final_lr_step and \
                         all([getattr(self, k) == v for k, v in fixed.items()])   and \
-                        (self.n_params > 20000000 or self.n_steps > 20000 or self.expansion_rate == 1)  and \
+                        (self.n_params > 20000000 or self.n_steps > 20000)  and \
                         (self.granularity < 32)  # TODO: remove this hack and ^this, filer small axp and high granularity
 
     def dict(self):
