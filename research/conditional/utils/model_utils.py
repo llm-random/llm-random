@@ -62,6 +62,7 @@ from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
 )
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
+from research.conditional.moe_layers.recursive_mamba import RecursiveMambaGenerator
 
 
 def make_loss_function(loss_checkpoint_chungs: int):
@@ -489,7 +490,10 @@ def get_ff_layer(args):
 def get_mamba_layer(args):
     import mamba_ssm
 
-    if args.mamba_mode == "vanilla":
+    if args.mamba_mode == "recursive":
+        return_fn = RecursiveMambaGenerator(args.dmodel, args.mamba_n_levels)
+
+    elif args.mamba_mode == "vanilla":
         return_fn = lambda: mamba_ssm.Mamba(d_model=args.dmodel)
     else:
         raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")

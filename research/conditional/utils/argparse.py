@@ -289,6 +289,7 @@ def introduce_parser_arguments(
 
     # mamba
     parser.add_argument("--mamba_mode", type=str, default="vanilla")
+    parser.add_argument("--mamba_n_levels", type=int, default=1)
     parser.add_argument(
         "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
     )
