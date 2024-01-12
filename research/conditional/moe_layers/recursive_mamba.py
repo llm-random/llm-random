@@ -1,7 +1,5 @@
-import mamba_ssm
 import torch
-import torch.nn as nn
-
+from torch import nn
 
 # class Mamba(nn.Module):
 #     def __init__(self, dmodel) -> None:
@@ -15,6 +13,8 @@ import torch.nn as nn
 
 class ParallelMamba(nn.Module):
     def __init__(self, dmodel, n_mambas) -> None:
+        import mamba_ssm
+
         super().__init__()
 
         self.mambas = nn.ModuleList(
