@@ -23,10 +23,12 @@ class ParallelMamba(nn.Module):
         self.n_mambas = n_mambas
 
     def forward(self, x):
-        return torch.cat(
+        assert len(x.shape) == 3
+        out = torch.cat(
             [mamba(x[:, i :: self.n_mambas]) for i, mamba in enumerate(self.mambas)],
-            dim=1,
+            dim=-1,
         )
+        return out.reshape(x.shape)
 
 
 class RecursiveMambaGenerator:
