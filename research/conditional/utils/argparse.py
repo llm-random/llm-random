@@ -206,7 +206,7 @@ def introduce_parser_arguments(
     parser.add_argument("--total_experts_width", type=int)
     parser.add_argument(
         "--granularity",
-        type=int,
+        type=float,
         help="How smaller is each expert compared to standard MoE",
     )
     parser.add_argument(

@@ -299,7 +299,7 @@ def get_expert_choice_args(args):
 
     return {
         "dmodel": args.dmodel,
-        "n_experts": args.n_experts,
+        "n_experts": int(args.n_experts),
         "expert_size": args.expert_size,
         "topk_fraction": args.topk_fraction,
         "random_perm": args.expert_random_perm,

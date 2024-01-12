@@ -20,15 +20,15 @@ def set_granular_auto_args(args):
 
 
 def set_model_config(args):
-    assert args.granular_model_config in (
-        "mini",
-        "mini_8",
-        "small",
-        "medium",
-        "base_4",
-        "base",
-        "base_14",
-    )
+    # assert args.granular_model_config in (
+    #     "mini",
+    #     "mini_8",
+    #     "small",
+    #     "medium",
+    #     "base_4",
+    #     "base",
+    #     "base_14",
+    # )
 
     if args.granular_model_config == "mini":
         args.dmodel = 256
@@ -40,6 +40,11 @@ def set_model_config(args):
         args.dff = 1024
         args.n_blocks = 8
         args.n_att_heads = 4
+    elif args.granular_model_config == "mini_big":
+        args.dmodel = 384
+        args.dff = 1536
+        args.n_blocks = 4
+        args.n_att_heads = 6
     elif args.granular_model_config == "small":
         args.dmodel = 512
         args.dff = 2048
@@ -50,6 +55,11 @@ def set_model_config(args):
         args.dff = 2048
         args.n_blocks = 8
         args.n_att_heads = 8
+    elif args.granular_model_config == "medium_big":
+        args.dmodel = 640
+        args.dff = 2560
+        args.n_blocks = 10
+        args.n_att_heads = 10
     elif args.granular_model_config == "base_4":
         args.dmodel = 768
         args.dff = 3072
