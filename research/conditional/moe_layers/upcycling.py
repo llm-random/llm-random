@@ -92,10 +92,10 @@ class MoEUpcycling(LoggingLayer):
             self.vanilla.layer.logging_ff_post_relu.weight.t().clone()
         )
         self.mot.lin1.data[:, :, :] = transposed_ff_pre_relu_layer.unsqueeze(0).expand(
-            32, -1, -1
+            self.mot.n_experts, -1, -1
         )
         self.mot.lin2.data[:, :, :] = transposed_ff_post_relu_layer.unsqueeze(0).expand(
-            32, -1, -1
+            self.mot.n_experts, -1, -1
         )
 
     def get_current_module(self):
