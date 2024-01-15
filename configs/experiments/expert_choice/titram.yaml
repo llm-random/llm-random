@@ -9,6 +9,7 @@ params:
   n_steps: 100_000
   dmodel: 512
   n_blocks: 8
+  logging_interval_heavy: 2000
   n_att_heads: 8
   mixed_precision_dtype: bfloat16
   block_modules: ["mamba"]
