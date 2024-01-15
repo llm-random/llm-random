@@ -1,49 +1,26 @@
 # llm-random
+We are LLM-Random, a research group at [IDEAS NCBR](https://ideas-ncbr.pl/en/) (Warsaw, Poland). We develop this repo and use it to conduct research. To learn more about us and our research, check out our blog, [llm-random.github.io](https://llm-random.github.io/).
+
+## Publications, preprints and blogposts
+- MoE-Mamba: Efficient Selective State Space Models with Mixture of Experts ([arxiv](https://arxiv.org/abs/2401.04081), [blogpost](https://llm-random.github.io/posts/moe_mamba/))
+- Mixture of Tokens: Efficient LLMs through Cross-Example Aggregation ([arxiv](https://arxiv.org/abs/2310.15961), [blogpost](https://llm-random.github.io/posts/mixture_of_tokens/))
 
 
-## Getting started
-In root directory run `./start-dev.sh`. This will create a virtual environment, install requirements and setup git hooks.
 
+## Development (WIP)
+### Getting started
+In the root directory run `./start-dev.sh`. This will create a virtual environment, install requirements and set up git hooks.
 
-## Experiments config
+## Running Experiments (WIP)
+
+### Experiments config
 Use the baseline configuration as a template, which is in `research/conditional/train/configs/test/test_baseline.yaml`. Based on this template, create a new experiment config and put it in `lizrd/scripts/run_configs`.
 
-## Run exeperiment
-
-### Locally
+### Running Locally
 `python -m lizrd.scripts.grid path/to/config`
 
-### Remotely
+### Running Remotely
 `bash lizrd/scripts/run_exp_remotely.sh <remote_cluster_name> lizrd/scripts/run_configs/<your_config>`
-
-## Code description
-
-By directories:
-* `lizrd` - main library
-  * `core` - core code
-    * `bert.py` - main layers, bert model
-      * in the future, this should be split into layers, models, and some of it should be moved to research
-    * `misc.py` - miscellanous functions
-    * `nn.py` - base Module layer, and classes from torch.nn
-  * `datasets` - data processing
-    * `wikibookdata.py` - data processing of standard BERT training datasets
-  * `scripts` - scripts for running experiments
-    * `gen_run_trains.py` - generate shell scripts for running experiments
-    * `run_train.sh` - shell script for running a single experiment
-  * `support` - support code
-    * `ash.py` - Assert Shapes on tensors
-    * `metrics.py` - logging metrics during training
-    * `profile.py` - for profiling models and layers
-    * `test_utils.py` - testing utilities
-  * `train` - training code
-    * `bert_train.py` - main training script
-* `research` - experimental code
-    * `archived_code` - probably should be removed
-    * `initialization` - research on better initialization scheme
-    * `timing` - tests with profiling the main code
-    * `conditional` - research on conditional computation (to be split from `core`)
-    * `nonlinearities` - research on smaller neurons
-    * `reinitialization` - research on recycling neurons
 
 # License
 
