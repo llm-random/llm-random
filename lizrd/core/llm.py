@@ -459,6 +459,20 @@ class Attention(LoggingLayer):
         return output
 
 
+class RMSNorm(nn.Module):
+    def __init__(self, dmodel, eps=1e-5):
+        super().__init__()
+        self.eps = eps
+
+        self.g = nn.Parameter(torch.ones(dmodel))
+        self.b = nn.Parameter(torch.zeros(dmodel))
+
+    def forward(self, x):
+        norm = torch.mean(x**2, dim=-1, keepdim=True)
+        x = x * torch.rsqrt(norm + self.eps)
+        return x * self.g + self.b
+
+
 class ReZero(nn.Module):
     def __init__(self, fn, init=0.0):
         super().__init__()
@@ -473,23 +487,23 @@ def RezeroBlock(dmodel, layer, name):
     return Residual(ReZero(layer))
 
 
-def PostNormBlock(dmodel, layer, name):
+def PostNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return nn.Sequential(
         OrderedDict(
             [
                 (f"{name}", Residual(layer)),
-                ("post_norm", nn.LayerNorm(dmodel)),
+                ("post_norm", norm_class(dmodel)),
             ]
         )
     )
 
 
-def PreNormBlock(dmodel, layer, name):
+def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return Residual(
         nn.Sequential(
             OrderedDict(
                 [
-                    ("pre_norm", nn.LayerNorm(dmodel)),
+                    ("pre_norm", norm_class(dmodel)),
                     (f"{name}", layer),
                 ]
             )

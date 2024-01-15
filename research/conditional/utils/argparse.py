@@ -295,4 +295,15 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--no_positional_embedding", action="store_true")
 
+    parser.add_argument(
+        "--norm_class",
+        type=str,
+        choices=[
+            "layer_norm",
+            "rms_norm",
+        ],
+        default="layer_norm",
+        required=False,
+    )
+
     return parser
