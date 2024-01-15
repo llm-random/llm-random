@@ -190,15 +190,31 @@ def calculate_llm_loss(
 
 def get_attention_layer(args):
     causal = args.model_type == "gpt"
-    attention_layer_fun = lambda: llm.Attention(
-        dmodel=args.dmodel,
-        heads=args.n_att_heads,
-        causal=causal,
-        dhead=args.dhead,
-        flash=args.flash_attention,
-        init_type=args.init_type,
-        init_scale=args.init_scale,
-    )
+    if args.attention_mode == "vanilla":
+        attention_layer_fun = lambda: llm.Attention(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.attention_mode == "rope":
+        attention_layer_fun = lambda: llm.AttentionPP(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            length=args.cutoff,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    else:
+        raise NotImplementedError(
+            f"Attention type {args.attention_mode} not implemented"
+        )
 
     return attention_layer_fun
 
@@ -360,6 +376,10 @@ def get_common_mot_kwargs(args):
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
+    if args.ff_mode == "swi_glu":
+        return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
     elif args.ff_mode == "vanilla_timed":
