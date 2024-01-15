@@ -32,6 +32,54 @@ class ResidualTest(GeneralTestCase):
         self.assertTensorEqual(output1 + input, output2)
 
 
+class AttentionPPTest(GeneralTestCase):
+    def test_basic(self):
+        batch, seql, dm, heads = 16, 4, 64, 8
+        layer = llm.AttentionPP(
+            dmodel=dm,
+            heads=heads,
+            length=seql,
+            causal=False,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+        self.assertShape(out, (batch, seql, dm))
+
+
+class RoPETest(GeneralTestCase):
+    def test_basic(self):
+        (
+            batch,
+            seql,
+            dhead,
+        ) = (
+            16,
+            4,
+            64,
+        )
+        layer = llm.RoPE(
+            dhead=dhead,
+            length=seql,
+        )
+        input = torch.normal(0.0, 1.0, (batch, seql, dhead))
+        out = layer(input)
+        self.assertShape(out, (batch, seql, dhead))
+        self.assertShape(layer.sin, (seql, dhead // 2))
+
+
+class SwiGLUFeedForwardTest(GeneralTestCase):
+    def test_basic(self):
+        batch, seql, dm, dff = 4, 8, 32, 64
+        layer = llm.SwiGLUFeedForward(
+            dmodel=dm, dff=dff, init_type="kaiming_uniform", init_scale=1.0
+        )
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        output = layer(input)
+        self.assertShape(output, (batch, seql, dm))
+
+
 class AttentionTest(GeneralTestCase):
     def test_basic(self):
         try:

@@ -30,6 +30,33 @@ def decode_bias_string(bias):
 
 
 @ash.check("... d -> ... d")
+class SwiGLUFeedForward(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_scale: float,
+    ):
+        super().__init__()
+        self.w1 = Linear(
+            dmodel, dff, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.gate = Linear(
+            dmodel, dff, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w2 = Linear(
+            dff, dmodel, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, x):
+        pre_activation = self.w1(x)
+        activation = torch.nn.functional.silu(pre_activation)
+        gate = self.gate(x)
+        return self.w2(activation * gate)
+
+
+@ash.check("... d -> ... d")
 def FeedForward(
     dmodel,
     dff,
@@ -238,6 +265,142 @@ class AttentionMechanism(nn.Module):
             causal=causal,
             flash=self.use_flash_attention,
         )
+
+
+@ash.check("... d -> ... d")
+class Attention(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        heads,
+        causal,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
+        super(Attention, self).__init__()
+        if dhead is None:
+            assert dmodel % heads == 0
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+
+        self.input_projection = Linear(
+            dmodel,
+            3 * heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
+
+    def forward(self, x):
+        projected = self.input_projection(x)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+        )
+
+        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
+
+        return output
+
+
+class RoPE(nn.Module):
+    # features are paired x_i, x_{i + d_head/2}
+    def __init__(self, dhead, length):
+        super().__init__()
+        self.dhead = dhead
+        self.length = length
+        angle_exponents = torch.arange(0, dhead, 2).float() / dhead
+        angles = torch.pow(1 / 10000, angle_exponents).reshape(1, -1)
+        self.register_buffer("angles", angles)
+        angle_per_token = angles * torch.arange(0, length).float().reshape(-1, 1)
+        self.register_buffer("sin", torch.sin(angle_per_token))
+        self.register_buffer("cos", torch.cos(angle_per_token))
+
+    def forward(self, x):
+        [x, y] = torch.chunk(x, chunks=2, dim=-1)
+        return torch.cat(
+            [x * self.cos - y * self.sin, x * self.sin + y * self.cos], dim=-1
+        )
+
+
+@ash.check("... d -> ... d")
+class AttentionPP(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        heads,
+        causal,
+        length,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
+        super(AttentionPP, self).__init__()
+        if dhead is None:
+            assert dmodel % heads == 0
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+
+        self.input_projection = Linear(
+            dmodel,
+            3 * heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.rope = RoPE(dhead, length=length)
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
+
+    def forward(self, x):
+        projected = self.input_projection(x)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+        q = self.rope(q)
+        k = self.rope(k)
+
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+        )
+
+        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
+
+        return output
 
 
 @ash.check("... d -> ... d")
