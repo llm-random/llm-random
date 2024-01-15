@@ -329,10 +329,9 @@ class RoPE(nn.Module):
         super().__init__()
         self.dhead = dhead
         self.length = length
-        angle_exponents = torch.arange(0, dhead, 2).float() / dhead
+        angle_exponents = torch.arange(0, dhead, 2) / dhead
         angles = torch.pow(1 / 10000, angle_exponents).reshape(1, -1)
-        self.register_buffer("angles", angles)
-        angle_per_token = angles * torch.arange(0, length).float().reshape(-1, 1)
+        angle_per_token = angles * torch.arange(0, length).reshape(-1, 1)
         self.register_buffer("sin", torch.sin(angle_per_token))
         self.register_buffer("cos", torch.cos(angle_per_token))
 

@@ -536,6 +536,8 @@ def get_classes_from_module_names(
             classes.append(llm.Attention)
         elif name == "AttentionMechanism":
             classes.append(llm.AttentionMechanism)
+        elif name == "RoPE":
+            classes.append(llm.RoPE)
         elif name == "FeedForward":
             classes.append(llm.FeedForward)
         elif name == "Residual":
