@@ -58,20 +58,19 @@ class TiTraMamba(LoggingLayer):
         lookback_weight = torch.matmul(mamba_output, self.weight).view(
             batch_size, seq_len, 1
         )
-        lookback_regression = torch.add(torch.matmul(mamba_output, self.regression), 8)
-        lookback_regression = torch.round(lookback_regression).type(torch.int64)
+        lookback_regression = torch.clamp(
+            torch.add(-torch.matmul(mamba_output, self.regression), 1), 0, 1
+        )
         self.update_cache_for_logging("regression", lookback_regression)
         self.update_cache_for_logging("weight", lookback_weight)
-        lookback_regression = self.non_neg(
-            torch.sub(lookback_limit, lookback_regression)
-        )
-        lookback_regression = torch.cumsum(lookback_regression, dim=1)
-        lookback_regression = torch.clamp(lookback_regression, max=lookback_limit)
+        lookback_regression = lookback_limit * lookback_regression
+        lookback_regression = torch.round(lookback_regression).type(torch.int64)
+        lookback_regression, _ = torch.cummax(lookback_regression, dim=1)
         lookback_regression = lookback_regression.view(batch_size, seq_len, 1).expand(
             batch_size, seq_len, self.dmodel
         )
         lookback = torch.gather(mamba_output, 1, lookback_regression)
-        return mamba_output + lookback_weight * lookback
+        return mamba_output + lookback
 
     def log_heavy(self):
         return {
