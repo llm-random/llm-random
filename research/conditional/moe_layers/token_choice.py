@@ -62,10 +62,11 @@ class TokenChoiceRouter(LoggingLayer):
                 gate_out = torch.matmul(x, self.gate)
 
         assert gate_out.shape == (n_tokens, self.n_experts)
-        capacity = min(
-            int(self.capacity_factor * n_tokens * self.routing_top_k / self.n_experts),
-            n_tokens,
+        capacity = int(
+            self.capacity_factor * n_tokens * self.routing_top_k / self.n_experts
         )
+        if self.vectorize:
+            capacity = min(capacity, n_tokens)
 
         # perform softmax over experts for each token
         with measure_time(self, "softmax"):
@@ -94,30 +95,15 @@ class TokenChoiceRouter(LoggingLayer):
                 ) = expert_mask.topk(k=capacity, dim=0)
             with measure_time(self, "create_truncated_mask"):
                 truncated_expert_mask = torch.zeros_like(expert_mask)
-                truncated_expert_mask.scatter_( # to check
+                truncated_expert_mask.scatter_(
                     dim=0,
                     index=top_tokens_per_expert_indices,
                     src=top_tokens_per_expert_values,
                 )
-                print(truncated_expert_mask.sum(0))
-                # indices_of_tokens_for_expert = [
-                #     single_expert_mask.nonzero(as_tuple=True)[0][:capacity]
-                #     for single_expert_mask in expert_mask.transpose(0, 1)
-                # ]
-                # unvectorized_truncated_expert_mask = torch.zeros_like(expert_mask)
-                # for i, indices in enumerate(indices_of_tokens_for_expert):
-                #     unvectorized_truncated_expert_mask[indices, i] = 1
-                # assert torch.isclose(
-                #     truncated_expert_mask, unvectorized_truncated_expert_mask
-                # ).all()
-                if capacity == n_tokens:
-                    assert torch.isclose(
-                        truncated_expert_mask, expert_mask
-                    ).all(), "truncated mask should be the same as expert mask"
         else:
             with measure_time(self, "experts_lists"):
                 indices_of_tokens_for_expert = [
-                    single_expert_mask.nonzero(as_tuple=True)[0][:capacity]
+                    single_expert_mask.nonzero(as_tuple=True)[0][: (capacity - 1)]
                     for single_expert_mask in expert_mask.transpose(0, 1)
                 ]
             with measure_time(self, "create_truncated_mask"):
@@ -160,10 +146,6 @@ class TokenChoiceRouter(LoggingLayer):
         )
         if self.vectorize:
             with measure_time(self, "assign_tokens_to_input"):
-                print(experts_input.shape)
-                print(top_tokens_per_expert_indices.shape)
-                print(top_tokens_per_expert_values.shape)
-                print(x.shape)
                 experts_input = x[
                     top_tokens_per_expert_indices.T.reshape(
                         (self.n_experts * capacity,)
@@ -172,27 +154,9 @@ class TokenChoiceRouter(LoggingLayer):
                 ] * top_tokens_per_expert_values.T.reshape(
                     (self.n_experts * capacity, 1)
                 )
-                # experts_input = experts_input.reshape(
-                #     self.n_experts * capacity, self.dmodel
-                # )
-                # experts_input.scatter_(
-
-                # )
-                # experts_input.index_add_(
-                #     dim=0,
-                #     index=top_tokens_per_expert_indices.reshape(
-                #         (self.n_experts * capacity,)
-                #     ),
-                #     source=x.reshape((n_tokens, self.dmodel)),
-                # )
                 experts_input = experts_input.reshape(
                     self.n_experts, capacity, self.dmodel
                 )
-                # experts_input = torch.select(
-                #     x, dim=0, index=top_tokens_per_expert_indices.flatten()
-                # )
-                # for i, indices in enumerate(top_tokens_per_expert_indices):
-                #     experts_input[i, : len(indices)] = x[indices]
         else:
             with measure_time(self, "assign_tokens_to_input"):
                 for i, indices in enumerate(indices_of_tokens_for_expert):
@@ -273,6 +237,9 @@ class TokenChoiceFF(LoggingLayer):
         self.use_einsum = use_einsum
         self.vectorize = vectorize
 
+        if vectorize and routing_top_k != 1:
+            raise ValueError("vectorize and routing_top_k != 1 are incompatible")
+
         self.lin1_weight = nn.Parameter(
             get_init_weight(
                 shape=(n_experts, dmodel, expert_size),
@@ -305,28 +272,16 @@ class TokenChoiceFF(LoggingLayer):
     def forward(self, x: torch.Tensor):
         batch_size, seq_len, _ = x.shape
 
-        # self.router.vectorize = True
-        # vectorized_output = self.router(x)
-        # self.router.vectorize = False
-        # unvectorized_output = self.router(x)
-
-        # assert torch.isclose(
-        #     vectorized_output[0], unvectorized_output[0]
-        # ).all(), "vectorized and unvectorized output should be the same"
-        # assert torch.isclose(
-        #     vectorized_output[2], unvectorized_output[2]
-        # ).all(), "vectorized and unvectorized output should be the same"
-
         if self.vectorize:
             (
                 experts_input,
-                top_tokens_per_expert_indices,
+                top_tokens_per_expert_indices,  # [c x n_experts]
                 masked_expert_gate,
             ) = self.router(x)
         else:
             (
                 experts_input,
-                indices_of_tokens_for_expert,
+                indices_of_tokens_for_expert,  # n_experts lists, each max c long
                 masked_expert_gate,
             ) = self.router(x)
 
@@ -357,13 +312,14 @@ class TokenChoiceFF(LoggingLayer):
 
         if self.vectorize:
             with measure_time(self, "assign_tokens_to_output"):
-                # print(top_tokens_per_expert_indices.shape)
-                # output.index_add_(
-                #     dim=0,
-                #     index=top_tokens_per_expert_indices.flatten(),
-                #     source=experts_output.flatten(start_dim=0, end_dim=1),
-                # )
-                # output
+                output.index_add_(
+                    dim=0,
+                    index=top_tokens_per_expert_indices.T.flatten(),
+                    source=experts_output.reshape(
+                        self.n_experts * experts_output.shape[1], self.dmodel
+                    ),
+                )
+                output *= masked_expert_gate.sum(dim=1, keepdim=True)
         else:
             with measure_time(self, "assign_tokens_to_output"):
                 for expert_id in range(self.n_experts):
