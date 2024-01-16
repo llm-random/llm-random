@@ -68,6 +68,45 @@ class RoPETest(GeneralTestCase):
         self.assertShape(out, (batch, seql, dhead))
         self.assertShape(layer.sin, (seql, dhead // 2))
 
+    def test_rotation(self):
+        batch, n_heads, seql, d_head = 1, 1, 2, 4
+        layer = llm.RoPE(d_head, seql)
+        print("ANGLE_EXPONENT", layer.angle_exponents)
+        print("ANGLE_PER_TOKEN", layer.angle_per_token)
+        print("ANGLE_PER_TOKEN", layer.angle_per_token)
+        # vertors [0, 1] for each head
+        input = torch.cat(
+            [
+                torch.ones(batch, n_heads, seql, 2),
+                torch.zeros(batch, n_heads, seql, 2),
+            ],
+            dim=-1,
+        )
+        out = layer(input)
+        theta_1 = torch.tensor(10000.0 ** (-0 / d_head))
+        theta_2 = torch.tensor(10000.0 ** (-2 / d_head))
+        expected_out_batch_head = torch.tensor(
+            [
+                [
+                    torch.cos(0 * theta_1),
+                    torch.cos(0 * theta_2),
+                    torch.sin(0 * theta_1),
+                    torch.sin(0 * theta_2),
+                ],
+                [
+                    torch.cos(1 * theta_1),
+                    torch.cos(1 * theta_2),
+                    torch.sin(1 * theta_1),
+                    torch.sin(1 * theta_2),
+                ],
+            ]
+        )
+        print(out)
+        # repeat for each batch and head
+        expected_out = expected_out_batch_head.repeat(batch, n_heads, 1, 1)
+        print(expected_out)
+        self.assertTensorAlmostEqual(out, expected_out)
+
 
 class SwiGLUFeedForwardTest(GeneralTestCase):
     def test_basic(self):
