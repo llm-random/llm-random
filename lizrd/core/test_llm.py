@@ -69,11 +69,8 @@ class RoPETest(GeneralTestCase):
         self.assertShape(layer.sin, (seql, dhead // 2))
 
     def test_rotation(self):
-        batch, n_heads, seql, d_head = 1, 1, 2, 4
+        batch, n_heads, seql, d_head = 2, 2, 2, 4
         layer = llm.RoPE(d_head, seql)
-        print("ANGLE_EXPONENT", layer.angle_exponents)
-        print("ANGLE_PER_TOKEN", layer.angle_per_token)
-        print("ANGLE_PER_TOKEN", layer.angle_per_token)
         # vertors [0, 1] for each head
         input = torch.cat(
             [
@@ -101,10 +98,8 @@ class RoPETest(GeneralTestCase):
                 ],
             ]
         )
-        print(out)
         # repeat for each batch and head
         expected_out = expected_out_batch_head.repeat(batch, n_heads, 1, 1)
-        print(expected_out)
         self.assertTensorAlmostEqual(out, expected_out)
 
 
