@@ -328,14 +328,13 @@ class RoPE(nn.Module):
         angle_exponents = torch.arange(0, dhead, 2) / dhead
         angles = torch.pow(1 / 10000, angle_exponents).reshape(1, -1)
         angle_per_token = angles * torch.arange(0, length).reshape(-1, 1)
-        self.register_buffer("sin", torch.sin(angle_per_token))
-        self.register_buffer("cos", torch.cos(angle_per_token))
+        self.register_buffer("sin", torch.sin(angle_per_token).repeat(1, 2))
+        self.register_buffer("cos", torch.cos(angle_per_token).repeat(1, 2))
 
     def forward(self, x):
-        [x, y] = torch.chunk(x, chunks=2, dim=-1)
-        return torch.cat(
-            [x * self.cos - y * self.sin, x * self.sin + y * self.cos], dim=-1
-        )
+        [y1, y2] = torch.chunk(x, chunks=2, dim=-1)
+        x_rotated = torch.cat([-y2, y1], dim=-1)
+        return x * self.cos + x_rotated * self.sin
 
 
 @ash.check("... d -> ... d")

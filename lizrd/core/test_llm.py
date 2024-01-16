@@ -66,7 +66,8 @@ class RoPETest(GeneralTestCase):
         input = torch.normal(0.0, 1.0, (batch, seql, dhead))
         out = layer(input)
         self.assertShape(out, (batch, seql, dhead))
-        self.assertShape(layer.sin, (seql, dhead // 2))
+        self.assertShape(layer.sin, (seql, dhead))
+        self.assertTensorEqual(layer.sin[:, : dhead // 2], layer.sin[:, dhead // 2 :])
 
     def test_rotation(self):
         batch, n_heads, seql, d_head = 2, 2, 3, 4
