@@ -32,6 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--config_path", type=str)
     parser.add_argument("--git_branch", type=str, default="")
     parser.add_argument("--neptune_key", type=str, default=None)
+    parser.add_argument("--local_print_config", action="store_true")
     args = parser.parse_args()
     CLUSTER_NAME = get_machine_backend()
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
@@ -211,6 +212,17 @@ if __name__ == "__main__":
         elif CLUSTER_NAME == MachineBackend.LOCAL:
             # We run the experiment directly, not through a grid entrypoint script
             # because we want to be able to debug it
+            subprocess_args = [
+                "python3",
+                "-m",
+                setup_args["runner"],
+                *runner_params,
+            ]
+            print("Will use the following command:")
+            print(" ".join([str(s) for s in subprocess_args]))
+            if args.local_print_config:
+                exit(0)
+
             runner_main_function = get_train_main_function(setup_args["runner"])
             runner_main_function(None, runner_params=runner_params)
             exit(0)
