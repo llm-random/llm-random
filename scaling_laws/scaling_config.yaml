@@ -9,7 +9,7 @@ scalings:
       - - "n_params"
       - - "n_steps"
     cmap: copper
-  - name: "granular"
+  - name: "Granular Scaling"
     tags:
       - "fixed_grid_wd"
       - "big_models"
@@ -17,6 +17,7 @@ scalings:
       - "gran_grid_failed"
       - "mini_8"
       - "lr_steps_bug"
+      - "small_gran"
     fixed:
       expansion_rate: 64
     power_laws:
@@ -29,10 +30,10 @@ scalings:
     poly_inter: true
     cmap: rainbow
 plot_dims:
-#  - - "predicted_loss"
-#    - "granularity"
   - - "predicted_loss"
-    - "n_steps"
+    - "granularity"
+#  - - "predicted_loss"
+#    - "n_steps"
 #  - - "predicted_loss"
  #   - "n_params"
   - - "flops"
@@ -49,11 +50,11 @@ extrapolate_factor: 3.0
 use_scipy: true
 load_model: false
 opt_log_loss: true
-scaling_bias: 0.7
+scaling_bias: 0.5
 huber_delta: 0.1
 weight_decay: 0.00001
 show_model_sizes:
-  10M: 10e6
+#  10M: 10e6
   100M: 100e6
   500M: 500e6
   1B: 1e9

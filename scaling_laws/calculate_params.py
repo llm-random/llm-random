@@ -39,7 +39,7 @@ class TrainRun:
                         step == self.n_opt_steps == args_final_lr_step and \
                         all([getattr(self, k) == v for k, v in fixed.items()])  and \
                         (self.granularity < 32) and \
-                        (self.n_params > 200000000 or self.n_opt_steps > 20000)
+                        (self.n_params > 200000000 or self.n_opt_steps > 10000)
                             # TODO: remove this hack and ^this, filer small axp and high granularity
 
     def dict(self):
