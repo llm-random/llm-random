@@ -8,7 +8,6 @@ import json
 from scaling_laws.scaling import ScalingLaw
 from scaling_laws.utils import neptune_connect, download_batch_sizes_from_neptune, \
     read_yaml_file, get_groups_by_dim
-from scaling_laws.calculate_params import calculate_active_params
 
 
 def plot_loss_vs_predicted_loss(scaling_law, no_title=False, group_by="granularity"):

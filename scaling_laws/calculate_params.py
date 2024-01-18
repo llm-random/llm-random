@@ -99,8 +99,9 @@ def calculate_n_steps_from_flops(flops, **params):
 
 
 def calculate_n_steps_from_dmodel(flops, dmodel, expansion_rate, granularity):
-    return dmodel_const*flops / \
-           (dmodel**2*(ff_const*dmodel+router_const*granularity*expansion_rate))
+    divisor = (dmodel**2*(ff_const*dmodel+router_const*granularity*expansion_rate))
+    return dmodel_const*flops / divisor if divisor != 0 else np.inf
+
 
 
 def calculate_n_params_from_flops(flops, n_steps, expansion_rate, granularity, **params):
@@ -126,7 +127,7 @@ def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, 
     p_fun = lambda d: calculate_params(dmodel=d, n_blocks=d/dmodel_const, expansion_rate=expansion_rate)
     n_fun = lambda d: calculate_n_steps_from_dmodel(flops=flops, dmodel=d, expansion_rate=expansion_rate, granularity=granularity)
     n_fun_slow = lambda d: calculate_n_steps_from_flops(flops=flops, n_params=p_fun(d), expansion_rate=expansion_rate, granularity=granularity)['n_steps']
-    fun2 = lambda d: scaling_laws.expected_loss(granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d)).detach().item()
+    fun2 = lambda d: min(scaling_laws.expected_loss(granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d)).detach().item(), 1e40)
     d_vals = [2**i for i in range(-1, 20)]
     assert np.allclose([n_fun(d) for d in d_vals], [n_fun_slow(d) for d in d_vals])
     res_raw = minimize_scalar(fun2)  #, options=dict(disp=1))   , method='bounded', bounds=(1, 1e6))
