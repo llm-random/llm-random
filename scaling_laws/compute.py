@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
+import json
 from scaling_laws.scaling import ScalingLaw
 from scaling_laws.utils import neptune_connect, download_batch_sizes_from_neptune, \
     read_yaml_file, get_groups_by_dim
@@ -126,6 +127,22 @@ def one_scaling(project, tags, fixed, tags_negative=(), **params):
     return scaling_law
 
 
+def resolve_interactive(scaling_law):
+    print("\n")
+    print("Interactive params resolving.")
+    print(f"Possible params: {scaling_law.params_set}")
+    print("Example json: \'{\"granularity\":1, \"flops\":1e20}\'")
+    text = "Enter proper json to resolve params, or 'stop' to stop: "
+    while (prompt := input(text)) != 'stop':
+        try:
+            params = json.loads(prompt)
+            perplexity, final_params = scaling_law.resolve_params(**params)
+            print(f"Perplexity: {perplexity}, params: \n{json.dumps(final_params, indent=4)}")
+        except Exception as e:
+            print(e)
+    return text
+
+
 def compute_scaling_laws(project_name, scalings, plot_dims, config, **params):
     project = neptune_connect(project_name)
     scaling_laws = [one_scaling(project=project, **s_config, **config)
@@ -133,6 +150,10 @@ def compute_scaling_laws(project_name, scalings, plot_dims, config, **params):
 
     for plot_dim in plot_dims:
         plot_params(scaling_laws, plot_dim, **params)
+
+    for scaling_law in scaling_laws:
+        if scaling_law.resolve_interactive:
+            resolve_interactive(scaling_law)
 
 
 def run_from_config():

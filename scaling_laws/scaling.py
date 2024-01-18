@@ -98,7 +98,8 @@ class PowerLaw(nn.Module):
 
 class ScalingLaw(nn.Module):
     def __init__(self, name, runs, power_laws, fixed, cmap, eps=1e-5, num_opt_steps=None, scaling_bias=None, lr=None,
-                 final_lr_fr=None, use_scipy=False, load_model=False, opt_log_loss=False, weight_decay=0, huber_delta=0.1, **params):
+                 final_lr_fr=None, use_scipy=False, load_model=False, opt_log_loss=False, weight_decay=0, huber_delta=0.1,
+                 resolve_interactive=False, **params):
         super().__init__()
         self.runs = runs
         self.name = name
@@ -116,6 +117,7 @@ class ScalingLaw(nn.Module):
         self.use_scipy = use_scipy
         self.opt_log_loss = opt_log_loss
         self.weight_decay = weight_decay
+        self.resolve_interactive = resolve_interactive
 
     def present_values_as_chinchila(self):
         print(f"{str(self)}")
@@ -165,15 +167,15 @@ class ScalingLaw(nn.Module):
         return loss, rmse
 
     def resolve_params(self, **params):
-        lacking = [k for k in self.params_set if k not in params]
         params.update(self.fixed_params)
-        if len(lacking) == 0:
+        lacking = self.params_set - set(params.keys())
+        if lacking == set():
             pass
-        elif len(lacking) == 1 and lacking[0] == "n_steps" and "flops" in params:
+        elif lacking == {"n_steps"} and "flops" in params:
             params.update(calculate_n_steps_from_flops(**params))
-        elif len(lacking) == 1 and lacking[0] == "n_params" and "flops" in params:
+        elif lacking == {"n_params"} and "flops" in params:
             params.update(calculate_n_params_from_flops(**params))
-        elif len(lacking) == 2 and "n_params" in lacking and "n_steps" in lacking and "flops" in params:
+        elif lacking == {"n_params", "n_steps"} and "flops" in params:
             params.update(calculate_n_params_and_steps_from_flops(**params, scaling_laws=self))
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")

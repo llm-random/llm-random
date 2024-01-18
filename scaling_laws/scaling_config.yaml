@@ -28,6 +28,7 @@ scalings:
     exp_inter: false
     poly_inter: true
     cmap: rainbow
+    resolve_interactive: true
 plot_dims:
   - - "predicted_loss"
     - "granularity"
@@ -47,7 +48,7 @@ plot_dims:
 #  - - "n_params"
 extrapolate_factor: 3.0
 use_scipy: true
-load_model: false
+load_model: true
 opt_log_loss: true
 scaling_bias: 0.5
 huber_delta: 0.1
