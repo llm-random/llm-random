@@ -34,6 +34,7 @@ class TrainRun:
         self.n_tokens = self.n_steps
         self.n_blocks = args_n_blocks
         self.n_params = calculate_params(**self.dict())
+        self.n_active_params = calculate_active_params(**self.dict())
         self.flops = calculate_flops(**self.dict())
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_opt_steps == args_final_lr_step and \
@@ -64,6 +65,11 @@ def calculate_block_flops(dmodel, expansion_rate, granularity, **_):
 def calculate_params(dmodel, expansion_rate, n_blocks, **_):
     # assume no params in routing and embeddings
     return dmodel**2 * 4*(2*expansion_rate + 1) * n_blocks
+
+
+def calculate_active_params(dmodel, expansion_rate, n_blocks, **_):
+    # assume no params in routing and embeddings
+    return dmodel**2 * 4*3 * n_blocks
 
 
 def calculate_model_params_from_laws(expansion_rate, n_params, **_):

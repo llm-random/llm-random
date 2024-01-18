@@ -7,6 +7,7 @@ from matplotlib.pyplot import cm
 from scaling_laws.scaling import ScalingLaw
 from scaling_laws.utils import neptune_connect, download_batch_sizes_from_neptune, \
     read_yaml_file, get_groups_by_dim
+from scaling_laws.calculate_params import calculate_active_params
 
 
 def plot_loss_vs_predicted_loss(scaling_law, group_by="granularity"):
@@ -95,7 +96,9 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
                 if not np.isfinite(perplexity) and perplexity > 0:
                     continue
                 plt.scatter(math.log10(params['flops']), perplexity, color="black", s=6, marker='x')
-                plt.text(math.log10(params['flops']), perplexity, f"{k} steps={params['n_steps']:.2E}", color="grey", fontsize=4, rotation=30 + ii*10)
+                plt.text(math.log10(params['flops']), perplexity, f"{k}", color="grey", fontsize=4, rotation=30 + ii*10)
+                active_params = calculate_active_params(**params)
+                print(f"{k} steps={params['n_steps']:.2E} flops={params['flops']:.2E} perplexity={perplexity:.2E} active_params={active_params:.2E}")
 
     plt.title('\n'.join([str(s) for s in scaling_laws]), wrap=True, fontsize=5)
     plt.rc('font', size=7)
