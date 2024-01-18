@@ -5,6 +5,7 @@ from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
 import torch
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.profiler import profile, ProfilerActivity
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
@@ -247,16 +248,22 @@ class ConditionalTrainer:
         if should_apply_gradient:
             if self.scaler is None:
                 if self.gradient_clipping is not None:
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.gradient_clipping
-                    )
+                    if isinstance(self.model, FSDP):
+                        self.model.clip_grad_norm_(self.gradient_clipping)
+                    else:
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(), self.gradient_clipping
+                        )
                 self.optimizer.step()
             else:
                 if self.gradient_clipping is not None:
                     self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.gradient_clipping
-                    )
+                    if isinstance(self.model, FSDP):
+                        self.model.clip_grad_norm_(self.gradient_clipping)
+                    else:
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(), self.gradient_clipping
+                        )
                 self.scaler.step(self.optimizer)
                 if self.scaler is not None:
                     self.scaler.update()
