@@ -524,7 +524,9 @@ def get_mamba_layer(args):
     import mamba_ssm
 
     if args.mamba_mode == "vanilla":
-        return_fn = lambda: mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
+        return_fn = lambda: mamba_ssm.Mamba(
+            d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
+        )
     elif args.mamba_mode == "out_proj_moe":
 
         def modified_out_mamba():

@@ -299,6 +299,7 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
     )
+    parser.add_argument("--mamba_expansion", type=int, default=2)
     parser.add_argument("--no_positional_embedding", action="store_true")
 
     parser.add_argument(
