@@ -490,7 +490,9 @@ def get_mamba_layer(args):
     import mamba_ssm
 
     if args.mamba_mode == "vanilla":
-        return_fn = lambda: mamba_ssm.Mamba(d_model=args.dmodel)
+        return_fn = lambda: mamba_ssm.Mamba(
+            d_model=args.dmodel, expand=args.mamba_expansion
+        )
     else:
         raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
     return return_fn
