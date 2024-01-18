@@ -25,7 +25,6 @@ scalings:
       - - "n_params"
         - "granularity"
       - - "n_steps"
-        - "granularity"
     exp_inter: false
     poly_inter: true
     cmap: rainbow
@@ -64,4 +63,5 @@ show_model_sizes:
   500B: 500e9
   1T: 1e12
 plot_points: 100
+no_title: true
 project_name: "pmtest/llm-random"
