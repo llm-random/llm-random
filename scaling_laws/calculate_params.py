@@ -33,14 +33,15 @@ class TrainRun:
         self.n_steps = self.n_opt_steps * batch_size * seq_len * grad_accum
         self.n_tokens = self.n_steps
         self.n_blocks = args_n_blocks
+        self.n_params_total = calculate_total_params(**self.dict())
+        self.n_params_active = calculate_active_params(**self.dict())
         self.n_params = calculate_params(**self.dict())
-        self.n_active_params = calculate_active_params(**self.dict())
         self.flops = calculate_flops(**self.dict())
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_opt_steps == args_final_lr_step and \
                         all([getattr(self, k) == v for k, v in fixed.items()])  and \
                         (self.granularity < 32) and \
-                        (self.n_params > 200000000 or self.n_opt_steps > 10000)
+                        (self.n_params_total > 200000000 or self.n_opt_steps > 10000)
                             # TODO: remove this hack and ^this, filer small axp and high granularity
 
     def dict(self):
@@ -62,21 +63,25 @@ def calculate_block_flops(dmodel, expansion_rate, granularity, **_):
     return ff + einsum + router + attn
 
 
-def calculate_params(dmodel, expansion_rate, n_blocks, **_):
+use_active_params = False
+
+
+def calculate_params(**params):
+    return calculate_active_params(**params) if use_active_params else calculate_total_params(**params)
+
+
+def calculate_total_params(dmodel, expansion_rate, n_blocks, **_):
     # assume no params in routing and embeddings
     return dmodel**2 * 4*(2*expansion_rate + 1) * n_blocks
 
 
-def calculate_active_params(dmodel, expansion_rate, n_blocks, **_):
-    # assume no params in routing and embeddings
-    return dmodel**2 * 4*3 * n_blocks
+def calculate_active_params(dmodel, n_blocks, **_):
+    return calculate_total_params(dmodel, 1, n_blocks)
 
 
-def calculate_model_params_from_laws(expansion_rate, n_params, **_):
+def calculate_model_params_from_laws(expansion_rate, n_params, use_active=use_active_params, **_):
+    expansion_rate = 1 if use_active else expansion_rate
     params_const = n_params / (4*(2*expansion_rate + 1))
-    # TODO it's stupid but our configs kinda follow this
-    # TODO check if this assumtion is aligned with standard scaling laws assumtion that flops ~ params*iter
-    # we assume dmodel = dmodel_const * n_blocks
     # params_const = (n_blocks * (n_blocks*dmodel_const)**2) = n_blocks**3 * 64**2
     n_blocks = (params_const / dmodel_const**2)**(1/3)
     dmodel = dmodel_const * n_blocks
@@ -118,36 +123,50 @@ def calculate_n_params_from_flops(flops, n_steps, expansion_rate, granularity, *
 
 
 def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, scaling_laws, **params):
-    x_p = scaling_laws.get_param_for("n_params")
-    x_n = scaling_laws.get_param_for("n_steps")
-    x_g = scaling_laws.get_param_for("granularity")
-    c_p = scaling_laws.get_param_for("n_params", "granularity")
-    c_n = scaling_laws.get_param_for("n_steps", "granularity")
-    L = scaling_laws.L0.detach().item()
-    g = granularity
-    f = flops
-    d_c = dmodel_const
-    z = expansion_rate
+    p_fun = lambda d: calculate_params(dmodel=d, n_blocks=d/dmodel_const, expansion_rate=expansion_rate)
+    n_fun = lambda d: calculate_n_steps_from_dmodel(flops=flops, dmodel=d, expansion_rate=expansion_rate, granularity=granularity)
+    n_fun_slow = lambda d: calculate_n_steps_from_flops(flops=flops, n_params=p_fun(d), expansion_rate=expansion_rate, granularity=granularity)['n_steps']
+    fun2 = lambda d: scaling_laws.expected_loss(granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d)).detach().item()
+    d_vals = [2**i for i in range(-1, 20)]
+    assert np.allclose([n_fun(d) for d in d_vals], [n_fun_slow(d) for d in d_vals])
+    res_raw = minimize_scalar(fun2)  #, options=dict(disp=1))   , method='bounded', bounds=(1, 1e6))
+    dmodel = res_raw.x
+
+    n_blocks = dmodel/dmodel_const
+    n_params = p_fun(dmodel)
+    n_steps = n_fun(dmodel)
+    new_params = dict(n_params=n_params, n_steps=n_steps, flops=flops, dmodel=dmodel, n_blocks=n_blocks,
+                      granularity=granularity, expansion_rate=expansion_rate, **params)
+    assert np.isclose(calculate_flops(**new_params), flops)
+    return new_params
+
+
+#    x_p = scaling_laws.get_param_for("n_params")
+#    x_n = scaling_laws.get_param_for("n_steps")
+#    x_g = scaling_laws.get_param_for("granularity")
+#    c_p = scaling_laws.get_param_for("n_params", "granularity")
+#    c_n = scaling_laws.get_param_for("n_steps", "granularity")
+#    L = scaling_laws.L0.detach().item()
+#    g = granularity
+#    f = flops
+#    d_c = dmodel_const
+#    z = expansion_rate
 
     # derivative calculation
     # https://www.wolframalpha.com/input?i2d=true&i=%22D%5B%5C%2840%29Subscript%5Bx%2Cp%5D%2BSubscript%5Bc%2Cp%5DLog%5Bg%5D%5C%2841%29Log%5BDivide%5BPower%5Bd%2C3%5D%5C%2840%29z%2B4%5C%2841%29%2CSubscript%5Bd%2Cc%5D%5D%5D+%2B+Subscript%5Bx%2Cg%5DLog%5Bg%5D%2Cd%5D+%2B+%5C%2840%29Subscript%5Bx%2Cn%5D%2BSubscript%5Bc%2Cn%5DLog%5Bg%5D%5C%2841%29Log%5BDivide%5BSubscript%5Bd%2Cc%5Df%2CPower%5Bd%2C2%5D%5C%2840%298d+%2B+6z*g%5C%2841%29%5D%5D%22
     # solve for d
-    p_fun = lambda d: calculate_params(dmodel=d, n_blocks=d/dmodel_const, expansion_rate=expansion_rate)
-    n_fun = lambda d: calculate_n_steps_from_dmodel(flops=flops, dmodel=d, expansion_rate=expansion_rate, granularity=granularity)
-    n_fun_slow = lambda d: calculate_n_steps_from_flops(flops=flops, n_params=p_fun(d), expansion_rate=expansion_rate, granularity=granularity)['n_steps']
-
 #    L_fun = lambda d: L + x_p*log(p_fun(d)) + x_n*log(n_fun(d)) + x_g*log(g) + \
 #        c_n*log(g)*log(n_fun(d)) + c_p*log(g)*log(p_fun(d))
 
-    fun2 = lambda d: scaling_laws.expected_loss(granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d)).detach().item()
+#
 #    function = lambda d: L_fun(d)
 #    function_der = lambda d: (
 #        (c_n*log(g) + x_n)*log((f*d_c)/(d**2*(8*d + 6*g*z))) +
 #        (3*(c_p*log(g) + x_p))/d
 #    )**2
 
-    d_vals = [2**i for i in range(-1, 20)]
-    assert np.allclose([n_fun(d) for d in d_vals], [n_fun_slow(d) for d in d_vals])
+#
+
 #    assert np.allclose([L_fun(d) for d in d_vals], [fun2(d) for d in d_vals])
 
     # L_fun and fun2 are monotonic functions, this means current scaling laws
@@ -157,16 +176,6 @@ def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, 
 
 #    res = minimize_scalar(function)
 #    res_der = minimize_scalar(function_der)
-    res_raw = minimize_scalar(fun2)  #, options=dict(disp=1))   , method='bounded', bounds=(1, 1e6))
 
-    dmodel = res_raw.x
     #dmodel_der = res_der.x
     #dmodel_raw = res_raw.x
-
-    n_blocks = dmodel/dmodel_const
-    n_params = p_fun(dmodel)
-    n_steps = n_fun(dmodel)
-    new_params = dict(n_params=n_params, n_steps=n_steps, flops=flops, dmodel=dmodel, n_blocks=n_blocks,
-                      granularity=granularity, expansion_rate=expansion_rate, **params)
-    assert np.isclose(calculate_flops(**new_params), flops)
-    return new_params

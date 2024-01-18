@@ -82,7 +82,7 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
                     if not minimal[i]:
                         continue
                     for k, (size, perplexity, old_params) in model_sizes.items():
-                        if pred < perplexity and params['n_params'] >= float(size) and old_params['flops'] > params['flops']:
+                        if pred < perplexity and params['n_params_total'] >= float(size) and old_params['flops'] > params['flops']:
                             model_sizes[k] = (size, pred, params)
             if not plot_minimal:
                 plt.plot(A_values, B_p, color=color, label=name)
@@ -97,9 +97,8 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
                 if not np.isfinite(perplexity) and perplexity > 0:
                     continue
                 plt.scatter(math.log10(params['flops']), perplexity, color="black", s=6, marker='x')
-                plt.text(math.log10(params['flops']), perplexity, f"{k}", color="grey", fontsize=4, rotation=30 + ii*10)
-                active_params = calculate_active_params(**params)
-                print(f"{k} steps={params['n_steps']:.2E} flops={params['flops']:.2E} perplexity={perplexity:.2E} active_params={active_params:.2E}")
+                plt.text(math.log10(params['flops']), perplexity, f"{k}", color="grey", fontsize=6, rotation=30 + ii*10)
+                print(f"{k}: steps={params['n_steps']:.2E} flops={params['flops']:.2E} perplexity={perplexity:.2E} active_params={params['n_params_active']:.2E} total_params={params['n_params_total']:.2E}")
 
     if not no_title:
         plt.title('\n'.join([str(s) for s in scaling_laws]), wrap=True, fontsize=5)

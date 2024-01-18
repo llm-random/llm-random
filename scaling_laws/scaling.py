@@ -10,7 +10,7 @@ from scipy.optimize import minimize
 import math
 
 from scaling_laws.calculate_params import calculate_n_steps_from_flops, calculate_n_params_from_flops, \
-    calculate_n_params_and_steps_from_flops
+    calculate_n_params_and_steps_from_flops, calculate_total_params, calculate_active_params
 
 
 def init(eps):
@@ -177,6 +177,7 @@ class ScalingLaw(nn.Module):
             params.update(calculate_n_params_and_steps_from_flops(**params, scaling_laws=self))
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
+        params.update(n_params_total=calculate_total_params(**params), n_params_active=calculate_active_params(**params))
         return self.expected_logloss(**params).detach().numpy(), params
 
     def optimize(self):
