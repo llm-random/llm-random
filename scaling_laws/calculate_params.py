@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize_scalar
 
+from scaling_laws.utils import binary_search
 
 dmodel_const = 64
 ff_const = 4
@@ -138,6 +139,19 @@ def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, 
                       granularity=granularity, expansion_rate=expansion_rate)
     assert np.isclose(calculate_flops(**new_params, **params), flops)
     return new_params
+
+
+def calculate_compute_opt_params(n_steps, scaling_laws, **params):
+    compute_opt_params_diff = lambda lflops: n_steps - calculate_n_params_and_steps_from_flops(flops=np.exp(lflops), scaling_laws=scaling_laws, **params)["n_steps"]
+    flops = np.exp(binary_search(range=scaling_laws.flops_range_log, fun=compute_opt_params_diff))
+    return calculate_n_params_from_flops(n_steps=n_steps, flops=flops, scaling_laws=scaling_laws, **params)
+
+
+def calculate_compute_opt_steps(n_params, scaling_laws, **params):
+    compute_opt_steps_diff = lambda lflops: n_params - calculate_n_params_and_steps_from_flops(flops=np.exp(lflops), scaling_laws=scaling_laws, **params)["n_params"]
+    flops = np.exp(binary_search(range=scaling_laws.flops_range_log, fun=compute_opt_steps_diff))
+    return calculate_n_steps_from_flops(n_params=n_params, flops=flops, scaling_laws=scaling_laws, **params)
+
 
 
 #    x_p = scaling_laws.get_param_for("n_params")

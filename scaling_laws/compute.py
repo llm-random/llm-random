@@ -2,12 +2,14 @@ import os
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from matplotlib.pyplot import cm
 
 import json
+
+from scaling_laws.calculate_params import TrainRun
 from scaling_laws.scaling import ScalingLaw
-from scaling_laws.utils import neptune_connect, download_batch_sizes_from_neptune, \
-    read_yaml_file, get_groups_by_dim
+from scaling_laws.utils import neptune_connect, read_yaml_file, get_groups_by_dim
 
 
 def plot_loss_vs_predicted_loss(scaling_law, no_title=False, group_by="granularity"):
@@ -117,8 +119,20 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
     plt.show()
 
 
+def download_from_neptune(project, tags, tags_negative, fixed, use_active_params):
+    print("Downloading data from Neptune...")
+    table = pd.concat([project.fetch_runs_table(tag=tag).to_pandas() for tag in tags])
+    table.rename(columns=lambda x: x.replace("/", "_"), inplace=True)
+    table = [row for _, row in table.iterrows() if all(tag not in tags_negative for tag in row["sys_tags"].split(','))]
+    table = [TrainRun(**row, fixed=fixed, use_active_params=use_active_params) for row in table]
+    proper = np.average([t.finished for t in table])
+    runs = [t for t in table if t.finished]
+    print(f"{len(runs)} ({proper*100:.2f}%) of runs finished properly")
+    return runs
+
+
 def one_scaling(project, tags, fixed, use_active_params=False, tags_negative=(), **params):
-    runs = download_batch_sizes_from_neptune(project, tags, tags_negative, fixed, use_active_params)
+    runs = download_from_neptune(project, tags, tags_negative, fixed, use_active_params)
     scaling_law = ScalingLaw(runs=runs, fixed=fixed, use_active_params=use_active_params, **params)
     _ = scaling_law.optimize()
     print(f"Final {scaling_law.name} scaling law approximation RMSE: {scaling_law()[1]}")
@@ -129,8 +143,8 @@ def one_scaling(project, tags, fixed, use_active_params=False, tags_negative=(),
 def resolve_interactive(scaling_law):
     print("\n")
     print("Interactive params resolving.")
-    print(f"Possible params: {scaling_law.params_set}")
-    print("Example json: \'{\"granularity\":1, \"flops\":1e20}\'")
+    print(f"Possible params: {scaling_law.params_set + {'granularity', 'flops'}}")
+    print("Example json: \'{\"granularity\":1, \"flops\":1e20}\' \'{\"n_params\":1e12}\'")
     text = "Enter proper json to resolve params, or 'stop' to stop: "
     while (prompt := input(text)) != 'stop':
         try:

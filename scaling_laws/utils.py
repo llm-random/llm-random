@@ -3,11 +3,7 @@ import os
 from collections import defaultdict
 
 import neptune
-import numpy as np
-import pandas as pd
 import yaml
-
-from scaling_laws.calculate_params import TrainRun
 
 
 def unique_values_with_indices(data):
@@ -29,18 +25,6 @@ def neptune_connect(project_name):
     return neptune.init_project(api_token=api_token, project=project_name)
 
 
-def download_batch_sizes_from_neptune(project, tags, tags_negative, fixed, use_active_params):
-    print("Downloading data from Neptune...")
-    table = pd.concat([project.fetch_runs_table(tag=tag).to_pandas() for tag in tags])
-    table.rename(columns=lambda x: x.replace("/", "_"), inplace=True)
-    table = [row for _, row in table.iterrows() if all(tag not in tags_negative for tag in row["sys_tags"].split(','))]
-    table = [TrainRun(**row, fixed=fixed, use_active_params=use_active_params) for row in table]
-    proper = np.average([t.finished for t in table])
-    runs = [t for t in table if t.finished]
-    print(f"{len(runs)} ({proper*100:.2f}%) of runs finished properly")
-    return runs
-
-
 def read_yaml_file():
     parser = argparse.ArgumentParser(description="Read a yaml file")
     parser.add_argument("config_path", type=str, help="Path to the YAML file")
@@ -52,3 +36,14 @@ def read_yaml_file():
             return data
         except yaml.YAMLError as exc:
             print(exc)
+
+
+def binary_search(range, fun, tol=0.02):
+    min_val, max_val = range
+    while max_val - min_val > tol:
+        mid_val = (max_val + min_val) / 2
+        if fun(mid_val) < 0:
+            max_val = mid_val
+        else:
+            min_val = mid_val
+    return (max_val + min_val) / 2

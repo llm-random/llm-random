@@ -118,6 +118,10 @@ class ScalingLaw(nn.Module):
         self.weight_decay = weight_decay
         self.resolve_interactive = resolve_interactive
         self.conf_params = dict(use_active_params=use_active_params)
+        self.flops_range = (1e12, 1e32)
+        self.flops_range_log = (math.log(self.flops_range[0]), math.log(self.flops_range[1]))
+        self.flops_range_margin = (self.flops_range[0] - 1000, self.flops_range[1] + 1000)
+        self.granularity_range = [2**g_i for g_i in range(0, 10)]
 
     def present_values_as_chinchila(self):
         print(f"{str(self)}")
@@ -166,9 +170,17 @@ class ScalingLaw(nn.Module):
         loss += weight_decay*self.weight_decay
         return loss, rmse
 
+    def find_opt_granularity(self, **params):
+        losses, params = zip(*[self.resolve_params(**params, granularity=g) for g in self.granularity_range])
+        best = np.argmin(np.stack(losses))
+        return losses[best], params[best]
+
     def resolve_params(self, **params):
         params.update(self.fixed_params)
         lacking = self.params_set - set(params.keys())
+
+        if "granularity" in lacking:
+            return self.find_opt_granularity(**params)
 
         if "n_params" in lacking and "dmodel" in params and "n_blocks" in params:
             params["n_params"] = calculate_params(**self.conf_params, **params)
@@ -182,6 +194,10 @@ class ScalingLaw(nn.Module):
             params.update(calculate_n_params_from_flops(**self.conf_params, **params))
         elif lacking == {"n_params", "n_steps"} and "flops" in params:
             params.update(calculate_n_params_and_steps_from_flops(**self.conf_params, **params, scaling_laws=self))
+        elif lacking == {"n_params"}:
+            params.update(calculate_compute_opt_params(**self.conf_params, **params, scaling_laws=self))
+        elif lacking == {"n_steps"}:
+            params.update(calculate_compute_opt_steps(**self.conf_params, **params, scaling_laws=self))
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
 
@@ -189,6 +205,9 @@ class ScalingLaw(nn.Module):
         params.update(calculate_model_params_from_laws(**self.conf_params, **params))
         params.update(n_params_total=calculate_total_params(**params), n_params_active=calculate_active_params(**params))
         params["flops"] = calculate_flops(**self.conf_params, **params)
+
+        if params["flops"] < self.flops_range_margin[0] or params["flops"] > self.flops_range_margin[1]:
+            raise Exception(f"Flops {params['flops']} out of range {self.flops_range}")
 
         return self.expected_logloss(**params).detach().numpy(), params
 
