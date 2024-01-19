@@ -143,8 +143,8 @@ def one_scaling(project, tags, fixed, use_active_params=False, tags_negative=(),
 def resolve_interactive(scaling_law):
     print("\n")
     print("Interactive params resolving.")
-    print(f"Possible params: {scaling_law.params_set | {'granularity', 'flops'}}")
-    print("Example jsons: \'{\"granularity\":1, \"flops\":1e20}\',  \'{\"n_params\":1e12}\'")
+    print(f"Possible params: {scaling_law.params_set | {'granularity', 'flops', 'dmodel', 'n_blocks'}}, most reasonable subsets should work.")
+    print("Example jsons: \'{\"granularity\":1, \"flops\":1e20}\',  \'{\"n_params\":1e12}\',  \'{\"dmodel\":512}\'")
     text = "Enter proper json to resolve params, or 'stop' to stop: "
     while (prompt := input(text)) != 'stop':
         try:

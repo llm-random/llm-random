@@ -181,10 +181,7 @@ class ScalingLaw(nn.Module):
 
         if "granularity" in lacking:
             return self.find_opt_granularity(**params)
-
-        if "n_params" in lacking and "dmodel" in params and "n_blocks" in params:
-            params["n_params"] = calculate_params(**self.conf_params, **params)
-            lacking -= {"n_params"}
+        self.resolve_model_size(lacking, params)
 
         if lacking == set():
             pass
@@ -201,15 +198,31 @@ class ScalingLaw(nn.Module):
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
 
+        self.update_other_hyperparams(params)
+        return self.expected_logloss(**params).detach().numpy(), params
+
+    def resolve_model_size(self, lacking, params):
+        if "dmodel" in params and "n_blocks" not in params:
+            params["n_blocks"] = params["dmodel"] // dmodel_const
+        if "dmodel" not in params and "n_blocks" in params:
+            params["dmodel"] = params["n_blocks"] * dmodel_const
+
+        if "n_params" in lacking and "dmodel" in params and "n_blocks" in params:
+            params["n_params"] = calculate_params(**self.conf_params, **params)
+            lacking -= {"n_params"}
+        if "dmodel" in params:
+            del params["dmodel"]
+        if "n_blocks" in params:
+            del params["n_blocks"]
+
+    def update_other_hyperparams(self, params):
         # compute optimal already calculated here
         params.update(calculate_model_params_from_laws(**self.conf_params, **params))
-        params.update(n_params_total=calculate_total_params(**params), n_params_active=calculate_active_params(**params))
+        params.update(n_params_total=calculate_total_params(**params),
+                      n_params_active=calculate_active_params(**params))
         params["flops"] = calculate_flops(**self.conf_params, **params)
-
         if params["flops"] < self.flops_range_margin[0] or params["flops"] > self.flops_range_margin[1]:
             raise Exception(f"Flops {params['flops']} out of range {self.flops_range}")
-
-        return self.expected_logloss(**params).detach().numpy(), params
 
     def optimize(self):
         if self.load_model and os.path.exists(self.checkpoint_name):
