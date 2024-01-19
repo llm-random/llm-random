@@ -117,9 +117,9 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
     plt.show()
 
 
-def one_scaling(project, tags, fixed, tags_negative=(), **params):
-    runs = download_batch_sizes_from_neptune(project, tags, tags_negative, fixed)
-    scaling_law = ScalingLaw(runs=runs, fixed=fixed, **params)
+def one_scaling(project, tags, fixed, use_active_params=False, tags_negative=(), **params):
+    runs = download_batch_sizes_from_neptune(project, tags, tags_negative, fixed, use_active_params)
+    scaling_law = ScalingLaw(runs=runs, fixed=fixed, use_active_params=use_active_params, **params)
     _ = scaling_law.optimize()
     print(f"Final {scaling_law.name} scaling law approximation RMSE: {scaling_law()[1]}")
     scaling_law.present_values_as_chinchila()
@@ -136,7 +136,7 @@ def resolve_interactive(scaling_law):
         try:
             params = json.loads(prompt)
             perplexity, final_params = scaling_law.resolve_params(**params)
-            print(f"Perplexity: {perplexity}, params: \n{json.dumps(final_params, indent=4)}")
+            print(f"Loss: {np.exp(perplexity)}, params: \n{json.dumps(final_params, indent=4)}")
         except Exception as e:
             print(e)
     return text

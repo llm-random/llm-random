@@ -23,12 +23,14 @@ class TrainRun:
         fixed,
         args_granularity=0,
         args_expansion_rate=1,
+        use_active_params=False,
         **_,
     ):
         self.loss = loss_interval_1000
         self.granularity = args_granularity
         self.expansion_rate = args_expansion_rate
         self.dmodel = args_dmodel
+        self.use_active = use_active_params
         self.n_opt_steps = args_n_steps
         self.n_steps = self.n_opt_steps * batch_size * seq_len * grad_accum
         self.n_tokens = self.n_steps
@@ -39,7 +41,7 @@ class TrainRun:
         self.flops = calculate_flops(**self.dict())
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_opt_steps == args_final_lr_step and \
-                        all([getattr(self, k) == v for k, v in fixed.items()])  and \
+                        all([getattr(self, k) == v for k, v in fixed.items()]) and \
                         (self.granularity < 32) and \
                         (self.n_params_total > 200000000 or self.n_opt_steps > 10000)
                             # TODO: remove this hack and ^this, filer small axp and high granularity
@@ -63,11 +65,8 @@ def calculate_block_flops(dmodel, expansion_rate, granularity, **_):
     return ff + einsum + router + attn
 
 
-use_active_params = False
-
-
-def calculate_params(**params):
-    return calculate_active_params(**params) if use_active_params else calculate_total_params(**params)
+def calculate_params(use_active=False, **params):
+    return calculate_active_params(**params) if use_active else calculate_total_params(**params)
 
 
 def calculate_total_params(dmodel, expansion_rate, n_blocks, **_):
@@ -79,7 +78,7 @@ def calculate_active_params(dmodel, n_blocks, **_):
     return calculate_total_params(dmodel, 1, n_blocks)
 
 
-def calculate_model_params_from_laws(expansion_rate, n_params, use_active=use_active_params, **_):
+def calculate_model_params_from_laws(expansion_rate, n_params, use_active=False, **_):
     expansion_rate = 1 if use_active else expansion_rate
     params_const = n_params / (4*(2*expansion_rate + 1))
     # params_const = (n_blocks * (n_blocks*dmodel_const)**2) = n_blocks**3 * 64**2
@@ -103,7 +102,6 @@ def calculate_n_steps_from_dmodel(flops, dmodel, expansion_rate, granularity):
     return dmodel_const*flops / divisor if divisor != 0 else np.inf
 
 
-
 def calculate_n_params_from_flops(flops, n_steps, expansion_rate, granularity, **params):
     # F = n_steps * n_blocks * dmodel * (8*d + eg6)
     # 8d³+6egd - F*64/n = 0
@@ -123,10 +121,10 @@ def calculate_n_params_from_flops(flops, n_steps, expansion_rate, granularity, *
     return new_params
 
 
-def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, scaling_laws, **params):
-    p_fun = lambda d: calculate_params(dmodel=d, n_blocks=d/dmodel_const, expansion_rate=expansion_rate)
+def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, scaling_laws, use_active=False, **params):
+    p_fun = lambda d: calculate_params(dmodel=d, n_blocks=d/dmodel_const, expansion_rate=expansion_rate, use_active=use_active)
     n_fun = lambda d: calculate_n_steps_from_dmodel(flops=flops, dmodel=d, expansion_rate=expansion_rate, granularity=granularity)
-    n_fun_slow = lambda d: calculate_n_steps_from_flops(flops=flops, n_params=p_fun(d), expansion_rate=expansion_rate, granularity=granularity)['n_steps']
+    n_fun_slow = lambda d: calculate_n_steps_from_flops(flops=flops, n_params=p_fun(d), expansion_rate=expansion_rate, granularity=granularity, use_active=use_active)['n_steps']
     fun2 = lambda d: min(scaling_laws.expected_loss(granularity=granularity, n_params=p_fun(d), n_steps=n_fun(d)).detach().item(), 1e40)
     d_vals = [2**i for i in range(-1, 20)]
     assert np.allclose([n_fun(d) for d in d_vals], [n_fun_slow(d) for d in d_vals])
@@ -137,8 +135,8 @@ def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, 
     n_params = p_fun(dmodel)
     n_steps = n_fun(dmodel)
     new_params = dict(n_params=n_params, n_steps=n_steps, flops=flops, dmodel=dmodel, n_blocks=n_blocks,
-                      granularity=granularity, expansion_rate=expansion_rate, **params)
-    assert np.isclose(calculate_flops(**new_params), flops)
+                      granularity=granularity, expansion_rate=expansion_rate)
+    assert np.isclose(calculate_flops(**new_params, **params), flops)
     return new_params
 
 

@@ -21,7 +21,6 @@ scalings:
     fixed:
       expansion_rate: 64
     power_laws:
-#      - - "granularity"
       - - "n_params"
         - "granularity"
       - - "n_steps"
@@ -29,13 +28,14 @@ scalings:
     poly_inter: true
     cmap: rainbow
     resolve_interactive: true
+    use_active_params: false
 plot_dims:
   - - "predicted_loss"
     - "granularity"
 #  - - "predicted_loss"
 #    - "n_steps"
 #  - - "predicted_loss"
- #   - "n_params"
+#    - "n_params"
   - - "flops"
     - "n_params"
     - "n_steps"
@@ -48,7 +48,7 @@ plot_dims:
 #  - - "n_params"
 extrapolate_factor: 3.0
 use_scipy: true
-load_model: true
+load_model: false
 opt_log_loss: true
 scaling_bias: 0.5
 huber_delta: 0.1

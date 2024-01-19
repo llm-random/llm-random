@@ -9,8 +9,7 @@ import os
 from scipy.optimize import minimize
 import math
 
-from scaling_laws.calculate_params import calculate_n_steps_from_flops, calculate_n_params_from_flops, \
-    calculate_n_params_and_steps_from_flops, calculate_total_params, calculate_active_params
+from scaling_laws.calculate_params import *
 
 
 def init(eps):
@@ -99,7 +98,7 @@ class PowerLaw(nn.Module):
 class ScalingLaw(nn.Module):
     def __init__(self, name, runs, power_laws, fixed, cmap, eps=1e-5, num_opt_steps=None, scaling_bias=None, lr=None,
                  final_lr_fr=None, use_scipy=False, load_model=False, opt_log_loss=False, weight_decay=0, huber_delta=0.1,
-                 resolve_interactive=False, **params):
+                 resolve_interactive=False, use_active_params=False, **params):
         super().__init__()
         self.runs = runs
         self.name = name
@@ -118,6 +117,7 @@ class ScalingLaw(nn.Module):
         self.opt_log_loss = opt_log_loss
         self.weight_decay = weight_decay
         self.resolve_interactive = resolve_interactive
+        self.conf_params = dict(use_active_params=use_active_params)
 
     def present_values_as_chinchila(self):
         print(f"{str(self)}")
@@ -169,17 +169,27 @@ class ScalingLaw(nn.Module):
     def resolve_params(self, **params):
         params.update(self.fixed_params)
         lacking = self.params_set - set(params.keys())
+
+        if "n_params" in lacking and "dmodel" in params and "n_blocks" in params:
+            params["n_params"] = calculate_params(**self.conf_params, **params)
+            lacking -= {"n_params"}
+
         if lacking == set():
             pass
         elif lacking == {"n_steps"} and "flops" in params:
-            params.update(calculate_n_steps_from_flops(**params))
+            params.update(calculate_n_steps_from_flops(**self.conf_params, **params))
         elif lacking == {"n_params"} and "flops" in params:
-            params.update(calculate_n_params_from_flops(**params))
+            params.update(calculate_n_params_from_flops(**self.conf_params, **params))
         elif lacking == {"n_params", "n_steps"} and "flops" in params:
-            params.update(calculate_n_params_and_steps_from_flops(**params, scaling_laws=self))
+            params.update(calculate_n_params_and_steps_from_flops(**self.conf_params, **params, scaling_laws=self))
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
+
+        # compute optimal already calculated here
+        params.update(calculate_model_params_from_laws(**self.conf_params, **params))
         params.update(n_params_total=calculate_total_params(**params), n_params_active=calculate_active_params(**params))
+        params["flops"] = calculate_flops(**self.conf_params, **params)
+
         return self.expected_logloss(**params).detach().numpy(), params
 
     def optimize(self):
@@ -237,6 +247,6 @@ class ScalingLaw(nn.Module):
         result = minimize(lambda x: self.from_params(x).closure(), x0, method='BFGS', options={'disp': True},
                           jac=lambda x: self.from_params(x).to_grads(),
                           callback=lambda x: self.from_params(x))
-        print(result)
+        #print(result)
         self.from_params(result.x)
         print("finished")
