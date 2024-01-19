@@ -118,7 +118,7 @@ class ScalingLaw(nn.Module):
         self.weight_decay = weight_decay
         self.resolve_interactive = resolve_interactive
         self.conf_params = dict(use_active_params=use_active_params)
-        self.flops_range = (1e12, 1e32)
+        self.flops_range = (1e15, 1e32)
         self.flops_range_log = (math.log(self.flops_range[0]), math.log(self.flops_range[1]))
         self.flops_range_margin = (self.flops_range[0] - 1000, self.flops_range[1] + 1000)
         self.granularity_range = [2**g_i for g_i in range(0, 10)]
