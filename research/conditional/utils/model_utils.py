@@ -532,6 +532,10 @@ def get_classes_from_module_names(
             classes.append(torch.nn.Softmax)
         elif name == "TokenChoiceRouter":
             classes.append(TokenChoiceRouter)
+        elif name == "Mamba":
+            import mamba_ssm
+
+            classes.append(mamba_ssm.Mamba)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)
