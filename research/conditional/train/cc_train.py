@@ -28,7 +28,7 @@ from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
     disable_profile_schedule_fn,
-    get_ff_layers,
+    get_ff_layer,
     get_attention_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
@@ -142,9 +142,9 @@ def main(
         ff_layer_funs = []
         for layer in ff_layers:
             args.ff_mode = layer
-            ff_layer_funs.append(get_ff_layers(args))
+            ff_layer_funs.append(get_ff_layer(args))
     else:
-        ff_layer_funs = get_ff_layers(args)
+        ff_layer_funs = get_ff_layer(args)
 
     attention_layer_fun = get_attention_layer(args)
     residual_fn = get_residual_layer(args)
