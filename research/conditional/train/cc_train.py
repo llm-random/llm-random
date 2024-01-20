@@ -28,10 +28,8 @@ from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
     disable_profile_schedule_fn,
-    get_classes_from_module_names,
-    get_ff_layer,
+    get_ff_layers,
     get_attention_layer,
-    get_mamba_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     get_classes_from_module_names,
@@ -139,6 +137,16 @@ def main(
         args.activation_checkpointing_modules
     )
 
+    if args.general_ff_layer_config is not None:
+        ff_layers = args.general_ff_layer_config.split(",")
+        ff_layer_funs = []
+        for layer in ff_layers:
+            args.ff_mode = layer
+            ff_layer_funs.append(get_ff_layers(args))
+    else:
+        ff_layer_funs = get_ff_layers(args)
+
+    attention_layer_fun = get_attention_layer(args)
     residual_fn = get_residual_layer(args)
 
     model_fit_gpu_info_params = get_argument_attributes(
@@ -147,22 +155,11 @@ def main(
     update_model_fit_gpu_info(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
     )
-
-    block_modules = {}
-    for module_name in args.block_modules:
-        if module_name == "attention":
-            block_modules[module_name] = get_attention_layer(args)
-        elif module_name == "feedforward":
-            block_modules[module_name] = get_ff_layer(args)
-        elif module_name == "mamba":
-            block_modules[module_name] = get_mamba_layer(args)
-        else:
-            raise ValueError(f"Unknown module name: {module_name}")
-
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
-        block_modules=block_modules,
+        ff_layer_fun=ff_layer_funs,
+        attention_layer_fun=attention_layer_fun,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
         device=DEVICE
