@@ -449,7 +449,7 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "moe_chimera":
         mot = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
-        ec = lambda: ExpertChoiceFF(**get_expert_choice_args(args))
+        # ec = lambda: ExpertChoiceFF(**get_expert_choice_args(args))
         switch = lambda: TokenChoiceFF(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
@@ -462,7 +462,7 @@ def get_ff_layer(args):
 
         return_fn = lambda: MoEChimera(
             mot=mot,
-            ec=ec,
+            # ec=ec,
             switch=switch,
             dmodel=args.dmodel,
             n_experts=args.n_experts,

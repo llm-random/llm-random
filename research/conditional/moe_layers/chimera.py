@@ -11,7 +11,7 @@ class MoEChimera(LoggingLayer):
     """Mixture-of-Experts Chimera layer. Expert and controller weights are shared between a Mot, EC and Switch submodules."""
 
     mot: lambda: LoggingLayer
-    ec: lambda: LoggingLayer
+    # ec: lambda: LoggingLayer
     switch: lambda: LoggingLayer
     dmodel: int
     n_experts: int
@@ -28,7 +28,7 @@ class MoEChimera(LoggingLayer):
         self.possible_modes = []
         # instantiate submodules
         self.mot = self.mot()
-        self.ec = self.ec()
+        # self.ec = self.ec()
         self.switch = self.switch()
 
         # initialize shared weights
@@ -63,11 +63,11 @@ class MoEChimera(LoggingLayer):
         self.mot.lin2 = self.lin2
         self.mot.controller = self.controller
 
-        ## ec
-        self.ec.lin1_weight = self.lin1
-        self.ec.lin2_weight = self.lin2
-        self.ec.gate = self.controller
-        self.ec.expert_gating.gate = self.controller
+        # ## ec
+        # self.ec.lin1_weight = self.lin1
+        # self.ec.lin2_weight = self.lin2
+        # self.ec.gate = self.controller
+        # self.ec.expert_gating.gate = self.controller
 
         ## switch
         self.switch.lin1_weight = self.lin1

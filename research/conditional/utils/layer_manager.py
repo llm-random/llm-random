@@ -145,7 +145,7 @@ class LayerManager:
             if round_robin_schedule:
                 return modes_involved[step % 2]
             else:
-                cutoff_step = 30000 if schedule_type_id in [1, 4, 6] else 100000
+                cutoff_step = 30000 if schedule_type_id in [1, 4, 6] else 150000
                 if step < cutoff_step:
                     return modes_involved[0]
                 else:
