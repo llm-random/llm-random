@@ -184,7 +184,8 @@ def main(
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
         rank=rank,
-        include_positional_embedding=(not args.no_positional_embedding),
+        include_positional_embedding=(not args.no_positional_embedding)
+        and (args.attention_mode != "rope"),
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
