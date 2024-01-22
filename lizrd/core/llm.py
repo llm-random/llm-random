@@ -338,7 +338,7 @@ class RoPE(nn.Module):
 
 
 @ash.check("... d -> ... d")
-class AttentionPP(LoggingLayer):
+class AttentionRoPE(LoggingLayer):
     def __init__(
         self,
         dmodel,
@@ -350,7 +350,7 @@ class AttentionPP(LoggingLayer):
         dhead=None,
         flash=False,
     ):
-        super(AttentionPP, self).__init__()
+        super(AttentionRoPE, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
             dhead = dmodel // heads

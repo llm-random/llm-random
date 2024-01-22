@@ -35,7 +35,7 @@ class ResidualTest(GeneralTestCase):
 class AttentionPPTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, heads = 16, 4, 64, 8
-        layer = llm.AttentionPP(
+        layer = llm.AttentionRoPE(
             dmodel=dm,
             heads=heads,
             length=seql,
