@@ -32,6 +32,92 @@ class ResidualTest(GeneralTestCase):
         self.assertTensorEqual(output1 + input, output2)
 
 
+class AttentionPPTest(GeneralTestCase):
+    def test_basic(self):
+        batch, seql, dm, heads = 16, 4, 64, 8
+        layer = llm.AttentionPP(
+            dmodel=dm,
+            heads=heads,
+            length=seql,
+            causal=False,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        out = layer(input)
+        self.assertShape(out, (batch, seql, dm))
+
+
+class RoPETest(GeneralTestCase):
+    def test_basic(self):
+        (
+            batch,
+            seql,
+            dhead,
+        ) = (
+            16,
+            4,
+            64,
+        )
+        layer = llm.RoPE(
+            dhead=dhead,
+            length=seql,
+        )
+        input = torch.normal(0.0, 1.0, (batch, seql, dhead))
+        out = layer(input)
+        self.assertShape(out, (batch, seql, dhead))
+        self.assertShape(layer.sin, (seql, dhead))
+        self.assertTensorEqual(layer.sin[:, : dhead // 2], layer.sin[:, dhead // 2 :])
+
+    def test_rotation(self):
+        batch, n_heads, seql, d_head = 2, 2, 3, 4
+        layer = llm.RoPE(d_head, seql)
+        # vertors [0, 1], [1, 0] and [1, 1]
+        input_batch_head = torch.tensor(
+            [[0, 1, 1, 0], [0, 1, 1, 0], [1, 1, 1, 1]],
+        )
+        input = input_batch_head.repeat(batch, n_heads, 1, 1)
+        out = layer(input)
+        theta_1 = torch.tensor(10000.0 ** (-0 / d_head))
+        theta_2 = torch.tensor(10000.0 ** (-2 / d_head))
+        expected_out_batch_head = torch.tensor(
+            [
+                [
+                    -torch.sin(0 * theta_1),
+                    torch.cos(0 * theta_2),
+                    torch.cos(0 * theta_1),
+                    torch.sin(0 * theta_2),
+                ],
+                [
+                    -torch.sin(1 * theta_1),
+                    torch.cos(1 * theta_2),
+                    torch.cos(1 * theta_1),
+                    torch.sin(1 * theta_2),
+                ],
+                [
+                    torch.cos(2 * theta_1) - torch.sin(2 * theta_1),
+                    torch.cos(2 * theta_2) - torch.sin(2 * theta_2),
+                    torch.sin(2 * theta_1) + torch.cos(2 * theta_1),
+                    torch.sin(2 * theta_2) + torch.cos(2 * theta_2),
+                ],
+            ]
+        )
+        # repeat for each batch and head
+        expected_out = expected_out_batch_head.repeat(batch, n_heads, 1, 1)
+        self.assertTensorAlmostEqual(out, expected_out)
+
+
+class SwiGLUFeedForwardTest(GeneralTestCase):
+    def test_basic(self):
+        batch, seql, dm, dff = 4, 8, 32, 64
+        layer = llm.SwiGLUFeedForward(
+            dmodel=dm, dff=dff, init_type="kaiming_uniform", init_scale=1.0
+        )
+        input = torch.normal(0.0, 1.0, (batch, seql, dm))
+        output = layer(input)
+        self.assertShape(output, (batch, seql, dm))
+
+
 class AttentionTest(GeneralTestCase):
     def test_basic(self):
         try:
