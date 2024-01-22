@@ -6,8 +6,9 @@ time: 1-00:00:00
 params:
   name: "mamba_titram"
   tags: ["lookback_weight", "mean_one"]
-  n_steps: 100_000
+  n_steps: 200_000
   dmodel: 512
+  ^batch_size: [128]
   n_blocks: 8
   logging_interval_heavy: 2000
   n_att_heads: 8

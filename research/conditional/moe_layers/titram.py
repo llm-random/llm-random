@@ -28,23 +28,17 @@ class TiTraMamba(LoggingLayer):
         super().__init__()
         self.dmodel = dmodel
         self.mamba = mamba_ssm.Mamba(d_model=self.dmodel)
-        self.regression = nn.Parameter(
-            get_init_weight(
-                self.dmodel,
-                fan_in=self.dmodel,
-                init_type=init_type,
-                scale=init_scale,
-            )
-        )
+        # self.mamba = DummyMamba(d_model=self.dmodel)
         self.weight = nn.Parameter(
             get_init_weight(
-                self.dmodel,
-                fan_in=self.dmodel,
+                (self.dmodel, 8),
+                fan_in=self.dmodel * 8,
                 init_type=init_type,
                 scale=init_scale,
             )
         )
         self.non_neg = nn.ReLU()
+        self.log_lookback = [1, 2, 4, 8, 16, 32, 64, 128]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -52,31 +46,25 @@ class TiTraMamba(LoggingLayer):
         Returns: same shape as x
         """
         batch_size, seq_len = x.shape[0], x.shape[1]
-        lookback_limit = torch.arange(seq_len, device=x.device, dtype=torch.int64)
+        lookback_limit = (
+            torch.arange(seq_len, device=x.device, dtype=torch.int64)
+            .view(1, -1, 1)
+            .expand(batch_size, seq_len, self.dmodel)
+        )
 
         mamba_output = self.mamba.forward(x)
-        lookback_weight = torch.matmul(mamba_output, self.weight).view(
-            batch_size, seq_len, 1
-        )
-        lookback_regression = torch.clamp(
-            torch.add(-torch.matmul(mamba_output, self.regression), 1), 0, 1
-        )
-        self.update_cache_for_logging("regression", lookback_regression)
+        lookback_weight = torch.matmul(mamba_output, self.weight)
         self.update_cache_for_logging("weight", lookback_weight)
-        lookback_regression = lookback_limit * lookback_regression
-        lookback_regression = torch.round(lookback_regression).type(torch.int64)
-        lookback_regression, _ = torch.cummax(lookback_regression, dim=1)
-        lookback_regression = lookback_regression.view(batch_size, seq_len, 1).expand(
-            batch_size, seq_len, self.dmodel
-        )
-        lookback = torch.gather(mamba_output, 1, lookback_regression)
-        return mamba_output + lookback
+        for slice_idx, lookback_val in enumerate(self.log_lookback):
+            lookback_idx = self.non_neg(torch.sub(lookback_limit, lookback_val))
+            lookback = torch.gather(x, 1, lookback_idx)
+            mamba_output = mamba_output + lookback * torch.unsqueeze(
+                torch.select(lookback_weight, dim=2, index=slice_idx), dim=-1
+            )
+        return mamba_output
 
     def log_heavy(self):
         return {
-            "lookback_regression": make_histogram(
-                self.logging_cache["regression"].flatten().float()
-            ),
             "lookback_weight": make_histogram(
                 self.logging_cache["weight"].flatten().float()
             ),
