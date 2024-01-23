@@ -465,6 +465,7 @@ def get_ff_layer(args):
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
+            vectorize=(not args.dont_vectorize_switch),
         )
     elif args.ff_mode == "token_choice_deprecated":
         return_fn = lambda: TokenChoiceFFDeprecated(
@@ -562,6 +563,10 @@ def get_classes_from_module_names(
             classes.append(torch.nn.Softmax)
         elif name == "TokenChoiceRouter":
             classes.append(TokenChoiceRouter)
+        elif name == "Mamba":
+            import mamba_ssm
+
+            classes.append(mamba_ssm.Mamba)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)
