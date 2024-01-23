@@ -347,6 +347,7 @@ class TokenChoiceSwiGLUFF(LoggingLayer):
         init_scale: float,
         routing_top_k: int = 1,
         use_einsum: bool = False,
+        vectorize: bool = False,
     ):
         """
         Args:
@@ -364,6 +365,9 @@ class TokenChoiceSwiGLUFF(LoggingLayer):
         self.capacity_factor = capacity_factor
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
+        self.vectorize = vectorize
+        if vectorize and routing_top_k != 1:
+            raise ValueError("vectorize and routing_top_k != 1 are incompatible")
 
         self.lin1_weight = nn.Parameter(
             get_init_weight(
@@ -400,12 +404,25 @@ class TokenChoiceSwiGLUFF(LoggingLayer):
             init_scale=init_scale,
             routing_top_k=routing_top_k,
             use_einsum=use_einsum,
+            vectorize=vectorize,
         )
 
     def forward(self, x: torch.Tensor):
         batch_size, seq_len, _ = x.shape
 
-        experts_input, indices_of_tokens_for_expert, masked_expert_gate = self.router(x)
+        if self.vectorize:
+            (
+                experts_input,
+                top_tokens_per_expert_indices,  # [c x n_experts]
+                masked_expert_gate,
+            ) = self.router(x)
+        else:
+            (
+                experts_input,
+                indices_of_tokens_for_expert,  # n_experts lists, each max c long
+                masked_expert_gate,
+            ) = self.router(x)
+
         x = x.flatten(start_dim=0, end_dim=1)
 
         with measure_time(self, "process_by_experts"):
@@ -426,6 +443,7 @@ class TokenChoiceSwiGLUFF(LoggingLayer):
                 swi_glu_gate = torch.matmul(experts_input, self.swi_glu_gate_weight)
 
             experts_output = F.silu(experts_output) * swi_glu_gate
+
             if self.use_einsum:
                 experts_output = einsum(
                     "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
@@ -438,14 +456,25 @@ class TokenChoiceSwiGLUFF(LoggingLayer):
         experts_output = experts_output.to(x.dtype)
         output = torch.zeros_like(x)
 
-        with measure_time(self, "assign_tokens_to_output"):
-            for expert_id in range(self.n_experts):
-                tokens_to_update = indices_of_tokens_for_expert[expert_id]
-                num_of_tokens_to_update = len(tokens_to_update)
+        if self.vectorize:
+            with measure_time(self, "assign_tokens_to_output"):
+                output.index_add_(
+                    dim=0,
+                    index=top_tokens_per_expert_indices.T.flatten(),
+                    source=experts_output.reshape(
+                        self.n_experts * experts_output.shape[1], self.dmodel
+                    ),
+                )
+                output *= masked_expert_gate.sum(dim=1, keepdim=True)
+        else:
+            with measure_time(self, "assign_tokens_to_output"):
+                for expert_id in range(self.n_experts):
+                    tokens_to_update = indices_of_tokens_for_expert[expert_id]
+                    num_of_tokens_to_update = len(tokens_to_update)
 
-                output[tokens_to_update] += experts_output[
-                    expert_id, :num_of_tokens_to_update
-                ] * masked_expert_gate[tokens_to_update, expert_id].unsqueeze(dim=1)
+                    output[tokens_to_update] += experts_output[
+                        expert_id, :num_of_tokens_to_update
+                    ] * masked_expert_gate[tokens_to_update, expert_id].unsqueeze(dim=1)
 
         output = output.reshape((batch_size, seq_len, self.dmodel))
 

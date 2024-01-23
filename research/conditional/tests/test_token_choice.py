@@ -416,3 +416,27 @@ class TestTokenChoice(GeneralTestCase):
         propagate_forward_pass_cache(nonvectorized_module)
         propagate_forward_pass_cache(vectorized_module)
         self.assertTensorAlmostEqual(vectorized_module(x), nonvectorized_module(x))
+
+    def test_vectorized_vs_nonvectorized_swiglu(self):
+        batch = 3
+        dm = 5
+        experts = 7
+        exp_size = 11
+        seq_len = 13
+        x = torch.rand((batch, seq_len, dm))
+        nonvectorized_module = TokenChoiceSwiGLUFF(
+            dm,
+            experts,
+            exp_size,
+            100.0,
+            load_balancing_loss_weight=0.1,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
+
+        vectorized_module = deepcopy(nonvectorized_module)
+        vectorized_module.vectorize = vectorized_module.router.vectorize = True
+
+        propagate_forward_pass_cache(nonvectorized_module)
+        propagate_forward_pass_cache(vectorized_module)
+        self.assertTensorAlmostEqual(vectorized_module(x), nonvectorized_module(x))
