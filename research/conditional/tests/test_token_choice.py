@@ -136,18 +136,18 @@ class TestTokenChoice(GeneralTestCase):
         # backprop and make sure gradients are the same
         output_lin.sum().backward()
         output_token_choice.sum().backward()
-        # self.assertTensorAlmostEqual(
-        #     lin.w1_gate.weight[0:exp_size].data.transpose(0, 1).unsqueeze(0),
-        #     token_choice_layer.lin1_weight.grad.squeeze(0).transpose(0, 1),
-        # )
-        # self.assertTensorAlmostEqual(
-        #     lin.w1_gate.weight[exp_size:].data.transpose(0, 1).unsqueeze(0),
-        #     token_choice_layer.swi_glu_gate_weight.grad.squeeze(0).transpose(0, 1),
-        # )
-        # self.assertTensorAlmostEqual(
-        #     lin.w2.weight.data.transpose(0, 1).unsqueeze(0),
-        #     token_choice_layer.lin2_weight.grad.squeeze(0).transpose(0, 1),
-        # )
+        self.assertTensorAlmostEqual(
+            lin.w1_gate.weight.grad[0:exp_size],
+            token_choice_layer.lin1_weight.grad.squeeze(0).transpose(0, 1),
+        )
+        self.assertTensorAlmostEqual(
+            lin.w1_gate.weight.grad[exp_size:],
+            token_choice_layer.swi_glu_gate_weight.grad.squeeze(0).transpose(0, 1),
+        )
+        self.assertTensorAlmostEqual(
+            lin.w2.weight.grad,
+            token_choice_layer.lin2_weight.grad.squeeze(0).transpose(0, 1),
+        )
 
     def test_einsum_vs_matmul(self):
         batch = 3
