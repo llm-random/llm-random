@@ -35,9 +35,9 @@ scalings:
     cmap: rainbow
     resolve_interactive: true
     use_active_params: false
-    weight_decay: 0.00001
+    weight_decay: 0.0001
     huber_delta: 0.1
-    opt_log_loss: true
+    opt_log_loss: false
 plot_dims:
   - - "predicted_loss"
     - "granularity"

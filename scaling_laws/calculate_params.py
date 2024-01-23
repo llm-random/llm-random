@@ -43,7 +43,8 @@ class TrainRun:
         self.finished = sys_state == 'Inactive' and np.isfinite(self.loss) and \
                         step == self.n_opt_steps == args_final_lr_step and \
                         all([getattr(self, k) == v for k, v in fixed.items()]) and \
-                        (self.granularity < 32)  # and \
+                        (self.granularity < 32)  and \
+                        (self.n_opt_steps > 20000)
 #                        (self.n_params_total > 200000000 or self.n_opt_steps > 10000 or self.granularity > 0)  and \
 #                        (self.n_params_total > 200000000 or self.n_opt_steps > 10000 or self.granularity == 0)  # filter for MoE, previous is for dense
                             # TODO: remove this hack and ^this, filer small axp and high granularity
