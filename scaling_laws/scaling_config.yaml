@@ -2,6 +2,8 @@ scalings:
   - name: "dense"
     tags:
       - "zubr_dense_grid"
+    tags_negative:
+      - "short_small"
     fixed:
       expansion_rate: 1
       granularity: 0
@@ -9,6 +11,9 @@ scalings:
       - - "n_params"
       - - "n_steps"
     cmap: copper
+    weight_decay: 0.00001
+    huber_delta: 0.1
+    opt_log_loss: true
   - name: "Granular Scaling"
     tags:
       - "fixed_grid_wd"
@@ -16,6 +21,7 @@ scalings:
     tags_negative:
       - "gran_grid_failed"
       - "mini_8"
+      - "short_small"
       - "lr_steps_bug"
       - "small_gran"
     fixed:
@@ -29,11 +35,14 @@ scalings:
     cmap: rainbow
     resolve_interactive: true
     use_active_params: false
+    weight_decay: 0.00001
+    huber_delta: 0.1
+    opt_log_loss: true
 plot_dims:
   - - "predicted_loss"
     - "granularity"
-#  - - "predicted_loss"
-#    - "n_steps"
+  - - "predicted_loss"
+    - "n_steps"
 #  - - "predicted_loss"
 #    - "n_params"
   - - "flops"
@@ -49,10 +58,7 @@ plot_dims:
 extrapolate_factor: 3.0
 use_scipy: true
 load_model: false
-opt_log_loss: true
 scaling_bias: 0.5
-huber_delta: 0.1
-weight_decay: 0.00001
 show_model_sizes:
 #  10M: 10e6
   100M: 100e6

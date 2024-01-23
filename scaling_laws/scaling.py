@@ -73,7 +73,7 @@ class PowerLaw(nn.Module):
     def repr_no_cond(self, condition_val):
         if self.exp_inter:
             return "Cant calculate"  # TODO?
-        a, b = self.get_nocond_params(math.log(condition_val))
+        a, b = self.get_nocond_params(math.log(condition_val) if len(self.names) == 2 else None)
         return f"{a.item():6.4f}*{self.name}**{b.item():6.4f}"
 
     def __repr__(self):
@@ -121,12 +121,12 @@ class ScalingLaw(nn.Module):
         self.flops_range = (1e15, 1e32)
         self.flops_range_log = (math.log(self.flops_range[0]), math.log(self.flops_range[1]))
         self.flops_range_margin = (self.flops_range[0] - 1000, self.flops_range[1] + 1000)
-        self.granularity_range = [2**g_i for g_i in range(0, 10)]
+        self.granularity_range = [2**g_i for g_i in range(0, 9)]
 
     def present_values_as_chinchila(self):
         print(f"{str(self)}")
         if 'granularity' not in self.fixed_params:
-            for g in [2**g_i for g_i in range(0, 8)]:
+            for g in self.granularity_range:
                 constant = self.get_constant() + sum([torch.exp(p(granularity=g)) for p in self.power_laws if p.names[0] == 'granularity'])
                 print(
                     f"For constant granularity={g} Scaling \"{self.name}\" "
@@ -219,8 +219,8 @@ class ScalingLaw(nn.Module):
         # compute optimal already calculated here
         params.update(calculate_model_params_from_laws(**self.conf_params, **params))
         params.update(n_params_total=calculate_total_params(**params),
-                      n_params_active=calculate_active_params(**params))
-        params["flops"] = calculate_flops(**self.conf_params, **params)
+                      n_params_active=calculate_active_params(**params),
+                      flops=calculate_flops(**self.conf_params, **params))
         if params["flops"] < self.flops_range_margin[0] or params["flops"] > self.flops_range_margin[1]:
             raise Exception(f"Flops {params['flops']} out of range {self.flops_range}")
 
@@ -258,7 +258,6 @@ class ScalingLaw(nn.Module):
     def closure(self):
         self.zero_grad()
         loss, rmse = self()
-        loss *= 1  # for >1, this was a trick to help with numerical stability
         loss.backward()
         return loss.item()
 
@@ -279,6 +278,5 @@ class ScalingLaw(nn.Module):
         result = minimize(lambda x: self.from_params(x).closure(), x0, method='BFGS', options={'disp': True},
                           jac=lambda x: self.from_params(x).to_grads(),
                           callback=lambda x: self.from_params(x))
-        #print(result)
         self.from_params(result.x)
         print("finished")
