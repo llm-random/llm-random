@@ -4,6 +4,7 @@ scalings:
       - "zubr_dense_grid"
     tags_negative:
       - "short_small"
+      - "longest"
     fixed:
       expansion_rate: 1
       granularity: 0
@@ -18,12 +19,15 @@ scalings:
     tags:
       - "fixed_grid_wd"
       - "big_models"
+      # - "long"
     tags_negative:
       - "gran_grid_failed"
       - "mini_8"
       - "short_small"
       - "lr_steps_bug"
       - "small_gran"
+      - "longest"
+      - "mini_short"
     fixed:
       expansion_rate: 64
     power_laws:
@@ -35,7 +39,7 @@ scalings:
     cmap: rainbow
     resolve_interactive: true
     use_active_params: false
-    weight_decay: 0.0001
+    weight_decay: 0.0002
     huber_delta: 0.1
     opt_log_loss: false
 plot_dims:

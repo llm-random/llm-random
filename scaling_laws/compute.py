@@ -24,8 +24,8 @@ def plot_loss_vs_predicted_loss(scaling_law, no_title=False, group_by="granulari
         plt.scatter(A[indices], B[indices], color=color, s=3, label=label)
     range = min(A.min(), B.min()), max(A.max(), B.max())
     plt.plot(range, range, color="grey", linestyle="--", linewidth=1)
-    plt.xlabel("ln(predicted_perplexity)")
-    plt.ylabel("ln(perplexity)")
+    plt.xlabel("ln(predicted_loss)")
+    plt.ylabel("ln(loss)")
     legend = plt.legend()
     rmse = scaling_law()[1]
     if not no_title:
@@ -69,7 +69,7 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
         for (group, indices), color in zip(groups, colors):
             group_dict = dict(zip(group_dims, group))
             names.append(f"{scaling_law.name} {' '.join(f'{name}={int(val)}' for name, val in group_dict.items())}")
-            #plt.scatter(A[indices], B[indices], color=color, s=5)
+            plt.scatter(A[indices], B[indices], color=color, s=5)
             results = [scaling_law.resolve_params(**group_dict, **{axis_dim: np.power(10, a)}) for a in A_values]
             b_preds, b_opt_params = zip(*results)
             B_predictions.append(b_preds)
@@ -109,7 +109,7 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, extrapolate_factor=2.0
     plt.rc('legend', fontsize=5)
     plt.rc('axes', titlesize=6, labelsize=6)
     plt.xlabel(f"log10({axis_dim})")
-    plt.ylabel("ln(perplexity)")
+    plt.ylabel("ln(loss)")
     plt.tight_layout()
     legend = plt.legend(loc='upper right')
     legend.get_frame().set_alpha(0.4)
