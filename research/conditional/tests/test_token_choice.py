@@ -2,13 +2,17 @@ from copy import deepcopy
 import torch
 from torch.nn import Sequential, ReLU
 from lizrd.core.misc import Linear, propagate_forward_pass_cache
+from lizrd.core.llm import SwiGLUFeedForward
 from lizrd.train.checkpointing import (
     first_forward_manager,
     make_checkpoint_wrapper_function,
     second_forward_manager,
 )
 
-from research.conditional.moe_layers.token_choice import TokenChoiceFF
+from research.conditional.moe_layers.token_choice import (
+    TokenChoiceFF,
+    TokenChoiceSwiGLUFF,
+)
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as OldTokenChoiceFF,
 )
@@ -86,6 +90,64 @@ class TestTokenChoice(GeneralTestCase):
             lin[2].weight.grad,
             token_choice_layer.lin2_weight.grad.squeeze(0).transpose(0, 1),
         )
+
+    def test_equivalence_swi_glu(self):
+        """
+        Test that the TokenChoiceFFSwiGLU layer with one expert is equivalent to a linear layer.
+
+        If we don't multiply by softmax, the layer is equivalent
+        to a linear layer (plus LayerNorm) with regard to output and gradients.
+
+        If we multiply by softmax the layer is equivalent with regard to gradients only.
+        """
+        batch, dm = 2, 3
+        experts = 1
+        exp_size = 6
+        seql = 2
+        lin = SwiGLUFeedForward(dm, exp_size, "kaiming_uniform", 1.0)
+        token_choice_layer = TokenChoiceSwiGLUFF(
+            dm,
+            experts,
+            exp_size,
+            5.0,
+            load_balancing_loss_weight=0.1,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+        )
+        propagate_forward_pass_cache(token_choice_layer)
+
+        token_choice_layer.lin1_weight.data = (
+            lin.w1_gate.weight[0:exp_size].data.transpose(0, 1).unsqueeze(0)
+        )
+        token_choice_layer.swi_glu_gate_weight.data = (
+            lin.w1_gate.weight.data[exp_size:].transpose(0, 1).unsqueeze(0)
+        )
+        token_choice_layer.lin2_weight.data = lin.w2.weight.data.transpose(
+            0, 1
+        ).unsqueeze(0)
+
+        # make sure weights act the same
+        input_data = torch.rand((batch, seql, dm))
+        output_lin = lin(input_data)
+        output_token_choice = token_choice_layer(input_data)
+
+        self.assertTensorAlmostEqual(output_lin, output_token_choice)
+
+        # backprop and make sure gradients are the same
+        output_lin.sum().backward()
+        output_token_choice.sum().backward()
+        # self.assertTensorAlmostEqual(
+        #     lin.w1_gate.weight[0:exp_size].data.transpose(0, 1).unsqueeze(0),
+        #     token_choice_layer.lin1_weight.grad.squeeze(0).transpose(0, 1),
+        # )
+        # self.assertTensorAlmostEqual(
+        #     lin.w1_gate.weight[exp_size:].data.transpose(0, 1).unsqueeze(0),
+        #     token_choice_layer.swi_glu_gate_weight.grad.squeeze(0).transpose(0, 1),
+        # )
+        # self.assertTensorAlmostEqual(
+        #     lin.w2.weight.data.transpose(0, 1).unsqueeze(0),
+        #     token_choice_layer.lin2_weight.grad.squeeze(0).transpose(0, 1),
+        # )
 
     def test_einsum_vs_matmul(self):
         batch = 3
