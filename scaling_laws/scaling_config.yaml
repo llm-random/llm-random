@@ -4,7 +4,7 @@ scalings:
       - "zubr_dense_grid"
     tags_negative:
       - "short_small"
-      - "longest"
+      - "short_dense"
     fixed:
       expansion_rate: 1
       granularity: 0
@@ -26,8 +26,11 @@ scalings:
       - "short_small"
       - "lr_steps_bug"
       - "small_gran"
-      - "longest"
+      # - "longest"
       - "mini_short"
+      - "grid_shortest"
+      - "short_small_ext"
+      - "short_small_ext_ext"
     fixed:
       expansion_rate: 64
     power_laws:
@@ -39,7 +42,7 @@ scalings:
     cmap: rainbow
     resolve_interactive: true
     use_active_params: false
-    weight_decay: 0.0002
+    weight_decay: 0.00005
     huber_delta: 0.1
     opt_log_loss: false
 plot_dims:
@@ -62,7 +65,7 @@ plot_dims:
 extrapolate_factor: 3.0
 use_scipy: true
 load_model: false
-scaling_bias: 0.5
+scaling_bias: 0.472
 show_model_sizes:
 #  10M: 10e6
   100M: 100e6
