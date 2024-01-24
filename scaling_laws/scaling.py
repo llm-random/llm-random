@@ -96,7 +96,7 @@ class PowerLaw(nn.Module):
 
 
 class ScalingLaw(nn.Module):
-    def __init__(self, name, runs, power_laws, fixed, cmap, eps=1e-5, num_opt_steps=None, scaling_bias=None, lr=None,
+    def __init__(self, name, runs, power_laws, fixed, cmap, flops_min, flops_max, eps=1e-5, num_opt_steps=None, scaling_bias=None, lr=None,
                  final_lr_fr=None, use_scipy=False, load_model=False, opt_log_loss=False, weight_decay=0, huber_delta=0.1,
                  resolve_interactive=False, use_active_params=False, **params):
         super().__init__()
@@ -118,9 +118,9 @@ class ScalingLaw(nn.Module):
         self.weight_decay = weight_decay
         self.resolve_interactive = resolve_interactive
         self.conf_params = dict(use_active_params=use_active_params)
-        self.flops_range = (1e15, 1e32)
-        self.flops_range_log = (math.log(self.flops_range[0]), math.log(self.flops_range[1]))
-        self.flops_range_margin = (self.flops_range[0] - 1000, self.flops_range[1] + 1000)
+        self.flops_range = (float(flops_min), float(flops_max))
+        self.flops_search_range_log = (math.log(self.flops_range[0]) - 1, math.log(self.flops_range[1]) + 5)
+        self.flops_range_margin = (math.exp(self.flops_search_range_log[0]) * 1.1, math.exp(self.flops_search_range_log[1]) * 0.9)
         self.granularity_range = [2**g_i for g_i in range(0, 9)]
 
     def present_values_as_chinchila(self):
@@ -171,19 +171,18 @@ class ScalingLaw(nn.Module):
         return loss, rmse
 
     def find_opt_granularity(self, **params):
-        losses, params = zip(*[self.resolve_params(**params, granularity=g) for g in self.granularity_range])
-        best = np.argmin(np.stack(losses))
-        return losses[best], params[best]
+        params = [self.resolve_params(**params, granularity=g) for g in self.granularity_range]
+        best = np.argmin(np.stack([p["loss"] for p in params]))
+        return params[best]
 
     def resolve_params(self, **params):
         params.update(self.fixed_params)
         lacking = self.params_set - set(params.keys())
-
-        if "granularity" in lacking:
-            return self.find_opt_granularity(**params)
         self.resolve_model_size(lacking, params)
 
-        if lacking == set():
+        if "loss" in params:
+            params.update(calculate_compute_opt_for_loss(**params, scaling_laws=self))
+        elif lacking == set():
             pass
         elif lacking == {"n_steps"} and "flops" in params:
             params.update(calculate_n_steps_from_flops(**self.conf_params, **params))
@@ -191,15 +190,17 @@ class ScalingLaw(nn.Module):
             params.update(calculate_n_params_from_flops(**self.conf_params, **params))
         elif lacking == {"n_params", "n_steps"} and "flops" in params:
             params.update(calculate_n_params_and_steps_from_flops(**self.conf_params, **params, scaling_laws=self))
-        elif lacking == {"n_params"}:
-            params.update(calculate_compute_opt_params(**self.conf_params, **params, scaling_laws=self))
-        elif lacking == {"n_steps"}:
-            params.update(calculate_compute_opt_steps(**self.conf_params, **params, scaling_laws=self))
+        elif "n_steps" in params:
+            params.update(calculate_compute_opt_for_steps(**params, scaling_laws=self))
+        elif "n_params" in params:
+            params.update(calculate_compute_opt_for_params(**params, scaling_laws=self))
+        elif "granularity" in lacking:
+            params.update(self.find_opt_granularity(**params))
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
 
         self.update_other_hyperparams(params)
-        return self.expected_logloss(**params).detach().numpy(), params
+        return params
 
     def resolve_model_size(self, lacking, params):
         if "dmodel" in params and "n_blocks" not in params:
@@ -220,9 +221,13 @@ class ScalingLaw(nn.Module):
         params.update(calculate_model_params_from_laws(**self.conf_params, **params))
         params.update(n_params_total=calculate_total_params(**params),
                       n_params_active=calculate_active_params(**params),
-                      flops=calculate_flops(**self.conf_params, **params))
+                      flops=calculate_flops(**self.conf_params, **params),
+                      n_opt_steps=get_n_opt_step_from_tokens(params["n_steps"]))
         if params["flops"] < self.flops_range_margin[0] or params["flops"] > self.flops_range_margin[1]:
             raise Exception(f"Flops {params['flops']} out of range {self.flops_range}")
+
+        logloss = self.expected_logloss(**params).detach().numpy()
+        params.update(logloss=logloss, loss=np.exp(logloss))
 
     def optimize(self):
         if self.load_model and os.path.exists(self.checkpoint_name):

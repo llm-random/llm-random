@@ -38,7 +38,7 @@ def read_yaml_file():
             print(exc)
 
 
-def binary_search(range, fun, tol=0.02):
+def binary_search(range, fun, tol=0.01):
     min_val, max_val = range
     while max_val - min_val > tol:
         mid_val = (max_val + min_val) / 2

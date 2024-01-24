@@ -46,10 +46,11 @@ scalings:
     huber_delta: 0.1
     opt_log_loss: false
 plot_dims:
-  - - "predicted_loss"
-    - "granularity"
-  - - "predicted_loss"
-    - "n_steps"
+  - - "flops_save"
+#  - - "predicted_loss"
+#    - "granularity"
+#  - - "predicted_loss"
+#    - "n_steps"
 #  - - "predicted_loss"
 #    - "n_params"
   - - "flops"
@@ -66,10 +67,13 @@ extrapolate_factor: 3.0
 use_scipy: true
 load_model: false
 scaling_bias: 0.472
+flops_min: 1e16
+flops_max: 1e22
+show_points: true
 show_model_sizes:
 #  10M: 10e6
-  100M: 100e6
-  500M: 500e6
+#  100M: 100e6
+  #500M: 500e6
   1B: 1e9
   3B: 3e9
   7B: 7e9

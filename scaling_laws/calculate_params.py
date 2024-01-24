@@ -1,11 +1,12 @@
 import numpy as np
+from functools import partial
 from scipy.optimize import minimize_scalar
 
 from scaling_laws.utils import binary_search
 
 dmodel_const = 64
-ff_const = 4
-router_const = 4
+ff_const = 6
+router_const = 6
 batch_size = 256
 seq_len = 256
 grad_accum = 8
@@ -44,15 +45,16 @@ class TrainRun:
                         step == self.n_opt_steps == args_final_lr_step and \
                         all([getattr(self, k) == v for k, v in fixed.items()]) and \
                         (self.granularity < 32)
-#                        (self.n_params_total > 200000000 or self.n_opt_steps > 10000 or self.granularity > 0)  and \
-#                        (self.n_params_total > 200000000 or self.n_opt_steps > 10000 or self.granularity == 0)  # filter for MoE, previous is for dense
-                            # TODO: remove this hack and ^this, filer small axp and high granularity
-        # 6291456 + 10
+
     def dict(self):
         return self.__dict__
 
     def __repr__(self):
         return f"({self.dict()})"
+
+
+def get_n_opt_step_from_tokens(n_tokens):
+    return n_tokens / (batch_size * seq_len * grad_accum)
 
 
 def calculate_flops(n_blocks, n_steps, **params):
@@ -142,17 +144,17 @@ def calculate_n_params_and_steps_from_flops(flops, expansion_rate, granularity, 
     return new_params
 
 
-def calculate_compute_opt_params(n_steps, scaling_laws, **params):
-    compute_opt_params_diff = lambda lflops: n_steps - calculate_n_params_and_steps_from_flops(flops=np.exp(lflops), scaling_laws=scaling_laws, **params)["n_steps"]
-    flops = np.exp(binary_search(range=scaling_laws.flops_range_log, fun=compute_opt_params_diff))
-    return calculate_n_params_from_flops(n_steps=n_steps, flops=flops, scaling_laws=scaling_laws, **params)
+def binsearch_param_by_flops(param_name, scaling_laws, reverse=False, **params):
+    val = params.pop(param_name)
+    c = -1 if reverse else 1
+    diff = lambda lflops: c*(val - scaling_laws.resolve_params(flops=np.exp(lflops), **params)[param_name])
+    flops = np.exp(binary_search(range=scaling_laws.flops_search_range_log, fun=diff))
+    return scaling_laws.resolve_params(flops=flops, **params)
 
 
-def calculate_compute_opt_steps(n_params, scaling_laws, **params):
-    compute_opt_steps_diff = lambda lflops: n_params - calculate_n_params_and_steps_from_flops(flops=np.exp(lflops), scaling_laws=scaling_laws, **params)["n_params"]
-    flops = np.exp(binary_search(range=scaling_laws.flops_range_log, fun=compute_opt_steps_diff))
-    return calculate_n_steps_from_flops(n_params=n_params, flops=flops, scaling_laws=scaling_laws, **params)
-
+calculate_compute_opt_for_loss = partial(binsearch_param_by_flops, "loss", reverse=True)
+calculate_compute_opt_for_params = partial(binsearch_param_by_flops, "n_params")
+calculate_compute_opt_for_steps = partial(binsearch_param_by_flops, "n_steps")
 
 
 #    x_p = scaling_laws.get_param_for("n_params")
