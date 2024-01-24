@@ -80,5 +80,10 @@ def set_model_config(args):
         args.dff = 3584
         args.n_blocks = 14
         args.n_att_heads = 14
+    elif args.granular_model_config == "flag_big":
+        args.dmodel = 1280
+        args.dff = 5120
+        args.n_blocks = 20
+        args.n_att_heads = 20
 
     return args
