@@ -7,7 +7,7 @@ singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.
 # cuda_visible: "1"
 n_gpus: 1
 # time: "00:10:00"
-time: "10:00:00"
+time: "20:00:00"
 # hf_datasets_cache: /local_storage_1/dataset_cache
 # singularity_image: /home/jkrajewski_a100/images/sparsity_2023.11.10_15.23.19.sif
 
