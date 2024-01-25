@@ -44,7 +44,7 @@ def flops_save(scaling_laws, plot_points, no_title):
     get_denseline_params = lambda **params: scaling_laws[0].resolve_params(**params)
 
     start_point, end_point = map(math.log10, scaling_laws[-1].flops_range)
-    A_values = 10**np.linspace(start_point, end_point, plot_points)
+    A_values = 10**np.linspace(start_point, end_point, plot_points//4)
 
     best_params = [get_best_params(flops=f) for f in A_values]
     baseline_flops = np.array([get_baseline_params(loss=c["loss"])["flops"] for c in best_params])
