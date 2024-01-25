@@ -190,26 +190,48 @@ def calculate_llm_loss(
 
 def get_attention_layer(args):
     causal = args.model_type == "gpt"
-    attention_layer_fun = lambda: llm.Attention(
-        dmodel=args.dmodel,
-        heads=args.n_att_heads,
-        causal=causal,
-        dhead=args.dhead,
-        flash=args.flash_attention,
-        init_type=args.init_type,
-        init_scale=args.init_scale,
-    )
+    if args.attention_mode == "vanilla":
+        attention_layer_fun = lambda: llm.Attention(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.attention_mode == "rope":
+        attention_layer_fun = lambda: llm.AttentionRoPE(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            length=args.cutoff,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    else:
+        raise NotImplementedError(
+            f"Attention type {args.attention_mode} not implemented"
+        )
 
     return attention_layer_fun
 
 
 def get_residual_layer(args):
+    if args.norm_class == "layer_norm":
+        norm_class = LayerNorm
+    elif args.norm_class == "rms_norm":
+        norm_class = llm.RMSNorm
+    else:
+        raise NotImplementedError(f"Norm type {args.norm_class} not implemented")
     if args.residual_mode == "pre_norm":
-        return partial(llm.PreNormBlock, dmodel=args.dmodel)
+        return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "post_norm":
-        return partial(llm.PostNormBlock, dmodel=args.dmodel)
+        return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "rezero":
-        return partial(llm.RezeroBlock, dmodel=args.dmodel)
+        return partial(llm.RezeroBlock, dmodel=args.dmodel, norm_class=norm_class)
     else:
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
@@ -362,6 +384,10 @@ def get_ff_layer(args):
         return_fn = lambda: llm.FeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
+    elif args.ff_mode == "swi_glu":
+        return_fn = lambda: llm.SwiGLUFeedForward(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
     elif args.ff_mode == "vanilla_timed":
         return_fn = lambda: FeedForwardTimed(
             args.dmodel, args.dff, args.activation_type, args.no_ff
@@ -510,8 +536,12 @@ def get_classes_from_module_names(
     for name in packed_names.split(","):
         if name == "Attention":
             classes.append(llm.Attention)
+        elif name == "AttentionRoPE":
+            classes.append(llm.AttentionRoPE)
         elif name == "AttentionMechanism":
             classes.append(llm.AttentionMechanism)
+        elif name == "RoPE":
+            classes.append(llm.RoPE)
         elif name == "FeedForward":
             classes.append(llm.FeedForward)
         elif name == "Residual":
@@ -534,6 +564,10 @@ def get_classes_from_module_names(
             classes.append(torch.nn.Softmax)
         elif name == "TokenChoiceRouter":
             classes.append(TokenChoiceRouter)
+        elif name == "Mamba":
+            import mamba_ssm
+
+            classes.append(mamba_ssm.Mamba)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)
