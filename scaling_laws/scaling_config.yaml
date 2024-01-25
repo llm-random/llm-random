@@ -15,6 +15,7 @@ scalings:
     weight_decay: 0.00001
     huber_delta: 0.1
     opt_log_loss: true
+    remove_random: 0.0
   - name: "Granular Scaling"
     tags:
       - "fixed_grid_wd"
@@ -45,10 +46,11 @@ scalings:
     weight_decay: 0.00005
     huber_delta: 0.1
     opt_log_loss: false
+    remove_random: 0.0
 plot_dims:
   - - "flops_save"
-#  - - "predicted_loss"
-#    - "granularity"
+  - - "predicted_loss"
+    - "granularity"
 #  - - "predicted_loss"
 #    - "n_steps"
 #  - - "predicted_loss"
@@ -82,4 +84,5 @@ show_model_sizes:
   1T: 1e12
 plot_points: 100
 no_title: false
+repeat: 1
 project_name: "pmtest/llm-random"

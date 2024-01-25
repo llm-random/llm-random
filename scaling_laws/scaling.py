@@ -97,10 +97,10 @@ class PowerLaw(nn.Module):
 
 class ScalingLaw(nn.Module):
     def __init__(self, name, runs, power_laws, fixed, cmap, flops_min, flops_max, eps=1e-5, num_opt_steps=None, scaling_bias=None, lr=None,
+                 remove_random=0.0,
                  final_lr_fr=None, use_scipy=False, load_model=False, opt_log_loss=False, weight_decay=0, huber_delta=0.1,
                  resolve_interactive=False, use_active_params=False, **params):
         super().__init__()
-        self.runs = runs
         self.name = name
         self.checkpoint_name = f"scaling_laws/checkpoints/{name}_model.ckpt"
         self.L0 = tensor(math.log(scaling_bias)) if scaling_bias is not None else init(eps)
@@ -122,6 +122,14 @@ class ScalingLaw(nn.Module):
         self.flops_search_range_log = (math.log(self.flops_range[0]) - 1, math.log(self.flops_range[1]) + 5)
         self.flops_range_margin = (math.exp(self.flops_search_range_log[0]) * 1.1, math.exp(self.flops_search_range_log[1]) * 0.9)
         self.granularity_range = [2**g_i for g_i in range(0, 9)]
+
+        self.all_runs = runs
+        self.n_runs = len(self.all_runs )
+        self.mask = np.array([False]*self.n_runs)
+        self.train_ind = np.random.choice(np.arange(self.n_runs), size=int((1-remove_random)*self.n_runs))
+        self.mask[self.train_ind] = True
+        self.runs = [self.all_runs[i] for i in self.train_ind] if remove_random > 0 else self.all_runs
+        pass
 
     def present_values_as_chinchila(self):
         print(f"{str(self)}")

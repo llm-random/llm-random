@@ -13,7 +13,6 @@ from scaling_laws.scaling import ScalingLaw
 from scaling_laws.utils import neptune_connect, read_yaml_file, get_groups_by_dim
 
 
-
 def plot_loss_vs_predicted_loss(scaling_law, no_title=False, group_by="granularity"):
     groups = get_groups_by_dim(group_by, scaling_law)
     colors = cm.rainbow(np.linspace(0, 1, len(groups)))
@@ -201,13 +200,14 @@ def resolve_interactive(scaling_law):
     return text
 
 
-def compute_scaling_laws(project_name, scalings, plot_dims, config, **params):
-    project = neptune_connect(project_name)
-    scaling_laws = [one_scaling(project=project, **s_config, **config)
-                    for s_config in scalings]
+def compute_scaling_laws(project_name, scalings, plot_dims, config, repeat=1, **params):
+    for _ in range(repeat):
+        project = neptune_connect(project_name)
+        scaling_laws = [one_scaling(project=project, **s_config, **config)
+                        for s_config in scalings]
 
-    for plot_dim in plot_dims:
-        plot_params(scaling_laws, plot_dim, **params)
+        for plot_dim in plot_dims:
+            plot_params(scaling_laws, plot_dim, **params)
 
     for scaling_law in scaling_laws:
         if scaling_law.resolve_interactive:
