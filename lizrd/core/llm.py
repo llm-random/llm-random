@@ -486,9 +486,11 @@ class LLM(nn.Module):
         self.embedding_layer = embedding_layer
         self.encoder = encoder_tower
         self.head = head
+        self.ln = nn.LayerNorm(head.out_features)
 
     def forward(self, *args, **kwargs):
         x = self.embedding_layer(*args, **kwargs)
         x = self.encoder(x)
+        x = self.ln(x)
         x = self.head(x)
         return x
