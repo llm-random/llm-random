@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
@@ -215,6 +217,7 @@ class TokenChoiceFF(LoggingLayer):
         load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
+        doutput: Optional[int] = None,
         routing_top_k: int = 1,
         use_einsum: bool = False,
         vectorize: bool = False,
@@ -222,6 +225,7 @@ class TokenChoiceFF(LoggingLayer):
         """
         Args:
             dmodel: dimension of the input
+            doutput: dimension of the output (default: dmodel)
             n_experts: number of experts
             expert_size: size of each expert
             capacity_factor: scalar that determines how many tokens can be assigned to each expert
@@ -230,6 +234,7 @@ class TokenChoiceFF(LoggingLayer):
         super().__init__()
 
         self.dmodel = dmodel
+        self.doutput = self.dmodel if doutput is None else doutput
         self.n_experts = n_experts
         self.expert_size = expert_size
         self.capacity_factor = capacity_factor
@@ -250,7 +255,7 @@ class TokenChoiceFF(LoggingLayer):
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
-                shape=(n_experts, expert_size, dmodel),
+                shape=(n_experts, expert_size, self.doutput),
                 fan_in=int(n_experts * expert_size),
                 init_type=init_type,
                 scale=init_scale,
@@ -300,7 +305,7 @@ class TokenChoiceFF(LoggingLayer):
             experts_output = F.relu(experts_output)
             if self.use_einsum:
                 experts_output = einsum(
-                    "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
+                    "n_experts capacity expert_size, n_experts expert_size doutput -> n_experts capacity doutput",
                     experts_output,
                     self.lin2_weight,
                 )
@@ -308,7 +313,13 @@ class TokenChoiceFF(LoggingLayer):
                 experts_output = torch.matmul(experts_output, self.lin2_weight)
 
         experts_output = experts_output.to(x.dtype)
-        output = torch.zeros_like(x)
+        output = torch.zeros(
+            batch_size * seq_len,
+            self.doutput,
+            dtype=x.dtype,
+            layout=x.layout,
+            device=x.device,
+        )
 
         if self.vectorize:
             with measure_time(self, "assign_tokens_to_output"):
@@ -330,7 +341,7 @@ class TokenChoiceFF(LoggingLayer):
                         expert_id, :num_of_tokens_to_update
                     ] * masked_expert_gate[tokens_to_update, expert_id].unsqueeze(dim=1)
 
-        output = output.reshape((batch_size, seq_len, self.dmodel))
+        output = output.reshape((batch_size, seq_len, self.doutput))
 
         return output
 
