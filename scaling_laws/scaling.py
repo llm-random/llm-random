@@ -232,6 +232,7 @@ class ScalingLaw(nn.Module):
                       flops=calculate_flops(**self.conf_params, **params),
                       n_opt_steps=get_n_opt_step_from_tokens(params["n_steps"]))
         if params["flops"] < self.flops_range_margin[0] or params["flops"] > self.flops_range_margin[1]:
+            print("SOME assert")
             raise Exception(f"Flops {params['flops']} out of range {self.flops_range}")
 
         logloss = self.expected_logloss(**params).detach().numpy()
