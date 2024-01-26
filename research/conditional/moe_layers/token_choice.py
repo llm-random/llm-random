@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
@@ -253,6 +255,7 @@ class TokenChoiceFF(LoggingLayer):
         init_type: str,
         init_scale: float,
         expert_inner_function: LoggingLayer,
+        doutput: Optional[int] = None,
         routing_top_k: int = 1,
         use_einsum: bool = False,
         vectorize: bool = True,
@@ -260,6 +263,7 @@ class TokenChoiceFF(LoggingLayer):
         """
         Args:
             dmodel: dimension of the input
+            doutput: dimension of the output (default: dmodel)
             n_experts: number of experts
             expert_size: size of each expert
             capacity_factor: scalar that determines how many tokens can be assigned to each expert
@@ -269,6 +273,7 @@ class TokenChoiceFF(LoggingLayer):
         super().__init__()
 
         self.dmodel = dmodel
+        self.doutput = self.dmodel if doutput is None else doutput
         self.n_experts = n_experts
         self.capacity_factor = capacity_factor
         self.expert_inner_function = expert_inner_function
@@ -312,7 +317,13 @@ class TokenChoiceFF(LoggingLayer):
         experts_output = self.expert_inner_function(experts_input)
 
         experts_output = experts_output.to(x.dtype)
-        output = torch.zeros_like(x)
+        output = torch.zeros(
+            batch_size * seq_len,
+            self.doutput,
+            dtype=x.dtype,
+            layout=x.layout,
+            device=x.device,
+        )
 
         if self.vectorize:
             with measure_time(self, "assign_tokens_to_output"):
@@ -334,7 +345,7 @@ class TokenChoiceFF(LoggingLayer):
                         expert_id, :num_of_tokens_to_update
                     ] * masked_expert_gate[tokens_to_update, expert_id].unsqueeze(dim=1)
 
-        output = output.reshape((batch_size, seq_len, self.dmodel))
+        output = output.reshape((batch_size, seq_len, self.doutput))
 
         return output
 
@@ -348,9 +359,11 @@ class ExpertRelu(LoggingLayer):
         init_type: str,
         init_scale: float,
         use_einsum: bool = False,
+        doutput: Optional[int] = None,
     ):
         super().__init__()
         self.dmodel = dmodel
+        self.doutput = dmodel if doutput is None else doutput
         self.n_experts = n_experts
         self.use_einsum = use_einsum
 
@@ -364,7 +377,7 @@ class ExpertRelu(LoggingLayer):
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
-                shape=(n_experts, expert_size, dmodel),
+                shape=(n_experts, expert_size, self.doutput),
                 fan_in=int(n_experts * expert_size),
                 init_type=init_type,
                 scale=init_scale,
@@ -390,14 +403,14 @@ class ExpertRelu(LoggingLayer):
             experts_output = F.relu(experts_output)
             if self.use_einsum:
                 experts_output = einsum(
-                    "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
+                    "n_experts capacity expert_size, n_experts expert_size doutput -> n_experts capacity doutput",
                     experts_output,
                     self.lin2_weight,
                 )
             else:
                 experts_output = torch.matmul(experts_output, self.lin2_weight)
 
-        assert experts_output.shape == (n_experts, capacity, dmodel)
+        assert experts_output.shape == (n_experts, capacity, self.doutput)
 
         return experts_output
 
@@ -411,8 +424,10 @@ class ExpertSwiGLU(LoggingLayer):
         init_type: str,
         init_scale: float,
         use_einsum: bool = False,
+        doutput: Optional[int] = None,
     ):
         super().__init__()
+        self.doutput = dmodel if doutput is None else doutput
 
         self.use_einsum = use_einsum
 
@@ -426,7 +441,7 @@ class ExpertSwiGLU(LoggingLayer):
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
-                shape=(n_experts, expert_size, dmodel),
+                shape=(n_experts, expert_size, self.doutput),
                 fan_in=int(n_experts * expert_size),
                 init_type=init_type,
                 scale=init_scale,
@@ -464,7 +479,7 @@ class ExpertSwiGLU(LoggingLayer):
 
             if self.use_einsum:
                 experts_output = einsum(
-                    "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
+                    "n_experts capacity expert_size, n_experts expert_size doutput -> n_experts capacity doutput",
                     experts_output,
                     self.lin2_weight,
                 )
