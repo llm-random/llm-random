@@ -54,7 +54,7 @@ def wrap_in_fsdp(
         ),
         cpu_offload=CPUOffload(offload_params=offload_params),
         auto_wrap_policy=wrap_policy,
-        sharding_strategy=torch.distributed.fsdp.ShardingStrategy.NO_SHARD,
+        # sharding_strategy=torch.distributed.fsdp.ShardingStrategy.NO_SHARD,
     )
 
     if print_model and is_logging_process:
