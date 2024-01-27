@@ -24,9 +24,9 @@ params:
 
     # N_experts: 32 every expert size of normal DFF in vanilla
 
-    ^n_experts: [32]
-    ^dff: [1536]
-    ^expert_size: [1536]
+    ^n_experts: [24]
+#    ^dff: [1536]
+    ^expert_size: [352]
 
     batch_size: 64
     cutoff: 1024
@@ -45,7 +45,7 @@ params:
     fsdp_enabled: true
     fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
     activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
-    fsdp_selective_precision_modules: ["AttentionMechanism,ExpertGating"]
+    fsdp_selective_precision_modules: "AttentionMechanism,ExpertGating,RoPE,TokenChoiceRouter"
     grad_clip: 0.5
 
     #throughput
@@ -62,7 +62,7 @@ params:
     lr_warmup_steps: 150
 
     #mamba
-
+    ^n_blocks: [16]
     block_modules: ["mamba"]
-    ^mamba_mode: [conv_proj_moe]
+    ^mamba_mode: [out_proj_moe]
     no_positional_embedding: true
