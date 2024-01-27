@@ -162,9 +162,7 @@ def main(
         attention_layer_fun=attention_layer_fun,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
-        device=DEVICE
-        if rank is None
-        else torch.device(
+        device=torch.device(
             "cpu"
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
