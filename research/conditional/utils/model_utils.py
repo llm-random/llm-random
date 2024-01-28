@@ -539,7 +539,7 @@ def get_classes_from_module_names(
 
 def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
     ignored_classes = [
-        ExpertGating,
+        # ExpertGating,
         LayerNorm,
         _BatchNorm,
         TokenChoiceRouter,
