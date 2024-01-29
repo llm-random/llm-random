@@ -142,6 +142,7 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(n_steps + 1):
+                print(f"Step {step}")
                 self._train_step(step)
                 if self.profiler_enabled:
                     p.step()
