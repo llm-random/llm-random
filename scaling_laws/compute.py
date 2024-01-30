@@ -64,15 +64,57 @@ def flops_save(scaling_laws, plot_points, no_title):
     plt.xscale("log")
     ax = plt.gca()
     ax.yaxis.set_minor_formatter(mticker.ScalarFormatter())
-    plt.rc('font', size=7)
-    plt.rc('legend', fontsize=5)
-    plt.rc('axes', titlesize=6, labelsize=6)
+    plt.rc('font', size=10)
+    plt.rc('legend', fontsize=10)
+    plt.rc('axes', titlesize=10, labelsize=10)
     plt.xlabel(f"FLOPS")
     plt.ylabel(f"x Overhead")
     plt.tight_layout()
     legend = plt.legend(loc='upper right')
     legend.get_frame().set_alpha(0.4)
     filename = f"scaling_laws/plots/flops_save.png"
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    plt.savefig(filename)
+    plt.show()
+
+
+def opt_plot(scaling_laws, plot_points, no_title):
+    get_best_params = lambda **params: scaling_laws[1].resolve_params(**params)
+
+    start_point, end_point = map(math.log10, scaling_laws[-1].flops_range)
+    A_values = 10**np.linspace(start_point, end_point, plot_points)
+
+    params = [get_best_params(flops=f) for f in A_values]
+    N_opt = np.array([c["n_params_active"] for c in params])
+    D_opt = np.array([c["n_steps"] for c in params])
+    granularity = np.array([c["granularity"] for c in params])
+    plt.figure(dpi=250)
+
+    grans = [2**gi for gi in range(1, 7)]
+    colors = cm.rainbow(np.linspace(0, 1, len(grans)))
+
+    for g,c in zip(grans, colors):
+        indices = np.where((g*0.8 <= granularity) & (granularity <= g*1.5))[0]
+        if len(indices) > 0:
+            plt.plot(D_opt[indices], N_opt[indices], color=c, linestyle="-", linewidth=2, label=f"Granularity={g}")
+    if not no_title:
+        plt.title("Optimal scaling of N D and G")
+    plt.yscale("log")
+    plt.xscale("log")
+    ax = plt.gca()
+    yticks = [10**i for i in range(9, 13)]
+    xticks = [10**i for i in range(9, 14)]
+    plt.yticks(yticks, [present_v(tt).replace('.00', '') for tt in yticks], size='small')
+    plt.xticks(xticks, [present_v(tt).replace('.00', '') for tt in xticks], size='small')
+    plt.rc('font', size=10)
+    plt.rc('legend', fontsize=10)
+    plt.rc('axes', titlesize=10, labelsize=10)
+    plt.xlabel(f"Training Tokens")
+    plt.ylabel(f"Active Parameters")
+    plt.tight_layout()
+    legend = plt.legend(loc='upper right')
+    legend.get_frame().set_alpha(0.4)
+    filename = f"scaling_laws/plots/opt_save.png"
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     plt.savefig(filename)
     plt.show()
@@ -88,6 +130,9 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, show_points=False, ext
         return
     if axis_dim == "flops_save":
         flops_save(scaling_laws, plot_points=plot_points, no_title=no_title)
+        return
+    if axis_dim == "opt":
+        opt_plot(scaling_laws, plot_points=plot_points, no_title=no_title)
         return
     full_flops = axis_dim == "flops" and len(plot_dim) == 3
     scaling_laws = [s for s in scaling_laws if axis_dim in s.params_set or axis_dim == "flops"]
@@ -105,6 +150,10 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, show_points=False, ext
         group_dims = sorted(list(scaling_law.params_set - set(plot_dim)))
         groups = get_groups_by_dim(group_dims, scaling_law)
         cm_f = cm.get_cmap(scaling_law.cmap)
+        if len(groups) > 2:
+            groups.append(((32.0,), []))
+            groups.append(((64.0,), []))
+            #groups.append(((128.0,), []))
         colors = cm_f(np.linspace(0, 1, len(groups)))
 
         B_predictions, B_opt_params, names = [], [], []
@@ -127,32 +176,43 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, show_points=False, ext
                     if not minimal[i]:
                         continue
                     for k, (size, perplexity, old_params) in model_sizes.items():
-                        if pred < perplexity and params['n_params_total'] >= float(size) and old_params['flops'] > params['flops']:
+                        if pred < perplexity and params['n_params_active'] >= float(size) and old_params['flops'] > params['flops']:
                             model_sizes[k] = (size, pred, params)
             if not plot_minimal:
                 plt.plot(A_values, B_p, color=color, label=name)
                 continue
-            plt.plot(A_values[~minimal], B_p[~minimal], color=color, linestyle="--", linewidth=0.7, alpha=0.5)
-            plt.plot(A_values[minimal], B_p[minimal], color=color, linestyle="-", linewidth=2, label=name)
+            if name == 'Granular Scaling granularity=1':
+                pass
+                #plt.plot(A_values[~minimal], B_p[~minimal], color="blue", linestyle="-", linewidth=2, label="Vanilla MoE")
+            else:
+                pass
+                #plt.plot(A_values[~minimal], B_p[~minimal], color=color, linestyle="--", linewidth=0.5, alpha=0.5)
+            if sum(minimal) > 1:
+                plt.plot(A_values[minimal], B_p[minimal], color=color, linestyle="-", linewidth=2, label=f"MoE Granularity{name[28:]}" if len(name) > 15 else name)
         top = max(top, min(B.max() + 1.0*(B.max() - B.min()), B_predictions.max()))
         bottom = min(bottom, min(B_predictions.min(), B.min()))
 
-        if full_flops and scaling_law.name != 'dense':
+        if full_flops and scaling_law.name != 'Dense':
             for k, (size, perplexity, params) in model_sizes.items():
                 if not np.isfinite(perplexity) and perplexity > 0:
                     continue
                 plt.scatter(math.log10(params['flops']), perplexity, color="black", s=6, marker='x')
-                plt.text(math.log10(params['flops']), perplexity, f"{k}", color="grey", fontsize=6, rotation=30 + ii*10)
+                plt.text(math.log10(params['flops']), perplexity, f"{k}", color="black", fontsize=13, rotation=0 + ii*0)
                 print(f"{k}: steps={params['n_steps']:.2E} flops={params['flops']:.2E} perplexity={perplexity:.2E} active_params={params['n_params_active']:.2E} total_params={params['n_params_total']:.2E}")
 
     if not no_title:
         plt.title('\n'.join([str(s) for s in scaling_laws]), wrap=True, fontsize=5)
-    plt.rc('font', size=7)
+    plt.rc('font', size=10)
     plt.ylim(top=top, bottom=bottom if np.isfinite(bottom) else 0)
-    plt.rc('legend', fontsize=5)
-    plt.rc('axes', titlesize=6, labelsize=6)
-    plt.xlabel(f"log10({axis_dim})")
-    plt.ylabel("ln(loss)")
+    plt.rc('legend', fontsize=10)
+    plt.rc('axes', titlesize=10, labelsize=10)
+
+    yticks = [0.4,0.6,0.8,1.0,1.2]
+    xticks = range(18, 27)
+    plt.yticks(yticks, [f"{np.exp(tt):.2}" for tt in yticks], size='small')
+    plt.xticks(xticks, [f"1E{tt}" for tt in xticks], size='small')
+    plt.xlabel(f"{axis_dim.upper()}")
+    plt.ylabel("loss")
     plt.tight_layout()
     legend = plt.legend(loc='upper right')
     legend.get_frame().set_alpha(0.4)
@@ -162,7 +222,7 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, show_points=False, ext
     plt.show()
 
 
-def download_from_neptune(project, tags, tags_negative, fixed, use_active_params):
+def download_from_neptune(project, tags, fixed, tags_negative=(), use_active_params=False, **_):
     print("Downloading data from Neptune...")
     table = pd.concat([project.fetch_runs_table(tag=tag).to_pandas() for tag in tags])  # TODO this du8plicates when tags overlap
     table.rename(columns=lambda x: x.replace("/", "_"), inplace=True)
@@ -174,13 +234,27 @@ def download_from_neptune(project, tags, tags_negative, fixed, use_active_params
     return runs
 
 
-def one_scaling(project, tags, fixed, use_active_params=False, tags_negative=(), **params):
-    runs = download_from_neptune(project, tags, tags_negative, fixed, use_active_params)
+def one_scaling(runs, fixed, use_active_params=False, **params):
     scaling_law = ScalingLaw(runs=runs, fixed=fixed, use_active_params=use_active_params, **params)
     _ = scaling_law.optimize()
     print(f"Final {scaling_law.name} scaling law approximation RMSE: {scaling_law()[1]}")
     scaling_law.present_values_as_chinchila()
     return scaling_law
+
+
+def present_v(v):
+    if 1e6 <= v < 1e9:
+        return f"{v/1e6:.2f}M"
+    elif 1e9 <= v < 1e12:
+        return f"{v/1e9:.2f}B"
+    elif 1e12 <= v < 1e15:
+        return f"{v/1e12:.2f}T"
+    elif v >= 1e15:
+        return f"{v:.5e}"
+    elif isinstance(v, float):
+        return f"{v:.6}"
+    else:
+        return f"{v}"
 
 
 def resolve_interactive(scaling_law):
@@ -193,21 +267,57 @@ def resolve_interactive(scaling_law):
         try:
             params = json.loads(prompt)
             final_params = scaling_law.resolve_params(**params)
-            params_str = "\n".join([f"\t{k} = {v:.5e}" if v >= 100000 else f"\t{k} = {v:.6}" if isinstance(v, float) else f"\t{k} = {v}"  for k, v in final_params.items()])
+            params_str = "\n".join([f"\t{k} = {present_v(v)}"for k, v in final_params.items()])
             print(f"Params: \n{params_str}")
         except Exception as e:
             print(e)
     return text
 
 
-def compute_scaling_laws(project_name, scalings, plot_dims, config, repeat=1, **params):
-    for _ in range(repeat):
-        project = neptune_connect(project_name)
-        scaling_laws = [one_scaling(project=project, **s_config, **config)
-                        for s_config in scalings]
+def resolve_prompts(scaling_law, prompts, **_):
+    return {name: scaling_law.resolve_params(**values) for name, values in prompts.items()}
 
-        for plot_dim in plot_dims:
-            plot_params(scaling_laws, plot_dim, **params)
+
+def list_of_dicts_to_dict_of_lists(list_of_dicts):
+    return {k: [d[k] for d in list_of_dicts] for k in list_of_dicts[0].keys()}
+
+
+def prompt_intervals(prompts_out, **_):
+    print("")
+    promnt_values = list_of_dicts_to_dict_of_lists(prompts_out)
+    for prompt_name, all_results in promnt_values.items():
+        results_dict = list_of_dicts_to_dict_of_lists(all_results)
+        print(f"{prompt_name}: ",end=" ")
+        for name in sorted(results_dict.keys()):
+            values = results_dict[name]
+            p1 = np.percentile(values, 10)
+            p2 = np.percentile(values, 90)
+            if p1 == p2:
+                print(f"{name}={present_v(p1)}", end=" ")
+            else:
+                print(f"{name}=[{present_v(p1)}, {present_v(p2)}]", end=" ")
+        print("")
+
+
+def compute_scaling_laws(project_name, scalings, plot_dims, config, repeat=1, **params):
+    project = neptune_connect(project_name)
+    prompts_out = []
+
+    all_runs = [download_from_neptune(project, **s_config, **config) for s_config in scalings]
+    for r in range(repeat):
+        print(f"Repeat {r+1}/{repeat}")
+        scaling_laws = [one_scaling(project=project, runs=runs, **s_config, **config)
+                        for runs, s_config in zip(all_runs, scalings)]
+
+        if plot_dims is not None:
+            for plot_dim in plot_dims:
+                plot_params(scaling_laws, plot_dim, **params)
+
+        for scaling_law in scaling_laws:
+            if scaling_law.resolve_interactive:
+                prompts_out.append(resolve_prompts(scaling_law=scaling_law, **config))
+
+    prompt_intervals(prompts_out)
 
     for scaling_law in scaling_laws:
         if scaling_law.resolve_interactive:

@@ -5,8 +5,8 @@ from scipy.optimize import minimize_scalar
 from scaling_laws.utils import binary_search
 
 dmodel_const = 64
-ff_const = 6
-router_const = 6
+ff_const = 6*12
+router_const = 14
 batch_size = 256
 seq_len = 256
 grad_accum = 8
@@ -80,6 +80,11 @@ def calculate_total_params(dmodel, expansion_rate, n_blocks, **_):
 
 def calculate_active_params(dmodel, n_blocks, **_):
     return calculate_total_params(dmodel, 1, n_blocks)
+
+
+def calculate_model_params_from_active_params(n_params_active, **_):
+    dmodel = (n_params_active / 12 * dmodel_const)**(1/3)
+    return dict(dmodel=dmodel, n_blocks=dmodel/dmodel_const)
 
 
 def calculate_model_params_from_laws(expansion_rate, n_params, use_active=False, **_):

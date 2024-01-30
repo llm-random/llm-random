@@ -1,5 +1,5 @@
 scalings:
-  - name: "dense"
+  - name: "Dense"
     tags:
       - "zubr_dense_grid"
     tags_negative:
@@ -48,6 +48,7 @@ scalings:
     opt_log_loss: false
     remove_random: 0.0
 plot_dims:
+  - - "opt"
   - - "flops_save"
   - - "predicted_loss"
     - "granularity"
@@ -69,20 +70,38 @@ extrapolate_factor: 3.0
 use_scipy: true
 load_model: false
 scaling_bias: 0.472
-flops_min: 1e16
-flops_max: 1e22
-show_points: true
+flops_min: 1e18
+flops_max: 1e26
+show_points: false
 show_model_sizes:
 #  10M: 10e6
-#  100M: 100e6
-  #500M: 500e6
-  1B: 1e9
-  3B: 3e9
-  7B: 7e9
-  70B: 70e9
-  500B: 500e9
-  1T: 1e12
+  64 x 100M: 100e6
+  64 x 1B: 1e9
+  64 x 3B: 3e9
+  64 x 7B: 7e9
+  64 x 70B: 70e9
+  64 x 300B: 300e9
+  64 x 1T: 1e12
 plot_points: 100
 no_title: true
 repeat: 1
+prompts:
+  64 x 100M:
+    n_params_active: 100e6
+  64 x 1B:
+    n_params_active: 1e9
+  64 x 3B:
+    n_params_active: 3e9
+  64 x 7B:
+    n_params_active: 7e9
+  64 x 70B:
+    n_params_active: 70e9
+  64 x 300B:
+    n_params_active: 300e9
+  64 x 1T:
+    n_params_active: 1e12
+#  flag:
+#    n_params_active: 393e6
+    #granularity: 1
+
 project_name: "pmtest/llm-random"

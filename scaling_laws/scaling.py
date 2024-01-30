@@ -119,7 +119,7 @@ class ScalingLaw(nn.Module):
         self.resolve_interactive = resolve_interactive
         self.conf_params = dict(use_active_params=use_active_params)
         self.flops_range = (float(flops_min), float(flops_max))
-        self.flops_search_range_log = (math.log(self.flops_range[0]) - 1, math.log(self.flops_range[1]) + 5)
+        self.flops_search_range_log = (math.log(self.flops_range[0]) - 10, math.log(self.flops_range[1]) + 10)
         self.flops_range_margin = (math.exp(self.flops_search_range_log[0]) * 1.1, math.exp(self.flops_search_range_log[1]) * 0.9)
         self.granularity_range = [2**g_i for g_i in range(0, 9)]
 
@@ -186,7 +186,7 @@ class ScalingLaw(nn.Module):
     def resolve_params(self, **params):
         params.update(self.fixed_params)
         lacking = self.params_set - set(params.keys())
-        self.resolve_model_size(lacking, params)
+        params = self.resolve_model_size(lacking, params)
 
         if "loss" in params:
             params.update(calculate_compute_opt_for_loss(**params, scaling_laws=self))
@@ -198,9 +198,9 @@ class ScalingLaw(nn.Module):
             params.update(calculate_n_params_from_flops(**self.conf_params, **params))
         elif lacking == {"n_params", "n_steps"} and "flops" in params:
             params.update(calculate_n_params_and_steps_from_flops(**self.conf_params, **params, scaling_laws=self))
-        elif "n_steps" in params:
+        elif "n_steps" in params and "n_params" in lacking:
             params.update(calculate_compute_opt_for_steps(**params, scaling_laws=self))
-        elif "n_params" in params:
+        elif "n_params" in params and "n_steps" in lacking:
             params.update(calculate_compute_opt_for_params(**params, scaling_laws=self))
         elif "granularity" in lacking:
             params.update(self.find_opt_granularity(**params))
@@ -211,6 +211,10 @@ class ScalingLaw(nn.Module):
         return params
 
     def resolve_model_size(self, lacking, params):
+        params = {k: (float(v) if isinstance(v, str) else v) for k, v in params.items()}
+        if "n_params_active" in params:
+            params.update(calculate_model_params_from_active_params(**params))
+            del params["n_params_active"]
         if "dmodel" in params and "n_blocks" not in params:
             params["n_blocks"] = params["dmodel"] // dmodel_const
         if "dmodel" not in params and "n_blocks" in params:
@@ -223,6 +227,7 @@ class ScalingLaw(nn.Module):
             del params["dmodel"]
         if "n_blocks" in params:
             del params["n_blocks"]
+        return params
 
     def update_other_hyperparams(self, params):
         # compute optimal already calculated here
