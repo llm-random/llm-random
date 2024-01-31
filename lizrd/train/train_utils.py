@@ -13,7 +13,9 @@ from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 def get_model(
     max_length: int,
     vocab_size: int,
-    ff_layer_fun: Callable[[], torch.nn.Module],
+    ff_layer_fun: Union[
+        Callable[[], torch.nn.Module], list[Callable[[], torch.nn.Module]]
+    ],
     attention_layer_fun: Callable[[], torch.nn.Module],
     dm: int,
     n_blocks: int,
@@ -68,6 +70,7 @@ def get_model(
     ).to(last_gpu)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
+    breakpoint()
     if ddp_enabled:
         model = wrap_in_ddp(module=model, rank=rank)
     elif fsdp_enabled:

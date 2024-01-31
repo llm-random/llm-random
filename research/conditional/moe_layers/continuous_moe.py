@@ -70,6 +70,7 @@ class MoTRouter(torch.nn.Module):
             emit_weights = argmax_one_hot(emit_weights, dim=emit_softmax_dim)
         return merge_weights, emit_weights
 
+
 @dataclasses.dataclass(eq=False, repr=False)
 class ContinuousMoeBaseClass(LoggingLayer):
     """

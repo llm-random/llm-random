@@ -146,6 +146,7 @@ if __name__ == "__main__":
                 "--partition=plgrid-gpu-a100",
                 f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
                 "--account=plgplggllmeffi-gpu-a100",
+                "--mem=512G",
                 f"--job-name={job_name}",
                 f"--time={setup_args['time']}",
                 get_grid_entrypoint(CLUSTER_NAME),
