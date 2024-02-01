@@ -45,10 +45,10 @@ class LayerManager:
                 "residual_attention",
                 "feedforward",
                 "expert_gating",
-                "router",
             ]:
                 block_name = self.extract_block_name(name)
                 registered_name = f"{block_name}/{suffix}"
+
             if registered_name is not None:
                 self._layers.append((registered_name, layer))
 
@@ -87,10 +87,7 @@ class LayerManager:
 
         for verbosity_level in verbosity_levels:
             for block_name, layer in self._layers:
-                if isinstance(layer, LoggingLayer) or (
-                    isinstance(layer, torch.distributed.fsdp.FullyShardedDataParallel)
-                    and isinstance(layer._fsdp_wrapped_module, LoggingLayer)
-                ):
+                if isinstance(layer, LoggingLayer):
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
                         logging_name = block_name + "/" + name
@@ -108,6 +105,51 @@ class LayerManager:
             for name, param in layer.named_parameters():
                 if name in ["temperature_merge", "temperature_emit"]:
                     param.requires_grad = is_learning_temperature
+
+    def set_chimera_mode(self, mode):
+        for _, l in self._layers:
+            if hasattr(l, "current_mode"):
+                l.set_mode(mode)
+
+    def get_chimera_mode(self, step, schedule_type_id):
+        """
+        this is temporary code that implements different mode schedules. in total, thee will be 6 schedules:
+        1.mot-> switch @30K
+        2.mot->switch @ 100K
+        3.ec x switch
+        4.ec -> switch @30K
+        5.mot x ec
+        6.mot -> ec @30K
+        where x means "alternate between the two" and -> means "switch to the second one at the given step"
+
+        note: all schedules start with 1 step each of all modes involved
+        """
+        modes_involved = []
+        if schedule_type_id == 1:
+            modes_involved = ["mot", "switch"]
+        elif schedule_type_id == 2:
+            modes_involved = ["mot", "switch"]
+        elif schedule_type_id == 3:
+            modes_involved = ["ec", "switch"]
+        elif schedule_type_id == 4:
+            modes_involved = ["ec", "switch"]
+        elif schedule_type_id == 5:
+            modes_involved = ["mot", "ec"]
+        elif schedule_type_id == 6:
+            modes_involved = ["mot", "ec"]
+
+        if step < len(modes_involved):
+            return modes_involved[step]
+        else:
+            round_robin_schedule = schedule_type_id in [3, 5]
+            if round_robin_schedule:
+                return modes_involved[step % 2]
+            else:
+                cutoff_step = 30000 if schedule_type_id in [1, 4, 6] else 150000
+                if step < cutoff_step:
+                    return modes_involved[0]
+                else:
+                    return modes_involved[1]
 
 
 class LoggingLayer(nn.Module):
@@ -141,8 +183,6 @@ class LoggingLayer(nn.Module):
                     self.logging_cache[key] = value
             elif isinstance(value, torch.Tensor):
                 self.logging_cache[key] = value.clone().detach().cpu()
-            elif isinstance(value, float) or isinstance(value, int):
-                self.logging_cache[key] = value
             else:
                 raise NotImplementedError
 

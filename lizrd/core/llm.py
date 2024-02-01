@@ -30,29 +30,6 @@ def decode_bias_string(bias):
 
 
 @ash.check("... d -> ... d")
-class SwiGLUFeedForward(LoggingLayer):
-    def __init__(
-        self,
-        dmodel,
-        dff,
-        init_type: Literal["kaiming_uniform", "truncated_normal"],
-        init_scale: float,
-    ):
-        super().__init__()
-        self.w1_gate = Linear(
-            dmodel, dff * 2, init_type=init_type, init_scale=init_scale, bias=False
-        )
-        self.w2 = Linear(
-            dff, dmodel, init_type=init_type, init_scale=init_scale, bias=False
-        )
-
-    def forward(self, x):
-        pre_activation, gate = torch.chunk(self.w1_gate(x), 2, dim=-1)
-        activation = torch.nn.functional.silu(pre_activation)
-        return self.w2(activation * gate)
-
-
-@ash.check("... d -> ... d")
 def FeedForward(
     dmodel,
     dff,
@@ -319,154 +296,6 @@ class Attention(LoggingLayer):
         return output
 
 
-class RoPE(nn.Module):
-    # features are paired x_i, x_{i + d_head/2}
-    def __init__(self, dhead, length):
-        super().__init__()
-        self.dhead = dhead
-        self.length = length
-        angle_exponents = torch.arange(0, dhead, 2) / dhead
-        angles = torch.pow(1 / 10000, angle_exponents).reshape(1, -1)
-        angle_per_token = angles * torch.arange(0, length).reshape(-1, 1)
-        self.register_buffer("sin", torch.sin(angle_per_token).repeat(1, 2))
-        self.register_buffer("cos", torch.cos(angle_per_token).repeat(1, 2))
-
-    def forward(self, x):
-        [y1, y2] = torch.chunk(x, chunks=2, dim=-1)
-        x_rotated = torch.cat([-y2, y1], dim=-1)
-        return x * self.cos + x_rotated * self.sin
-
-
-@ash.check("... d -> ... d")
-class AttentionRoPE(LoggingLayer):
-    def __init__(
-        self,
-        dmodel,
-        heads,
-        causal,
-        length,
-        init_type: str,
-        init_scale: float,
-        dhead=None,
-        flash=False,
-    ):
-        super(AttentionRoPE, self).__init__()
-        if dhead is None:
-            assert dmodel % heads == 0
-            dhead = dmodel // heads
-
-        self.heads = heads
-        self.dhead = dhead
-        self.causal = causal
-        self.flash = flash
-
-        self.input_projection = Linear(
-            dmodel,
-            3 * heads * dhead,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.output_projection = Linear(
-            heads * dhead,
-            dmodel,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.rope = RoPE(dhead, length=length)
-        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-
-    def forward(self, x):
-        projected = self.input_projection(x)
-
-        batch, seq_len = x.shape[:-1]
-        projected = projected.view(
-            batch, seq_len, self.heads, 3 * self.dhead
-        ).transpose(1, 2)
-        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
-        q = self.rope(q)
-        k = self.rope(k)
-
-        attention_output = self.attention_mechanism(
-            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
-        )
-
-        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
-
-        return output
-
-
-@ash.check("... d -> ... d")
-class Attention(LoggingLayer):
-    def __init__(
-        self,
-        dmodel,
-        heads,
-        causal,
-        init_type: str,
-        init_scale: float,
-        dhead=None,
-        flash=False,
-    ):
-        super(Attention, self).__init__()
-        if dhead is None:
-            assert dmodel % heads == 0
-            dhead = dmodel // heads
-
-        self.heads = heads
-        self.dhead = dhead
-        self.causal = causal
-        self.flash = flash
-
-        self.input_projection = Linear(
-            dmodel,
-            3 * heads * dhead,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.output_projection = Linear(
-            heads * dhead,
-            dmodel,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-
-    def forward(self, x):
-        projected = self.input_projection(x)
-
-        batch, seq_len = x.shape[:-1]
-        projected = projected.view(
-            batch, seq_len, self.heads, 3 * self.dhead
-        ).transpose(1, 2)
-        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
-
-        attention_output = self.attention_mechanism(
-            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
-        )
-
-        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
-
-        return output
-
-
-class RMSNorm(nn.Module):
-    def __init__(self, dmodel, eps=1e-5):
-        super().__init__()
-        self.eps = eps
-
-        self.g = nn.Parameter(torch.ones(dmodel))
-        self.b = nn.Parameter(torch.zeros(dmodel))
-
-    def forward(self, x):
-        norm = torch.mean(x**2, dim=-1, keepdim=True)
-        x = x * torch.rsqrt(norm + self.eps)
-        return x * self.g + self.b
-
-
 class ReZero(nn.Module):
     def __init__(self, fn, init=0.0):
         super().__init__()
@@ -481,23 +310,23 @@ def RezeroBlock(dmodel, layer, name):
     return Residual(ReZero(layer))
 
 
-def PostNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
+def PostNormBlock(dmodel, layer, name):
     return nn.Sequential(
         OrderedDict(
             [
                 (f"{name}", Residual(layer)),
-                ("post_norm", norm_class(dmodel)),
+                ("post_norm", nn.LayerNorm(dmodel)),
             ]
         )
     )
 
 
-def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
+def PreNormBlock(dmodel, layer, name):
     return Residual(
         nn.Sequential(
             OrderedDict(
                 [
-                    ("pre_norm", norm_class(dmodel)),
+                    ("pre_norm", nn.LayerNorm(dmodel)),
                     (f"{name}", layer),
                 ]
             )
@@ -540,10 +369,18 @@ class TransformerTower(nn.Module):
         )
         self.device = device
 
-        for i_block in range(n_blocks):
+        feedforward = layer_dict.pop("feedforward")
+
+        if not isinstance(feedforward, list):
+            feedforward = [feedforward] * n_blocks
+
+        for i_block, ff_fun in enumerate(feedforward):
             layers_info = [
                 (name, layer_fun()) for name, layer_fun in layer_dict.items()
             ]
+            layers_info.append(
+                ("feedforward", ff_fun())
+            )  # TODO: this assumes that feedforward is always the last layer. Should be fixed.
 
             for name, layer in layers_info:
                 layer.layer_type = name

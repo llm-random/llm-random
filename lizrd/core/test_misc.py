@@ -160,23 +160,19 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             dataset_split="train",
         )
 
-        layers = {
-            "feedforward": lambda: llm.FeedForward(
+        model = get_model(
+            max_length=seql,
+            vocab_size=vocab_size,
+            ff_layer_fun=lambda: llm.FeedForward(
                 dm, dff, init_type="kaiming_uniform", init_scale=1.0
             ),
-            "attention": lambda: llm.Attention(
+            attention_layer_fun=lambda: llm.Attention(
                 dm,
                 heads,
                 causal=False,
                 init_type="kaiming_uniform",
                 init_scale=1.0,
             ),
-        }
-
-        model = get_model(
-            max_length=seql,
-            vocab_size=vocab_size,
-            block_modules=layers,
             dm=dm,
             n_blocks=n_blocks,
             device=device,

@@ -16,10 +16,6 @@ def make_concise_datetime() -> str:
     return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
 
 
-def get_n_learnable_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-
 def count_parameters(model, args, VOCAB_SIZE):
     model_n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     input_embedding_and_head_params = 2 * VOCAB_SIZE * args.dmodel

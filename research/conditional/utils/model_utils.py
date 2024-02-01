@@ -1,7 +1,4 @@
 from functools import partial
-
-# import json
-# from diskcache import Cache
 from typing import Type, Union
 import torch
 from torch.nn import LayerNorm
@@ -13,6 +10,7 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
+from research.conditional.moe_layers.chimera import MoEChimera
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )
@@ -57,9 +55,6 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, Expert
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
     TokenChoiceRouter,
-)
-from research.conditional.moe_layers._token_choice_deprecated import (
-    TokenChoiceFF as TokenChoiceFFDeprecated,
 )
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
@@ -190,48 +185,26 @@ def calculate_llm_loss(
 
 def get_attention_layer(args):
     causal = args.model_type == "gpt"
-    if args.attention_mode == "vanilla":
-        attention_layer_fun = lambda: llm.Attention(
-            dmodel=args.dmodel,
-            heads=args.n_att_heads,
-            causal=causal,
-            dhead=args.dhead,
-            flash=args.flash_attention,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-        )
-    elif args.attention_mode == "rope":
-        attention_layer_fun = lambda: llm.AttentionRoPE(
-            dmodel=args.dmodel,
-            heads=args.n_att_heads,
-            length=args.cutoff,
-            causal=causal,
-            dhead=args.dhead,
-            flash=args.flash_attention,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-        )
-    else:
-        raise NotImplementedError(
-            f"Attention type {args.attention_mode} not implemented"
-        )
+    attention_layer_fun = lambda: llm.Attention(
+        dmodel=args.dmodel,
+        heads=args.n_att_heads,
+        causal=causal,
+        dhead=args.dhead,
+        flash=args.flash_attention,
+        init_type=args.init_type,
+        init_scale=args.init_scale,
+    )
 
     return attention_layer_fun
 
 
 def get_residual_layer(args):
-    if args.norm_class == "layer_norm":
-        norm_class = LayerNorm
-    elif args.norm_class == "rms_norm":
-        norm_class = llm.RMSNorm
-    else:
-        raise NotImplementedError(f"Norm type {args.norm_class} not implemented")
     if args.residual_mode == "pre_norm":
-        return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
+        return partial(llm.PreNormBlock, dmodel=args.dmodel)
     elif args.residual_mode == "post_norm":
-        return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
+        return partial(llm.PostNormBlock, dmodel=args.dmodel)
     elif args.residual_mode == "rezero":
-        return partial(llm.RezeroBlock, dmodel=args.dmodel, norm_class=norm_class)
+        return partial(llm.RezeroBlock, dmodel=args.dmodel)
     else:
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
@@ -283,8 +256,8 @@ def get_expert_choice_args(args):
         args.topk_fraction = topk_fraction
     else:
         experts_per_token = args.topk_fraction * args.n_experts
-        args.effective_dff = experts_per_token * args.expert_size
-        args.total_experts_width = args.expert_size * args.n_experts
+        effective_dff = experts_per_token * args.expert_size
+        total_experts_width = args.expert_size * args.n_experts
 
     return {
         "dmodel": args.dmodel,
@@ -354,11 +327,10 @@ def retrieve_additional_losses(model: torch.nn.Module):
         return losses
 
     if "load_balancing_losses" in model.forward_pass_cache:
-        load_balancing_losses = model.forward_pass_cache["load_balancing_losses"]
+        load_balancing_losses = model.forward_pass_cache.pop("load_balancing_losses")
         load_balancing_losses = torch.stack(load_balancing_losses)
         load_balancing_loss = torch.mean(load_balancing_losses)
         losses["load_balancing_loss"] = load_balancing_loss
-
     return losses
 
 
@@ -370,7 +342,7 @@ def get_common_mot_kwargs(args):
         "group_size": args.group_size,
         "sparsity_dim": args.sparsity_dim,
         "temperature": args.temperature,
-        "expert_size": args.expert_size,
+        "expert_size": None,
         "use_opt_einsum": args.use_opt_einsum,
         "flop_matched": args.flop_matched,
         "init_type": args.init_type,
@@ -382,10 +354,6 @@ def get_common_mot_kwargs(args):
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
-            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
-        )
-    elif args.ff_mode == "swi_glu":
-        return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
     elif args.ff_mode == "vanilla_timed":
@@ -462,17 +430,6 @@ def get_ff_layer(args):
             expert_size=args.expert_size,
             capacity_factor=args.capacity_factor,
             load_balancing_loss_weight=args.load_balancing_loss_weight,
-            routing_top_k=args.routing_top_k,
-            init_scale=args.init_scale,
-            init_type=args.init_type,
-        )
-    elif args.ff_mode == "token_choice_deprecated":
-        return_fn = lambda: TokenChoiceFFDeprecated(
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            expert_size=args.expert_size,
-            capacity_factor=args.capacity_factor,
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
             init_scale=args.init_scale,
             init_type=args.init_type,
         )
@@ -489,6 +446,29 @@ def get_ff_layer(args):
             no_average_attn=args.no_average_attn,
             nystrom=args.nystrom,
             xfavor=args.xfavor,
+        )
+    elif args.ff_mode == "moe_chimera":
+        mot = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
+        # ec = lambda: ExpertChoiceFF(**get_expert_choice_args(args))
+        switch = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            capacity_factor=args.capacity_factor,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
+
+        return_fn = lambda: MoEChimera(
+            mot=mot,
+            # ec=ec,
+            switch=switch,
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
@@ -512,16 +492,6 @@ def get_ff_layer(args):
     return return_fn
 
 
-def get_mamba_layer(args):
-    import mamba_ssm
-
-    if args.mamba_mode == "vanilla":
-        return_fn = lambda: mamba_ssm.Mamba(d_model=args.dmodel)
-    else:
-        raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
-    return return_fn
-
-
 def get_classes_from_module_names(
     packed_names,
 ) -> Union[tuple[Type[torch.nn.Module]], None]:
@@ -534,12 +504,8 @@ def get_classes_from_module_names(
     for name in packed_names.split(","):
         if name == "Attention":
             classes.append(llm.Attention)
-        elif name == "AttentionRoPE":
-            classes.append(llm.AttentionRoPE)
         elif name == "AttentionMechanism":
             classes.append(llm.AttentionMechanism)
-        elif name == "RoPE":
-            classes.append(llm.RoPE)
         elif name == "FeedForward":
             classes.append(llm.FeedForward)
         elif name == "Residual":
@@ -562,10 +528,6 @@ def get_classes_from_module_names(
             classes.append(torch.nn.Softmax)
         elif name == "TokenChoiceRouter":
             classes.append(TokenChoiceRouter)
-        elif name == "Mamba":
-            import mamba_ssm
-
-            classes.append(mamba_ssm.Mamba)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)

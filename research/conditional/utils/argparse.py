@@ -9,7 +9,6 @@ def introduce_parser_arguments(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
-    parser.add_argument("--attention_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
@@ -158,6 +157,7 @@ def introduce_parser_arguments(
     # paremeters for specific experiments
 
     ## used by MoE (common)
+    parser.add_argument("--general_ff_layer_config", type=str, default=None)
     parser.add_argument(
         "--eval_dynamic_groupsize",
         action="store_true",
@@ -191,6 +191,7 @@ def introduce_parser_arguments(
     parser.add_argument("--flop_matched", action="store_true")
 
     ## used by MoE (specific)
+    parser.add_argument("--chimera_schedule", type=int, default=None)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
@@ -233,12 +234,6 @@ def introduce_parser_arguments(
     parser.add_argument("--xfavor", action="store_true")
     parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
-    parser.add_argument(
-        "--routing_top_k",
-        type=int,
-        default=1,
-        help="TopK (how many experts a token is routed to) in Token Choice",
-    )
     parser.add_argument(
         "--ff_parallel_compute_fraction",
         type=float,
@@ -287,23 +282,5 @@ def introduce_parser_arguments(
 
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
-
-    # mamba
-    parser.add_argument("--mamba_mode", type=str, default="vanilla")
-    parser.add_argument(
-        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
-    )
-    parser.add_argument("--no_positional_embedding", action="store_true")
-
-    parser.add_argument(
-        "--norm_class",
-        type=str,
-        choices=[
-            "layer_norm",
-            "rms_norm",
-        ],
-        default="layer_norm",
-        required=False,
-    )
 
     return parser
