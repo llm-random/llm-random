@@ -1,9 +1,5 @@
 parent: research/conditional/train/configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 17e23fa8efdf44ed2a84b8e15941039c
-# singularity_image: /local_storage_1/sparsity_2023.12.14_16.44.42.sif # entropy
-# singularity_image: /home/jkrajewski_a100/images/sparsity_2023.11.10_15.23.19.sif
-# singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.14_16.44.42.sif # athena
-# hf_datasets_cache: /local_storage_1/dataset_cache # entropy
 n_gpus: 4
 time: "40:00:00"
 

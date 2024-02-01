@@ -1,6 +1,6 @@
 md5_parent_hash: 7a0330388646a9bfbcbee67008f9538a
 parent: research/conditional/train/configs/baselines/gpt/dense/medium.yaml
-singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.14_16.44.42.sif # athena
+singularity_image: SECRET_PATH1/images/sparsity_2023.12.14_16.44.42.sif
 n_gpus: 2
 time: "0-12:00:00"
 
@@ -8,7 +8,7 @@ params:
     #tuning
     learning_rate: 5e-4
     load_balancing_loss_weight: 0.01
-    capacity_factor: 1.00 # literatoora
+    capacity_factor: 1.00
 
     #name
     name: moe_in_mamba
@@ -42,7 +42,7 @@ params:
     mixed_precision: true
     mixed_precision_dtype: bfloat16
     flash_attention: false
-    gradient_accumulation_steps: 1 #!!!!!!!!!!!! THIS IS NONTRIVIAL
+    gradient_accumulation_steps: 1
     init_type: truncated_normal
     init_scale: 0.1
     n_steps: 15_000

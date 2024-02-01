@@ -1,15 +1,10 @@
 md5_parent_hash: 7a0330388646a9bfbcbee67008f9538a
 parent: research/conditional/train/configs/baselines/gpt/dense/medium.yaml
-# singularity_image: /common/llm-random/images/sparsity_2023.12.14_16.44.42.sif
-# singularity_image:
-singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.14_16.44.42.sif
-# singularity_image: /raid/NFS_SHARE/llm-random/images/sparsity_2023.12.14_16.44.42.sif
+singularity_image: SECRET_PATH1/images/sparsity_2023.12.14_16.44.42.sif
 # cuda_visible: "1"
 n_gpus: 1
 # time: "00:10:00"
 time: "13:00:00"
-# hf_datasets_cache: /local_storage_1/dataset_cache
-# singularity_image: /home/jkrajewski_a100/images/sparsity_2023.11.10_15.23.19.sif
 
 params:
   mixed_precision: true
