@@ -10,9 +10,9 @@ from torch.utils.checkpoint import checkpoint
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
 
-from lizrd.core import llm
-from lizrd.text.data import LLMBatch
-from lizrd.core.llm import Parallel
+from source.core import llm
+from source.text.data import LLMBatch
+from source.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
     ContinuousMoECommonWeightedParameters,
 )

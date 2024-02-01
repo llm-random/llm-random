@@ -9,8 +9,8 @@ params:
   # model
   batch_size: 512
   cutoff: 128
-  project_name: "pmtest/llm-random"
-  name: "jk"
+  project_name: "SECRET_PROJECT_NAME"
+  name: "granular_exp=32_id=5454"
   mixed_precision: true
   tags:
     - "mode_expert_choice"

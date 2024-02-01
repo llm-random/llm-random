@@ -4,7 +4,7 @@ from typing import Literal
 import torch
 from torch.utils.data import DataLoader
 
-from lizrd.text import datasets, packers, data, tokenizers
+from source.text import datasets, packers, data, tokenizers
 
 
 class DataloaderWrapper:

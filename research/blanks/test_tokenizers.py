@@ -1,4 +1,4 @@
-from lizrd.support.test_utils import GeneralTestCase
+from source.support.test_utils import GeneralTestCase
 from research.blanks.tokenizers import MAX_BLANKS, BlankTokenizer
 
 
