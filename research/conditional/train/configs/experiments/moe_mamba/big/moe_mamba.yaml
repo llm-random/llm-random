@@ -1,5 +1,5 @@
 parent: research/conditional/train/configs/baselines/gpt/dense/base.yaml
-md5_parent_hash: 17e23fa8efdf44ed2a84b8e15941039c
+md5_parent_hash: 7973e22f5f019acdc658ba4aa5bd4d39
 singularity_image: /local_storage_1/sparsity_2023.12.14_16.44.42.sif
 hf_datasets_cache: /local_storage_1/dataset_cache
 n_gpus: 4
