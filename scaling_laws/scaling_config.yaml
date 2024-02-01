@@ -104,4 +104,4 @@ prompts:
 #    n_params_active: 393e6
     #granularity: 1
 
-project_name: "pmtest/llm-random"
+project_name: "SECRET_PROJECT_NAME"

@@ -62,4 +62,4 @@ show_model_sizes:
   500B: 500e9
   1T: 1e12
 plot_points: 100
-project_name: "pmtest/llm-random"
+project_name: "SECRET_PROJECT_NAME"
