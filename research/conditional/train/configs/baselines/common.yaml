@@ -13,7 +13,7 @@ params:
 
   # logging etc.
   use_neptune: true
-  project_name: "pmtest/llm-random"
+  project_name: "SECRET_PROJECT_NAME"
   logging_interval_heavy: 5000
   logging_interval_loss: 1000
   save_weights_path: "model_ckpt"

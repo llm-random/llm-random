@@ -1,8 +1,8 @@
 from copy import deepcopy
 import torch
 from torch.nn import Sequential, ReLU
-from lizrd.core.misc import Linear, propagate_forward_pass_cache
-from lizrd.train.checkpointing import (
+from source.core.misc import Linear, propagate_forward_pass_cache
+from source.train.checkpointing import (
     first_forward_manager,
     make_checkpoint_wrapper_function,
     second_forward_manager,
@@ -12,7 +12,7 @@ from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as OldTokenChoiceFF,
 )
-from lizrd.support.test_utils import GeneralTestCase
+from source.support.test_utils import GeneralTestCase
 
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,

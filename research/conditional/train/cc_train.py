@@ -8,22 +8,22 @@ import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
-from lizrd.core import misc
-from lizrd.core.llm import EmbeddingLayer, Parallel
-from lizrd.support.logging import get_current_logger, get_logger
-from lizrd.support.misc import (
+from source.core import misc
+from source.core.llm import EmbeddingLayer, Parallel
+from source.support.logging import get_current_logger, get_logger
+from source.support.misc import (
     get_argument_attributes,
     generate_random_string,
     get_n_learnable_parameters,
     set_seed,
 )
-from lizrd.train.train_utils import (
+from source.train.train_utils import (
     get_model,
 )
-from lizrd.text import tokenizers
+from source.text import tokenizers
 from research.conditional.utils.check_args import check_args
 from research.datasets import DataloaderWrapper, get_processed_dataset
-from lizrd.train.scheduler import get_scheduler
+from source.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
