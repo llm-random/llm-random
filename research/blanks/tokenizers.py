@@ -2,7 +2,7 @@ from typing import List
 
 from transformers import GPT2TokenizerFast
 
-from lizrd.text.tokenizers import AbstractTokenizer, disable_tokenizer_warnings
+from source.text.tokenizers import AbstractTokenizer, disable_tokenizer_warnings
 
 NUM_RESERVED_TOKENS = 100
 MAX_BLANKS = 50

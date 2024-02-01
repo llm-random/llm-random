@@ -2,13 +2,13 @@ import einops
 import torch
 from torch.nn import functional as F
 
-from lizrd.core import misc
-from lizrd.core import nn
-from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
-from lizrd.core.misc import EinMix
-from lizrd.support import ash
-from lizrd.support.profile import Timer, TimerLayer
-from lizrd.core.initialization import get_init_weight, get_init_bias
+from source.core import misc
+from source.core import nn
+from source.core.llm import SplitLastAxis, Transpose, MergeLastAxis
+from source.core.misc import EinMix
+from source.support import ash
+from source.support.profile import Timer, TimerLayer
+from source.core.initialization import get_init_weight, get_init_bias
 
 
 @ash.check("... d -> ... d")
@@ -213,7 +213,7 @@ class SimpleSplitFF(nn.Module):
                 fan_in=(expertsize * totalexperts / sparsity),
             )
         )
-        # TODO(jaszczur): check if the above is correct regarding fan_in
+        # TODO(SECRET_NAME): check if the above is correct regarding fan_in
 
         self.inner2 = "... e d"
 
@@ -367,7 +367,7 @@ class BatchSplitFF(nn.Module):
                 scale=init_scale,
             )
         )
-        # TODO(jaszczur): check if the above is correct regarding fan_in
+        # TODO(SECRET_NAME): check if the above is correct regarding fan_in
 
         self.inner2 = "... e d"
 
@@ -394,7 +394,7 @@ class BatchSplitFF(nn.Module):
                 e=self.totalexperts,
                 t=self.sparsity,
             )
-            # TODO(jaszczur): add permutation here! for x and for gradient
+            # TODO(SECRET_NAME): add permutation here! for x and for gradient
 
             inner = misc.einsum(
                 f"... e t d, {self.f1p}-> ... e t f",
@@ -421,7 +421,7 @@ class BatchSplitFF(nn.Module):
             gradient_similarity = misc.einsum(
                 f"... e t d, ... e t d-> ... e t", gradient_grouped, result_unpermuted
             )
-            # TODO(jaszczur): the line below is unnecessary, but it's a reminder
+            # TODO(SECRET_NAME): the line below is unnecessary, but it's a reminder
             gradient_similarity = (
                 gradient_similarity / self.dm**0.5
             )  # This is to normalize outputs
@@ -439,7 +439,7 @@ class BatchSplitFF(nn.Module):
         #
         #     grouped = einops.rearrange(combined_x, f'(b t) d -> b t d',
         #                                t=self.sparsity)
-        #     # TODO(jaszczur): add permutation here! for x and for gradient
+        #     # TODO(SECRET_NAME): add permutation here! for x and for gradient
         #
         #     inner = misc.einsum(f'... t d, {self.f1p}, ... t e-> ... e f',
         #                         grouped, self.f1, self.last_permutation,
@@ -458,7 +458,7 @@ class BatchSplitFF(nn.Module):
         #                                         e=self.totalexperts, t=self.sparsity)
         #     gradient_similarity = misc.einsum(f'... e t d, ... e t d-> ... e t',
         #                                       gradient_grouped, result_unpermuted)
-        #     # TODO(jaszczur): the line below is unnecessary, but it's a reminder
+        #     # TODO(SECRET_NAME): the line below is unnecessary, but it's a reminder
         #     gradient_similarity = gradient_similarity / self.dm ** 0.5  # This is to normalize outputs
         #     best_choice = (gradient_similarity == gradient_similarity.max(dim=-1, keepdim=True)[0]) * 1.0
         #     ash.assert_shape('... e t', best_choice)

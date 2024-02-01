@@ -7,16 +7,16 @@ from typing import Callable, List, Optional, Literal
 
 import torch
 from attr import define
-from lizrd.support.logging import AbstractLogger
-from lizrd.support.misc import get_ith_chunk
+from source.support.logging import AbstractLogger
+from source.support.misc import get_ith_chunk
 from research.blanks.model import BlankDiffPredictionHead
 
 from .data import BlanxBatch
-from lizrd.train.scheduler import AbstractLRScheduler
+from source.train.scheduler import AbstractLRScheduler
 
 from .loss import make_loss_function
 from research.datasets import DataloaderWrapper
-from lizrd.text.datasets import C4Dataset
+from source.text.datasets import C4Dataset
 
 
 @define(slots=False)

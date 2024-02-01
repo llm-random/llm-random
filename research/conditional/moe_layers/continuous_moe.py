@@ -5,8 +5,8 @@ import einops
 import numpy as np
 import torch
 
-from lizrd.core import misc, nn
-import lizrd.core.initialization
+from source.core import misc, nn
+import source.core.initialization
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 from research.conditional.utils.layer_manager import LoggingLayer
 
@@ -20,7 +20,7 @@ class MoTRouter(torch.nn.Module):
         self.init_scale = init_scale
 
         self.lin1 = torch.nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 shape=(self.n_experts, self.dmodel, self.dmodel),
                 fan_in=self.dmodel,
                 init_type=self.init_type,
@@ -28,7 +28,7 @@ class MoTRouter(torch.nn.Module):
             )
         )
         self.lin2 = torch.nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 shape=(self.n_experts, self.dmodel, self.dmodel),
                 fan_in=self.dmodel,
                 init_type=self.init_type,
@@ -36,7 +36,7 @@ class MoTRouter(torch.nn.Module):
             )
         )
         self.controller = torch.nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 shape=(self.dmodel, self.n_experts),
                 fan_in=self.dmodel,
                 init_type=self.init_type,
@@ -362,7 +362,7 @@ class LegacyContinuousMoE(ContinuousMoeBaseClass):
     def init_core_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.dm,
                 init_type=self.init_type,
@@ -371,7 +371,7 @@ class LegacyContinuousMoE(ContinuousMoeBaseClass):
         )
 
         self.lin2 = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.expert_size,
                 init_type=self.init_type,
@@ -380,7 +380,7 @@ class LegacyContinuousMoE(ContinuousMoeBaseClass):
         )
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 (self.dm, self.n_experts),
                 fan_in=self.dm,
                 init_type=self.init_type,

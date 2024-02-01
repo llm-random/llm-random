@@ -2,7 +2,7 @@ import dataclasses
 
 import torch
 
-from lizrd.core.initialization import get_init_weight
+from source.core.initialization import get_init_weight
 from research.conditional.utils.layer_manager import LoggingLayer
 
 
