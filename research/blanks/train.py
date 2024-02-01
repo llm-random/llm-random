@@ -9,9 +9,9 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from lizrd.core import misc
-from lizrd.support.logging import get_current_logger, get_logger
-from lizrd.support.misc import generate_random_string
+from source.core import misc
+from source.support.logging import get_current_logger, get_logger
+from source.support.misc import generate_random_string
 from research.datasets import DataloaderWrapper
 from .datasets import get_processed_dataset
 from .model import (
@@ -19,10 +19,10 @@ from .model import (
     get_model,
     get_ff_layer,
 )
-from lizrd.text import tokenizers
+from source.text import tokenizers
 from .tokenizers import BlankTokenizer
 
-from lizrd.train.scheduler import get_scheduler
+from source.train.scheduler import get_scheduler
 from .trainer import BlankTrainer
 from .argparse import introduce_parser_arguments
 

@@ -1,8 +1,8 @@
 import torch
 
 import research.conditional.moe_layers.ffs
-from lizrd.core import llm
-from lizrd.support.test_utils import GeneralTestCase, skip_test
+from source.core import llm
+from source.support.test_utils import GeneralTestCase, skip_test
 
 
 class TestBatchedFeedForward(GeneralTestCase):

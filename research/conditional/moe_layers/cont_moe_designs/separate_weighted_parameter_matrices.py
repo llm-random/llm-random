@@ -1,8 +1,8 @@
 import dataclasses
 
 import torch
-from lizrd.core import misc, nn
-from lizrd.core.initialization import get_init_weight
+from source.core import misc, nn
+from source.core.initialization import get_init_weight
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
 

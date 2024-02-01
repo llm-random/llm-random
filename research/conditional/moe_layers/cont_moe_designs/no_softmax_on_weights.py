@@ -1,8 +1,8 @@
 import torch
 
-from lizrd.core import misc, nn
-import lizrd.core.initialization
-from lizrd.support import ash
+from source.core import misc, nn
+import source.core.initialization
+from source.support import ash
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
 
@@ -50,7 +50,7 @@ class ContinuousMoENosoftmax(ContinuousMoeBaseClass):
     def init_core_parameters(self):
         # lin1 is parameter, one dimension for experts of size dmodel to dff/n_experts
         self.lin1 = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.dm,
                 init_type=self.init_type,
@@ -59,7 +59,7 @@ class ContinuousMoENosoftmax(ContinuousMoeBaseClass):
         )
 
         self.lin2 = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.expert_size,
                 init_type=self.init_type,
@@ -68,7 +68,7 @@ class ContinuousMoENosoftmax(ContinuousMoeBaseClass):
         )
         # controller: send a token of size dmodel to n_experts scalars
         self.controller = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            source.core.initialization.get_init_weight(
                 (self.dm, self.n_experts),
                 fan_in=self.dm,
                 init_type=self.init_type,
