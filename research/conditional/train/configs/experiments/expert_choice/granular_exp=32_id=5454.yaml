@@ -10,7 +10,7 @@ params:
   batch_size: 512
   cutoff: 128
   project_name: "SECRET_PROJECT_NAME"
-  name: "jk"
+  name: "NAME"
   mixed_precision: true
   tags:
     - "mode_expert_choice"
