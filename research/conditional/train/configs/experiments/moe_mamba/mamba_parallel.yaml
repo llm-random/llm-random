@@ -1,8 +1,13 @@
 md5_parent_hash: 7a0330388646a9bfbcbee67008f9538a
 parent: research/conditional/train/configs/baselines/gpt/dense/medium.yaml
+# parent: research/conditional/train/configs/baselines/gpt/dense/medium.yaml
+# md5_parent_hash: 7a0330388646a9bfbcbee67008f9538a
+# singularity_image: /common/llm-random/images/sparsity_2023.12.14_16.44.42.sif # entropy
 singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.14_16.44.42.sif # athena
+# singularity_image: /raid/NFS_SHARE/llm-random/images/sparsity_2023.12.14_16.44.42.sif # dgx
+# cuda_visible: "4"
 n_gpus: 2
-time: "0-10:00:00"
+time: "0-12:00:00"
 
 params:
     #tuning
@@ -11,20 +16,26 @@ params:
     capacity_factor: 1.00 # literatoora
 
     #name
-    name: moe_in_mamba
+    name: parallel_moe_mamba
 #    tags: ["moe_mamba_parallel"]
 
     #mot
     ^ff_mode: ["token_choice"]
 
+    # N_experts: 32 every expert size of normal DFF in vanilla
+
+    ^n_experts: [1, 2, 4, 8, 16, 32]
+    ^dff: [1536]
+    ^expert_size: [1536]
+
     batch_size: 64
     cutoff: 1024
     dataset_type: c4
     # dataset_type: wikibook
+    # use_dummy_dataset: true
 
     #eval and logging
     log_gradients_and_weights: false
-    # eval_interval: 1
     decoding_interval: 0
     logging_interval_heavy: 1000
     save_weights_interval: 0
@@ -35,7 +46,7 @@ params:
     fsdp_enabled: true
     fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
     activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
-    fsdp_selective_precision_modules: "AttentionMechanism,ExpertGating,RoPE,TokenChoiceRouter"
+    fsdp_selective_precision_modules: ["AttentionMechanism,ExpertGating"]
     grad_clip: 0.5
 
     #throughput
@@ -52,21 +63,7 @@ params:
     lr_warmup_steps: 150
 
     #mamba
-    ^n_blocks: [8]
-    block_modules: ["vanilla_mamba", "mamba"]
+
+    block_modules: ["mamba", "feedforward"]
+    ^parallel_blocks: [true, false]
     no_positional_embedding: true
-
-    # one moe
-#    ^mamba_mode: [gate_proj_moe, conv_proj_moe, out_proj_moe]
-#    ^n_experts: [48]
-#    ^expert_size: [352]
-
-    # two moes
-    ^mamba_mode: [conv_out_proj_moe, gate_out_proj_moe, conv_gate_proj_moe]
-    ^n_experts: [24]
-    ^expert_size: [352]
-
-    # three moes
-#    ^mamba_mode: [conv_gate_out_proj_moe]
-#    ^n_experts: [16]
-#    ^expert_size: [352]
