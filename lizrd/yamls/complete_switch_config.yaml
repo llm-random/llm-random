@@ -1,0 +1,75 @@
+parent: research/conditional/train/configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 7a0330388646a9bfbcbee67008f9538a
+interactive_debug: false
+n_gpus: 1
+time: "00:10:00"
+runner: research.conditional.train.cc_train
+
+params:
+  # data
+  dataset_type: c4
+  cutoff: 256
+  batch_size: 4
+  # local
+  dataset_type: wikibook
+  use_dummy_dataset: true
+
+  # training time / scheduling / LR
+  n_steps: 100_000
+  learning_rate: 1e-3
+  final_lr_fraction: 0.1
+  final_lr_step: 100_000
+  lr_warmup_steps: 1000
+  scheduler: cosine
+
+  # tweaks / regularization / speedup
+  grad_clip: 0.5
+  loss_checkpoint_chungs: 8
+
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+
+  # base model
+  model_type: gpt
+  n_att_heads: 8
+  n_blocks: 8
+  dmodel: 512
+  dff: 2048
+  init_scale: 0.3
+  init_type: truncated_normal
+  ff_mode: token_choice
+
+  # switch
+  capacity_factor: 1.25
+  n_experts: 32
+  expert_size: 2048
+  load_balancing_loss_weight: 0.1
+
+  # logging
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  log_gradients_and_weights: false
+  use_neptune: true
+
+  # fsdp
+  # fsdp_enabled: false
+  # fsdp_modules_to_wrap: EmbeddingLayer,PredictionHead,TransformerBlock
+  # fsdp_selective_precision_modules: AttentionMechanism
+
+  #
+
+  # n_gpus: 1
+  # name: switch-speed
+  # nodelist: null
+  # path_to_entry_config: lizrd/yamls/debug_speed/switch_test_rewrite.yaml
+  # project_name: pmtest/llm-random
+  # runs_multiplier: 1
+  # save_weights_interval: 0
+  # save_weights_path: model_ckpt
+  # singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.11.10_15.23.19.sif
+  # tags:
+  #   - switch-speed
+  #   - learning_rate=1e-3
+  #   - n_experts=32
+  #   - dont_vectorize_switch=T
+  #   - capacity_factor=1.25

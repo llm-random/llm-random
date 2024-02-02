@@ -1,0 +1,66 @@
+parent: research/conditional/train/configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 7a0330388646a9bfbcbee67008f9538a
+interactive_debug: false
+n_gpus: 1
+cuda_visible: "1"
+time: "95:00:00"
+params:
+    #tuning
+    n_steps: 100
+    eval_interval: 50
+    ^learning_rate: [1e-3]
+    load_balancing_loss_weight: 0.1 # wyjebać
+    capacity_factor: 1.25 # literatoora
+
+    #name
+    name: switch_lr_grid
+    tags: [switch-lr-grid, mot]
+
+    #mot
+    # ff_mode: token_choice
+    ff_mode: token_choice
+
+    # N_experts: 32 every expert size of normal DFF in vanilla
+
+    n_experts: 32
+    expert_size: 2048
+
+    #data
+    batch_size: 256
+    # batch_size: 32
+    # batch_size: 2
+    # dataset_type: c4
+
+    #eval and logging
+    log_gradients_and_weights: false
+    decoding_interval: 0
+    # logging_interval_heavy: 1000
+    logging_interval_heavy: -1
+    eval_interval: 1000
+    save_weights_interval: 0
+
+    #fsdp
+    # fsdp_enabled: true
+    fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+    fsdp_selective_precision_modules: "AttentionMechanism" # Routing + attention
+    # activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+
+    #throughput
+    mixed_precision: true
+    mixed_precision_dtype: bfloat16
+    flash_attention: false
+    # gradient_accumulation_steps: 1 #!!!!!!!!!!!! THIS IS NONTRIVIAL
+    # loss_checkpoint_chungs: 8 # szymon ma 8
+    loss_checkpoint_chungs: 0 # szymon ma 8
+
+    init_type: truncated_normal
+    init_scale: 0.3
+
+    # LOCAL
+    # batch_size: 3
+    dataset_type: wikibook
+    use_dummy_dataset: true
+    fsdp_enabled: false
+    # # gradient_accumulation_steps: 0
+    # mixed_precision: false
+    # batch_size: 2

@@ -1,0 +1,54 @@
+parent: research/conditional/train/configs/baselines/gpt/dense/small.yaml
+md5_parent_hash: 652f7951e4c6fb8398fdeadf451067cb
+interactive_debug: false
+n_gpus: 1
+cuda_visible: "1"
+time: "12:00:00"
+# time: "00:10:00"
+
+params:
+  # important stuff
+  batch_size: 128
+  should_fold: false
+
+  #tuning
+  ^learning_rate: [5e-4]
+
+  #name
+  name: mix_inputs
+  tags: [mix_inputs]
+
+  #mot
+  # ff_mode: token_choice
+  ff_mode: vanilla
+
+  # N_experts: 32 every expert size of normal DFF in vanilla
+
+  #data
+  # batch_size: 32
+  # batch_size: 2
+  # dataset_type: c4
+
+  #eval and logging
+  log_gradients_and_weights: false
+  decoding_interval: 0
+  # logging_interval_heavy: 1000
+  logging_interval_heavy: 3
+  eval_interval: 7
+  n_steps: 10
+  save_weights_interval: 0
+
+  #throughput
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: false
+  # gradient_accumulation_steps: 1 #!!!!!!!!!!!! THIS IS NONTRIVIAL
+  loss_checkpoint_chungs: 0 # szymon ma 8
+
+  init_type: truncated_normal
+  init_scale: 0.3
+
+  # LOCAL
+  # batch_size: 2
+  # dataset_type: wikibook
+  # use_dummy_dataset: true

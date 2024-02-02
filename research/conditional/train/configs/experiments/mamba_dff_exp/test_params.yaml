@@ -1,0 +1,86 @@
+# parent: research/conditional/train/configs/baselines/gpt/dense/base.yaml
+# md5_parent_hash: 17e23fa8efdf44ed2a84b8e15941039c
+# # singularity_image: /local_storage_1/sparsity_2023.12.14_16.44.42.sif # entropy
+# # hf_datasets_cache: /local_storage_1/dataset_cache # entropy
+# n_gpus: 4
+# time: "30:00:00"
+
+parent: research/conditional/train/configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 17e23fa8efdf44ed2a84b8e15941039c
+singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.14_16.44.42.sif # athena
+n_gpus: 4
+time: "00:30:00"
+
+params:
+  name: "moe_mamba_base16layers"
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  tags: ["mamba", "base", "150k", "high_precision"]
+
+  dataset_type: c4
+  # fsdp
+  fsdp_enabled: false
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,ExpertGating,RoPE,TokenChoiceRouter"
+
+  grad_clip: 0.5
+  weight_decay: 0.1
+
+  scheduler: "cosine"
+  decoding_interval: 0
+  save_weights_interval: 0
+  loss_checkpoint_chungs: 0
+  gradient_accumulation_steps: 1
+
+  lr_warmup_steps: 375
+  n_steps: 37500
+  final_lr_step: 37500
+
+  batch_size: 256
+  cutoff: 1024
+
+  init_scale: 0.1
+  init_type: truncated_normal
+
+  # grid
+
+  capacity_factor: 1.0
+  load_balancing_loss_weight: 0.01
+
+  # mamba
+  ^learning_rate: [5e-4]
+  n_blocks: 32
+  block_modules: ["mamba"]
+  no_positional_embedding: true
+  dff: 2304
+  expert_size: 2304
+  n_experts: 32
+  ff_mode: token_choice
+
+  # moemamba
+  # ^learning_rate: [2.5e-4]
+  # n_blocks: 16
+  # block_modules: ["mamba", "feedforward"]
+  # no_positional_embedding: true
+  # dff: 2304
+  # expert_size: 2304
+  # n_experts: 32
+  # # n_experts: 42
+  # ff_mode: token_choice
+
+  # transformer-moe
+  # ^learning_rate: [2.5e-4]
+  # n_blocks: 16
+  # block_modules: ["attention", "feedforward"]
+  # attention_mode: "rope"
+  # no_positional_embedding: false
+  # dff: 3072
+  # expert_size: 3072
+  # n_experts: 32
+  # ff_mode: token_choice
+
+  dataset_type: wikibook
+  use_dummy_dataset: true

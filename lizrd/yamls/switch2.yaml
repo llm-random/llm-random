@@ -1,0 +1,52 @@
+parent: research/conditional/train/configs/baselines/gpt/dense/mini.yaml
+md5_parent_hash: 549895edc027ef23656e1f8b7e2ffaab
+
+n_gpus: 1
+cuda_visible: "0"
+
+params:
+  # technical/common params
+  ff_mode: "token_choice"
+  # softmax_over: experts
+  group_granular_moe_by_batch: true
+  use_full_einsum: true
+  granular_moe_one_hot_impl: true
+  decoding_interval: 0
+
+  # params of expert choice
+  expert_size: 2048
+
+  # learning_rate: 0.0001
+
+  n_experts: 32
+
+  # name: "switch_medium"
+  # ff_mode: "token_choice"
+  # n_experts: 32
+  name: "switch_test"
+  load_balancing_loss_weight: 0.1
+  # ^learning_rate: [0.002, 0.1]
+  learning_rate: 0.01
+
+  capacity_factor: 1.25
+  # mojtestproject:
+  # gradient_checkpointing (activATION Checkpointing): ?
+  # use_dummy_dataset: true
+
+  # lol
+  # ^batch_size: [64, 32]
+  batch_size: 128
+  cutoff: 128 # sequence length
+  dmodel: 96
+  dff: 64
+  n_blocks: 2
+
+  mixed_precision_dtype: "bfloat16"
+
+  n_steps: 2
+
+  # model_fits_filename: "/home/crewtool/llm-random/okokej.yaml"
+  # model_fits_filename: "/home/crewtool/pozdro_result.yaml"
+  # model_fits_params: "batch_size,total_time_decoding"
+  init_type: "kaiming_uniform"
+  init_scale: 1
