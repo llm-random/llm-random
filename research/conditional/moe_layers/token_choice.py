@@ -21,7 +21,7 @@ class TokenChoiceRouter(LoggingLayer):
         init_scale: float,
         routing_top_k: int = 1,
         use_einsum: bool = False,
-        vectorize: bool = False,
+        vectorize: bool = True,
     ):
         super().__init__()
 
@@ -32,7 +32,11 @@ class TokenChoiceRouter(LoggingLayer):
         self.dmodel = dmodel
         self.routing_top_k = routing_top_k
         self._checkpointed_expert_index = None
+        self._checkpointed_top_tokens_per_expert_indices = None
         self.vectorize = vectorize
+
+        if vectorize and routing_top_k != 1:
+            raise ValueError("vectorize and routing_top_k != 1 are incompatible")
 
         self.gate = nn.Parameter(
             get_init_weight(
@@ -166,6 +170,40 @@ class TokenChoiceRouter(LoggingLayer):
         else:
             return experts_input, indices_of_tokens_for_expert, masked_expert_gate
 
+    def choose_tokens(self, expert_mask, capacity) -> tuple[torch.Tensor, torch.Tensor]:
+        checkpointing_enabled = (
+            checkpointing.is_in_first_forward() or checkpointing.is_in_second_forward()
+        )
+        if checkpointing_enabled:
+            if checkpointing.is_in_first_forward():
+                with torch.no_grad():
+                    (
+                        _,
+                        top_tokens_per_expert_indices,
+                    ) = expert_mask.topk(k=capacity, dim=0)
+                    self._checkpointed_top_tokens_per_expert_indices = (
+                        top_tokens_per_expert_indices
+                    )
+
+            if checkpointing.is_in_second_forward():
+                with torch.no_grad():
+                    top_tokens_per_expert_indices = (
+                        self._checkpointed_top_tokens_per_expert_indices
+                    )
+
+            assert isinstance(top_tokens_per_expert_indices, torch.Tensor)
+            top_tokens_per_expert_values = torch.gather(
+                expert_mask,
+                dim=1,
+                index=top_tokens_per_expert_indices,
+            )
+        else:
+            (
+                top_tokens_per_expert_values,
+                top_tokens_per_expert_indices,
+            ) = expert_mask.topk(k=capacity, dim=0)
+        return top_tokens_per_expert_values, top_tokens_per_expert_indices
+
     def choose_expert(self, gate_out) -> tuple[torch.Tensor, torch.Tensor]:
         checkpointing_enabled = (
             checkpointing.is_in_first_forward() or checkpointing.is_in_second_forward()
@@ -217,7 +255,7 @@ class TokenChoiceFF(LoggingLayer):
         init_scale: float,
         routing_top_k: int = 1,
         use_einsum: bool = False,
-        vectorize: bool = False,
+        vectorize: bool = True,
     ):
         """
         Args:

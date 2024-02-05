@@ -201,6 +201,7 @@ class TestTokenChoice(GeneralTestCase):
             routing_top_k=1,
             init_type="kaiming_uniform",
             init_scale=1.0,
+            vectorize=False,
         )
         old_tc = OldTokenChoiceFF(
             dm,
@@ -280,6 +281,7 @@ class TestTokenChoice(GeneralTestCase):
             init_type="kaiming_uniform",
             init_scale=1.0,
             routing_top_k=2,
+            vectorize=False,
         )
         propagate_forward_pass_cache(token_choice_layer)
 
