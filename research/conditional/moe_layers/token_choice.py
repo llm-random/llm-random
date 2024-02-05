@@ -248,11 +248,11 @@ class TokenChoiceFF(LoggingLayer):
         self,
         dmodel: int,
         n_experts: int,
-        expert_size: int,
         capacity_factor: float,
         load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
+        expert_logic: LoggingLayer,
         routing_top_k: int = 1,
         use_einsum: bool = False,
         vectorize: bool = True,
@@ -264,36 +264,20 @@ class TokenChoiceFF(LoggingLayer):
             expert_size: size of each expert
             capacity_factor: scalar that determines how many tokens can be assigned to each expert
             load_balancing_loss_weight: weight of the auxillary loss
+            expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
         """
         super().__init__()
 
         self.dmodel = dmodel
         self.n_experts = n_experts
-        self.expert_size = expert_size
         self.capacity_factor = capacity_factor
+        self.expert_logic = expert_logic
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
         self.vectorize = vectorize
 
         if vectorize and routing_top_k != 1:
             raise ValueError("vectorize and routing_top_k != 1 are incompatible")
-
-        self.lin1_weight = nn.Parameter(
-            get_init_weight(
-                shape=(n_experts, dmodel, expert_size),
-                fan_in=dmodel,
-                init_type=init_type,
-                scale=init_scale,
-            )
-        )
-        self.lin2_weight = nn.Parameter(
-            get_init_weight(
-                shape=(n_experts, expert_size, dmodel),
-                fan_in=int(n_experts * expert_size),
-                init_type=init_type,
-                scale=init_scale,
-            )
-        )
 
         self.router = TokenChoiceRouter(
             dmodel=dmodel,
@@ -325,25 +309,7 @@ class TokenChoiceFF(LoggingLayer):
 
         x = x.flatten(start_dim=0, end_dim=1)
 
-        with measure_time(self, "process_by_experts"):
-            if self.use_einsum:
-                experts_output = einsum(
-                    "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
-                    experts_input,
-                    self.lin1_weight,
-                )
-            else:
-                experts_output = torch.matmul(experts_input, self.lin1_weight)
-
-            experts_output = F.relu(experts_output)
-            if self.use_einsum:
-                experts_output = einsum(
-                    "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
-                    experts_output,
-                    self.lin2_weight,
-                )
-            else:
-                experts_output = torch.matmul(experts_output, self.lin2_weight)
+        experts_output = self.expert_logic(experts_input)
 
         experts_output = experts_output.to(x.dtype)
         output = torch.zeros_like(x)
@@ -373,39 +339,74 @@ class TokenChoiceFF(LoggingLayer):
         return output
 
 
-class TokenChoiceSwiGLUFF(LoggingLayer):
+class ExpertRelu(LoggingLayer):
     def __init__(
         self,
         dmodel: int,
         n_experts: int,
         expert_size: int,
-        capacity_factor: float,
-        load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
-        routing_top_k: int = 1,
         use_einsum: bool = False,
-        vectorize: bool = True,
     ):
-        """
-        Args:
-            dmodel: dimension of the input
-            n_experts: number of experts
-            expert_size: size of each expert
-            capacity_factor: scalar that determines how many tokens can be assigned to each expert
-            load_balancing_loss_weight: weight of the auxillary loss
-        """
         super().__init__()
 
-        self.dmodel = dmodel
-        self.n_experts = n_experts
-        self.expert_size = expert_size
-        self.capacity_factor = capacity_factor
-        self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
-        self.vectorize = vectorize
-        if vectorize and routing_top_k != 1:
-            raise ValueError("vectorize and routing_top_k != 1 are incompatible")
+
+        self.lin1_weight = nn.Parameter(
+            get_init_weight(
+                shape=(n_experts, dmodel, expert_size),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+        self.lin2_weight = nn.Parameter(
+            get_init_weight(
+                shape=(n_experts, expert_size, dmodel),
+                fan_in=int(n_experts * expert_size),
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+
+    def forward(self, x: torch.Tensor):
+        with measure_time(self, "process_by_experts"):
+            if self.use_einsum:
+                experts_output = einsum(
+                    "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
+                    x,
+                    self.lin1_weight,
+                )
+            else:
+                experts_output = torch.matmul(x, self.lin1_weight)
+
+            experts_output = F.relu(experts_output)
+            if self.use_einsum:
+                experts_output = einsum(
+                    "n_experts capacity expert_size, n_experts expert_size dmodel -> n_experts capacity dmodel",
+                    experts_output,
+                    self.lin2_weight,
+                )
+            else:
+                experts_output = torch.matmul(experts_output, self.lin2_weight)
+
+        return experts_output
+
+
+class ExpertSwiGLU(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_experts: int,
+        expert_size: int,
+        init_type: str,
+        init_scale: float,
+        use_einsum: bool = False,
+    ):
+        super().__init__()
+
+        self.use_einsum = use_einsum
 
         self.lin1_weight = nn.Parameter(
             get_init_weight(
@@ -433,52 +434,23 @@ class TokenChoiceSwiGLUFF(LoggingLayer):
             )
         )
 
-        self.router = TokenChoiceRouter(
-            dmodel=dmodel,
-            n_experts=n_experts,
-            capacity_factor=capacity_factor,
-            load_balancing_loss_weight=load_balancing_loss_weight,
-            init_type=init_type,
-            init_scale=init_scale,
-            routing_top_k=routing_top_k,
-            use_einsum=use_einsum,
-            vectorize=vectorize,
-        )
-
     def forward(self, x: torch.Tensor):
-        batch_size, seq_len, _ = x.shape
-
-        if self.vectorize:
-            (
-                experts_input,
-                top_tokens_per_expert_indices,  # [c x n_experts]
-                masked_expert_gate,
-            ) = self.router(x)
-        else:
-            (
-                experts_input,
-                indices_of_tokens_for_expert,  # n_experts lists, each max c long
-                masked_expert_gate,
-            ) = self.router(x)
-
-        x = x.flatten(start_dim=0, end_dim=1)
-
         with measure_time(self, "process_by_experts"):
             if self.use_einsum:
                 experts_output = einsum(
                     "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
-                    experts_input,
+                    x,
                     self.lin1_weight,
                 )
 
                 swi_glu_gate = einsum(
                     "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
-                    experts_input,
+                    x,
                     self.swi_glu_gate_weight,
                 )
             else:
-                experts_output = torch.matmul(experts_input, self.lin1_weight)
-                swi_glu_gate = torch.matmul(experts_input, self.swi_glu_gate_weight)
+                experts_output = torch.matmul(x, self.lin1_weight)
+                swi_glu_gate = torch.matmul(x, self.swi_glu_gate_weight)
 
             experts_output = F.silu(experts_output) * swi_glu_gate
 
@@ -491,32 +463,7 @@ class TokenChoiceSwiGLUFF(LoggingLayer):
             else:
                 experts_output = torch.matmul(experts_output, self.lin2_weight)
 
-        experts_output = experts_output.to(x.dtype)
-        output = torch.zeros_like(x)
-
-        if self.vectorize:
-            with measure_time(self, "assign_tokens_to_output"):
-                output.index_add_(
-                    dim=0,
-                    index=top_tokens_per_expert_indices.T.flatten(),
-                    source=experts_output.reshape(
-                        self.n_experts * experts_output.shape[1], self.dmodel
-                    ),
-                )
-                output *= masked_expert_gate.sum(dim=1, keepdim=True)
-        else:
-            with measure_time(self, "assign_tokens_to_output"):
-                for expert_id in range(self.n_experts):
-                    tokens_to_update = indices_of_tokens_for_expert[expert_id]
-                    num_of_tokens_to_update = len(tokens_to_update)
-
-                    output[tokens_to_update] += experts_output[
-                        expert_id, :num_of_tokens_to_update
-                    ] * masked_expert_gate[tokens_to_update, expert_id].unsqueeze(dim=1)
-
-        output = output.reshape((batch_size, seq_len, self.dmodel))
-
-        return output
+        return experts_output
 
 
 def calculate_load_balancing_loss(
