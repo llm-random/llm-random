@@ -258,6 +258,11 @@ def introduce_parser_arguments(
         "parameters of the experts are modified to adjust compute used bu experts. Possible values: modify_expert_size, "
         "modify_topk_fraction, modify_n_experts",
     )
+    parser.add_argument(
+        "--dont_vectorize_switch",
+        action="store_true",
+        help="This argument is used in Token Choice to force it to use `for`-s",
+    )
 
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
     parser.add_argument("--layer_norm_in_expert_choice", action="store_true")
@@ -294,6 +299,7 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
     )
+    parser.add_argument("--mamba_expansion", type=float, default=2.0)
     parser.add_argument("--no_positional_embedding", action="store_true")
 
     parser.add_argument(
