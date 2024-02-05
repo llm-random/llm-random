@@ -9,21 +9,21 @@ params:
   # model
   batch_size: 4
   cutoff: 16
-  project_name: "pmtest/llm-random-tests"
+  project_name: "llm-random-tests"
   name: "baseline_test"
   mixed_precision: true
   mixed_precision_dtype: "float16"
   tags:
     - "test"
-  use_neptune: true
-  n_steps: 10
+  use_wandb: true
+  n_steps: 100
   dmodel: 64
   dff: 256
   n_blocks: 2
   "^model_type":
     - "bert"
   "^ff_mode":
-    - "vanilla"
+    - "token_choice_deprecated"
   logging_interval_heavy: 2
   logging_interval_loss: 1
   grad_clip: 0.5
