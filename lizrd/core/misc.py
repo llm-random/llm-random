@@ -1,10 +1,9 @@
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
 import torch
-import torch.nn
 from torch.utils.checkpoint import checkpoint
 
-from lizrd.core import nn
+import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 
@@ -282,20 +281,20 @@ def get_dmodel_magnitudes(
     return (weights1 * weights2).flatten()
 
 
-def resolve_activation_name(activation: str) -> torch.nn.Module:
+def resolve_activation_name(activation: str) -> nn.Module:
     if activation == "relu":
         return nn.ReLU()
     elif activation == "gelu":
-        return torch.nn.GELU()
+        return nn.GELU()
     elif activation == "silu":
-        return torch.nn.SiLU()
+        return nn.SiLU()
     elif activation == "softmax":
-        return torch.nn.Softmax()
+        return nn.Softmax()
     else:
         raise ValueError(f"Unrecognized activation: {activation}")
 
 
-def propagate_forward_pass_cache(module: torch.nn.Module, forward_pass_cache=None):
+def propagate_forward_pass_cache(module: nn.Module, forward_pass_cache=None):
     """
     This function propagates the cache from the module to all its children.
     """

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from lizrd.core import nn
+import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram

@@ -4,13 +4,14 @@ from functools import partial
 # from diskcache import Cache
 from typing import Type, Union
 import torch
+import torch.nn as nn
 from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
 
-from lizrd.core import llm, nn
+from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
