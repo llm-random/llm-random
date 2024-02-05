@@ -2,8 +2,8 @@ import dataclasses
 
 import torch
 
-from lizrd.core import misc, nn
-import lizrd.core.initialization
+from src.core import misc, nn
+import src.core.initialization
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
 
@@ -51,7 +51,7 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
                 self.temperature_merge = nn.Parameter(torch.ones(self.n_experts, 1))
 
         self.lin1 = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.dm,
                 init_type=self.init_type,
@@ -59,7 +59,7 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
             )
         )
         self.lin2 = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.expert_size,
                 init_type=self.init_type,
@@ -67,7 +67,7 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
             )
         )
         self.controller_base = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts),
                 fan_in=self.dm * 2,
                 init_type=self.init_type,
@@ -75,7 +75,7 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
             )
         )
         self.controller_merge = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts),
                 fan_in=self.dm * 2,
                 init_type=self.init_type,
@@ -83,7 +83,7 @@ class ContinuousMoEFinal(ContinuousMoeBaseClass):
             )
         )
         self.controller_emit = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts),
                 fan_in=self.dm * 2,
                 init_type=self.init_type,

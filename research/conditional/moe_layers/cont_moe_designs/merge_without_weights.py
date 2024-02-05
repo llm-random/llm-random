@@ -1,6 +1,6 @@
 import torch
 
-from lizrd.core import misc
+from src.core import misc
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
 

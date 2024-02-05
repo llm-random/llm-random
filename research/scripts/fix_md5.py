@@ -12,7 +12,7 @@ def find_lines_with(name, data, start):
 
 
 def fix_one_iteration():
-    cmd = ["bash", "lizrd/scripts/list_md5sum.sh"]
+    cmd = ["bash", "src/scripts/list_md5sum.sh"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
     hashes = {}

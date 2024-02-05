@@ -2,8 +2,8 @@ from collections import OrderedDict
 
 from torch import nn
 
-from lizrd.core.llm import Residual
-from lizrd.support.test_utils import GeneralTestCase
+from src.core.llm import Residual
+from src.support.test_utils import GeneralTestCase
 from research.conditional.moe_layers.cont_moe_designs.learnable_temperature import (
     ContinuousMoEAdaTemp,
 )

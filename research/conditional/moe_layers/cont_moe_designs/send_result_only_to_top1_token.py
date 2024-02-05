@@ -1,5 +1,5 @@
-from lizrd.core import misc
-from lizrd.support import ash
+from src.core import misc
+from src.support import ash
 from research.conditional.archive.rogue_code import set_highest_index_one
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature

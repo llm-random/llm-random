@@ -6,8 +6,8 @@ from plotly import express as px
 
 import torch
 
-from lizrd.core import nn
-from lizrd.support.logging import get_current_logger
+from src.core import nn
+from src.support.logging import get_current_logger
 
 
 def get_registered_name(name, suffix):

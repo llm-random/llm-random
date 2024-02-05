@@ -1,5 +1,5 @@
-from lizrd.core import misc
-from lizrd.core.misc import resolve_activation_name
+from src.core import misc
+from src.core.misc import resolve_activation_name
 from research.conditional.utils.layer_manager import LoggingLayer, measure_time
 
 

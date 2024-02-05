@@ -4,7 +4,7 @@ from typing import Callable, List, Literal
 import torch
 from torch.utils.data import DataLoader
 
-from lizrd.text import datasets, tokenizers
+from src.text import datasets, tokenizers
 from research.datasets import DataloaderWrapper, worker_init_fn
 from .packer import BlankEvalPacker, BlankPacker
 import research.blanks.data as data

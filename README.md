@@ -14,13 +14,13 @@ In the root directory run `./start-dev.sh`. This will create a virtual environme
 ## Running Experiments (WIP)
 
 ### Experiments config
-Use the baseline configuration as a template, which is in `research/conditional/train/configs/test/test_baseline.yaml`. Based on this template, create a new experiment config and put it in `lizrd/scripts/run_configs`.
+Use the baseline configuration as a template, which is in `research/conditional/train/configs/test/test_baseline.yaml`. Based on this template, create a new experiment config and put it in `src/scripts/run_configs`.
 
 ### Running Locally
-`python -m lizrd.scripts.grid path/to/config`
+`python -m src.scripts.grid path/to/config`
 
 ### Running Remotely
-`bash lizrd/scripts/run_exp_remotely.sh <remote_cluster_name> lizrd/scripts/run_configs/<your_config>`
+`bash src/scripts/run_exp_remotely.sh <remote_cluster_name> src/scripts/run_configs/<your_config>`
 
 # License
 

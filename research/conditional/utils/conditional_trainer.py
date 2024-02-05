@@ -7,12 +7,12 @@ from typing import Callable, Iterable, Optional, Literal
 import torch
 from torch.profiler import profile, ProfilerActivity
 from attr import define
-from lizrd.core.misc import propagate_forward_pass_cache
-from lizrd.support.decoding import decode_single_example
-from lizrd.support.logging import AbstractLogger
-from lizrd.support.misc import get_ith_chunk
-from lizrd.text.data import LLMBatch
-from lizrd.train.scheduler import AbstractLRScheduler
+from src.core.misc import propagate_forward_pass_cache
+from src.support.decoding import decode_single_example
+from src.support.logging import AbstractLogger
+from src.support.misc import get_ith_chunk
+from src.text.data import LLMBatch
+from src.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
@@ -22,7 +22,7 @@ from research.conditional.utils.model_utils import (
     update_model_fit_gpu_info,
 )
 from research.datasets import DataloaderWrapper
-from lizrd.text.datasets import C4Dataset
+from src.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 
 

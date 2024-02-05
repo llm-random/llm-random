@@ -5,11 +5,11 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from lizrd.core import nn
-from lizrd.core.initialization import get_init_weight
-from lizrd.support import ash
-from lizrd.support.logging import make_histogram
-from lizrd.train import checkpointing
+from src.core import nn
+from src.core.initialization import get_init_weight
+from src.support import ash
+from src.support.logging import make_histogram
+from src.train import checkpointing
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 

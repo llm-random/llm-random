@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from typing import Callable, Literal, Optional, List
-from lizrd.core import llm
+from src.core import llm
 from research.blanks.utils import (
     get_first_blanks_in_series,
     get_is_blank,
@@ -8,13 +8,13 @@ from research.blanks.utils import (
     shift_right,
     make_blanks_fixed_positions,
 )
-from lizrd.core.initialization import get_init_weight
+from src.core.initialization import get_init_weight
 
 
 import torch
 
-from lizrd.core import llm
-import lizrd.core.misc as misc
+from src.core import llm
+import src.core.misc as misc
 import torch.nn.functional as F
 
 

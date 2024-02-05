@@ -2,13 +2,13 @@ import einops
 import torch
 from torch.nn import functional as F
 
-from lizrd.core import misc
-from lizrd.core import nn
-from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
-from lizrd.core.misc import EinMix
-from lizrd.support import ash
-from lizrd.support.profile import Timer, TimerLayer
-from lizrd.core.initialization import get_init_weight, get_init_bias
+from src.core import misc
+from src.core import nn
+from src.core.llm import SplitLastAxis, Transpose, MergeLastAxis
+from src.core.misc import EinMix
+from src.support import ash
+from src.support.profile import Timer, TimerLayer
+from src.core.initialization import get_init_weight, get_init_bias
 
 
 @ash.check("... d -> ... d")

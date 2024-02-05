@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from lizrd.support.test_utils import GeneralTestCase
+from src.support.test_utils import GeneralTestCase
 from research.blanks.utils import (
     can_fit_blanks,
     get_last_blanks_in_series,

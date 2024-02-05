@@ -1,5 +1,5 @@
-from lizrd.core import nn, misc
-import lizrd.core.initialization
+from src.core import nn, misc
+import src.core.initialization
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 from research.conditional.utils.misc_tools import stable_softmax_temperature
 
@@ -11,7 +11,7 @@ class ContinuousMoEMergeDifferentlySimple(ContinuousMoeBaseClass):
 
     def init_core_parameters(self):
         self.lin1 = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.dm,
                 init_type=self.init_type,
@@ -19,7 +19,7 @@ class ContinuousMoEMergeDifferentlySimple(ContinuousMoeBaseClass):
             )
         )
         self.lin2 = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts, self.expert_size),
                 fan_in=self.expert_size,
                 init_type=self.init_type,
@@ -27,7 +27,7 @@ class ContinuousMoEMergeDifferentlySimple(ContinuousMoeBaseClass):
             )
         )
         self.controller_merge = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts),
                 fan_in=self.dm,
                 init_type=self.init_type,
@@ -35,7 +35,7 @@ class ContinuousMoEMergeDifferentlySimple(ContinuousMoeBaseClass):
             )
         )
         self.controller_emit = nn.Parameter(
-            lizrd.core.initialization.get_init_weight(
+            src.core.initialization.get_init_weight(
                 (self.dm, self.n_experts),
                 fan_in=self.dm,
                 init_type=self.init_type,

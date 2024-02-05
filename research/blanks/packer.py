@@ -1,9 +1,9 @@
 from typing import Callable, Optional, List
 
 from .data import BlanxExample
-from lizrd.text.datasets import AbstractDataset
-from lizrd.text.packers import GPTPacker
-from lizrd.text.tokenizers import AbstractTokenizer
+from src.text.datasets import AbstractDataset
+from src.text.packers import GPTPacker
+from src.text.tokenizers import AbstractTokenizer
 from research.blanks.utils import (
     can_fit_blanks,
     get_last_point_to_fit_blanks,

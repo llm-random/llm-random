@@ -4,15 +4,15 @@ import torch
 import torch.nn.functional as F
 from torch.nn import Sequential, ReLU, Identity
 from fancy_einsum import einsum
-from lizrd.train.checkpointing import (
+from src.train.checkpointing import (
     first_forward_manager,
     make_checkpoint_wrapper_function,
     second_forward_manager,
 )
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from lizrd.support.test_utils import GeneralTestCase
-from lizrd.core.misc import Linear
+from src.support.test_utils import GeneralTestCase
+from src.core.misc import Linear
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
 )
