@@ -9,6 +9,7 @@ def introduce_parser_arguments(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
+    parser.add_argument("--attention_mode", type=str, default="vanilla")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
@@ -297,6 +298,18 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
     )
+    parser.add_argument("--mamba_expansion", type=float, default=2.0)
     parser.add_argument("--no_positional_embedding", action="store_true")
+
+    parser.add_argument(
+        "--norm_class",
+        type=str,
+        choices=[
+            "layer_norm",
+            "rms_norm",
+        ],
+        default="layer_norm",
+        required=False,
+    )
 
     return parser
