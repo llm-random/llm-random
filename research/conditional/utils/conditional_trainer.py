@@ -204,10 +204,10 @@ class ConditionalTrainer:
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
                 vocab_size=self.vocab_size,
+                num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
+                scaler=self.scaler,
             )
 
-            if self.model.training:
-                self._calculate_gradient(cross_entropy_loss, aux_info["losses"])
             total_cross_entropy_loss += cross_entropy_loss.item()
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
@@ -223,16 +223,6 @@ class ConditionalTrainer:
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
         }
-
-    def _calculate_gradient(self, loss, auxliary_losses):
-        for _, value in auxliary_losses.items():
-            loss += value
-
-        loss /= self.gradient_accumulation_steps
-        if self.scaler is None:
-            loss.backward()
-        else:
-            self.scaler.scale(loss).backward()
 
     def _apply_gradient(self):
         if self.scaler is None:
