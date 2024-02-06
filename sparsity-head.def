@@ -14,7 +14,7 @@ From: sparsity-base.sif
 
     ./install_requirements.sh
 
-    ldconfig /usr/lib64-nvidia # this fixes the problem with libcuda.so not being found when using torch.compile
+    ldconfig # this fixes the problem with libcuda.so not being found when using torch.compile
 
 %runscript
     . /opt/venv/bin/activate
