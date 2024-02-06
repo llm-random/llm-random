@@ -27,6 +27,9 @@ run_grid_remotely() {
   if [ -n "$NEPTUNE_API_TOKEN" ]; then
     script+=" --neptune_key=$NEPTUNE_API_TOKEN"
   fi
+  if [ -n "$WANDB_API_KEY" ]; then
+    script+=" --wandb_key=$NEPTUNE_API_TOKEN"
+  fi
   script+="' C-m"
   script+="; tmux attach -t $session_name"
   script+="; echo 'done'" #black magic: without it, interactive sessions like "srun" cannot be detached from without killing the session

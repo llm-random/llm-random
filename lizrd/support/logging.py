@@ -142,9 +142,9 @@ class AbstractLogger(ABC):
                 metric_x_flop_logarithmic = self.get_log_x_scale_metric(
                     metric_x_flop["value"], metric_x_flop["iteration"]
                 )
-                auxiliary_metrics[
-                    f"{title}_(x_flop_logarithmic)"
-                ] = metric_x_flop_logarithmic
+                auxiliary_metrics[f"{title}_(x_flop_logarithmic)"] = (
+                    metric_x_flop_logarithmic
+                )
 
             metric_logarithmic = self.get_log_x_scale_metric(value, iteration)
             auxiliary_metrics[f"{title}_(x_logarithmic)"] = metric_logarithmic
@@ -223,6 +223,7 @@ class NeptuneLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
+        # breakpoint()
         self.instance_logger[self._make_path(title, series)].append(
             value=value, step=iteration
         )
@@ -260,21 +261,11 @@ class WandbLogger(AbstractLogger):
         self.random_id = generate_random_string(8)
         os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
 
-    def _make_path(
-        self, title: str, series: Optional[str] = None, iteration: Optional[int] = None
-    ):
+    def _make_path(self, title: str, series: Optional[str] = None):
         parts = [title]
         if series is not None:
             parts.append(series)
-        if iteration is not None:
-            parts.append(str(iteration))
         return "/".join(parts)
-
-    def _upload_with_tmp_file(self, path, obj, extension="html"):
-        tmp_file = f"{self._TMP_PLOTS_DIR}/{generate_random_string(16)}.{extension}"
-        with open(tmp_file, "w") as f:
-            f.write(obj)
-        self.instance_logger[path].upload(tmp_file)
 
     def report_generic_info(self, *, title: str, iteration: int, data):
         if isinstance(data, plotly.graph_objs.Figure):
@@ -298,7 +289,6 @@ class WandbLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
-        print("scalar")
         path = self._make_path(title, series)
         assert (not math.isnan(value)) and (
             not math.isinf(value)
@@ -307,20 +297,17 @@ class WandbLogger(AbstractLogger):
         auxiliary_metrics = self.get_auxiliary_metrics(title, value, iteration)
         for metric_name, metric in auxiliary_metrics.items():
             wandb.log({metric_name: metric["value"], "train/step": iteration})
-            # self.instance_logger[self._make_path(metric_name, series)].append(
-            #     value=metric["value"], step=metric["iteration"]
-            # )
 
     def report_text(
         self,
         *,
         title: str,
-        value: float,
+        value: str,
         iteration: int,
         series: Optional[str] = None,
     ):
-        print("text")
-        wandb.log({self._make_path(title, series): value, "step": iteration})
+        table = wandb.Table(columns=["value"], data=[[value]])
+        wandb.log({self._make_path(title, series): table, "train/step": iteration})
 
     def report_plotly(
         self,
@@ -330,19 +317,10 @@ class WandbLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
-        wandb.log({self._make_path(title, series): figure, "step": iteration})
-        # path = self._make_path(title, series, iteration)
-        # directory, filename = path.rsplit("/", 1)
-        # # log json
-        # json = figure.to_json()
-        # self._upload_with_tmp_file(f"{directory}/json_{filename}", json, "json")
-        # # log html
-        # html = figure.to_html(include_plotlyjs="cdn")
-        # self._upload_with_tmp_file(f"{directory}/plot_{filename}", html, "html")
-        # # log associated_scalars
-        # self.potentially_log_plotly_figure_scalars(
-        #     figure=figure, title=title, series=series, iteration=iteration
-        # )
+        wandb.log({self._make_path(title, series): figure, "train/step": iteration})
+        self.potentially_log_plotly_figure_scalars(
+            figure=figure, title=title, series=series, iteration=iteration
+        )
         return
 
     def flush_if_necessary(self):

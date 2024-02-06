@@ -3,6 +3,7 @@ Script to grid search in recycle layers. Run this script from the root of the pr
 $ python3 research/reinitialization/scripts/grid.py
 Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
+
 import argparse
 import datetime
 import os
@@ -32,6 +33,7 @@ if __name__ == "__main__":
     parser.add_argument("--config_path", type=str)
     parser.add_argument("--git_branch", type=str, default="")
     parser.add_argument("--neptune_key", type=str, default=None)
+    parser.add_argument("--wandb_key", type=str, default=None)
     args = parser.parse_args()
     CLUSTER_NAME = get_machine_backend()
     PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
@@ -121,6 +123,7 @@ if __name__ == "__main__":
         singularity_env_arguments = make_singularity_env_arguments(
             hf_datasets_cache_path=setup_args["hf_datasets_cache"],
             neptune_key=args.neptune_key,
+            wandb_key=args.wandb_key,
         )
 
         env = None
