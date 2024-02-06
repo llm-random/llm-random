@@ -174,9 +174,7 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
-        loss, aux_info = self.calculate_loss_and_maybe_optimize(
-            processed_batch, should_optimize=True
-        )
+        loss, aux_info = self.calculate_loss_and_maybe_optimize(processed_batch)
         if self.is_logging_process:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
@@ -185,9 +183,7 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def calculate_loss_and_maybe_optimize(
-        self, processed_batch: LLMBatch, should_optimize: bool
-    ):
+    def calculate_loss_and_maybe_optimize(self, processed_batch: LLMBatch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
         total_cross_entropy_loss = 0.0
         correct_tokens_value = 0
@@ -195,6 +191,7 @@ class ConditionalTrainer:
         losses = {}
 
         for i in range(self.gradient_accumulation_steps):
+            # I don't like this part, but it seems to be the easiest way to do it without much change to LLMBatch
             batch_copy = copy.deepcopy(processed_batch)
             for _, tensor in batch_copy:
                 tensor.data = get_ith_chunk(
@@ -209,26 +206,17 @@ class ConditionalTrainer:
                 vocab_size=self.vocab_size,
             )
 
-            # clear computation graph, store gradients, only apply gradients at the end
-            should_apply_gradient = i == self.gradient_accumulation_steps - 1
-
-            loss_to_optimize = cross_entropy_loss
-            for key, value in aux_info["losses"].items():
-                loss_to_optimize += value
-
-            # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-            loss_to_optimize /= self.gradient_accumulation_steps
-
-            if should_optimize:
-                self._optimize(
-                    loss_to_optimize, should_apply_gradient=should_apply_gradient
-                )
+            if self.model.training:
+                self._calculate_gradient(cross_entropy_loss, aux_info["losses"])
             total_cross_entropy_loss += cross_entropy_loss.item()
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
 
             for key, value in aux_info["losses"].items():
-                losses[key] = losses.get(key, 0) + value
+                losses[key] = losses.get(key, 0) + value.item()
+
+        if self.model.training:
+            self._apply_gradient()
 
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
@@ -236,32 +224,32 @@ class ConditionalTrainer:
             "losses": losses,
         }
 
-    def _optimize(self, loss, should_apply_gradient=False):
-        if self.gradient_accumulation_steps == 1:
-            self.optimizer.zero_grad()
-        # clear computation graph, store gradients
+    def _calculate_gradient(self, loss, auxliary_losses):
+        for _, value in auxliary_losses.items():
+            loss += value
+
+        loss /= self.gradient_accumulation_steps
         if self.scaler is None:
             loss.backward()
         else:
             self.scaler.scale(loss).backward()
-        if should_apply_gradient:
-            if self.scaler is None:
-                if self.gradient_clipping is not None:
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.gradient_clipping
-                    )
-                self.optimizer.step()
-            else:
-                if self.gradient_clipping is not None:
-                    self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.gradient_clipping
-                    )
-                self.scaler.step(self.optimizer)
-                if self.scaler is not None:
-                    self.scaler.update()
-            if self.gradient_accumulation_steps > 1:
-                self.optimizer.zero_grad()
+
+    def _apply_gradient(self):
+        if self.scaler is None:
+            if self.gradient_clipping is not None:
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
+            self.optimizer.step()
+        else:
+            if self.gradient_clipping is not None:
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        self.optimizer.zero_grad()
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
@@ -314,9 +302,7 @@ class ConditionalTrainer:
         extra_losses = defaultdict(float)
         for processed_batch in batches:
             with torch.no_grad():
-                loss, aux_info = self.calculate_loss_and_maybe_optimize(
-                    processed_batch, should_optimize=False
-                )
+                loss, aux_info = self.calculate_loss_and_maybe_optimize(processed_batch)
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
             total_masked_tokens += aux_info["total_masked_tokens"]
