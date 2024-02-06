@@ -1,3 +1,4 @@
+from bdb import effective
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
@@ -47,7 +48,7 @@ class TokenChoiceRouter(LoggingLayer):
             )
         )
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, random_experts):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len, _ = x.shape
         n_tokens = batch_size * seq_len
@@ -66,8 +67,11 @@ class TokenChoiceRouter(LoggingLayer):
                 gate_out = torch.matmul(x, self.gate)
 
         assert gate_out.shape == (n_tokens, self.n_experts)
+
+        # effective_experts = self.n_experts // 2
+        effective_experts = len(random_experts)
         capacity = int(
-            self.capacity_factor * n_tokens * self.routing_top_k / self.n_experts
+            self.capacity_factor * n_tokens * self.routing_top_k / effective_experts
         )
         if self.vectorize:
             capacity = min(capacity, n_tokens)
@@ -78,18 +82,31 @@ class TokenChoiceRouter(LoggingLayer):
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
 
+        # randomly mask experts
+        # mask = torch.tensor(
+        #     ([0, 1] * (self.n_experts // 2)),
+        #     dtype=gate_out.dtype,
+        #     device=gate_out.device,
+        # )[torch.randperm(self.n_experts, device=gate_out.device)]
+        # random_experts = torch.randperm(self.n_experts, device=gate_out.device)[
+        #     :effective_experts
+        # ]
+        gate_out = gate_out[:, random_experts]
+
         with measure_time(self, "choose_expert"):
             expert_gate, expert_index = self.choose_expert(gate_out)
 
         with measure_time(self, "create_expert_mask"):
-            expanded_expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
+            expanded_expert_mask = F.one_hot(
+                expert_index, num_classes=effective_experts
+            )
             assert expanded_expert_mask.shape == (
                 n_tokens,
                 self.routing_top_k,
-                self.n_experts,
+                effective_experts,
             )
             expert_mask = expanded_expert_mask.sum(dim=1)
-            assert expert_mask.shape == (n_tokens, self.n_experts)
+            assert expert_mask.shape == (n_tokens, effective_experts)
 
         if self.vectorize:
             with measure_time(self, "experts_lists"):
@@ -146,20 +163,20 @@ class TokenChoiceRouter(LoggingLayer):
 
         # create empty input and  assign only tokens to be processed
         experts_input = torch.zeros(
-            self.n_experts, capacity, self.dmodel, dtype=x.dtype, device=x.device
+            effective_experts, capacity, self.dmodel, dtype=x.dtype, device=x.device
         )
         if self.vectorize:
             with measure_time(self, "assign_tokens_to_input"):
                 experts_input = x[
                     top_tokens_per_expert_indices.T.reshape(
-                        (self.n_experts * capacity,)
+                        (effective_experts * capacity,)
                     ),
                     :,
                 ] * top_tokens_per_expert_values.T.reshape(
-                    (self.n_experts * capacity, 1)
+                    (effective_experts * capacity, 1)
                 )
                 experts_input = experts_input.reshape(
-                    self.n_experts, capacity, self.dmodel
+                    effective_experts, capacity, self.dmodel
                 )
         else:
             with measure_time(self, "assign_tokens_to_input"):
@@ -310,6 +327,11 @@ class TokenChoiceFF(LoggingLayer):
     def forward(self, x: torch.Tensor):
         batch_size, seq_len, _ = x.shape
 
+        effective_experts = self.n_experts // 2
+        random_experts = torch.randperm(self.n_experts, device=x.device)[
+            :effective_experts
+        ]
+
         if self.vectorize:
             (
                 experts_input,
@@ -333,7 +355,9 @@ class TokenChoiceFF(LoggingLayer):
                     self.lin1_weight,
                 )
             else:
-                experts_output = torch.matmul(experts_input, self.lin1_weight)
+                experts_output = torch.matmul(
+                    experts_input, self.lin1_weight[random_experts]
+                )
 
             experts_output = F.relu(experts_output)
             if self.use_einsum:
@@ -343,7 +367,9 @@ class TokenChoiceFF(LoggingLayer):
                     self.lin2_weight,
                 )
             else:
-                experts_output = torch.matmul(experts_output, self.lin2_weight)
+                experts_output = torch.matmul(
+                    experts_output, self.lin2_weight[random_experts]
+                )
 
         experts_output = experts_output.to(x.dtype)
         output = torch.zeros_like(x)
@@ -354,13 +380,13 @@ class TokenChoiceFF(LoggingLayer):
                     dim=0,
                     index=top_tokens_per_expert_indices.T.flatten(),
                     source=experts_output.reshape(
-                        self.n_experts * experts_output.shape[1], self.dmodel
+                        effective_experts * experts_output.shape[1], self.dmodel
                     ),
                 )
                 output *= masked_expert_gate.sum(dim=1, keepdim=True)
         else:
             with measure_time(self, "assign_tokens_to_output"):
-                for expert_id in range(self.n_experts):
+                for expert_id in range(effective_experts):
                     tokens_to_update = indices_of_tokens_for_expert[expert_id]
                     num_of_tokens_to_update = len(tokens_to_update)
 

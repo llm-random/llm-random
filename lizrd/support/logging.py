@@ -252,7 +252,7 @@ class NeptuneLogger(AbstractLogger):
         pass
 
 
-class scWandbLogger(AbstractLogger):
+class WandbLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
     def __init__(self, logger, args: Namespace):
