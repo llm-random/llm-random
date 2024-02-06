@@ -142,9 +142,9 @@ class AbstractLogger(ABC):
                 metric_x_flop_logarithmic = self.get_log_x_scale_metric(
                     metric_x_flop["value"], metric_x_flop["iteration"]
                 )
-                auxiliary_metrics[f"{title}_(x_flop_logarithmic)"] = (
-                    metric_x_flop_logarithmic
-                )
+                auxiliary_metrics[
+                    f"{title}_(x_flop_logarithmic)"
+                ] = metric_x_flop_logarithmic
 
             metric_logarithmic = self.get_log_x_scale_metric(value, iteration)
             auxiliary_metrics[f"{title}_(x_logarithmic)"] = metric_logarithmic
