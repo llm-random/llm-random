@@ -28,7 +28,7 @@ run_grid_remotely() {
     script+=" --neptune_key=$NEPTUNE_API_TOKEN"
   fi
   if [ -n "$WANDB_API_KEY" ]; then
-    script+=" --wandb_key=$NEPTUNE_API_TOKEN"
+    script+=" --wandb_key=$WANDB_API_KEY"
   fi
   script+="' C-m"
   script+="; tmux attach -t $session_name"
