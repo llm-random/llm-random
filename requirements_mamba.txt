@@ -1,0 +1,2 @@
+causal-conv1d<=1.0.2
+mamba-ssm==1.0.1
