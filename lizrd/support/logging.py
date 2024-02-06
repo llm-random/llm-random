@@ -11,7 +11,6 @@ import plotly
 import plotly.express as px
 import torch
 from clearml import Task
-import wandb
 
 from lizrd.support.misc import (
     make_concise_datetime,
@@ -253,7 +252,7 @@ class NeptuneLogger(AbstractLogger):
         pass
 
 
-class WandbLogger(AbstractLogger):
+class scWandbLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
     def __init__(self, logger, args: Namespace):
@@ -289,6 +288,8 @@ class WandbLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
+        import wandb
+
         path = self._make_path(title, series)
         assert (not math.isnan(value)) and (
             not math.isinf(value)
@@ -306,6 +307,8 @@ class WandbLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
+        import wandb
+
         table = wandb.Table(columns=["value"], data=[[value]])
         wandb.log({self._make_path(title, series): table, "train/step": iteration})
 
@@ -317,6 +320,8 @@ class WandbLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
+        import wandb
+
         wandb.log({self._make_path(title, series): figure, "train/step": iteration})
         self.potentially_log_plotly_figure_scalars(
             figure=figure, title=title, series=series, iteration=iteration
