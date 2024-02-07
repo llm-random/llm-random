@@ -24,7 +24,7 @@ class MambaInProj(LoggingLayer):
                 rearrange(self.conv_proj(x), "b l d -> d (b l)"),
                 rearrange(self.gate_proj(x), "b l d -> d (b l)"),
             )
-        ).type(self.dtype)
+        ).type(x.dtype)
 
     def __matmul__(self, other):
         return self.forward(other)

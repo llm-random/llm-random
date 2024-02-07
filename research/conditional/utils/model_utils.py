@@ -593,7 +593,7 @@ def get_mamba_layer(args):
                 batch_size=args.batch_size,
                 conv_proj=conv_proj,
                 gate_proj=gate_proj,
-                dtype=mamba.in_proj.dtype,
+                dtype=mamba.in_proj.weight.dtype,
             )
 
             return mamba

@@ -331,7 +331,7 @@ class TokenChoiceFF(LoggingLayer):
                     dim=0,
                     index=top_tokens_per_expert_indices.T.flatten(),
                     source=experts_output.reshape(
-                        self.n_experts * experts_output.shape[1], self.dmodel
+                        self.n_experts * experts_output.shape[1], self.doutput
                     ),
                 )
                 output *= masked_expert_gate.sum(dim=1, keepdim=True)
