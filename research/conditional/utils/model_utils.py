@@ -536,7 +536,9 @@ def get_ff_layer(args):
 def get_vanilla_mamba_layer(args):
     import mamba_ssm
 
-    return lambda: mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
+    return lambda: mamba_ssm.Mamba(
+        d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
+    )
 
 
 def get_mamba_layer(args):
@@ -546,13 +548,20 @@ def get_mamba_layer(args):
         return_fn = lambda: mamba_ssm.Mamba(
             d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
         )
-    elif args.mamba_mode == "out_proj_moe":
+    elif args.mamba_mode in [
+        "out_proj_moe",
+        "conv_proj_moe",
+        "gate_proj_moe",
+        "conv_gate_proj_moe",
+        "conv_out_proj_moe",
+        "gate_out_proj_moe",
+        "conv_gate_out_proj_moe",
+    ]:
 
-        def modified_out_mamba():
-            mamba = mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
-            mamba.out_proj = TokenChoiceFF(
-                dmodel=mamba.d_inner,
-                doutput=mamba.d_model,
+        def get_token_choice_ff(d_input, d_output):
+            return TokenChoiceFF(
+                dmodel=d_input,
+                doutput=d_output,
                 n_experts=args.n_experts,
                 expert_size=args.expert_size,
                 capacity_factor=args.capacity_factor,
@@ -561,211 +570,34 @@ def get_mamba_layer(args):
                 init_scale=args.init_scale,
                 init_type=args.init_type,
             )
+
+        def modified_out_mamba():
+            mamba = mamba_ssm.Mamba(
+                d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
+            )
+            if "out" in args.mamba_mode:
+                mamba.out_proj = get_token_choice_ff(
+                    d_input=mamba.d_inner, d_output=mamba.d_model
+                )
+            conv_proj = (
+                get_token_choice_ff(d_input=mamba.d_model, d_output=mamba.d_inner)
+                if "conv" in args.mamba_mode
+                else nn.Linear(mamba.d_model, mamba.d_inner, bias=False)
+            )
+            gate_proj = (
+                get_token_choice_ff(d_input=mamba.d_model, d_output=mamba.d_inner)
+                if "gate" in args.mamba_mode
+                else nn.Linear(mamba.d_model, mamba.d_inner, bias=False)
+            )
+            mamba.in_proj = MambaInProj(
+                batch_size=args.batch_size,
+                conv_proj=conv_proj,
+                gate_proj=gate_proj,
+            )
+
             return mamba
 
         return_fn = modified_out_mamba
-    elif args.mamba_mode == "conv_proj_moe":
-
-        def modified_in_mamba():
-            mamba = mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
-            mamba.in_proj = MambaInProj(
-                batch_size=args.batch_size,
-                conv_proj=TokenChoiceFF(
-                    dmodel=mamba.d_model,
-                    doutput=mamba.d_inner,
-                    n_experts=args.n_experts,
-                    expert_size=args.expert_size,
-                    capacity_factor=args.capacity_factor,
-                    load_balancing_loss_weight=args.load_balancing_loss_weight,
-                    routing_top_k=args.routing_top_k,
-                    init_scale=args.init_scale,
-                    init_type=args.init_type,
-                ),
-                gate_proj=nn.Linear(
-                    mamba.d_model,
-                    mamba.d_inner,
-                    bias=False,
-                ),
-            )
-            return mamba
-
-        return_fn = modified_in_mamba
-
-    elif args.mamba_mode == "gate_proj_moe":
-
-        def modified_in_mamba():
-            mamba = mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
-            mamba.in_proj = MambaInProj(
-                batch_size=args.batch_size,
-                conv_proj=nn.Linear(
-                    mamba.d_model,
-                    mamba.d_inner,
-                    bias=False,
-                ),
-                gate_proj=TokenChoiceFF(
-                    dmodel=mamba.d_model,
-                    doutput=mamba.d_inner,
-                    n_experts=args.n_experts,
-                    expert_size=args.expert_size,
-                    capacity_factor=args.capacity_factor,
-                    load_balancing_loss_weight=args.load_balancing_loss_weight,
-                    routing_top_k=args.routing_top_k,
-                    init_scale=args.init_scale,
-                    init_type=args.init_type,
-                ),
-            )
-            return mamba
-
-        return_fn = modified_in_mamba
-    elif args.mamba_mode == "conv_gate_proj_moe":
-
-        def modified_in_mamba():
-            mamba = mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
-            mamba.in_proj = MambaInProj(
-                batch_size=args.batch_size,
-                conv_proj=TokenChoiceFF(
-                    dmodel=mamba.d_model,
-                    doutput=mamba.d_inner,
-                    n_experts=args.n_experts,
-                    expert_size=args.expert_size,
-                    capacity_factor=args.capacity_factor,
-                    load_balancing_loss_weight=args.load_balancing_loss_weight,
-                    routing_top_k=args.routing_top_k,
-                    init_scale=args.init_scale,
-                    init_type=args.init_type,
-                ),
-                gate_proj=TokenChoiceFF(
-                    dmodel=mamba.d_model,
-                    doutput=mamba.d_inner,
-                    n_experts=args.n_experts,
-                    expert_size=args.expert_size,
-                    capacity_factor=args.capacity_factor,
-                    load_balancing_loss_weight=args.load_balancing_loss_weight,
-                    routing_top_k=args.routing_top_k,
-                    init_scale=args.init_scale,
-                    init_type=args.init_type,
-                ),
-            )
-            return mamba
-
-        return_fn = modified_in_mamba
-    elif args.mamba_mode == "gate_out_proj_moe":
-
-        def modified_in_mamba():
-            mamba = mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
-            mamba.in_proj = MambaInProj(
-                batch_size=args.batch_size,
-                conv_proj=nn.Linear(
-                    mamba.d_model,
-                    mamba.d_inner,
-                    bias=False,
-                ),
-                gate_proj=TokenChoiceFF(
-                    dmodel=mamba.d_model,
-                    doutput=mamba.d_inner,
-                    n_experts=args.n_experts,
-                    expert_size=args.expert_size,
-                    capacity_factor=args.capacity_factor,
-                    load_balancing_loss_weight=args.load_balancing_loss_weight,
-                    routing_top_k=args.routing_top_k,
-                    init_scale=args.init_scale,
-                    init_type=args.init_type,
-                ),
-            )
-            mamba.out_proj = TokenChoiceFF(
-                dmodel=mamba.d_inner,
-                doutput=mamba.d_model,
-                n_experts=args.n_experts,
-                expert_size=args.expert_size,
-                capacity_factor=args.capacity_factor,
-                load_balancing_loss_weight=args.load_balancing_loss_weight,
-                routing_top_k=args.routing_top_k,
-                init_scale=args.init_scale,
-                init_type=args.init_type,
-            )
-            return mamba
-
-        return_fn = modified_in_mamba
-    elif args.mamba_mode == "conv_out_proj_moe":
-
-        def modified_in_mamba():
-            mamba = mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
-            mamba.in_proj = MambaInProj(
-                batch_size=args.batch_size,
-                conv_proj=TokenChoiceFF(
-                    dmodel=mamba.d_model,
-                    doutput=mamba.d_inner,
-                    n_experts=args.n_experts,
-                    expert_size=args.expert_size,
-                    capacity_factor=args.capacity_factor,
-                    load_balancing_loss_weight=args.load_balancing_loss_weight,
-                    routing_top_k=args.routing_top_k,
-                    init_scale=args.init_scale,
-                    init_type=args.init_type,
-                ),
-                gate_proj=nn.Linear(
-                    mamba.d_model,
-                    mamba.d_inner,
-                    bias=False,
-                ),
-            )
-            mamba.out_proj = TokenChoiceFF(
-                dmodel=mamba.d_inner,
-                doutput=mamba.d_model,
-                n_experts=args.n_experts,
-                expert_size=args.expert_size,
-                capacity_factor=args.capacity_factor,
-                load_balancing_loss_weight=args.load_balancing_loss_weight,
-                routing_top_k=args.routing_top_k,
-                init_scale=args.init_scale,
-                init_type=args.init_type,
-            )
-            return mamba
-
-        return_fn = modified_in_mamba
-    elif args.mamba_mode == "conv_gate_out_proj_moe":
-
-        def modified_in_mamba():
-            mamba = mamba_ssm.Mamba(d_model=args.dmodel, use_fast_path=False)
-            mamba.in_proj = MambaInProj(
-                batch_size=args.batch_size,
-                conv_proj=TokenChoiceFF(
-                    dmodel=mamba.d_model,
-                    doutput=mamba.d_inner,
-                    n_experts=args.n_experts,
-                    expert_size=args.expert_size,
-                    capacity_factor=args.capacity_factor,
-                    load_balancing_loss_weight=args.load_balancing_loss_weight,
-                    routing_top_k=args.routing_top_k,
-                    init_scale=args.init_scale,
-                    init_type=args.init_type,
-                ),
-                gate_proj=TokenChoiceFF(
-                    dmodel=mamba.d_model,
-                    doutput=mamba.d_inner,
-                    n_experts=args.n_experts,
-                    expert_size=args.expert_size,
-                    capacity_factor=args.capacity_factor,
-                    load_balancing_loss_weight=args.load_balancing_loss_weight,
-                    routing_top_k=args.routing_top_k,
-                    init_scale=args.init_scale,
-                    init_type=args.init_type,
-                ),
-            )
-            mamba.out_proj = TokenChoiceFF(
-                dmodel=mamba.d_inner,
-                doutput=mamba.d_model,
-                n_experts=args.n_experts,
-                expert_size=args.expert_size,
-                capacity_factor=args.capacity_factor,
-                load_balancing_loss_weight=args.load_balancing_loss_weight,
-                routing_top_k=args.routing_top_k,
-                init_scale=args.init_scale,
-                init_type=args.init_type,
-            )
-            return mamba
-
-        return_fn = modified_in_mamba
     else:
         raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
 
