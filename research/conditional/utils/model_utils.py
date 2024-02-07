@@ -63,7 +63,7 @@ from research.conditional.moe_layers.token_choice import (
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
 )
-from research.conditional.moe_layers.mamba import MambaInProj
+from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -593,6 +593,7 @@ def get_mamba_layer(args):
                 batch_size=args.batch_size,
                 conv_proj=conv_proj,
                 gate_proj=gate_proj,
+                dtype=mamba.in_proj.dtype,
             )
 
             return mamba
