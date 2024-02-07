@@ -58,6 +58,12 @@ def get_cache_path(machine_backend: MachineBackend) -> str:
         return f"{common_dir}/.cache"
 
 
+def get_datasets_path(machine_backend: MachineBackend) -> str:
+    if machine_backend == MachineBackend.IDEAS:
+        return "/raid/NFS_SHARE/datasets"
+    return None
+
+
 def get_singularity_image(machine_backend: MachineBackend) -> str:
     image_name = "sparsity_2023.11.10_15.23.19.sif"
     common_dir = get_common_directory(machine_backend)
@@ -265,6 +271,7 @@ def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
         "singularity_image", get_singularity_image(CLUSTER_NAME)
     )
     HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", get_cache_path(CLUSTER_NAME))
+    DATASETS_PATH = grid_args.get("datasets_path", get_datasets_path(CLUSTER_NAME))
     NODELIST = grid_args.get("nodelist", None)
     N_GPUS = grid_args.get("n_gpus", 1)
     CPUS_PER_GPU = grid_args.get("cpus_per_gpu", 8)
@@ -282,6 +289,7 @@ def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
         "nodelist": NODELIST,
         "cuda_visible": CUDA_VISIBLE_DEVICES,
         "hf_datasets_cache": HF_DATASETS_CACHE,
+        "datasets_path": DATASETS_PATH,
         "singularity_image": SINGULARITY_IMAGE,
         "runs_multiplier": RUNS_MULTIPLIER,
     }
