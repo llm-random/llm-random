@@ -57,6 +57,8 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, Expert
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
     TokenChoiceRouter,
+    ExpertRelu,
+    ExpertSwiGLU,
 )
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
@@ -456,11 +458,28 @@ def get_ff_layer(args):
             llm.FeedForward(*parallel_ff_args),
         )
     elif args.ff_mode == "token_choice":
-        return_fn = lambda: TokenChoiceFF(
+        if args.token_choice_inner == "relu":
+            expert_inner_class = ExpertRelu
+        elif args.token_choice_inner == "swi_glu":
+            expert_inner_class = ExpertSwiGLU
+
+        else:
+            raise NotImplementedError(
+                f"Token choice logic {args.token_choice_inner} not implemented"
+            )
+        make_expert_inner_function = partial(
+            expert_inner_class,
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_size=args.expert_size,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
+        return_fn = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
             capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
             load_balancing_loss_weight=args.load_balancing_loss_weight,
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
