@@ -59,7 +59,7 @@ def get_cache_path(machine_backend: MachineBackend) -> str:
 
 
 def get_singularity_image(machine_backend: MachineBackend) -> str:
-    image_name = "sparsity_2023.11.10_15.23.19.sif"
+    image_name = "sparsity_2024.02.06_16.14.02.sif"
     common_dir = get_common_directory(machine_backend)
     return f"{common_dir}/images/{image_name}"
 
@@ -325,6 +325,64 @@ def make_singularity_env_arguments(
         if len(variables_and_values) > 0
         else []
     )
+
+
+def get_default_train_dataset_path(CLUSTER_NAME: MachineBackend, dataset_type: str):
+    if CLUSTER_NAME == MachineBackend.IDEAS:
+        if dataset_type == "c4":
+            return "/raid/NFS_SHARE/datasets/c4/train/c4_train"
+
+    return None
+
+
+def get_default_validation_dataset_path(
+    CLUSTER_NAME: MachineBackend, dataset_type: str
+):
+    if CLUSTER_NAME == MachineBackend.IDEAS:
+        if dataset_type == "c4":
+            return "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+
+    return None
+
+
+def maybe_set_default_datasets_paths(
+    grid: list[dict[str, str]], CLUSTER_NAME: MachineBackend
+):
+    for _, (training_args, _) in enumerate(grid):
+        if training_args.get("train_dataset_path") is None:
+            training_args["train_dataset_path"] = get_default_train_dataset_path(
+                CLUSTER_NAME, training_args["dataset_type"]
+            )
+        if training_args.get("validation_dataset_path") is None:
+            training_args[
+                "validation_dataset_path"
+            ] = get_default_validation_dataset_path(
+                CLUSTER_NAME, training_args["dataset_type"]
+            )
+
+
+def make_singularity_mount_paths(setup_args: dict, training_args: dict) -> str:
+    singularity_mount_paths = f"-B={os.getcwd()}:/llm-random"
+    is_hf_datasets_cache_needed = (
+        training_args["train_dataset_path"] is None
+        or training_args["validation_dataset_path"] is None
+    )
+    singularity_mount_paths += (
+        f",{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}"
+        if is_hf_datasets_cache_needed
+        else ""
+    )
+    singularity_mount_paths += (
+        f",{training_args['train_dataset_path']}:{training_args['train_dataset_path']}"
+        if training_args["train_dataset_path"] is not None
+        else ""
+    )
+    singularity_mount_paths += (
+        f",{training_args['validation_dataset_path']}:{training_args['validation_dataset_path']}"
+        if training_args["validation_dataset_path"] is not None
+        else ""
+    )
+    return singularity_mount_paths
 
 
 def check_for_argparse_correctness(grid: list[dict[str, str]]):
