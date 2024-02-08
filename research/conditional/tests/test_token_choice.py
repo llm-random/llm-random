@@ -63,14 +63,14 @@ class TestTokenChoice(GeneralTestCase):
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
-            expert_logic=expert_logic,
+            expert_inner_function=expert_logic,
         )
         propagate_forward_pass_cache(token_choice_layer)
 
-        token_choice_layer.expert_logic.lin1_weight.data = (
+        token_choice_layer.expert_inner_function.lin1_weight.data = (
             lin[0].weight.data.transpose(0, 1).unsqueeze(0)
         )
-        token_choice_layer.expert_logic.lin2_weight.data = (
+        token_choice_layer.expert_inner_function.lin2_weight.data = (
             lin[2].weight.data.transpose(0, 1).unsqueeze(0)
         )
 
@@ -86,21 +86,20 @@ class TestTokenChoice(GeneralTestCase):
         output_token_choice.sum().backward()
         self.assertTensorAlmostEqual(
             lin[0].weight.grad,
-            token_choice_layer.expert_logic.lin1_weight.grad.squeeze(0).transpose(0, 1),
+            token_choice_layer.expert_inner_function.lin1_weight.grad.squeeze(
+                0
+            ).transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
             lin[2].weight.grad,
-            token_choice_layer.expert_logic.lin2_weight.grad.squeeze(0).transpose(0, 1),
+            token_choice_layer.expert_inner_function.lin2_weight.grad.squeeze(
+                0
+            ).transpose(0, 1),
         )
 
     def test_equivalence_swi_glu(self):
         """
-        Test that the TokenChoiceFFSwiGLU layer with one expert is equivalent to a linear layer.
-
-        If we don't multiply by softmax, the layer is equivalent
-        to a linear layer (plus LayerNorm) with regard to output and gradients.
-
-        If we multiply by softmax the layer is equivalent with regard to gradients only.
+        Test that the TokenChoiceFFSwiGLU layer with one expert is equivalent to a SwiGluFeedForward.
         """
         batch, dm = 2, 3
         experts = 1
@@ -115,19 +114,19 @@ class TestTokenChoice(GeneralTestCase):
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
-            expert_logic=expert_logic,
+            expert_inner_function=expert_logic,
         )
         propagate_forward_pass_cache(token_choice_layer)
 
-        token_choice_layer.expert_logic.lin1_weight.data = (
+        token_choice_layer.expert_inner_function.lin1_weight.data = (
             lin.w1_gate.weight[0:exp_size].data.transpose(0, 1).unsqueeze(0)
         )
-        token_choice_layer.expert_logic.swi_glu_gate_weight.data = (
+        token_choice_layer.expert_inner_function.swi_glu_gate_weight.data = (
             lin.w1_gate.weight.data[exp_size:].transpose(0, 1).unsqueeze(0)
         )
-        token_choice_layer.expert_logic.lin2_weight.data = lin.w2.weight.data.transpose(
-            0, 1
-        ).unsqueeze(0)
+        token_choice_layer.expert_inner_function.lin2_weight.data = (
+            lin.w2.weight.data.transpose(0, 1).unsqueeze(0)
+        )
 
         # make sure weights act the same
         input_data = torch.rand((batch, seql, dm))
@@ -141,17 +140,21 @@ class TestTokenChoice(GeneralTestCase):
         output_token_choice.sum().backward()
         self.assertTensorAlmostEqual(
             lin.w1_gate.weight.grad[0:exp_size],
-            token_choice_layer.expert_logic.lin1_weight.grad.squeeze(0).transpose(0, 1),
+            token_choice_layer.expert_inner_function.lin1_weight.grad.squeeze(
+                0
+            ).transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
             lin.w1_gate.weight.grad[exp_size:],
-            token_choice_layer.expert_logic.swi_glu_gate_weight.grad.squeeze(
+            token_choice_layer.expert_inner_function.swi_glu_gate_weight.grad.squeeze(
                 0
             ).transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
             lin.w2.weight.grad,
-            token_choice_layer.expert_logic.lin2_weight.grad.squeeze(0).transpose(0, 1),
+            token_choice_layer.expert_inner_function.lin2_weight.grad.squeeze(
+                0
+            ).transpose(0, 1),
         )
 
     def test_einsum_vs_matmul(self):
@@ -171,13 +174,13 @@ class TestTokenChoice(GeneralTestCase):
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
-            expert_logic=expert_logic,
+            expert_inner_function=expert_logic,
             use_einsum=True,
         )
 
         matmul_module = deepcopy(einsum_module)
         matmul_module.use_einsum = False
-        matmul_module.expert_logic.use_einsum = False
+        matmul_module.expert_inner_function.use_einsum = False
         matmul_module
 
         propagate_forward_pass_cache(einsum_module)
@@ -202,7 +205,7 @@ class TestTokenChoice(GeneralTestCase):
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
-            expert_logic=expert_logic,
+            expert_inner_function=expert_logic,
         )
         propagate_forward_pass_cache(tc)
 
@@ -244,7 +247,7 @@ class TestTokenChoice(GeneralTestCase):
                 load_balancing_loss_weight=0.1,
                 init_type="kaiming_uniform",
                 init_scale=1.0,
-                expert_logic=expert_logic,
+                expert_inner_function=expert_logic,
             )
         )
         propagate_forward_pass_cache(tc)
@@ -274,7 +277,7 @@ class TestTokenChoice(GeneralTestCase):
             dm,
             experts,
             1.0,
-            expert_logic=expert_logic,
+            expert_inner_function=expert_logic,
             load_balancing_loss_weight=0.1,
             routing_top_k=1,
             init_type="kaiming_uniform",
@@ -291,8 +294,8 @@ class TestTokenChoice(GeneralTestCase):
             init_scale=1.0,
         )
         with torch.no_grad():
-            old_tc.lin1_weight.data = tc.expert_logic.lin1_weight.data.clone()
-            old_tc.lin2_weight.data = tc.expert_logic.lin2_weight.data.clone()
+            old_tc.lin1_weight.data = tc.expert_inner_function.lin1_weight.data.clone()
+            old_tc.lin2_weight.data = tc.expert_inner_function.lin2_weight.data.clone()
             old_tc.router.gate.data = tc.router.gate.data.clone()
 
         propagate_forward_pass_cache(tc)
@@ -317,10 +320,10 @@ class TestTokenChoice(GeneralTestCase):
         ).backward()
 
         self.assertTensorAlmostEqual(
-            tc.expert_logic.lin1_weight.grad, old_tc.lin1_weight.grad
+            tc.expert_inner_function.lin1_weight.grad, old_tc.lin1_weight.grad
         )
         self.assertTensorAlmostEqual(
-            tc.expert_logic.lin2_weight.grad, old_tc.lin2_weight.grad
+            tc.expert_inner_function.lin2_weight.grad, old_tc.lin2_weight.grad
         )
         self.assertTensorAlmostEqual(tc.router.gate.grad, old_tc.router.gate.grad)
 
@@ -359,7 +362,7 @@ class TestTokenChoice(GeneralTestCase):
             dm,
             experts,
             100.0,
-            expert_logic=expert_logic,
+            expert_inner_function=expert_logic,
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
@@ -375,16 +378,16 @@ class TestTokenChoice(GeneralTestCase):
             ] = token_choice_layer.router.gate.data[:, 1]
 
             # copy weights from experts to layer
-            token_choice_layer.expert_logic.lin1_weight.data[0] = (
+            token_choice_layer.expert_inner_function.lin1_weight.data[0] = (
                 expert1[0].weight.data.transpose(0, 1).unsqueeze(0)
             )
-            token_choice_layer.expert_logic.lin1_weight.data[1] = (
+            token_choice_layer.expert_inner_function.lin1_weight.data[1] = (
                 expert2[0].weight.data.transpose(0, 1).unsqueeze(0)
             )
-            token_choice_layer.expert_logic.lin2_weight.data[0] = (
+            token_choice_layer.expert_inner_function.lin2_weight.data[0] = (
                 expert1[2].weight.data.transpose(0, 1).unsqueeze(0)
             )
-            token_choice_layer.expert_logic.lin2_weight.data[1] = (
+            token_choice_layer.expert_inner_function.lin2_weight.data[1] = (
                 expert2[2].weight.data.transpose(0, 1).unsqueeze(0)
             )
         # make sure weights act the same
@@ -401,25 +404,25 @@ class TestTokenChoice(GeneralTestCase):
         output_token_choice.sum().backward()
         self.assertTensorAlmostEqual(
             expert1[0].weight.grad,
-            token_choice_layer.expert_logic.lin1_weight.grad[0]
+            token_choice_layer.expert_inner_function.lin1_weight.grad[0]
             .squeeze(0)
             .transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
             expert2[0].weight.grad,
-            token_choice_layer.expert_logic.lin1_weight.grad[1]
+            token_choice_layer.expert_inner_function.lin1_weight.grad[1]
             .squeeze(0)
             .transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
             expert1[2].weight.grad,
-            token_choice_layer.expert_logic.lin2_weight.grad[0]
+            token_choice_layer.expert_inner_function.lin2_weight.grad[0]
             .squeeze(0)
             .transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
             expert2[2].weight.grad,
-            token_choice_layer.expert_logic.lin2_weight.grad[1]
+            token_choice_layer.expert_inner_function.lin2_weight.grad[1]
             .squeeze(0)
             .transpose(0, 1),
         )
@@ -436,7 +439,7 @@ class TestTokenChoice(GeneralTestCase):
             dm,
             experts,
             100.0,
-            expert_logic=expert_logic,
+            expert_inner_function=expert_logic,
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
@@ -461,7 +464,7 @@ class TestTokenChoice(GeneralTestCase):
             dm,
             experts,
             100.0,
-            expert_logic=expert_logic,
+            expert_inner_function=expert_logic,
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,

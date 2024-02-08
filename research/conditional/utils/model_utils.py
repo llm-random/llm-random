@@ -459,30 +459,27 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "token_choice":
         if args.token_choice_logic == "relu":
-            expert_logic = lambda: ExpertRelu(
-                dmodel=args.dmodel,
-                n_experts=args.n_experts,
-                expert_size=args.expert_size,
-                init_scale=args.init_scale,
-                init_type=args.init_type,
-            )
+            expert_inner_class = ExpertRelu
         elif args.token_choice_logic == "swi_glu":
-            expert_logic = lambda: ExpertSwiGLU(
-                dmodel=args.dmodel,
-                n_experts=args.n_experts,
-                expert_size=args.expert_size,
-                init_scale=args.init_scale,
-                init_type=args.init_type,
-            )
+            expert_inner_class = ExpertSwiGLU
+
         else:
             raise NotImplementedError(
                 f"Token choice logic {args.token_choice_logic} not implemented"
             )
+        make_expert_inner_function = partial(
+            expert_inner_class,
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
         return_fn = lambda: TokenChoiceFF(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             capacity_factor=args.capacity_factor,
-            expert_logic=expert_logic(),
+            expert_inner_function=make_expert_inner_function(),
             load_balancing_loss_weight=args.load_balancing_loss_weight,
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,

@@ -252,7 +252,7 @@ class TokenChoiceFF(LoggingLayer):
         load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
-        expert_logic: LoggingLayer,
+        expert_inner_function: LoggingLayer,
         routing_top_k: int = 1,
         use_einsum: bool = False,
         vectorize: bool = True,
@@ -271,7 +271,7 @@ class TokenChoiceFF(LoggingLayer):
         self.dmodel = dmodel
         self.n_experts = n_experts
         self.capacity_factor = capacity_factor
-        self.expert_logic = expert_logic
+        self.expert_inner_function = expert_inner_function
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
         self.vectorize = vectorize
@@ -309,7 +309,7 @@ class TokenChoiceFF(LoggingLayer):
 
         x = x.flatten(start_dim=0, end_dim=1)
 
-        experts_output = self.expert_logic(experts_input)
+        experts_output = self.expert_inner_function(experts_input)
 
         experts_output = experts_output.to(x.dtype)
         output = torch.zeros_like(x)
@@ -350,7 +350,8 @@ class ExpertRelu(LoggingLayer):
         use_einsum: bool = False,
     ):
         super().__init__()
-
+        self.dmodel = dmodel
+        self.n_experts = n_experts
         self.use_einsum = use_einsum
 
         self.lin1_weight = nn.Parameter(
@@ -371,6 +372,11 @@ class ExpertRelu(LoggingLayer):
         )
 
     def forward(self, x: torch.Tensor):
+        (n_experts, capacity, dmodel) = x.shape
+
+        assert n_experts == self.n_experts
+        assert dmodel == self.dmodel
+
         with measure_time(self, "process_by_experts"):
             if self.use_einsum:
                 experts_output = einsum(
@@ -390,6 +396,8 @@ class ExpertRelu(LoggingLayer):
                 )
             else:
                 experts_output = torch.matmul(experts_output, self.lin2_weight)
+
+        assert experts_output.shape == (n_experts, capacity, dmodel)
 
         return experts_output
 
