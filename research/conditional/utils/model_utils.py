@@ -466,6 +466,7 @@ def get_ff_layer(args):
             init_scale=args.init_scale,
             init_type=args.init_type,
             vectorize=(not args.dont_vectorize_switch),
+            expert_cycling_dropped_fraction=args.expert_cycling_dropped_fraction,
         )
     elif args.ff_mode == "token_choice_deprecated":
         return_fn = lambda: TokenChoiceFFDeprecated(

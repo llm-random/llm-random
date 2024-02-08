@@ -294,6 +294,9 @@ def introduce_parser_arguments(
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 
+    # Expert Cycling
+    parser.add_argument("--expert_cycling_dropped_fraction", type=float, default=0.0)
+
     # mamba
     parser.add_argument("--mamba_mode", type=str, default="vanilla")
     parser.add_argument(

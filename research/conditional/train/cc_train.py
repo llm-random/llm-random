@@ -165,10 +165,8 @@ def main(
         block_modules=block_modules,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
-        device=DEVICE
-        if rank is None
-        else torch.device(
-            "cpu"
+        device=(
+            DEVICE if rank is None else torch.device("cpu")
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
@@ -249,14 +247,15 @@ def main(
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=tokenizers.GPTTokenizer
-            if args.model_type == "gpt"
-            else tokenizers.BertTokenizer,
-        )
+    # if args.model_type == "gpt" and is_logging_process:
+    #     log_batch(
+    #         train_dataloader,
+    #         tokenizer_maker=tokenizers.GPTTokenizer
+    #         if args.model_type == "gpt"
+    #         else tokenizers.BertTokenizer,
+    #     )
 
+    print("over the hump")
     profiler_schedule = (
         torch.profiler.schedule(
             wait=args.profiler_schedule_wait,
