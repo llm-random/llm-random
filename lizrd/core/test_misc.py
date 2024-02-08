@@ -223,8 +223,6 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             num_checkpoint_accumulation_steps=1,
         )
 
-        loss_no_chung.backward()
-        loss_chung.backward()
         assert torch.isclose(loss_no_chung, loss_chung)
         assert aux_info_no_chung["correct_tokens"] == aux_info_chung["correct_tokens"]
         assert (
