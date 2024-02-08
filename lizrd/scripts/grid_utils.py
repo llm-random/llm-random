@@ -51,7 +51,7 @@ def get_cache_path(machine_backend: MachineBackend) -> str:
     elif machine_backend == MachineBackend.ATHENA:
         return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
     elif machine_backend == MachineBackend.ENTROPY:
-        return "/local_storage_1/dataset_cache"
+        return "/local_storage_2/dataset_cache"
     else:
         common_dir = get_common_directory(machine_backend)
         return f"{common_dir}/.cache"
