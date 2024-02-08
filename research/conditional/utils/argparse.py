@@ -22,6 +22,9 @@ def introduce_parser_arguments(
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
     parser.add_argument("--no_ff", action="store_true")
+    parser.add_argument(
+        "--token_choice_inner", type=str, choices=["relu", "swi_glu"], default="relu"
+    )
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
@@ -59,6 +62,11 @@ def introduce_parser_arguments(
 
     # other data hyperparameters
     parser.add_argument("--num_workers", type=int, default=8)
+
+    # as of 8.02.2024 below only works for C4 dataset, as wikibook is technically two separate datasets, but wikibook is small enough to use hf datasets_cashe
+    # as of 8.02.2024 it is set automatically on DGX, on other machines use manually
+    parser.add_argument("--train_dataset_path", type=str, default=None)
+    parser.add_argument("--validation_dataset_path", type=str, default=None)
 
     # training tricks for memory and speed
     parser.add_argument(

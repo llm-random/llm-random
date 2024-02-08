@@ -22,6 +22,8 @@ from lizrd.scripts.grid_utils import (
     get_setup_args_with_defaults,
     translate_to_argparse,
     make_singularity_env_arguments,
+    make_singularity_mount_paths,
+    maybe_set_default_datasets_paths,
     check_for_argparse_correctness,
 )
 from lizrd.support.code_copying import copy_code
@@ -108,6 +110,7 @@ if __name__ == "__main__":
         print("Running locally, skip copying code to a new directory.")
 
     slurm_command = "srun" if interactive_debug_session else "sbatch"
+    maybe_set_default_datasets_paths(grid, CLUSTER_NAME)
 
     for i, (training_args, setup_args) in enumerate(grid):
         full_config_path = f"full_config{i}.yaml"
@@ -121,6 +124,10 @@ if __name__ == "__main__":
         singularity_env_arguments = make_singularity_env_arguments(
             hf_datasets_cache_path=setup_args["hf_datasets_cache"],
             neptune_key=args.neptune_key,
+        )
+
+        singulatility_mount_paths = make_singularity_mount_paths(
+            setup_args, training_args
         )
 
         env = None
@@ -153,7 +160,7 @@ if __name__ == "__main__":
                 "run",
                 "--bind=/net:/net",
                 *singularity_env_arguments,
-                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
+                singulatility_mount_paths,
                 "--nv",
                 setup_args["singularity_image"],
                 "python3",
@@ -174,7 +181,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 *singularity_env_arguments,
-                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
+                singulatility_mount_paths,
                 "--nv",
                 setup_args["singularity_image"],
                 "python3",
@@ -190,7 +197,7 @@ if __name__ == "__main__":
                 "singularity",
                 "run",
                 *singularity_env_arguments,
-                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
+                singulatility_mount_paths,
                 "--nv",
                 setup_args["singularity_image"],
                 "python3",
