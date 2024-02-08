@@ -19,8 +19,7 @@ class MachineBackend(Enum):
     ENTROPY = 1
     ATHENA = 2
     IDEAS = 3
-    ENTROPY_GPU = 4
-    LOCAL = 5
+    LOCAL = 4
 
 
 def get_machine_backend() -> MachineBackend:
@@ -31,8 +30,6 @@ def get_machine_backend() -> MachineBackend:
         return MachineBackend.ATHENA
     elif node == "login01":
         return MachineBackend.IDEAS
-    elif node == "4124gs01":
-        return MachineBackend.ENTROPY_GPU
     else:
         return MachineBackend.LOCAL
 
@@ -42,17 +39,19 @@ def get_common_directory(machine_backend: MachineBackend) -> str:
         return "/net/pr2/projects/plgrid/plggllmeffi"
     elif machine_backend == MachineBackend.IDEAS:
         return "/raid/NFS_SHARE/llm-random"
-    elif machine_backend == MachineBackend.ENTROPY_GPU:
-        return "/common/llm-random"
+    elif machine_backend == MachineBackend.ENTROPY:
+        return "/home/jkrajewski_a100"
     else:
         return os.getenv("HOME")
 
 
 def get_cache_path(machine_backend: MachineBackend) -> str:
-    if machine_backend in [MachineBackend.LOCAL]:
+    if machine_backend == MachineBackend.LOCAL:
         return f"{os.getenv('HOME')}/.cache/huggingface/datasets"
     elif machine_backend == MachineBackend.ATHENA:
         return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
+    elif machine_backend == MachineBackend.ENTROPY:
+        return "/local_storage_1/dataset_cache"
     else:
         common_dir = get_common_directory(machine_backend)
         return f"{common_dir}/.cache"
@@ -65,14 +64,12 @@ def get_singularity_image(machine_backend: MachineBackend) -> str:
 
 
 def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
-    if machine_backend in [MachineBackend.ENTROPY]:
-        return "lizrd/scripts/grid_entrypoint.sh"
-    elif machine_backend in [
+    if machine_backend in [
         MachineBackend.ATHENA,
         MachineBackend.IDEAS,
-        MachineBackend.ENTROPY_GPU,
+        MachineBackend.ENTROPY,
     ]:
-        return "lizrd/scripts/grid_entrypoint_athena.sh"
+        return "lizrd/scripts/grid_entrypoint.sh"
     elif machine_backend in [MachineBackend.LOCAL]:
         raise ValueError(f"Local machine should use main function directly. ")
     else:

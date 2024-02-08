@@ -3,6 +3,7 @@ Script to grid search in recycle layers. Run this script from the root of the pr
 $ python3 research/reinitialization/scripts/grid.py
 Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
+
 import argparse
 import datetime
 import os
@@ -128,12 +129,19 @@ if __name__ == "__main__":
         if CLUSTER_NAME == MachineBackend.ENTROPY:
             subprocess_args = [
                 slurm_command,
-                "--partition=common",
-                "--qos=16gpu7d",
-                f"--gres={setup_args['gres']}",
+                "--partition=a100",
+                f"--gres=gpu:a100:{setup_args['n_gpus']}",
+                f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+                f"--mem={1000 // setup_args['n_gpus']}G",
                 f"--job-name={job_name}",
                 f"--time={setup_args['time']}",
                 get_grid_entrypoint(CLUSTER_NAME),
+                "singularity",
+                "run",
+                *singularity_env_arguments,
+                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
+                "--nv",
+                setup_args["singularity_image"],
                 "python3",
                 "-m",
                 setup_args["runner"],
@@ -171,22 +179,6 @@ if __name__ == "__main__":
                 "--mem=32G",
                 setup_args["nodelist"],
                 get_grid_entrypoint(CLUSTER_NAME),
-                "singularity",
-                "run",
-                *singularity_env_arguments,
-                f"-B={os.getcwd()}:/llm-random,{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}",
-                "--nv",
-                setup_args["singularity_image"],
-                "python3",
-                "-m",
-                setup_args["runner"],
-                *runner_params,
-            ]
-        elif CLUSTER_NAME == MachineBackend.ENTROPY_GPU:
-            if setup_args["cuda_visible"] is not None:
-                env = os.environ.copy()
-                env.update({"CUDA_VISIBLE_DEVICES": setup_args["cuda_visible"]})
-            subprocess_args = [
                 "singularity",
                 "run",
                 *singularity_env_arguments,
