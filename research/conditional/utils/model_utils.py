@@ -458,14 +458,14 @@ def get_ff_layer(args):
             llm.FeedForward(*parallel_ff_args),
         )
     elif args.ff_mode == "token_choice":
-        if args.token_choice_logic == "relu":
+        if args.token_choice_inner == "relu":
             expert_inner_class = ExpertRelu
-        elif args.token_choice_logic == "swi_glu":
+        elif args.token_choice_inner == "swi_glu":
             expert_inner_class = ExpertSwiGLU
 
         else:
             raise NotImplementedError(
-                f"Token choice logic {args.token_choice_logic} not implemented"
+                f"Token choice logic {args.token_choice_inner} not implemented"
             )
         make_expert_inner_function = partial(
             expert_inner_class,
