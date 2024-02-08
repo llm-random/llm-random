@@ -34,7 +34,7 @@ def get_processed_dataset(
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
-    datasets_path: Optional[str] = None,
+    dataset_path: Optional[str] = None,
 ):
     if dataset_type == "wikibook":
         dataset = partial(
@@ -47,7 +47,7 @@ def get_processed_dataset(
             datasets.C4Dataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
-            datasets_path=datasets_path,
+            dataset_path=dataset_path,
         )
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")

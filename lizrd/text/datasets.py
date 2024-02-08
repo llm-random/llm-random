@@ -84,13 +84,12 @@ class C4Dataset(AbstractDataset):
         seed: Optional[int] = None,
         split: str = "train",
         use_dummy_dataset: bool = False,
-        datasets_path: Optional[str] = None,
+        dataset_path: Optional[str] = None,
     ):
         super().__init__(seed=seed)
         assert split in ["train", "validation"]
-        if datasets_path is not None:
-            full_path = f"{datasets_path}/c4/{split}/c4_{split}"
-            self.dataset = load_from_disk(full_path)
+        if dataset_path is not None:
+            self.dataset = load_from_disk(dataset_path)
         elif use_dummy_dataset:
             if split != "train":
                 raise NameError(

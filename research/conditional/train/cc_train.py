@@ -234,7 +234,7 @@ def main(
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split="train",
-        datasets_path=args.datasets_path,
+        dataset_path=args.train_dataset_path,
     )
 
     eval_split = (
@@ -245,7 +245,7 @@ def main(
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split=eval_split,
-        datasets_path=args.datasets_path,
+        dataset_path=args.validation_dataset_path,
     )
 
     if is_logging_process:

@@ -59,7 +59,9 @@ def introduce_parser_arguments(
 
     # other data hyperparameters
     parser.add_argument("--num_workers", type=int, default=8)
-    parser.add_argument("--datasets_path", type=str, default=None)
+
+    parser.add_argument("--train_dataset_path", type=str, default=None)
+    parser.add_argument("--validation_dataset_path", type=str, default=None)
 
     # training tricks for memory and speed
     parser.add_argument(
