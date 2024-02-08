@@ -325,9 +325,11 @@ def make_singularity_env_arguments(
 
 
 def get_default_train_dataset_path(CLUSTER_NAME: MachineBackend, dataset_type: str):
-    if CLUSTER_NAME == MachineBackend.IDEAS:
-        if dataset_type == "c4":
+    if dataset_type == "c4":
+        if CLUSTER_NAME == MachineBackend.IDEAS:
             return "/raid/NFS_SHARE/datasets/c4/train/c4_train"
+        elif CLUSTER_NAME == MachineBackend.ENTROPY:
+            return "/local_storage_2/llm-random/datasets/c4_train"
 
     return None
 
@@ -335,9 +337,11 @@ def get_default_train_dataset_path(CLUSTER_NAME: MachineBackend, dataset_type: s
 def get_default_validation_dataset_path(
     CLUSTER_NAME: MachineBackend, dataset_type: str
 ):
-    if CLUSTER_NAME == MachineBackend.IDEAS:
-        if dataset_type == "c4":
+    if dataset_type == "c4":
+        if CLUSTER_NAME == MachineBackend.IDEAS:
             return "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+        elif CLUSTER_NAME == MachineBackend.ENTROPY:
+            return "/local_storage_2/llm-random/datasets/c4_validation"
 
     return None
 
