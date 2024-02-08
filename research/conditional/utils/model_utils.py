@@ -172,15 +172,14 @@ def chungized_llm_loss(
             "losses": retrieve_additional_losses(model),
         }
 
+    for key, value in aux_info["losses"].items():
+        aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     if model.training:
         encoder_output.backward(encoder_output_detach.grad)
-        for key, value in aux_info["losses"].items():
-            aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
-            backward_maybe_with_scaler(
-                value / num_checkpoint_accumulation_steps, mixed_precision_dtype, scaler
-            )
+        for value in aux_info["losses"].values():
+            backward_maybe_with_scaler(value, mixed_precision_dtype, scaler)
 
-    return total_loss / num_tokens, aux_info
+    return total_loss, aux_info
 
 
 def calculate_llm_loss(
@@ -227,13 +226,12 @@ def calculate_llm_loss(
         return loss, aux_info
 
     loss, aux_info = hack_for_python_garbage_collection()
+    for key, value in aux_info["losses"].items():
+        aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     if model.training:
         backward_maybe_with_scaler(loss, mixed_precision_dtype, scaler)
-        for key, value in aux_info["losses"].items():
-            aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
-            backward_maybe_with_scaler(
-                value / num_checkpoint_accumulation_steps, mixed_precision_dtype, scaler
-            )
+        for value in aux_info["losses"].values():
+            backward_maybe_with_scaler(value, mixed_precision_dtype, scaler)
 
     return loss, aux_info
 
