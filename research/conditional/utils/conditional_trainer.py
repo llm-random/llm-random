@@ -208,7 +208,7 @@ class ConditionalTrainer:
                 scaler=self.scaler,
             )
 
-            total_cross_entropy_loss += cross_entropy_loss.item()
+            total_cross_entropy_loss += cross_entropy_loss
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
 

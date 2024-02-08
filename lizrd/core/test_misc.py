@@ -207,6 +207,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             mixed_precision=False,
             vocab_size=vocab_size,
             mixed_precision_dtype=torch.float16,
+            num_checkpoint_accumulation_steps=1,
         )
 
         (
@@ -219,6 +220,7 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             vocab_size=vocab_size,
             n_chungs=n_chungs,
             mixed_precision_dtype=torch.float16,
+            num_checkpoint_accumulation_steps=1,
         )
 
         loss_no_chung.backward()

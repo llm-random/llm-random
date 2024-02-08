@@ -2,7 +2,7 @@ from functools import partial
 
 # import json
 # from diskcache import Cache
-from typing import Optional, Type, Union
+from typing import Optional, Type, Union, Callable
 import torch
 from torch.nn import LayerNorm
 import torch.nn.functional as F
@@ -65,7 +65,9 @@ from research.conditional.moe_layers._token_choice_deprecated import (
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
-def make_loss_function(loss_checkpoint_chungs: int):
+def make_loss_function(
+    loss_checkpoint_chungs: int,
+) -> Callable:
     if loss_checkpoint_chungs == 0:
         return calculate_llm_loss
     else:
@@ -119,7 +121,7 @@ def chungized_llm_loss(
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
-):
+) -> tuple[float, dict]:
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
@@ -190,7 +192,7 @@ def calculate_llm_loss(
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
-):
+) -> tuple[float, dict]:
     def hack_for_python_garbage_collection():
         input_tokens = batch.input_ids
         gt_tokens = batch.target_ids
@@ -233,7 +235,7 @@ def calculate_llm_loss(
         for value in aux_info["losses"].values():
             backward_maybe_with_scaler(value, mixed_precision_dtype, scaler)
 
-    return loss, aux_info
+    return loss.item(), aux_info
 
 
 def get_attention_layer(args):
