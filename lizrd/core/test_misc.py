@@ -222,7 +222,8 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             mixed_precision_dtype=torch.float16,
             num_checkpoint_accumulation_steps=1,
         )
-
+        loss_chung = torch.tensor(loss_chung)
+        loss_no_chung = torch.tensor(loss_no_chung)
         assert torch.isclose(loss_no_chung, loss_chung)
         assert aux_info_no_chung["correct_tokens"] == aux_info_chung["correct_tokens"]
         assert (
