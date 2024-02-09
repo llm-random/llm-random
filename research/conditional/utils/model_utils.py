@@ -546,7 +546,9 @@ def get_mamba_layer(args):
 
     if args.mamba_mode == "vanilla":
         return_fn = lambda: mamba_ssm.Mamba(
-            d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
+            d_model=args.dmodel,
+            expand=args.mamba_expansion,
+            # use_fast_path=False,  # don't use fast path when comparing clock time to moe in mamba
         )
     elif args.mamba_mode in [
         "out_proj_moe",
@@ -563,7 +565,14 @@ def get_mamba_layer(args):
                 dmodel=d_input,
                 doutput=d_output,
                 n_experts=args.n_experts,
-                expert_size=args.expert_size,
+                expert_inner_function=ExpertRelu(
+                    dmodel=d_input,
+                    doutput=d_output,
+                    n_experts=args.n_experts,
+                    expert_size=args.expert_size,
+                    init_scale=args.init_scale,
+                    init_type=args.init_type,
+                ),
                 capacity_factor=args.capacity_factor,
                 load_balancing_loss_weight=args.load_balancing_loss_weight,
                 routing_top_k=args.routing_top_k,
