@@ -510,6 +510,17 @@ def get_ff_layer(args):
             nystrom=args.nystrom,
             xfavor=args.xfavor,
         )
+    elif args.ff_mode == "dbb":
+        from research.conditional.moe_layers.dbb import DBBFF
+
+        return_fn = lambda: DBBFF(
+            dmodel=args.dmodel,
+            dff=args.dff,
+            n_blocks=args.dbb_blocks,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            sanity_check=args.dbb_sanity_check,
+        )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 
