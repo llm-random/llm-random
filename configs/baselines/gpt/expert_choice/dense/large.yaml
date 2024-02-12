@@ -1,0 +1,11 @@
+parent: configs/baselines/gpt/dense/large.yaml
+md5_parent_hash: 0ce50b80b78d47fb6f0b5981b2e991cc
+time: 7-00:00:00
+
+params:
+  learning_rate: 1e-4
+  torch_compile: true
+
+  # init
+  init_type: truncated_normal
+  init_scale: 0.1
