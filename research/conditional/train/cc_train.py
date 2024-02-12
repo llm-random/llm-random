@@ -9,7 +9,7 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
-from lizrd.core.llm import EmbeddingLayer
+from lizrd.core.llm import EmbeddingLayer, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
@@ -36,6 +36,7 @@ from research.conditional.utils.model_utils import (
     get_residual_layer,
     get_classes_from_module_names,
     update_model_fit_gpu_info,
+    get_vanilla_mamba_layer,
 )
 
 
@@ -156,8 +157,16 @@ def main(
             block_modules[module_name] = get_ff_layer(args)
         elif module_name == "mamba":
             block_modules[module_name] = get_mamba_layer(args)
+        elif module_name == "vanilla_mamba":
+            block_modules[module_name] = get_vanilla_mamba_layer(args)
         else:
             raise ValueError(f"Unknown module name: {module_name}")
+
+    if args.parallel_blocks:
+        modules = block_modules.items()
+        block_modules = {
+            "parallel": lambda: Parallel(*[module() for _, module in modules])
+        }
 
     model = get_model(
         max_length=args.cutoff,
@@ -232,7 +241,9 @@ def main(
     }
 
     train_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs, dataset_split="train"
+        **common_dataloaders_kwargs,
+        dataset_split="train",
+        dataset_path=args.train_dataset_path,
     )
 
     eval_split = (
@@ -241,7 +252,9 @@ def main(
         else ("train" if args.use_dummy_dataset else "validation")
     )
     eval_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs, dataset_split=eval_split
+        **common_dataloaders_kwargs,
+        dataset_split=eval_split,
+        dataset_path=args.validation_dataset_path,
     )
 
     if is_logging_process:

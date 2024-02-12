@@ -107,7 +107,7 @@ def get_proxy_command(connection):
 def set_up_permissions(host):
     try:
         with ConnectWithPassphrase(host) as connection:
-            path = f"{get_base_directory(connection)}/lizrd/scripts/grid_entrypoint_athena.sh"
+            path = f"{get_base_directory(connection)}/lizrd/scripts/grid_entrypoint.sh"
             print(f"Changing permissions for {path}...")
             connection.run(f"chmod +x {path}")
             print("The permissions for the script have been changed successfully.")

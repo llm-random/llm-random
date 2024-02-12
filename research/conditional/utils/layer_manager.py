@@ -10,6 +10,16 @@ from lizrd.core import nn
 from lizrd.support.logging import get_current_logger
 
 
+def get_registered_name(name):
+    pattern = r"block_(\d+)"
+    match = re.search(pattern, name)
+    short_name = name.split("block.")[-1]
+    if match:
+        block_name = match.group()
+        return f"{block_name}/{short_name}"
+    return f"block_UNKNOWN/{name}"
+
+
 class LayerManager:
     """
     This class is used to manage the feedforward layers of a model.
@@ -24,6 +34,7 @@ class LayerManager:
         steps_until_start_temperature_learn,
     ):
         self._layers = []
+        self._logable_layers = []
         self._register_layers(model)
         self.logger = get_current_logger()
         self.logging_interval_light = logging_interval_light
@@ -37,31 +48,16 @@ class LayerManager:
         During model creation in LLM [llm.py], the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
         """
         for name, layer in model.named_modules():
-            registered_name = None
             suffix = name.split(".")[-1]
-
+            registered_name = get_registered_name(name)
             if suffix in [
                 "residual_feedforward",
                 "residual_attention",
                 "feedforward",
-                "expert_gating",
-                "router",
             ]:
-                block_name = self.extract_block_name(name)
-                registered_name = f"{block_name}/{suffix}"
-            if registered_name is not None:
                 self._layers.append((registered_name, layer))
-
-    def extract_block_name(self, name):
-        pattern = r"block_(\d+)"
-        match = re.search(pattern, name)
-        if match:
-            block_name = match.group()
-        else:
-            raise Exception(
-                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected. Every TransformerBlock [llm.py] should be named 'block_[block_number]'"
-            )
-        return block_name
+            if hasattr(layer, "log"):
+                self._logable_layers.append((registered_name, layer))
 
     def prepare_for_logging(self, step):
         if (
@@ -70,7 +66,7 @@ class LayerManager:
             or self.logging_interval_heavy > 0
             and step % self.logging_interval_heavy == 0
         ):
-            for block_name, layer in self._layers:
+            for block_name, layer in self._logable_layers:
                 if hasattr(layer, "prepare_for_logging"):
                     layer.prepare_for_logging()
 
@@ -86,7 +82,7 @@ class LayerManager:
         should_clean_up = len(verbosity_levels) > 0
 
         for verbosity_level in verbosity_levels:
-            for block_name, layer in self._layers:
+            for block_name, layer in self._logable_layers:
                 if isinstance(layer, LoggingLayer) or (
                     isinstance(layer, torch.distributed.fsdp.FullyShardedDataParallel)
                     and isinstance(layer._fsdp_wrapped_module, LoggingLayer)
@@ -98,7 +94,7 @@ class LayerManager:
                             title=logging_name, iteration=step, data=data
                         )
         if should_clean_up:
-            for _, layer in self._layers:
+            for _, layer in self._logable_layers:
                 if isinstance(layer, LoggingLayer):
                     layer.clean_up_after_logging()
 
