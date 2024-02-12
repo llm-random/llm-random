@@ -3,7 +3,7 @@ import torch
 from torch.nn import functional as F
 
 from lizrd.core import misc
-from lizrd.core import nn
+import torch.nn as nn
 from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
 from lizrd.core.misc import EinMix
 from lizrd.support import ash

@@ -5,7 +5,8 @@ import einops
 import numpy as np
 import torch
 
-from lizrd.core import misc, nn
+from lizrd.core import misc
+import torch.nn as nn
 import lizrd.core.initialization
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -94,7 +95,7 @@ class ContinuousMoeBaseClass(LoggingLayer):
             merge_logits, temp_merge, dim=merge_softmax_dim
         )
         # on default we use the same weights for emitting and merging, but if the temperature is learnable or we want to take softmax over experts for emitting, we will use different weights
-        if isinstance(temp_merge, torch.nn.Parameter) or self.emit_softmax_over_experts:
+        if isinstance(temp_merge, nn.Parameter) or self.emit_softmax_over_experts:
             emit_weights = stable_softmax_temperature(
                 merge_logits, temp_emit, dim=emit_softmax_dim
             )

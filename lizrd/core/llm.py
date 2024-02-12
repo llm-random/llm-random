@@ -48,7 +48,7 @@ class SwiGLUFeedForward(LoggingLayer):
 
     def forward(self, x):
         pre_activation, gate = torch.chunk(self.w1_gate(x), 2, dim=-1)
-        activation = torch.nn.functional.silu(pre_activation)
+        activation = nn.functional.silu(pre_activation)
         return self.w2(activation * gate)
 
 
