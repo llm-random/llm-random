@@ -36,6 +36,7 @@ from research.conditional.utils.model_utils import (
     get_residual_layer,
     get_classes_from_module_names,
     update_model_fit_gpu_info,
+    get_vanilla_mamba_layer,
 )
 
 
@@ -156,6 +157,8 @@ def main(
             block_modules[module_name] = get_ff_layer(args)
         elif module_name == "mamba":
             block_modules[module_name] = get_mamba_layer(args)
+        elif module_name == "vanilla_mamba":
+            block_modules[module_name] = get_vanilla_mamba_layer(args)
         else:
             raise ValueError(f"Unknown module name: {module_name}")
 
