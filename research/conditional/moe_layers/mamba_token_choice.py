@@ -1,32 +1,23 @@
 # Copyright (c) 2023, Tri Dao, Albert Gu.
 
 import math
-from typing import Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch import Tensor
 
 from lizrd.core.llm import LoggingLayer
-from lizrd.core.misc import Linear
 
 from einops import rearrange, repeat
 
 try:
-    from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
+    from causal_conv1d import causal_conv1d_fn
 except ImportError:
-    causal_conv1d_fn, causal_conv1d_update = None
+    causal_conv1d_fn
 
 try:
-    from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, mamba_inner_fn
+    from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 except ImportError:
-    selective_scan_fn, mamba_inner_fn = None, None, None
-
-try:
-    from mamba_ssm.ops.triton.selective_state_update import selective_state_update
-except ImportError:
-    selective_state_update = None
+    selective_scan_fn = None
 
 
 class MambaTokenChoice(LoggingLayer):
