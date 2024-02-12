@@ -234,15 +234,11 @@ def get_norm_class(norm_class):
 def get_residual_layer(args):
     norm_class = get_norm_class(args.norm_class)
     if args.residual_mode == "pre_norm":
-        if args.parallel_blocks:
-            return partial(
-                llm.PreNormBlock, dmodel=args.dmodel, norm_class=torch.nn.Identity
-            )
-        else:
-            return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
-    elif args.residual_mode == "pre_norm_shared":
-        assert args.parallel_blocks, "Residual mode defined only for parallel blocks"
         return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
+    elif args.residual_mode == "parallel_pre_norm":
+        return partial(
+            llm.ParallelPreNormBlock, dmodel=args.dmodel, norm_class=norm_class
+        )
     elif args.residual_mode == "post_norm":
         return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "rezero":

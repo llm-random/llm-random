@@ -492,6 +492,24 @@ def PostNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     )
 
 
+def ParallelPreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
+    assert isinstance(layer, Parallel)
+    layer.layers = nn.ModuleList(
+        *[
+            torch.nn.Sequential(
+                OrderedDict(
+                    [
+                        ("pre_norm", norm_class(dmodel)),
+                        (f"{type(module)}", module),
+                    ]
+                )
+            )
+            for module in layer.layers
+        ]
+    )
+    return Residual(layer)
+
+
 def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return Residual(
         nn.Sequential(
