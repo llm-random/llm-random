@@ -7,7 +7,9 @@ import torch.nn as nn
 
 from einops import rearrange, repeat
 
-from token_choice import TokenChoiceRouter
+from lizrd.core.initialization import get_init_weight
+
+from research.conditional.moe_layers.token_choice import TokenChoiceRouter
 from research.conditional.utils.layer_manager import measure_time, LoggingLayer
 
 try:
@@ -21,14 +23,222 @@ except ImportError:
     selective_scan_fn = None
 
 
+MAMBA_MODULES_ORDER = ["input", "gate", "output"]
+
+
+class MambaRouter(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_experts: int,
+        capacity_factor: float,
+        load_balancing_loss_weight: float,
+        routing_groups: list[list[str]],
+        init_type: str,
+        init_scale: float,
+    ):
+        """
+        Args:
+            dmodel: dimension of the input
+            n_experts: number of experts
+            expert_size: size of each expert
+            capacity_factor: scalar that determines how many tokens can be assigned to each expert
+            load_balancing_loss_weight: weight of the auxillary loss
+            expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
+        """
+        super().__init__()
+
+        self.dmodel = dmodel
+        self.n_experts = n_experts
+        self.capacity_factor = capacity_factor
+        self.load_balancing_loss_weight = load_balancing_loss_weight
+        self.routing_groups = routing_groups
+
+        self.routers = nn.ModuleList(
+            [
+                self._make_router(init_type=init_type, init_scale=init_scale)
+                for _ in routing_groups
+            ]
+        )
+
+    def forward(self, x: torch.Tensor):
+        batch_size, seq_len, _ = x.shape
+        n_tokens = batch_size * seq_len
+
+        router_outputs = [router(x) for router in self.routers]
+        output_unordered = []
+        x = x.flatten(0, 1)
+        for (
+            experts_input,
+            top_tokens_per_expert_indices,
+            masked_expert_gate,
+        ) in router_outputs:
+            assert masked_expert_gate.shape[0] == n_tokens
+            dropped_tokens_mask = masked_expert_gate.sum(dim=1) == 0
+            assert dropped_tokens_mask.shape == (n_tokens,)
+            dropped_tokens = x[dropped_tokens_mask]
+            output_unordered.append(
+                (
+                    experts_input,
+                    top_tokens_per_expert_indices,
+                    dropped_tokens_mask,
+                    dropped_tokens,
+                )
+            )
+        output = []
+        # organize the output, so that the order matches MAMBA_MODULES_ORDER
+        for module in MAMBA_MODULES_ORDER:
+            for group, router_out in zip(self.routing_groups, output_unordered):
+                if module in group:
+                    output.append(router_out)
+                    break
+        return output
+
+    def _make_router(self, init_type, init_scale):
+        return TokenChoiceRouter(
+            dmodel=self.dmodel,
+            n_experts=self.n_experts,
+            capacity_factor=self.capacity_factor,
+            load_balancing_loss_weight=self.load_balancing_loss_weight,
+            init_type=init_type,
+            init_scale=init_scale,
+            routing_top_k=1,
+            use_einsum=False,
+            vectorize=True,
+        )
+
+
+class MambaTokenChoiceFunction(LoggingLayer):
+    def __init__(
+        self,
+        n_experts,
+    ):
+        super().__init__()
+        self.n_experts = n_experts
+
+    def forward(
+        self,
+        expert_inputs,
+        top_tokens_per_expert_indices,
+        dropped_tokens_mask,
+        dropped_tokens,
+    ):
+        experts_output, dropped_tokens_output = self._inner_forward(
+            expert_inputs, dropped_tokens
+        )
+
+        num_tokens = dropped_tokens_mask.shape[0]
+        doutput = experts_output.shape[-1]
+        output = torch.zeros(num_tokens, doutput, device=experts_output.device)
+
+        with measure_time(self, "assign_tokens_to_output"):
+            output.index_add_(
+                dim=0,
+                index=top_tokens_per_expert_indices.T.flatten(),
+                source=experts_output.reshape(
+                    self.n_experts * experts_output.shape[1], doutput
+                ),
+            )
+            output *= ~dropped_tokens_mask[:, None]
+        output[dropped_tokens_mask] = dropped_tokens_output
+
+        return output
+
+    def _inner_forward(
+        self,
+        expert_inputs,
+        dropped_tokens,
+    ):
+        raise NotImplementedError()
+
+
+class LinearExpertsMamba(MambaTokenChoiceFunction):
+    def __init__(self, dinput, doutput, n_experts, init_type, init_scale):
+        super().__init__(n_experts)
+        self.dinput = dinput
+        self.doutput = doutput
+        self.lin_experts = nn.Parameter(
+            get_init_weight(
+                shape=(n_experts, dinput, doutput),
+                fan_in=dinput,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+
+        self.lin_dropped = nn.Parameter(
+            get_init_weight(
+                shape=(dinput, doutput),
+                fan_in=dinput,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+
+    def _inner_forward(self, expert_inputs, dropped_tokens):
+        (n_experts, capacity, dinput) = expert_inputs.shape
+        assert n_experts == self.n_experts
+        assert dinput == self.dinput
+
+        with measure_time(self, "process_by_experts"):
+            experts_output = torch.matmul(expert_inputs, self.lin_experts)
+
+        with measure_time(self, "process_dropped"):
+            dropped_output = torch.matmul(dropped_tokens, self.lin_dropped)
+
+        assert experts_output.shape == (n_experts, capacity, self.doutput)
+        assert dropped_output.shape == (capacity, self.doutput)
+
+        return experts_output, dropped_output
+
+
+class NoExpertsMamba(MambaTokenChoiceFunction):
+    """
+    This should work like a "normal" linear layer, just with common interface for ease of use
+    """
+
+    def __init__(self, dinput, doutput, n_experts, init_type, init_scale):
+        super().__init__(n_experts)
+        self.dinput = dinput
+        self.doutput = doutput
+        self.lin = nn.Parameter(
+            get_init_weight(
+                shape=(dinput, doutput),
+                fan_in=dinput,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+
+    def _inner_forward(self, expert_inputs, dropped_tokens):
+        (n_experts, capacity, dinput) = expert_inputs.shape
+        assert self.n_experts == n_experts
+        assert dinput == self.dinput
+
+        with measure_time("process_by_experts"):
+            experts_output = torch.matmul(expert_inputs, self.lin)
+
+        with measure_time("process_dropped"):
+            dropped_output = torch.matmul(dropped_tokens, self.lin)
+
+        assert experts_output.shape == (n_experts, capacity, self.doutput)
+        assert dropped_output.shape == (capacity, self.doutput)
+
+        return experts_output, dropped_output
+
+
 class MambaTokenChoice(LoggingLayer):
+    """
+    As of now, output_module does NOT work with router, I have to fix that in some weird way
+    """
+
     def __init__(
         self,
         d_model,
-        input_module: nn.Module,
-        gate_module: nn.Module,
-        output_module: nn.Module,
-        router: nn.Module = None,
+        input_module: MambaTokenChoiceFunction,
+        gate_module: MambaTokenChoiceFunction,
+        output_module: MambaTokenChoiceFunction,
+        router: MambaRouter,
         d_state=16,
         d_conv=4,
         expand=2,
@@ -121,11 +331,14 @@ class MambaTokenChoice(LoggingLayer):
         hidden_states: (B, L, D)
         Returns: same shape as hidden_states
         """
+
         batch, seqlen, dim = hidden_states.shape
 
+        router_input, router_gate, router_output = self.router(hidden_states)
+
         # We do matmul and transpose BLH -> HBL at the same time
-        x = self.input_module(hidden_states)  # (B L D) -> (B L D)
-        z = self.gate_module(hidden_states)  # (B L D) -> (B L D)
+        x = self.input_module(*router_input)  # (B L D) -> (B L D)
+        z = self.gate_module(*router_gate)  # (B L D) -> (B L D)
 
         A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
         # In the backward pass we write dx and dz next to each other to avoid torch.cat
@@ -170,82 +383,3 @@ class MambaTokenChoice(LoggingLayer):
         out = self.output_module(y)
         assert out.shape == (batch, seqlen, dim)
         return out
-
-
-class MambaRouter(LoggingLayer):
-    def __init__(
-        self,
-        dmodel: int,
-        n_experts: int,
-        capacity_factor: float,
-        load_balancing_loss_weight: float,
-        routing_groups: list[list[str]],
-        init_type: str,
-        init_scale: float,
-    ):
-        """
-        Args:
-            dmodel: dimension of the input
-            n_experts: number of experts
-            expert_size: size of each expert
-            capacity_factor: scalar that determines how many tokens can be assigned to each expert
-            load_balancing_loss_weight: weight of the auxillary loss
-            expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
-        """
-        super().__init__()
-
-        self.dmodel = dmodel
-        self.n_experts = n_experts
-        self.capacity_factor = capacity_factor
-        self.load_balancing_loss_weight = load_balancing_loss_weight
-        self.routing_groups = routing_groups
-
-        self.routers = nn.ModuleList(
-            [
-                self._make_router(init_type=init_type, init_scale=init_scale)
-                for _ in routing_groups
-            ]
-        )
-
-    def forward(self, x: torch.Tensor):
-        batch_size, seq_len, _ = x.shape
-
-        (
-            experts_input,
-            top_tokens_per_expert_indices,  # [c x n_experts]
-            masked_expert_gate,
-        ) = self.router(x)
-
-        x = x.flatten(start_dim=0, end_dim=1)
-
-        experts_output = self.expert_inner_function(experts_input)
-
-        experts_output = experts_output.to(x.dtype)
-        output = torch.zeros_like(x)
-
-        with measure_time(self, "assign_tokens_to_output"):
-            output.index_add_(
-                dim=0,
-                index=top_tokens_per_expert_indices.T.flatten(),
-                source=experts_output.reshape(
-                    self.n_experts * experts_output.shape[1], self.dmodel
-                ),
-            )
-            output *= masked_expert_gate.sum(dim=1, keepdim=True)
-
-        output = output.reshape((batch_size, seq_len, self.dmodel))
-
-        return output
-
-    def _make_router(self, init_type, init_scale):
-        return TokenChoiceRouter(
-            dmodel=self.dmodel,
-            n_experts=self.n_experts,
-            capacity_factor=self.capacity_factor,
-            load_balancing_loss_weight=self.load_balancing_loss_weight,
-            init_type=init_type,
-            init_scale=init_scale,
-            routing_top_k=1,
-            use_einsum=False,
-            vectorize=True,
-        )
