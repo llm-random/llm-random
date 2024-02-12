@@ -1,5 +1,5 @@
-parent: research/conditional/train/configs/baselines/gpt/dense/base.yaml
-md5_parent_hash: 17e23fa8efdf44ed2a84b8e15941039c
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 5d2c694464b7a6c44cd2c981e2aff30e
 interactive_debug: true
 cuda_visible: "0,1"
 n_gpus: 2

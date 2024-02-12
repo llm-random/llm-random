@@ -1,5 +1,5 @@
-parent: research/conditional/train/configs/baselines/gpt/dense/large.yaml
-md5_parent_hash: 98abf6394777ea233c866df435bce4d8
+parent: configs/baselines/gpt/dense/large.yaml
+md5_parent_hash: 0ce50b80b78d47fb6f0b5981b2e991cc
 time: 7-00:00:00
 
 params:

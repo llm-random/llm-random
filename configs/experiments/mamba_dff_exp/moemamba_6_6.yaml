@@ -1,5 +1,5 @@
-md5_parent_hash: 7a0330388646a9bfbcbee67008f9538a
-parent: research/conditional/train/configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: e1ad1f2706fb54ba63da097b126d0cc0
+parent: configs/baselines/gpt/dense/medium.yaml
 # singularity_image: /common/llm-random/images/sparsity_2023.12.14_16.44.42.sif
 # singularity_image:
 singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.14_16.44.42.sif

@@ -1,4 +1,4 @@
-parent: research/conditional/train/configs/baselines/gpt/small.yaml
+parent: configs/baselines/gpt/small.yaml
 md5_parent_hash: cbdf4e5992f41713488c25c819086e51
 interactive_debug: false
 time: 2-00:00:00
