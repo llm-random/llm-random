@@ -128,6 +128,7 @@ if __name__ == "__main__":
     working_dir = os.getcwd()
     base_dir = rsync_to_remote(args.host, working_dir + "/lizrd")
     _ = rsync_to_remote(args.host, working_dir + "/research")
+    _ = rsync_to_remote(args.host, working_dir + "/configs")
     _ = rsync_to_remote(args.host, working_dir + "/.versioningignore")
     # WRITE root_dir to temp file for run_exp_remotely.sh
     with open("/tmp/base_dir.txt", "w") as f:

@@ -1,0 +1,8 @@
+parent: configs/baselines/gpt/dense/common.yaml
+md5_parent_hash: 39bc251cbb3e537b96be92f785f64e15
+
+params:
+  dmodel: 1024
+  dff: 2048
+  n_blocks: 24
+  n_att_heads: 16
