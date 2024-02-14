@@ -8,10 +8,10 @@ class TestIntegrated(GeneralTestCase):
     def test_dummy_train(self):
         """
         Test if the training loop runs without crashing, using dummy data
-        from configs defined in research/conditional/train/configs/test/*.yaml
+        from configs defined in configs/test/*.yaml
         """
 
-        configs = (Path(__file__).parent.resolve() / "../train/configs/test/").glob(
+        configs = (Path(__file__).parent.resolve() / "../../../configs/test/").glob(
             "**/*.yaml"
         )
         for path in configs:
