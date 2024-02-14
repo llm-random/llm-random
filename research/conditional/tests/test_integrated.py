@@ -15,9 +15,6 @@ class TestIntegrated(GeneralTestCase):
             "**/*.yaml"
         )
         for path in configs:
-            import os
-
-            print(list(dict(os.environ).keys()))
             print(f"Running training loop with config from {str(path)}")
             exit_code = subprocess.call(
                 ["python3", "-m", "lizrd.scripts.grid", f"--config_path={str(path)}"]

@@ -50,3 +50,4 @@ jobs:
         python -m unittest discover
       env:
         NEPTUNE_API_TOKEN: ${{ secrets.NEPTUNE_API_TOKEN }}
+        WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
