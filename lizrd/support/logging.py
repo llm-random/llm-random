@@ -286,9 +286,6 @@ class WandbLogger(AbstractLogger):
         series: Optional[str] = None,
     ):
         path = self._make_path(title, series)
-        assert (not math.isnan(value)) and (
-            not math.isinf(value)
-        ), f"Trying to log {path} as {value}. Neptune doesn't allow logging NaN or Inf."
         wandb.log({path: value, "train/step": iteration})
         auxiliary_metrics = self.get_auxiliary_metrics(title, value, iteration)
         for metric_name, metric in auxiliary_metrics.items():
