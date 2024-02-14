@@ -325,4 +325,5 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--dbb_sanity_check", type=str, default=None, choices=["collapse"]
     )
+    parser.add_argument("--dbb_topology", type=str, default="1>4|4>1")
     return parser

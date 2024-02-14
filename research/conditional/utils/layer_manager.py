@@ -136,10 +136,10 @@ class LoggingLayer(nn.Module):
                     self.logging_cache[key] = value
             elif isinstance(value, torch.Tensor):
                 self.logging_cache[key] = value.clone().detach().cpu()
-            elif isinstance(value, float) or isinstance(value, int):
+            elif isinstance(value, (float, int)):
                 self.logging_cache[key] = value
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f"Error occurred while saving {key} for logging: this type ({type(value)}) is not supported for logging. Add support if you need.")
 
     def _combine_to_dict_key(self, key, layer_type, block_number):
         return f"block_{block_number}_{layer_type}_{key}"

@@ -1,0 +1,67 @@
+parent: research/conditional/train/configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 17e23fa8efdf44ed2a84b8e15941039c
+# singularity_image: /local_storage_1/sparsity_2023.12.14_16.44.42.sif # entropy
+# singularity_image: /home/jkrajewski_a100/images/sparsity_2024.02.06_16.14.02.sif
+# hf_datasets_cache: /local_storage_1/dataset_cache # entropy
+n_gpus: 1
+time: "11:00:00"
+
+params:
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  tags: []
+
+  dataset_type: c4
+  # fsdp
+  fsdp_enabled: false
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,ExpertGating,RoPE,TokenChoiceRouter"
+
+  grad_clip: 1.0
+  weight_decay: 0.1
+
+  scheduler: "cosine"
+  decoding_interval: 0
+  save_weights_interval: 0
+  loss_checkpoint_chungs: 0
+  gradient_accumulation_steps: 1
+
+  lr_warmup_steps: 150
+  n_steps: 15_000
+  final_lr_step: 15_000
+
+  cutoff: 1024
+
+  init_scale: 0.1
+  init_type: truncated_normal
+
+  learning_rate: 1e-4
+  n_blocks: 16
+  attention_mode: "rope"
+  dff: 3072
+
+  # experiments
+  ff_mode: lrdbb
+  # ^dbb_blocks: [4]
+  # ^dbb_sanity_check: ["collapse"]
+  batch_size: 128
+  learning_rate: 5e-4
+  # ^dbb_topology: ["1>4|4>1", "1>1>4|4>1", "1>4|4>1>1", "1>1>4|4>1>1", "1>4,1>0.5>4|4>1"]
+  ^dbb_topology: ["1>4>ln|4>1", "1>4>sc,1>0.5>4>sc|4>1"]
+  logging_interval_light: 100
+
+  # ^dbb_topology: ["1>1>4|4>1>1"]
+
+
+  # local_debug
+  # dataset_type: 'wikibook'
+  # use_dummy_dataset: true
+  # batch_size: 2
+
+  # wandb
+  # project_name: moemamba-arxiv
+  # use_neptune: false
+  # use_wandb: true

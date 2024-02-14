@@ -202,6 +202,7 @@ class NeptuneLogger(AbstractLogger):
         series: Optional[str] = None,
     ):
         path = self._make_path(title, series, iteration)
+        print(path)
         assert (not math.isnan(value)) and (
             not math.isinf(value)
         ), f"Trying to log {path} as {value}. Neptune doesn't allow logging NaN or Inf."

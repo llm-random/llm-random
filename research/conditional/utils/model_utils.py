@@ -53,6 +53,7 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
     LegacyContinuousMoE,
 )
+from research.conditional.moe_layers.dbb import LRDBBFF
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
@@ -520,6 +521,16 @@ def get_ff_layer(args):
             init_type=args.init_type,
             init_scale=args.init_scale,
             sanity_check=args.dbb_sanity_check,
+        )
+    elif args.ff_mode == "lrdbb":
+        from research.conditional.moe_layers.dbb import DBBFF
+
+        return_fn = lambda: LRDBBFF(
+            dmodel=args.dmodel,
+            use_ln=True,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            topology=args.dbb_topology,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
