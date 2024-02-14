@@ -223,7 +223,6 @@ class NeptuneLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
-        # breakpoint()
         self.instance_logger[self._make_path(title, series)].append(
             value=value, step=iteration
         )
@@ -254,12 +253,9 @@ class NeptuneLogger(AbstractLogger):
 
 
 class WandbLogger(AbstractLogger):
-    _TMP_PLOTS_DIR: str = "./tmp_plots"
-
     def __init__(self, logger, args: Namespace):
         super().__init__(logger, args)
         self.random_id = generate_random_string(8)
-        os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
 
     def _make_path(self, title: str, series: Optional[str] = None):
         parts = [title]
@@ -362,8 +358,6 @@ def get_logger(args, model, VOCAB_SIZE):
         logger = ClearMLLogger(task, args, model, VOCAB_SIZE)
         return logger
     elif args.use_wandb:
-        import wandb
-
         wandb.init(
             project=args.project_name,
             name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
