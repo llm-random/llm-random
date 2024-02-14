@@ -307,7 +307,9 @@ def translate_to_argparse(param_set: dict):
 
 
 def make_singularity_env_arguments(
-    hf_datasets_cache_path: Optional[str], neptune_key: Optional[str]
+    hf_datasets_cache_path: Optional[str],
+    neptune_key: Optional[str],
+    wandb_key: Optional[str],
 ) -> List[str]:
     variables_and_values = {}
 
@@ -316,6 +318,9 @@ def make_singularity_env_arguments(
 
     if neptune_key is not None:
         variables_and_values["NEPTUNE_API_TOKEN"] = neptune_key
+
+    if wandb_key is not None:
+        variables_and_values["WANDB_API_KEY"] = wandb_key
 
     return (
         ["--env", ",".join([f"{k}={v}" for k, v in variables_and_values.items()])]
