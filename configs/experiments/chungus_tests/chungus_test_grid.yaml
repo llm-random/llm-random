@@ -1,0 +1,25 @@
+parent: configs/baselines/gpt/dense/small.yaml
+md5_parent_hash: 9bcdbfe14ff178e8ee90a04000ab9546
+
+time: "0:10:00"
+n_gpus: 1
+
+params:
+
+  name: "CHUNGUS_TESTS"
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+  tags: ["new"]
+
+  # dataset_type: c4
+  use_dummy_dataset: true
+  dataset_type: wikibook
+  n_steps: 30_000
+  learning_rate: 5e-4
+  decoding_interval: 0
+  # logging_interval_heavy: 10_000
+  ^loss_checkpoint_chungs: [1, 8]
+  ^gradient_accumulation_steps: [1, 4]
+  init_type: truncated_normal
+  init_scale: 0.1
