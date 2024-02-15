@@ -1,7 +1,6 @@
 from research.conditional.moe_layers.mamba_token_choice import (
     MambaRouter,
     LinearExpertsMamba,
-    NoExpertsMamba,
 )
 import torch
 from lizrd.support.test_utils import GeneralTestCase
@@ -33,7 +32,7 @@ class TestMambaTokenChoice(GeneralTestCase):
 
         self.assertEqual(len(y1), 4)
         self.assertEqual(len(y3), 4)
-        print(y1[0])
+        # print(y1[1])
 
         for i, (a, b) in enumerate(zip(y1, y3)):
             self.assertEqual(a.shape, b.shape)

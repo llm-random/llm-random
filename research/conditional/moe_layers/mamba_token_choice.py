@@ -4,12 +4,19 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from lizrd.support.logging import make_histogram
+
+from fancy_einsum import einsum
+from lizrd.train import checkpointing
 
 from einops import rearrange, repeat
 
 from lizrd.core.initialization import get_init_weight
 
-from research.conditional.moe_layers.token_choice import TokenChoiceRouter
+from research.conditional.moe_layers.token_choice import (
+    calculate_load_balancing_loss,
+)
 from research.conditional.utils.layer_manager import measure_time, LoggingLayer
 
 try:
@@ -26,38 +33,266 @@ except ImportError:
 MAMBA_MODULES_ORDER = ["input", "gate", "output"]
 
 
-class MambaRouter(LoggingLayer):
+class TokenChoiceSeparateRouter(LoggingLayer):
     def __init__(
         self,
-        dmodel: int,
+        dinput: int,
         n_experts: int,
         capacity_factor: float,
         load_balancing_loss_weight: float,
+        init_type: str,
+        init_scale: float,
+        routing_top_k: int = 1,
+        use_einsum: bool = False,
+        vectorize: bool = True,
+    ):
+        super().__init__()
+
+        self.n_experts = n_experts
+        self.capacity_factor = capacity_factor
+        self.load_balancing_loss_weight = load_balancing_loss_weight
+        self.use_einsum = use_einsum
+        self.dinput = dinput
+        self.routing_top_k = routing_top_k
+        self._checkpointed_expert_index = None
+        self._checkpointed_top_tokens_per_expert_indices = None
+        self.vectorize = vectorize
+
+        if vectorize and routing_top_k != 1:
+            raise ValueError("vectorize and routing_top_k != 1 are incompatible")
+
+        self.gate = nn.Parameter(
+            get_init_weight(
+                shape=(dinput, n_experts),
+                fan_in=dinput,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+
+    def forward(self, x: torch.Tensor):
+        batch_size, seq_len, _ = x.shape
+        n_tokens = batch_size * seq_len
+        self.update_cache_for_logging("n_tokens", torch.Tensor([n_tokens]))
+
+        x = x.reshape((n_tokens, self.dinput))
+
+        with measure_time(self, "expert_embedding"):
+            if self.use_einsum:
+                gate_out = einsum(
+                    "n_tokens dmodel, dmodel n_experts -> n_tokens n_experts",
+                    x,
+                    self.gate,
+                )
+            else:
+                gate_out = torch.matmul(x, self.gate)
+
+        assert gate_out.shape == (n_tokens, self.n_experts)
+        capacity = int(
+            self.capacity_factor * n_tokens * self.routing_top_k / self.n_experts
+        )
+        if self.vectorize:
+            capacity = min(capacity, n_tokens)
+
+        # perform softmax over experts for each token
+        with measure_time(self, "softmax"):
+            gate_out = torch.softmax(gate_out, dim=1)
+
+        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+
+        with measure_time(self, "choose_expert"):
+            expert_gate, expert_index = self.choose_expert(gate_out)
+
+        with measure_time(self, "create_expert_mask"):
+            expanded_expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
+            assert expanded_expert_mask.shape == (
+                n_tokens,
+                self.routing_top_k,
+                self.n_experts,
+            )
+            expert_mask = expanded_expert_mask.sum(dim=1)
+            assert expert_mask.shape == (n_tokens, self.n_experts)
+
+        if self.vectorize:
+            with measure_time(self, "experts_lists"):
+                (
+                    top_tokens_per_expert_values,
+                    top_tokens_per_expert_indices,
+                ) = expert_mask.topk(k=capacity, dim=0)
+            with measure_time(self, "create_truncated_mask"):
+                truncated_expert_mask = torch.zeros_like(expert_mask)
+                truncated_expert_mask.scatter_(
+                    dim=0,
+                    index=top_tokens_per_expert_indices,
+                    src=top_tokens_per_expert_values,
+                )
+        else:
+            with measure_time(self, "experts_lists"):
+                indices_of_tokens_for_expert = [
+                    single_expert_mask.nonzero(as_tuple=True)[0][: (capacity - 1)]
+                    for single_expert_mask in expert_mask.transpose(0, 1)
+                ]
+            with measure_time(self, "create_truncated_mask"):
+                truncated_expert_mask = torch.zeros_like(expert_mask)
+                for i, indices in enumerate(indices_of_tokens_for_expert):
+                    truncated_expert_mask[indices, i] = 1
+
+        n_selected_tokens = truncated_expert_mask.sum().item()
+
+        self.update_cache_for_logging(
+            "dropped_tokens_ratio",
+            ((n_tokens * self.routing_top_k) - n_selected_tokens)
+            / (n_tokens * self.routing_top_k),
+        )
+
+        with measure_time(self, "calculate aux loss"):
+            tokens_per_expert = expert_mask.sum(dim=0, dtype=gate_out.dtype)
+            load_balancing_loss = calculate_load_balancing_loss(
+                self.load_balancing_loss_weight,
+                gate_out,
+                tokens_per_expert,
+                use_einsum=self.use_einsum,
+            )
+
+        if "load_balancing_losses" not in self.forward_pass_cache:
+            self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
+        else:
+            self.forward_pass_cache["load_balancing_losses"].append(load_balancing_loss)
+
+        self.update_cache_for_logging("gate_softmax_values", expert_gate)
+        self.update_cache_for_logging("max_indices", expert_index)
+        self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
+        self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
+
+        masked_expert_gate = gate_out * truncated_expert_mask
+
+        if self.vectorize:
+            return (
+                top_tokens_per_expert_values,
+                top_tokens_per_expert_indices,
+                masked_expert_gate,
+                capacity,
+            )
+        else:
+            return indices_of_tokens_for_expert, masked_expert_gate, capacity
+
+    def choose_tokens(self, expert_mask, capacity) -> tuple[torch.Tensor, torch.Tensor]:
+        checkpointing_enabled = (
+            checkpointing.is_in_first_forward() or checkpointing.is_in_second_forward()
+        )
+        if checkpointing_enabled:
+            if checkpointing.is_in_first_forward():
+                with torch.no_grad():
+                    (
+                        _,
+                        top_tokens_per_expert_indices,
+                    ) = expert_mask.topk(k=capacity, dim=0)
+                    self._checkpointed_top_tokens_per_expert_indices = (
+                        top_tokens_per_expert_indices
+                    )
+
+            if checkpointing.is_in_second_forward():
+                with torch.no_grad():
+                    top_tokens_per_expert_indices = (
+                        self._checkpointed_top_tokens_per_expert_indices
+                    )
+
+            assert isinstance(top_tokens_per_expert_indices, torch.Tensor)
+            top_tokens_per_expert_values = torch.gather(
+                expert_mask,
+                dim=1,
+                index=top_tokens_per_expert_indices,
+            )
+        else:
+            (
+                top_tokens_per_expert_values,
+                top_tokens_per_expert_indices,
+            ) = expert_mask.topk(k=capacity, dim=0)
+        return top_tokens_per_expert_values, top_tokens_per_expert_indices
+
+    def choose_expert(self, gate_out) -> tuple[torch.Tensor, torch.Tensor]:
+        checkpointing_enabled = (
+            checkpointing.is_in_first_forward() or checkpointing.is_in_second_forward()
+        )
+        if checkpointing_enabled:
+            if checkpointing.is_in_first_forward():
+                with torch.no_grad():
+                    _, expert_index = torch.topk(gate_out, k=self.routing_top_k, dim=1)
+                    self._checkpointed_expert_index = expert_index
+
+            if checkpointing.is_in_second_forward():
+                with torch.no_grad():
+                    expert_index = self._checkpointed_expert_index
+
+            assert isinstance(expert_index, torch.Tensor)
+            expert_gate = torch.gather(gate_out, dim=1, index=expert_index)
+        else:
+            expert_gate, expert_index = torch.topk(
+                gate_out, k=self.routing_top_k, dim=1
+            )
+        return expert_gate, expert_index
+
+    def log_light(self):
+        return {
+            "dropped_tokens_ratio": self.logging_cache["dropped_tokens_ratio"],
+            "load_balancing_loss": self.logging_cache["load_balancing_loss"],
+        }
+
+    def log_heavy(self):
+        return {
+            "gate_softmax_all_values": make_histogram(
+                self.logging_cache["gate_softmax_all_values"].flatten()  # move
+            ),
+            "tokens_per_expert_counts": make_histogram(
+                self.logging_cache["tokens_per_expert"]
+            ),
+        }
+
+    def route(
+        self,
+        x: torch.Tensor,
+        top_tokens_per_expert_values: torch.Tensor,
+        top_tokens_per_expert_indices: torch.Tensor,
+        masked_expert_gate: torch.Tensor,
+        capacity: int,
+    ):
+        with measure_time(self, "assign_tokens_to_input"):
+            experts_input = x[
+                top_tokens_per_expert_indices.T.reshape((self.n_experts * capacity,)),
+                :,
+            ] * top_tokens_per_expert_values.T.reshape((self.n_experts * capacity, 1))
+            experts_input = experts_input.reshape(self.n_experts, capacity, self.dinput)
+        return experts_input, top_tokens_per_expert_indices, masked_expert_gate
+
+
+class MambaRouter(LoggingLayer):
+    def __init__(
+        self,
+        dinput: int,
+        capacity_factor: float,
+        load_balancing_loss_weight: float,
+        n_experts_per_group: list[int],
         routing_groups: list[list[str]],
         init_type: str,
         init_scale: float,
     ):
         """
         Args:
-            dmodel: dimension of the input
-            n_experts: number of experts
-            expert_size: size of each expert
-            capacity_factor: scalar that determines how many tokens can be assigned to each expert
-            load_balancing_loss_weight: weight of the auxillary loss
-            expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
         """
         super().__init__()
 
-        self.dmodel = dmodel
-        self.n_experts = n_experts
+        self.dinput = dinput
+        self.n_experts_per_group = n_experts_per_group
         self.capacity_factor = capacity_factor
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.routing_groups = routing_groups
-
+        assert len(routing_groups) == len(n_experts_per_group)
         self.routers = nn.ModuleList(
             [
-                self._make_router(init_type=init_type, init_scale=init_scale)
-                for _ in routing_groups
+                self._make_router(
+                    init_type=init_type, init_scale=init_scale, n_experts=n_experts
+                )
+                for n_experts in n_experts_per_group
             ]
         )
 
@@ -94,10 +329,10 @@ class MambaRouter(LoggingLayer):
                     break
         return output
 
-    def _make_router(self, init_type, init_scale):
-        return TokenChoiceRouter(
-            dmodel=self.dmodel,
-            n_experts=self.n_experts,
+    def _make_router(self, init_type, init_scale, n_experts):
+        return TokenChoiceSeparateRouter(
+            dinput=self.dinput,
+            n_experts=n_experts,
             capacity_factor=self.capacity_factor,
             load_balancing_loss_weight=self.load_balancing_loss_weight,
             init_type=init_type,
