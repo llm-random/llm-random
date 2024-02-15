@@ -171,7 +171,7 @@ def chungized_llm_loss(
         aux_info = {
             "correct_tokens": total_correct_tokens,
             "total_masked_tokens": total_masked_tokens,
-            "losses": retrieve_additional_losses(model),
+            "losses": retrieve_and_clear_additional_losses_and(model),
         }
 
     for key, value in aux_info["losses"].items():
@@ -223,7 +223,7 @@ def calculate_llm_loss(
         aux_info = {
             "correct_tokens": correct_tokens,
             "total_masked_tokens": total_masked_tokens,
-            "losses": retrieve_additional_losses(model),
+            "losses": retrieve_and_clear_additional_losses_and(model),
         }
         return loss, aux_info
 
@@ -398,13 +398,15 @@ def get_expert_choice_with_parallel_ff_args(args):
     }
 
 
-def retrieve_additional_losses(model: torch.nn.Module):
+def retrieve_and_clear_additional_losses_and(model: torch.nn.Module):
     losses = {}
     if not hasattr(model, "forward_pass_cache"):
         return losses
 
     if "load_balancing_losses" in model.forward_pass_cache:
-        load_balancing_losses = model.forward_pass_cache["load_balancing_losses"]
+        load_balancing_losses = model.forward_pass_cache.pop(
+            "load_balancing_losses", []
+        )
         load_balancing_losses = torch.stack(load_balancing_losses)
         load_balancing_loss = torch.mean(load_balancing_losses)
         losses["load_balancing_loss"] = load_balancing_loss
