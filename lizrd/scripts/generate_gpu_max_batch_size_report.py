@@ -32,9 +32,7 @@ from research.conditional.utils.model_utils import get_model_fit_gpu_info
 
 def load_standard_model_config(model_name):
     assert model_name in ["mini", "small", "medium", "base", "large"]
-    config_filepath = (
-        f"research/conditional/train/configs/baselines/gpt/dense/{model_name}.yaml"
-    )
+    config_filepath = f"configs/baselines/gpt/dense/{model_name}.yaml"
 
     with open(config_filepath, "r") as f:
         baseline_config = yaml.safe_load(f)

@@ -11,6 +11,7 @@ import plotly
 import plotly.express as px
 import torch
 from clearml import Task
+import wandb
 
 from lizrd.support.misc import (
     make_concise_datetime,
@@ -251,6 +252,74 @@ class NeptuneLogger(AbstractLogger):
         pass
 
 
+class WandbLogger(AbstractLogger):
+    def __init__(self, logger, args: Namespace):
+        super().__init__(logger, args)
+        self.random_id = generate_random_string(8)
+
+    def _make_path(self, title: str, series: Optional[str] = None):
+        parts = [title]
+        if series is not None:
+            parts.append(series)
+        return "/".join(parts)
+
+    def report_generic_info(self, *, title: str, iteration: int, data):
+        if isinstance(data, plotly.graph_objs.Figure):
+            self.report_plotly(figure=data, title=title, iteration=iteration)
+        elif isinstance(data, list):
+            if isinstance(data[0], float):
+                for i, scalar in enumerate(data):
+                    self.report_scalar(
+                        title=title, value=scalar, series=str(i), iteration=iteration
+                    )
+            else:
+                raise NotImplementedError()
+        else:
+            self.report_scalar(title=title, value=data, iteration=iteration)
+
+    def report_scalar(
+        self,
+        *,
+        title: str,
+        value: float,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        path = self._make_path(title, series)
+        wandb.log({path: value, "train/step": iteration})
+        auxiliary_metrics = self.get_auxiliary_metrics(title, value, iteration)
+        for metric_name, metric in auxiliary_metrics.items():
+            wandb.log({metric_name: metric["value"], "train/step": iteration})
+
+    def report_text(
+        self,
+        *,
+        title: str,
+        value: str,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        table = wandb.Table(columns=["value"], data=[[value]])
+        wandb.log({self._make_path(title, series): table, "train/step": iteration})
+
+    def report_plotly(
+        self,
+        *,
+        figure: plotly.graph_objs.Figure,
+        title: str,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        wandb.log({self._make_path(title, series): figure, "train/step": iteration})
+        self.potentially_log_plotly_figure_scalars(
+            figure=figure, title=title, series=series, iteration=iteration
+        )
+        return
+
+    def flush_if_necessary(self):
+        pass
+
+
 def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteration: int):
     logger = get_current_logger()
     assert logger is not None
@@ -285,9 +354,22 @@ def get_logger(args, model, VOCAB_SIZE):
             task.add_tags(args.tags)
         logger = ClearMLLogger(task, args, model, VOCAB_SIZE)
         return logger
+    elif args.use_wandb:
+        wandb.init(
+            entity=args.wandb_entity,
+            project=args.project_name,
+            name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+            tags=args.tags,
+            config=vars(args),
+        )
+        # define our custom x axis metric
+        wandb.define_metric("train/step")
+        # set all other train/ metrics to use this step
+        wandb.define_metric("*", step_metric="train/step")
+        return WandbLogger(wandb, args)
     else:
         print(
-            "No logger specified! either args.use_neptune or args.use_clearml must be True"
+            "No logger specified! either args.use_neptune / args.use_clearml / args.use_wandb must be True"
         )
         raise NotImplementedError
 

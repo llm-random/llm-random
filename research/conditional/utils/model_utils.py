@@ -4,13 +4,14 @@ from functools import partial
 # from diskcache import Cache
 from typing import Type, Union
 import torch
+import torch.nn as nn
 from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
 
-from lizrd.core import llm, nn
+from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
 from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
@@ -222,15 +223,23 @@ def get_attention_layer(args):
     return attention_layer_fun
 
 
-def get_residual_layer(args):
-    if args.norm_class == "layer_norm":
-        norm_class = LayerNorm
-    elif args.norm_class == "rms_norm":
-        norm_class = llm.RMSNorm
+def get_norm_class(norm_class):
+    if norm_class == "layer_norm":
+        return LayerNorm
+    elif norm_class == "rms_norm":
+        return llm.RMSNorm
     else:
-        raise NotImplementedError(f"Norm type {args.norm_class} not implemented")
+        raise NotImplementedError(f"Norm type {norm_class} not implemented")
+
+
+def get_residual_layer(args):
+    norm_class = get_norm_class(args.norm_class)
     if args.residual_mode == "pre_norm":
         return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
+    elif args.residual_mode == "parallel_pre_norm":
+        return partial(
+            llm.ParallelPreNormBlock, dmodel=args.dmodel, norm_class=norm_class
+        )
     elif args.residual_mode == "post_norm":
         return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "rezero":

@@ -1,0 +1,25 @@
+parent: configs/baselines/gpt/dense/common.yaml
+md5_parent_hash: 39bc251cbb3e537b96be92f785f64e15
+
+params:
+  name: "expert_choice"
+
+  # technical/common params
+  ff_mode: expert_choice
+  softmax_over: experts
+  group_granular_moe_by_batch: true
+  use_torch_bmm: true
+  torch_compile: false
+  granular_moe_one_hot_impl: true
+  layer_norm_in_expert_choice: true
+  mixed_precision_dtype: "bfloat16"
+
+  # params
+  expansion_rate: 32
+  granularity: 1
+  effective_dff_x: 4
+  learning_rate: 1e-4
+
+  # init
+  init_type: truncated_normal
+  init_scale: 0.1
