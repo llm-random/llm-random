@@ -162,3 +162,5 @@ full_config*.yaml
 
 # yaml / json schemas
 schema.json
+
+wandb

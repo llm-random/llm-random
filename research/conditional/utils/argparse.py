@@ -10,6 +10,7 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--attention_mode", type=str, default="vanilla")
+    parser.add_argument("--parallel_blocks", action="store_true")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
@@ -131,6 +132,8 @@ def introduce_parser_arguments(
     # Logging parameters
     parser.add_argument("--use_clearml", action="store_true")
     parser.add_argument("--use_neptune", action="store_true")
+    parser.add_argument("--use_wandb", action="store_true")
+    parser.add_argument("--wandb_entity", type=str, default="ideas_cv")
     parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--tags", nargs="*", type=str, default=None)

@@ -4,6 +4,7 @@ from functools import partial
 # from diskcache import Cache
 from typing import Optional, Type, Union, Callable
 import torch
+import torch.nn as nn
 from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
@@ -62,6 +63,7 @@ from research.conditional.moe_layers.token_choice import (
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
 )
+from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
@@ -269,15 +271,23 @@ def get_attention_layer(args):
     return attention_layer_fun
 
 
-def get_residual_layer(args):
-    if args.norm_class == "layer_norm":
-        norm_class = LayerNorm
-    elif args.norm_class == "rms_norm":
-        norm_class = llm.RMSNorm
+def get_norm_class(norm_class):
+    if norm_class == "layer_norm":
+        return LayerNorm
+    elif norm_class == "rms_norm":
+        return llm.RMSNorm
     else:
-        raise NotImplementedError(f"Norm type {args.norm_class} not implemented")
+        raise NotImplementedError(f"Norm type {norm_class} not implemented")
+
+
+def get_residual_layer(args):
+    norm_class = get_norm_class(args.norm_class)
     if args.residual_mode == "pre_norm":
         return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
+    elif args.residual_mode == "parallel_pre_norm":
+        return partial(
+            llm.ParallelPreNormBlock, dmodel=args.dmodel, norm_class=norm_class
+        )
     elif args.residual_mode == "post_norm":
         return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "rezero":
@@ -582,15 +592,84 @@ def get_ff_layer(args):
     return return_fn
 
 
+def get_vanilla_mamba_layer(args):
+    import mamba_ssm
+
+    return lambda: mamba_ssm.Mamba(
+        d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
+    )
+
+
 def get_mamba_layer(args):
     import mamba_ssm
 
     if args.mamba_mode == "vanilla":
         return_fn = lambda: mamba_ssm.Mamba(
-            d_model=args.dmodel, expand=args.mamba_expansion
+            d_model=args.dmodel,
+            expand=args.mamba_expansion,
+            # use_fast_path=False,  # don't use fast path when comparing clock time to moe in mamba
         )
+    elif args.mamba_mode in [
+        "out_proj_moe",
+        "conv_proj_moe",
+        "gate_proj_moe",
+        "conv_gate_proj_moe",
+        "conv_out_proj_moe",
+        "gate_out_proj_moe",
+        "conv_gate_out_proj_moe",
+    ]:
+
+        def get_token_choice_ff(d_input, d_output):
+            return TokenChoiceFF(
+                dmodel=d_input,
+                doutput=d_output,
+                n_experts=args.n_experts,
+                expert_inner_function=ExpertRelu(
+                    dmodel=d_input,
+                    doutput=d_output,
+                    n_experts=args.n_experts,
+                    expert_size=args.expert_size,
+                    init_scale=args.init_scale,
+                    init_type=args.init_type,
+                ),
+                capacity_factor=args.capacity_factor,
+                load_balancing_loss_weight=args.load_balancing_loss_weight,
+                routing_top_k=args.routing_top_k,
+                init_scale=args.init_scale,
+                init_type=args.init_type,
+            )
+
+        def modified_out_mamba():
+            mamba = mamba_ssm.Mamba(
+                d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
+            )
+            if "out" in args.mamba_mode:
+                mamba.out_proj = get_token_choice_ff(
+                    d_input=mamba.d_inner, d_output=mamba.d_model
+                )
+            conv_proj = (
+                get_token_choice_ff(d_input=mamba.d_model, d_output=mamba.d_inner)
+                if "conv" in args.mamba_mode
+                else nn.Linear(mamba.d_model, mamba.d_inner, bias=False)
+            )
+            gate_proj = (
+                get_token_choice_ff(d_input=mamba.d_model, d_output=mamba.d_inner)
+                if "gate" in args.mamba_mode
+                else nn.Linear(mamba.d_model, mamba.d_inner, bias=False)
+            )
+            mamba.in_proj = MambaInProj(
+                batch_size=args.batch_size,
+                conv_proj=conv_proj,
+                gate_proj=gate_proj,
+                dtype=mamba.in_proj.weight.dtype,
+            )
+
+            return mamba
+
+        return_fn = modified_out_mamba
     else:
         raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
+
     return return_fn
 
 

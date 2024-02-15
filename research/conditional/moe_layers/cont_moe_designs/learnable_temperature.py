@@ -2,7 +2,7 @@ import dataclasses
 
 import torch
 
-from lizrd.core import nn
+import torch.nn as nn
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
 

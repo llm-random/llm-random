@@ -6,16 +6,17 @@ from plotly import express as px
 
 import torch
 
-from lizrd.core import nn
+import torch.nn as nn
 from lizrd.support.logging import get_current_logger
 
 
-def get_registered_name(name, suffix):
+def get_registered_name(name):
     pattern = r"block_(\d+)"
     match = re.search(pattern, name)
+    short_name = name.split("block.")[-1]
     if match:
         block_name = match.group()
-        return f"{block_name}/{suffix}"
+        return f"{block_name}/{short_name}"
     return f"block_UNKNOWN/{name}"
 
 
@@ -48,7 +49,7 @@ class LayerManager:
         """
         for name, layer in model.named_modules():
             suffix = name.split(".")[-1]
-            registered_name = get_registered_name(name, suffix)
+            registered_name = get_registered_name(name)
             if suffix in [
                 "residual_feedforward",
                 "residual_attention",
