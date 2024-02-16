@@ -311,6 +311,8 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--mamba_expansion", type=float, default=2.0)
     parser.add_argument("--no_positional_embedding", action="store_true")
+    parser.add_argument("--routing_groups", type=list[str], nargs="+", default=None)
+    parser.add_argument("--n_experts_per_group", type=int, nargs="+", default=None)
 
     parser.add_argument(
         "--norm_class",

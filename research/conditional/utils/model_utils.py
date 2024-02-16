@@ -550,6 +550,87 @@ def get_vanilla_mamba_layer(args):
     )
 
 
+def make_inner_projections_mamba(
+    dmodel,
+    n_experts_per_group,
+    routing_groups,
+    expansion_factor,
+    seq_len,
+    init_type,
+    init_scale,
+    capacity_factor,
+    load_balancing_loss_weight,
+):
+    import research.conditional.moe_layers.mamba_token_choice as mtc
+
+    for i, group in enumerate(routing_groups):
+        if "input" in group:
+            input_num_experts = n_experts_per_group[i]
+        if "output" in group:
+            output_num_experts = n_experts_per_group[i]
+        if "gate" in group:
+            gate_num_experts = n_experts_per_group[i]
+    input_module = mtc.LinearExpertsMamba(
+        seq_len=seq_len,
+        dinput=dmodel,
+        doutput=expansion_factor * dmodel,
+        n_experts=input_num_experts,
+        init_type=init_type,
+        init_scale=init_scale,
+    )
+    gate_module = mtc.LinearExpertsMamba(
+        seq_len=seq_len,
+        dinput=dmodel,
+        doutput=expansion_factor * dmodel,
+        n_experts=gate_num_experts,
+        init_type=init_type,
+        init_scale=init_scale,
+    )
+
+    output_module = mtc.LinearExpertsMamba(
+        seq_len=seq_len,
+        dinput=expansion_factor * dmodel,
+        doutput=dmodel,
+        n_experts=output_num_experts,
+        init_type=init_type,
+        init_scale=init_scale,
+    )
+
+    router = mtc.MambaRouter(
+        dinput=dmodel,
+        capacity_factor=capacity_factor,
+        load_balancing_loss_weight=load_balancing_loss_weight,
+        n_experts_per_group=n_experts_per_group,
+        routing_groups=routing_groups,
+        init_type=init_type,
+        init_scale=init_scale,
+    )
+    return mtc.MambaTokenChoice(
+        dmodel=dmodel,
+        expand=expansion_factor,
+        input_module=input_module,
+        gate_module=gate_module,
+        output_module=output_module,
+        router=router,
+    )
+
+
+def get_inner_projections_moe_mamba(args):
+    print("ROUTING GROUPS", args.routing_groups)
+    return partial(
+        make_inner_projections_mamba,
+        dmodel=args.dmodel,
+        n_experts_per_group=args.n_experts_per_group,
+        routing_groups=args.routing_groups,
+        expansion_factor=args.mamba_expansion,
+        seq_len=args.cutoff,
+        init_type=args.init_type,
+        init_scale=args.init_scale,
+        capacity_factor=args.capacity_factor,
+        load_balancing_loss_weight=args.load_balancing_loss_weight,
+    )
+
+
 def get_mamba_layer(args):
     import mamba_ssm
 
@@ -617,6 +698,8 @@ def get_mamba_layer(args):
             return mamba
 
         return_fn = modified_out_mamba
+    elif args.mamba_mode == "inner_projections_moe":
+        return_fn = get_inner_projections_moe_mamba(args)
     else:
         raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
 
