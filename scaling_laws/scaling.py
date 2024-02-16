@@ -202,7 +202,7 @@ class ScalingLaw(nn.Module):
             params.update(calculate_compute_opt_for_steps(**params, scaling_laws=self))
         elif "n_params" in params and "n_steps" in lacking:
             params.update(calculate_compute_opt_for_params(**params, scaling_laws=self))
-        elif "granularity" in lacking:
+        elif "granularity" in lacking and "flops" in params:
             params.update(self.find_opt_granularity(**params))
         else:
             raise Exception(f"Missing params {lacking} that cannot be resolved")
