@@ -44,7 +44,6 @@ class TokenChoiceSeparateRouter(LoggingLayer):
         init_scale: float,
         routing_top_k: int = 1,
         use_einsum: bool = False,
-        vectorize: bool = True,
     ):
         super().__init__()
 
@@ -56,10 +55,9 @@ class TokenChoiceSeparateRouter(LoggingLayer):
         self.routing_top_k = routing_top_k
         self._checkpointed_expert_index = None
         self._checkpointed_top_tokens_per_expert_indices = None
-        self.vectorize = vectorize
 
-        if vectorize and routing_top_k != 1:
-            raise ValueError("vectorize and routing_top_k != 1 are incompatible")
+        if routing_top_k != 1:
+            ValueError("vectorize and routing_top_k != 1 are incompatible")
 
         self.gate = nn.Parameter(
             get_init_weight(
@@ -70,7 +68,9 @@ class TokenChoiceSeparateRouter(LoggingLayer):
             )
         )
 
-    def forward(self, x: torch.Tensor):
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
         batch_size, seq_len, _ = x.shape
         n_tokens = batch_size * seq_len
         self.update_cache_for_logging("n_tokens", torch.Tensor([n_tokens]))
@@ -91,8 +91,8 @@ class TokenChoiceSeparateRouter(LoggingLayer):
         capacity = int(
             self.capacity_factor * n_tokens * self.routing_top_k / self.n_experts
         )
-        if self.vectorize:
-            capacity = min(capacity, n_tokens)
+
+        capacity = min(capacity, n_tokens)
 
         # perform softmax over experts for each token
         with measure_time(self, "softmax"):
@@ -113,29 +113,18 @@ class TokenChoiceSeparateRouter(LoggingLayer):
             expert_mask = expanded_expert_mask.sum(dim=1)
             assert expert_mask.shape == (n_tokens, self.n_experts)
 
-        if self.vectorize:
-            with measure_time(self, "experts_lists"):
-                (
-                    top_tokens_per_expert_values,
-                    top_tokens_per_expert_indices,
-                ) = expert_mask.topk(k=capacity, dim=0)
-            with measure_time(self, "create_truncated_mask"):
-                truncated_expert_mask = torch.zeros_like(expert_mask)
-                truncated_expert_mask.scatter_(
-                    dim=0,
-                    index=top_tokens_per_expert_indices,
-                    src=top_tokens_per_expert_values,
-                )
-        else:
-            with measure_time(self, "experts_lists"):
-                indices_of_tokens_for_expert = [
-                    single_expert_mask.nonzero(as_tuple=True)[0][: (capacity - 1)]
-                    for single_expert_mask in expert_mask.transpose(0, 1)
-                ]
-            with measure_time(self, "create_truncated_mask"):
-                truncated_expert_mask = torch.zeros_like(expert_mask)
-                for i, indices in enumerate(indices_of_tokens_for_expert):
-                    truncated_expert_mask[indices, i] = 1
+        with measure_time(self, "experts_lists"):
+            (
+                top_tokens_per_expert_values,
+                top_tokens_per_expert_indices,
+            ) = expert_mask.topk(k=capacity, dim=0)
+        with measure_time(self, "create_truncated_mask"):
+            truncated_expert_mask = torch.zeros_like(expert_mask)
+            truncated_expert_mask.scatter_(
+                dim=0,
+                index=top_tokens_per_expert_indices,
+                src=top_tokens_per_expert_values,
+            )
 
         n_selected_tokens = truncated_expert_mask.sum().item()
 
@@ -166,15 +155,12 @@ class TokenChoiceSeparateRouter(LoggingLayer):
 
         masked_expert_gate = gate_out * truncated_expert_mask
 
-        if self.vectorize:
-            return (
-                top_tokens_per_expert_values,
-                top_tokens_per_expert_indices,
-                masked_expert_gate,
-                capacity,
-            )
-        else:
-            return indices_of_tokens_for_expert, masked_expert_gate, capacity
+        return (
+            top_tokens_per_expert_values,
+            top_tokens_per_expert_indices,
+            masked_expert_gate,
+            capacity,
+        )
 
     def choose_tokens(self, expert_mask, capacity) -> tuple[torch.Tensor, torch.Tensor]:
         checkpointing_enabled = (
@@ -255,14 +241,23 @@ class TokenChoiceSeparateRouter(LoggingLayer):
         top_tokens_per_expert_indices: torch.Tensor,
         masked_expert_gate: torch.Tensor,
         capacity: int,
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_size, seq_len, din = x.shape
+        x = x.reshape(batch_size * seq_len, din)
         with measure_time(self, "assign_tokens_to_input"):
             experts_input = x[
                 top_tokens_per_expert_indices.T.reshape((self.n_experts * capacity,)),
                 :,
             ] * top_tokens_per_expert_values.T.reshape((self.n_experts * capacity, 1))
-            experts_input = experts_input.reshape(self.n_experts, capacity, self.dinput)
-        return experts_input, top_tokens_per_expert_indices, masked_expert_gate
+            experts_input = experts_input.reshape(self.n_experts, capacity, din)
+        dropped_tokens_mask = masked_expert_gate.sum(dim=1) == 0
+        dropped_tokens = x[dropped_tokens_mask]
+        return (
+            experts_input,
+            top_tokens_per_expert_indices,
+            dropped_tokens_mask,
+            dropped_tokens,
+        )
 
 
 class MambaRouter(LoggingLayer):
@@ -277,7 +272,16 @@ class MambaRouter(LoggingLayer):
         init_scale: float,
     ):
         """
+        Initializes the MambaTokenChoice module.
+
         Args:
+            dinput (int): The input dimension.
+            capacity_factor (float): The capacity factor for routing.
+            load_balancing_loss_weight (float): The weight for load balancing loss.
+            n_experts_per_group (list[int]): The number of experts per group.
+            routing_groups (list[list[str]]): The routing groups.
+            init_type (str): The initialization type.
+            init_scale (float): The initialization scale.
         """
         super().__init__()
 
@@ -296,38 +300,48 @@ class MambaRouter(LoggingLayer):
             ]
         )
 
-    def forward(self, x: torch.Tensor):
-        batch_size, seq_len, _ = x.shape
-        n_tokens = batch_size * seq_len
+    def make_routing_params_for_module(self, x: torch.Tensor, module: str):
+        """
+        Generates routing parameters for a specific module. Those parameters can be used to route any tensor through the MoE.
 
-        router_outputs = [router(x) for router in self.routers]
-        output_unordered = []
-        x = x.flatten(0, 1)
-        for (
-            experts_input,
-            top_tokens_per_expert_indices,
-            masked_expert_gate,
-        ) in router_outputs:
-            assert masked_expert_gate.shape[0] == n_tokens
-            dropped_tokens_mask = masked_expert_gate.sum(dim=1) == 0
-            assert dropped_tokens_mask.shape == (n_tokens,)
-            dropped_tokens = x[dropped_tokens_mask]
-            output_unordered.append(
-                (
-                    experts_input,
-                    top_tokens_per_expert_indices,
-                    dropped_tokens_mask,
-                    dropped_tokens,
-                )
-            )
-        output = []
-        # organize the output, so that the order matches MAMBA_MODULES_ORDER
-        for module in MAMBA_MODULES_ORDER:
-            for group, router_out in zip(self.routing_groups, output_unordered):
-                if module in group:
-                    output.append(router_out)
-                    break
-        return output
+        Args:
+            x (torch.Tensor): The input tensor.
+            module (str): The name of the module.
+
+        Returns:
+            torch.Tensor: The routing parameters for the specified module.
+
+        Raises:
+            ValueError: If the specified module is not found in any routing group.
+        """
+        for group, router in zip(self.routing_groups, self.routers):
+            if module in group:
+                return router(x)
+        raise ValueError(f"Module {module} not found in routing groups")
+
+    def route_according_to_params(
+        self, x: torch.Tensor, module: str, params: tuple
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Routes the input tensor `x` to the appropriate router based on the given `module` and `params`.
+        The should be generated by `make_routing_params_for_module`.
+
+        Args:
+            x (torch.Tensor): The input tensor to be routed.
+            module (str): The module name to be used for routing.
+            params (tuple): The parameters to be passed to the router.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, torch.Tensor]: A tuple containing the routed tensors.
+
+        Raises:
+            ValueError: If the specified `module` is not found in any of the routing groups.
+        """
+        for group, router in zip(self.routing_groups, self.routers):
+            if module in group:
+                router: TokenChoiceSeparateRouter = router
+                return router.route(x, *params)
+        raise ValueError(f"Module {module} not found in routing groups")
 
     def _make_router(self, init_type, init_scale, n_experts):
         return TokenChoiceSeparateRouter(
@@ -339,7 +353,6 @@ class MambaRouter(LoggingLayer):
             init_scale=init_scale,
             routing_top_k=1,
             use_einsum=False,
-            vectorize=True,
         )
 
 
@@ -347,9 +360,13 @@ class MambaTokenChoiceFunction(LoggingLayer):
     def __init__(
         self,
         n_experts,
+        seq_len,
+        doutput,
     ):
         super().__init__()
         self.n_experts = n_experts
+        self.seq_len = seq_len
+        self.doutput = doutput
 
     def forward(
         self,
@@ -357,13 +374,14 @@ class MambaTokenChoiceFunction(LoggingLayer):
         top_tokens_per_expert_indices,
         dropped_tokens_mask,
         dropped_tokens,
-    ):
+    ) -> torch.Tensor:
         experts_output, dropped_tokens_output = self._inner_forward(
             expert_inputs, dropped_tokens
         )
 
         num_tokens = dropped_tokens_mask.shape[0]
         doutput = experts_output.shape[-1]
+        assert doutput == self.doutput
         output = torch.zeros(num_tokens, doutput, device=experts_output.device)
 
         with measure_time(self, "assign_tokens_to_output"):
@@ -376,7 +394,7 @@ class MambaTokenChoiceFunction(LoggingLayer):
             )
             output *= ~dropped_tokens_mask[:, None]
         output[dropped_tokens_mask] = dropped_tokens_output
-
+        output = output.reshape(-1, self.seq_len, doutput)
         return output
 
     def _inner_forward(
@@ -388,10 +406,9 @@ class MambaTokenChoiceFunction(LoggingLayer):
 
 
 class LinearExpertsMamba(MambaTokenChoiceFunction):
-    def __init__(self, dinput, doutput, n_experts, init_type, init_scale):
-        super().__init__(n_experts)
+    def __init__(self, seq_len, dinput, doutput, n_experts, init_type, init_scale):
+        super().__init__(n_experts, seq_len=seq_len, doutput=doutput)
         self.dinput = dinput
-        self.doutput = doutput
         self.lin_experts = nn.Parameter(
             get_init_weight(
                 shape=(n_experts, dinput, doutput),
@@ -414,6 +431,7 @@ class LinearExpertsMamba(MambaTokenChoiceFunction):
         (n_experts, capacity, dinput) = expert_inputs.shape
         assert n_experts == self.n_experts
         assert dinput == self.dinput
+        n_dropped_tokens = dropped_tokens.shape[0]
 
         with measure_time(self, "process_by_experts"):
             experts_output = torch.matmul(expert_inputs, self.lin_experts)
@@ -422,51 +440,12 @@ class LinearExpertsMamba(MambaTokenChoiceFunction):
             dropped_output = torch.matmul(dropped_tokens, self.lin_dropped)
 
         assert experts_output.shape == (n_experts, capacity, self.doutput)
-        assert dropped_output.shape == (capacity, self.doutput)
-
-        return experts_output, dropped_output
-
-
-class NoExpertsMamba(MambaTokenChoiceFunction):
-    """
-    This should work like a "normal" linear layer, just with common interface for ease of use
-    """
-
-    def __init__(self, dinput, doutput, n_experts, init_type, init_scale):
-        super().__init__(n_experts)
-        self.dinput = dinput
-        self.doutput = doutput
-        self.lin = nn.Parameter(
-            get_init_weight(
-                shape=(dinput, doutput),
-                fan_in=dinput,
-                init_type=init_type,
-                scale=init_scale,
-            )
-        )
-
-    def _inner_forward(self, expert_inputs, dropped_tokens):
-        (n_experts, capacity, dinput) = expert_inputs.shape
-        assert self.n_experts == n_experts
-        assert dinput == self.dinput
-
-        with measure_time("process_by_experts"):
-            experts_output = torch.matmul(expert_inputs, self.lin)
-
-        with measure_time("process_dropped"):
-            dropped_output = torch.matmul(dropped_tokens, self.lin)
-
-        assert experts_output.shape == (n_experts, capacity, self.doutput)
-        assert dropped_output.shape == (capacity, self.doutput)
+        assert dropped_output.shape == (n_dropped_tokens, self.doutput)
 
         return experts_output, dropped_output
 
 
 class MambaTokenChoice(LoggingLayer):
-    """
-    As of now, output_module does NOT work with router, I have to fix that in some weird way
-    """
-
     def __init__(
         self,
         d_model,
@@ -569,12 +548,22 @@ class MambaTokenChoice(LoggingLayer):
 
         batch, seqlen, dim = hidden_states.shape
 
-        router_input, router_gate, router_output = self.router(hidden_states)
+        router_input = self.router.make_routing_params_for_module(
+            hidden_states, "input"
+        )
+        router_gate = self.router.make_routing_params_for_module(hidden_states, "gate")
+        router_output = self.router.make_routing_params_for_module(
+            hidden_states, "output"
+        )
 
-        # We do matmul and transpose BLH -> HBL at the same time
-        x = self.input_module(*router_input)  # (B L D) -> (B L D)
-        z = self.gate_module(*router_gate)  # (B L D) -> (B L D)
-
+        x = self.input_module(
+            *self.router.route_according_to_params(hidden_states, "input", router_input)
+        )
+        x = rearrange(x, "b l d -> b d l")
+        z = self.gate_module(
+            *self.router.route_according_to_params(hidden_states, "gate", router_gate)
+        )  # (B L D) -> (B L D)
+        z = rearrange(z, "b l d -> b d l")
         A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
         # In the backward pass we write dx and dz next to each other to avoid torch.cat
 
@@ -615,6 +604,8 @@ class MambaTokenChoice(LoggingLayer):
             return_last_state=False,
         )
         y = rearrange(y, "b d l -> b l d")
-        out = self.output_module(y)
+        out = self.output_module(
+            *self.router.route_according_to_params(y, "output", router_output)
+        )
         assert out.shape == (batch, seqlen, dim)
         return out
