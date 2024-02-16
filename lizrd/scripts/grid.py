@@ -11,17 +11,19 @@ import subprocess
 import yaml
 from time import sleep
 from lizrd.hostname_setup.hostname_setup import get_subprocess_args
-from lizrd.hostname_setup.utils import MachineBackend
+from lizrd.hostname_setup.utils import (
+    MachineBackend,
+    get_machine_backend,
+    maybe_set_default_datasets_paths,
+)
 
 from lizrd.scripts.grid_utils import (
     create_grid,
     get_train_main_function,
     multiply_grid,
     timestr_to_minutes,
-    get_machine_backend,
     get_setup_args_with_defaults,
     translate_to_argparse,
-    maybe_set_default_datasets_paths,
     check_for_argparse_correctness,
 )
 from lizrd.support.code_copying import copy_code
@@ -35,9 +37,6 @@ if __name__ == "__main__":
     parser.add_argument("--wandb_key", type=str, default=None)
     args = parser.parse_args()
     CLUSTER_NAME = get_machine_backend()
-    PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
-        [str(arg) for arg in args if arg is not None], env=env
-    )
 
     if args.config_path.endswith(".yaml"):
         configs, all_config_paths = load_with_inheritance(args.config_path)
@@ -139,7 +138,12 @@ if __name__ == "__main__":
             args.neptune_key,
             args.wandb_key,
         )
+
+        PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
+            [str(arg) for arg in args if arg is not None], env=env
+        )
         PROCESS_CALL_FUNCTION(subprocess_args, env)
+
         sleep(5)
         if interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL:
             print(
