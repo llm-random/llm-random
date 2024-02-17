@@ -5,8 +5,6 @@ Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
 import argparse
-import datetime
-import subprocess
 from time import sleep
 from lizrd.hostname_setup.hostname_setup import get_subprocess_args
 from lizrd.hostname_setup.utils import (
@@ -19,7 +17,7 @@ from lizrd.scripts.grid_utils import (
     get_train_main_function,
     translate_to_argparse,
 )
-from lizrd.support.code_copying import copy_code
+from lizrd.submitter.job_submitter import JobSubmitter
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -27,8 +25,11 @@ if __name__ == "__main__":
     parser.add_argument("--git_branch", type=str, default="")
     parser.add_argument("--neptune_key", type=str, default=None)
     parser.add_argument("--wandb_key", type=str, default=None)
+    parser.add_argument("--run_locally", action="store_true")
     args = parser.parse_args()
     CLUSTER_NAME = get_machine_backend()
+    CLUSTER_NAME = MachineBackend.IDEAS
+    run_locally = args.run_locally or CLUSTER_NAME == MachineBackend.LOCAL
 
     preparator = PrepareParams(args.config_path, args.git_branch)
     (
@@ -38,65 +39,37 @@ if __name__ == "__main__":
         interactive_debug_session,
     ) = preparator.prepare_configs(CLUSTER_NAME)
 
-    if not CLUSTER_NAME == MachineBackend.LOCAL:
-        if not interactive_debug_session:
-            user_input = input(
-                f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
-                f"Continue? [Y/n]"
-            )
-        else:
-            user_input = input(
-                "Will run an INTERACTIVE experiment, which will be the first one from the supplied configs. \nContinue? [Y/n]"
-            )
-        if user_input.lower() not in ("", "y", "Y"):
-            print("Aborting...")
-            exit(1)
-
-    if CLUSTER_NAME != MachineBackend.LOCAL:
-        first_exp_training_args, _ = grid[0]
-        exp_name = first_exp_training_args["name"]
-        newdir_name = (
-            f"{exp_name}_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-        )
-        copy_code(newdir_name)
-    else:
-        print("Running locally, skip copying code to a new directory.")
-
     slurm_command = "srun" if interactive_debug_session else "sbatch"
 
     for i, (training_args, setup_args) in enumerate(grid):
-        # full_config_path = f"full_config{i}.yaml"
-        # with open(full_config_path, "w") as f:
-        #     yaml.dump({**training_args, **setup_args}, f)
-        # training_args["all_config_paths"] += f",{full_config_path}"
-
-        env = None
-
-        if CLUSTER_NAME == MachineBackend.LOCAL:
+        if run_locally:
             # We run the experiment directly, not through a grid entrypoint script
             # because we want to be able to debug it
             runner_params = translate_to_argparse(training_args)
             runner_main_function = get_train_main_function(setup_args["runner"])
             runner_main_function(None, runner_params=runner_params)
-            exit(0)
+        else:
+            print(f"running experiment {i} from {training_args['name']}...")
+            subprocess_args = get_subprocess_args(
+                CLUSTER_NAME,
+                slurm_command,
+                setup_args,
+                training_args,
+                args.neptune_key,
+                args.wandb_key,
+            )
+            job_submitter = JobSubmitter(
+                setup_args,
+                training_args["name"],
+                run_locally,
+                total_n_experiments,
+                total_minutes,
+                interactive_debug_session,
+            )
+            job_submitter.prepare()
+            job_submitter.submit(subprocess_args, training_args)
 
-        print(f"running experiment {i} from {training_args['name']}...")
-        subprocess_args = get_subprocess_args(
-            CLUSTER_NAME,
-            slurm_command,
-            setup_args,
-            training_args,
-            args.neptune_key,
-            args.wandb_key,
-        )
-
-        PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
-            [str(arg) for arg in args if arg is not None], env=env
-        )
-        PROCESS_CALL_FUNCTION(subprocess_args, env)
-
-        sleep(5)
-        if interactive_debug_session or CLUSTER_NAME == MachineBackend.LOCAL:
+        if interactive_debug_session or run_locally:
             print(
                 "Ran only the first experiment in (interactive mode or local run). Aborting..."
             )
