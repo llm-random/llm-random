@@ -1,0 +1,10 @@
+runner: "research.conditional.train.cc_train"
+time: 0-00:11:00
+n_gpus: 1
+interactive_debug: false
+
+# train params
+params:
+  name: "a"
+  dataset_type: c4
+  

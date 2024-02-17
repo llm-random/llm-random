@@ -1,0 +1,15 @@
+parent: lizrd/test/configs/a.yaml
+md5_parent_hash: 67115cdbe7b048ac6b16d27c29bbb9b5
+
+params: 
+  var: "we"
+  ^dig_a: [1, 2, 3]
+  ^let_a: ["a", "b"]
+---
+parent: lizrd/test/configs/b.yaml
+md5_parent_hash: 76fc20284739429014d0fcc44385017c
+interactive_debug: true
+params: 
+  var: "sd"
+  ^dig_b: [4]
+  ^let_b: ["c", "d", "e"]

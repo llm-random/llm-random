@@ -1,0 +1,281 @@
+[
+    [
+        {
+            "var": "we",
+            "name": "a",
+            "dataset_type": "c4",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_a=1",
+                "let_a=a"
+            ],
+            "dig_a": 1,
+            "let_a": "a",
+            "n_gpus": 1,
+            "train_dataset_path": "/raid/NFS_SHARE/datasets/c4/train/c4_train",
+            "validation_dataset_path": "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+        },
+        {
+            "gres": "gpu:1",
+            "time": "0-00:11:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ],
+    [
+        {
+            "var": "we",
+            "name": "a",
+            "dataset_type": "c4",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_a=1",
+                "let_a=b"
+            ],
+            "dig_a": 1,
+            "let_a": "b",
+            "n_gpus": 1,
+            "train_dataset_path": "/raid/NFS_SHARE/datasets/c4/train/c4_train",
+            "validation_dataset_path": "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+        },
+        {
+            "gres": "gpu:1",
+            "time": "0-00:11:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ],
+    [
+        {
+            "var": "we",
+            "name": "a",
+            "dataset_type": "c4",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_a=2",
+                "let_a=a"
+            ],
+            "dig_a": 2,
+            "let_a": "a",
+            "n_gpus": 1,
+            "train_dataset_path": "/raid/NFS_SHARE/datasets/c4/train/c4_train",
+            "validation_dataset_path": "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+        },
+        {
+            "gres": "gpu:1",
+            "time": "0-00:11:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ],
+    [
+        {
+            "var": "we",
+            "name": "a",
+            "dataset_type": "c4",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_a=2",
+                "let_a=b"
+            ],
+            "dig_a": 2,
+            "let_a": "b",
+            "n_gpus": 1,
+            "train_dataset_path": "/raid/NFS_SHARE/datasets/c4/train/c4_train",
+            "validation_dataset_path": "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+        },
+        {
+            "gres": "gpu:1",
+            "time": "0-00:11:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ],
+    [
+        {
+            "var": "we",
+            "name": "a",
+            "dataset_type": "c4",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_a=3",
+                "let_a=a"
+            ],
+            "dig_a": 3,
+            "let_a": "a",
+            "n_gpus": 1,
+            "train_dataset_path": "/raid/NFS_SHARE/datasets/c4/train/c4_train",
+            "validation_dataset_path": "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+        },
+        {
+            "gres": "gpu:1",
+            "time": "0-00:11:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ],
+    [
+        {
+            "var": "we",
+            "name": "a",
+            "dataset_type": "c4",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_a=3",
+                "let_a=b"
+            ],
+            "dig_a": 3,
+            "let_a": "b",
+            "n_gpus": 1,
+            "train_dataset_path": "/raid/NFS_SHARE/datasets/c4/train/c4_train",
+            "validation_dataset_path": "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+        },
+        {
+            "gres": "gpu:1",
+            "time": "0-00:11:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ],
+    [
+        {
+            "var": "sd",
+            "name": "b",
+            "dataset_type": "wikibook",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_b=4",
+                "let_b=c"
+            ],
+            "dig_b": 4,
+            "let_b": "c",
+            "n_gpus": 1,
+            "train_dataset_path": null,
+            "validation_dataset_path": null
+        },
+        {
+            "gres": "gpu:1",
+            "time": "2-54:00:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ],
+    [
+        {
+            "var": "sd",
+            "name": "b",
+            "dataset_type": "wikibook",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_b=4",
+                "let_b=d"
+            ],
+            "dig_b": 4,
+            "let_b": "d",
+            "n_gpus": 1,
+            "train_dataset_path": null,
+            "validation_dataset_path": null
+        },
+        {
+            "gres": "gpu:1",
+            "time": "2-54:00:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ],
+    [
+        {
+            "var": "sd",
+            "name": "b",
+            "dataset_type": "wikibook",
+            "git_branch": "git_branch",
+            "path_to_entry_config": "lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "all_config_paths": "lizrd/test/configs/a.yaml,lizrd/test/configs/b.yaml,lizrd/test/configs/inh_a_and_b_ok.yaml",
+            "tags": [
+                "dig_b=4",
+                "let_b=e"
+            ],
+            "dig_b": 4,
+            "let_b": "e",
+            "n_gpus": 1,
+            "train_dataset_path": null,
+            "validation_dataset_path": null
+        },
+        {
+            "gres": "gpu:1",
+            "time": "2-54:00:00",
+            "n_gpus": 1,
+            "runner": "research.conditional.train.cc_train",
+            "cpus_per_gpu": 8,
+            "nodelist": null,
+            "cuda_visible": null,
+            "hf_datasets_cache": "/raid/NFS_SHARE/llm-random/.cache",
+            "singularity_image": "/raid/NFS_SHARE/llm-random/images/sparsity_2024.02.06_16.14.02.sif",
+            "runs_multiplier": 1
+        }
+    ]
+]
