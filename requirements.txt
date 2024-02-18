@@ -10,7 +10,6 @@ tensorflow==2.8.0; sys_platform != 'darwin'
 tensorflow~=2.13.0; sys_platform == 'darwin'
 datasets==2.14.6
 transformers==4.29.1
-apache-beam==2.47.0
 black==23.1.0
 autoflake==2.1.1
 plotly-express==0.4.1
