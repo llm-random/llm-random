@@ -215,7 +215,6 @@ if __name__ == "__main__":
     parser.add_argument("--skip_copy_code", action="store_true")
     args = parser.parse_args()
     CLUSTER_NAME = get_machine_backend()
-    CLUSTER_NAME = MachineBackend.IDEAS
     experiments, interactive_debug_session = create_subprocess_args(
         args.config_path,
         args.git_branch,
