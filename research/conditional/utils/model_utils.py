@@ -563,6 +563,8 @@ def make_inner_projections_mamba(
 ):
     import research.conditional.moe_layers.mamba_token_choice as mtc
 
+    dinner = int(dmodel * expansion_factor)
+
     for i, group in enumerate(routing_groups):
         if "input" in group:
             input_num_experts = n_experts_per_group[i]
@@ -573,7 +575,7 @@ def make_inner_projections_mamba(
     input_module = mtc.LinearExpertsMamba(
         seq_len=seq_len,
         dinput=dmodel,
-        doutput=expansion_factor * dmodel,
+        doutput=dinner,
         n_experts=input_num_experts,
         init_type=init_type,
         init_scale=init_scale,
@@ -581,7 +583,7 @@ def make_inner_projections_mamba(
     gate_module = mtc.LinearExpertsMamba(
         seq_len=seq_len,
         dinput=dmodel,
-        doutput=expansion_factor * dmodel,
+        doutput=dinner,
         n_experts=gate_num_experts,
         init_type=init_type,
         init_scale=init_scale,
@@ -589,7 +591,7 @@ def make_inner_projections_mamba(
 
     output_module = mtc.LinearExpertsMamba(
         seq_len=seq_len,
-        dinput=expansion_factor * dmodel,
+        dinput=dinner,
         doutput=dmodel,
         n_experts=output_num_experts,
         init_type=init_type,
@@ -606,7 +608,7 @@ def make_inner_projections_mamba(
         init_scale=init_scale,
     )
     return mtc.MambaTokenChoice(
-        dmodel=dmodel,
+        d_model=dmodel,
         expand=expansion_factor,
         input_module=input_module,
         gate_module=gate_module,
@@ -616,12 +618,15 @@ def make_inner_projections_mamba(
 
 
 def get_inner_projections_moe_mamba(args):
-    print("ROUTING GROUPS", args.routing_groups)
+    routing_groups = []
+    for group in args.routing_groups:
+        routing_groups.append(group.split(","))
+    print("ROUTING GROUPS", routing_groups)
     return partial(
         make_inner_projections_mamba,
         dmodel=args.dmodel,
         n_experts_per_group=args.n_experts_per_group,
-        routing_groups=args.routing_groups,
+        routing_groups=routing_groups,
         expansion_factor=args.mamba_expansion,
         seq_len=args.cutoff,
         init_type=args.init_type,
