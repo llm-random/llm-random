@@ -84,7 +84,7 @@ def create_subprocess_args(
 
     check_for_argparse_correctness(grid)
 
-    if (not CLUSTER_NAME == MachineBackend.LOCAL) and (not skip_confirmation):
+    if CLUSTER_NAME != MachineBackend.LOCAL and not skip_confirmation:
         if not interactive_debug_session:
             user_input = input(
                 f"Will run {total_n_experiments} experiments, using up {total_minutes} minutes, i.e. around {round(total_minutes / 60)} hours\n"
