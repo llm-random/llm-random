@@ -8,6 +8,8 @@ hf_dataset_cache = "/some/path/for/hf/dataset/cache"
 experiment_path = "/some/path/for/experiment"
 # repo_path = "/some/path/for/repo" # TODO change when llm-random is not hardcoded value
 image_path = "/some/path/for/image"
+neptune_api_key = "r@nd0mN3ptun3Ap1K3y"
+wandb_api_key = "r@nd0mW@ndbAp1K3y"
 
 
 class TestGrid(unittest.TestCase):
@@ -31,7 +33,7 @@ class TestGrid(unittest.TestCase):
                 "singularity",
                 "run",
                 "--env",
-                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN=sdfs8d7f8a7,WANDB_API_KEY=32j9ds8fsdj3",
+                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN={neptune_api_key},WANDB_API_KEY={wandb_api_key}",
                 f"-B={experiment_path}:/llm-random,{hf_dataset_cache}:{hf_dataset_cache}",
                 "--nv",
                 f"{image_path}",
@@ -104,8 +106,8 @@ class TestGrid(unittest.TestCase):
         experiments, _ = create_subprocess_args(
             "configs/test/test_baseline.yaml",
             "cool_git_branch",
-            "sdfs8d7f8a7",
-            "32j9ds8fsdj3",
+            f"{neptune_api_key}",
+            f"{wandb_api_key}",
             MachineBackend.IDEAS,
             skip_confirmation=True,
             skip_copy_code=True,
@@ -133,7 +135,7 @@ class TestGrid(unittest.TestCase):
                 "singularity",
                 "run",
                 "--env",
-                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN=sdfs8d7f8a7,WANDB_API_KEY=32j9ds8fsdj3",
+                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN={neptune_api_key},WANDB_API_KEY={wandb_api_key}",
                 f"-B={experiment_path}:/llm-random,/local_storage_2/llm-random/datasets/c4_train:/local_storage_2/llm-random/datasets/c4_train,/local_storage_2/llm-random/datasets/c4_validation:/local_storage_2/llm-random/datasets/c4_validation",
                 "--nv",
                 f"{image_path}",
@@ -229,7 +231,7 @@ class TestGrid(unittest.TestCase):
                 "singularity",
                 "run",
                 "--env",
-                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN=sdfs8d7f8a7,WANDB_API_KEY=32j9ds8fsdj3",
+                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN={neptune_api_key},WANDB_API_KEY={wandb_api_key}",
                 f"-B={experiment_path}:/llm-random,/local_storage_2/llm-random/datasets/c4_train:/local_storage_2/llm-random/datasets/c4_train,/local_storage_2/llm-random/datasets/c4_validation:/local_storage_2/llm-random/datasets/c4_validation",
                 "--nv",
                 f"{image_path}",
@@ -318,8 +320,8 @@ class TestGrid(unittest.TestCase):
         experiments, _ = create_subprocess_args(
             "configs/experiments/expert_choice/compare_bmm_einsum.yaml",
             "cool_git_branch",
-            "sdfs8d7f8a7",
-            "32j9ds8fsdj3",
+            f"{neptune_api_key}",
+            f"{wandb_api_key}",
             MachineBackend.ENTROPY,
             skip_confirmation=True,
             skip_copy_code=True,
@@ -348,7 +350,7 @@ class TestGrid(unittest.TestCase):
                 "run",
                 "--bind=/net:/net",
                 "--env",
-                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN=sdfs8d7f8a7,WANDB_API_KEY=32j9ds8fsdj3",
+                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN={neptune_api_key},WANDB_API_KEY={wandb_api_key}",
                 f"-B={experiment_path}:/llm-random,{hf_dataset_cache}:{hf_dataset_cache}",
                 "--nv",
                 f"{image_path}",
@@ -409,7 +411,7 @@ class TestGrid(unittest.TestCase):
                 "run",
                 "--bind=/net:/net",
                 "--env",
-                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN=sdfs8d7f8a7,WANDB_API_KEY=32j9ds8fsdj3",
+                f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN={neptune_api_key},WANDB_API_KEY={wandb_api_key}",
                 f"-B={experiment_path}:/llm-random,{hf_dataset_cache}:{hf_dataset_cache}",
                 "--nv",
                 f"{image_path}",
@@ -461,8 +463,8 @@ class TestGrid(unittest.TestCase):
         experiments, _ = create_subprocess_args(
             "lizrd/test/test_lr_grid.yaml",
             "cool_git_branch",
-            "sdfs8d7f8a7",
-            "32j9ds8fsdj3",
+            f"{neptune_api_key}",
+            f"{wandb_api_key}",
             MachineBackend.ATHENA,
             skip_confirmation=True,
             skip_copy_code=True,
