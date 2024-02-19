@@ -47,7 +47,7 @@ def create_subprocess_args(
     for config in configs:
         config["params"]["git_branch"] = git_branch
         config["params"]["path_to_entry_config"] = config_path
-        config["params"]["all_config_paths"] = ",".join(sorted(list(all_config_paths)))
+        config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
     interactive_options_per_config = [
         config.get("interactive_debug", False) for config in configs
