@@ -234,9 +234,7 @@ if __name__ == "__main__":
             PROCESS_CALL_FUNCTION(subprocess_args)
             sleep(5)
             if interactive_debug_session:
-                print(
-                    "Ran only the first experiment in (interactive mode or local run). Aborting..."
-                )
+                print("Ran only the first experiment in interactive mode. Aborting...")
                 break
 
     else:
