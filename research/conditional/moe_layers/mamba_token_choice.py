@@ -257,10 +257,11 @@ class TokenChoiceSeparateRouter(LoggingLayer):
         if self.n_experts == 1:
             assert dropped_tokens_mask.sum() == 0
         return (
-            experts_input,
+            experts_input.to(x.dtype),
             top_tokens_per_expert_indices,
             dropped_tokens_mask,
-            dropped_tokens,
+            dropped_tokens.to(x.dtype),
+            masked_expert_gate,
         )
 
 
@@ -379,7 +380,12 @@ class MambaTokenChoiceFunction(LoggingLayer):
         num_tokens = dropped_tokens_mask.shape[0]
         doutput = experts_output.shape[-1]
         assert doutput == self.doutput
-        output = torch.zeros(num_tokens, doutput, device=experts_output.device)
+        output = torch.zeros(
+            num_tokens,
+            doutput,
+            device=experts_output.device,
+            dtype=experts_output.dtype,
+        )
 
         with measure_time(self, "assign_tokens_to_output"):
             output.index_add_(
@@ -579,10 +585,8 @@ class MambaTokenChoice(LoggingLayer):
         dt = rearrange(dt, "d (b l) -> b d l", l=seqlen)
         B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
         C = rearrange(C, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
-        print(dt.dtype)
-        print(B.dtype)
-        print(C.dtype)
-        print(self.dt_proj.bias.dtype)
+        x = x.to(dt.dtype)
+        z = z.to(dt.dtype)
         assert self.activation in ["silu", "swish"]
         y = selective_scan_fn(
             x,
