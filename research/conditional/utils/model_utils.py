@@ -551,11 +551,11 @@ def get_vanilla_mamba_layer(args):
 
 
 def make_inner_projections_mamba(
-    dmodel,
-    n_experts_per_group,
-    routing_groups,
-    expansion_factor,
-    seq_len,
+    dmodel: int,
+    n_experts: int,
+    expert_modules: list[str],
+    expansion_factor: float,
+    seq_len: int,
     init_type,
     init_scale,
     capacity_factor,
@@ -565,45 +565,50 @@ def make_inner_projections_mamba(
 
     dinner = int(dmodel * expansion_factor)
 
-    for i, group in enumerate(routing_groups):
-        if "input" in group:
-            input_num_experts = n_experts_per_group[i]
-        if "output" in group:
-            output_num_experts = n_experts_per_group[i]
-        if "gate" in group:
-            gate_num_experts = n_experts_per_group[i]
-    input_module = mtc.LinearExpertsMamba(
-        seq_len=seq_len,
-        dinput=dmodel,
-        doutput=dinner,
-        n_experts=input_num_experts,
-        init_type=init_type,
-        init_scale=init_scale,
+    input_module = (
+        mtc.LinearExpertsMamba(
+            seq_len=seq_len,
+            dinput=dmodel,
+            doutput=dinner,
+            n_experts=n_experts,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        if "input" in expert_modules
+        else nn.Linear(dmodel, dinner, bias=False)
     )
-    gate_module = mtc.LinearExpertsMamba(
-        seq_len=seq_len,
-        dinput=dmodel,
-        doutput=dinner,
-        n_experts=gate_num_experts,
-        init_type=init_type,
-        init_scale=init_scale,
+    gate_module = (
+        mtc.LinearExpertsMamba(
+            seq_len=seq_len,
+            dinput=dmodel,
+            doutput=dinner,
+            n_experts=n_experts,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        if "gate" in expert_modules
+        else nn.Linear(dmodel, dinner, bias=False)
     )
 
-    output_module = mtc.LinearExpertsMamba(
-        seq_len=seq_len,
-        dinput=dinner,
-        doutput=dmodel,
-        n_experts=output_num_experts,
-        init_type=init_type,
-        init_scale=init_scale,
+    output_module = (
+        mtc.LinearExpertsMamba(
+            seq_len=seq_len,
+            dinput=dinner,
+            doutput=dmodel,
+            n_experts=n_experts,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        if "output" in expert_modules
+        else nn.Linear(dinner, dmodel, bias=False)
     )
 
     router = mtc.MambaRouter(
         dinput=dmodel,
         capacity_factor=capacity_factor,
         load_balancing_loss_weight=load_balancing_loss_weight,
-        n_experts_per_group=n_experts_per_group,
-        routing_groups=routing_groups,
+        n_experts=n_experts,
+        expert_modules=expert_modules,
         init_type=init_type,
         init_scale=init_scale,
     )
@@ -618,15 +623,15 @@ def make_inner_projections_mamba(
 
 
 def get_inner_projections_moe_mamba(args):
-    routing_groups = []
-    for group in args.routing_groups:
-        routing_groups.append(group.split(","))
-    print("ROUTING GROUPS", routing_groups)
+    expert_modules_str: str = args.expert_modules
+    expert_modules = expert_modules_str.split(",")
+    if "" in expert_modules:
+        expert_modules.remove("")
     return partial(
         make_inner_projections_mamba,
         dmodel=args.dmodel,
-        n_experts_per_group=args.n_experts_per_group,
-        routing_groups=routing_groups,
+        n_experts=args.n_experts,
+        expert_modules=expert_modules,
         expansion_factor=args.mamba_expansion,
         seq_len=args.cutoff,
         init_type=args.init_type,

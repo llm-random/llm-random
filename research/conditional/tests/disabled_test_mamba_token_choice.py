@@ -29,9 +29,9 @@ class TestMambaTokenChoice(GeneralTestCase):
         )
         propagate_forward_pass_cache(router)
         x = torch.randn(batch_size, length, dmodel)
-        y1 = router.make_routing_params_for_module(x, "input")
-        y2 = router.make_routing_params_for_module(x, "gate")
-        y3 = router.make_routing_params_for_module(x, "output")
+        y1 = router.make_routing_params(x, "input")
+        y2 = router.make_routing_params(x, "gate")
+        y3 = router.make_routing_params(x, "output")
         for i, (a, b) in enumerate(zip(y1, y2)):
             if i < 3:
                 self.assertEqual(a.shape, b.shape)
@@ -72,7 +72,7 @@ class TestMambaTokenChoice(GeneralTestCase):
         )
         propagate_forward_pass_cache(router)
         x = torch.randn(4, 10, 10)  # batch_size, length, dmodel
-        routing_params = router.make_routing_params_for_module(x, "input")
+        routing_params = router.make_routing_params(x, "input")
         routed_tokens_with_all_params = router.route_according_to_params(
             x, "input", routing_params
         )
