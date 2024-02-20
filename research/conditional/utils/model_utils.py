@@ -565,6 +565,15 @@ def get_mamba_layer(args):
         return_fn = lambda: TiTraMamba(
             dmodel=args.dmodel, init_type=args.init_type, init_scale=args.init_scale
         )
+    elif args.mamba_mode == "titram_softmax":
+        from research.conditional.moe_layers.titram import TiTraMamba
+
+        return_fn = lambda: TiTraMamba(
+            dmodel=args.dmodel,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            with_softmax=True,
+        )
     elif args.mamba_mode in [
         "out_proj_moe",
         "conv_proj_moe",
