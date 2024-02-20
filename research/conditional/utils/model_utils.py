@@ -563,6 +563,8 @@ def make_inner_projections_mamba(
 ):
     import research.conditional.moe_layers.mamba_token_choice as mtc
 
+    print(expert_modules)
+
     dinner = int(dmodel * expansion_factor)
 
     input_module = (
@@ -623,10 +625,14 @@ def make_inner_projections_mamba(
 
 
 def get_inner_projections_moe_mamba(args):
-    expert_modules_str: str = args.expert_modules
-    expert_modules = expert_modules_str.split(",")
-    if "" in expert_modules:
-        expert_modules.remove("")
+    print(args.expert_modules)
+    if args.expert_modules is None:
+        expert_modules = []
+    else:
+        expert_modules_str: str = args.expert_modules
+        expert_modules = expert_modules_str.split(",")
+        if "" in expert_modules:
+            expert_modules.remove("")
     return partial(
         make_inner_projections_mamba,
         dmodel=args.dmodel,

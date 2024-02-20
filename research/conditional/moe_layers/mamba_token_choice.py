@@ -261,7 +261,6 @@ class TokenChoiceSeparateRouter(LoggingLayer):
             top_tokens_per_expert_indices,
             dropped_tokens_mask,
             dropped_tokens.to(x.dtype),
-            masked_expert_gate,
         )
 
 
@@ -349,6 +348,12 @@ class MambaRouter(LoggingLayer):
         x = x.reshape(batch_size * seq_len, din)
         x = x * masked_expert_gate.sum(dim=1, keepdim=True)
         x[dropped_tokens_mask] *= self.dropped_tokens_scale
+        return x.reshape(batch_size, seq_len, din)
+
+    def log_light(self):
+        return {
+            "dropped_tokens_scale": self.dropped_tokens_scale.item(),
+        }
 
 
 class MambaTokenChoiceFunction(LoggingLayer):
