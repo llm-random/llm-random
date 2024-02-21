@@ -55,6 +55,7 @@ from research.conditional.moe_layers.continuous_moe import (
     LegacyContinuousMoE,
 )
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
+from research.conditional.moe_layers.expert_double_choice import ExpertDoubleChoiceFF
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
     TokenChoiceRouter,
@@ -456,6 +457,9 @@ def get_ff_layer(args):
     elif args.ff_mode == "expert_choice":
         ff_args = get_expert_choice_args(args)
         return_fn = partial(ExpertChoiceFF, **ff_args)
+    elif args.ff_mode == "expert_double_choice":
+        ff_args = get_expert_choice_args(args)
+        return_fn = partial(ExpertDoubleChoiceFF, **ff_args)
     elif args.ff_mode == "expert_choice_with_parallel_ff":
         expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
             "expert_choice_kwargs"
@@ -657,6 +661,8 @@ def get_classes_from_module_names(
             classes.append(llm.PredictionHead)
         elif name == "ExpertChoiceFF":
             classes.append(ExpertChoiceFF)
+        elif name == "ExperDoubletChoiceFF":
+            classes.append(ExpertDoubleChoiceFF)
         elif name == "ExpertGating":
             classes.append(ExpertGating)
         elif name == "Softmax":

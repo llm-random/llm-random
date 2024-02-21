@@ -15,6 +15,7 @@ from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.expert_double_choice import ExpertDoubleChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import temp_modify_attr
 from research.conditional.utils.model_utils import (
@@ -273,7 +274,7 @@ class ConditionalTrainer:
         layers = [
             l
             for _, l in self.layer_manager._layers
-            if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
+            if isinstance(l, (ContinuousMoE, ExpertChoiceFF, ExpertDoubleChoiceFF))
         ]
         if self.eval_dynamic_groupsize:
             original_group_size = layers[0].group_size
