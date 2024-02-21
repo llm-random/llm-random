@@ -35,7 +35,7 @@ def generate_random_string(length: int) -> str:
 
 def load_with_inheritance(
     filepath: str, all_config_paths: Set[str] = None, is_parent=False
-) -> Tuple[List[dict], Set[str]]:
+) -> Tuple[List[dict], List[str]]:
     """
     Load configs from a yaml file, with inheritance.
     This means that every config can include a "parent" field, which points to another yaml file.
@@ -65,6 +65,7 @@ def load_with_inheritance(
             all_config_paths.update(additional_paths)
             config = recursive_update(parent_config, config)
 
+    all_config_paths = sorted(list(all_config_paths))
     return configs, all_config_paths
 
 
