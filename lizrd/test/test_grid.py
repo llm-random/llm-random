@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from lizrd.scripts.grid import create_subprocess_args
-from lizrd.scripts.grid_utils import MachineBackend
+from lizrd.grid.infrastructure import MachineBackend
 
 hf_dataset_cache = "/some/path/for/hf/dataset/cache"
 experiment_path = "/some/path/for/experiment"
@@ -13,9 +13,9 @@ wandb_api_key = "r@nd0mW@ndbAp1K3y"
 
 
 class TestGrid(unittest.TestCase):
-    @patch("lizrd.scripts.grid_utils.get_singularity_image")
+    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.scripts.grid_utils.get_cache_path")
+    @patch("lizrd.grid.infrastructure.get_cache_path")
     def test_baseline_generated_args(self, get_cache_path, os_getcwd, get_image):
         get_cache_path.return_value = hf_dataset_cache
         os_getcwd.return_value = experiment_path
@@ -115,9 +115,9 @@ class TestGrid(unittest.TestCase):
         returned_output = [experiment[0] for experiment in experiments]
         self.assertEqual(returned_output, expected_output)
 
-    @patch("lizrd.scripts.grid_utils.get_singularity_image")
+    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.scripts.grid_utils.get_cache_path")
+    @patch("lizrd.grid.infrastructure.get_cache_path")
     def test_compare_bmm_generated_args(self, get_cache_path, os_getcwd, get_image):
         get_cache_path.return_value = hf_dataset_cache
         os_getcwd.return_value = experiment_path
@@ -329,9 +329,9 @@ class TestGrid(unittest.TestCase):
         returned_output = [experiment[0] for experiment in experiments]
         self.assertEqual(returned_output, expected_output)
 
-    @patch("lizrd.scripts.grid_utils.get_singularity_image")
+    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.scripts.grid_utils.get_cache_path")
+    @patch("lizrd.grid.infrastructure.get_cache_path")
     def test_lr_grid(self, get_cache_path, os_getcwd, get_image):
         get_cache_path.return_value = hf_dataset_cache
         os_getcwd.return_value = experiment_path
