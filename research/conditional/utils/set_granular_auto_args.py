@@ -70,6 +70,11 @@ def set_model_config(args):
         args.dff = 3072
         args.n_blocks = 12
         args.n_att_heads = 12
+    elif args.granular_model_config == "base_bigger":
+        args.dmodel = 1024
+        args.dff = 4096
+        args.n_blocks = 16
+        args.n_att_heads = 16
     elif args.granular_model_config == "base_14":
         args.dmodel = 768
         args.dff = 3072
@@ -90,6 +95,11 @@ def set_model_config(args):
         args.dff = 6144
         args.n_blocks = 12
         args.n_att_heads = 12
+    elif args.granular_model_config == "big_between":
+        args.dmodel = 1792
+        args.dff = 7168
+        args.n_blocks = 14
+        args.n_att_heads = 14
     elif args.granular_model_config == "clark_medium":
         args.dmodel = 2048
         args.dff = 8192
