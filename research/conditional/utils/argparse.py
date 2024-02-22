@@ -9,6 +9,8 @@ def introduce_parser_arguments(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
+    parser.add_argument("--attention_mode", type=str, default="vanilla")
+    parser.add_argument("--parallel_blocks", action="store_true")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
@@ -21,6 +23,9 @@ def introduce_parser_arguments(
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
     parser.add_argument("--no_ff", action="store_true")
+    parser.add_argument(
+        "--token_choice_inner", type=str, choices=["relu", "swi_glu"], default="relu"
+    )
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
@@ -58,6 +63,11 @@ def introduce_parser_arguments(
 
     # other data hyperparameters
     parser.add_argument("--num_workers", type=int, default=8)
+
+    # as of 8.02.2024 below only works for C4 dataset, as wikibook is technically two separate datasets, but wikibook is small enough to use hf datasets_cashe
+    # as of 8.02.2024 it is set automatically on DGX, on other machines use manually
+    parser.add_argument("--train_dataset_path", type=str, default=None)
+    parser.add_argument("--validation_dataset_path", type=str, default=None)
 
     # training tricks for memory and speed
     parser.add_argument(
@@ -122,6 +132,8 @@ def introduce_parser_arguments(
     # Logging parameters
     parser.add_argument("--use_clearml", action="store_true")
     parser.add_argument("--use_neptune", action="store_true")
+    parser.add_argument("--use_wandb", action="store_true")
+    parser.add_argument("--wandb_entity", type=str, default="ideas_cv")
     parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--tags", nargs="*", type=str, default=None)
@@ -233,6 +245,12 @@ def introduce_parser_arguments(
     parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
     parser.add_argument(
+        "--routing_top_k",
+        type=int,
+        default=1,
+        help="TopK (how many experts a token is routed to) in Token Choice",
+    )
+    parser.add_argument(
         "--ff_parallel_compute_fraction",
         type=float,
         default=0.5,
@@ -249,6 +267,11 @@ def introduce_parser_arguments(
         "are done both by experts and dense layer and then the results are added. This argument is used to set how the "
         "parameters of the experts are modified to adjust compute used bu experts. Possible values: modify_expert_size, "
         "modify_topk_fraction, modify_n_experts",
+    )
+    parser.add_argument(
+        "--dont_vectorize_switch",
+        action="store_true",
+        help="This argument is used in Token Choice to force it to use `for`-s",
     )
 
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
@@ -283,5 +306,24 @@ def introduce_parser_arguments(
 
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
+
+    # mamba
+    parser.add_argument("--mamba_mode", type=str, default="vanilla")
+    parser.add_argument(
+        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
+    )
+    parser.add_argument("--mamba_expansion", type=float, default=2.0)
+    parser.add_argument("--no_positional_embedding", action="store_true")
+
+    parser.add_argument(
+        "--norm_class",
+        type=str,
+        choices=[
+            "layer_norm",
+            "rms_norm",
+        ],
+        default="layer_norm",
+        required=False,
+    )
 
     return parser

@@ -2,13 +2,14 @@ from functools import partial
 
 # import json
 # from diskcache import Cache
-from typing import Type, Union, Optional
+from typing import Type, Union
 import torch
+import torch.nn as nn
 from torch.nn import LayerNorm
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
@@ -57,160 +58,130 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, Expert
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
     TokenChoiceRouter,
+    ExpertRelu,
+    ExpertSwiGLU,
 )
+from research.conditional.moe_layers._token_choice_deprecated import (
+    TokenChoiceFF as TokenChoiceFFDeprecated,
+)
+from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
-def make_loss_and_backprop_function(loss_checkpoint_chungs: int):
+def make_loss_function(loss_checkpoint_chungs: int):
     if loss_checkpoint_chungs == 0:
-        return calculate_llm_loss_and_backward_pass
+        return calculate_llm_loss
     else:
-        return partial(
-            chungized_llm_loss_and_backward_pass, n_chungs=loss_checkpoint_chungs
-        )
+        return partial(chungized_llm_loss, n_chungs=loss_checkpoint_chungs)
 
 
-def chungized_llm_loss_and_backward_pass(
+def chungized_llm_loss(
     batch: LLMBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
     n_chungs: int,
-    gradient_accumulation_steps: int,
     mixed_precision_dtype: torch.dtype,
-    scaler: Optional[torch.cuda.amp.GradScaler],
 ):
-    do_backward_pass = model.training
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
 
-    if isinstance(model, DDP):
-        model = model.module
+    def make_custom_forward():
+        def custom_forward(*inputs):
+            x, gt, mask = inputs
+            output = model.head(x)
+            with torch.autocast(
+                device_type="cuda", enabled=False, dtype=mixed_precision_dtype
+            ):
+                gt = inputs[1]
+                mask = inputs[2]
+                gt = gt.to(output.device)
+                loss = F.cross_entropy(
+                    output.reshape(-1, vocab_size),
+                    gt.reshape(-1).long(),
+                    reduction="none",
+                )
 
-    # this is here, so python releases memory before backprop
-    def calculate_partial_loss_and_correct_tokens(
-        chunged_input, chunged_gt, chunged_mask
-    ):
-        # we don't want to have a reference to this while backproping, because this will prevent python from releasing memory
-        partial_output = model.head(chunged_input)
-        with torch.autocast(
-            device_type="cuda", enabled=False, dtype=mixed_precision_dtype
-        ):
-            partial_loss_unmasked = F.cross_entropy(
-                partial_output.reshape(-1, vocab_size),
-                chunged_gt.reshape(-1).long(),
-                reduction="none",
-            )
-            partial_loss = partial_loss_unmasked[chunged_mask.reshape(-1) == 1]
+                correct_tokens = gt.long() == output.argmax(dim=-1)
+                correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+                correct_tokens = correct_tokens.sum()
 
-            partial_correct_tokens = chunged_gt.long() == partial_output.argmax(dim=-1)
-            partial_correct_tokens = partial_correct_tokens.long().reshape(
-                -1
-            ) * chunged_mask.reshape(-1)
-            partial_correct_tokens = partial_correct_tokens.sum()
-        return partial_loss, partial_correct_tokens
+                total_tokens = mask.sum()
+
+            return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
+
+        return custom_forward
 
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
     ):
-        encoder_output: torch.Tensor = model.encoder(
-            model.embedding_layer(input_tokens)
-        )
-        encoder_output_detach = encoder_output.detach()
-        encoder_output_detach.requires_grad = True
-        gt_tokens = gt_tokens.to(encoder_output.device)
-        mask = mask.to(encoder_output.device)
-        num_masked_tokens = mask.sum()
-        if do_backward_pass:
-            encoder_output.retain_grad()
-        chunged_inputs = torch.chunk(encoder_output_detach, n_chungs, dim=0)
+        embeddings = model.embedding_layer(input_tokens)
+        encoder_output = model.encoder(embeddings)
+        chunged_inputs = torch.chunk(encoder_output, n_chungs, dim=0)
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
+        num_tokens = 0
         total_loss = 0
         total_correct_tokens = 0
-        # we need to tell torch what parameters we want to optimize, because we don't want to optimize the encoder for every chunk
+        total_masked_tokens = 0
         for chunged_input, chunged_gt, chunged_mask in zip(
             chunged_inputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
             (
-                partial_loss,
+                partial_loss_output,
                 partial_correct_tokens,
-            ) = calculate_partial_loss_and_correct_tokens(
-                chunged_input, chunged_gt, chunged_mask
+                partial_masked_tokens,
+            ) = checkpoint(
+                make_custom_forward(), chunged_input, chunged_gt, chunged_mask
             )
-            if do_backward_pass:
-                loss = (
-                    partial_loss.sum() / num_masked_tokens / gradient_accumulation_steps
-                )
-                with torch.autocast(
-                    device_type="cuda", enabled=False, dtype=mixed_precision_dtype
-                ):
-                    if scaler is not None:
-                        scaler.scale(loss).backward()
-                    else:
-                        loss.backward()
-            total_loss += partial_loss.sum()
+            num_tokens += partial_loss_output.shape[0]
+            total_loss += partial_loss_output.sum()
             total_correct_tokens += partial_correct_tokens
+            total_masked_tokens += partial_masked_tokens
 
-    if do_backward_pass:
-        encoder_output.backward(encoder_output_detach.grad)
+        aux_info = {
+            "correct_tokens": total_correct_tokens,
+            "total_masked_tokens": total_masked_tokens,
+            "losses": retrieve_additional_losses(model),
+        }
 
-    aux_info = {
-        "correct_tokens": total_correct_tokens,
-        "total_masked_tokens": num_masked_tokens,
-        "losses": retrieve_additional_losses(model),
-    }
-
-    return total_loss / num_masked_tokens / gradient_accumulation_steps, aux_info
+        return total_loss / num_tokens, aux_info
 
 
-def calculate_llm_loss_and_backward_pass(
+def calculate_llm_loss(
     batch: LLMBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
     vocab_size: int,
-    gradient_accumulation_steps: int,
     mixed_precision_dtype: torch.dtype,
-    scaler: Optional[torch.cuda.amp.GradScaler],
 ):
-    do_backward_pass = model.training
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
 
-    # this is sort of a hack to make python release memory before backprop
-    def calculate_loss_and_stats():
-        nonlocal input_tokens, gt_tokens, mask, model
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
-        ):
-            model_output = model(input_tokens)
+    with torch.autocast(
+        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
+    ):
+        model_output = model(input_tokens)
 
-        # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
-        gt_tokens = gt_tokens.to(model_output.device)
-        mask = mask.to(model_output.device)
+    # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
+    gt_tokens = gt_tokens.to(model_output.device)
+    mask = mask.to(model_output.device)
 
-        mask_loss = F.cross_entropy(
-            model_output.reshape(-1, vocab_size),
-            gt_tokens.reshape(-1).long(),
-            reduction="none",
-        )
-        correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
-        correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-        correct_tokens = correct_tokens.sum()
-        total_masked_tokens = mask.sum()
-        mask_loss = mask_loss[mask.reshape(-1) == 1]
-        loss = mask_loss.mean() / gradient_accumulation_steps
-        return loss, correct_tokens, total_masked_tokens
+    mask_loss = F.cross_entropy(
+        model_output.reshape(-1, vocab_size),
+        gt_tokens.reshape(-1).long(),
+        reduction="none",
+    )
+    mask_loss = mask_loss[mask.reshape(-1) == 1]
+    loss = mask_loss.mean()
 
-    loss, correct_tokens, total_masked_tokens = calculate_loss_and_stats()
-    if do_backward_pass:
-        if scaler is not None:
-            scaler.scale(loss).backward()
-        else:
-            loss.backward()
+    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+    correct_tokens = correct_tokens.sum()
+    total_masked_tokens = mask.sum()
 
     aux_info = {
         "correct_tokens": correct_tokens,
@@ -223,26 +194,56 @@ def calculate_llm_loss_and_backward_pass(
 
 def get_attention_layer(args):
     causal = args.model_type == "gpt"
-    attention_layer_fun = lambda: llm.Attention(
-        dmodel=args.dmodel,
-        heads=args.n_att_heads,
-        causal=causal,
-        dhead=args.dhead,
-        flash=args.flash_attention,
-        init_type=args.init_type,
-        init_scale=args.init_scale,
-    )
+    if args.attention_mode == "vanilla":
+        attention_layer_fun = lambda: llm.Attention(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.attention_mode == "rope":
+        attention_layer_fun = lambda: llm.AttentionRoPE(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            length=args.cutoff,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    else:
+        raise NotImplementedError(
+            f"Attention type {args.attention_mode} not implemented"
+        )
 
     return attention_layer_fun
 
 
+def get_norm_class(norm_class):
+    if norm_class == "layer_norm":
+        return LayerNorm
+    elif norm_class == "rms_norm":
+        return llm.RMSNorm
+    else:
+        raise NotImplementedError(f"Norm type {norm_class} not implemented")
+
+
 def get_residual_layer(args):
+    norm_class = get_norm_class(args.norm_class)
     if args.residual_mode == "pre_norm":
-        return partial(llm.PreNormBlock, dmodel=args.dmodel)
+        return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
+    elif args.residual_mode == "parallel_pre_norm":
+        return partial(
+            llm.ParallelPreNormBlock, dmodel=args.dmodel, norm_class=norm_class
+        )
     elif args.residual_mode == "post_norm":
-        return partial(llm.PostNormBlock, dmodel=args.dmodel)
+        return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "rezero":
-        return partial(llm.RezeroBlock, dmodel=args.dmodel)
+        return partial(llm.RezeroBlock, dmodel=args.dmodel, norm_class=norm_class)
     else:
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
@@ -395,6 +396,10 @@ def get_ff_layer(args):
         return_fn = lambda: llm.FeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
+    elif args.ff_mode == "swi_glu":
+        return_fn = lambda: llm.SwiGLUFeedForward(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
     elif args.ff_mode == "vanilla_timed":
         return_fn = lambda: FeedForwardTimed(
             args.dmodel, args.dff, args.activation_type, args.no_ff
@@ -463,7 +468,36 @@ def get_ff_layer(args):
             llm.FeedForward(*parallel_ff_args),
         )
     elif args.ff_mode == "token_choice":
+        if args.token_choice_inner == "relu":
+            expert_inner_class = ExpertRelu
+        elif args.token_choice_inner == "swi_glu":
+            expert_inner_class = ExpertSwiGLU
+
+        else:
+            raise NotImplementedError(
+                f"Token choice logic {args.token_choice_inner} not implemented"
+            )
+        make_expert_inner_function = partial(
+            expert_inner_class,
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
         return_fn = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+            vectorize=(not args.dont_vectorize_switch),
+        )
+    elif args.ff_mode == "token_choice_deprecated":
+        return_fn = lambda: TokenChoiceFFDeprecated(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_size=args.expert_size,
@@ -508,6 +542,87 @@ def get_ff_layer(args):
     return return_fn
 
 
+def get_vanilla_mamba_layer(args):
+    import mamba_ssm
+
+    return lambda: mamba_ssm.Mamba(
+        d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
+    )
+
+
+def get_mamba_layer(args):
+    import mamba_ssm
+
+    if args.mamba_mode == "vanilla":
+        return_fn = lambda: mamba_ssm.Mamba(
+            d_model=args.dmodel,
+            expand=args.mamba_expansion,
+            # use_fast_path=False,  # don't use fast path when comparing clock time to moe in mamba
+        )
+    elif args.mamba_mode in [
+        "out_proj_moe",
+        "conv_proj_moe",
+        "gate_proj_moe",
+        "conv_gate_proj_moe",
+        "conv_out_proj_moe",
+        "gate_out_proj_moe",
+        "conv_gate_out_proj_moe",
+    ]:
+
+        def get_token_choice_ff(d_input, d_output):
+            return TokenChoiceFF(
+                dmodel=d_input,
+                doutput=d_output,
+                n_experts=args.n_experts,
+                expert_inner_function=ExpertRelu(
+                    dmodel=d_input,
+                    doutput=d_output,
+                    n_experts=args.n_experts,
+                    expert_size=args.expert_size,
+                    init_scale=args.init_scale,
+                    init_type=args.init_type,
+                ),
+                capacity_factor=args.capacity_factor,
+                load_balancing_loss_weight=args.load_balancing_loss_weight,
+                routing_top_k=args.routing_top_k,
+                init_scale=args.init_scale,
+                init_type=args.init_type,
+            )
+
+        def modified_out_mamba():
+            mamba = mamba_ssm.Mamba(
+                d_model=args.dmodel, expand=args.mamba_expansion, use_fast_path=False
+            )
+            if "out" in args.mamba_mode:
+                mamba.out_proj = get_token_choice_ff(
+                    d_input=mamba.d_inner, d_output=mamba.d_model
+                )
+            conv_proj = (
+                get_token_choice_ff(d_input=mamba.d_model, d_output=mamba.d_inner)
+                if "conv" in args.mamba_mode
+                else nn.Linear(mamba.d_model, mamba.d_inner, bias=False)
+            )
+            gate_proj = (
+                get_token_choice_ff(d_input=mamba.d_model, d_output=mamba.d_inner)
+                if "gate" in args.mamba_mode
+                else nn.Linear(mamba.d_model, mamba.d_inner, bias=False)
+            )
+            mamba.in_proj = MambaInProj(
+                batch_size=args.batch_size,
+                conv_proj=conv_proj,
+                gate_proj=gate_proj,
+                dtype=mamba.in_proj.weight.dtype,
+            )
+
+            return mamba
+
+        return_fn = modified_out_mamba
+    else:
+        raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
+
+    return return_fn
+
+
 def get_classes_from_module_names(
     packed_names,
 ) -> Union[tuple[Type[torch.nn.Module]], None]:
@@ -520,8 +635,12 @@ def get_classes_from_module_names(
     for name in packed_names.split(","):
         if name == "Attention":
             classes.append(llm.Attention)
+        elif name == "AttentionRoPE":
+            classes.append(llm.AttentionRoPE)
         elif name == "AttentionMechanism":
             classes.append(llm.AttentionMechanism)
+        elif name == "RoPE":
+            classes.append(llm.RoPE)
         elif name == "FeedForward":
             classes.append(llm.FeedForward)
         elif name == "Residual":
@@ -544,6 +663,10 @@ def get_classes_from_module_names(
             classes.append(torch.nn.Softmax)
         elif name == "TokenChoiceRouter":
             classes.append(TokenChoiceRouter)
+        elif name == "Mamba":
+            import mamba_ssm
+
+            classes.append(mamba_ssm.Mamba)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)

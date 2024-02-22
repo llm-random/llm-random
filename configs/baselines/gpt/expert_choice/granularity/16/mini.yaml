@@ -1,0 +1,6 @@
+parent: configs/baselines/gpt/expert_choice/mini.yaml
+md5_parent_hash: 61ba915c04b82bd97d74bb7ef99a1c18
+
+params:
+  name: "granular_16_mini"
+  granularity: 16

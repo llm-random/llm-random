@@ -1,11 +1,11 @@
-from typing import Literal, Union
+from typing import Literal, Union, Optional
 import plotly.express as px
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from lizrd.core import nn
+import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
 from lizrd.support.logging import make_histogram
@@ -180,6 +180,7 @@ class ExpertChoiceFF(LoggingLayer):
         topk_fraction: float,
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
+        doutput: Optional[int] = None,
         random_perm: bool = False,
         group_by_batch: bool = False,
         one_hot_impl: bool = False,
@@ -204,6 +205,7 @@ class ExpertChoiceFF(LoggingLayer):
         super().__init__()
 
         self.dmodel = dmodel
+        self.doutput = dmodel if doutput is None else doutput
         self.n_experts = n_experts
         self.expert_size = expert_size
         self.topk_fraction = topk_fraction
@@ -234,7 +236,7 @@ class ExpertChoiceFF(LoggingLayer):
         )
         self.lin2_weight = nn.Parameter(
             get_init_weight(
-                (n_experts, expert_size, dmodel),
+                (n_experts, expert_size, self.doutput),
                 fan_in=int(n_experts * expert_size * topk_fraction),
                 init_type=init_type,
                 scale=init_scale,
@@ -248,7 +250,7 @@ class ExpertChoiceFF(LoggingLayer):
                 scale=init_scale,
             )
         ).requires_grad_(True)
-        self.ln = LayerNorm(dmodel) if use_layer_norm else None
+        self.ln = LayerNorm(self.doutput) if use_layer_norm else None
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
             self.extract_chosen_tokens_onehot
@@ -305,7 +307,7 @@ class ExpertChoiceFF(LoggingLayer):
                 x = self.ln(x)
 
         if self.group_size > 1:
-            x = x.reshape(orig_bs, orig_seq_len, self.dmodel)
+            x = x.reshape(orig_bs, orig_seq_len, self.doutput)
 
         return x
 
@@ -378,8 +380,8 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "gating_postprocess_with_linear"):
             return einsum(
                 "n_exp topk seq_len exp_size, n_exp topk seq_len, "
-                "n_exp topk seq_len batch_size, n_exp exp_size dmodel"
-                "-> batch_size seq_len dmodel",
+                "n_exp topk seq_len batch_size, n_exp exp_size doutput"
+                "-> batch_size seq_len doutput",
                 x,
                 topk_values,
                 one_hot,
@@ -464,11 +466,11 @@ class ExpertChoiceFF(LoggingLayer):
 
             # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
             x = einsum(
-                "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
+                "n_exp topk exp_size, n_exp exp_size doutput -> n_exp topk doutput",
                 x,
                 self.lin2_weight,
             )
-            ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.dmodel)
+            ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.doutput)
         return x
 
     def gating_postprocess_onehot(
@@ -503,15 +505,15 @@ class ExpertChoiceFF(LoggingLayer):
         # add tokens that have been processed by more than one expert
         with measure_time(self, "add_tokens_many_experts"):
             z = (
-                torch.zeros((batch_size * seq_len, self.dmodel))
+                torch.zeros((batch_size * seq_len, self.doutput))
                 .type(x.type())
                 .to(x.device)
             )
 
             z.index_add_(dim=0, index=topk_indices.flatten().to(int), source=x)
 
-            # reshape to (batch_size, seq_len, dmodel)
-            x = z.reshape((batch_size, seq_len, self.dmodel))
+            # reshape to (batch_size, seq_len, doutput)
+            x = z.reshape((batch_size, seq_len, self.doutput))
         return x
 
     def log_light(self):

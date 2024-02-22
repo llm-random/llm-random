@@ -1,0 +1,72 @@
+md5_parent_hash: e1ad1f2706fb54ba63da097b126d0cc0
+parent: configs/baselines/gpt/dense/medium.yaml
+# singularity_image: /common/llm-random/images/sparsity_2023.12.14_16.44.42.sif
+# singularity_image:
+singularity_image: /net/pr2/projects/plgrid/plggllmeffi/images/sparsity_2023.12.14_16.44.42.sif
+# singularity_image: /raid/NFS_SHARE/llm-random/images/sparsity_2023.12.14_16.44.42.sif
+# cuda_visible: "1"
+n_gpus: 1
+# time: "00:10:00"
+time: "20:00:00"
+# hf_datasets_cache: /local_storage_1/dataset_cache
+# singularity_image: /home/jkrajewski_a100/images/sparsity_2023.11.10_15.23.19.sif
+
+params:
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  tags: ["mamba", "150k", "high_precision"]
+
+  dataset_type: c4
+  # fsdp
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,ExpertGating,RoPE,TokenChoiceRouter"
+
+  grad_clip: 0.5
+  weight_decay: 0.1
+
+  scheduler: "cosine"
+  decoding_interval: 0
+  save_weights_interval: 0
+  loss_checkpoint_chungs: 0
+  gradient_accumulation_steps: 1
+
+  lr_warmup_steps: 150
+  n_steps: 15000
+  final_lr_step: 15000
+
+  batch_size: 64
+  cutoff: 1024
+
+  init_scale: 0.1
+  init_type: truncated_normal
+
+  # grid
+  # ^learning_rate: [2e-4, 5e-4]
+  learning_rate: 5e-4
+
+  # mamba / moe etc
+  n_blocks: 8
+  block_modules: ["mamba", "feedforward"]
+
+  # block_modules: ["attention", "feedforward"]
+  attention_mode: "rope"
+  no_positional_embedding: false
+  ff_mode: token_choice
+
+  name: "mamba_tune_10_2"
+  n_experts: 96
+  dff: 512
+  expert_size: 512
+  mamba_expansion: 3.3333333
+
+
+  capacity_factor: 1.0
+  load_balancing_loss_weight: 0.01
+
+  # debug
+  # dataset_type: wikibook
+  # use_dummy_dataset: true

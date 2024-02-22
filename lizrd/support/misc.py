@@ -16,6 +16,10 @@ def make_concise_datetime() -> str:
     return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
 
 
+def get_n_learnable_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 def count_parameters(model, args, VOCAB_SIZE):
     model_n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     input_embedding_and_head_params = 2 * VOCAB_SIZE * args.dmodel
@@ -31,7 +35,7 @@ def generate_random_string(length: int) -> str:
 
 def load_with_inheritance(
     filepath: str, all_config_paths: Set[str] = None, is_parent=False
-) -> Tuple[List[dict], Set[str]]:
+) -> Tuple[List[dict], List[str]]:
     """
     Load configs from a yaml file, with inheritance.
     This means that every config can include a "parent" field, which points to another yaml file.
@@ -61,6 +65,7 @@ def load_with_inheritance(
             all_config_paths.update(additional_paths)
             config = recursive_update(parent_config, config)
 
+    all_config_paths = sorted(list(all_config_paths))
     return configs, all_config_paths
 
 

@@ -12,8 +12,8 @@ from research.datasets import get_processed_dataset
 from lizrd.support.test_utils import GeneralTestCase, heavy_test
 from lizrd.train.train_utils import get_model
 from research.conditional.utils.model_utils import (
-    calculate_llm_loss_and_backward_pass,
-    chungized_llm_loss_and_backward_pass,
+    calculate_llm_loss,
+    chungized_llm_loss,
 )
 
 
@@ -147,7 +147,6 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         n_blocks = 2
         device = torch.device("cpu")
         n_chungs = 3
-        scaler = torch.cuda.amp.GradScaler()
 
         dataset = get_processed_dataset(
             batch_size=batch,
@@ -161,19 +160,23 @@ class TestChungizedCalculateLoss(GeneralTestCase):
             dataset_split="train",
         )
 
-        model = get_model(
-            max_length=seql,
-            vocab_size=vocab_size,
-            ff_layer_fun=lambda: llm.FeedForward(
+        layers = {
+            "feedforward": lambda: llm.FeedForward(
                 dm, dff, init_type="kaiming_uniform", init_scale=1.0
             ),
-            attention_layer_fun=lambda: llm.Attention(
+            "attention": lambda: llm.Attention(
                 dm,
                 heads,
                 causal=False,
                 init_type="kaiming_uniform",
                 init_scale=1.0,
             ),
+        }
+
+        model = get_model(
+            max_length=seql,
+            vocab_size=vocab_size,
+            block_modules=layers,
             dm=dm,
             n_blocks=n_blocks,
             device=device,
@@ -198,30 +201,28 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         (
             loss_no_chung,
             aux_info_no_chung,
-        ) = calculate_llm_loss_and_backward_pass(
+        ) = calculate_llm_loss(
             batch=batch,
             model=model,
             mixed_precision=False,
             vocab_size=vocab_size,
             mixed_precision_dtype=torch.float16,
-            gradient_accumulation_steps=1,
-            scaler=scaler,
         )
 
         (
             loss_chung,
             aux_info_chung,
-        ) = chungized_llm_loss_and_backward_pass(
+        ) = chungized_llm_loss(
             batch=batch,
             model=model_chunged,
             mixed_precision=False,
             vocab_size=vocab_size,
             n_chungs=n_chungs,
             mixed_precision_dtype=torch.float16,
-            gradient_accumulation_steps=1,
-            scaler=scaler,
         )
 
+        loss_no_chung.backward()
+        loss_chung.backward()
         assert torch.isclose(loss_no_chung, loss_chung)
         assert aux_info_no_chung["correct_tokens"] == aux_info_chung["correct_tokens"]
         assert (
