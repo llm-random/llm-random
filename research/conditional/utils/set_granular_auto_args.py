@@ -105,6 +105,11 @@ def set_model_config(args):
         args.dff = 8192
         args.n_blocks = 16
         args.n_att_heads = 16
+    elif args.granular_model_config == "clark_big_smaller":
+        args.dmodel = 1792
+        args.dff = 7168
+        args.n_blocks = 23
+        args.n_att_heads = 14
     elif args.granular_model_config == "clark_big":
         args.dmodel = 2048
         args.dff = 8192
