@@ -101,4 +101,7 @@ def set_model_config(args):
         args.n_blocks = 24
         args.n_att_heads = 16
 
+    if args.ff_mode == "token_choice":
+        args.expert_size = args.dff
+
     return args
