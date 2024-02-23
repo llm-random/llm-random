@@ -7,13 +7,11 @@ Remember to set RUNNER and PARAMS in the script or add an argument parser.
 import argparse
 import datetime
 import subprocess
-import yaml
 from time import sleep
-from lizrd.grid.infrastructure import MachineBackend, get_machine_backend
+from lizrd.grid.infrastructure import get_machine_backend, LocalBackend
 from lizrd.grid.prepare_configs import prepare_configs
 from lizrd.grid.setup_arguments import (
     make_singularity_env_arguments,
-    make_singularity_mount_paths,
 )
 
 from lizrd.scripts.grid_utils import (
@@ -43,16 +41,16 @@ def create_subprocess_args(
     git_branch,
     neptune_key,
     wandb_key,
-    CLUSTER_NAME,
+    CLUSTER,
     skip_confirmation=False,
     skip_copy_code=False,
 ):
-    configs = prepare_configs(config_path, git_branch, CLUSTER_NAME)
+    configs = prepare_configs(config_path, git_branch, CLUSTER)
     grid = setup_experiments(configs)
     check_for_argparse_correctness(grid)
     interactive_debug_session = grid[0][0]["interactive_debug_session"]
 
-    if CLUSTER_NAME != MachineBackend.LOCAL and not skip_confirmation:
+    if not isinstance(CLUSTER, LocalBackend) and not skip_confirmation:
         if not interactive_debug_session:
             total_minutes, total_n_experiments = calculate_experiments_info(grid)
             user_input = input(
@@ -67,7 +65,7 @@ def create_subprocess_args(
             print("Aborting...")
             exit(1)
 
-    if CLUSTER_NAME != MachineBackend.LOCAL and (not skip_copy_code):
+    if not isinstance(CLUSTER, LocalBackend) and (not skip_copy_code):
         _, first_exp_trainings_args = grid[0]
         exp_name = first_exp_trainings_args[0]["name"]
         newdir_name = (
@@ -92,82 +90,20 @@ def create_subprocess_args(
                 wandb_key=wandb_key,
             )
 
-            singularity_mount_paths = make_singularity_mount_paths(
-                setup_args, training_args
-            )
-
             runner_params = translate_to_argparse(training_args)
-            if CLUSTER_NAME == MachineBackend.ENTROPY:
-                subprocess_args = [
-                    slurm_command,
-                    "--partition=a100",
-                    f"--gres=gpu:a100:{setup_args['n_gpus']}",
-                    f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-                    f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
-                    f"--job-name={training_args['name']}",
-                    f"--time={setup_args['time']}",
-                    f"{setup_args['grid_entrypoint']}",
-                    "singularity",
-                    "run",
-                    *singularity_env_arguments,
-                    singularity_mount_paths,
-                    "--nv",
-                    setup_args["singularity_image"],
-                    "python3",
-                    "-m",
-                    setup_args["runner"],
-                    *runner_params,
-                ]
-            elif CLUSTER_NAME == MachineBackend.ATHENA:
-                subprocess_args = [
-                    slurm_command,
-                    f"--gres=gpu:{setup_args['n_gpus']}",
-                    "--partition=plgrid-gpu-a100",
-                    f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-                    "--account=plgplggllmeffi-gpu-a100",
-                    f"--job-name={training_args['name']}",
-                    f"--time={setup_args['time']}",
-                    f"{setup_args['grid_entrypoint']}",
-                    "singularity",
-                    "run",
-                    "--bind=/net:/net",
-                    *singularity_env_arguments,
-                    singularity_mount_paths,
-                    "--nv",
-                    setup_args["singularity_image"],
-                    "python3",
-                    "-m",
-                    setup_args["runner"],
-                    *runner_params,
-                ]
-            elif CLUSTER_NAME == MachineBackend.IDEAS:
-                subprocess_args = [
-                    slurm_command,
-                    f"--gres=gpu:ampere:{setup_args['n_gpus']}",
-                    f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-                    f"--job-name={training_args['name']}",
-                    f"--time={setup_args['time']}",
-                    "--mem=32G",
-                    setup_args["nodelist"],
-                    f"{setup_args['grid_entrypoint']}",
-                    "singularity",
-                    "run",
-                    *singularity_env_arguments,
-                    singularity_mount_paths,
-                    "--nv",
-                    setup_args["singularity_image"],
-                    "python3",
-                    "-m",
-                    setup_args["runner"],
-                    *runner_params,
-                ]
-            elif CLUSTER_NAME == MachineBackend.LOCAL:
+            if isinstance(CLUSTER, LocalBackend):
                 runner_main_function = get_train_main_function(setup_args["runner"])
                 return [
                     (runner_main_function, runner_params)
                 ], interactive_debug_session
-            else:
-                raise ValueError(f"Unknown cluster name: {CLUSTER_NAME}")
+
+            subprocess_args = CLUSTER.get_subprocess_args(
+                slurm_command=slurm_command,
+                setup_args=setup_args,
+                training_args=training_args,
+                singularity_env_arguments=singularity_env_arguments,
+                runner_params=runner_params,
+            )
 
             experiments.append((subprocess_args, training_args["name"]))
     return experiments, interactive_debug_session
@@ -182,20 +118,20 @@ if __name__ == "__main__":
     parser.add_argument("--skip_confirmation", action="store_true")
     parser.add_argument("--skip_copy_code", action="store_true")
     args = parser.parse_args()
-    CLUSTER_NAME = get_machine_backend()
+    CLUSTER = get_machine_backend()
     experiments, interactive_debug_session = create_subprocess_args(
         args.config_path,
         args.git_branch,
         args.neptune_key,
         args.wandb_key,
-        CLUSTER_NAME,
+        CLUSTER,
         args.skip_confirmation,
         args.skip_copy_code,
     )
     PROCESS_CALL_FUNCTION = lambda args: subprocess.run(
         [str(arg) for arg in args if arg is not None]
     )
-    if CLUSTER_NAME != MachineBackend.LOCAL:
+    if not isinstance(CLUSTER, LocalBackend):
         for i, experiment in enumerate(experiments):
             subprocess_args, job_name = experiment
             print(f"running experiment {i} from {job_name}...")
