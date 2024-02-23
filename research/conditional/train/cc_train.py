@@ -38,7 +38,7 @@ from research.conditional.utils.model_utils import (
     update_model_fit_gpu_info,
     get_vanilla_mamba_layer,
 )
-
+from research.conditional.utils.set_granular_auto_args import set_granular_auto_args
 
 def log_batch(
     wrapper: DataloaderWrapper,
@@ -76,6 +76,8 @@ def main(
     """
     rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
     """
+    if args.set_granular_auto_args:
+        args = set_granular_auto_args(args)
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
