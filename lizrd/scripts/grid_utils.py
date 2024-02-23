@@ -360,10 +360,10 @@ def maybe_set_default_datasets_paths(
                 CLUSTER_NAME, training_args["dataset_type"]
             )
         if training_args.get("validation_dataset_path") is None:
-            training_args[
-                "validation_dataset_path"
-            ] = get_default_validation_dataset_path(
-                CLUSTER_NAME, training_args["dataset_type"]
+            training_args["validation_dataset_path"] = (
+                get_default_validation_dataset_path(
+                    CLUSTER_NAME, training_args["dataset_type"]
+                )
             )
 
 
