@@ -48,6 +48,12 @@ def sort_training_args(values):
 
 
 class TestGrid(unittest.TestCase):
+    def assertUnifiedEqual(self, a, b):
+        unified_a = [unify_arguments(config) for config in a]
+        unified_b = [unify_arguments(config) for config in b]
+
+        self.assertEqual(unified_a, unified_b)
+
     @patch("lizrd.scripts.grid_utils.get_singularity_image")
     @patch("os.getcwd")
     @patch("lizrd.scripts.grid_utils.get_cache_path")
@@ -149,14 +155,7 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-
-        unified_returned_output = [
-            unify_arguments(config) for config in returned_output
-        ]
-        unified_expected_output = [
-            unify_arguments(config) for config in expected_output
-        ]
-        self.assertEqual(unified_returned_output, unified_expected_output)
+        self.assertUnifiedEqual(returned_output, expected_output)
 
     @patch("lizrd.scripts.grid_utils.get_singularity_image")
     @patch("os.getcwd")
@@ -372,13 +371,7 @@ class TestGrid(unittest.TestCase):
         )
         returned_output = [experiment[0] for experiment in experiments]
 
-        unified_returned_output = [
-            unify_arguments(config) for config in returned_output
-        ]
-        unified_expected_output = [
-            unify_arguments(config) for config in expected_output
-        ]
-        self.assertEqual(unified_returned_output, unified_expected_output)
+        self.assertUnifiedEqual(returned_output, expected_output)
 
     @patch("lizrd.scripts.grid_utils.get_singularity_image")
     @patch("os.getcwd")
@@ -522,10 +515,4 @@ class TestGrid(unittest.TestCase):
         )
         returned_output = [experiment[0] for experiment in experiments]
 
-        unified_returned_output = [
-            unify_arguments(config) for config in returned_output
-        ]
-        unified_expected_output = [
-            unify_arguments(config) for config in expected_output
-        ]
-        self.assertEqual(unified_returned_output, unified_expected_output)
+        self.assertUnifiedEqual(returned_output, expected_output)
