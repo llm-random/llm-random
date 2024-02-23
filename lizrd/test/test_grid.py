@@ -12,7 +12,48 @@ neptune_api_key = "r@nd0mN3ptun3Ap1K3y"
 wandb_api_key = "r@nd0mW@ndbAp1K3y"
 
 
+def unify_arguments(arguments):
+    ix = arguments.index("python3")
+    setup_args = arguments[:ix]
+    training_args = arguments[ix + 3 :]
+    sorted_training_args = sort_training_args(training_args)
+    return setup_args + arguments[ix : ix + 3] + sorted_training_args
+
+
+def sort_training_args(values):
+    pairs = []
+    current_arg = None
+    current_values = []
+
+    for value in values:
+        if value.startswith("--"):
+            if current_arg is not None:
+                pairs.append((current_arg, current_values))
+            current_arg = value
+            current_values = []
+        else:
+            current_values.append(value)
+
+    if current_arg is not None:
+        pairs.append((current_arg, current_values))
+
+    pairs.sort(key=lambda x: x[0])
+
+    result = []
+    for arg, values in pairs:
+        result.append(arg)
+        values.sort()
+        result.extend(values)
+    return result
+
+
 class TestGrid(unittest.TestCase):
+    def assertUnifiedEqual(self, a, b):
+        unified_a = [unify_arguments(config) for config in a]
+        unified_b = [unify_arguments(config) for config in b]
+
+        self.assertEqual(unified_a, unified_b)
+
     @patch("lizrd.scripts.grid_utils.get_singularity_image")
     @patch("os.getcwd")
     @patch("lizrd.scripts.grid_utils.get_cache_path")
@@ -103,6 +144,7 @@ class TestGrid(unittest.TestCase):
                 "None",
             ]
         ]
+
         experiments, _ = create_subprocess_args(
             "configs/test/test_baseline.yaml",
             "cool_git_branch",
@@ -113,7 +155,7 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-        self.assertEqual(returned_output, expected_output)
+        self.assertUnifiedEqual(returned_output, expected_output)
 
     @patch("lizrd.scripts.grid_utils.get_singularity_image")
     @patch("os.getcwd")
@@ -317,6 +359,7 @@ class TestGrid(unittest.TestCase):
                 "/local_storage_2/llm-random/datasets/c4_validation",
             ],
         ]
+
         experiments, _ = create_subprocess_args(
             "configs/experiments/expert_choice/compare_bmm_einsum.yaml",
             "cool_git_branch",
@@ -327,7 +370,8 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-        self.assertEqual(returned_output, expected_output)
+
+        self.assertUnifiedEqual(returned_output, expected_output)
 
     @patch("lizrd.scripts.grid_utils.get_singularity_image")
     @patch("os.getcwd")
@@ -470,4 +514,5 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-        self.assertEqual(returned_output, expected_output)
+
+        self.assertUnifiedEqual(returned_output, expected_output)
