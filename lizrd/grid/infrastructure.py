@@ -72,7 +72,7 @@ def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
     ]:
         return "lizrd/scripts/grid_entrypoint.sh"
     elif machine_backend in [MachineBackend.LOCAL]:
-        raise ValueError(f"Local machine should use main function directly. ")
+        return None
     else:
         raise ValueError(f"Unknown machine backend: {machine_backend}")
 
