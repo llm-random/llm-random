@@ -191,9 +191,8 @@ def get_train_main_function(runner: str):
 
 def translate_to_argparse(param_set: dict):
     runner_params = []
-    sorted_param_set = dict(sorted(param_set.items()))
 
-    for k_packed, v_packed in sorted_param_set.items():
+    for k_packed, v_packed in param_set.items():
         for k, v in zip(*unpack_params(k_packed, v_packed)):
             if isinstance(v, bool):
                 if v:
