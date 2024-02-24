@@ -235,7 +235,7 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
                 raise e
 
 
-def make_grid_from_configs(configs: dict):
+def setup_experiments(configs: dict):
     grid = []
     for infra_config, training_config in configs:
         single_exp_training_args_grid = create_grid(training_config)

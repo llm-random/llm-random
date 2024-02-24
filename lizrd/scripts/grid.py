@@ -22,7 +22,7 @@ from lizrd.scripts.grid_utils import (
     translate_to_argparse,
     check_for_argparse_correctness,
 )
-from lizrd.scripts.grid_utils import make_grid_from_configs
+from lizrd.scripts.grid_utils import setup_experiments
 from lizrd.support.code_copying import copy_code
 import yaml
 
@@ -48,7 +48,7 @@ def create_subprocess_args(
     skip_copy_code=False,
 ):
     configs = prepare_configs(config_path, git_branch, CLUSTER_NAME)
-    grid = make_grid_from_configs(configs)
+    grid = setup_experiments(configs)
     check_for_argparse_correctness(grid)
     interactive_debug_session = grid[0][0]["interactive_debug_session"]
 
