@@ -173,16 +173,20 @@ def chungized_llm_loss(
         aux_info = {
             "correct_tokens": total_correct_tokens,
             "total_masked_tokens": total_masked_tokens,
-            "losses": retrieve_and_clear_additional_losses_and(model),
+            "losses": retrieve_additional_losses(model),
         }
 
     for key, value in aux_info["losses"].items():
         aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     if model.training:
-        encoder_output.backward(encoder_output_detach.grad)
+        # ok, we need to backward one loss (because of torch autograd)
+        # the "loss" that has the same gradient as the original cross entropy loss is the sum below
+        assert encoder_output_detach.grad.shape == encoder_output.shape
+        loss_to_optimize = (encoder_output * encoder_output_detach.grad).sum()
         for value in aux_info["losses"].values():
-            backward_maybe_with_scaler(value, mixed_precision_dtype, scaler)
-
+            loss_to_optimize += value if scaler is None else scaler.scale(value)
+        loss_to_optimize.backward()
+    clear_additional_losses(model)
     return total_loss, aux_info
 
 
@@ -225,7 +229,7 @@ def calculate_llm_loss(
         aux_info = {
             "correct_tokens": correct_tokens,
             "total_masked_tokens": total_masked_tokens,
-            "losses": retrieve_and_clear_additional_losses_and(model),
+            "losses": retrieve_additional_losses(model),
         }
         return loss, aux_info
 
@@ -233,10 +237,12 @@ def calculate_llm_loss(
     for key, value in aux_info["losses"].items():
         aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     if model.training:
-        backward_maybe_with_scaler(loss, mixed_precision_dtype, scaler)
+        loss_to_optimize = loss.clone()
         for value in aux_info["losses"].values():
-            backward_maybe_with_scaler(value, mixed_precision_dtype, scaler)
+            loss_to_optimize += value
+        backward_maybe_with_scaler(loss_to_optimize, mixed_precision_dtype, scaler)
 
+    clear_additional_losses(model)
     return loss.item(), aux_info
 
 
@@ -408,13 +414,13 @@ def get_expert_choice_with_parallel_ff_args(args):
     }
 
 
-def retrieve_and_clear_additional_losses_and(model: torch.nn.Module):
+def retrieve_additional_losses(model: torch.nn.Module):
     losses = {}
     if not hasattr(model, "forward_pass_cache"):
         return losses
 
     if "load_balancing_losses" in model.forward_pass_cache:
-        load_balancing_losses = model.forward_pass_cache.pop(
+        load_balancing_losses = model.forward_pass_cache.get(
             "load_balancing_losses", []
         )
         load_balancing_losses = torch.stack(load_balancing_losses)
@@ -422,6 +428,14 @@ def retrieve_and_clear_additional_losses_and(model: torch.nn.Module):
         losses["load_balancing_loss"] = load_balancing_loss
 
     return losses
+
+
+def clear_additional_losses(model: torch.nn.Module):
+    if not hasattr(model, "forward_pass_cache"):
+        return
+
+    if "load_balancing_losses" in model.forward_pass_cache:
+        model.forward_pass_cache.pop("load_balancing_losses", None)
 
 
 def get_common_mot_kwargs(args):
