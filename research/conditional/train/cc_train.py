@@ -7,6 +7,7 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from lizrd.core import misc
 from lizrd.core.llm import EmbeddingLayer, Parallel
@@ -197,6 +198,7 @@ def main(
         rank=rank,
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
+        load_weights_path=args.load_weights_path,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
@@ -225,6 +227,15 @@ def main(
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
+    if args.load_weights_path is not None:
+        checkpoint = torch.load(args.load_weights_path)
+        if args.fsdp_enabled:
+            full_osd = None
+            if rank == 0:
+                full_osd = checkpoint["full_osd"]
+            FSDP.scatter_full_optim_state_dict(full_osd, model)
+        else:
+            optimizer.load_state_dict(checkpoint["optimizer"])
 
     scheduler = get_scheduler(args)
 
@@ -324,6 +335,7 @@ def main(
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
+        rank=rank,
     )
     trainer.train(args.n_steps)
 

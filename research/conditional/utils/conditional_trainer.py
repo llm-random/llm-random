@@ -24,6 +24,11 @@ from research.conditional.utils.model_utils import (
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+    FullStateDictConfig,
+    StateDictType,
+)
 
 
 @define(slots=False)
@@ -75,6 +80,7 @@ class ConditionalTrainer:
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
+    rank: Optional[int] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -127,7 +133,7 @@ class ConditionalTrainer:
         """
         self._before_train_operations()
         if self.load_weights_path is not None:
-            self._load_model_weights()
+            self._load_scaler()
 
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
@@ -449,28 +455,38 @@ class ConditionalTrainer:
             and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
-            checkpoint = {
-                "model": self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-            }
-            if self.scaler is not None:
-                checkpoint["scaler"] = self.scaler.state_dict()
+            print(f"Saving weights...")
+            if isinstance(self.model, FSDP):
+                save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+                with FSDP.state_dict_type(
+                    self.model, StateDictType.FULL_STATE_DICT, save_policy
+                ):
+                    model_state_dict = self.model.state_dict()
+                optimizer_state_dict = FSDP.full_optim_state_dict(
+                    self.model, self.optimizer
+                )
+            else:
+                model_state_dict = self.model.state_dict()
+                optimizer_state_dict = self.optimizer.state_dict()
 
-            torch.save(checkpoint, os.path.join(self.save_weights_path, f"{step}.pth"))
-            print(f"Weights saved to {self.save_weights_path} (step {step})")
+            if self.rank == 0 or self.rank is None:
+                checkpoint = {
+                    "model": model_state_dict,
+                    "optimizer": optimizer_state_dict,
+                }
+                if self.scaler is not None:
+                    checkpoint["scaler"] = self.scaler.state_dict()
 
-    def _load_model_weights(self):
-        if os.path.exists(self.load_weights_path):
-            print(f"Loading weights from {self.load_weights_path}")
-            checkpoint = torch.load(self.load_weights_path)
-            self.model.load_state_dict(checkpoint["model"], strict=False)
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
-            if self.scaler is not None:
-                self.scaler.load_state_dict(checkpoint["scaler"])
-        else:
-            raise ValueError(
-                f"Path {self.load_weights_path} does not exist. Aborting ..."
-            )
+                torch.save(checkpoint, self.save_weights_path)
+                print(f"Weights saved to {self.save_weights_path} (step {step})")
+
+    def _load_scaler(self):
+        assert os.path.exists(
+            self.load_weights_path
+        ), f"Path {self.load_weights_path} does not exist"
+        checkpoint = torch.load(self.load_weights_path)
+        if self.scaler is not None:
+            self.scaler.load_state_dict(checkpoint["scaler"])
 
     def _check_config(self):
         if self.eval_dynamic_groupsize:

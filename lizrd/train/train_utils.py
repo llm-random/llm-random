@@ -1,4 +1,5 @@
 from typing import Callable, Optional, Union, Type
+import os
 
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -32,6 +33,7 @@ def get_model(
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
+    load_weights_path: str = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -68,6 +70,14 @@ def get_model(
     ).to(last_gpu)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
+
+    if load_weights_path:
+        assert os.path.exists(
+            load_weights_path
+        ), f"Path {load_weights_path} does not exist"
+        checkpoint = torch.load(load_weights_path)
+        model.load_state_dict(checkpoint["model"], strict=False)
+
     if ddp_enabled:
         model = wrap_in_ddp(module=model, rank=rank)
     elif fsdp_enabled:
