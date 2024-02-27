@@ -72,11 +72,13 @@ def get_model(
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
     if load_weights_path:
+        print(f"Loading weights...")
         assert os.path.exists(
             load_weights_path
         ), f"Path {load_weights_path} does not exist"
         checkpoint = torch.load(load_weights_path)
         model.load_state_dict(checkpoint["model"], strict=False)
+        print(f"Loaded from {load_weights_path}")
 
     if ddp_enabled:
         model = wrap_in_ddp(module=model, rank=rank)

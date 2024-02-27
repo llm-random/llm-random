@@ -87,15 +87,15 @@ def main(
             args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
-    if args.save_weights_path is not None:
-        filename = args.save_weights_path.split("/")[-1]
-        assert (
-            "." not in filename
-        ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
-        random_string = generate_random_string(10)
-        args.save_weights_path = os.path.join(args.save_weights_path, random_string)
-        args.save_weights_path = os.path.abspath(args.save_weights_path)
-        os.makedirs(args.save_weights_path, exist_ok=True)
+
+    filename = args.save_weights_path.split("/")[-1]
+    assert (
+        "." not in filename
+    ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
+    random_string = generate_random_string(10)
+    os.makedirs(args.save_weights_path, exist_ok=True)
+    args.save_weights_path = os.path.join(args.save_weights_path, random_string)
+    args.save_weights_path = os.path.abspath(args.save_weights_path)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
