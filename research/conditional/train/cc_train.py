@@ -94,7 +94,7 @@ def main(
     ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
     random_string = generate_random_string(10)
     os.makedirs(args.save_weights_path, exist_ok=True)
-    args.save_weights_path = os.path.join(args.save_weights_path, random_string)
+    args.save_weights_path = os.path.join(args.save_weights_path, random_string + ".pt")
     args.save_weights_path = os.path.abspath(args.save_weights_path)
 
     if rank is not None:
