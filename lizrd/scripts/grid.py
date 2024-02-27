@@ -4,6 +4,7 @@ $ python3 research/reinitialization/scripts/grid.py
 Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
+import os
 import argparse
 import datetime
 import pprint
@@ -28,6 +29,18 @@ from lizrd.scripts.grid_utils import (
 )
 from lizrd.support.code_copying import copy_code
 from lizrd.support.misc import load_with_inheritance
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config_path", type=str)
+    parser.add_argument("--git_branch", type=str, default="")
+    parser.add_argument("--neptune_key", type=str, default=None)
+    parser.add_argument("--local_print_config", action="store_true")
+    args = parser.parse_args()
+    CLUSTER_NAME = get_machine_backend()
+    PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
+        [str(arg) for arg in args if arg is not None], env=env
+    )
 
 
 def create_subprocess_args(
@@ -132,12 +145,13 @@ def create_subprocess_args(
 
         runner_params = translate_to_argparse(training_args)
         if CLUSTER_NAME == MachineBackend.ENTROPY:
+            mem = 8*setup_args['n_gpus']*setup_args['cpus_per_gpu']
             subprocess_args = [
                 slurm_command,
                 "--partition=a100",
                 f"--gres=gpu:a100:{setup_args['n_gpus']}",
                 f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-                f"--mem={1000 // setup_args['n_gpus']}G",
+                f"--mem={mem}G",
                 f"--job-name={job_name}",
                 f"--time={setup_args['time']}",
                 get_grid_entrypoint(CLUSTER_NAME),
@@ -158,7 +172,8 @@ def create_subprocess_args(
                 f"--gres=gpu:{setup_args['n_gpus']}",
                 "--partition=plgrid-gpu-a100",
                 f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-                "--account=plgplggllmeffi-gpu-a100",
+                "--mem-per-cpu=8G",
+                "--account=plgsubslearnath-gpu-a100",
                 f"--job-name={job_name}",
                 f"--time={setup_args['time']}",
                 get_grid_entrypoint(CLUSTER_NAME),
@@ -181,7 +196,8 @@ def create_subprocess_args(
                 f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
                 f"--job-name={job_name}",
                 f"--time={setup_args['time']}",
-                "--mem=32G",
+                "--mem-per-cpu=8G",
+                # "--mem=512G",
                 setup_args["nodelist"],
                 get_grid_entrypoint(CLUSTER_NAME),
                 "singularity",
@@ -196,6 +212,19 @@ def create_subprocess_args(
                 *runner_params,
             ]
         elif CLUSTER_NAME == MachineBackend.LOCAL:
+            # We run the experiment directly, not through a grid entrypoint script
+            # because we want to be able to debug it
+            subprocess_args = [
+                "python3",
+                "-m",
+                setup_args["runner"],
+                *runner_params,
+            ]
+            print("Will use the following command:")
+            print(" ".join([str(s) for s in subprocess_args]))
+            if args.local_print_config:
+                exit(0)
+
             runner_main_function = get_train_main_function(setup_args["runner"])
             return [(runner_main_function, runner_params)], interactive_debug_session
         else:
