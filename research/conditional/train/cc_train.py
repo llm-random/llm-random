@@ -232,7 +232,7 @@ def main(
         if args.fsdp_enabled:
             full_osd = None
             if rank == 0:
-                full_osd = checkpoint["full_osd"]
+                full_osd = checkpoint["optimizer"]
             FSDP.scatter_full_optim_state_dict(full_osd, model)
         else:
             optimizer.load_state_dict(checkpoint["optimizer"])

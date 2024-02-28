@@ -81,6 +81,7 @@ class ConditionalTrainer:
     profiler_trace_path: str = None
     profiler_schedule: None = None
     rank: Optional[int] = None
+    start_step: int = 0
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -147,7 +148,7 @@ class ConditionalTrainer:
             with_flops=True,
             with_modules=True,
         ) as p:
-            for step in range(n_steps + 1):
+            for step in range(self.start_step, n_steps + 1):
                 self._train_step(step)
                 if self.profiler_enabled:
                     p.step()
@@ -473,6 +474,7 @@ class ConditionalTrainer:
                 checkpoint = {
                     "model": model_state_dict,
                     "optimizer": optimizer_state_dict,
+                    "step": step,
                 }
                 if self.scaler is not None:
                     checkpoint["scaler"] = self.scaler.state_dict()
