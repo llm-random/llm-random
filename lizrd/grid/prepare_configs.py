@@ -11,13 +11,13 @@ def get_yaml_md5(file_path):
     return hash_md5
 
 
-def recursive_update(base_dict, update_dict):
-    for key, value in base_dict.items():
+def recursive_update(patch_dict, base_dict):
+    for key, value in patch_dict.items():
         if isinstance(value, dict):
-            update_dict[key] = recursive_update(value, update_dict.get(key, {}))
-        elif key not in update_dict:
-            update_dict[key] = value
-    return update_dict
+            base_dict[key] = recursive_update(value, base_dict.get(key, {}))
+        elif key not in base_dict:
+            base_dict[key] = value
+    return base_dict
 
 
 def load_with_inheritance(
