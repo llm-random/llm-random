@@ -38,19 +38,6 @@ def calculate_experiments_info(grid):
     return total_minutes, total_n_experiments
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str)
-    parser.add_argument("--git_branch", type=str, default="")
-    parser.add_argument("--neptune_key", type=str, default=None)
-    parser.add_argument("--local_print_config", action="store_true")
-    args = parser.parse_args()
-    CLUSTER_NAME = get_machine_backend()
-    PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
-        [str(arg) for arg in args if arg is not None], env=env
-    )
-
-
 def create_subprocess_args(
     config_path,
     git_branch,
@@ -116,7 +103,7 @@ def create_subprocess_args(
                     "--partition=a100",
                     f"--gres=gpu:a100:{setup_args['n_gpus']}",
                     f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-                    f"--mem={1000 // setup_args['n_gpus']}G",
+                    f"--mem={max(125, 125*setup_args['n_gpus'])}G",
                     f"--job-name={training_args['name']}",
                     f"--time={setup_args['time']}",
                     f"{setup_args['grid_entrypoint']}",
