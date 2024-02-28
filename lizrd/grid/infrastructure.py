@@ -15,6 +15,7 @@ COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
     "time": "1-00:00:00",
     "n_gpus": 1,
     "cpus_per_gpu": 8,
+    "mem_per_gpu": 125,  # Entropy only for now
     "nodelist": None,
     "hf_datasets_cache": f"~/.cache/huggingface/datasets",
     "runs_multiplier": 1,
