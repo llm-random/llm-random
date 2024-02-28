@@ -333,10 +333,11 @@ class MambaRouter(LoggingLayer):
         if self.n_experts == 1 or len(self.expert_modules) == 0:
             return x
         batch_size, seq_len, din = x.shape
-        dropped_tokens_mask = masked_expert_gate.sum(dim=1) == 0
+        tokens_scales = masked_expert_gate.sum(dim=1, keepdim=True)
+        dropped_tokens_mask = tokens_scales.flatten() == 0
         x = x.reshape(batch_size * seq_len, din)
-        x = x * masked_expert_gate.sum(dim=1, keepdim=True)
-        x[dropped_tokens_mask] *= self.dropped_tokens_scale
+        tokens_scales[dropped_tokens_mask] = self.dropped_tokens_scale
+        x = x * tokens_scales
         return x.reshape(batch_size, seq_len, din)
 
     def log_light(self):
