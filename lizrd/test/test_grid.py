@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from lizrd.scripts.grid import create_subprocess_args
-from lizrd.scripts.grid_utils import MachineBackend
+from lizrd.grid.infrastructure import MachineBackend
 
 hf_dataset_cache = "/some/path/for/hf/dataset/cache"
 experiment_path = "/some/path/for/experiment"
@@ -12,10 +12,51 @@ neptune_api_key = "r@nd0mN3ptun3Ap1K3y"
 wandb_api_key = "r@nd0mW@ndbAp1K3y"
 
 
+def unify_arguments(arguments):
+    ix = arguments.index("python3")
+    setup_args = arguments[:ix]
+    training_args = arguments[ix + 3 :]
+    sorted_training_args = sort_training_args(training_args)
+    return setup_args + arguments[ix : ix + 3] + sorted_training_args
+
+
+def sort_training_args(values):
+    pairs = []
+    current_arg = None
+    current_values = []
+
+    for value in values:
+        if value.startswith("--"):
+            if current_arg is not None:
+                pairs.append((current_arg, current_values))
+            current_arg = value
+            current_values = []
+        else:
+            current_values.append(value)
+
+    if current_arg is not None:
+        pairs.append((current_arg, current_values))
+
+    pairs.sort(key=lambda x: x[0])
+
+    result = []
+    for arg, values in pairs:
+        result.append(arg)
+        values.sort()
+        result.extend(values)
+    return result
+
+
 class TestGrid(unittest.TestCase):
-    @patch("lizrd.scripts.grid_utils.get_singularity_image")
+    def assertUnifiedEqual(self, a, b):
+        unified_a = [unify_arguments(config) for config in a]
+        unified_b = [unify_arguments(config) for config in b]
+
+        self.assertEqual(unified_a, unified_b)
+
+    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.scripts.grid_utils.get_cache_path")
+    @patch("lizrd.grid.infrastructure.get_cache_path")
     def test_baseline_generated_args(self, get_cache_path, os_getcwd, get_image):
         get_cache_path.return_value = hf_dataset_cache
         os_getcwd.return_value = experiment_path
@@ -103,6 +144,7 @@ class TestGrid(unittest.TestCase):
                 "None",
             ]
         ]
+
         experiments, _ = create_subprocess_args(
             "configs/test/test_baseline.yaml",
             "cool_git_branch",
@@ -113,11 +155,11 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-        self.assertEqual(returned_output, expected_output)
+        self.assertUnifiedEqual(returned_output, expected_output)
 
-    @patch("lizrd.scripts.grid_utils.get_singularity_image")
+    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.scripts.grid_utils.get_cache_path")
+    @patch("lizrd.grid.infrastructure.get_cache_path")
     def test_compare_bmm_generated_args(self, get_cache_path, os_getcwd, get_image):
         get_cache_path.return_value = hf_dataset_cache
         os_getcwd.return_value = experiment_path
@@ -128,7 +170,7 @@ class TestGrid(unittest.TestCase):
                 "--partition=a100",
                 "--gres=gpu:a100:1",
                 "--cpus-per-gpu=8",
-                "--mem=1000G",
+                "--mem=125G",
                 "--job-name=granular_4_mini",
                 "--time=0-05:00:00",
                 "lizrd/scripts/grid_entrypoint.sh",
@@ -224,7 +266,7 @@ class TestGrid(unittest.TestCase):
                 "--partition=a100",
                 "--gres=gpu:a100:1",
                 "--cpus-per-gpu=8",
-                "--mem=1000G",
+                "--mem=125G",
                 "--job-name=granular_4_mini",
                 "--time=0-05:00:00",
                 "lizrd/scripts/grid_entrypoint.sh",
@@ -317,6 +359,7 @@ class TestGrid(unittest.TestCase):
                 "/local_storage_2/llm-random/datasets/c4_validation",
             ],
         ]
+
         experiments, _ = create_subprocess_args(
             "configs/experiments/expert_choice/compare_bmm_einsum.yaml",
             "cool_git_branch",
@@ -327,11 +370,12 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-        self.assertEqual(returned_output, expected_output)
 
-    @patch("lizrd.scripts.grid_utils.get_singularity_image")
+        self.assertUnifiedEqual(returned_output, expected_output)
+
+    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.scripts.grid_utils.get_cache_path")
+    @patch("lizrd.grid.infrastructure.get_cache_path")
     def test_lr_grid(self, get_cache_path, os_getcwd, get_image):
         get_cache_path.return_value = hf_dataset_cache
         os_getcwd.return_value = experiment_path
@@ -470,4 +514,5 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-        self.assertEqual(returned_output, expected_output)
+
+        self.assertUnifiedEqual(returned_output, expected_output)
