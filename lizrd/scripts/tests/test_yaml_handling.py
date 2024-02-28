@@ -1,6 +1,6 @@
 import yaml
+from lizrd.grid.prepare_configs import load_with_inheritance
 
-from lizrd.support.misc import load_with_inheritance
 from lizrd.support.test_utils import GeneralTestCase
 
 
@@ -25,10 +25,10 @@ class TestYaml(GeneralTestCase):
         """
         path_to_yaml = "lizrd/scripts/tests/configs/inheritance_yaml.yaml"
         configs, paths_to_all_configs = load_with_inheritance(path_to_yaml)
-        assert set(paths_to_all_configs) == {
+        assert paths_to_all_configs == [
             "lizrd/scripts/tests/configs/inheritance_yaml.yaml",
             "lizrd/scripts/tests/configs/inheritance_yaml2.yaml",
-        }
+        ]
         configs = list(configs)
         for config in configs:
             print(config)
