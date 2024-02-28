@@ -82,6 +82,8 @@ def main(
         args, extra = parser.parse_known_args(runner_params)
         if len(extra):
             print("Unknown args:", extra)
+        if args.data_seed < 0:
+            args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
     if args.save_weights_path is not None:
@@ -334,6 +336,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
     args = parser.parse_args()
+    if args.data_seed < 0:
+        args.data_seed = random.randint(0, 10000000)
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
