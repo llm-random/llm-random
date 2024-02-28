@@ -7,7 +7,6 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from lizrd.core import misc
 from lizrd.core.llm import EmbeddingLayer, Parallel
@@ -38,6 +37,10 @@ from research.conditional.utils.model_utils import (
     get_classes_from_module_names,
     update_model_fit_gpu_info,
     get_vanilla_mamba_layer,
+)
+from lizrd.train.load_and_save_model import (
+    get_checkpoint_from_path,
+    load_optimizer_state,
 )
 
 
@@ -171,16 +174,20 @@ def main(
             "parallel": lambda: Parallel(*[module() for _, module in modules])
         }
 
+    checkpoint = (
+        get_checkpoint_from_path(args.load_weights_path)
+        if args.load_weights_path is not None
+        else None
+    )
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
         block_modules=block_modules,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
-        device=DEVICE
-        if rank is None
-        else torch.device(
-            "cpu"
+        device=(
+            DEVICE if rank is None else torch.device("cpu")
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
@@ -198,7 +205,7 @@ def main(
         rank=rank,
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
-        load_weights_path=args.load_weights_path,
+        checkpoint=checkpoint,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
@@ -227,16 +234,8 @@ def main(
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
-    if args.load_weights_path is not None:
-        checkpoint = torch.load(args.load_weights_path)
-        if args.fsdp_enabled:
-            full_osd = None
-            if rank == 0:
-                full_osd = checkpoint["optimizer"]
-            FSDP.scatter_full_optim_state_dict(full_osd, model)
-        else:
-            optimizer.load_state_dict(checkpoint["optimizer"])
-        step = checkpoint["step"]
+    if checkpoint is not None:
+        optimizer = load_optimizer_state(optimizer, checkpoint, model, rank)
 
     scheduler = get_scheduler(args)
 
@@ -279,9 +278,11 @@ def main(
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
             train_dataloader,
-            tokenizer_maker=tokenizers.GPTTokenizer
-            if args.model_type == "gpt"
-            else tokenizers.BertTokenizer,
+            tokenizer_maker=(
+                tokenizers.GPTTokenizer
+                if args.model_type == "gpt"
+                else tokenizers.BertTokenizer
+            ),
         )
 
     profiler_schedule = (
@@ -318,7 +319,6 @@ def main(
         n_gpus=args.n_gpus,
         save_weights_path=args.save_weights_path,
         save_weights_interval=args.save_weights_interval,
-        load_weights_path=args.load_weights_path,
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
@@ -337,7 +337,8 @@ def main(
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
         rank=rank,
-        start_step=step + 1 if args.load_weights_path is not None else 0,
+        start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
+        checkpoint=checkpoint,
     )
     trainer.train(args.n_steps)
 

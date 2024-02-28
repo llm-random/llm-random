@@ -1,5 +1,4 @@
 from collections import defaultdict
-import os.path
 import copy
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
@@ -24,11 +23,7 @@ from research.conditional.utils.model_utils import (
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
-from torch.distributed.fsdp import (
-    FullyShardedDataParallel as FSDP,
-    FullStateDictConfig,
-    StateDictType,
-)
+from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 
 
 @define(slots=False)
@@ -59,7 +54,6 @@ class ConditionalTrainer:
     n_gpus: int = 1
     save_weights_path: str = None
     save_weights_interval: int = 1000
-    load_weights_path: str = None
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
@@ -82,6 +76,7 @@ class ConditionalTrainer:
     profiler_schedule: None = None
     rank: Optional[int] = None
     start_step: int = 0
+    checkpoint: Optional[dict[str, torch.Tensor]] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -133,8 +128,8 @@ class ConditionalTrainer:
         Train the model for n_steps steps.
         """
         self._before_train_operations()
-        if self.load_weights_path is not None:
-            self._load_scaler()
+        if self.scaler is not None:
+            load_scaler_state(self.checkpoint)
 
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
@@ -456,39 +451,14 @@ class ConditionalTrainer:
             and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
-            print(f"Saving weights...")
-            if isinstance(self.model, FSDP):
-                save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-                with FSDP.state_dict_type(
-                    self.model, StateDictType.FULL_STATE_DICT, save_policy
-                ):
-                    model_state_dict = self.model.state_dict()
-                optimizer_state_dict = FSDP.full_optim_state_dict(
-                    self.model, self.optimizer
-                )
-            else:
-                model_state_dict = self.model.state_dict()
-                optimizer_state_dict = self.optimizer.state_dict()
-
-            if self.rank == 0 or self.rank is None:
-                checkpoint = {
-                    "model": model_state_dict,
-                    "optimizer": optimizer_state_dict,
-                    "step": step,
-                }
-                if self.scaler is not None:
-                    checkpoint["scaler"] = self.scaler.state_dict()
-
-                torch.save(checkpoint, self.save_weights_path)
-                print(f"Weights saved to {self.save_weights_path} (step {step})")
-
-    def _load_scaler(self):
-        assert os.path.exists(
-            self.load_weights_path
-        ), f"Path {self.load_weights_path} does not exist"
-        checkpoint = torch.load(self.load_weights_path)
-        if self.scaler is not None:
-            self.scaler.load_state_dict(checkpoint["scaler"])
+            save_checkpoint(
+                self.model,
+                self.optimizer,
+                self.scaler,
+                self.save_weights_path,
+                self.rank,
+                step,
+            )
 
     def _check_config(self):
         if self.eval_dynamic_groupsize:

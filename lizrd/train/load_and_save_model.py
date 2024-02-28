@@ -1,0 +1,85 @@
+from typing import Union
+import os
+
+import torch
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+    FullStateDictConfig,
+    StateDictType,
+)
+
+
+def get_checkpoint_from_path(load_weights_path: str) -> str:
+    print(f"Loading checkpoint from disk...")
+    assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
+    checkpoint = torch.load(load_weights_path)
+    print(f"Loaded from {load_weights_path}")
+    return checkpoint
+
+
+def load_model_weights(
+    model: torch.nn.Module, checkpoint: dict[str, torch.Tensor]
+) -> torch.nn.Module:
+    print(f"Loading model weights...")
+    model.load_state_dict(checkpoint, strict=False)
+    print(f"Loaded model weights")
+    return model
+
+
+def load_optimizer_state(
+    optimizer: torch.optim.Optimizer,
+    checkpoint: dict[str, torch.Tensor],
+    model: Union[torch.nn.Module, FSDP],
+    rank: int,
+) -> torch.optim.Optimizer:
+    print(f"Loading optimizer state...")
+    if isinstance(model, FSDP):
+        full_osd = None
+        if rank == 0:
+            full_osd = checkpoint["optimizer"]
+        FSDP.scatter_full_optim_state_dict(full_osd, model)
+    else:
+        optimizer.load_state_dict(checkpoint["optimizer"])
+    print(f"Loaded optimizer state")
+    return optimizer
+
+
+def load_scaler_state(
+    scaler: torch.cuda.amp.GradScaler,
+    checkpoint: dict[str, torch.Tensor],
+    rank: int,
+) -> torch.cuda.amp.GradScaler:
+    scaler.load_state_dict(checkpoint["scaler"])
+    return scaler
+
+
+def save_checkpoint(
+    model: Union[torch.nn.Module, FSDP],
+    optimizer,
+    scaler,
+    path: str,
+    rank: int,
+    step: int,
+):
+    if rank == 0 or rank is None:
+        print(f"Saving weights...")
+    if isinstance(model, FSDP):
+        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+        with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
+            model_state_dict = model.state_dict()
+        optimizer_state_dict = FSDP.full_optim_state_dict(model, optimizer)
+    else:
+        model_state_dict = model.state_dict()
+        optimizer_state_dict = optimizer.state_dict()
+
+    if rank == 0 or rank is None:
+        checkpoint = {
+            "model": model_state_dict,
+            "optimizer": optimizer_state_dict,
+            "step": step,
+        }
+        if scaler is not None:
+            checkpoint["scaler"] = scaler.state_dict()
+
+        torch.save(checkpoint, path)
+        print(f"Weights saved to {path} (step {step})")

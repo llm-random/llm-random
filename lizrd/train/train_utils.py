@@ -1,5 +1,4 @@
 from typing import Callable, Optional, Union, Type
-import os
 
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -9,6 +8,7 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
 from lizrd.core import llm
 from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
+from lizrd.train.load_and_save_model import load_model_weights
 
 
 def get_model(
@@ -33,7 +33,7 @@ def get_model(
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
-    load_weights_path: str = False,
+    checkpoint: str = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -71,14 +71,8 @@ def get_model(
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
-    if load_weights_path:
-        print(f"Loading weights...")
-        assert os.path.exists(
-            load_weights_path
-        ), f"Path {load_weights_path} does not exist"
-        checkpoint = torch.load(load_weights_path)
-        model.load_state_dict(checkpoint["model"], strict=False)
-        print(f"Loaded from {load_weights_path}")
+    if checkpoint is not None:
+        load_model_weights(model, checkpoint)
 
     if ddp_enabled:
         model = wrap_in_ddp(module=model, rank=rank)
