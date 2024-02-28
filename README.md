@@ -2,6 +2,7 @@
 We are LLM-Random, a research group at [IDEAS NCBR](https://ideas-ncbr.pl/en/) (Warsaw, Poland). We develop this repo and use it to conduct research. To learn more about us and our research, check out our blog, [llm-random.github.io](https://llm-random.github.io/).
 
 ## Publications, preprints and blogposts
+- Scaling Laws for Fine-Grained Mixture of Experts ([arxiv](https://arxiv.org/abs/2402.07871))
 - MoE-Mamba: Efficient Selective State Space Models with Mixture of Experts ([arxiv](https://arxiv.org/abs/2401.04081), [blogpost](https://llm-random.github.io/posts/moe_mamba/))
 - Mixture of Tokens: Efficient LLMs through Cross-Example Aggregation ([arxiv](https://arxiv.org/abs/2310.15961), [blogpost](https://llm-random.github.io/posts/mixture_of_tokens/))
 
