@@ -82,10 +82,10 @@ def prepare_configs(
         config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
     for config in configs:
-        defualt_params = prepare_default_infrastructure_params(
+        default_params = prepare_default_infrastructure_params(
             CLUSTER_NAME, config["params"]["dataset_type"]
         )
-        config.update({k: v for k, v in defualt_params.items() if k not in config})
+        config.update({k: v for k, v in default_params.items() if k not in config})
 
         # Here we should be confident that all the necessary keys are present in the config
         # Arguments below are used both in the runner and in the infrastructure

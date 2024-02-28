@@ -10,7 +10,7 @@ class MachineBackend(Enum):
     LOCAL = 4
 
 
-COMMON_DEFUALT_INFRASTRUCTURE_ARGS = {
+COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
     "gres": "gpu:1",
     "time": "1-00:00:00",
     "n_gpus": 1,
@@ -115,7 +115,7 @@ def get_cluster_default_params(CLUSTER_NAME, dataset_type) -> dict:
 
 
 def prepare_default_infrastructure_params(CLUSTER_NAME, dataset_type: str):
-    infrastructure_params_dict = COMMON_DEFUALT_INFRASTRUCTURE_ARGS
+    infrastructure_params_dict = COMMON_DEFAULT_INFRASTRUCTURE_ARGS
     cluster_default_arg_dict = get_cluster_default_params(CLUSTER_NAME, dataset_type)
     infrastructure_params_dict.update(cluster_default_arg_dict)
     return infrastructure_params_dict
