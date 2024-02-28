@@ -37,6 +37,7 @@ def calculate_experiments_info(grid):
         total_minutes = n_experiments * minutes_per_exp
     return total_minutes, total_n_experiments
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str)
