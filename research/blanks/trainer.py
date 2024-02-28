@@ -103,6 +103,7 @@ class BlankTrainer:
                 "model": self.model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
                 "scaler": self.scaler.state_dict(),
+                "step": step,
             }
             torch.save(checkpoint, os.path.join(self.save_weights_path, f"{step}.pth"))
             print(f"Weights saved to {self.save_weights_path} (step {step})")

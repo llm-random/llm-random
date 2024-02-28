@@ -236,6 +236,7 @@ def main(
             FSDP.scatter_full_optim_state_dict(full_osd, model)
         else:
             optimizer.load_state_dict(checkpoint["optimizer"])
+        step = checkpoint["step"]
 
     scheduler = get_scheduler(args)
 
@@ -336,6 +337,7 @@ def main(
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
         rank=rank,
+        start_step=step + 1 if args.load_weights_path is not None else 0,
     )
     trainer.train(args.n_steps)
 
