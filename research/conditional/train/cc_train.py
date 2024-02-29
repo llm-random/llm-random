@@ -91,14 +91,10 @@ def main(
 
     check_args(args)
 
-    filename = args.save_weights_path.split("/")[-1]
-    assert (
-        "." not in filename
-    ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
-    random_string = generate_random_string(10)
+    weights_filename = f"{generate_random_string(10)}.pt"
     os.makedirs(args.save_weights_path, exist_ok=True)
-    args.save_weights_path = os.path.join(args.save_weights_path, random_string + ".pt")
-    args.save_weights_path = os.path.abspath(args.save_weights_path)
+    save_weights_path = os.path.join(args.save_weights_path, weights_filename)
+    save_weights_path = os.path.abspath(args.save_weights_path)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -317,7 +313,7 @@ def main(
         eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
-        save_weights_path=args.save_weights_path,
+        save_weights_path=save_weights_path,
         save_weights_interval=args.save_weights_interval,
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
