@@ -1,4 +1,5 @@
 import re
+import random
 import time
 from contextlib import contextmanager
 from typing import Union
@@ -32,14 +33,36 @@ class LayerManager:
         logging_interval_light,
         logging_interval_heavy,
         steps_until_start_temperature_learn,
+        chimera_option: str = None,
+        first_mode: str = None,
+        second_mode: str = None,
+        warmup_constant_steps: int = None,
+        final_schedule_step: int = None,
+        start_prob: float = None,
+        end_prob: float = None,
     ):
         self._layers = []
-        self._logable_layers = []
         self._register_layers(model)
         self.logger = get_current_logger()
         self.logging_interval_light = logging_interval_light
         self.logging_interval_heavy = logging_interval_heavy
         self.steps_until_start_temperature_learn = steps_until_start_temperature_learn
+        assert first_mode in ["mot", "ec", "switch"] or first_mode == None
+        assert second_mode in ["mot", "ec", "switch"] or second_mode == None
+        self.chimera_option = chimera_option
+        self.first_mode = first_mode
+        self.second_mode = second_mode
+        if (
+            warmup_constant_steps is not None
+            and start_prob is not None
+            and end_prob is not None
+            and final_schedule_step is not None
+        ):
+            self.modes_probabiltiy_scheduler = ProbabilityScheduler(
+                warmup_constant_steps, start_prob, end_prob, final_schedule_step
+            )
+        else:
+            self.modes_probabiltiy_scheduler = None
 
     def _register_layers(self, model):
         """
@@ -48,16 +71,31 @@ class LayerManager:
         During model creation in LLM [llm.py], the feedforward layers are expected to be named "feedforward" and the residual layers "residual" (hardcoded in the repo as of 14.11.2023).
         """
         for name, layer in model.named_modules():
+            registered_name = None
             suffix = name.split(".")[-1]
-            registered_name = get_registered_name(name)
+
             if suffix in [
                 "residual_feedforward",
                 "residual_attention",
                 "feedforward",
+                "expert_gating",
+                "router",
             ]:
+                block_name = self.extract_block_name(name)
+                registered_name = f"{block_name}/{suffix}"
+            if registered_name is not None:
                 self._layers.append((registered_name, layer))
-            if hasattr(layer, "log"):
-                self._logable_layers.append((registered_name, layer))
+
+    def extract_block_name(self, name):
+        pattern = r"block_(\d+)"
+        match = re.search(pattern, name)
+        if match:
+            block_name = match.group()
+        else:
+            raise Exception(
+                f"The expected pattern {pattern} was not found in name: {name}. The naming convention of model layers is not as expected. Every TransformerBlock [llm.py] should be named 'block_[block_number]'"
+            )
+        return block_name
 
     def prepare_for_logging(self, step):
         if (
@@ -66,7 +104,7 @@ class LayerManager:
             or self.logging_interval_heavy > 0
             and step % self.logging_interval_heavy == 0
         ):
-            for block_name, layer in self._logable_layers:
+            for block_name, layer in self._layers:
                 if hasattr(layer, "prepare_for_logging"):
                     layer.prepare_for_logging()
 
@@ -82,10 +120,9 @@ class LayerManager:
         should_clean_up = len(verbosity_levels) > 0
 
         for verbosity_level in verbosity_levels:
-            for block_name, layer in self._logable_layers:
-                if isinstance(layer, LoggingLayer) or (
-                    isinstance(layer, torch.distributed.fsdp.FullyShardedDataParallel)
-                    and isinstance(layer._fsdp_wrapped_module, LoggingLayer)
+            for block_name, layer in self._layers:
+                if isinstance(layer, LoggingLayer) and not hasattr(
+                    layer, "chimera_layer"
                 ):
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
@@ -94,9 +131,16 @@ class LayerManager:
                             title=logging_name, iteration=step, data=data
                         )
         if should_clean_up:
-            for _, layer in self._logable_layers:
+            for _, layer in self._layers:
                 if isinstance(layer, LoggingLayer):
                     layer.clean_up_after_logging()
+
+        if self.modes_probabiltiy_scheduler is not None:
+            self.logger.report_scalar(
+                title="chimera_prob",
+                value=self.modes_probabiltiy_scheduler.get_value(step),
+                iteration=step,
+            )
 
     def manage_learnable_temperature(self, step):
         is_learning_temperature = step >= self.steps_until_start_temperature_learn
@@ -104,6 +148,31 @@ class LayerManager:
             for name, param in layer.named_parameters():
                 if name in ["temperature_merge", "temperature_emit"]:
                     param.requires_grad = is_learning_temperature
+
+    def change_chimera_mode_step_independent(self, step):
+        mode = self._draw_next_mode(step)
+        for _, l in self._layers:
+            if hasattr(l, "current_mode"):
+                l.set_mode(mode)
+
+    def change_chimera_mode_layer_independent(self, step):
+        for _, l in self._layers:
+            if hasattr(l, "current_mode"):
+                mode = self._draw_next_mode(step)
+                l.set_mode(mode)
+
+    def _draw_next_mode(self, step):
+        probability = self.modes_probabiltiy_scheduler.get_value(step)
+        mode = self.first_mode if random.random() < probability else self.second_mode
+        return mode
+
+    def change_chimera_mode(self, step):  # , schedule_type_id):
+        if self.chimera_option == "step_independent":
+            self.change_chimera_mode_step_independent(step)
+        elif self.chimera_option == "layer_independent":
+            self.change_chimera_mode_layer_independent(step)
+        else:
+            raise ValueError("Unknown chimera mode")
 
 
 class LoggingLayer(nn.Module):
