@@ -52,17 +52,7 @@ class LayerManager:
         self.chimera_option = chimera_option
         self.first_mode = first_mode
         self.second_mode = second_mode
-        if (
-            warmup_constant_steps is not None
-            and start_prob is not None
-            and end_prob is not None
-            and final_schedule_step is not None
-        ):
-            self.modes_probabiltiy_scheduler = ProbabilityScheduler(
-                warmup_constant_steps, start_prob, end_prob, final_schedule_step
-            )
-        else:
-            self.modes_probabiltiy_scheduler = None
+        self.final_schedule_step = final_schedule_step
 
     def _register_layers(self, model):
         """
@@ -167,12 +157,11 @@ class LayerManager:
         return mode
 
     def change_chimera_mode(self, step):  # , schedule_type_id):
-        if self.chimera_option == "step_independent":
-            self.change_chimera_mode_step_independent(step)
-        elif self.chimera_option == "layer_independent":
-            self.change_chimera_mode_layer_independent(step)
-        else:
-            raise ValueError("Unknown chimera mode")
+        if step % self.final_schedule_step == 0:
+            print(f"Changing mode from {self.first_mode} to {self.second_mode}")
+            for _, l in self._layers:
+                if hasattr(l, "current_mode"):
+                    l.set_mode(self.second_mode)
 
 
 class LoggingLayer(nn.Module):
