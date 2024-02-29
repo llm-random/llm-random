@@ -61,6 +61,7 @@ from research.conditional.moe_layers.token_choice import (
     ExpertRelu,
     ExpertSwiGLU,
 )
+from research.conditional.moe_layers.chimera import Chimera
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
 )
@@ -521,7 +522,28 @@ def get_ff_layer(args):
             xfavor=args.xfavor,
         )
     elif args.ff_mode == "chimera":
-        return_fn = 0
+        mot = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
+        ec = lambda: ExpertChoiceFF(**get_expert_choice_args(args))
+        switch = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            capacity_factor=args.capacity_factor,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
+
+        return_fn = lambda: Chimera(
+            mot=mot,
+            ec=ec,
+            switch=switch,
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 

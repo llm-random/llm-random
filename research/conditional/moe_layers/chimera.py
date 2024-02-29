@@ -7,7 +7,7 @@ from research.conditional.utils.layer_manager import LoggingLayer
 
 
 @dataclasses.dataclass(eq=False, repr=False)
-class MoEChimera(LoggingLayer):
+class Chimera(LoggingLayer):
     """Mixture-of-Experts Chimera layer. Expert and controller weights are shared between a Mot, EC and Switch submodules.
     start_prob refers to probability of choosing first mode. If start_prob != end_prob, then we change probabilities gradually using cosine scheduler
     """
