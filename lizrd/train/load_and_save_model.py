@@ -21,7 +21,7 @@ def load_model_weights(
     model: torch.nn.Module, checkpoint: dict[str, torch.Tensor]
 ) -> torch.nn.Module:
     print(f"Loading model weights...")
-    model.load_state_dict(checkpoint, strict=False)
+    model.load_state_dict(checkpoint["model"], strict=False)
     print(f"Loaded model weights")
     return model
 
