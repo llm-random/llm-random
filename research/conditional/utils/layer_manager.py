@@ -53,6 +53,9 @@ class LayerManager:
         self.first_mode = first_mode
         self.second_mode = second_mode
         self.final_schedule_step = final_schedule_step
+        self.chimera_scheduling_enabled = False
+        if self.final_schedule_step is not None:
+            self.chimera_scheduling_enabled = True
 
     def _register_layers(self, model):
         """
@@ -125,10 +128,10 @@ class LayerManager:
                 if isinstance(layer, LoggingLayer):
                     layer.clean_up_after_logging()
 
-        if self.modes_probabiltiy_scheduler is not None:
+        if self.chimera_scheduling_enabled:
             self.logger.report_scalar(
-                title="chimera_prob",
-                value=self.modes_probabiltiy_scheduler.get_value(step),
+                title="chimera_mode",
+                value=0 if step < self.final_schedule_step else 1,
                 iteration=step,
             )
 
