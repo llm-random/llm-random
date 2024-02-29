@@ -1,25 +1,34 @@
-import dataclasses
-
 import torch
 
 from lizrd.core.initialization import get_init_weight
 from research.conditional.utils.layer_manager import LoggingLayer
 
 
-@dataclasses.dataclass(eq=False, repr=False)
 class Chimera(LoggingLayer):
     """Mixture-of-Experts Chimera layer. Expert and controller weights are shared between a Mot, EC and Switch submodules.
     start_prob refers to probability of choosing first mode. If start_prob != end_prob, then we change probabilities gradually using cosine scheduler
     """
 
-    mot: lambda: LoggingLayer
-    ec: lambda: LoggingLayer
-    switch: lambda: LoggingLayer
-    dmodel: int
-    n_experts: int
-    expert_size: int
-    init_type: str
-    init_scale: float
+    def __init__(
+        self,
+        mot: lambda: LoggingLayer,
+        ec: lambda: LoggingLayer,
+        switch: lambda: LoggingLayer,
+        dmodel: int,
+        n_experts: int,
+        expert_size: int,
+        init_type: str,
+        init_scale: float,
+    ):
+        super().__init__()
+        self.mot = mot
+        self.ec = ec
+        self.switch = switch
+        self.dmodel = dmodel
+        self.n_experts = n_experts
+        self.expert_size = expert_size
+        self.init_type = init_type
+        self.init_scale = init_scale
 
     def __post_init__(self):
         super().__init__()

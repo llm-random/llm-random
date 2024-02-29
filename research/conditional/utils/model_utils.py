@@ -524,6 +524,10 @@ def get_ff_layer(args):
     elif args.ff_mode == "chimera":
         mot = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
         ec = lambda: ExpertChoiceFF(**get_expert_choice_args(args))
+        if args.token_choice_inner == "relu":
+            expert_inner_class = ExpertRelu
+        elif args.token_choice_inner == "swi_glu":
+            expert_inner_class = ExpertSwiGLU
         make_expert_inner_function = partial(
             expert_inner_class,
             dmodel=args.dmodel,
