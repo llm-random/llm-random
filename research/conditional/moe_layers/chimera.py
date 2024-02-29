@@ -29,13 +29,10 @@ class Chimera(LoggingLayer):
         self.expert_size = expert_size
         self.init_type = init_type
         self.init_scale = init_scale
-
-    def __post_init__(self):
-        super().__init__()
         assert (
             self.expert_size % self.n_experts == 0
         ), f"expert_size {self.expert_size} must be divisible by n_experts {self.n_experts}. We might support other granularities in the future."
-        self.current_mode = "mot"
+        self.current_mode = "ec"
         self.possible_modes = []
         # instantiate submodules
         self.mot = self.mot()
