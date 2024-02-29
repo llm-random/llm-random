@@ -26,7 +26,8 @@ def check_args(args):
         and args.profiler_trace_path is not None
     ), "To use profiler set all profiler_schedule arguments"
 
-    filename = args.save_weights_path.split("/")[-1]
-    assert (
-        "." not in filename
-    ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
+    if args.save_weights_path is not None:
+        filename = args.save_weights_path.split("/")[-1]
+        assert (
+            "." not in filename
+        ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."

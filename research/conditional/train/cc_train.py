@@ -91,10 +91,13 @@ def main(
 
     check_args(args)
 
-    weights_filename = f"{generate_random_string(10)}.pt"
-    os.makedirs(args.save_weights_path, exist_ok=True)
-    save_weights_path = os.path.join(args.save_weights_path, weights_filename)
-    save_weights_path = os.path.abspath(args.save_weights_path)
+    if args.save_weights_path is not None:
+        weights_filename = f"{generate_random_string(10)}.pt"
+        os.makedirs(args.save_weights_path, exist_ok=True)
+        save_weights_path = os.path.join(args.save_weights_path, weights_filename)
+        save_weights_path = os.path.abspath(args.save_weights_path)
+    else:
+        save_weights_path = None
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
