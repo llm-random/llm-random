@@ -520,6 +520,8 @@ def get_ff_layer(args):
             nystrom=args.nystrom,
             xfavor=args.xfavor,
         )
+    elif args.ff_mode == "chimera":
+        return_fn = 0
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
 
