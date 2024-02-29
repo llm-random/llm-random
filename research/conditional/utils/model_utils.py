@@ -524,16 +524,25 @@ def get_ff_layer(args):
     elif args.ff_mode == "chimera":
         mot = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
         ec = lambda: ExpertChoiceFF(**get_expert_choice_args(args))
-        switch = lambda: TokenChoiceFF(
+        make_expert_inner_function = partial(
+            expert_inner_class,
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_size=args.expert_size,
-            capacity_factor=args.capacity_factor,
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
             init_scale=args.init_scale,
             init_type=args.init_type,
         )
-
+        switch = TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+            vectorize=(not args.dont_vectorize_switch),
+        )
         return_fn = lambda: Chimera(
             mot=mot,
             ec=ec,
