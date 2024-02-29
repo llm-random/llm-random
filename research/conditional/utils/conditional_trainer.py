@@ -128,7 +128,7 @@ class ConditionalTrainer:
         Train the model for n_steps steps.
         """
         self._before_train_operations()
-        if self.scaler is not None:
+        if self.scaler is not None and self.checkpoint is not None:
             load_scaler_state(self.scaler, self.checkpoint)
 
         with profile(
