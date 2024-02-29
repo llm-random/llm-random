@@ -104,6 +104,9 @@ class ConditionalTrainer:
             self.logging_interval_light,
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
+            first_mode=self.chimera_first_mode,
+            second_mode=self.chimera_second_mode,
+            final_schedule_step=self.chimera_final_schedule_step,
         )
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
