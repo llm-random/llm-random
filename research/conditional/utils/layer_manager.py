@@ -52,6 +52,7 @@ class LayerManager:
         self.chimera_option = chimera_option
         self.first_mode = first_mode
         self.second_mode = second_mode
+        print(f"Final schedule step: {final_schedule_step}")
         self.final_schedule_step = final_schedule_step
         self.chimera_scheduling_enabled = False
         if self.final_schedule_step is not None:
@@ -160,7 +161,7 @@ class LayerManager:
         return mode
 
     def change_chimera_mode(self, step):  # , schedule_type_id):
-        if step % self.final_schedule_step == 0:
+        if step == self.final_schedule_step:
             print(f"Changing mode from {self.first_mode} to {self.second_mode}")
             for _, l in self._layers:
                 if hasattr(l, "current_mode"):
