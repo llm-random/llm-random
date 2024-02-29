@@ -10,10 +10,10 @@ from torch.distributed.fsdp import (
 
 
 def get_checkpoint_from_path(load_weights_path: str) -> str:
-    print(f"Loading checkpoint from disk...")
     assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
+    print(f"Loading checkpoint from {load_weights_path}...")
     checkpoint = torch.load(load_weights_path)
-    print(f"Loaded from {load_weights_path}")
+    print(f"Checkpoint loaded")
     return checkpoint
 
 
