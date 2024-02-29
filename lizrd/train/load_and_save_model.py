@@ -47,7 +47,6 @@ def load_optimizer_state(
 def load_scaler_state(
     scaler: torch.cuda.amp.GradScaler,
     checkpoint: dict[str, torch.Tensor],
-    rank: int,
 ) -> torch.cuda.amp.GradScaler:
     scaler.load_state_dict(checkpoint["scaler"])
     return scaler
