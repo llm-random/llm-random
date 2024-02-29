@@ -33,7 +33,7 @@ def get_model(
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
-    checkpoint: str = False,
+    checkpoint: dict[str, torch.Tensor] = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
