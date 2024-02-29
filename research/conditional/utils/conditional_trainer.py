@@ -75,6 +75,13 @@ class ConditionalTrainer:
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
+    chimera_option: str = None
+    chimera_first_mode: str = None
+    chimera_second_mode: str = None
+    chimera_warmup_constant_steps: int = None
+    chimera_final_schedule_step: int = None
+    chimera_start_prob: float = None
+    chimera_end_prob: float = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
