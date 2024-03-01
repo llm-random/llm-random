@@ -103,7 +103,7 @@ def create_subprocess_args(
                     "--partition=a100",
                     f"--gres=gpu:a100:{setup_args['n_gpus']}",
                     f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-                    f"--mem={1000 // setup_args['n_gpus']}G",
+                    f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
                     f"--job-name={training_args['name']}",
                     f"--time={setup_args['time']}",
                     f"{setup_args['grid_entrypoint']}",
