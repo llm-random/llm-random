@@ -762,6 +762,14 @@ def get_classes_from_module_names(
             classes.append(torch.nn.Softmax)
         elif name == "TokenChoiceRouter":
             classes.append(TokenChoiceRouter)
+        elif name == "TokenChoiceSeparateRouter":
+            import research.conditional.moe_layers.mamba_token_choice as mtc
+
+            classes.append(mtc.TokenChoiceSeparateRouter)
+        elif name == "MambaRouter":
+            import research.conditional.moe_layers.mamba_token_choice as mtc
+
+            classes.append(mtc.MambaRouter)
         elif name == "Mamba":
             import mamba_ssm
 
