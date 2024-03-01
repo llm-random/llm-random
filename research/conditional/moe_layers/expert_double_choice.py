@@ -1,4 +1,4 @@
-from typing import Literal, Union, Optional
+from typing import Literal, Optional
 import plotly.express as px
 import torch
 import torch.nn.functional as F
@@ -8,7 +8,7 @@ import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
-from research.conditional.moe_layers.expert_choice import ExpertGating, ExpertChoiceFF
+from research.conditional.moe_layers.expert_choice import ExpertGating
 
 
 class ExpertDoubleChoiceFF(LoggingLayer):
@@ -31,6 +31,11 @@ class ExpertDoubleChoiceFF(LoggingLayer):
         group_size: int = 1,
         use_torch_bmm: bool = False,
         use_layer_norm: bool = True,
+        single_route=False,
+        both_from_start=False,
+        use_second_ln=False,
+        route_before_relu=False,
+        use_mot=False,
     ):
         """
         Args:
@@ -57,6 +62,11 @@ class ExpertDoubleChoiceFF(LoggingLayer):
         self.group_size = group_size
         self.use_torch_bmm = use_torch_bmm
         self.use_layer_norm = use_layer_norm
+        self.single_route = single_route
+        self.route_start = both_from_start
+        self.use_mot = use_mot
+        self.use_second_ln = use_second_ln
+        self.route_before_relu = route_before_relu
 
         assert (
             not self.one_hot_impl or self.group_by_batch
@@ -66,7 +76,7 @@ class ExpertDoubleChoiceFF(LoggingLayer):
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
         assert not self.use_torch_bmm or not self.use_full_einsum  # Not implemented
 
-        init_weight = lambda shape, fan_in:  nn.Parameter(
+        init_weight = lambda shape, fan_in: nn.Parameter(
             get_init_weight(
                 shape,
                 fan_in=fan_in,
@@ -75,10 +85,18 @@ class ExpertDoubleChoiceFF(LoggingLayer):
             ),
         ).requires_grad_(True)
 
+        # TODO merging weights correctly?
+
         self.lin1_weight = init_weight((n_experts, dmodel, expert_size), dmodel)
-        self.lin2_weight = init_weight((n_experts, expert_size, self.doutput),
-                                       int(n_experts * expert_size * topk_fraction))
-        self.ln = LayerNorm(self.doutput) if use_layer_norm else None
+        self.lin2_weight = init_weight(
+            (n_experts, expert_size, self.doutput),
+            int(n_experts * expert_size * topk_fraction),
+        )
+        self.ln = self.measure(LayerNorm(self.doutput), "layer_norm", use_layer_norm)
+        self.ln_2 = self.measure(
+            LayerNorm(self.doutput), "layer_norm_mid", use_second_ln
+        )
+        self.activation = self.measure(nn.ReLU(), "activation")
         self.softmax_over = softmax_over
 
         create_gating = lambda in_size: ExpertGating(
@@ -95,7 +113,10 @@ class ExpertDoubleChoiceFF(LoggingLayer):
         )
 
         self.expert_gating = create_gating(dmodel)
-        self.expert_gating_2 = create_gating(expert_size)
+        if not self.single_route:
+            self.expert_gating_2 = create_gating(
+                dmodel if self.route_start else expert_size
+            )
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -110,43 +131,70 @@ class ExpertDoubleChoiceFF(LoggingLayer):
             )
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
-        x = self.full_bmm(x, batch_size)
-
-        if self.use_layer_norm:
-            with measure_time(self, "layer_norm"):
-                x = self.ln(x)
+        x = self.full_double_routing(x)
+        x = self.ln(x)
 
         if self.group_size > 1:
             x = x.reshape(orig_bs, orig_seq_len, self.doutput)
 
         return x
 
+    def route_one_mot(self, x: torch.Tensor, weight, gate, num):
+        n_experts, dmodel_in, dmodel_out = weight.shape
+        batch_size, seq_len, dmodel_in_2 = x.shape
+        n_experts_2, batch_size_2, seq_len_2 = gate.shape
+        assert (
+            dmodel_in == dmodel_in_2
+            and batch_size == batch_size_2
+            and seq_len == seq_len_2
+        )
+
+        # emit (seq_len, dmodel_in, batch_size) x (seq_len, batch_size, n_experts) -> (seq_len, dmodel_in, n_experts)
+        with measure_time(self, "mot_emit" + num):
+            x = torch.bmm(x.permute(1, 2, 0), gate.permute(2, 1, 0)).permute(2, 0, 1)
+            assert x.shape == (n_experts, seq_len, dmodel_in)
+
+        # linear (n_experts, seq_len, dmodel_in) x (n_experts, dmodel_in, dmodel_out) -> (n_experts, seq_len, dmodel_out)
+        with measure_time(self, "mot_lin" + num):
+            x = torch.bmm(x, weight)
+            assert x.shape == (n_experts, seq_len, dmodel_out)
+
+        # merge (seq_len, dmodel_out, n_experts) x (seq_len, n_experts, batch_size) -> (seq_len, dmodel_out, batch_size)
+        with measure_time(self, "mot_merge" + num):
+            x = torch.bmm(x.permute(1, 2, 0), gate.permute(2, 0, 1)).permute(2, 0, 1)
+            assert x.shape == (batch_size, seq_len, dmodel_out)
+
+        return x
+
     def route_one_linear(
-        self, x: torch.Tensor, batch_size, weight, expert_gating, num,
+        self,
+        x: torch.Tensor,
+        weight,
+        gate,
+        num,
     ):
-        seq_len = x.shape[1]
-        topk, topk_indices, topk_values = expert_gating(x, batch_size, seq_len)
+        topk, topk_indices, topk_values = gate
+        batch_size, seq_len, dmodel_in = x.shape
+        n_exp, topk_2, seq_len_2 = topk_indices.shape
+        _, dmodel_in_2, dmodel_out = weight.shape
+        assert dmodel_in == dmodel_in_2 and seq_len == seq_len_2 and topk == topk_2
 
         # emit
         with measure_time(self, "one_hot_instanciate" + num):
             one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
-        n_exp, topk, seq_len, _ = one_hot.shape
-        _, dmodel_in, dmodel_out = weight.shape
-
         with measure_time(self, "shuffle_preprocess_perm" + num):
             x = x.permute(1, 2, 0)
-            one_hot_perm = one_hot.permute(2, 3, 0, 1).reshape(
+            one_hot = one_hot.permute(2, 3, 0, 1).reshape(
                 seq_len, batch_size, n_exp * topk
             )
         with measure_time(self, "shuffle_preprocess" + num):
-            x = torch.bmm(x, one_hot_perm).reshape(seq_len, dmodel_in, n_exp, topk)
+            x = torch.bmm(x, one_hot).reshape(seq_len, dmodel_in, n_exp, topk)
 
         # linear
         with measure_time(self, "lin_perm" + num):
             x = x.permute(2, 0, 3, 1).reshape(n_exp, seq_len * topk, dmodel_in)
         with measure_time(self, "lin" + num):
             x = torch.bmm(x, weight)
-
         assert x.shape == (n_exp, seq_len * topk, dmodel_out)
 
         # merge
@@ -157,26 +205,77 @@ class ExpertDoubleChoiceFF(LoggingLayer):
         with measure_time(self, "shuffle_postprocess_permute" + num):
             x = x.permute(1, 0, 2, 3).reshape(seq_len, n_exp * topk, dmodel_out)
         with measure_time(self, "shuffle_postprocess" + num):
-            x = torch.bmm(one_hot_perm, x).permute(1, 0, 2)
+            x = torch.bmm(one_hot, x).permute(1, 0, 2)
 
         assert x.shape == (batch_size, seq_len, dmodel_out)
         return x
 
-    def full_bmm(
-        self, x: torch.Tensor, batch_size
-    ):
-        x = self.route_one_linear(
-            x, batch_size, self.lin1_weight, self.expert_gating, "1"
-        )
-        with measure_time(self, "activation"):
-            x = F.relu(x)
-        x = self.route_one_linear(
-            x, batch_size, self.lin2_weight, self.expert_gating_2, "2"
-        )
+    def route_one(self, x: torch.Tensor, weight, gate, num):
+        if self.use_mot:
+            return self.route_one_mot(x, weight, gate, num)
+        else:
+            return self.route_one_linear(x, weight, gate, num)
+
+    def get_gate(self, expert_gating, x):
+        batch_size, seq_len = x.shape[:2]
+        if self.use_mot:
+            return expert_gating.calculate_gate(x, batch_size, seq_len)
+        else:
+            return expert_gating(x, batch_size, seq_len)
+
+    def full_double_routing(self, x: torch.Tensor):
+        gate, gate_2 = self.get_gate(self.expert_gating, x), None
+        if self.route_start:
+            gate_2 = self.get_gate(self.expert_gating_2, x)
+        x = self.route_one(x, self.lin1_weight, gate, "1")
+
+        x = self.ln_2(x)
+        if self.route_before_relu:
+            gate_2 = self.get_gate(self.expert_gating_2, x)
+        x = self.activation(x)
+
+        if self.single_route:
+            gate_2 = gate
+        if gate_2 is None:
+            gate_2 = self.get_gate(self.expert_gating_2, x)
+        x = self.route_one(x, self.lin2_weight, gate_2, "2")
         return x
 
-    def log_light(self):
-        return dict()
+    def full_mot(self, x: torch.Tensor):
+        batch_size, seq_len = x.shape[:2]
+        gate, gate_2 = self.expert_gating.calculate_gate(x, batch_size, seq_len), None
+        if self.route_start:
+            gate_2 = self.expert_gating_2.calculate_gate(x, batch_size, seq_len)
+        x = self.route_one_mot(x, self.lin1_weight, gate, "1")
+        x = self.ln_2(x)
+        if self.route_before_relu:
+            gate_2 = self.expert_gating_2.calculate_gate(x, batch_size, seq_len)
+        x = self.activation(x)
+
+        if self.single_route:
+            gate_2 = gate
+        if gate_2 is None:
+            gate_2 = self.expert_gating_2.calculate_gate(x, batch_size, seq_len)
+        x = self.route_one_mot(x, self.lin2_weight, gate_2, "2")
+        return x
+
+    def full_bmm(self, x: torch.Tensor):
+        batch_size, seq_len = x.shape[:2]
+        gate, gate_2 = self.expert_gating(x, batch_size, seq_len), None
+        if self.route_start:
+            gate_2 = self.expert_gating_2(x, batch_size, seq_len)
+        x = self.route_one_linear(x, self.lin1_weight, gate, "1")
+        x = self.ln_2(x)
+        if self.route_before_relu:
+            gate_2 = self.expert_gating_2(x, batch_size, seq_len)
+        x = self.activation(x)
+
+        if self.single_route:
+            gate_2 = gate
+        if gate_2 is None:
+            gate_2 = self.expert_gating_2(x, batch_size, seq_len)
+        x = self.route_one_linear(x, self.lin2_weight, gate_2, "2")
+        return x
 
     def log_time(self):
         log = {}

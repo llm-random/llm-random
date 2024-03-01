@@ -459,6 +459,14 @@ def get_ff_layer(args):
         return_fn = partial(ExpertChoiceFF, **ff_args)
     elif args.ff_mode == "expert_double_choice":
         ff_args = get_expert_choice_args(args)
+        ff_args = {
+            **ff_args,
+            "single_route": args.double_routing_use_single,
+            "both_from_start": args.double_routing_from_start,
+            "use_mot": args.double_mot,
+            "route_before_relu": args.double_routing_before_relu,
+            "use_second_ln": args.double_routing_snd_ln,
+        }
         return_fn = partial(ExpertDoubleChoiceFF, **ff_args)
     elif args.ff_mode == "expert_choice_with_parallel_ff":
         expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[

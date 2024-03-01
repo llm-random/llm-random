@@ -43,32 +43,7 @@ class ExpertGating(LoggingLayer):
 
     def forward(self, x: torch.Tensor, batch_size: int, seq_len: int):
         # expert embedding
-        with measure_time(self, "expert_embedding"):
-            if self.use_torch_bmm:
-                gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
-                gate_out = torch.bmm(x, gate).permute(2, 0, 1)
-                assert gate_out.shape == (self.n_experts, batch_size, seq_len)
-            else:
-                gate_out = einsum(
-                    "batch_size seq_len dmodel, dmodel n_experts "
-                    "-> n_experts batch_size seq_len ",
-                    x,
-                    self.gate,
-                )
-
-        # each expert chooses k within dimension 1
-        if not self.group_by_batch and not self.softmax_ungrouped:
-            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
-
-        # perform softmax either over tokens for each expert or over experts for each token
-        with measure_time(self, "softmax"):
-            if self.softmax_over == "tokens":
-                gate_out = torch.softmax(gate_out, dim=1)
-            elif self.softmax_over == "experts":
-                gate_out = torch.softmax(gate_out, dim=0)
-
-        if self.softmax_ungrouped:
-            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+        gate_out = self.calculate_gate(x, batch_size, seq_len)
 
         topk = round(self.topk_fraction * gate_out.shape[1])
         assert topk > 0, "topk is 0, increase topk_fraction or batch_size"
@@ -133,10 +108,39 @@ class ExpertGating(LoggingLayer):
 
         return topk, topk_indices, topk_values
 
+    def calculate_gate(self, x, batch_size, seq_len):
+        with measure_time(self, "expert_embedding"):
+            if self.use_torch_bmm:
+                gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
+                gate_out = torch.bmm(x, gate).permute(2, 0, 1)
+                assert gate_out.shape == (self.n_experts, batch_size, seq_len)
+            else:
+                gate_out = einsum(
+                    "batch_size seq_len dmodel, dmodel n_experts "
+                    "-> n_experts batch_size seq_len ",
+                    x,
+                    self.gate,
+                )
+        # each expert chooses k within dimension 1
+        if not self.group_by_batch and not self.softmax_ungrouped:
+            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+        # perform softmax either over tokens for each expert or over experts for each token
+        with measure_time(self, "softmax"):
+            if self.softmax_over == "tokens":
+                gate_out = torch.softmax(gate_out, dim=1)
+            elif self.softmax_over == "experts":
+                gate_out = torch.softmax(gate_out, dim=0)
+        if self.softmax_ungrouped:
+            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+        return gate_out
+
     def log_time(self):
         return {}
 
     def log_heavy(self):
+        if "topk_indices" not in self.logging_cache:
+            return {}
+
         # calculate indexes choose counts
         chosen_indexes = self.logging_cache["topk_indices"].flatten()
         chosen_indexes = torch.cat(

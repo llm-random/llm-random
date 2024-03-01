@@ -106,6 +106,18 @@ class LayerManager:
                     param.requires_grad = is_learning_temperature
 
 
+class MeasuringLayer(nn.Module):
+    def __init__(self, layer, name, parent):
+        super().__init__()
+        self.l = layer
+        self.name = name
+        self.parent = [parent]
+
+    def forward(self, *args, **kwargs):
+        with measure_time(self.parent[0], self.name):
+            return self.l(*args, **kwargs)
+
+
 class LoggingLayer(nn.Module):
     def __init__(self):
         super().__init__()
@@ -179,6 +191,11 @@ class LoggingLayer(nn.Module):
             times_fig = px.bar(x=instr_names, y=instr_times)
             log["time"] = times_fig
         return log
+
+    def measure(self, module, name, exists=True):
+        if not exists:
+            return nn.Sequential()
+        return MeasuringLayer(module, name, self)
 
 
 @contextmanager

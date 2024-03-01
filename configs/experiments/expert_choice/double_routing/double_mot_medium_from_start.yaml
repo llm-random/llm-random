@@ -1,0 +1,11 @@
+parent: configs/baselines/gpt/expert_choice/granularity/4/medium.yaml
+md5_parent_hash: a2a2c1c6eef4dd36d3fc4943375a5153
+time: 0-10:00:00
+
+params:
+  name: "double_mot_medium_from_start"
+  ff_mode: expert_double_choice
+  granularity: 1
+  double_mot: true
+  double_routing_from_start: true
+  mixed_precision_dtype: "float16"
