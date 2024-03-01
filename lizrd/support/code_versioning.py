@@ -27,7 +27,7 @@ def commit_pending_changes(repo: Repo):
         repo.git.commit(m="Versioning code", no_verify=True)
 
 
-def version_code(versioning_branch: str, repo_path: Optional[str] = None ):
+def version_code(versioning_branch: str, repo_path: Optional[str] = None):
     repo = Repo(repo_path, search_parent_directories=True)
 
     original_branch = repo.active_branch.name
@@ -44,16 +44,19 @@ def version_code(versioning_branch: str, repo_path: Optional[str] = None ):
             f"Code versioned successfully to remote branch {versioning_branch} on '{REMOTE_NAME}' remote!"
         )
     finally:
-        reset_to_original_repo_state(repo, original_branch, original_branch_commit_hash, versioning_branch)
+        reset_to_original_repo_state(
+            repo, original_branch, original_branch_commit_hash, versioning_branch
+        )
 
 
-def reset_to_original_repo_state(repo: Repo, original_branch: str, original_branch_commit_hash: str, versioning_branch: str):
+def reset_to_original_repo_state(
+    repo: Repo,
+    original_branch: str,
+    original_branch_commit_hash: str,
+    versioning_branch: str,
+):
     repo.git.checkout(original_branch, "-f")
     if versioning_branch in repo.branches:
         repo.git.branch("-D", versioning_branch)
     repo.head.reset(original_branch_commit_hash, index=True)
     print("Successfully restored working tree to the original state!")
-
-
-if __name__ == "__main__":
-    version_code( "to_branch_test")
