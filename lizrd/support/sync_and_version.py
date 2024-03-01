@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 from git import Repo
 import paramiko.ssh_exception
 
-from lizrd.support.code_versioning import CodeVersioningAgent
+from lizrd.support.code_versioning import version_code
 from lizrd.support.misc import generate_random_string
 
 _SSH_HOSTS_TO_PASSPHRASES = {}
@@ -140,4 +140,4 @@ if __name__ == "__main__":
     )
     with open("/tmp/git_branch.txt", "w") as f:
         f.write(name_for_branch)
-    CodeVersioningAgent(name_for_branch).version_code()
+    version_code(name_for_branch)
