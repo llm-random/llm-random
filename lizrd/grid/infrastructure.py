@@ -6,59 +6,21 @@ from lizrd.grid.setup_arguments import make_singularity_mount_paths
 
 
 class MachineBackend(abc.ABC):
-    @classmethod
     @abc.abstractmethod
-    def get_common_directory(cls) -> str:
+    def get_common_directory(self) -> str:
         pass
 
-    @classmethod
     @abc.abstractmethod
-    def get_cache_path(cls) -> str:
+    def get_cache_path(self) -> str:
         pass
 
-    @classmethod
-    def get_singularity_image(cls) -> str:
-        image_name = "sparsity_2024.02.06_16.14.02.sif"
-        common_dir = cls.get_common_directory()
-        return f"{common_dir}/images/{image_name}"
-
-    @classmethod
     @abc.abstractmethod
-    def get_grid_entrypoint(cls) -> str:
+    def get_grid_entrypoint(self) -> str:
         pass
 
-    @classmethod
-    def get_default_train_dataset_path(cls, dataset_type: str):
-        return None
-
-    @classmethod
-    def get_default_validation_dataset_path(cls, dataset_type: str):
-        return None
-
-    @classmethod
-    def get_cluster_default_params(cls, dataset_type) -> dict:
-        return {
-            "train_dataset_path": cls.get_default_train_dataset_path(dataset_type),
-            "validation_dataset_path": cls.get_default_validation_dataset_path(
-                dataset_type
-            ),
-            "common_directory": cls.get_common_directory(),
-            "hf_datasets_cache": cls.get_cache_path(),
-            "singularity_image": cls.get_singularity_image(),
-            "grid_entrypoint": cls.get_grid_entrypoint(),
-        }
-
-    @classmethod
-    def prepare_default_infrastructure_params(cls, dataset_type: str):
-        infrastructure_params_dict = COMMON_DEFAULT_INFRASTRUCTURE_ARGS
-        cluster_default_arg_dict = cls.get_cluster_default_params(dataset_type)
-        infrastructure_params_dict.update(cluster_default_arg_dict)
-        return infrastructure_params_dict
-
-    @classmethod
     @abc.abstractmethod
     def get_subprocess_args(
-        cls,
+        self,
         slurm_command,
         setup_args,
         training_args,
@@ -67,23 +29,51 @@ class MachineBackend(abc.ABC):
     ):
         pass
 
+    def get_singularity_image(self) -> str:
+        image_name = "sparsity_2024.02.06_16.14.02.sif"
+        common_dir = self.get_common_directory()
+        return f"{common_dir}/images/{image_name}"
+
+    def get_default_train_dataset_path(self, dataset_type: str):
+        return None
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        return None
+
+    def get_cluster_default_params(self, dataset_type) -> dict:
+        return {
+            "train_dataset_path": self.get_default_train_dataset_path(dataset_type),
+            "validation_dataset_path": self.get_default_validation_dataset_path(
+                dataset_type
+            ),
+            "common_directory": self.get_common_directory(),
+            "hf_datasets_cache": self.get_cache_path(),
+            "singularity_image": self.get_singularity_image(),
+            "grid_entrypoint": self.get_grid_entrypoint(),
+        }
+
+    def prepare_default_infrastructure_params(self, dataset_type: str):
+        infrastructure_params_dict = COMMON_DEFAULT_INFRASTRUCTURE_ARGS
+        cluster_default_arg_dict = self.get_cluster_default_params(dataset_type)
+        infrastructure_params_dict.update(cluster_default_arg_dict)
+        return infrastructure_params_dict
+
+    def get_python_command(self, runner_args, runner_params):
+        return ["python3", "-m", runner_args, *runner_params]
+
 
 class AthenaBackend(MachineBackend):
-    @classmethod
-    def get_common_directory(cls) -> str:
+    def get_common_directory(self) -> str:
         return "/net/pr2/projects/plgrid/plggllmeffi"
 
-    @classmethod
-    def get_cache_path(cls) -> str:
+    def get_cache_path(self) -> str:
         return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
 
-    @classmethod
-    def get_grid_entrypoint(cls) -> str:
+    def get_grid_entrypoint(self) -> str:
         return "lizrd/scripts/grid_entrypoint.sh"
 
-    @classmethod
     def get_subprocess_args(
-        cls,
+        self,
         slurm_command,
         setup_args,
         training_args,
@@ -106,42 +96,33 @@ class AthenaBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            "python3",
-            "-m",
-            setup_args["runner"],
-            *runner_params,
+            *self.get_python_command(setup_args["runner"], runner_params),
         ]
 
 
 class IdeasBackend(MachineBackend):
-    @classmethod
-    def get_common_directory(cls) -> str:
+    def get_common_directory(self) -> str:
         return "/raid/NFS_SHARE/llm-random"
 
-    @classmethod
-    def get_cache_path(cls) -> str:
-        common_dir = cls.get_common_directory()
+    def get_cache_path(self) -> str:
+        common_dir = self.get_common_directory()
         return f"{common_dir}/.cache"
 
-    @classmethod
-    def get_grid_entrypoint(cls) -> str:
+    def get_grid_entrypoint(self) -> str:
         return "lizrd/scripts/grid_entrypoint.sh"
 
-    @classmethod
-    def get_default_train_dataset_path(cls, dataset_type: str):
+    def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
             return "/raid/NFS_SHARE/datasets/c4/train/c4_train"
         return super().get_default_train_dataset_path(dataset_type)
 
-    @classmethod
-    def get_default_validation_dataset_path(cls, dataset_type: str):
+    def get_default_validation_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
             return "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
         return super().get_default_train_dataset_path(dataset_type)
 
-    @classmethod
     def get_subprocess_args(
-        cls,
+        self,
         slurm_command,
         setup_args,
         training_args,
@@ -163,41 +144,32 @@ class IdeasBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            "python3",
-            "-m",
-            setup_args["runner"],
-            *runner_params,
+            *self.get_python_command(setup_args["runner"], runner_params),
         ]
 
 
 class EntropyBackend(MachineBackend):
-    @classmethod
-    def get_common_directory(cls) -> str:
+    def get_common_directory(self) -> str:
         return "/home/jkrajewski_a100"
 
-    @classmethod
-    def get_cache_path(cls) -> str:
+    def get_cache_path(self) -> str:
         return "/local_storage_2/dataset_cache"
 
-    @classmethod
-    def get_grid_entrypoint(cls) -> str:
+    def get_grid_entrypoint(self) -> str:
         return "lizrd/scripts/grid_entrypoint.sh"
 
-    @classmethod
-    def get_default_train_dataset_path(cls, dataset_type: str):
+    def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
             return "/local_storage_2/llm-random/datasets/c4_train"
         return super().get_default_train_dataset_path(dataset_type)
 
-    @classmethod
-    def get_default_validation_dataset_path(cls, dataset_type: str):
+    def get_default_validation_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
             return "/local_storage_2/llm-random/datasets/c4_validation"
         return super().get_default_train_dataset_path(dataset_type)
 
-    @classmethod
     def get_subprocess_args(
-        cls,
+        self,
         slurm_command,
         setup_args,
         training_args,
@@ -219,29 +191,22 @@ class EntropyBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            "python3",
-            "-m",
-            setup_args["runner"],
-            *runner_params,
+            *self.get_python_command(setup_args["runner"], runner_params),
         ]
 
 
 class LocalBackend(MachineBackend):
-    @classmethod
-    def get_common_directory(cls) -> str:
+    def get_common_directory(self) -> str:
         return os.getenv("HOME")
 
-    @classmethod
-    def get_cache_path(cls) -> str:
+    def get_cache_path(self) -> str:
         return f"{os.getenv('HOME')}/.cache/huggingface/datasets"
 
-    @classmethod
-    def get_grid_entrypoint(cls) -> str:
-        raise ValueError(f"Local machine should use main function directly. ")
+    def get_grid_entrypoint(self) -> str:
+        return None
 
-    @classmethod
     def get_subprocess_args(
-        cls,
+        self,
         slurm_command,
         setup_args,
         training_args,

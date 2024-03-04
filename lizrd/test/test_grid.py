@@ -52,32 +52,26 @@ def sort_training_args(values):
 
 
 class IdeasTestBackend(IdeasBackend):
-    @classmethod
-    def get_singularity_image(cls) -> str:
+    def get_singularity_image(self) -> str:
         return image_path
 
-    @classmethod
-    def get_cache_path(cls) -> str:
+    def get_cache_path(self) -> str:
         return hf_dataset_cache
 
 
 class AthenaTestBackend(AthenaBackend):
-    @classmethod
-    def get_singularity_image(cls) -> str:
+    def get_singularity_image(self) -> str:
         return image_path
 
-    @classmethod
-    def get_cache_path(cls) -> str:
+    def get_cache_path(self) -> str:
         return hf_dataset_cache
 
 
 class EntropyTestBackend(EntropyBackend):
-    @classmethod
-    def get_singularity_image(cls) -> str:
+    def get_singularity_image(self) -> str:
         return image_path
 
-    @classmethod
-    def get_cache_path(cls) -> str:
+    def get_cache_path(self) -> str:
         return hf_dataset_cache
 
 
