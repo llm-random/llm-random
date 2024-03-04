@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 import os
 
 import torch
@@ -7,6 +7,8 @@ from torch.distributed.fsdp import (
     FullStateDictConfig,
     StateDictType,
 )
+
+from lizrd.support.misc import generate_random_string
 
 
 def get_checkpoint_from_path(load_weights_path: str) -> str:
@@ -45,6 +47,14 @@ def load_scaler_state(
     checkpoint: dict[str, torch.Tensor],
 ):
     scaler.load_state_dict(checkpoint["scaler"])
+
+
+def prepare_save_weights_path(path_to_dir: Optional[str]) -> str:
+    if path_to_dir is None:
+        return None
+    weights_filename = f"{generate_random_string(10)}.pt"
+    os.makedirs(path_to_dir, exist_ok=True)
+    save_weights_path = os.path.join(path_to_dir, weights_filename)
 
 
 def save_checkpoint(

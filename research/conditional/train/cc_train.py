@@ -13,7 +13,6 @@ from lizrd.core.llm import EmbeddingLayer, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
-    generate_random_string,
     get_n_learnable_parameters,
     set_seed,
 )
@@ -41,6 +40,7 @@ from research.conditional.utils.model_utils import (
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
     load_optimizer_state,
+    get_saved_weights_path,
 )
 
 
@@ -91,13 +91,7 @@ def main(
 
     check_args(args)
 
-    if args.save_weights_path is not None:
-        weights_filename = f"{generate_random_string(10)}.pt"
-        os.makedirs(args.save_weights_path, exist_ok=True)
-        save_weights_path = os.path.join(args.save_weights_path, weights_filename)
-        save_weights_path = os.path.abspath(args.save_weights_path)
-    else:
-        save_weights_path = None
+    save_weights_path = get_saved_weights_path(args.save_weights_path, rank)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
