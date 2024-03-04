@@ -17,13 +17,10 @@ def get_checkpoint_from_path(load_weights_path: str) -> str:
     return checkpoint
 
 
-def load_model_weights(
-    model: torch.nn.Module, checkpoint: dict[str, torch.Tensor]
-) -> torch.nn.Module:
+def load_model_weights(model: torch.nn.Module, checkpoint: dict[str, torch.Tensor]):
     print(f"Loading model weights...")
     model.load_state_dict(checkpoint["model"], strict=False)
     print(f"Loaded model weights")
-    return model
 
 
 def load_optimizer_state(
@@ -31,7 +28,7 @@ def load_optimizer_state(
     checkpoint: dict[str, torch.Tensor],
     model: Union[torch.nn.Module, FSDP],
     rank: int,
-) -> torch.optim.Optimizer:
+):
     print(f"Loading optimizer state...")
     if isinstance(model, FSDP):
         full_osd = None
@@ -41,15 +38,13 @@ def load_optimizer_state(
     else:
         optimizer.load_state_dict(checkpoint["optimizer"])
     print(f"Loaded optimizer state")
-    return optimizer
 
 
 def load_scaler_state(
     scaler: torch.cuda.amp.GradScaler,
     checkpoint: dict[str, torch.Tensor],
-) -> torch.cuda.amp.GradScaler:
+):
     scaler.load_state_dict(checkpoint["scaler"])
-    return scaler
 
 
 def save_checkpoint(

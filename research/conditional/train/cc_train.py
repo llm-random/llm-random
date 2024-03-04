@@ -234,7 +234,7 @@ def main(
         betas=(args.adam_beta1, args.adam_beta2),
     )
     if checkpoint is not None:
-        optimizer = load_optimizer_state(optimizer, checkpoint, model, rank)
+        load_optimizer_state(optimizer, checkpoint, model, rank)
 
     scheduler = get_scheduler(args)
 
