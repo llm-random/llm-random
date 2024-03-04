@@ -40,7 +40,7 @@ from research.conditional.utils.model_utils import (
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
     load_optimizer_state,
-    get_saved_weights_path,
+    prepare_save_weights_path,
 )
 
 
@@ -91,7 +91,7 @@ def main(
 
     check_args(args)
 
-    save_weights_path = get_saved_weights_path(args.save_weights_path, rank)
+    save_weights_path = prepare_save_weights_path(args.save_weights_path, rank)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
