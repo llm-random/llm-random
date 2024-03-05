@@ -58,8 +58,8 @@ class MachineBackend(abc.ABC):
         infrastructure_params_dict.update(cluster_default_arg_dict)
         return infrastructure_params_dict
 
-    def get_python_command(self, runner_args, runner_params):
-        return ["python3", "-m", runner_args, *runner_params]
+    def get_runner_command(self, runner, runner_params):
+        return ["python3", "-m", runner, *runner_params]
 
 
 class AthenaBackend(MachineBackend):
@@ -96,7 +96,7 @@ class AthenaBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            *self.get_python_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params),
         ]
 
 
@@ -144,7 +144,7 @@ class IdeasBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            *self.get_python_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params),
         ]
 
 
@@ -191,7 +191,7 @@ class EntropyBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            *self.get_python_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params),
         ]
 
 
