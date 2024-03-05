@@ -1,7 +1,6 @@
 import hashlib
 from typing import List, Set, Tuple
 import yaml
-from lizrd.grid.infrastructure import prepare_default_infrastructure_params
 
 
 def get_yaml_md5(file_path):
@@ -72,7 +71,7 @@ def check_interactive_debug_not_in_further_configs(configs: List[dict]):
 
 
 def prepare_configs(
-    config_path: str, git_branch: str, CLUSTER_NAME
+    config_path: str, git_branch: str, CLUSTER
 ) -> List[Tuple[dict, dict]]:
     configs, all_config_paths = load_with_inheritance(config_path)
 
@@ -82,8 +81,8 @@ def prepare_configs(
         config["params"]["all_config_paths"] = ",".join(all_config_paths)
 
     for config in configs:
-        default_params = prepare_default_infrastructure_params(
-            CLUSTER_NAME, config["params"]["dataset_type"]
+        default_params = CLUSTER.prepare_default_infrastructure_params(
+            config["params"]["dataset_type"]
         )
         config.update({k: v for k, v in default_params.items() if k not in config})
 

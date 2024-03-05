@@ -238,6 +238,7 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
 def setup_experiments(configs: dict):
     grid = []
     for infra_config, training_config in configs:
+        pprint.pprint(training_config)
         single_exp_training_args_grid = create_grid(training_config)
         multiplied_grid = multiply_grid(
             single_exp_training_args_grid, infra_config["runs_multiplier"]
