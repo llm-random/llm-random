@@ -166,12 +166,11 @@ def create_subprocess_args(
                 *runner_params,
             ]
         elif CLUSTER_NAME == MachineBackend.ATHENA:
-            mem = 512 * setup_args["n_gpus"]
+            mem = 125 * setup_args["n_gpus"]
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{setup_args['n_gpus']}",
                 "--partition=plgrid-gpu-a100",
-                f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
                 f"--mem={mem}G",
                 "--account=plgsubslearnath-gpu-a100",
                 f"--job-name={job_name}",
