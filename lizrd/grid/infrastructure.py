@@ -64,7 +64,7 @@ class MachineBackend(abc.ABC):
 
 class AthenaBackend(MachineBackend):
     def get_common_directory(self) -> str:
-        return "/net/pr2/projects/plgrid/plggllmeffi"
+        return "/net/pr2/projects/plgrid/plggsubgoal"
 
     def get_cache_path(self) -> str:
         return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
