@@ -4,7 +4,6 @@ $ python3 research/reinitialization/scripts/grid.py
 Remember to set RUNNER and PARAMS in the script or add an argument parser.
 """
 
-import os
 import argparse
 import datetime
 import pprint
@@ -145,7 +144,7 @@ def create_subprocess_args(
 
         runner_params = translate_to_argparse(training_args)
         if CLUSTER_NAME == MachineBackend.ENTROPY:
-            mem = 8*setup_args['n_gpus']*setup_args['cpus_per_gpu']
+            mem = 8 * setup_args["n_gpus"] * setup_args["cpus_per_gpu"]
             subprocess_args = [
                 slurm_command,
                 "--partition=a100",
@@ -167,7 +166,7 @@ def create_subprocess_args(
                 *runner_params,
             ]
         elif CLUSTER_NAME == MachineBackend.ATHENA:
-            mem = 16*setup_args['n_gpus']*setup_args['cpus_per_gpu']
+            mem = 512 * setup_args["n_gpus"]
             subprocess_args = [
                 slurm_command,
                 f"--gres=gpu:{setup_args['n_gpus']}",
