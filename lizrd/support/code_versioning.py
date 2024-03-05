@@ -14,9 +14,7 @@ def ensure_remote_config_exist(repo: Repo, remote_name: str, remote_url: str):
                 print(
                     f"Updated url of '{remote_name}' remote from '{old_remote_url}' to '{remote_url}'"
                 )
-                return
-            else:
-                return
+            return
 
     repo.create_remote(remote_name, url=remote_url)
     print(f"Added remote '{remote_name}' with url '{remote_url}'")
