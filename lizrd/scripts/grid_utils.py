@@ -200,7 +200,7 @@ def translate_to_argparse(param_set: dict):
                 else:
                     pass  # simply don't add it if v == False
                 continue
-            else:
+            elif v is not None:  # None values should not be added
                 runner_params.append(f"--{k}")
                 if isinstance(v, list):
                     runner_params.extend([str(s) for s in v])
