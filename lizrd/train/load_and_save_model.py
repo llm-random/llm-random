@@ -55,6 +55,7 @@ def prepare_save_weights_path(path_to_dir: Optional[str]) -> str:
     weights_filename = f"{generate_random_string(10)}.pt"
     os.makedirs(path_to_dir, exist_ok=True)
     save_weights_path = os.path.join(path_to_dir, weights_filename)
+    save_weights_path = os.path.abspath(save_weights_path)
     return save_weights_path
 
 
