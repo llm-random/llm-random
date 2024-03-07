@@ -31,11 +31,3 @@ def check_args(args):
         assert (
             "." not in filename
         ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
-
-    if args.predefined_model_config is not None:
-        assert (
-            args.dmodel is None
-            and args.dff is None
-            and args.n_att_heads is None
-            and args.n_blocks is None
-        ), "Do not use predefined_model_config and dmodel, dff, n_att_heads, n_blocks at the same time."
