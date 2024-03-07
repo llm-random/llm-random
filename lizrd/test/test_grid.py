@@ -163,10 +163,6 @@ class TestGrid(unittest.TestCase):
                 "vanilla",
                 "--n_gpus",
                 "0",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ]
         ]
         experiments, _ = create_subprocess_args(
@@ -453,10 +449,6 @@ class TestGrid(unittest.TestCase):
                 "5e-4",
                 "--n_gpus",
                 "2",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ],
             [
                 "sbatch",
@@ -514,10 +506,6 @@ class TestGrid(unittest.TestCase):
                 "7e-4",
                 "--n_gpus",
                 "2",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ],
         ]
         experiments, _ = create_subprocess_args(
