@@ -1,18 +1,181 @@
-from typing import Literal, Optional
+from typing import Literal, Union, Optional
 import plotly.express as px
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from lizrd.core.initialization import get_init_fun
+import torch.nn as nn
+from lizrd.core.initialization import get_init_weight
 from lizrd.support import ash
+from lizrd.support.logging import make_histogram
+from lizrd.train import checkpointing
 from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.utils.layer_manager import measure_time, time_measured
-from research.conditional.moe_layers.moe_gating import ExpertGating
+from research.conditional.utils.layer_manager import measure_time
 
 
-class ExpertChoiceFF(LoggingLayer):
+class ExpertGatingOld(LoggingLayer):
+    def __init__(
+        self,
+        n_experts,
+        group_by_batch,
+        softmax_ungrouped,
+        softmax_over,
+        topk_fraction,
+        one_hot_impl,
+        random_perm,
+        use_torch_bmm,
+        gate,
+        n_gating_heatmaps,
+    ):
+        super().__init__()
+        self.n_experts = n_experts
+        self.group_by_batch = group_by_batch
+        self.softmax_ungrouped = softmax_ungrouped
+        self.softmax_over = softmax_over
+        self.topk_fraction = topk_fraction
+        self.one_hot_impl = one_hot_impl
+        self.random_perm = random_perm
+        self.use_torch_bmm = use_torch_bmm
+        self.n_gating_heatmaps = n_gating_heatmaps
+        self.gate = gate
+        self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
+
+    def forward(self, x: torch.Tensor, batch_size: int, seq_len: int):
+        # expert embedding
+        gate_out = self.calculate_gate(x, batch_size, seq_len)
+
+        topk = round(self.topk_fraction * gate_out.shape[1])
+        assert topk > 0, "topk is 0, increase topk_fraction or batch_size"
+
+        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+        # choose topk tokens for each expert
+        with measure_time(self, "topk"):
+            checkpointing_enabled = (
+                checkpointing.is_in_first_forward()
+                or checkpointing.is_in_second_forward()
+            )
+
+            if (
+                checkpointing.is_in_first_forward()
+                and checkpointing.is_in_second_forward()
+            ):
+                raise NotImplementedError(
+                    "Both first and second forward are = TRUE. You are probably using wrapped and nested checkpointed modules, which is not supported with ExpertGating."
+                )
+
+            if checkpointing_enabled:
+                # In first forward we discard the first result of topk (topk_values)
+                # and instead use gather.
+                # This is needed if activation checkpointing is used, because
+                # torch aligns tensors in both forward passes by the order in
+                # which they are created and that is the easiest way to do that.
+                if checkpointing.is_in_first_forward():
+                    with torch.no_grad():
+                        _, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+                        self._checkpointed_topk_indices = topk_indices
+
+                if checkpointing.is_in_second_forward():
+                    with torch.no_grad():
+                        topk_indices = self._checkpointed_topk_indices
+
+                topk_values = gate_out.gather(dim=1, index=topk_indices)
+            else:
+                topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
+
+        if self.group_by_batch and not self.one_hot_impl:
+            with measure_time(self, "indexing_change"):
+                topk *= seq_len
+                # change indexing to recall to batch_size x seq_len
+                row_number = torch.arange(seq_len).to(topk_indices.device)
+                topk_indices = topk_indices * seq_len + row_number
+                topk_indices = topk_indices.reshape(self.n_experts, topk)
+                topk_values = topk_values.reshape(self.n_experts, topk)
+        elif self.group_by_batch:
+            topk *= seq_len
+
+        # cache values for logging
+        self.update_cache_for_logging("gate_softmax_topk_vals", topk_values)
+        self.update_cache_for_logging("topk_indices", topk_indices)
+        self.update_cache_for_logging("n_tokens", torch.Tensor([batch_size * seq_len]))
+
+        # Randomly permute tokens for experts if random_perm is True
+        # Note this is not total randomness, since topk values are already chosen
+        if self.random_perm:
+            topk_values = topk_values.flatten()[
+                torch.randperm(self.n_experts * topk)
+            ].reshape((self.n_experts, topk))
+
+        return topk, topk_indices, topk_values
+
+    def calculate_gate(self, x, batch_size, seq_len):
+        with measure_time(self, "expert_embedding"):
+            if self.use_torch_bmm:
+                gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
+                gate_out = torch.bmm(x, gate).permute(2, 0, 1)
+                assert gate_out.shape == (self.n_experts, batch_size, seq_len)
+            else:
+                gate_out = einsum(
+                    "batch_size seq_len dmodel, dmodel n_experts "
+                    "-> n_experts batch_size seq_len ",
+                    x,
+                    self.gate,
+                )
+        # each expert chooses k within dimension 1
+        if not self.group_by_batch and not self.softmax_ungrouped:
+            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+        # perform softmax either over tokens for each expert or over experts for each token
+        with measure_time(self, "softmax"):
+            if self.softmax_over == "tokens":
+                gate_out = torch.softmax(gate_out, dim=1)
+            elif self.softmax_over == "experts":
+                gate_out = torch.softmax(gate_out, dim=0)
+        if self.softmax_ungrouped:
+            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+        return gate_out
+
+    def log_time(self):
+        return {}
+
+    def log_heavy(self):
+        if "topk_indices" not in self.logging_cache:
+            return {}
+
+        # calculate indexes choose counts
+        chosen_indexes = self.logging_cache["topk_indices"].flatten()
+        chosen_indexes = torch.cat(
+            (
+                chosen_indexes,
+                torch.Tensor([self.logging_cache["n_tokens"] - 1]).type(
+                    chosen_indexes.type()
+                ),
+            )
+        )  # make sure bincount takes into account the whole range of indexes
+        indexes_choose_counts = chosen_indexes.bincount()
+
+        uf_gate_out = (
+            {
+                f"gating_heatmap_{i}": make_heatmap(
+                    self.logging_cache["unflatten_gate_out"], i
+                )
+                for i in range(min(self.n_gating_heatmaps, self.n_experts))
+            }
+            if "unflatten_gate_out" in self.logging_cache
+            else {}
+        )
+        return {
+            "gate_softmax_topk_vals": make_histogram(
+                self.logging_cache["gate_softmax_topk_vals"].flatten()
+            ),
+            "gate_softmax_all_values": make_histogram(
+                self.logging_cache["gate_softmax_all_values"].flatten()
+            ),
+            "indexes_choose_counts": make_histogram(indexes_choose_counts),
+            **uf_gate_out,
+        }
+
+
+class ExpertChoiceFFOld(LoggingLayer):
     def __init__(
         self,
         dmodel: int,
@@ -67,14 +230,30 @@ class ExpertChoiceFF(LoggingLayer):
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
         assert not self.use_torch_bmm or not self.use_full_einsum  # Not implemented
 
-        init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        self.lin1_weight = init((n_experts, dmodel, expert_size), dmodel)
-        self.lin2_weight = init(
-            (n_experts, expert_size, self.doutput),
-            int(n_experts * expert_size * topk_fraction),
+        self.lin1_weight = nn.Parameter(
+            get_init_weight(
+                (n_experts, dmodel, expert_size),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            ),
         )
-        gate = init((dmodel, n_experts), dmodel)
-
+        self.lin2_weight = nn.Parameter(
+            get_init_weight(
+                (n_experts, expert_size, self.doutput),
+                fan_in=int(n_experts * expert_size * topk_fraction),
+                init_type=init_type,
+                scale=init_scale,
+            )
+        )
+        gate = nn.Parameter(
+            get_init_weight(
+                (dmodel, n_experts),
+                fan_in=dmodel,
+                init_type=init_type,
+                scale=init_scale,
+            )
+        ).requires_grad_(True)
         self.ln = LayerNorm(self.doutput) if use_layer_norm else None
         self.softmax_over = softmax_over
         self.extract_chosen_tokens = (
@@ -88,7 +267,7 @@ class ExpertChoiceFF(LoggingLayer):
             else self.gating_postprocess_select
         )
 
-        expert_gating = ExpertGating(
+        expert_gating = ExpertGatingOld(
             n_experts=n_experts,
             group_by_batch=group_by_batch,
             softmax_ungrouped=softmax_ungrouped,
@@ -136,35 +315,36 @@ class ExpertChoiceFF(LoggingLayer):
 
         return x
 
-    @time_measured("one_hot")
     def extract_chosen_tokens_onehot(
         self, x: torch.Tensor, topk, topk_indices: torch.Tensor, batch_size
     ):
-        one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
-        # one_hot is (n_experts, topk, seq_len, batch_size)
-        x = einsum(
-            "batch_size seq_len dmodel, n_exp topk seq_len batch_size "
-            "-> n_exp topk seq_len dmodel",
-            x,
-            one_hot,
-        )
-        x = x.reshape((self.n_experts, topk, self.dmodel))
+        with measure_time(self, "one_hot"):
+            one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
+            # one_hot is (n_experts, topk, seq_len, batch_size)
+            x = einsum(
+                "batch_size seq_len dmodel, n_exp topk seq_len batch_size "
+                "-> n_exp topk seq_len dmodel",
+                x,
+                one_hot,
+            )
+        with measure_time(self, "reshape"):
+            x = x.reshape((self.n_experts, topk, self.dmodel))
         return x, one_hot
 
-    @time_measured("gate_preprocess_with_linear")
     def extract_with_linear(
         self, x: torch.Tensor, topk_indices: torch.Tensor, batch_size, weight
     ):
-        one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
-        x = einsum(
-            "batch_size seq_len dmodel, n_exp topk seq_len batch_size, "
-            "n_exp dmodel exp_size "
-            "-> n_exp topk seq_len exp_size",
-            x,
-            one_hot,
-            weight,
-        )
-        return x, one_hot
+        with measure_time(self, "gate_preprocess_with_linear"):
+            one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
+            x = einsum(
+                "batch_size seq_len dmodel, n_exp topk seq_len batch_size, "
+                "n_exp dmodel exp_size "
+                "-> n_exp topk seq_len exp_size",
+                x,
+                one_hot,
+                weight,
+            )
+            return x, one_hot
 
     def extract_with_linear_bmm(
         self, x: torch.Tensor, topk_indices: torch.Tensor, batch_size, weight
@@ -200,17 +380,17 @@ class ExpertChoiceFF(LoggingLayer):
         assert x.shape == (n_exp, seq_len * topk, exp_size)
         return x, one_hot_perm
 
-    @time_measured("gating_postprocess_with_linear")
     def gating_postprocess_onehot_with_linear(self, x, topk_values, one_hot, weight):
-        return einsum(
-            "n_exp topk seq_len exp_size, n_exp topk seq_len, "
-            "n_exp topk seq_len batch_size, n_exp exp_size doutput"
-            "-> batch_size seq_len doutput",
-            x,
-            topk_values,
-            one_hot,
-            weight,
-        )
+        with measure_time(self, "gating_postprocess_with_linear"):
+            return einsum(
+                "n_exp topk seq_len exp_size, n_exp topk seq_len, "
+                "n_exp topk seq_len batch_size, n_exp exp_size doutput"
+                "-> batch_size seq_len doutput",
+                x,
+                topk_values,
+                one_hot,
+                weight,
+            )
 
     def gating_postprocess_bmm(self, x, topk_values, one_hot, weight):
         n_exp, exp_size, dmodel = weight.shape
@@ -277,38 +457,40 @@ class ExpertChoiceFF(LoggingLayer):
             x = x.reshape((self.n_experts, topk, self.dmodel))
         return x, None
 
-    @time_measured("ff")
     def feed_forward(self, x: torch.Tensor, topk: int) -> torch.Tensor:
-        # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, exp_size)
-        x = einsum(
-            "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
-            x,
-            self.lin1_weight,
-        )
-        x = F.relu(x)
+        # feed through ff
+        with measure_time(self, "ff"):
+            # lin1 maps from (n_experts, topk, dmodel) to (n_experts, topk, exp_size)
+            x = einsum(
+                "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
+                x,
+                self.lin1_weight,
+            )
+            x = F.relu(x)
 
-        # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
-        x = einsum(
-            "n_exp topk exp_size, n_exp exp_size doutput -> n_exp topk doutput",
-            x,
-            self.lin2_weight,
-        )
-        ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.doutput)
+            # lin2 maps from (n_experts, topk, exp_size) to (n_experts, topk, dmodel)
+            x = einsum(
+                "n_exp topk exp_size, n_exp exp_size doutput -> n_exp topk doutput",
+                x,
+                self.lin2_weight,
+            )
+            ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.doutput)
         return x
 
-    @time_measured("multiply_softmax")
     def gating_postprocess_onehot(
         self, x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
     ):
         topk //= seq_len
-        x = x.reshape(self.n_experts, topk, seq_len, self.dmodel)
-        return einsum(
-            "n_exp topk seq_len dmodel, n_exp topk seq_len, n_exp topk seq_len batch_size "
-            "-> batch_size seq_len dmodel",
-            x,
-            topk_values,
-            one_hot,
-        )
+        with measure_time(self, "multiply_softmax"):
+            x = x.reshape(self.n_experts, topk, seq_len, self.dmodel)
+            x = einsum(
+                "n_exp topk seq_len dmodel, n_exp topk seq_len, n_exp topk seq_len batch_size "
+                "-> batch_size seq_len dmodel",
+                x,
+                topk_values,
+                one_hot,
+            )
+        return x
 
     def gating_postprocess_select(
         self, x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot

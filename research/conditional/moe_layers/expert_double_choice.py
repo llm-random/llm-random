@@ -3,12 +3,13 @@ import plotly.express as px
 import torch
 import torch.nn.functional as F
 from torch.nn import LayerNorm
+from functools import partial
 
 import torch.nn as nn
-from lizrd.core.initialization import get_init_weight
+from lizrd.core.initialization import get_init_fun
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
-from research.conditional.moe_layers.expert_choice import ExpertGating
+from research.conditional.moe_layers.moe_gating import ExpertGating
 
 
 class ExpertDoubleChoiceFF(LoggingLayer):
@@ -76,19 +77,12 @@ class ExpertDoubleChoiceFF(LoggingLayer):
         assert not self.use_full_einsum or self.one_hot_impl  # Not implemented
         assert not self.use_torch_bmm or not self.use_full_einsum  # Not implemented
 
-        init_weight = lambda shape, fan_in: nn.Parameter(
-            get_init_weight(
-                shape,
-                fan_in=fan_in,
-                init_type=init_type,
-                scale=init_scale,
-            ),
-        ).requires_grad_(True)
+        init = get_init_fun(init_type=init_type, init_scale=init_scale)
 
         # TODO merging weights correctly?
 
-        self.lin1_weight = init_weight((n_experts, dmodel, expert_size), dmodel)
-        self.lin2_weight = init_weight(
+        self.lin1_weight = init((n_experts, dmodel, expert_size), dmodel)
+        self.lin2_weight = init(
             (n_experts, expert_size, self.doutput),
             int(n_experts * expert_size * topk_fraction),
         )
@@ -108,7 +102,7 @@ class ExpertDoubleChoiceFF(LoggingLayer):
             one_hot_impl=one_hot_impl,
             random_perm=random_perm,
             use_torch_bmm=use_torch_bmm,
-            gate=init_weight((in_size, n_experts), fan_in=in_size),
+            gate=init((in_size, n_experts), fan_in=in_size),
             n_gating_heatmaps=n_gating_heatmaps,
         )
 
@@ -239,42 +233,6 @@ class ExpertDoubleChoiceFF(LoggingLayer):
         if gate_2 is None:
             gate_2 = self.get_gate(self.expert_gating_2, x)
         x = self.route_one(x, self.lin2_weight, gate_2, "2")
-        return x
-
-    def full_mot(self, x: torch.Tensor):
-        batch_size, seq_len = x.shape[:2]
-        gate, gate_2 = self.expert_gating.calculate_gate(x, batch_size, seq_len), None
-        if self.route_start:
-            gate_2 = self.expert_gating_2.calculate_gate(x, batch_size, seq_len)
-        x = self.route_one_mot(x, self.lin1_weight, gate, "1")
-        x = self.ln_2(x)
-        if self.route_before_relu:
-            gate_2 = self.expert_gating_2.calculate_gate(x, batch_size, seq_len)
-        x = self.activation(x)
-
-        if self.single_route:
-            gate_2 = gate
-        if gate_2 is None:
-            gate_2 = self.expert_gating_2.calculate_gate(x, batch_size, seq_len)
-        x = self.route_one_mot(x, self.lin2_weight, gate_2, "2")
-        return x
-
-    def full_bmm(self, x: torch.Tensor):
-        batch_size, seq_len = x.shape[:2]
-        gate, gate_2 = self.expert_gating(x, batch_size, seq_len), None
-        if self.route_start:
-            gate_2 = self.expert_gating_2(x, batch_size, seq_len)
-        x = self.route_one_linear(x, self.lin1_weight, gate, "1")
-        x = self.ln_2(x)
-        if self.route_before_relu:
-            gate_2 = self.expert_gating_2(x, batch_size, seq_len)
-        x = self.activation(x)
-
-        if self.single_route:
-            gate_2 = gate
-        if gate_2 is None:
-            gate_2 = self.expert_gating_2(x, batch_size, seq_len)
-        x = self.route_one_linear(x, self.lin2_weight, gate_2, "2")
         return x
 
     def log_time(self):

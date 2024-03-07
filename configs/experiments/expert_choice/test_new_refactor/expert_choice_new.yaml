@@ -1,0 +1,7 @@
+parent: configs/baselines/gpt/expert_choice/granularity/1/medium.yaml
+md5_parent_hash: 27e0212d49a74700ba49088f6410580d
+time: 0-10:00:00
+
+params:
+  name: "expert_choice_new"
+  ff_mode: expert_choice

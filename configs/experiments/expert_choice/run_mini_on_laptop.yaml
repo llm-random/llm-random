@@ -4,7 +4,7 @@ time: 0-05:00:00
 
 params:
   name: "laptop_check"
-  ff_mode: expert_double_choice
+  ff_mode: token_choice_old
   cutoff: 16
   granularity: 1
   dataset_type: wikibook

@@ -8,6 +8,7 @@ import torch
 
 import torch.nn as nn
 from lizrd.support.logging import get_current_logger
+from functools import wraps
 
 
 def get_registered_name(name):
@@ -116,6 +117,18 @@ class MeasuringLayer(nn.Module):
     def forward(self, *args, **kwargs):
         with measure_time(self.parent[0], self.name):
             return self.l(*args, **kwargs)
+
+
+def time_measured(name):
+    def _decorator(func):
+        @wraps(func)
+        def _decorator_wrapper(self, *args, **kwargs):
+            with measure_time(self, name):
+                return func(self, *args, **kwargs)
+
+        return _decorator_wrapper
+
+    return _decorator
 
 
 class LoggingLayer(nn.Module):

@@ -9,10 +9,10 @@ from lizrd.train.checkpointing import (
     second_forward_manager,
 )
 
-from research.conditional.moe_layers.token_choice import (
-    TokenChoiceFF,
-    ExpertRelu,
-    ExpertSwiGLU,
+from research.conditional.moe_layers.token_choice_old import (
+    TokenChoiceFFOld,
+    ExpertReluOld,
+    ExpertSwiGLUOld,
 )
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as OldTokenChoiceFF,
@@ -55,8 +55,8 @@ class TestTokenChoice(GeneralTestCase):
                 exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
         )
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        token_choice_layer = TokenChoiceFF(
+        expert_logic = ExpertReluOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        token_choice_layer = TokenChoiceFFOld(
             dm,
             experts,
             5.0,
@@ -106,8 +106,8 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         lin = SwiGLUFeedForward(dm, exp_size, "kaiming_uniform", 1.0)
-        expert_logic = ExpertSwiGLU(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        token_choice_layer = TokenChoiceFF(
+        expert_logic = ExpertSwiGLUOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        token_choice_layer = TokenChoiceFFOld(
             dm,
             experts,
             5.0,
@@ -164,10 +164,10 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 11
         seq_len = 13
         x = torch.rand((batch, seq_len, dm))
-        expert_logic = ExpertRelu(
+        expert_logic = ExpertReluOld(
             dm, experts, exp_size, "kaiming_uniform", 1.0, use_einsum=True
         )
-        einsum_module = TokenChoiceFF(
+        einsum_module = TokenChoiceFFOld(
             dm,
             experts,
             5.0,
@@ -197,8 +197,8 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 7
         seql = 11
 
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        tc = TokenChoiceFF(
+        expert_logic = ExpertReluOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        tc = TokenChoiceFFOld(
             dm,
             experts,
             5.0,
@@ -237,10 +237,10 @@ class TestTokenChoice(GeneralTestCase):
 
         non_reentrant_wrapper = make_checkpoint_wrapper_function()
 
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic = ExpertReluOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
 
         tc = torch.nn.Sequential(
-            TokenChoiceFF(
+            TokenChoiceFFOld(
                 dm,
                 experts,
                 5.0,
@@ -253,7 +253,7 @@ class TestTokenChoice(GeneralTestCase):
         propagate_forward_pass_cache(tc)
         apply_activation_checkpointing(
             tc,
-            check_fn=lambda module: isinstance(module, TokenChoiceFF),
+            check_fn=lambda module: isinstance(module, TokenChoiceFFOld),
             checkpoint_wrapper_fn=non_reentrant_wrapper,
         )
         x = torch.rand((batch, seql, dm))
@@ -270,10 +270,10 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 7
         seql = 11
 
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic = ExpertReluOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
 
         # non_reentrant_wrapper = make_checkpoint_wrapper_function()
-        tc = TokenChoiceFF(
+        tc = TokenChoiceFFOld(
             dm,
             experts,
             1.0,
@@ -357,8 +357,8 @@ class TestTokenChoice(GeneralTestCase):
 
         expert1 = make_expert()
         expert2 = make_expert()
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        token_choice_layer = TokenChoiceFF(
+        expert_logic = ExpertReluOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        token_choice_layer = TokenChoiceFFOld(
             dm,
             experts,
             100.0,
@@ -434,8 +434,8 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 11
         seq_len = 13
         x = torch.rand((batch, seq_len, dm))
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        nonvectorized_module = TokenChoiceFF(
+        expert_logic = ExpertReluOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        nonvectorized_module = TokenChoiceFFOld(
             dm,
             experts,
             100.0,
@@ -459,8 +459,8 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 11
         seq_len = 13
         x = torch.rand((batch, seq_len, dm))
-        expert_logic = ExpertSwiGLU(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        nonvectorized_module = TokenChoiceFF(
+        expert_logic = ExpertSwiGLUOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        nonvectorized_module = TokenChoiceFFOld(
             dm,
             experts,
             100.0,
