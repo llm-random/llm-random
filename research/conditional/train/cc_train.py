@@ -106,6 +106,7 @@ def main(
         args.dff = dff
         args.n_att_heads = n_att_heads
         args.n_blocks = n_blocks
+        args.final_lr_step = args.n_steps
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
