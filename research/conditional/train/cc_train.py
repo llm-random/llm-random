@@ -42,6 +42,7 @@ from lizrd.train.load_and_save_model import (
     load_optimizer_state,
     prepare_save_weights_path,
 )
+from lizrd.train.get_model_size_config import get_model_size_config
 
 
 def log_batch(
@@ -92,6 +93,13 @@ def main(
     check_args(args)
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
+
+    if args.predefined_model_config is not None:
+        dmodel, dff, n_att_heads, n_blocks = get_model_size_config(args.predefined_config)
+        args.dmodel = dmodel
+        args.dff = dff
+        args.n_att_heads = n_att_heads
+        args.n_blocks = n_blocks
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"

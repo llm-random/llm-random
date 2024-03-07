@@ -12,10 +12,11 @@ def introduce_parser_arguments(
     parser.add_argument("--attention_mode", type=str, default="vanilla")
     parser.add_argument("--parallel_blocks", action="store_true")
     parser.add_argument("--n_blocks", type=int, required=True)
-    parser.add_argument("--dmodel", type=int, required=True)
+    parser.add_argument("--dmodel", type=int, required=False)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
-    parser.add_argument("--n_att_heads", type=int, required=True)
+    parser.add_argument("--n_att_heads", type=int, required=False)
     parser.add_argument("--dhead", type=int, default=None)
+    parser.add_argument("--predefined_model_config", type=str, required=False)
 
     # other model hyperparameters
     parser.add_argument("--activation_type", type=str, default="relu")
