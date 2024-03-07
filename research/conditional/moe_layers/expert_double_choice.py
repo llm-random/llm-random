@@ -3,7 +3,6 @@ import plotly.express as px
 import torch
 import torch.nn.functional as F
 from torch.nn import LayerNorm
-from functools import partial
 
 import torch.nn as nn
 from lizrd.core.initialization import get_init_fun
