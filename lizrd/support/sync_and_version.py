@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 from git import Repo
 import paramiko.ssh_exception
 
-from lizrd.support.code_versioning import find_git_root, version_code
+from lizrd.support.code_versioning import version_code
 from lizrd.support.misc import generate_random_string
 
 _SSH_HOSTS_TO_PASSPHRASES = {}
@@ -41,12 +41,11 @@ def ConnectWithPassphrase(*args, **kwargs) -> Generator[Connection, None, None]:
 
 
 def cd_to_root_dir():
-    git_root = find_git_root()
-    repo = Repo(git_root)
+    repo = Repo()
     assert repo.remotes.origin.url in [
         "git@github.com:llm-random/llm-random.git",
     ], "You're not in the right repo! Move to the llm-random folder, and make sure your origin is the llm-random repo. Aborting..."
-    os.chdir(git_root)
+    os.chdir(repo.working_dir)
 
 
 def rsync_to_remote(host, local_dir):

@@ -66,6 +66,8 @@ def main(
         args, extra = parser.parse_known_args(runner_params)
         if len(extra):
             print("Unknown args:", extra)
+        if args.data_seed < 0:
+            args.data_seed = random.randint(0, 10000000)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -230,6 +232,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
     args = parser.parse_args()
+    if args.data_seed < 0:
+        args.data_seed = random.randint(0, 10000000)
 
     if args.data_distributed == False:
         main(None, args=args)
