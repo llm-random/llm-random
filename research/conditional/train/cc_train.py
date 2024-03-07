@@ -95,7 +95,9 @@ def main(
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
     if args.predefined_model_config is not None:
-        dmodel, dff, n_att_heads, n_blocks = get_model_size_config(args.predefined_config)
+        dmodel, dff, n_att_heads, n_blocks = get_model_size_config(
+            args.predefined_config
+        )
         args.dmodel = dmodel
         args.dff = dff
         args.n_att_heads = n_att_heads
