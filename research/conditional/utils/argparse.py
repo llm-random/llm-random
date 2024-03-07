@@ -59,6 +59,7 @@ def introduce_parser_arguments(
         "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
     )
     parser.add_argument("--batch_size", type=int, required=True)
+    parser.add_argument("--batch_size_per_gpu", type=int, required=False)
     parser.add_argument("--cutoff", type=int, required=True)
 
     # other data hyperparameters

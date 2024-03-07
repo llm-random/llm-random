@@ -92,6 +92,10 @@ def main(
     check_args(args)
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
+    if args.batch_size_per_gpu is not None:
+        args.gradient_acccumulation_steps = args.batch_size / (
+            args.batch_size_per_gpu * args.n_gpus
+        )
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
