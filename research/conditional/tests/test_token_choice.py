@@ -50,7 +50,9 @@ class TestTokenChoice(GeneralTestCase):
                 exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
         )
-        expert_logic = ExpertFF(dm, experts, exp_size, "kaiming_uniform", 1.0, activation_name="relu")
+        expert_logic = ExpertFF(
+            dm, experts, exp_size, "kaiming_uniform", 1.0, activation_name="relu"
+        )
         token_choice_layer = TokenChoiceFF(
             dm,
             experts,
@@ -101,7 +103,9 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         lin = SwiGLUFeedForward(dm, exp_size, "kaiming_uniform", 1.0)
-        expert_logic = ExpertGated(dm, experts, exp_size, "kaiming_uniform", 1.0, activation_name="silu")
+        expert_logic = ExpertGated(
+            dm, experts, exp_size, "kaiming_uniform", 1.0, activation_name="silu"
+        )
         token_choice_layer = TokenChoiceFF(
             dm,
             experts,
@@ -290,8 +294,12 @@ class TestTokenChoice(GeneralTestCase):
             vectorize=True,
         )
         with torch.no_grad():
-            old_tc.expert_inner_function.lin1_weight.data = tc.expert_inner_function.lin1_weight.data.clone()
-            old_tc.expert_inner_function.lin2_weight.data = tc.expert_inner_function.lin2_weight.data.clone()
+            old_tc.expert_inner_function.lin1_weight.data = (
+                tc.expert_inner_function.lin1_weight.data.clone()
+            )
+            old_tc.expert_inner_function.lin2_weight.data = (
+                tc.expert_inner_function.lin2_weight.data.clone()
+            )
             old_tc.router.gate.data = tc.router.gate.data.clone()
 
         propagate_forward_pass_cache(tc)
@@ -316,10 +324,12 @@ class TestTokenChoice(GeneralTestCase):
         ).backward()
 
         self.assertTensorAlmostEqual(
-            tc.expert_inner_function.lin1_weight.grad, old_tc.expert_inner_function.lin1_weight.grad
+            tc.expert_inner_function.lin1_weight.grad,
+            old_tc.expert_inner_function.lin1_weight.grad,
         )
         self.assertTensorAlmostEqual(
-            tc.expert_inner_function.lin2_weight.grad, old_tc.expert_inner_function.lin2_weight.grad
+            tc.expert_inner_function.lin2_weight.grad,
+            old_tc.expert_inner_function.lin2_weight.grad,
         )
         self.assertTensorAlmostEqual(tc.router.gate.grad, old_tc.router.gate.grad)
 
