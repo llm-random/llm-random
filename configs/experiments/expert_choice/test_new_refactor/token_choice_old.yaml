@@ -1,5 +1,5 @@
-parent: configs/baselines/gpt/expert_choice/granularity/1/medium.yaml
-md5_parent_hash: 27e0212d49a74700ba49088f6410580d
+parent: configs/baselines/gpt/expert_choice/medium.yaml
+md5_parent_hash: 6cf838824bd0834411030b771c73398f
 time: 0-10:00:00
 
 params:
