@@ -1,11 +1,8 @@
 import argparse
 import copy
-import os
-import platform
 import pprint
-from enum import Enum
 from itertools import product
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from research.conditional.utils.argparse import (
     introduce_parser_arguments as cc_introduce_parser_arguments,
@@ -13,67 +10,6 @@ from research.conditional.utils.argparse import (
 from research.blanks.argparse import (
     introduce_parser_arguments as blanks_introduce_parser_arguments,
 )
-
-
-class MachineBackend(Enum):
-    ENTROPY = 1
-    ATHENA = 2
-    IDEAS = 3
-    LOCAL = 4
-
-
-def get_machine_backend() -> MachineBackend:
-    node = platform.uname().node
-    if node == "asusgpu0":
-        return MachineBackend.ENTROPY
-    elif "athena" in node:
-        return MachineBackend.ATHENA
-    elif node == "login01":
-        return MachineBackend.IDEAS
-    else:
-        return MachineBackend.LOCAL
-
-
-def get_common_directory(machine_backend: MachineBackend) -> str:
-    if machine_backend == MachineBackend.ATHENA:
-        return "/net/pr2/projects/plgrid/plggllmeffi"
-    elif machine_backend == MachineBackend.IDEAS:
-        return "/raid/NFS_SHARE/llm-random"
-    elif machine_backend == MachineBackend.ENTROPY:
-        return "/home/jkrajewski_a100"
-    else:
-        return os.getenv("HOME")
-
-
-def get_cache_path(machine_backend: MachineBackend) -> str:
-    if machine_backend == MachineBackend.LOCAL:
-        return f"{os.getenv('HOME')}/.cache/huggingface/datasets"
-    elif machine_backend == MachineBackend.ATHENA:
-        return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
-    elif machine_backend == MachineBackend.ENTROPY:
-        return "/local_storage_2/dataset_cache"
-    else:
-        common_dir = get_common_directory(machine_backend)
-        return f"{common_dir}/.cache"
-
-
-def get_singularity_image(machine_backend: MachineBackend) -> str:
-    image_name = "sparsity_2024.02.06_16.14.02.sif"
-    common_dir = get_common_directory(machine_backend)
-    return f"{common_dir}/images/{image_name}"
-
-
-def get_grid_entrypoint(machine_backend: MachineBackend) -> str:
-    if machine_backend in [
-        MachineBackend.ATHENA,
-        MachineBackend.IDEAS,
-        MachineBackend.ENTROPY,
-    ]:
-        return "lizrd/scripts/grid_entrypoint.sh"
-    elif machine_backend in [MachineBackend.LOCAL]:
-        raise ValueError(f"Local machine should use main function directly. ")
-    else:
-        raise ValueError(f"Unknown machine backend: {machine_backend}")
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -253,38 +189,6 @@ def get_train_main_function(runner: str):
         raise ValueError(f"Unknown runner: {runner}")
 
 
-def get_setup_args_with_defaults(grid_args, CLUSTER_NAME):
-    RUNS_MULTIPLIER = grid_args.get("runs_multiplier", 1)  ######
-    TIME = grid_args.get("time", "1-00:00:00")  ######
-    RUNNER = grid_args["runner"]
-    GRES = grid_args.get("gres", "gpu:1")
-    SINGULARITY_IMAGE = grid_args.get(
-        "singularity_image", get_singularity_image(CLUSTER_NAME)
-    )
-    HF_DATASETS_CACHE = grid_args.get("hf_datasets_cache", get_cache_path(CLUSTER_NAME))
-    NODELIST = grid_args.get("nodelist", None)
-    N_GPUS = grid_args.get("n_gpus", 1)
-    CPUS_PER_GPU = grid_args.get("cpus_per_gpu", 8)
-    CUDA_VISIBLE_DEVICES = grid_args.get("cuda_visible", None)
-
-    if NODELIST is not None:
-        NODELIST = "--nodelist=" + NODELIST
-
-    setup_args = {
-        "gres": GRES,
-        "time": TIME,
-        "n_gpus": N_GPUS,
-        "runner": RUNNER,
-        "cpus_per_gpu": CPUS_PER_GPU,
-        "nodelist": NODELIST,
-        "cuda_visible": CUDA_VISIBLE_DEVICES,
-        "hf_datasets_cache": HF_DATASETS_CACHE,
-        "singularity_image": SINGULARITY_IMAGE,
-        "runs_multiplier": RUNS_MULTIPLIER,
-    }
-    return setup_args
-
-
 def translate_to_argparse(param_set: dict):
     runner_params = []
 
@@ -296,7 +200,7 @@ def translate_to_argparse(param_set: dict):
                 else:
                     pass  # simply don't add it if v == False
                 continue
-            else:
+            elif v is not None:  # None values should not be added
                 runner_params.append(f"--{k}")
                 if isinstance(v, list):
                     runner_params.extend([str(s) for s in v])
@@ -306,116 +210,38 @@ def translate_to_argparse(param_set: dict):
     return runner_params
 
 
-def make_singularity_env_arguments(
-    hf_datasets_cache_path: Optional[str],
-    neptune_key: Optional[str],
-    wandb_key: Optional[str],
-) -> List[str]:
-    variables_and_values = {}
-
-    if hf_datasets_cache_path is not None:
-        variables_and_values["HF_DATASETS_CACHE"] = hf_datasets_cache_path
-
-    if neptune_key is not None:
-        variables_and_values["NEPTUNE_API_TOKEN"] = neptune_key
-
-    if wandb_key is not None:
-        variables_and_values["WANDB_API_KEY"] = wandb_key
-
-    return (
-        ["--env", ",".join([f"{k}={v}" for k, v in variables_and_values.items()])]
-        if len(variables_and_values) > 0
-        else []
-    )
-
-
-def get_default_train_dataset_path(CLUSTER_NAME: MachineBackend, dataset_type: str):
-    if dataset_type == "c4":
-        if CLUSTER_NAME == MachineBackend.IDEAS:
-            return "/raid/NFS_SHARE/datasets/c4/train/c4_train"
-        elif CLUSTER_NAME == MachineBackend.ENTROPY:
-            return "/local_storage_2/llm-random/datasets/c4_train"
-
-    return None
-
-
-def get_default_validation_dataset_path(
-    CLUSTER_NAME: MachineBackend, dataset_type: str
-):
-    if dataset_type == "c4":
-        if CLUSTER_NAME == MachineBackend.IDEAS:
-            return "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
-        elif CLUSTER_NAME == MachineBackend.ENTROPY:
-            return "/local_storage_2/llm-random/datasets/c4_validation"
-
-    return None
-
-
-def maybe_set_default_datasets_paths(
-    grid: list[dict[str, str]], CLUSTER_NAME: MachineBackend
-):
-    for _, (training_args, _) in enumerate(grid):
-        if training_args.get("train_dataset_path") is None:
-            training_args["train_dataset_path"] = get_default_train_dataset_path(
-                CLUSTER_NAME, training_args["dataset_type"]
-            )
-        if training_args.get("validation_dataset_path") is None:
-            training_args[
-                "validation_dataset_path"
-            ] = get_default_validation_dataset_path(
-                CLUSTER_NAME, training_args["dataset_type"]
-            )
-
-
-def make_singularity_mount_paths(setup_args: dict, training_args: dict) -> str:
-    singularity_mount_paths = f"-B={os.getcwd()}:/llm-random"
-    is_hf_datasets_cache_needed = (
-        training_args["train_dataset_path"] is None
-        or training_args["validation_dataset_path"] is None
-    )
-    singularity_mount_paths += (
-        f",{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}"
-        if is_hf_datasets_cache_needed
-        else ""
-    )
-    singularity_mount_paths += (
-        f",{training_args['train_dataset_path']}:{training_args['train_dataset_path']}"
-        if training_args["train_dataset_path"] is not None
-        else ""
-    )
-    singularity_mount_paths += (
-        f",{training_args['validation_dataset_path']}:{training_args['validation_dataset_path']}"
-        if training_args["validation_dataset_path"] is not None
-        else ""
-    )
-    return singularity_mount_paths
-
-
 def check_for_argparse_correctness(grid: list[dict[str, str]]):
-    for i, (training_args, setup_args) in enumerate(grid):
-        training_args["n_gpus"] = setup_args["n_gpus"]
-        runner_params = translate_to_argparse(training_args)
-        runner = setup_args["runner"]
-        assert runner in [
-            "research.conditional.train.cc_train",
-            "research.blanks.train",
-        ], f"Unknown runner: {setup_args['runner']} \nIf a new one was implemented, include it here as well"
+    for setup_args, trainings_args in grid:
+        for i, training_args in enumerate(trainings_args):
+            runner_params = translate_to_argparse(training_args)
+            runner = setup_args["runner"]
+            parser = argparse.ArgumentParser()
+            if runner == "research.conditional.train.cc_train":
+                parser = cc_introduce_parser_arguments(parser)
+            else:
+                parser = blanks_introduce_parser_arguments(parser)
 
-        parser = argparse.ArgumentParser()
-        if runner == "research.conditional.train.cc_train":
-            parser = cc_introduce_parser_arguments(parser)
-        else:
-            parser = blanks_introduce_parser_arguments(parser)
+            try:
+                args, extra = parser.parse_known_args(runner_params)
+                if extra != []:
+                    print("Config:")
+                    pprint.pprint(runner_params)
+                    raise ValueError(f"Unknown arguments: {extra}")
 
-        try:
-            args, extra = parser.parse_known_args(runner_params)
-            if extra != []:
+            except SystemExit as e:
+                print(f"Error in config {i}: {e}")
                 print("Config:")
                 pprint.pprint(runner_params)
-                raise ValueError(f"Unknown arguments: {extra}")
+                raise e
 
-        except SystemExit as e:
-            print(f"Error in config {i}: {e}")
-            print("Config:")
-            pprint.pprint(runner_params)
-            raise e
+
+def setup_experiments(configs: dict):
+    grid = []
+    for infra_config, training_config in configs:
+        pprint.pprint(training_config)
+        single_exp_training_args_grid = create_grid(training_config)
+        multiplied_grid = multiply_grid(
+            single_exp_training_args_grid, infra_config["runs_multiplier"]
+        )
+        grid.append((infra_config, multiplied_grid))
+    return grid

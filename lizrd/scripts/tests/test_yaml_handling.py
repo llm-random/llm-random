@@ -1,6 +1,6 @@
 import yaml
+from lizrd.grid.prepare_configs import load_with_inheritance
 
-from lizrd.support.misc import load_with_inheritance
 from lizrd.support.test_utils import GeneralTestCase
 
 

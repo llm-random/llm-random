@@ -123,7 +123,9 @@ def introduce_parser_arguments(
 
     parser.add_argument("--mask_loss_weight", type=float, default=1.0)
     parser.add_argument("--mask_percent", type=float, default=0.15)
-    parser.add_argument("--data_seed", type=int, default=42)
+    parser.add_argument(
+        "--data_seed", type=int, default=-1, help="Negative value means random seed"
+    )
     parser.add_argument("--torch_seed", type=int, default=42)
 
     # hardware
