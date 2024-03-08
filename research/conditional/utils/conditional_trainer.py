@@ -77,6 +77,13 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    chimera_option: str = None
+    chimera_first_mode: str = None
+    chimera_second_mode: str = None
+    chimera_warmup_constant_steps: int = None
+    chimera_final_schedule_step: int = None
+    chimera_start_prob: float = None
+    chimera_end_prob: float = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -99,6 +106,9 @@ class ConditionalTrainer:
             self.logging_interval_light,
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
+            first_mode=self.chimera_first_mode,
+            second_mode=self.chimera_second_mode,
+            final_schedule_step=self.chimera_final_schedule_step,
         )
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
@@ -144,6 +154,8 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(self.start_step, n_steps + 1):
+                if self.layer_manager.chimera_scheduling_enabled:
+                    self.layer_manager.change_chimera_mode(step)
                 self._train_step(step)
                 if self.profiler_enabled:
                     p.step()

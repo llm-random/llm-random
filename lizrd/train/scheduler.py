@@ -18,6 +18,17 @@ def get_scheduler(args):
             final_lr_step=args.final_lr_step,
             final_lr_fraction=args.final_lr_fraction,
         )
+    elif args.scheduler == "finetune_cosine":
+        if args.final_lr_step is None:
+            args.final_lr_step = args.n_steps
+        return FinetuneCosineScheduler(
+            lr_warmup_steps=args.lr_warmup_steps,
+            lr=args.learning_rate,
+            final_lr_step=args.final_lr_step,
+            final_lr_fraction=args.final_lr_fraction,
+            finetune_steps=args.finetune_steps,
+            finetune_lr=args.finetune_lr,
+        )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 
@@ -79,3 +90,51 @@ class CosineScheduler(AbstractLRScheduler):
             )
         else:
             return self.lr * self.final_lr_fraction
+
+
+class FinetuneCosineScheduler(AbstractLRScheduler):
+    """
+    Scheduler with two cosine schedules, first for pretraining, second for finetuning.
+    """
+
+    def __init__(
+        self,
+        lr_warmup_steps: int,
+        lr: float,
+        final_lr_step: int,
+        final_lr_fraction: float,
+        finetune_steps: int,
+        finetune_lr: float,
+    ):
+        assert isinstance(lr_warmup_steps, int)
+        assert isinstance(lr, float)
+        assert isinstance(final_lr_step, int)
+        assert isinstance(final_lr_fraction, float)
+        assert isinstance(finetune_steps, int)
+        assert isinstance(finetune_lr, float)
+
+        self.lr_warmup_steps = lr_warmup_steps
+        self.lr = lr
+        self.final_lr_step = final_lr_step
+        self.final_lr_fraction = final_lr_fraction
+        self.finetune_steps = finetune_steps
+        self.finetune_lr = finetune_lr
+
+        self.pretrain_scheduler = CosineScheduler(
+            lr_warmup_steps=lr_warmup_steps,
+            lr=lr,
+            final_lr_step=final_lr_step,
+            final_lr_fraction=final_lr_fraction,
+        )
+        self.finetune_scheduler = CosineScheduler(
+            lr_warmup_steps=0,
+            lr=finetune_lr,
+            final_lr_step=final_lr_step + finetune_steps,
+            final_lr_fraction=final_lr_fraction,
+        )
+
+    def get_lr(self, step: int):
+        if step < self.final_lr_step:
+            return self.pretrain_scheduler.get_lr(step)
+        else:
+            return self.finetune_scheduler.get_lr(step - self.final_lr_step)

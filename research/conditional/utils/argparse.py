@@ -35,6 +35,8 @@ def introduce_parser_arguments(
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
+    parser.add_argument("--finetune_steps", type=int, required=False)
+    parser.add_argument("--finetune_lr", type=float, required=False)
     parser.add_argument(
         "--init_type",
         type=str,
@@ -277,6 +279,14 @@ def introduce_parser_arguments(
         action="store_true",
         help="This argument is used in Token Choice to force it to use `for`-s",
     )
+    parser.add_argument("--chimera_schedule", type=int, default=None)
+    parser.add_argument("--chimera_option", type=str, default=None)
+    parser.add_argument("--chimera_first_mode", type=str, default=None)
+    parser.add_argument("--chimera_second_mode", type=str, default=None)
+    parser.add_argument("--chimera_warmup_constant_steps", type=int, default=None)
+    parser.add_argument("--chimera_final_schedule_step", type=int, default=None)
+    parser.add_argument("--chimera_start_prob", type=float, default=None)
+    parser.add_argument("--chimera_end_prob", type=float, default=None)
 
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
     parser.add_argument("--layer_norm_in_expert_choice", action="store_true")

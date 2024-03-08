@@ -61,6 +61,7 @@ from research.conditional.moe_layers.token_choice import (
     ExpertRelu,
     ExpertSwiGLU,
 )
+from research.conditional.moe_layers.chimera import Chimera
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
 )
@@ -519,6 +520,42 @@ def get_ff_layer(args):
             no_average_attn=args.no_average_attn,
             nystrom=args.nystrom,
             xfavor=args.xfavor,
+        )
+    elif args.ff_mode == "chimera":
+        mot = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
+        ec = lambda: ExpertChoiceFF(**get_expert_choice_args(args))
+        if args.token_choice_inner == "relu":
+            expert_inner_class = ExpertRelu
+        elif args.token_choice_inner == "swi_glu":
+            expert_inner_class = ExpertSwiGLU
+        make_expert_inner_function = partial(
+            expert_inner_class,
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+        )
+        switch = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+            vectorize=(not args.dont_vectorize_switch),
+        )
+        return_fn = lambda: Chimera(
+            mot=mot,
+            ec=ec,
+            switch=switch,
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            expert_size=args.expert_size,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
