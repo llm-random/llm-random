@@ -1,7 +1,8 @@
 parent: configs/baselines/gpt/expert_choice/medium.yaml
 md5_parent_hash: 6cf838824bd0834411030b771c73398f
 time: 0-10:00:00
-
+# TODO write
 params:
-  name: "token_choice_new"
-  ff_mode: token_choice
+  name: refactor_grid
+  ^ff_mode: [expert_choice, expert_choice_old,
+             token_choice, token_choice_old]

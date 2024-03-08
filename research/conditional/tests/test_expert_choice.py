@@ -11,6 +11,7 @@ from lizrd.train.checkpointing import (
 )
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
 from lizrd.support.test_utils import GeneralTestCase
 from lizrd.core.misc import Linear
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -74,6 +75,49 @@ class TestExpertChoice(GeneralTestCase):
         ):  # patch torch topk, s t. we don't multiply by softmax
             output = layer(input)
         self.assertTensorAlmostEqual(output, input)
+
+    def test_old_new_equivalence(self):
+        """
+        Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
+        """
+        batch, dm = 2, 2
+        experts = 2
+        exp_size = 6
+        seql = 2
+        topk_fraction = 0.5
+        layer = ExpertChoiceFF(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            one_hot_impl=True,
+            group_by_batch=True,
+            use_torch_bmm=True,
+        )
+        layer_old = ExpertChoiceFFOld(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            one_hot_impl=True,
+            group_by_batch=True,
+        )
+        layer_old.lin1_weight.data = layer.lin1_weight.data
+        layer_old.lin2_weight.data = layer.lin2_weight.data
+        layer_old.expert_gating.gate.data = layer.expert_gating.gate.data
+        layer_old.ln = layer.ln
+
+        input = torch.rand((batch, seql, dm))
+
+        output = layer.forward(input)
+        output_onehot = layer_old.forward(input)
+
+        self.assertTensorAlmostEqual(output, output_onehot)
+
 
     def test_onehot_bmm_equivalence(self):
         """

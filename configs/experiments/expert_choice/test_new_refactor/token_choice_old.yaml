@@ -1,7 +1,0 @@
-parent: configs/baselines/gpt/expert_choice/medium.yaml
-md5_parent_hash: 6cf838824bd0834411030b771c73398f
-time: 0-10:00:00
-
-params:
-  name: "token_choice_old"
-  ff_mode: token_choice_old
