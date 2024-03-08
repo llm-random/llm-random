@@ -41,6 +41,8 @@ class ExpertFF(LoggingLayer):
         assert n_experts == self.n_experts
         assert dmodel == self.dmodel
 
+        # maybe remove these einsums that just multiply two tensors? This will never be faster than torch.matmul
+        # unlike of course einsums with >2 tensors
         if self.use_einsum:
             experts_output = einsum(
                 "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",

@@ -78,9 +78,6 @@ from research.conditional.moe_layers.expert_types import (
     ExpertGated,
     ExpertLinear,
 )
-from research.conditional.moe_layers._token_choice_deprecated import (
-    TokenChoiceFF as TokenChoiceFFDeprecated,
-)
 from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
@@ -548,16 +545,6 @@ def get_ff_layer(args):
             init_scale=args.init_scale,
             init_type=args.init_type,
             vectorize=(not args.dont_vectorize_switch),
-        )
-    elif args.ff_mode == "token_choice_deprecated":
-        return_fn = lambda: TokenChoiceFFDeprecated(
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            expert_size=args.expert_size,
-            capacity_factor=args.capacity_factor,
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
-            init_scale=args.init_scale,
-            init_type=args.init_type,
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
