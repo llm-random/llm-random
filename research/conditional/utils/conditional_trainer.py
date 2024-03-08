@@ -24,6 +24,7 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+from research.hyperoptimizer.gdtuo import ModuleWrapper, Adam, SGD
 
 
 @define(slots=False)
@@ -103,9 +104,20 @@ class ConditionalTrainer:
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
         self._check_config()
+        self.model = ModuleWrapper(
+            self.model,
+            optimizer=Adam(
+                alpha=1e-3,
+                beta1=0.9,
+                beta2=0.999,
+                log_eps=-8.0,
+                optimizer=SGD(alpha=1e-5),
+            ),
+        )
+        self.model.initialize()
 
     def _before_train_operations(self):
-        propagate_forward_pass_cache(self.model)
+        propagate_forward_pass_cache(self.model.module)
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
@@ -120,7 +132,7 @@ class ConditionalTrainer:
         )
 
     def _after_step_operations(self, step):
-        self.model.forward_pass_cache.clear()
+        self.model.module.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
 
     def train(self, n_steps: int):
@@ -176,6 +188,8 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
+        self.model.begin()
+        self.model.zero_grad()
         loss, aux_info = self.calculate_loss_and_maybe_optimize(
             processed_batch, should_optimize=True
         )
@@ -205,7 +219,7 @@ class ConditionalTrainer:
 
             cross_entropy_loss, aux_info = self._calculate_loss(
                 batch=batch_copy,
-                model=self.model,
+                model=self.model.module,
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
                 vocab_size=self.vocab_size,
@@ -239,20 +253,19 @@ class ConditionalTrainer:
         }
 
     def _optimize(self, loss, should_apply_gradient=False):
-        if self.gradient_accumulation_steps == 1:
-            self.optimizer.zero_grad()
         # clear computation graph, store gradients
         if self.scaler is None:
-            loss.backward()
+            loss.backward(create_graph=True)
         else:
-            self.scaler.scale(loss).backward()
+            self.scaler.scale(loss).backward(create_graph=True)
         if should_apply_gradient:
             if self.scaler is None:
                 if self.gradient_clipping is not None:
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.gradient_clipping
-                    )
-                self.optimizer.step()
+                    # torch.nn.utils.clip_grad_norm_(
+                    #     self.model.parameters, self.gradient_clipping
+                    # )
+                    self.model.clip_grad_norm(self.gradient_clipping)
+                self.model.step()
             else:
                 if self.gradient_clipping is not None:
                     self.scaler.unscale_(self.optimizer)
@@ -262,8 +275,6 @@ class ConditionalTrainer:
                 self.scaler.step(self.optimizer)
                 if self.scaler is not None:
                     self.scaler.update()
-            if self.gradient_accumulation_steps > 1:
-                self.optimizer.zero_grad()
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
