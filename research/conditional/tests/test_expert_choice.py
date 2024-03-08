@@ -118,7 +118,6 @@ class TestExpertChoice(GeneralTestCase):
 
         self.assertTensorAlmostEqual(output, output_onehot)
 
-
     def test_onehot_bmm_equivalence(self):
         """
         Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
