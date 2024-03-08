@@ -10,7 +10,7 @@ from lizrd.train.checkpointing import (
     second_forward_manager,
 )
 
-from research.conditional.moe_layers.expert_choice_old import ExpertChoiceFFOld
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from lizrd.support.test_utils import GeneralTestCase
 from lizrd.core.misc import Linear
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -38,7 +38,7 @@ class TestExpertChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         topk_fraction = 1
-        layer = ExpertChoiceFFOld(
+        layer = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -84,7 +84,7 @@ class TestExpertChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         topk_fraction = 0.5
-        layer = ExpertChoiceFFOld(
+        layer = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -95,7 +95,7 @@ class TestExpertChoice(GeneralTestCase):
             group_by_batch=True,
             use_torch_bmm=True,
         )
-        layer_einsum = ExpertChoiceFFOld(
+        layer_einsum = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -127,7 +127,7 @@ class TestExpertChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         topk_fraction = 0.5
-        layer = ExpertChoiceFFOld(
+        layer = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -137,7 +137,7 @@ class TestExpertChoice(GeneralTestCase):
             one_hot_impl=True,
             group_by_batch=True,
         )
-        layer_einsum = ExpertChoiceFFOld(
+        layer_einsum = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -169,7 +169,7 @@ class TestExpertChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         topk_fraction = 0.5
-        layer = ExpertChoiceFFOld(
+        layer = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -178,7 +178,7 @@ class TestExpertChoice(GeneralTestCase):
             init_scale=1.0,
             group_by_batch=True,
         )
-        layer_onehot = ExpertChoiceFFOld(
+        layer_onehot = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -223,7 +223,7 @@ class TestExpertChoice(GeneralTestCase):
                 exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
         )
-        ec = ExpertChoiceFFOld(
+        ec = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -287,7 +287,7 @@ class TestExpertChoice(GeneralTestCase):
         seql = 11
         topk_fraction = 0.5
 
-        ec = ExpertChoiceFFOld(
+        ec = ExpertChoiceFF(
             dm,
             experts,
             exp_size,
@@ -326,7 +326,7 @@ class TestExpertChoice(GeneralTestCase):
         non_reentrant_wrapper = make_checkpoint_wrapper_function()
 
         ec = torch.nn.Sequential(
-            ExpertChoiceFFOld(
+            ExpertChoiceFF(
                 dm,
                 experts,
                 exp_size,
@@ -338,7 +338,7 @@ class TestExpertChoice(GeneralTestCase):
 
         apply_activation_checkpointing(
             ec,
-            check_fn=lambda module: isinstance(module, ExpertChoiceFFOld),
+            check_fn=lambda module: isinstance(module, ExpertChoiceFF),
             checkpoint_wrapper_fn=non_reentrant_wrapper,
         )
         x = torch.rand((batch, seql, dm))
