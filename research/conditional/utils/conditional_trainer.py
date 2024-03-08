@@ -251,6 +251,9 @@ class ConditionalTrainer:
                         self.model.parameters(), self.gradient_clipping
                     )
                 self.optimizer.step()
+                import torch_xla.core.xla_model as xm
+
+                xm.mark_step()
             else:
                 if self.gradient_clipping is not None:
                     self.scaler.unscale_(self.optimizer)
@@ -281,9 +284,7 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
+                current_group_size = int(2**log_group_size_factor * original_group_size)
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps

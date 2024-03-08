@@ -557,6 +557,7 @@ class TransformerTower(nn.Module):
             [] if model_fragmentation is None else model_fragmentation
         )
         self.device = device
+        print(self.device)
 
         for i_block in range(n_blocks):
             layers_info = [
@@ -574,6 +575,7 @@ class TransformerTower(nn.Module):
                 residual_fn,
             )
             if current_device != torch.device("cpu"):
+                breakpoint()
                 block = block.to(current_device)
 
             name_and_block = (

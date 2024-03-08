@@ -39,6 +39,11 @@ from research.conditional.utils.model_utils import (
     get_vanilla_mamba_layer,
 )
 
+import torch_xla.core.xla_model as xm
+
+# import torch_xla.distributed.parallel_loader as pl
+# import torch_xla.distributed.xla_multiprocessing as xmp
+
 
 def log_batch(
     wrapper: DataloaderWrapper,
@@ -109,7 +114,9 @@ def main(
         if args.model_type == "bert"
         else tokenizers.GPTTokenizer.VOCAB_SIZE
     )
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # DEVICE = xm.xla_device()
+    DEVICE = torch.device("cpu")
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
@@ -174,11 +181,7 @@ def main(
         block_modules=block_modules,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
-        device=DEVICE
-        if rank is None
-        else torch.device(
-            "cpu"
-        ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
+        device=DEVICE,  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
         ddp_enabled=args.ddp_enabled,
@@ -196,6 +199,13 @@ def main(
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
     )
+
+    print("predevice", DEVICE)
+    DEVICE = xm.xla_device()
+    print("postdevice", DEVICE)
+
+    model = model.to(DEVICE)
+    print("model converted")
 
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters
@@ -240,11 +250,15 @@ def main(
         "use_dummy_dataset": args.use_dummy_dataset,
     }
 
+    print("pre dataloaders")
+
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split="train",
         dataset_path=args.train_dataset_path,
     )
+
+    print("post dataloaders")
 
     eval_split = (
         "eval"
@@ -257,6 +271,8 @@ def main(
         dataset_path=args.validation_dataset_path,
     )
 
+    print("post eval dataloaders")
+
     if is_logging_process:
         logger = get_logger(args, model, VOCAB_SIZE)
     else:
@@ -265,9 +281,11 @@ def main(
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
             train_dataloader,
-            tokenizer_maker=tokenizers.GPTTokenizer
-            if args.model_type == "gpt"
-            else tokenizers.BertTokenizer,
+            tokenizer_maker=(
+                tokenizers.GPTTokenizer
+                if args.model_type == "gpt"
+                else tokenizers.BertTokenizer
+            ),
         )
 
     profiler_schedule = (
