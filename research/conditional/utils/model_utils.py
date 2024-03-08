@@ -54,23 +54,22 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
     LegacyContinuousMoE,
 )
-from research.conditional.moe_layers.expert_choice_old import (
+from research.conditional.moe_layers._expert_choice_old import (
     ExpertChoiceFFOld,
     ExpertGatingOld,
 )
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
-from research.conditional.moe_layers.token_choice_old import (
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers._token_choice_old import (
     TokenChoiceFFOld,
     TokenChoiceRouterOld,
     ExpertReluOld,
     ExpertSwiGLUOld,
 )
+from research.conditional.moe_layers.moe_gating import MoeGating, ExpertGating, TokenGating
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
-    TokenGating,
-    ExpertRelu,
-    ExpertSwiGLU,
 )
+from research.conditional.moe_layers.expert_types import ExpertRelu, ExpertSwiGLU
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
 )
@@ -502,23 +501,7 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "token_choice":
         args = determine_moe_args(args)
-        if args.token_choice_inner == "relu":
-            expert_inner_class = ExpertRelu
-        elif args.token_choice_inner == "swi_glu":
-            expert_inner_class = ExpertSwiGLU
-
-        else:
-            raise NotImplementedError(
-                f"Token choice logic {args.token_choice_inner} not implemented"
-            )
-        make_expert_inner_function = partial(
-            expert_inner_class,
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            expert_size=args.expert_size,
-            init_scale=args.init_scale,
-            init_type=args.init_type,
-        )
+        make_expert_inner_function = get_inner_expert(args)
         return_fn = lambda: TokenChoiceFF(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
@@ -531,13 +514,13 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "token_choice_old":
         args = determine_moe_args(args)
-        if args.token_choice_inner == "relu":
+        if args.moe_inner_expert == "relu":
             expert_inner_class = ExpertReluOld
-        elif args.token_choice_inner == "swi_glu":
+        elif args.moe_inner_expert == "swi_glu":
             expert_inner_class = ExpertSwiGLUOld
         else:
             raise NotImplementedError(
-                f"Token choice logic {args.token_choice_inner} not implemented"
+                f"Token choice logic {args.moe_inner_expert} not implemented"
             )
         make_expert_inner_function = partial(
             expert_inner_class,
@@ -602,6 +585,25 @@ def get_ff_layer(args):
             )
 
     return return_fn
+
+
+def get_inner_expert(args):
+    if args.moe_inner_expert == "relu":
+        expert_inner_class = ExpertRelu
+    elif args.moe_inner_expert == "swi_glu":
+        expert_inner_class = ExpertSwiGLU
+    else:
+        raise NotImplementedError(
+            f"Token choice logic \"{args.moe_inner_expert}\" not implemented"
+        )
+    return partial(
+        expert_inner_class,
+        dmodel=args.dmodel,
+        n_experts=args.n_experts,
+        expert_size=args.expert_size,
+        init_scale=args.init_scale,
+        init_type=args.init_type,
+    )
 
 
 def get_vanilla_mamba_layer(args):
@@ -721,8 +723,6 @@ def get_classes_from_module_names(
             classes.append(ExpertChoiceFFOld)
         elif name == "ExpertChoiceFF":
             classes.append(ExpertChoiceFF)
-        elif name == "ExperDoubletChoiceFF":
-            classes.append(ExpertDoubleChoiceFF)
         elif name == "ExpertGatingOld":
             classes.append(ExpertGatingOld)
         elif name == "ExpertGating":
@@ -733,6 +733,8 @@ def get_classes_from_module_names(
             classes.append(TokenChoiceRouterOld)
         elif name == "TokenGating":
             classes.append(TokenGating)
+        elif name == "MoeGating":
+            classes.append(MoeGating)
         elif name == "Mamba":
             import mamba_ssm
 

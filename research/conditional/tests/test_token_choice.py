@@ -9,7 +9,7 @@ from lizrd.train.checkpointing import (
     second_forward_manager,
 )
 
-from research.conditional.moe_layers.token_choice_old import (
+from research.conditional.moe_layers._token_choice_old import (
     TokenChoiceFFOld,
     ExpertReluOld,
     ExpertSwiGLUOld,

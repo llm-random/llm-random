@@ -24,7 +24,7 @@ def introduce_parser_arguments(
     parser.add_argument("--standard_ff_first", action="store_true")
     parser.add_argument("--no_ff", action="store_true")
     parser.add_argument(
-        "--token_choice_inner", type=str, choices=["relu", "swi_glu"], default="relu"
+        "--moe_inner_expert", type=str, choices=["relu", "swi_glu"], default="relu"
     )
 
     # CORE training hyperparameters, almost always specified in baseline configs

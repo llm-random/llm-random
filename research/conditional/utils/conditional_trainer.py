@@ -13,7 +13,7 @@ from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
-from research.conditional.moe_layers.expert_choice_old import ExpertChoiceFFOld
+from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import temp_modify_attr
