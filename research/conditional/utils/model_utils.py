@@ -73,7 +73,11 @@ from research.conditional.moe_layers.moe_gating import (
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
 )
-from research.conditional.moe_layers.expert_types import ExpertRelu, ExpertSwiGLU
+from research.conditional.moe_layers.expert_types import (
+    ExpertFF,
+    ExpertGated,
+    ExpertLinear,
+)
 from research.conditional.moe_layers._token_choice_deprecated import (
     TokenChoiceFF as TokenChoiceFFDeprecated,
 )
@@ -592,13 +596,22 @@ def get_ff_layer(args):
 
 
 def get_inner_expert(args):
-    if args.moe_inner_expert == "relu":
-        expert_inner_class = ExpertRelu
+    if args.moe_inner_expert == "ff":
+        expert_inner_class = partial(ExpertFF, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "ff_gated":
+        expert_inner_class = partial(ExpertGated, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "linear":
+        expert_inner_class = ExpertLinear
+    # these experts names are left for backward compatibility
+    elif args.moe_inner_expert == "relu":
+        expert_inner_class = partial(ExpertFF, activation_name="relu")
     elif args.moe_inner_expert == "swi_glu":
-        expert_inner_class = ExpertSwiGLU
+        expert_inner_class = partial(ExpertGated, activation_name="silu")
+    elif args.moe_inner_expert == "geglu":
+        expert_inner_class = partial(ExpertGated, activation_name="gelu")
     else:
         raise NotImplementedError(
-            f'Token choice logic "{args.moe_inner_expert}" not implemented'
+            f'Inner expert type "{args.moe_inner_expert}" not implemented'
         )
     return partial(
         expert_inner_class,

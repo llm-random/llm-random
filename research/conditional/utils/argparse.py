@@ -23,9 +23,7 @@ def introduce_parser_arguments(
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
     parser.add_argument("--no_ff", action="store_true")
-    parser.add_argument(
-        "--moe_inner_expert", type=str, choices=["relu", "swi_glu"], default="relu"
-    )
+    parser.add_argument("--moe_inner_expert", type=str, default="ff")
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
