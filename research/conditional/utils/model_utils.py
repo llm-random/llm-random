@@ -65,7 +65,11 @@ from research.conditional.moe_layers._token_choice_old import (
     ExpertReluOld,
     ExpertSwiGLUOld,
 )
-from research.conditional.moe_layers.moe_gating import MoeGating, ExpertGating, TokenGating
+from research.conditional.moe_layers.moe_gating import (
+    MoeGating,
+    ExpertGating,
+    TokenGating,
+)
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
 )
@@ -594,7 +598,7 @@ def get_inner_expert(args):
         expert_inner_class = ExpertSwiGLU
     else:
         raise NotImplementedError(
-            f"Token choice logic \"{args.moe_inner_expert}\" not implemented"
+            f'Token choice logic "{args.moe_inner_expert}" not implemented'
         )
     return partial(
         expert_inner_class,

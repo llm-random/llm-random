@@ -116,5 +116,3 @@ class TokenChoiceFF(LoggingLayer):
             x,
         )
         return output
-
-
