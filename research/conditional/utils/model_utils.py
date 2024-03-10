@@ -330,8 +330,33 @@ def determine_moe_args(args):
     return args
 
 
+# this is a fix for a default value, because EC and TC had different initializations for LIN2
+# which does not make sense, but we need to keep the old behavior for compatibility
+def get_expert_init(parameter, default=False):
+    if parameter == "Always":
+        return True
+    elif parameter == "Never":
+        return False
+    elif parameter == "Default":
+        return default
+    else:
+        raise ValueError(f"Unknown expert init type {parameter}")
+
+
 def get_expert_choice_args(args):
-    args = determine_moe_args(args)
+    use_topk_initialization = get_expert_init(
+        args.expert_use_topk_initialization, default=True
+    )
+    expert_inner_function = partial(
+        get_inner_expert(args), use_topk_initialization=use_topk_initialization
+    )
+    args = get_expert_choice_args_old(args)
+    del args["use_full_einsum"]  # this is no longer compatible
+    del args["expert_size"]
+    return args, expert_inner_function
+
+
+def get_expert_choice_args_old(args):
     return {
         "dmodel": args.dmodel,
         "n_experts": args.n_experts,
@@ -488,11 +513,15 @@ def get_ff_layer(args):
     elif args.ff_mode == "cont_moe_legacy":
         return_fn = lambda: LegacyContinuousMoE(**get_common_mot_kwargs(args))
     elif args.ff_mode == "expert_choice_old":
-        ff_args = get_expert_choice_args(args)
+        args = determine_moe_args(args)
+        ff_args = get_expert_choice_args_old(args)
         return_fn = partial(ExpertChoiceFFOld, **ff_args)
     elif args.ff_mode == "expert_choice":
-        ff_args = get_expert_choice_args(args)
-        return_fn = partial(ExpertChoiceFF, **ff_args)
+        args = determine_moe_args(args)
+        ff_args, make_expert_inner_function = get_expert_choice_args(args)
+        return_fn = lambda: ExpertChoiceFF(
+            **ff_args, expert_inner_function=make_expert_inner_function()
+        )
     elif args.ff_mode == "expert_choice_with_parallel_ff":
         expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
             "expert_choice_kwargs"
@@ -507,6 +536,12 @@ def get_ff_layer(args):
     elif args.ff_mode == "token_choice":
         args = determine_moe_args(args)
         make_expert_inner_function = get_inner_expert(args)
+        use_topk_initialization = get_expert_init(
+            args.expert_use_topk_initialization, default=False
+        )
+        make_expert_inner_function = partial(
+            make_expert_inner_function, use_topk_initialization=use_topk_initialization
+        )
         return_fn = lambda: TokenChoiceFF(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
@@ -607,6 +642,7 @@ def get_inner_expert(args):
         expert_size=args.expert_size,
         init_scale=args.init_scale,
         init_type=args.init_type,
+        topk=args.routing_top_k,
     )
 
 

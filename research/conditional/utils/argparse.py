@@ -231,6 +231,13 @@ def introduce_parser_arguments(
         type=int,
         help="How much FLOPS we want to spend on FF, in multiples of d_model",
     )
+    parser.add_argument(
+        "--expert_use_topk_initialization",
+        type=str,
+        choices=["Always", "Never", "Default"],
+        default="Default",
+        help="Whether to init fan_in of Lin2 in Experts with topk or not. Default means yes for EC and no for TC.",
+    )
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")

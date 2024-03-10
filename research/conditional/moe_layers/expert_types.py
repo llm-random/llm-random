@@ -19,6 +19,8 @@ class ExpertFF(LoggingLayer):
         use_einsum: bool = False,
         doutput: Optional[int] = None,
         activation_name: str = "relu",
+        topk: int = 1,
+        use_topk_initialization: bool = False,
     ):
         super().__init__()
         self.dmodel = dmodel
@@ -27,11 +29,12 @@ class ExpertFF(LoggingLayer):
         self.use_einsum = use_einsum
         self.activation = resolve_activation_name(activation_name)
 
+        fan_in_factor = topk if use_topk_initialization else n_experts
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
         self.lin1_weight = init(shape=(n_experts, dmodel, expert_size), fan_in=dmodel)
         self.lin2_weight = init(
             shape=(n_experts, expert_size, self.doutput),
-            fan_in=int(n_experts * expert_size),
+            fan_in=int(fan_in_factor * expert_size),
         )
 
     @time_measured("process_by_experts")
@@ -77,17 +80,20 @@ class ExpertGated(LoggingLayer):
         use_einsum: bool = False,
         doutput: Optional[int] = None,
         activation_name: str = "silu",
+        topk: int = 1,
+        use_topk_initialization: bool = False,
     ):
         super().__init__()
         self.doutput = dmodel if doutput is None else doutput
         self.use_einsum = use_einsum
         self.activation = resolve_activation_name(activation_name)
 
+        fan_in_factor = topk if use_topk_initialization else n_experts
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
         self.lin1_weight = init(shape=(n_experts, dmodel, expert_size), fan_in=dmodel)
         self.lin2_weight = init(
             shape=(n_experts, expert_size, self.doutput),
-            fan_in=int(n_experts * expert_size),
+            fan_in=int(fan_in_factor * expert_size),
         )
         self.gate_weight = init(shape=(n_experts, dmodel, expert_size), fan_in=dmodel)
 
@@ -109,7 +115,7 @@ class ExpertGated(LoggingLayer):
             experts_output = torch.matmul(x, self.lin1_weight)
             gate = torch.matmul(x, self.gate_weight)
 
-        experts_output = self.activation(experts_output) * gate
+        experts_output = self.activation(gate) * experts_output
 
         if self.use_einsum:
             experts_output = einsum(
@@ -144,8 +150,7 @@ class ExpertLinear(LoggingLayer):
     @time_measured("process_by_experts")
     def forward(self, x: torch.Tensor):
         n_experts, capacity, dmodel = x.shape
-        assert n_experts == self.n_experts
-        assert dmodel == self.dmodel
+        assert (n_experts, dmodel) == (self.n_experts, self.dmodel)
 
         experts_output = torch.matmul(x, self.lin1_weight)
         assert experts_output.shape == (n_experts, capacity, self.doutput)

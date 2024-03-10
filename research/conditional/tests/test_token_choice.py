@@ -118,10 +118,10 @@ class TestTokenChoice(GeneralTestCase):
         propagate_forward_pass_cache(token_choice_layer)
 
         token_choice_layer.expert_inner_function.lin1_weight.data = (
-            lin.w1_gate.weight[0:exp_size].data.transpose(0, 1).unsqueeze(0)
+            lin.w1_gate.weight[exp_size:].data.transpose(0, 1).unsqueeze(0)
         )
         token_choice_layer.expert_inner_function.gate_weight.data = (
-            lin.w1_gate.weight.data[exp_size:].transpose(0, 1).unsqueeze(0)
+            lin.w1_gate.weight.data[0:exp_size].transpose(0, 1).unsqueeze(0)
         )
         token_choice_layer.expert_inner_function.lin2_weight.data = (
             lin.w2.weight.data.transpose(0, 1).unsqueeze(0)
@@ -138,13 +138,13 @@ class TestTokenChoice(GeneralTestCase):
         output_lin.sum().backward()
         output_token_choice.sum().backward()
         self.assertTensorAlmostEqual(
-            lin.w1_gate.weight.grad[0:exp_size],
+            lin.w1_gate.weight.grad[exp_size:],
             token_choice_layer.expert_inner_function.lin1_weight.grad.squeeze(
                 0
             ).transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
-            lin.w1_gate.weight.grad[exp_size:],
+            lin.w1_gate.weight.grad[0:exp_size],
             token_choice_layer.expert_inner_function.gate_weight.grad.squeeze(
                 0
             ).transpose(0, 1),
