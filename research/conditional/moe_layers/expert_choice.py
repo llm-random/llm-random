@@ -66,19 +66,19 @@ class ExpertChoiceFF(LoggingLayer):
 
         self.ln = self.measure(LayerNorm(self.doutput), "layer_norm", use_layer_norm)
         self.softmax_over = softmax_over
-        self.extract_chosen_tokens = (
-            self.extract_chosen_tokens_bmm
+        self.extract = (
+            self.extract_bmm
             if use_torch_bmm
-            else self.extract_chosen_tokens_onehot
+            else self.extract_einsum
             if one_hot_impl
-            else self.extract_chosen_tokens_select
+            else self.extract_index_select
         )
-        self.gating_postprocess = (
-            self.gating_postprocess_bmm
+        self.merge = (
+            self.merge_bmm
             if use_torch_bmm
-            else self.gating_postprocess_onehot
+            else self.merge_einsum
             if one_hot_impl
-            else self.gating_postprocess_select
+            else self.merge_index_select
         )
 
         self.expert_gating = ExpertGating(
@@ -109,11 +109,9 @@ class ExpertChoiceFF(LoggingLayer):
 
         topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
 
-        x, one_hot = self.extract_chosen_tokens(x, topk, topk_indices, batch_size)
+        x, one_hot = self.extract(x, topk, topk_indices)
         x = self.expert_inner_function(x)
-        x = self.gating_postprocess(
-            x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
-        )
+        x = self.merge(x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot)
 
         x = self.ln(x)
 
@@ -125,9 +123,8 @@ class ExpertChoiceFF(LoggingLayer):
     # extract implementations
 
     @time_measured("extract_einsum")
-    def extract_chosen_tokens_onehot(
-        self, x: torch.Tensor, topk, topk_indices: torch.Tensor, batch_size
-    ):
+    def extract_einsum(self, x: torch.Tensor, topk, topk_indices: torch.Tensor):
+        batch_size, _, _ = x.shape
         one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
         # one_hot is (n_experts, topk, seq_len, batch_size)
         x = einsum(
@@ -139,9 +136,8 @@ class ExpertChoiceFF(LoggingLayer):
         x = x.reshape((self.n_experts, topk, self.dmodel))
         return x, one_hot
 
-    def extract_chosen_tokens_bmm(
-        self, x: torch.Tensor, topk, topk_indices: torch.Tensor, batch_size
-    ):
+    def extract_bmm(self, x: torch.Tensor, topk, topk_indices: torch.Tensor):
+        batch_size, _, _ = x.shape
         with measure_time(self, "one_hot_instanciate"):
             one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
         n_exp, topk, seq_len, _ = one_hot.shape
@@ -165,9 +161,8 @@ class ExpertChoiceFF(LoggingLayer):
             x = x.permute(2, 0, 3, 1).reshape(n_exp, seq_len * topk, self.dmodel)
         return x, one_hot_perm
 
-    def extract_chosen_tokens_select(
-        self, x: torch.Tensor, topk, topk_indices: torch.Tensor, batch_size
-    ):
+    def extract_index_select(self, x: torch.Tensor, topk, topk_indices: torch.Tensor):
+        batch_size, _, _ = x.shape
         # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
         with measure_time(self, "first_flatten"):
             x = x.flatten(start_dim=0, end_dim=1)
@@ -180,7 +175,7 @@ class ExpertChoiceFF(LoggingLayer):
     # postprocess implementations
 
     @time_measured("postprocess_einsum")
-    def gating_postprocess_onehot(
+    def merge_einsum(
         self, x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
     ):
         topk //= seq_len
@@ -193,11 +188,10 @@ class ExpertChoiceFF(LoggingLayer):
             one_hot,
         )
 
-    def gating_postprocess_bmm(
+    def merge_bmm(
         self, x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
     ):
         n_exp = self.n_experts
-        seq_len, batch_size, _ = one_hot.shape
         _, topk, _ = topk_values.shape
         assert x.shape == (n_exp, seq_len * topk, self.doutput)
 
@@ -221,7 +215,7 @@ class ExpertChoiceFF(LoggingLayer):
         assert x.shape == (batch_size, seq_len, self.doutput)
         return x
 
-    def gating_postprocess_select(
+    def merge_index_select(
         self, x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
     ):
         # multiply by softmax

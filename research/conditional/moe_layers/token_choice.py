@@ -53,7 +53,7 @@ class TokenChoiceFF(LoggingLayer):
         )
 
     @time_measured("assign_tokens_to_input")
-    def routing_emit(self, x, tokens_per_expert_indices, tokens_per_expert_values):
+    def extract(self, x, tokens_per_expert_indices, tokens_per_expert_values):
         capacity = tokens_per_expert_indices.shape[0]
         indicies_reshaped = tokens_per_expert_indices.T.reshape(
             self.n_experts * capacity
@@ -66,7 +66,7 @@ class TokenChoiceFF(LoggingLayer):
         return experts_input
 
     @time_measured("assign_tokens_to_output")
-    def routing_merge(
+    def merge(
         self,
         experts_output,
         masked_expert_gate,
@@ -103,11 +103,11 @@ class TokenChoiceFF(LoggingLayer):
         ) = self.router(x)
 
         x = x.flatten(start_dim=0, end_dim=1)
-        experts_input = self.routing_emit(
+        experts_input = self.extract(
             x, tokens_per_expert_indices, tokens_per_expert_values
         )
         experts_output = self.expert_inner_function(experts_input).to(x.dtype)
-        output = self.routing_merge(
+        output = self.merge(
             experts_output,
             masked_expert_gate,
             tokens_per_expert_indices,
