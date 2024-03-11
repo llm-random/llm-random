@@ -24,7 +24,7 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
-from research.hyperoptimizer.gdtuo import ModuleWrapper, Adam, SGD
+from research.hyperoptimizer.gdtuo import ModuleWrapper, AdamBaydin, SGD
 
 
 @define(slots=False)
@@ -106,12 +106,12 @@ class ConditionalTrainer:
         self._check_config()
         self.model = ModuleWrapper(
             self.model,
-            optimizer=Adam(
+            optimizer=AdamBaydin(
                 alpha=1e-3,
                 beta1=0.9,
                 beta2=0.999,
                 log_eps=-8.0,
-                optimizer=SGD(alpha=1e-5),
+                optimizer=SGD(alpha=1e-6, mu=0.9),
             ),
         )
         self.model.initialize()
@@ -199,7 +199,15 @@ class ConditionalTrainer:
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
+            self._log_custom_lr(step)
         self._save_weights(step)
+
+    def _log_custom_lr(self, step):
+        self.logger.report_scalar(
+            title="custom_lr",
+            value=self.model.optimizer.parameters["alpha"],
+            iteration=step,
+        )
 
     def calculate_loss_and_maybe_optimize(
         self, processed_batch: LLMBatch, should_optimize: bool
