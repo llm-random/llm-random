@@ -93,7 +93,7 @@ class TestGrid(unittest.TestCase):
                 "--cpus-per-gpu=8",
                 "--job-name=baseline_test",
                 "--time=5-05:00:00",
-                "--mem=32G",
+                "--mem=125G",
                 None,
                 "lizrd/scripts/grid_entrypoint.sh",
                 "singularity",
