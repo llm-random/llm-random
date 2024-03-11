@@ -114,8 +114,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str)
     parser.add_argument("--git_branch", type=str, default="")
-    parser.add_argument("--neptune_key", type=str, default=os.environ.get('NEPTUNE_API_TOKEN'))
-    parser.add_argument("--wandb_key", type=str, default=os.environ.get('WANDB_API_KEY'))
+    parser.add_argument(
+        "--neptune_key", type=str, default=os.environ.get("NEPTUNE_API_TOKEN")
+    )
+    parser.add_argument(
+        "--wandb_key", type=str, default=os.environ.get("WANDB_API_KEY")
+    )
     parser.add_argument("--skip_confirmation", action="store_true")
     parser.add_argument("--skip_copy_code", action="store_true")
     args = parser.parse_args()
