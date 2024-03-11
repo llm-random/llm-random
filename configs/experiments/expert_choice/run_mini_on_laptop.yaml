@@ -9,5 +9,4 @@ params:
   granularity: 1
   dataset_type: wikibook
   torch_compile: false
-  double_routing_from_start: true
   mixed_precision_dtype: "float16"
