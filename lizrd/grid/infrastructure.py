@@ -70,7 +70,7 @@ class AthenaBackend(MachineBackend):
         return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
 
     def get_grid_entrypoint(self) -> str:
-        return "lizrd/scripts/grid_entrypoint.sh"
+        return "lizrd/grid/grid_entrypoint.sh"
 
     def get_subprocess_args(
         self,
@@ -109,7 +109,7 @@ class IdeasBackend(MachineBackend):
         return f"{common_dir}/.cache"
 
     def get_grid_entrypoint(self) -> str:
-        return "lizrd/scripts/grid_entrypoint.sh"
+        return "lizrd/grid/grid_entrypoint.sh"
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
@@ -156,7 +156,7 @@ class EntropyBackend(MachineBackend):
         return "/local_storage_2/dataset_cache"
 
     def get_grid_entrypoint(self) -> str:
-        return "lizrd/scripts/grid_entrypoint.sh"
+        return "lizrd/grid/grid_entrypoint.sh"
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":

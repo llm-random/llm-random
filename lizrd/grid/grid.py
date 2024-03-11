@@ -15,13 +15,13 @@ from lizrd.grid.setup_arguments import (
     make_singularity_env_arguments,
 )
 
-from lizrd.scripts.grid_utils import (
+from lizrd.grid.grid_utils import (
     get_train_main_function,
     timestr_to_minutes,
     translate_to_argparse,
     check_for_argparse_correctness,
 )
-from lizrd.scripts.grid_utils import setup_experiments
+from lizrd.grid.grid_utils import setup_experiments
 from lizrd.support.code_copying import copy_code
 import yaml
 
