@@ -8,12 +8,14 @@ from lizrd.core.misc import (
     EinMix,
 )
 from lizrd.core.misc import Chungus
+from lizrd.support.misc import get_ith_chunk
+
 from research.datasets import get_processed_dataset
 from lizrd.support.test_utils import GeneralTestCase, heavy_test
 from lizrd.train.train_utils import get_model
 from research.conditional.utils.model_utils import (
-    calculate_llm_loss,
-    chungized_llm_loss,
+    calculate_llm_loss_and_gradient,
+    chungized_llm_loss_and_gradient,
 )
 
 
@@ -201,11 +203,10 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         (
             loss_no_chung,
             aux_info_no_chung,
-        ) = calculate_llm_loss(
+        ) = calculate_llm_loss_and_gradient(
             batch=batch,
             model=model,
             mixed_precision=False,
-            vocab_size=vocab_size,
             mixed_precision_dtype=torch.float16,
             num_checkpoint_accumulation_steps=1,
         )
@@ -213,11 +214,10 @@ class TestChungizedCalculateLoss(GeneralTestCase):
         (
             loss_chung,
             aux_info_chung,
-        ) = chungized_llm_loss(
+        ) = chungized_llm_loss_and_gradient(
             batch=batch,
             model=model_chunged,
             mixed_precision=False,
-            vocab_size=vocab_size,
             n_chungs=n_chungs,
             mixed_precision_dtype=torch.float16,
             num_checkpoint_accumulation_steps=1,
@@ -235,6 +235,148 @@ class TestChungizedCalculateLoss(GeneralTestCase):
 
         for param_name, param in model.named_parameters():
             assert torch.isclose(param.grad, chunged_dict[param_name].grad).all()
+
+    @heavy_test
+    def test_outputs_and_grads_more_accumulation_steps(self):
+        seed = 0
+        torch.manual_seed(seed)
+
+        batch, seql, dm, heads, dff = 6, 32, 32, 4, 64
+        gradient_accumulation_steps = 2
+        vocab_size = 50257
+        n_blocks = 2
+        device = torch.device("cpu")
+        n_chungs = 3
+
+        dataset = get_processed_dataset(
+            batch_size=batch,
+            sequence_length=seql,
+            device=device,
+            num_workers=1,
+            seed=seed,
+            model_type="gpt",
+            dataset_type="c4",
+            use_dummy_dataset=True,
+            dataset_split="train",
+        )
+
+        layers = {
+            "feedforward": lambda: llm.FeedForward(
+                dm, dff, init_type="kaiming_uniform", init_scale=1.0
+            ),
+            "attention": lambda: llm.Attention(
+                dm,
+                heads,
+                causal=False,
+                init_type="kaiming_uniform",
+                init_scale=1.0,
+            ),
+        }
+
+        model = get_model(
+            max_length=seql,
+            vocab_size=vocab_size,
+            block_modules=layers,
+            dm=dm,
+            n_blocks=n_blocks,
+            device=device,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            ddp_enabled=False,
+            fsdp_enabled=False,
+            fsdp_param_precision=None,
+            fsdp_mixed_precision_ignore_classes=None,
+            fsdp_offload_params=None,
+            fsdp_min_num_params=None,
+            fsdp_modules_to_wrap=None,
+            activation_checkpointing_modules=None,
+            is_logging_process=True,
+        )
+
+        with torch.no_grad():
+            model_accumulation = copy.deepcopy(model)
+
+        with torch.no_grad():
+            model_chunged_accumulation = copy.deepcopy(model)
+
+        batch = dataset.get_batch()
+
+        (
+            normal_loss,
+            aux_info_normal,
+        ) = calculate_llm_loss_and_gradient(
+            batch=batch,
+            model=model,
+            mixed_precision=False,
+            mixed_precision_dtype=torch.float16,
+            num_checkpoint_accumulation_steps=1,
+        )
+        loss_accumulation = 0
+        loss_chunged_accumulation = 0
+        aux_info_accumulation = {"correct_tokens": 0, "total_masked_tokens": 0}
+        aux_info_chunged_accumulation = {"correct_tokens": 0, "total_masked_tokens": 0}
+        for i in range(gradient_accumulation_steps):
+            batch_copy = copy.deepcopy(batch)
+            for _, tensor in batch_copy:
+                tensor.data = get_ith_chunk(tensor.data, gradient_accumulation_steps, i)
+            (
+                loss_accumulation_partial,
+                aux_info_partial,
+            ) = calculate_llm_loss_and_gradient(
+                batch=batch_copy,
+                model=model_accumulation,
+                mixed_precision=False,
+                mixed_precision_dtype=torch.float16,
+                num_checkpoint_accumulation_steps=gradient_accumulation_steps,
+            )
+            loss_accumulation += loss_accumulation_partial
+            for k in aux_info_accumulation:
+                aux_info_accumulation[k] += aux_info_partial[k]
+
+            (
+                loss_accumulation_chunged_partial,
+                aux_info_chunged_partial,
+            ) = chungized_llm_loss_and_gradient(
+                batch=batch_copy,
+                model=model_chunged_accumulation,
+                mixed_precision=False,
+                n_chungs=n_chungs,
+                mixed_precision_dtype=torch.float16,
+                num_checkpoint_accumulation_steps=gradient_accumulation_steps,
+            )
+            loss_chunged_accumulation += loss_accumulation_chunged_partial
+            for k in aux_info_chunged_accumulation:
+                aux_info_chunged_accumulation[k] += aux_info_chunged_partial[k]
+        normal_loss = torch.tensor(normal_loss)
+        loss_accumulation = torch.tensor(loss_accumulation)
+        loss_chunged_accumulation = torch.tensor(loss_chunged_accumulation)
+        assert torch.isclose(normal_loss, loss_accumulation)
+        assert torch.isclose(normal_loss, loss_chunged_accumulation)
+        assert (
+            aux_info_normal["correct_tokens"] == aux_info_accumulation["correct_tokens"]
+        )
+        assert (
+            aux_info_normal["correct_tokens"]
+            == aux_info_chunged_accumulation["correct_tokens"]
+        )
+        assert (
+            aux_info_normal["total_masked_tokens"]
+            == aux_info_accumulation["total_masked_tokens"]
+        )
+        assert (
+            aux_info_normal["total_masked_tokens"]
+            == aux_info_chunged_accumulation["total_masked_tokens"]
+        )
+
+        accumulation_dict = {n: p for n, p in model_accumulation.named_parameters()}
+        chunged_accumulation_dict = {
+            n: p for n, p in model_chunged_accumulation.named_parameters()
+        }
+        for param_name, param in model.named_parameters():
+            assert torch.isclose(
+                param.grad, chunged_accumulation_dict[param_name].grad
+            ).all()
+            assert torch.isclose(param.grad, accumulation_dict[param_name].grad).all()
 
 
 class TestModelParallel(GeneralTestCase):

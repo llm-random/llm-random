@@ -18,7 +18,7 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import temp_modify_attr
 from research.conditional.utils.model_utils import (
-    make_loss_function,
+    make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
 from research.datasets import DataloaderWrapper
@@ -46,7 +46,7 @@ class ConditionalTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
-    _calculate_loss: Optional[Callable] = None
+    _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
@@ -89,7 +89,7 @@ class ConditionalTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
-        self._calculate_loss = make_loss_function(
+        self._calculate_loss_and_gradient = make_loss_and_gradient_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
         self.layer_manager = LayerManager(
@@ -174,7 +174,8 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
-        loss, aux_info = self.calculate_loss_and_maybe_optimize(processed_batch)
+        loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+        self._apply_gradient()
         if self.is_logging_process:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
@@ -183,27 +184,28 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def calculate_loss_and_maybe_optimize(self, processed_batch: LLMBatch):
-        """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
+    def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
+        """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
+        NOTE: this function will not set the gradients for the model if model is in eval mode
+        """
         total_cross_entropy_loss = 0.0
         correct_tokens_value = 0
         total_masked_tokens_value = 0
         losses = {}
 
         for i in range(self.gradient_accumulation_steps):
-            # I don't like this part, but it seems to be the easiest way to do it without much change to LLMBatch
+            # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
             for _, tensor in batch_copy:
                 tensor.data = get_ith_chunk(
                     tensor.data, self.gradient_accumulation_steps, i
                 )
 
-            cross_entropy_loss, aux_info = self._calculate_loss(
+            cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
-                vocab_size=self.vocab_size,
                 num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
                 scaler=self.scaler,
             )
@@ -214,9 +216,6 @@ class ConditionalTrainer:
 
             for key, value in aux_info["losses"].items():
                 losses[key] = losses.get(key, 0) + value.item()
-
-        if self.model.training:
-            self._apply_gradient()
 
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
@@ -292,7 +291,7 @@ class ConditionalTrainer:
         extra_losses = defaultdict(float)
         for processed_batch in batches:
             with torch.no_grad():
-                loss, aux_info = self.calculate_loss_and_maybe_optimize(processed_batch)
+                loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
             total_masked_tokens += aux_info["total_masked_tokens"]

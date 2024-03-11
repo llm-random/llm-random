@@ -67,28 +67,27 @@ from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
 
 
-def make_loss_function(
+def make_loss_and_gradient_function(
     loss_checkpoint_chungs: int,
 ) -> Callable:
     if loss_checkpoint_chungs == 0:
-        return calculate_llm_loss
+        return calculate_llm_loss_and_gradient
     else:
-        return partial(chungized_llm_loss, n_chungs=loss_checkpoint_chungs)
+        return partial(chungized_llm_loss_and_gradient, n_chungs=loss_checkpoint_chungs)
 
 
 def calculate_single_chung_loss(
     model: torch.nn.Module,
-    vocab_size: int,
     mixed_precision_dtype: torch.dtype,
     encoder_output: torch.Tensor,
     gt: torch.Tensor,
     mask: torch.Tensor,
 ):
-    output = model.head(encoder_output)
+    output = model(encoder_output)
     with torch.autocast(device_type="cuda", enabled=False, dtype=mixed_precision_dtype):
         gt = gt.to(output.device)
         loss = F.cross_entropy(
-            output.reshape(-1, vocab_size),
+            output.flatten(0, -2),
             gt.reshape(-1).long(),
             reduction="none",
         )
@@ -102,7 +101,7 @@ def calculate_single_chung_loss(
     return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
 
 
-def backward_maybe_with_scaler(
+def run_backward(
     loss: torch.Tensor,
     mixed_precision_dtype: torch.dtype,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
@@ -114,11 +113,10 @@ def backward_maybe_with_scaler(
             scaler.scale(loss).backward()
 
 
-def chungized_llm_loss(
+def chungized_llm_loss_and_gradient(
     batch: LLMBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
-    vocab_size: int,
     n_chungs: int,
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
@@ -139,7 +137,6 @@ def chungized_llm_loss(
         chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
         chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
-        num_tokens = 0
         total_loss = 0
         total_correct_tokens = 0
         total_masked_tokens = 0
@@ -147,28 +144,24 @@ def chungized_llm_loss(
             chunged_encoder_outputs, chunged_non_masked_inputs, chunged_non_masked_masks
         ):
             (
-                partial_loss_output,
-                partial_correct_tokens,
-                partial_masked_tokens,
+                single_chung_loss,
+                single_chung_correct_tokens,
+                single_chung_masked_tokens,
             ) = calculate_single_chung_loss(
-                model,
-                vocab_size,
+                model.head,
                 mixed_precision_dtype,
                 chunged_encoder_output,
                 chunged_gt,
                 chunged_mask,
             )
-            num_tokens += partial_loss_output.shape[0]
             partial_loss = (
-                partial_loss_output.mean()
-                / n_chungs
-                / num_checkpoint_accumulation_steps
+                single_chung_loss.mean() / n_chungs / num_checkpoint_accumulation_steps
             )
             if model.training:
-                backward_maybe_with_scaler(partial_loss, mixed_precision_dtype, scaler)
+                run_backward(partial_loss, mixed_precision_dtype, scaler)
             total_loss += partial_loss.item()
-            total_correct_tokens += partial_correct_tokens
-            total_masked_tokens += partial_masked_tokens
+            total_correct_tokens += single_chung_correct_tokens
+            total_masked_tokens += single_chung_masked_tokens
 
         aux_info = {
             "correct_tokens": total_correct_tokens,
@@ -190,16 +183,17 @@ def chungized_llm_loss(
     return total_loss, aux_info
 
 
-def calculate_llm_loss(
+def calculate_llm_loss_and_gradient(
     batch: LLMBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
-    vocab_size: int,
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> tuple[float, dict]:
     def hack_for_python_garbage_collection():
+        """we want to have no reference to model output while backpropagating to allow torch to free memory,
+        so we wrap loss calculation in a function"""
         input_tokens = batch.input_ids
         gt_tokens = batch.target_ids
         mask = batch.should_calculate_loss
@@ -214,7 +208,7 @@ def calculate_llm_loss(
         mask = mask.to(model_output.device)
 
         mask_loss = F.cross_entropy(
-            model_output.reshape(-1, vocab_size),
+            model_output.flatten(0, -2),
             gt_tokens.reshape(-1).long(),
             reduction="none",
         )
@@ -240,7 +234,7 @@ def calculate_llm_loss(
         loss_to_optimize = loss.clone()
         for value in aux_info["losses"].values():
             loss_to_optimize += value
-        backward_maybe_with_scaler(loss_to_optimize, mixed_precision_dtype, scaler)
+        run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
 
     clear_additional_losses(model)
     return loss.item(), aux_info
