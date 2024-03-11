@@ -349,6 +349,12 @@ class TokenChoiceFF(LoggingLayer):
 
         return output
 
+    def log_light(self):
+        return self.router.log_light()
+
+    def log_heavy(self):
+        return self.router.log_heavy()
+
 
 class ExpertRelu(LoggingLayer):
     def __init__(
