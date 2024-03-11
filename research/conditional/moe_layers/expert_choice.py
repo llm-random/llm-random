@@ -66,20 +66,16 @@ class ExpertChoiceFF(LoggingLayer):
 
         self.ln = self.measure(LayerNorm(self.doutput), "layer_norm", use_layer_norm)
         self.softmax_over = softmax_over
-        self.extract = (
-            self.extract_bmm
-            if use_torch_bmm
-            else self.extract_einsum
-            if one_hot_impl
-            else self.extract_index_select
-        )
-        self.merge = (
-            self.merge_bmm
-            if use_torch_bmm
-            else self.merge_einsum
-            if one_hot_impl
-            else self.merge_index_select
-        )
+
+        if use_torch_bmm:
+            self.extract = self.extract_bmm
+            self.merge = self.merge_bmm
+        elif one_hot_impl:
+            self.extract = self.extract_einsum
+            self.merge = self.merge_einsum
+        else:
+            self.extract = self.extract_index_select
+            self.merge = self.merge_index_select
 
         self.expert_gating = ExpertGating(
             n_experts=n_experts,
@@ -181,8 +177,8 @@ class ExpertChoiceFF(LoggingLayer):
         topk //= seq_len
         x = x.reshape(self.n_experts, topk, seq_len, self.doutput)
         return einsum(
-            "n_exp topk seq_len dmodel, n_exp topk seq_len, n_exp topk seq_len batch_size "
-            "-> batch_size seq_len dmodel",
+            "n_exp topk seq_len doutput, n_exp topk seq_len, n_exp topk seq_len batch_size "
+            "-> batch_size seq_len doutput",
             x,
             topk_values,
             one_hot,
@@ -222,7 +218,7 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "multiply_softmax"):
             ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
             x = einsum(
-                "n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values
+                "n_exp topk doutput, n_exp topk -> n_exp topk doutput", x, topk_values
             )
 
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
