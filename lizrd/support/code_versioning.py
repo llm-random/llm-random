@@ -62,7 +62,7 @@ def version_code(
     try:
         ensure_remote_config_exist(repo, REMOTE_NAME, REMOTE_URL)
 
-        repo.git.add(all=True)        
+        repo.git.add(all=True)
         if experiment_config_path is not None:
             repo.git.add(experiment_config_path, force=True)
         commit_pending_changes(repo)
