@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from lizrd.scripts.grid import create_subprocess_args
+from lizrd.grid.grid import create_subprocess_args
 from lizrd.grid.infrastructure import (
     IdeasBackend,
     EntropyBackend,
@@ -93,9 +93,9 @@ class TestGrid(unittest.TestCase):
                 "--cpus-per-gpu=8",
                 "--job-name=baseline_test",
                 "--time=5-05:00:00",
-                "--mem=32G",
+                "--mem=125G",
                 None,
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--env",
@@ -190,7 +190,7 @@ class TestGrid(unittest.TestCase):
                 "--mem=125G",
                 "--job-name=granular_4_mini",
                 "--time=0-05:00:00",
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--env",
@@ -286,7 +286,7 @@ class TestGrid(unittest.TestCase):
                 "--mem=125G",
                 "--job-name=granular_4_mini",
                 "--time=0-05:00:00",
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--env",
@@ -401,7 +401,7 @@ class TestGrid(unittest.TestCase):
                 "--account=plgsubslearnath-gpu-a100",
                 "--job-name=lr_grid",
                 "--time=40:00:00",
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--bind=/net:/net",
@@ -458,7 +458,7 @@ class TestGrid(unittest.TestCase):
                 "--account=plgsubslearnath-gpu-a100",
                 "--job-name=lr_grid",
                 "--time=40:00:00",
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--bind=/net:/net",
