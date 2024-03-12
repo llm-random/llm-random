@@ -12,7 +12,6 @@ from fabric import Connection
 import paramiko.ssh_exception
 
 from lizrd.support.code_versioning import version_code
-import subprocess
 
 CEMETERY_REPO_URL = "git@github.com:llm-random/llm-random-cemetery.git"  # TODO(crewtool) move to constants
 
