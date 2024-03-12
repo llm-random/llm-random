@@ -1,27 +1,17 @@
-"""
-Script to grid search in recycle layers. Run this script from the root of the project:
-$ python3 research/reinitialization/scripts/grid.py
-Remember to set RUNNER and PARAMS in the script or add an argument parser.
-"""
-
-import argparse
 import datetime
-import os
-import subprocess
-from time import sleep
-from lizrd.grid.infrastructure import get_machine_backend, LocalBackend
+from lizrd.grid.infrastructure import LocalBackend
 from lizrd.grid.prepare_configs import prepare_configs
 from lizrd.grid.setup_arguments import (
     make_singularity_env_arguments,
 )
 
-from lizrd.scripts.grid_utils import (
+from lizrd.grid.utils import (
     get_train_main_function,
     timestr_to_minutes,
     translate_to_argparse,
     check_for_argparse_correctness,
 )
-from lizrd.scripts.grid_utils import setup_experiments
+from lizrd.grid.utils import setup_experiments
 from lizrd.support.code_copying import copy_code
 import yaml
 
@@ -108,47 +98,3 @@ def create_subprocess_args(
 
             experiments.append((subprocess_args, training_args["name"]))
     return experiments, interactive_debug_session
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str)
-    parser.add_argument("--git_branch", type=str, default="")
-    parser.add_argument(
-        "--neptune_key", type=str, default=os.environ.get("NEPTUNE_API_TOKEN")
-    )
-    parser.add_argument(
-        "--wandb_key", type=str, default=os.environ.get("WANDB_API_KEY")
-    )
-    parser.add_argument("--skip_confirmation", action="store_true")
-    parser.add_argument("--skip_copy_code", action="store_true")
-    args = parser.parse_args()
-    CLUSTER = get_machine_backend()
-    experiments, interactive_debug_session = create_subprocess_args(
-        args.config_path,
-        args.git_branch,
-        args.neptune_key,
-        args.wandb_key,
-        CLUSTER,
-        args.skip_confirmation,
-        args.skip_copy_code,
-    )
-    PROCESS_CALL_FUNCTION = lambda args: subprocess.run(
-        [str(arg) for arg in args if arg is not None]
-    )
-    if not isinstance(CLUSTER, LocalBackend):
-        for i, experiment in enumerate(experiments):
-            subprocess_args, job_name = experiment
-            print(f"running experiment {i} from {job_name}...")
-            PROCESS_CALL_FUNCTION(subprocess_args)
-            sleep(5)
-            if interactive_debug_session:
-                print("Ran only the first experiment in interactive mode. Aborting...")
-                break
-
-    else:
-        runner_main_function, runner_params = experiments[0]
-        # We run the experiment directly, not through a grid entrypoint script
-        # because we want to be able to debug it
-        runner_main_function(None, runner_params=runner_params)
-        exit(0)
