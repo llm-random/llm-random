@@ -173,7 +173,7 @@ class ScalingLaw(nn.Module):
         y_pred = torch.stack([loss_fun(**run.dict()) for run in self.runs])
         error = torch.exp(y_pred) - torch.exp(y) if self.opt_log_loss else y_pred - y
         rmse = (torch.mean(error**2))**.5
-        weight_decay = sum(torch.norm(p) for p in self.parameters())
+        weight_decay = sum(torch.norm(p)**2 for p in self.parameters())
         loss = self.loss(y_pred, y)
         loss += weight_decay*self.weight_decay
         return loss, rmse

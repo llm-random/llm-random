@@ -24,14 +24,14 @@ scalings:
     tags_negative:
       - "gran_grid_failed"
       - "mini_8"
-      - "short_small"
+      # - "short_small"
       - "lr_steps_bug"
       - "small_gran"
       # - "longest"
-      - "mini_short"
-      - "grid_shortest"
-      - "short_small_ext"
-      - "short_small_ext_ext"
+      # - "mini_short"
+      # - "grid_shortest"
+      # - "short_small_ext"
+      # - "short_small_ext_ext"
     fixed:
       expansion_rate: 64
     power_laws:
@@ -43,7 +43,7 @@ scalings:
     cmap: rainbow
     resolve_interactive: true
     use_active_params: false
-    weight_decay: 0.00004
+    weight_decay: 0.00005
     huber_delta: 0.1
     opt_log_loss: true
     remove_random: 0.0
