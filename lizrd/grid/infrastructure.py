@@ -129,7 +129,7 @@ class IdeasBackend(MachineBackend):
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_cemetery_directory(self):
-        return f"/net/pr2/projects/plgrid/plggsubgoal/{os.environ.get('USER')}/llm_random_cemetery"
+        return f"~/llm_random_cemetery"
 
     def get_subprocess_args(
         self,

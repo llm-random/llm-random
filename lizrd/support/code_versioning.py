@@ -30,7 +30,11 @@ def commit_pending_changes(repo: Repo):
 def create_run_experiment_script(
     experiment_config_path, experiment_branch_name, file_path
 ):
-    script_text = f"#!/bin/bash\npython3 -m lizrd.grid.grid --config_path={experiment_config_path} --git_branch={experiment_branch_name} --skip_copy_code"
+    script_text = """#!/bin/bash
+python3 -m lizrd.grid.grid --config_path={} --git_branch={} --skip_copy_code""".format(
+        experiment_config_path, experiment_branch_name
+    )
+
     with open(file_path, "w") as f:
         f.write(script_text)
 
@@ -63,8 +67,8 @@ def version_code(
         ensure_remote_config_exist(repo, REMOTE_NAME, REMOTE_URL)
 
         repo.git.add(all=True)
-        if experiment_config_path is not None:
-            repo.git.add(experiment_config_path, force=True)
+        if files_to_force_add is not None:
+            repo.git.add(files_to_force_add, force=True)
         commit_pending_changes(repo)
 
         repo.git.checkout(b=versioning_branch)
