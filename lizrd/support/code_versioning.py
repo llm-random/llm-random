@@ -31,7 +31,7 @@ def create_run_experiment_script(
     experiment_config_path, experiment_branch_name, file_path
 ):
     script_text = """#!/bin/bash
-python3 -m lizrd.grid.grid --config_path={} --git_branch={} --skip_copy_code""".format(
+python3 -m lizrd.grid --config_path={} --git_branch={} --skip_copy_code""".format(
         experiment_config_path, experiment_branch_name
     )
 
