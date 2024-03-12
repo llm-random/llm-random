@@ -218,6 +218,9 @@ class LocalBackend(MachineBackend):
     def get_grid_entrypoint(self) -> str:
         return None
 
+    def get_cemetery_directory(self):
+        raise Exception("Local machine should not use cemetery")
+
     def get_subprocess_args(
         self,
         slurm_command,

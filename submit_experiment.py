@@ -3,7 +3,6 @@ import datetime
 import os
 from lizrd.grid.infrastructure import get_machine_backend
 from lizrd.support.code_versioning import version_code
-import subprocess
 
 from contextlib import contextmanager
 import copy

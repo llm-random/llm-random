@@ -60,7 +60,7 @@ def version_code(
 
     try:
         ensure_remote_config_exist(repo, REMOTE_NAME, REMOTE_URL)
-        #TODO (crewtool) add force adding config files
+        # TODO (crewtool) add force adding config files
         repo.git.add(all=True)
         commit_pending_changes(repo)
 
