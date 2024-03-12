@@ -1,6 +1,6 @@
 import argparse
 import os
-from typing import Optional
+from typing import Optional, List
 from git import Repo
 
 REMOTE_NAME = "cemetery"  # TODO(crewtool) move to constants file
@@ -43,6 +43,7 @@ def delete_run_experiment_script(file_path):
 def version_code(
     versioning_branch: str,
     experiment_config_path: Optional[str] = None,
+    files_to_force_add: Optional[List[str]] = None,
     repo_path: Optional[str] = None,
 ):
     repo = Repo(repo_path, search_parent_directories=True)
@@ -60,8 +61,10 @@ def version_code(
 
     try:
         ensure_remote_config_exist(repo, REMOTE_NAME, REMOTE_URL)
-        # TODO (crewtool) add force adding config files
-        repo.git.add(all=True)
+
+        repo.git.add(all=True)        
+        if experiment_config_path is not None:
+            repo.git.add(experiment_config_path, force=True)
         commit_pending_changes(repo)
 
         repo.git.checkout(b=versioning_branch)

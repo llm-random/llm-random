@@ -2,6 +2,7 @@ import argparse
 import datetime
 import os
 from lizrd.grid.infrastructure import get_machine_backend
+from lizrd.grid.prepare_configs import load_with_inheritance
 from lizrd.support.code_versioning import version_code
 
 from contextlib import contextmanager
@@ -45,11 +46,16 @@ def ConnectWithPassphrase(*args, **kwargs) -> Generator[Connection, None, None]:
 
 def submit_experiment(hostname, experiment_branch_name, experiment_config_path):
     if experiment_branch_name is None:
-        # TODO(crewtool) use name from job_name from config file
+        configs, paths_to_all_configs = load_with_inheritance(experiment_config_path)
+        job_name = configs[0]["params"]["name"]
         experiment_branch_name = (
-            f"experiment_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+            f"{job_name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         )
-        version_code(experiment_branch_name, experiment_config_path)
+        version_code(
+            experiment_branch_name,
+            experiment_config_path,
+            files_to_force_add=paths_to_all_configs,
+        )
 
     with ConnectWithPassphrase(hostname) as connection:
         result = connection.run("uname -n", hide=True)
