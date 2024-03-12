@@ -6,4 +6,3 @@ params:
   name: refactor_grid
   ^ff_mode: [expert_choice, expert_choice_old,
              token_choice, token_choice_old]
-  ^granularity: [1, 4]

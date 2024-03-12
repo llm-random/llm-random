@@ -1,8 +1,16 @@
 parent: configs/baselines/gpt/expert_choice/medium.yaml
 md5_parent_hash: 6cf838824bd0834411030b771c73398f
 time: 0-10:00:00
-# TODO write
+
 params:
-  name: refactor_grid
+  name: refactor_fsdp
   ^ff_mode: [expert_choice, expert_choice_old,
              token_choice, token_choice_old]
+
+  # fsdp
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE,ExpertGatingOld,TokenChoiceRouterOld"

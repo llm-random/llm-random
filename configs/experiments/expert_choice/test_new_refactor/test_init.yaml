@@ -3,7 +3,6 @@ md5_parent_hash: 6cf838824bd0834411030b771c73398f
 time: 0-20:00:00
 
 params:
-  name: activations_grid
+  name: refactor_init_grid
   ^ff_mode: [expert_choice, token_choice]
-  ^moe_inner_expert: [ff, ff_gated]
-  ^activation_type: [relu, gelu, silu, softmax, tanh, sigmoid]
+  expert_use_topk_initialization: [Always, Never]
