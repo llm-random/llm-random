@@ -23,7 +23,7 @@ run_grid_remotely() {
   echo "Running grid search on $host with config $config"
 
   script="cd $base_dir && tmux new-session -d -s $session_name bash"
-  script+="; tmux send-keys -t $session_name 'python3 -m lizrd.grid.grid --config_path=$config --git_branch=$git_branch"
+  script+="; tmux send-keys -t $session_name 'python3 -m lizrd.grid --config_path=$config --git_branch=$git_branch"
   if [ -n "$NEPTUNE_API_TOKEN" ]; then
     script+=" --neptune_key=$NEPTUNE_API_TOKEN"
   fi

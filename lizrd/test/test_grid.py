@@ -93,7 +93,7 @@ class TestGrid(unittest.TestCase):
                 "--cpus-per-gpu=8",
                 "--job-name=baseline_test",
                 "--time=5-05:00:00",
-                "--mem=32G",
+                "--mem=125G",
                 None,
                 "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
@@ -163,10 +163,6 @@ class TestGrid(unittest.TestCase):
                 "vanilla",
                 "--n_gpus",
                 "0",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ]
         ]
         experiments, _ = create_subprocess_args(
@@ -453,10 +449,6 @@ class TestGrid(unittest.TestCase):
                 "5e-4",
                 "--n_gpus",
                 "2",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ],
             [
                 "sbatch",
@@ -514,10 +506,6 @@ class TestGrid(unittest.TestCase):
                 "7e-4",
                 "--n_gpus",
                 "2",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ],
         ]
         experiments, _ = create_subprocess_args(

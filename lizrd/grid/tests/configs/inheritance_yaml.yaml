@@ -5,7 +5,7 @@ params:
 
 ---
 runs_multiplier: 233
-parent: lizrd/scripts/tests/configs/inheritance_yaml2.yaml
+parent: lizrd/grid/tests/configs/inheritance_yaml2.yaml
 md5_parent_hash: 8fc05fdd54415d82df1142997c332dc5
 params:
   ^mixed_precision: [true,false]

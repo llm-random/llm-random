@@ -145,7 +145,7 @@ class IdeasBackend(MachineBackend):
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
-            "--mem=32G",
+            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
             setup_args["nodelist"],
             f"{setup_args['grid_entrypoint']}",
             "singularity",

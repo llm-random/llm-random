@@ -13,7 +13,6 @@ from lizrd.core.llm import EmbeddingLayer, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
-    generate_random_string,
     get_n_learnable_parameters,
     set_seed,
 )
@@ -37,6 +36,11 @@ from research.conditional.utils.model_utils import (
     get_classes_from_module_names,
     update_model_fit_gpu_info,
     get_vanilla_mamba_layer,
+)
+from lizrd.train.load_and_save_model import (
+    get_checkpoint_from_path,
+    load_optimizer_state,
+    prepare_save_weights_path,
 )
 
 
@@ -86,15 +90,8 @@ def main(
             args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
-    if args.save_weights_path is not None:
-        filename = args.save_weights_path.split("/")[-1]
-        assert (
-            "." not in filename
-        ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
-        random_string = generate_random_string(10)
-        args.save_weights_path = os.path.join(args.save_weights_path, random_string)
-        args.save_weights_path = os.path.abspath(args.save_weights_path)
-        os.makedirs(args.save_weights_path, exist_ok=True)
+
+    save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -170,16 +167,20 @@ def main(
             "parallel": lambda: Parallel(*[module() for _, module in modules])
         }
 
+    checkpoint = (
+        get_checkpoint_from_path(args.load_weights_path)
+        if args.load_weights_path is not None
+        else None
+    )
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
         block_modules=block_modules,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
-        device=DEVICE
-        if rank is None
-        else torch.device(
-            "cpu"
+        device=(
+            DEVICE if rank is None else torch.device("cpu")
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
@@ -197,6 +198,7 @@ def main(
         rank=rank,
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
+        checkpoint=checkpoint,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
@@ -225,6 +227,8 @@ def main(
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
+    if checkpoint is not None:
+        load_optimizer_state(optimizer, checkpoint, model, rank)
 
     scheduler = get_scheduler(args)
 
@@ -267,9 +271,11 @@ def main(
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
             train_dataloader,
-            tokenizer_maker=tokenizers.GPTTokenizer
-            if args.model_type == "gpt"
-            else tokenizers.BertTokenizer,
+            tokenizer_maker=(
+                tokenizers.GPTTokenizer
+                if args.model_type == "gpt"
+                else tokenizers.BertTokenizer
+            ),
         )
 
     profiler_schedule = (
@@ -304,9 +310,8 @@ def main(
         eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
-        save_weights_path=args.save_weights_path,
+        save_weights_path=save_weights_path,
         save_weights_interval=args.save_weights_interval,
-        load_weights_path=args.load_weights_path,
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
@@ -324,6 +329,9 @@ def main(
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
+        rank=rank,
+        start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
+        checkpoint=checkpoint,
     )
     trainer.train(args.n_steps)
 

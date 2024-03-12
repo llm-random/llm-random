@@ -1,6 +1,6 @@
 import unittest
 
-from lizrd.grid.grid_utils import timestr_to_minutes
+from lizrd.grid.utils import timestr_to_minutes
 
 
 class Test_timestr_to_minutes(unittest.TestCase):
