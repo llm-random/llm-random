@@ -57,7 +57,6 @@ class ExpertChoiceFF(LoggingLayer):
         assert (
             not self.one_hot_impl or self.group_by_batch
         ), "Not implemented, would require a lot of memory"
-        assert softmax_over in ["tokens", "experts"]
         assert not self.softmax_ungrouped or self.group_by_batch
 
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
@@ -173,10 +172,11 @@ class ExpertChoiceFF(LoggingLayer):
     def merge_einsum(
         self, x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
     ):
-        topk //= seq_len
-        x = x.reshape(self.n_experts, topk, seq_len, self.doutput)
+        topk_per_batch = topk // seq_len
+        x = x.reshape(self.n_experts, topk_per_batch, seq_len, self.doutput)
         return einsum(
-            "n_exp topk seq_len doutput, n_exp topk seq_len, n_exp topk seq_len batch_size "
+            "n_exp topk_per_batch seq_len doutput, n_exp topk_per_batch seq_len, "
+            "n_exp topk_per_batch seq_len batch_size "
             "-> batch_size seq_len doutput",
             x,
             topk_values,
@@ -249,12 +249,3 @@ class ExpertChoiceFF(LoggingLayer):
             times_fig = px.bar(x=instr_names, y=instr_times)
             log["time"] = times_fig
         return log
-
-
-def make_heatmap(tensor, expert_num, **kwargs):
-    logits_for_expert = tensor[expert_num]
-    batch_size, seq_len = logits_for_expert.shape
-    flatten_dist = logits_for_expert.flatten()
-    dist_for_expert = torch.softmax(flatten_dist.float(), dim=-1)
-    dist_for_expert = dist_for_expert.reshape(batch_size, seq_len)
-    return px.imshow(dist_for_expert.detach().cpu().numpy(), **kwargs)

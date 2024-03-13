@@ -252,30 +252,6 @@ def introduce_parser_arguments(
     parser.add_argument("--mix_whole_batch", action="store_true")
     parser.add_argument("--capacity_factor", type=float, default=1.25)
     parser.add_argument(
-        "--double_routing_from_start",
-        action="store_true",
-        help="Whether second routing is calculated before 1 linear",
-    )
-    parser.add_argument(
-        "--double_routing_use_single",
-        action="store_true",
-        help="Mock single routing with double routing",
-    )
-    parser.add_argument(
-        "--double_mot", action="store_true", help="Double routing with MoT"
-    )
-    parser.add_argument(
-        "--double_routing_before_relu",
-        action="store_true",
-        help="Whether second routing is calculated before relu",
-    )
-    parser.add_argument(
-        "--double_routing_snd_ln",
-        action="store_true",
-        help="Whether second routing has another layer norm",
-    )
-
-    parser.add_argument(
         "--routing_top_k",
         type=int,
         default=1,

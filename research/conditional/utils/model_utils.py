@@ -322,7 +322,7 @@ def determine_moe_args(args):
     )
     set_arguments_option4 = all([args.n_experts, args.expert_size, args.routing_top_k])
 
-    if not any(
+    if 1 != sum(  # exactly one of the options must be set
         [
             set_arguments_option1,
             set_arguments_option2,
@@ -344,12 +344,16 @@ def determine_moe_args(args):
         args.total_experts_width = args.n_experts * args.expert_size
         args.expansion_rate = args.total_experts_width / dff
         args.effective_dff = args.expert_size * args.routing_top_k
-    elif set_arguments_option3:
+    if set_arguments_option3:
         args.total_experts_width = args.dmodel * dff_x * args.expansion_rate
         args.n_experts = args.expansion_rate * args.granularity
         args.effective_dff = args.effective_dff_x * args.dmodel
 
-    if args.total_experts_width is not None:
+    if set_arguments_option2:
+        args.routing_top_k = args.topk_fraction * args.n_experts
+        args.effective_dff = args.routing_top_k * args.expert_size
+        args.total_experts_width = args.expert_size * args.n_experts
+    else:
         expert_size = args.total_experts_width / args.n_experts
         assert expert_size == int(expert_size)
         args.expert_size = int(expert_size)
@@ -357,10 +361,6 @@ def determine_moe_args(args):
         args.routing_top_k = args.effective_dff / expert_size
         args.topk_fraction = args.routing_top_k / args.n_experts
         assert 0.0 <= args.topk_fraction <= 1.0
-    else:
-        args.routing_top_k = args.topk_fraction * args.n_experts
-        args.effective_dff = args.routing_top_k * args.expert_size
-        args.total_experts_width = args.expert_size * args.n_experts
 
     assert args.routing_top_k == int(args.routing_top_k)
     args.routing_top_k = int(args.routing_top_k)

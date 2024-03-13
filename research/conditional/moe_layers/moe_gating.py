@@ -1,6 +1,8 @@
 from typing import Union
 import torch
 from fancy_einsum import einsum
+from plotly import express as px
+
 from lizrd.support.logging import make_histogram
 from lizrd.train import checkpointing
 import torch.nn.functional as F
@@ -31,6 +33,7 @@ class MoeGating(LoggingLayer):
         self.use_torch_bmm = use_torch_bmm
         self.gate = gate
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
+        assert softmax_over in ["tokens", "experts"]
 
     def calculate_gate(self, x, batch_size, seq_len):
         with measure_time(self, "expert_embedding"):
@@ -317,3 +320,12 @@ class TokenGating(MoeGating):
                 self.logging_cache["tokens_per_expert"]
             ),
         }
+
+
+def make_heatmap(tensor, expert_num, **kwargs):
+    logits_for_expert = tensor[expert_num]
+    batch_size, seq_len = logits_for_expert.shape
+    flatten_dist = logits_for_expert.flatten()
+    dist_for_expert = torch.softmax(flatten_dist.float(), dim=-1)
+    dist_for_expert = dist_for_expert.reshape(batch_size, seq_len)
+    return px.imshow(dist_for_expert.detach().cpu().numpy(), **kwargs)
