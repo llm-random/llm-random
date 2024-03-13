@@ -75,7 +75,9 @@ def version_code(experiment_config_path: Optional[str] = None) -> str:
         commit_pending_changes(repo)
 
         repo.git.checkout(b=experiment_branch_name)
-        print(f"Pushing experiment code to {experiment_branch_name} '{REMOTE_NAME}' remote...")
+        print(
+            f"Pushing experiment code to {experiment_branch_name} '{REMOTE_NAME}' remote..."
+        )
         repo.git.push(REMOTE_NAME, experiment_branch_name)
         print(f"Pushed.")
     finally:

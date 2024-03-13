@@ -14,7 +14,7 @@ from lizrd.support.code_versioning import version_code
 
 CEMETERY_REPO_URL = "git@github.com:llm-random/llm-random-cemetery.git"  # TODO(crewtool) move to constants
 BRANCH_FILENAME = "__branch__name__.txt"
-EXPERIMENT_DIR_FILENAME="__experiment__dir__.txt"
+EXPERIMENT_DIR_FILENAME = "__experiment__dir__.txt"
 
 _SSH_HOSTS_TO_PASSPHRASES = {}
 
