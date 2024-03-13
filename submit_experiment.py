@@ -75,10 +75,16 @@ def submit_experiment(hostname, experiment_branch_name, experiment_config_path):
                 "WANDB_API_KEY": os.environ["WANDB_API_KEY"]
             }
 
-        connection.run(
-            f"git clone --depth 1 -b {experiment_branch_name} {CEMETERY_REPO_URL} {experiment_directory}"
-        )
-        print(f"Cloned {experiment_branch_name} to {experiment_directory}")
+        if connection.run(f"test -d {experiment_directory}", warn=True).failed:
+            connection.run(
+                f"git clone --depth 1 -b {experiment_branch_name} {CEMETERY_REPO_URL} {experiment_directory}"
+            )
+            print(f"Cloned {experiment_branch_name} to {experiment_directory}")
+        else:
+            print(
+                f"Experiment {experiment_branch_name} already exists on {node}. Skipping."
+            )
+
         connection.run(f"chmod +x {experiment_directory}/run_experiment.sh")
         connection.run(f"cd {experiment_directory} && ./run_experiment.sh")
 
