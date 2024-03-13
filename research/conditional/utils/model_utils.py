@@ -79,6 +79,7 @@ from research.conditional.moe_layers.expert_types import (
 )
 from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
+from research.conditional.moe_layers.expert_double_choice import ExpertDoubleChoiceFF
 
 
 def make_loss_and_gradient_function(
@@ -639,6 +640,20 @@ def get_ff_layer(args):
             init_type=args.init_type,
             vectorize=(not args.dont_vectorize_switch),
         )
+
+    elif args.ff_mode == "expert_double_choice":
+        args = determine_moe_args(args)
+        ff_args = get_expert_choice_args_old(args)
+        ff_args = {
+            **ff_args,
+            "single_route": args.double_routing_use_single,
+            "both_from_start": args.double_routing_from_start,
+            "use_mot": args.double_mot,
+            "route_before_relu": args.double_routing_before_relu,
+            "use_second_ln": args.double_routing_snd_ln,
+        }
+        return_fn = partial(ExpertDoubleChoiceFF, **ff_args)
+
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
 
