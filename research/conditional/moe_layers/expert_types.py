@@ -69,7 +69,7 @@ class ExpertFF(LoggingLayer):
         return experts_output
 
 
-class ExpertGated(LoggingLayer):
+class ExpertGated(ExpertFF):
     def __init__(
         self,
         dmodel: int,
@@ -83,18 +83,19 @@ class ExpertGated(LoggingLayer):
         topk: int = 1,
         use_topk_initialization: bool = False,
     ):
-        super().__init__()
-        self.doutput = dmodel if doutput is None else doutput
-        self.use_einsum = use_einsum
-        self.activation = resolve_activation_name(activation_name)
-
-        fan_in_factor = topk if use_topk_initialization else n_experts
-        init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        self.lin1_weight = init(shape=(n_experts, dmodel, expert_size), fan_in=dmodel)
-        self.lin2_weight = init(
-            shape=(n_experts, expert_size, self.doutput),
-            fan_in=int(fan_in_factor * expert_size),
+        super().__init__(
+            dmodel,
+            n_experts,
+            expert_size,
+            init_type,
+            init_scale,
+            use_einsum,
+            doutput,
+            activation_name,
+            topk,
+            use_topk_initialization,
         )
+        init = get_init_fun(init_type=init_type, init_scale=init_scale)
         self.gate_weight = init(shape=(n_experts, dmodel, expert_size), fan_in=dmodel)
 
     @time_measured("process_by_experts")

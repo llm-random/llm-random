@@ -207,7 +207,7 @@ class LoggingLayer(nn.Module):
 
     def measure(self, module, name, exists=True):
         if not exists:
-            return nn.Sequential()
+            return nn.Identity()
         return MeasuringLayer(module, name, self)
 
 

@@ -6,7 +6,6 @@ from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
 from lizrd.core.initialization import get_init_fun
-from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time, time_measured
 from research.conditional.moe_layers.moe_gating import ExpertGating
@@ -216,7 +215,6 @@ class ExpertChoiceFF(LoggingLayer):
     ):
         # multiply by softmax
         with measure_time(self, "multiply_softmax"):
-            ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
             x = einsum(
                 "n_exp topk doutput, n_exp topk -> n_exp topk doutput", x, topk_values
             )

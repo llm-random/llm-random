@@ -9,7 +9,10 @@ from lizrd.train.checkpointing import (
     second_forward_manager,
 )
 
-from research.conditional.moe_layers._token_choice_old import TokenChoiceFFOld
+from research.conditional.moe_layers._token_choice_old import (
+    TokenChoiceFFOld,
+    ExpertReluOld,
+)
 from research.conditional.moe_layers.token_choice import TokenChoiceFF
 from research.conditional.moe_layers.expert_types import ExpertGated, ExpertFF
 from lizrd.support.test_utils import GeneralTestCase
@@ -270,6 +273,7 @@ class TestTokenChoice(GeneralTestCase):
         seql = 11
 
         expert_logic = ExpertFF(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic_old = ExpertReluOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
 
         # non_reentrant_wrapper = make_checkpoint_wrapper_function()
         tc = TokenChoiceFF(
@@ -286,7 +290,7 @@ class TestTokenChoice(GeneralTestCase):
             dm,
             experts,
             1.0,
-            expert_inner_function=expert_logic,
+            expert_inner_function=expert_logic_old,
             load_balancing_loss_weight=0.1,
             routing_top_k=1,
             init_type="kaiming_uniform",
