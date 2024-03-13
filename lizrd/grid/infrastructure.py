@@ -29,6 +29,10 @@ class MachineBackend(abc.ABC):
     ):
         pass
 
+    @abc.abstractmethod
+    def get_cemetery_directory(self):
+        pass
+
     def get_singularity_image(self) -> str:
         image_name = "sparsity_2024.02.06_16.14.02.sif"
         common_dir = self.get_common_directory()
@@ -71,6 +75,9 @@ class AthenaBackend(MachineBackend):
 
     def get_grid_entrypoint(self) -> str:
         return "lizrd/grid/grid_entrypoint.sh"
+
+    def get_cemetery_directory(self):
+        return f"/net/pr2/projects/plgrid/plggsubgoal/{os.environ.get('USER')}/llm_random_cemetery"
 
     def get_subprocess_args(
         self,
@@ -121,6 +128,9 @@ class IdeasBackend(MachineBackend):
             return "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
         return super().get_default_train_dataset_path(dataset_type)
 
+    def get_cemetery_directory(self):
+        return f"~/llm_random_cemetery"
+
     def get_subprocess_args(
         self,
         slurm_command,
@@ -168,6 +178,9 @@ class EntropyBackend(MachineBackend):
             return "/local_storage_2/llm-random/datasets/c4_validation"
         return super().get_default_train_dataset_path(dataset_type)
 
+    def get_cemetery_directory(self):
+        return f"{self.get_common_directory()}/llm_random_cemetery"
+
     def get_subprocess_args(
         self,
         slurm_command,
@@ -205,6 +218,9 @@ class LocalBackend(MachineBackend):
     def get_grid_entrypoint(self) -> str:
         return None
 
+    def get_cemetery_directory(self):
+        raise Exception("Local machine should not use cemetery")
+
     def get_subprocess_args(
         self,
         slurm_command,
@@ -230,8 +246,9 @@ COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
 }
 
 
-def get_machine_backend() -> MachineBackend:
-    node = platform.uname().node
+def get_machine_backend(node=None) -> MachineBackend:
+    if node is None:
+        node = platform.uname().node
     if node == "asusgpu0":
         return EntropyBackend()
     elif "athena" in node:
