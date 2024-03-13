@@ -23,9 +23,6 @@ run_grid_remotely() {
   rm $branch_filename
   rm $experiment_dir_filename
 
-  echo "Experiment branch: $experiment_branch"
-  echo "Experiment directory: $experiment_directory"
-
   script="cd $experiment_directory && tmux new-session -d -s $experiment_branch bash"
   script+="; tmux send-keys -t $experiment_branch '"
   if [ -n "$NEPTUNE_API_TOKEN" ]; then
