@@ -8,6 +8,7 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
 from lizrd.core import llm
 from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
+from lizrd.train.load_and_save_model import load_model_weights
 
 
 def get_model(
@@ -32,6 +33,7 @@ def get_model(
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
+    checkpoint: dict[str, torch.Tensor] = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -68,6 +70,10 @@ def get_model(
     ).to(last_gpu)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
+
+    if checkpoint is not None:
+        load_model_weights(model, checkpoint)
+
     if ddp_enabled:
         model = wrap_in_ddp(module=model, rank=rank)
     elif fsdp_enabled:

@@ -1,8 +1,12 @@
 import unittest
 from unittest.mock import patch
 
-from lizrd.scripts.grid import create_subprocess_args
-from lizrd.grid.infrastructure import MachineBackend
+from lizrd.grid.grid import create_subprocess_args
+from lizrd.grid.infrastructure import (
+    IdeasBackend,
+    EntropyBackend,
+    AthenaBackend,
+)
 
 hf_dataset_cache = "/some/path/for/hf/dataset/cache"
 experiment_path = "/some/path/for/experiment"
@@ -47,6 +51,30 @@ def sort_training_args(values):
     return result
 
 
+class IdeasTestBackend(IdeasBackend):
+    def get_singularity_image(self) -> str:
+        return image_path
+
+    def get_cache_path(self) -> str:
+        return hf_dataset_cache
+
+
+class AthenaTestBackend(AthenaBackend):
+    def get_singularity_image(self) -> str:
+        return image_path
+
+    def get_cache_path(self) -> str:
+        return hf_dataset_cache
+
+
+class EntropyTestBackend(EntropyBackend):
+    def get_singularity_image(self) -> str:
+        return image_path
+
+    def get_cache_path(self) -> str:
+        return hf_dataset_cache
+
+
 class TestGrid(unittest.TestCase):
     def assertUnifiedEqual(self, a, b):
         unified_a = [unify_arguments(config) for config in a]
@@ -54,13 +82,10 @@ class TestGrid(unittest.TestCase):
 
         self.assertEqual(unified_a, unified_b)
 
-    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.grid.infrastructure.get_cache_path")
-    def test_baseline_generated_args(self, get_cache_path, os_getcwd, get_image):
-        get_cache_path.return_value = hf_dataset_cache
+    def test_baseline_generated_args(self, os_getcwd):
         os_getcwd.return_value = experiment_path
-        get_image.return_value = image_path
+        CLUSTER = IdeasTestBackend()
         expected_output = [
             [
                 "sbatch",
@@ -68,9 +93,9 @@ class TestGrid(unittest.TestCase):
                 "--cpus-per-gpu=8",
                 "--job-name=baseline_test",
                 "--time=5-05:00:00",
-                "--mem=32G",
+                "--mem=125G",
                 None,
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--env",
@@ -138,32 +163,24 @@ class TestGrid(unittest.TestCase):
                 "vanilla",
                 "--n_gpus",
                 "0",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ]
         ]
-
         experiments, _ = create_subprocess_args(
             "configs/test/test_baseline.yaml",
             "cool_git_branch",
             f"{neptune_api_key}",
             f"{wandb_api_key}",
-            MachineBackend.IDEAS,
+            CLUSTER,
             skip_confirmation=True,
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
         self.assertUnifiedEqual(returned_output, expected_output)
 
-    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.grid.infrastructure.get_cache_path")
-    def test_compare_bmm_generated_args(self, get_cache_path, os_getcwd, get_image):
-        get_cache_path.return_value = hf_dataset_cache
+    def test_compare_bmm_generated_args(self, os_getcwd):
         os_getcwd.return_value = experiment_path
-        get_image.return_value = image_path
+        CLUSTER = EntropyTestBackend()
         expected_output = [
             [
                 "sbatch",
@@ -173,7 +190,7 @@ class TestGrid(unittest.TestCase):
                 "--mem=125G",
                 "--job-name=granular_4_mini",
                 "--time=0-05:00:00",
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--env",
@@ -269,7 +286,7 @@ class TestGrid(unittest.TestCase):
                 "--mem=125G",
                 "--job-name=granular_4_mini",
                 "--time=0-05:00:00",
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--env",
@@ -359,37 +376,32 @@ class TestGrid(unittest.TestCase):
                 "/local_storage_2/llm-random/datasets/c4_validation",
             ],
         ]
-
         experiments, _ = create_subprocess_args(
             "configs/experiments/expert_choice/compare_bmm_einsum.yaml",
             "cool_git_branch",
             f"{neptune_api_key}",
             f"{wandb_api_key}",
-            MachineBackend.ENTROPY,
+            CLUSTER,
             skip_confirmation=True,
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-
         self.assertUnifiedEqual(returned_output, expected_output)
 
-    @patch("lizrd.grid.infrastructure.get_singularity_image")
     @patch("os.getcwd")
-    @patch("lizrd.grid.infrastructure.get_cache_path")
-    def test_lr_grid(self, get_cache_path, os_getcwd, get_image):
-        get_cache_path.return_value = hf_dataset_cache
+    def test_lr_grid(self, os_getcwd):
         os_getcwd.return_value = experiment_path
-        get_image.return_value = image_path
+        CLUSTER = AthenaTestBackend()
         expected_output = [
             [
                 "sbatch",
                 "--gres=gpu:2",
                 "--partition=plgrid-gpu-a100",
-                "--cpus-per-gpu=8",
-                "--account=plgplggllmeffi-gpu-a100",
+                "--mem=250G",
+                "--account=plgsubslearnath-gpu-a100",
                 "--job-name=lr_grid",
                 "--time=40:00:00",
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--bind=/net:/net",
@@ -437,20 +449,16 @@ class TestGrid(unittest.TestCase):
                 "5e-4",
                 "--n_gpus",
                 "2",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ],
             [
                 "sbatch",
                 "--gres=gpu:2",
                 "--partition=plgrid-gpu-a100",
-                "--cpus-per-gpu=8",
-                "--account=plgplggllmeffi-gpu-a100",
+                "--mem=250G",
+                "--account=plgsubslearnath-gpu-a100",
                 "--job-name=lr_grid",
                 "--time=40:00:00",
-                "lizrd/scripts/grid_entrypoint.sh",
+                "lizrd/grid/grid_entrypoint.sh",
                 "singularity",
                 "run",
                 "--bind=/net:/net",
@@ -498,10 +506,6 @@ class TestGrid(unittest.TestCase):
                 "7e-4",
                 "--n_gpus",
                 "2",
-                "--train_dataset_path",
-                "None",
-                "--validation_dataset_path",
-                "None",
             ],
         ]
         experiments, _ = create_subprocess_args(
@@ -509,7 +513,7 @@ class TestGrid(unittest.TestCase):
             "cool_git_branch",
             f"{neptune_api_key}",
             f"{wandb_api_key}",
-            MachineBackend.ATHENA,
+            CLUSTER,
             skip_confirmation=True,
             skip_copy_code=True,
         )
