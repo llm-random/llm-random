@@ -46,6 +46,7 @@ if __name__ == "__main__":
             if interactive_debug_session:
                 print("Ran only the first experiment in interactive mode. Aborting...")
                 break
+        print("Successfully ran all experiments.")
 
     else:
         runner_main_function, runner_params = experiments[0]
