@@ -59,6 +59,11 @@ def get_model_size_config(predefined_config):
         dff = 8192
         n_blocks = 24
         n_att_heads = 16
+    elif predefined_config == "flag_dense":
+        dmodel = 3072
+        dff = 12288
+        n_blocks = 36
+        n_att_heads = 24
     else:
         raise ValueError(f"Unknown predefined config: {predefined_config}")
 
