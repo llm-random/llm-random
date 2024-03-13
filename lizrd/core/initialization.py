@@ -1,5 +1,7 @@
 import torch
 from torch.nn.init import trunc_normal_
+from functools import partial
+import torch.nn as nn
 
 
 def get_init_weight(shape, fan_in, init_type, scale, dtype=torch.float32):
@@ -13,6 +15,11 @@ def get_init_weight(shape, fan_in, init_type, scale, dtype=torch.float32):
         )
     else:
         raise ValueError(f"Unknown init_type: {init_type}")
+
+
+def get_init_fun(init_type, init_scale):
+    get_init = partial(get_init_weight, init_type=init_type, scale=init_scale)
+    return lambda *a, **aa: nn.Parameter(get_init(*a, **aa)).requires_grad_(True)
 
 
 def init_kaiming_uniform(shape, fan_in, scale, dtype=torch.float32):

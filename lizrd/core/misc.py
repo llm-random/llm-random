@@ -290,6 +290,10 @@ def resolve_activation_name(activation: str) -> nn.Module:
         return nn.SiLU()
     elif activation == "softmax":
         return nn.Softmax()
+    elif activation == "tanh":
+        return nn.Tanh()
+    elif activation == "sigmoid":
+        return nn.Sigmoid()
     else:
         raise ValueError(f"Unrecognized activation: {activation}")
 

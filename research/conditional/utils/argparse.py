@@ -23,9 +23,7 @@ def introduce_parser_arguments(
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
     parser.add_argument("--no_ff", action="store_true")
-    parser.add_argument(
-        "--token_choice_inner", type=str, choices=["relu", "swi_glu"], default="relu"
-    )
+    parser.add_argument("--moe_inner_expert", type=str, default="ff")
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
@@ -232,6 +230,13 @@ def introduce_parser_arguments(
         "--effective_dff_x",
         type=int,
         help="How much FLOPS we want to spend on FF, in multiples of d_model",
+    )
+    parser.add_argument(
+        "--expert_use_topk_initialization",
+        type=str,
+        choices=["Always", "Never", "Default"],
+        default="Default",
+        help="Whether to init fan_in of Lin2 in Experts with topk or not. Default means yes for EC and no for TC.",
     )
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")

@@ -53,15 +53,29 @@ from research.conditional.moe_layers.continuous_moe import (
     ContinuousMoE,
     LegacyContinuousMoE,
 )
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF, ExpertGating
+from research.conditional.moe_layers._expert_choice_old import (
+    ExpertChoiceFFOld,
+    ExpertGatingOld,
+)
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers._token_choice_old import (
+    TokenChoiceFFOld,
+    TokenChoiceRouterOld,
+    ExpertReluOld,
+    ExpertSwiGLUOld,
+)
+from research.conditional.moe_layers.moe_gating import (
+    MoeGating,
+    ExpertGating,
+    TokenGating,
+)
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
-    TokenChoiceRouter,
-    ExpertRelu,
-    ExpertSwiGLU,
 )
-from research.conditional.moe_layers._token_choice_deprecated import (
-    TokenChoiceFF as TokenChoiceFFDeprecated,
+from research.conditional.moe_layers.expert_types import (
+    ExpertFF,
+    ExpertGated,
+    ExpertLinear,
 )
 from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
@@ -296,56 +310,101 @@ def get_residual_layer(args):
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
 
-def get_expert_choice_args(args):
-    set_arguments_option1 = (
-        args.total_experts_width is not None
-        and args.effective_dff is not None
-        and args.n_experts is not None
-    ) and (args.expert_size is None and args.topk_fraction is None)
-    set_arguments_option2 = (
-        args.expert_size is not None
-        and args.topk_fraction is not None
-        and args.n_experts is not None
-    ) and (args.effective_dff is None and args.total_experts_width is None)
-    set_arguments_option3 = (  # this should be the default
-        args.granularity is not None
-        and args.expansion_rate is not None
-        and args.effective_dff_x is not None
+def determine_moe_args(args):
+    set_arguments_option1 = all(
+        [args.total_experts_width, args.effective_dff, args.n_experts]
+    ) and not any([args.expert_size, args.topk_fraction])
+    set_arguments_option2 = all(
+        [args.expert_size, args.topk_fraction, args.n_experts]
+    ) and not any([args.effective_dff, args.total_experts_width])
+    set_arguments_option3 = all(
+        [args.granularity, args.expansion_rate, args.effective_dff_x]
     )
+    set_arguments_option4 = all([args.n_experts, args.expert_size, args.routing_top_k])
 
-    if (
-        not set_arguments_option1
-        and not set_arguments_option2
-        and not set_arguments_option3
+    if 1 != sum(  # exactly one of the options must be set
+        [
+            set_arguments_option1,
+            set_arguments_option2,
+            set_arguments_option3,
+            set_arguments_option4,
+        ]
     ):
         raise AssertionError(
             "You must specify either total_experts_width, effective_dff, and n_experts "
             "or expert_size, topk_fraction, and n_experts "
             "or granularity, expansion_rate, and effective_dff_x "
+            "or n_experts, expert_size, and routing_top_k."
         )
+    # 4 is the standard dff_x, we assume it's defined relative to that
+    dff_x = 4
+    dff = args.dmodel * dff_x
 
+    if set_arguments_option4:
+        args.total_experts_width = args.n_experts * args.expert_size
+        args.expansion_rate = args.total_experts_width / dff
+        args.effective_dff = args.expert_size * args.routing_top_k
     if set_arguments_option3:
-        # 4 is the standard dff_x, we assume it's defined relative to that
-        dff_x = 4
         args.total_experts_width = args.dmodel * dff_x * args.expansion_rate
         args.n_experts = args.expansion_rate * args.granularity
         args.effective_dff = args.effective_dff_x * args.dmodel
 
-    if args.total_experts_width is not None:
+    if set_arguments_option2:
+        args.routing_top_k = args.topk_fraction * args.n_experts
+        args.effective_dff = args.routing_top_k * args.expert_size
+        args.total_experts_width = args.expert_size * args.n_experts
+    else:
         expert_size = args.total_experts_width / args.n_experts
         assert expert_size == int(expert_size)
         args.expert_size = int(expert_size)
 
-        experts_per_token = args.effective_dff / expert_size
+        args.routing_top_k = args.effective_dff / expert_size
+        args.topk_fraction = args.routing_top_k / args.n_experts
+        assert 0.0 <= args.topk_fraction <= 1.0
 
-        topk_fraction = experts_per_token / args.n_experts
-        assert 0.0 <= topk_fraction <= 1.0
-        args.topk_fraction = topk_fraction
+    assert args.routing_top_k == int(args.routing_top_k)
+    args.routing_top_k = int(args.routing_top_k)
+
+    # in the end, these arguments should be set
+    assert all(
+        [
+            args.routing_top_k,
+            args.total_experts_width,
+            args.n_experts,
+            args.expert_size,
+            args.topk_fraction,
+        ]
+    )
+    return args
+
+
+# this is a fix for a default value, because EC and TC had different initializations for LIN2
+# which does not make sense, but we need to keep the old behavior for compatibility
+def get_expert_init(parameter, default=False):
+    if parameter == "Always":
+        return True
+    elif parameter == "Never":
+        return False
+    elif parameter == "Default":
+        return default
     else:
-        experts_per_token = args.topk_fraction * args.n_experts
-        args.effective_dff = experts_per_token * args.expert_size
-        args.total_experts_width = args.expert_size * args.n_experts
+        raise ValueError(f"Unknown expert init type {parameter}")
 
+
+def get_expert_choice_args(args):
+    use_topk_initialization = get_expert_init(
+        args.expert_use_topk_initialization, default=True
+    )
+    expert_inner_function = partial(
+        get_inner_expert(args), use_topk_initialization=use_topk_initialization
+    )
+    args = get_expert_choice_args_old(args)
+    del args["use_full_einsum"]  # this is no longer compatible
+    del args["expert_size"]
+    return args, expert_inner_function
+
+
+def get_expert_choice_args_old(args):
     return {
         "dmodel": args.dmodel,
         "n_experts": args.n_experts,
@@ -511,9 +570,16 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "cont_moe_legacy":
         return_fn = lambda: LegacyContinuousMoE(**get_common_mot_kwargs(args))
+    elif args.ff_mode == "expert_choice_old":
+        args = determine_moe_args(args)
+        ff_args = get_expert_choice_args_old(args)
+        return_fn = partial(ExpertChoiceFFOld, **ff_args)
     elif args.ff_mode == "expert_choice":
-        ff_args = get_expert_choice_args(args)
-        return_fn = partial(ExpertChoiceFF, **ff_args)
+        args = determine_moe_args(args)
+        ff_args, make_expert_inner_function = get_expert_choice_args(args)
+        return_fn = lambda: ExpertChoiceFF(
+            **ff_args, expert_inner_function=make_expert_inner_function()
+        )
     elif args.ff_mode == "expert_choice_with_parallel_ff":
         expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
             "expert_choice_kwargs"
@@ -522,26 +588,17 @@ def get_ff_layer(args):
             "parallel_ff_args"
         ]
         return_fn = lambda: Parallel(
-            ExpertChoiceFF(**expert_choice_kwargs),
+            ExpertChoiceFFOld(**expert_choice_kwargs),
             llm.FeedForward(*parallel_ff_args),
         )
     elif args.ff_mode == "token_choice":
-        if args.token_choice_inner == "relu":
-            expert_inner_class = ExpertRelu
-        elif args.token_choice_inner == "swi_glu":
-            expert_inner_class = ExpertSwiGLU
-
-        else:
-            raise NotImplementedError(
-                f"Token choice logic {args.token_choice_inner} not implemented"
-            )
+        args = determine_moe_args(args)
+        make_expert_inner_function = get_inner_expert(args)
+        use_topk_initialization = get_expert_init(
+            args.expert_use_topk_initialization, default=False
+        )
         make_expert_inner_function = partial(
-            expert_inner_class,
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            expert_size=args.expert_size,
-            init_scale=args.init_scale,
-            init_type=args.init_type,
+            make_expert_inner_function, use_topk_initialization=use_topk_initialization
         )
         return_fn = lambda: TokenChoiceFF(
             dmodel=args.dmodel,
@@ -552,17 +609,35 @@ def get_ff_layer(args):
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
-            vectorize=(not args.dont_vectorize_switch),
         )
-    elif args.ff_mode == "token_choice_deprecated":
-        return_fn = lambda: TokenChoiceFFDeprecated(
+    elif args.ff_mode == "token_choice_old":
+        args = determine_moe_args(args)
+        if args.moe_inner_expert == "relu":
+            expert_inner_class = ExpertReluOld
+        elif args.moe_inner_expert == "swi_glu":
+            expert_inner_class = ExpertSwiGLUOld
+        else:
+            raise NotImplementedError(
+                f"Token choice logic {args.moe_inner_expert} not implemented"
+            )
+        make_expert_inner_function = partial(
+            expert_inner_class,
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_size=args.expert_size,
-            capacity_factor=args.capacity_factor,
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
             init_scale=args.init_scale,
             init_type=args.init_type,
+        )
+        return_fn = lambda: TokenChoiceFFOld(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+            vectorize=(not args.dont_vectorize_switch),
         )
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
@@ -600,6 +675,35 @@ def get_ff_layer(args):
     return return_fn
 
 
+def get_inner_expert(args):
+    if args.moe_inner_expert == "ff":
+        expert_inner_class = partial(ExpertFF, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "ff_gated":
+        expert_inner_class = partial(ExpertGated, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "linear":
+        expert_inner_class = ExpertLinear
+    # these experts names are left for backward compatibility
+    elif args.moe_inner_expert == "relu":
+        expert_inner_class = partial(ExpertFF, activation_name="relu")
+    elif args.moe_inner_expert == "swi_glu":
+        expert_inner_class = partial(ExpertGated, activation_name="silu")
+    elif args.moe_inner_expert == "geglu":
+        expert_inner_class = partial(ExpertGated, activation_name="gelu")
+    else:
+        raise NotImplementedError(
+            f'Inner expert type "{args.moe_inner_expert}" not implemented'
+        )
+    return partial(
+        expert_inner_class,
+        dmodel=args.dmodel,
+        n_experts=args.n_experts,
+        expert_size=args.expert_size,
+        init_scale=args.init_scale,
+        init_type=args.init_type,
+        topk=args.routing_top_k,
+    )
+
+
 def get_vanilla_mamba_layer(args):
     import mamba_ssm
 
@@ -628,11 +732,11 @@ def get_mamba_layer(args):
     ]:
 
         def get_token_choice_ff(d_input, d_output):
-            return TokenChoiceFF(
+            return TokenChoiceFFOld(
                 dmodel=d_input,
                 doutput=d_output,
                 n_experts=args.n_experts,
-                expert_inner_function=ExpertRelu(
+                expert_inner_function=ExpertReluOld(
                     dmodel=d_input,
                     doutput=d_output,
                     n_experts=args.n_experts,
@@ -713,14 +817,22 @@ def get_classes_from_module_names(
             classes.append(llm.EmbeddingLayer)
         elif name == "PredictionHead":
             classes.append(llm.PredictionHead)
+        elif name == "ExpertChoiceFFOld":
+            classes.append(ExpertChoiceFFOld)
         elif name == "ExpertChoiceFF":
             classes.append(ExpertChoiceFF)
+        elif name == "ExpertGatingOld":
+            classes.append(ExpertGatingOld)
         elif name == "ExpertGating":
             classes.append(ExpertGating)
         elif name == "Softmax":
             classes.append(torch.nn.Softmax)
-        elif name == "TokenChoiceRouter":
-            classes.append(TokenChoiceRouter)
+        elif name == "TokenChoiceRouterOld":
+            classes.append(TokenChoiceRouterOld)
+        elif name == "TokenGating":
+            classes.append(TokenGating)
+        elif name == "MoeGating":
+            classes.append(MoeGating)
         elif name == "Mamba":
             import mamba_ssm
 
@@ -732,10 +844,12 @@ def get_classes_from_module_names(
 
 def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
     ignored_classes = [
+        ExpertGatingOld,
         ExpertGating,
         LayerNorm,
         _BatchNorm,
-        TokenChoiceRouter,
+        TokenChoiceRouterOld,
+        TokenGating,
     ]
 
     selective_precision_modules = get_classes_from_module_names(
