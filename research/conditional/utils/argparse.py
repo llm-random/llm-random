@@ -25,7 +25,6 @@ def introduce_parser_arguments(
     parser.add_argument("--no_ff", action="store_true")
     parser.add_argument("--moe_inner_expert", type=str, default="ff")
 
-
     parser.add_argument(
         "--double_routing_from_start",
         action="store_true",

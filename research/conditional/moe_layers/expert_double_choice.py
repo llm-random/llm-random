@@ -9,6 +9,9 @@ from lizrd.core.initialization import get_init_fun
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time
 from research.conditional.moe_layers.moe_gating import ExpertGating
+from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers.token_choice import TokenChoiceFF
+from research.conditional.moe_layers.expert_types import ExpertFF, ExpertGated, ExpertLinear
 
 
 class ExpertDoubleChoiceFF(LoggingLayer):
@@ -247,10 +250,66 @@ class ExpertDoubleChoiceFF(LoggingLayer):
         return log
 
 
-def make_heatmap(tensor, expert_num, **kwargs):
-    logits_for_expert = tensor[expert_num]
-    batch_size, seq_len = logits_for_expert.shape
-    flatten_dist = logits_for_expert.flatten()
-    dist_for_expert = torch.softmax(flatten_dist.float(), dim=-1)
-    dist_for_expert = dist_for_expert.reshape(batch_size, seq_len)
-    return px.imshow(dist_for_expert.detach().cpu().numpy(), **kwargs)
+def get_router(routing_type, *args, **kwargs):
+    if routing_type == "expert_choice":
+        return ExpertChoiceFF(*args, **kwargs)
+    elif routing_type == "token_choice":
+        return TokenChoiceFF(*args, **kwargs)
+    else:
+        raise ValueError(f"Unknown routing type: {routing_type}")
+
+
+class DoubleChoiceInner(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_experts: int,
+        expert_size: int,
+        topk_fraction: float,
+        *args,
+        **kwargs,
+    ):
+        self.dmodel = dmodel
+        self.n_experts = n_experts
+        self.expert_size = expert_size
+        self.topk_fraction = topk_fraction
+        self.linear_1 = ExpertLinear(dmodel, n_experts, expert_size, *args, **kwargs)
+        linear_2 = ExpertLinear(expert_size, n_experts, dmodel, *args, **kwargs)
+        self.router = get_router(
+            dmodel, n_experts, topk_fraction,
+            expert_inner_function=linear_2,
+            *args, **kwargs
+        )
+
+    def forward(self, x: torch.Tensor):
+        x = self.linear_1(x)
+        x = self.router(x)
+        return x
+
+
+class DoubleChoiceFF(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_experts: int,
+        expert_size: int,
+        topk_fraction: float,
+        *args,
+        **kwargs,
+    ):
+        self.dmodel = dmodel
+        self.n_experts = n_experts
+        self.expert_size = expert_size
+        self.topk_fraction = topk_fraction
+        inner_router = DoubleChoiceInner(
+            dmodel, n_experts, expert_size, topk_fraction, *args, **kwargs
+        )
+        self.router = get_router(
+            dmodel, n_experts, topk_fraction,
+            expert_inner_function=inner_router,
+            *args, **kwargs
+        )
+
+    def forward(self, x: torch.Tensor):
+        x = self.router(x)
+        return x
