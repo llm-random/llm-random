@@ -312,7 +312,7 @@ class AdamBaydin(Optimizable):
         optimizer=NoOpOptimizer(),
     ):
         parameters = {
-            "alpha": torch.tensor(alpha),
+            "alpha": torch.tensor(alpha).log(),
         }
         self.alpha = alpha
         self.beta1 = beta1
@@ -352,7 +352,7 @@ class AdamBaydin(Optimizable):
             v_hat = v / (1.0 - beta2 ** float(t))
 
             dparam = m_hat / (v_hat**0.5 + 10.0**self.log_eps)
-            params[name] = param.detach() - self.parameters["alpha"] * dparam
+            params[name] = param.detach() - self.parameters["alpha"].exp() * dparam
 
     def __str__(self):
         return "adamBaydin / " + str(self.optimizer)

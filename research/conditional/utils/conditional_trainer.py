@@ -111,7 +111,7 @@ class ConditionalTrainer:
                 beta1=0.9,
                 beta2=0.999,
                 log_eps=-8.0,
-                optimizer=SGD(alpha=1e-6, mu=0.9),
+                optimizer=SGD(alpha=1e-4, mu=0.9),
             ),
         )
         self.model.initialize()
@@ -205,7 +205,7 @@ class ConditionalTrainer:
     def _log_custom_lr(self, step):
         self.logger.report_scalar(
             title="custom_lr",
-            value=self.model.optimizer.parameters["alpha"],
+            value=self.model.optimizer.parameters["alpha"].exp().item(),
             iteration=step,
         )
 
