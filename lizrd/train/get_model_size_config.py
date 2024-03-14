@@ -64,6 +64,11 @@ def get_model_size_config(predefined_config):
         dff = 12288
         n_blocks = 36
         n_att_heads = 24
+    elif predefined_config == "chinchilla_7b":
+        dmodel = 3584
+        dff = 14336
+        n_blocks = 40
+        n_att_heads = 28
     else:
         raise ValueError(f"Unknown predefined config: {predefined_config}")
 
