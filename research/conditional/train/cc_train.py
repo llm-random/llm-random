@@ -1,4 +1,5 @@
 import argparse
+from collections import defaultdict
 import os
 import random
 from typing import Callable, Optional
@@ -68,6 +69,33 @@ def log_batch(
         )
 
     print("Logged example batch.")
+
+
+def make_param_groups_and_lr_ratios(args, model):
+    lr = args.learning_rate
+    if args.lr_ratio_modules is None:
+        assert (
+            args.lr_ratios is None
+        ), "lr_ratios must be None if lr_ratio_modules is None"
+        return [{"params": model.parameters(), "lr": lr}], [1.0]
+
+    assert len(args.lr_ratio_modules) == len(
+        args.lr_ratios
+    ), "Length mismatch of lr_ratio_modules and lr_ratios."
+
+    lr_to_params = defaultdict(list)
+    for name, param in model.named_parameters():
+        ratio = 1.0
+        for possible_name in args.lr_ratio_modules:
+            if possible_name in name:
+                ratio = args.lr_ratios[args.lr_ratio_modules.index(possible_name)]
+                break
+        lr_to_params[ratio * lr].append(param)
+    param_grops = [
+        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
+    ]
+    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
+    return param_grops, ratios_in_group_order
 
 
 def main(
@@ -221,16 +249,20 @@ def main(
     if args.torch_compile:
         model = torch.compile(model)
 
+    param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
+
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        param_grops,
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
+
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args)
+    scheduler = get_scheduler(args, ratios_in_group_order)
+    print(f"Scheduler_ratios: {scheduler.ratios}")
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size

@@ -330,4 +330,18 @@ def introduce_parser_arguments(
         required=False,
     )
 
+    parser.add_argument(
+        "--lr_ratio_modules",
+        type=str,
+        default=None,
+        nargs="*",
+    )
+
+    parser.add_argument(
+        "--lr_ratios",
+        type=float,
+        default=None,
+        nargs="*",
+    )
+
     return parser
