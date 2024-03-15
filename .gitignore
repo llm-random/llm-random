@@ -155,6 +155,7 @@ jk_train/
 
 tmp_plots/
 scaling_laws/plots
+scaling_laws/*.csv
 
 # models saved locally
 models/

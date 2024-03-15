@@ -1,4 +1,5 @@
 from itertools import chain
+from functools import partial
 
 import numpy as np
 import torch
@@ -12,8 +13,12 @@ import math
 from scaling_laws.calculate_params import *
 
 
-def init(eps):
-    return nn.Parameter(tensor(eps))
+def init(name=None, eps=1e-5, dict=None, trainable=True, log=True):
+    if dict and name and name in dict:
+        eps = dict[name]
+        if log: eps = np.log(eps)
+    v = tensor(eps)
+    return nn.Parameter(v) if trainable else v
 
 
 def tensor(value=0.):
@@ -29,20 +34,22 @@ def logsumexp_poly(a, b, c, param):
 
 
 class PowerLaw(nn.Module):
-    def __init__(self, names, eps=1e-5, exp_inter=False, poly_inter=True, **_):
+    def __init__(self, names, eps=1e-5, exp_inter=False, poly_inter=True, init_dict=None, **_):
         super(PowerLaw, self).__init__()
         self.exp_inter = exp_inter
         self.poly_inter = poly_inter
-        self.p = init(-eps)  #  tensor(-0.3)
         self.names = names
+        init_dict = None if init_dict is None else init_dict.get(self.names[0])
+        self.p = init(eps=-eps, dict=init_dict, name='p', log=False)
+        init_f = partial(init, eps=eps, dict=init_dict)
         if len(names) == 2:
-            self.a, self.b = init(eps), init(eps)
-            self.c = init(eps) if self.poly_inter else tensor()
+            self.a, self.b = init_f('a'), init_f('b', log=False)
+            self.c = init_f('c') if self.poly_inter else tensor()
             self.name, self.condition = self.names
             if exp_inter:
-                self.i = init(eps)
+                self.i = init_f('i')
         elif len(names) == 1:
-            self.a, self.b, self.c = tensor(), tensor(), init(eps)
+            self.a, self.b, self.c = tensor(), tensor(), init_f('c')
             self.name = self.names[0]
 
     def get_tensors(self, params):
@@ -96,19 +103,20 @@ class PowerLaw(nn.Module):
 
 
 class ScalingLaw(nn.Module):
-    def __init__(self, name, runs, power_laws, fixed, cmap, flops_min, flops_max, eps=1e-5, num_opt_steps=None, scaling_bias=None, lr=None,
-                 remove_random=0.0,
+    def __init__(self, name, runs, power_laws, fixed, cmap, flops_min, flops_max, eps=1e-5, num_opt_steps=None,
+                 train_scaling_bias=True, lr=None, remove_random=0.0, init_dict=None, run_fit=True,
                  final_lr_fr=None, use_scipy=False, load_model=False, opt_log_loss=False, weight_decay=0, huber_delta=0.1,
                  resolve_interactive=False, use_active_params=False, **params):
         super().__init__()
         self.name = name
         self.checkpoint_name = f"scaling_laws/checkpoints/{name}_model.ckpt"
-        self.L0 = tensor(math.log(scaling_bias)) if scaling_bias is not None else init(eps)
+        self.L0 = init(eps=eps, dict=init_dict, name='L0', trainable=train_scaling_bias)
         self.loss = torch.nn.HuberLoss(delta=huber_delta) if huber_delta > 0 else torch.nn.MSELoss()
         self.cmap = cmap
-        self.power_laws = nn.ModuleList([PowerLaw(names, eps, **params) for names in power_laws])
+        self.power_laws = nn.ModuleList([PowerLaw(names, eps, **params, init_dict=init_dict) for names in power_laws])
         self.params_set = set(chain(*(set(p.names) for p in self.power_laws)))
         self.fixed_params = fixed
+        self.run_fit = run_fit
         self.num_opt_steps = num_opt_steps
         self.load_model = load_model
         self.lr = lr
@@ -243,6 +251,9 @@ class ScalingLaw(nn.Module):
         params.update(logloss=logloss, loss=np.exp(logloss))
 
     def optimize(self):
+        if not self.run_fit:
+            return self()[1].item()
+
         if self.load_model and os.path.exists(self.checkpoint_name):
             print(f"Loading model {self.name} from {self.checkpoint_name}")
             self.load_state_dict(torch.load(self.checkpoint_name))

@@ -11,6 +11,15 @@ scalings:
     power_laws:
       - - "n_params"
       - - "n_steps"
+    init_dict:
+      n_params:
+        c: 16.3
+        p: -0.126
+      n_steps:
+        c: 26.7
+        p: -0.127
+      L0: 0.472
+    run_fit: false
     cmap: copper
     weight_decay: 0.00015
     huber_delta: 0.1
@@ -38,6 +47,17 @@ scalings:
       - - "n_params"
         - "granularity"
       - - "n_steps"
+    init_dict:
+      n_params:
+        a: 2.1
+        b: -0.58
+        c: 18.1
+        p: -0.115
+      n_steps:
+        c: 30.8
+        p: -0.147
+      L0: 0.472
+    run_fit: false
     exp_inter: false
     poly_inter: true
     cmap: rainbow
@@ -69,7 +89,7 @@ plot_dims:
 extrapolate_factor: 3.0
 use_scipy: true
 load_model: false
-scaling_bias: 0.472
+train_scaling_bias: false
 flops_min: 1e18
 flops_max: 1e26
 show_points: false

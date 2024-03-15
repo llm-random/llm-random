@@ -223,9 +223,16 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, show_points=False, ext
 
 
 def download_from_neptune(project, tags, fixed, tags_negative=(), use_active_params=False, **_):
-    print("Downloading data from Neptune...")
-    table = pd.concat([project.fetch_runs_table(tag=tag).to_pandas() for tag in tags])  # TODO this du8plicates when tags overlap
-    table.rename(columns=lambda x: x.replace("/", "_"), inplace=True)
+    neptune_cache = f"scaling_laws/tags_{'|'.join(tags)}_neptune_cache.csv"
+    if os.path.exists(neptune_cache):
+        print(f"Loading data from cache {neptune_cache}, remove it to download again...")
+        table = pd.read_csv(neptune_cache, low_memory=False)
+    else:
+        print("Downloading data from Neptune...")
+        # TODO this du8plicates when tags overlap
+        table = pd.concat([project.fetch_runs_table(tag=tag).to_pandas() for tag in tags])
+        table.rename(columns=lambda x: x.replace("/", "_"), inplace=True)
+        table.to_csv(neptune_cache, index=False)
     table = [row for _, row in table.iterrows() if all(tag not in tags_negative for tag in row["sys_tags"].split(','))]
     table = [TrainRun(**row, fixed=fixed, use_active_params=use_active_params) for row in table]
     proper = np.average([t.finished for t in table])
