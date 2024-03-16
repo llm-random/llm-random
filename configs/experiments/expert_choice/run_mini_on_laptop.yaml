@@ -10,3 +10,9 @@ params:
   dataset_type: wikibook
   torch_compile: false
   mixed_precision_dtype: "float16"
+  moe_inner_expert: ff_gated
+  activation_type: softmax_last
+
+  get_router_values_from: "gate_weight"
+  moe_values_exp: 1.
+  moe_detach_gate: true

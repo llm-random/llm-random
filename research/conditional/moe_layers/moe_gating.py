@@ -23,7 +23,7 @@ class MoeGating(LoggingLayer):
         softmax_ungrouped,
         softmax_over,
         use_torch_bmm,
-        gate,
+        get_gate,
     ):
         super().__init__()
         self.n_experts = n_experts
@@ -31,14 +31,14 @@ class MoeGating(LoggingLayer):
         self.softmax_ungrouped = softmax_ungrouped
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
-        self.gate = gate
+        self.get_gate = get_gate
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
         assert softmax_over in ["tokens", "experts"]
 
     def calculate_gate(self, x, batch_size, seq_len):
         with measure_time(self, "expert_embedding"):
             if self.use_torch_bmm:
-                gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
+                gate = self.get_gate().unsqueeze(0).expand(batch_size, -1, -1)
                 gate_out = torch.bmm(x, gate).permute(2, 0, 1)
                 assert gate_out.shape == (self.n_experts, batch_size, seq_len)
             else:
@@ -46,7 +46,7 @@ class MoeGating(LoggingLayer):
                     "batch_size seq_len dmodel, dmodel n_experts "
                     "-> n_experts batch_size seq_len ",
                     x,
-                    self.gate,
+                    self.get_gate(),
                 )
         # each expert chooses k within dimension 1
         if not self.group_by_batch and not self.softmax_ungrouped:
@@ -192,9 +192,12 @@ class TokenGating(MoeGating):
         init_scale: float,
         routing_top_k: int = 1,
         use_einsum: bool = False,
+        get_gate=None,
     ):
-        init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        gate = init(shape=(dmodel, n_experts), fan_in=dmodel)
+        if get_gate is None:
+            init = get_init_fun(init_type=init_type, init_scale=init_scale)
+            self.gate = init(shape=(dmodel, n_experts), fan_in=dmodel)
+            get_gate = lambda: self.gate
 
         super().__init__(
             n_experts,
@@ -202,7 +205,7 @@ class TokenGating(MoeGating):
             softmax_ungrouped=False,
             softmax_over="experts",
             use_torch_bmm=not use_einsum,
-            gate=gate,
+            get_gate=get_gate,
         )
 
         self.dmodel = dmodel
@@ -329,3 +332,29 @@ def make_heatmap(tensor, expert_num, **kwargs):
     dist_for_expert = torch.softmax(flatten_dist.float(), dim=-1)
     dist_for_expert = dist_for_expert.reshape(batch_size, seq_len)
     return px.imshow(dist_for_expert.detach().cpu().numpy(), **kwargs)
+
+
+def init_gate(
+    router,
+    dmodel,
+    get_router_values_from,
+    init_scale,
+    init_type,
+    n_experts,
+    detach_gate,
+):
+    postprocess = (lambda x: x.detach()) if detach_gate else lambda x: x
+    if get_router_values_from == "weights":
+        init = get_init_fun(init_type=init_type, init_scale=init_scale)
+        router.gate = init((dmodel, n_experts), dmodel)
+        return lambda: postprocess(router.gate)
+    elif get_router_values_from in ["gate_weight", "lin1_weight"] and hasattr(
+        router.expert_inner_function, get_router_values_from
+    ):
+        return lambda: postprocess(
+            torch.mean(
+                getattr(router.expert_inner_function, get_router_values_from), dim=-1
+            ).T
+        )
+    else:
+        raise Exception(f"Bad get_router_values_from value: {get_router_values_from}")

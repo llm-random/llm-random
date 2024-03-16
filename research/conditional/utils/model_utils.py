@@ -398,7 +398,12 @@ def get_expert_choice_args(args):
     expert_inner_function = partial(
         get_inner_expert(args), use_topk_initialization=use_topk_initialization
     )
-    args = get_expert_choice_args_old(args)
+    args = dict(
+        **get_expert_choice_args_old(args),
+        get_router_values_from=args.get_router_values_from,
+        moe_values_exp=args.moe_values_exp,
+        detach_gate=args.moe_detach_gate,
+    )
     del args["use_full_einsum"]  # this is no longer compatible
     del args["expert_size"]
     return args, expert_inner_function
@@ -609,6 +614,9 @@ def get_ff_layer(args):
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
+            get_router_values_from=args.get_router_values_from,
+            moe_values_exp=args.moe_values_exp,
+            detach_gate=args.moe_detach_gate,
         )
     elif args.ff_mode == "token_choice_old":
         args = determine_moe_args(args)

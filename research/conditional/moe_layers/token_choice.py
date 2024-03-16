@@ -6,7 +6,7 @@ from research.conditional.utils.layer_manager import (
     LoggingLayer,
     time_measured,
 )
-from research.conditional.moe_layers.moe_gating import TokenGating
+from research.conditional.moe_layers.moe_gating import TokenGating, init_gate
 
 
 class TokenChoiceFF(LoggingLayer):
@@ -22,6 +22,9 @@ class TokenChoiceFF(LoggingLayer):
         doutput: Optional[int] = None,
         routing_top_k: int = 1,
         use_einsum: bool = False,
+        get_router_values_from: str = "weights",
+        moe_values_exp: Optional[int] = 1,
+        detach_gate: bool = False,
     ):
         """
         Args:
@@ -41,6 +44,22 @@ class TokenChoiceFF(LoggingLayer):
         self.capacity_factor = capacity_factor
         self.expert_inner_function = expert_inner_function
         self.load_balancing_loss_weight = load_balancing_loss_weight
+        self.moe_values_exp = (
+            moe_values_exp
+            if moe_values_exp != -1
+            else torch.nn.Parameter(torch.tensor(1.0))
+        )
+        self.gate = None
+
+        get_gate = init_gate(
+            self,
+            dmodel,
+            get_router_values_from,
+            init_scale,
+            init_type,
+            n_experts,
+            detach_gate,
+        )
         self.router = TokenGating(
             dmodel=dmodel,
             n_experts=n_experts,
@@ -50,6 +69,7 @@ class TokenChoiceFF(LoggingLayer):
             init_scale=init_scale,
             routing_top_k=routing_top_k,
             use_einsum=use_einsum,
+            get_gate=get_gate,
         )
 
     @time_measured("assign_tokens_to_input")
@@ -89,6 +109,8 @@ class TokenChoiceFF(LoggingLayer):
                 self.n_experts * experts_output.shape[1], self.doutput
             ),
         )
+        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
+            masked_expert_gate **= self.moe_values_exp
         output *= masked_expert_gate.sum(dim=1, keepdim=True)
         output = output.reshape(batch_size, seq_len, self.doutput)
         return output

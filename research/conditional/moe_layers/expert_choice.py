@@ -1,14 +1,13 @@
-from typing import Literal
+from typing import Literal, Optional
 import plotly.express as px
 import torch
 import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from lizrd.core.initialization import get_init_fun
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time, time_measured
-from research.conditional.moe_layers.moe_gating import ExpertGating
+from research.conditional.moe_layers.moe_gating import ExpertGating, init_gate
 
 
 class ExpertChoiceFF(LoggingLayer):
@@ -29,6 +28,9 @@ class ExpertChoiceFF(LoggingLayer):
         group_size: int = 1,
         use_torch_bmm: bool = False,
         use_layer_norm: bool = True,
+        get_router_values_from: str = "weights",
+        moe_values_exp: Optional[int] = 1,
+        detach_gate: bool = False,
     ):
         """
         Args:
@@ -53,14 +55,27 @@ class ExpertChoiceFF(LoggingLayer):
         self.use_layer_norm = use_layer_norm
         self.expert_inner_function = expert_inner_function
         self.doutput = self.expert_inner_function.doutput
+        self.gate = None
+        self.moe_values_exp = (
+            moe_values_exp
+            if moe_values_exp != -1
+            else torch.nn.Parameter(torch.tensor(1.0))
+        )
 
         assert (
             not self.one_hot_impl or self.group_by_batch
         ), "Not implemented, would require a lot of memory"
         assert not self.softmax_ungrouped or self.group_by_batch
 
-        init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        gate = init((dmodel, n_experts), dmodel)
+        get_gate = init_gate(
+            self,
+            dmodel,
+            get_router_values_from,
+            init_scale,
+            init_type,
+            n_experts,
+            detach_gate,
+        )
 
         self.ln = self.measure(LayerNorm(self.doutput), "layer_norm", use_layer_norm)
         self.softmax_over = softmax_over
@@ -84,7 +99,7 @@ class ExpertChoiceFF(LoggingLayer):
             one_hot_impl=one_hot_impl,
             random_perm=random_perm,
             use_torch_bmm=use_torch_bmm,
-            gate=gate,
+            get_gate=get_gate,
             n_gating_heatmaps=n_gating_heatmaps,
         )
 
@@ -102,6 +117,9 @@ class ExpertChoiceFF(LoggingLayer):
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
         topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
+
+        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
+            topk_values **= self.moe_values_exp
 
         x, one_hot = self.extract(x, topk, topk_indices)
         x = self.expert_inner_function(x)

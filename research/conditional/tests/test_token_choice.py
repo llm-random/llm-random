@@ -304,7 +304,7 @@ class TestTokenChoice(GeneralTestCase):
             old_tc.expert_inner_function.lin2_weight.data = (
                 tc.expert_inner_function.lin2_weight.data.clone()
             )
-            old_tc.router.gate.data = tc.router.gate.data.clone()
+            old_tc.router.gate.data = tc.gate.data.clone()
 
         propagate_forward_pass_cache(tc)
         propagate_forward_pass_cache(old_tc)
@@ -335,7 +335,7 @@ class TestTokenChoice(GeneralTestCase):
             tc.expert_inner_function.lin2_weight.grad,
             old_tc.expert_inner_function.lin2_weight.grad,
         )
-        self.assertTensorAlmostEqual(tc.router.gate.grad, old_tc.router.gate.grad)
+        self.assertTensorAlmostEqual(tc.gate.grad, old_tc.router.gate.grad)
 
     # TODO przepisać
     def test_topk2_equivalence_linear(self):
