@@ -94,10 +94,9 @@ def main(
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
     if args.batch_size_per_gpu is not None:
-        args.gradient_acccumulation_steps = args.batch_size / (
-            args.batch_size_per_gpu * args.n_gpus
+        args.gradient_accumulation_steps = int(
+            args.batch_size / (args.batch_size_per_gpu * args.n_gpus)
         )
-        args.batch_size = args.batch_size_per_gpu * args.n_gpus * args.gradient_acccumulation_steps
 
     if args.predefined_model_config is not None:
         dmodel, dff, n_att_heads, n_blocks = get_model_size_config(
