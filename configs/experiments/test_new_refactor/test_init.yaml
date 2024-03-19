@@ -7,3 +7,4 @@ params:
   tags: ["moe_refactor"]
   ^ff_mode: [expert_choice, token_choice]
   ^expert_use_topk_initialization: [Always, Never]
+  ^granularity: [4]

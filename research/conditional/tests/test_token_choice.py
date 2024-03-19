@@ -337,7 +337,6 @@ class TestTokenChoice(GeneralTestCase):
         )
         self.assertTensorAlmostEqual(tc.gate.grad, old_tc.router.gate.grad)
 
-    # TODO przepisać
     def test_topk2_equivalence_linear(self):
         """
         Test that the TokenChoiceFF layer with multiple experts is equivalent to a sum of linear layers.
@@ -369,7 +368,9 @@ class TestTokenChoice(GeneralTestCase):
         expert1 = make_expert()
         expert2 = make_expert()
         expert_logic = ExpertFF(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        token_choice_layer = TokenChoiceFFOld(
+
+        # non_reentrant_wrapper = make_checkpoint_wrapper_function()
+        token_choice_layer = TokenChoiceFF(
             dm,
             experts,
             100.0,
@@ -378,15 +379,12 @@ class TestTokenChoice(GeneralTestCase):
             init_type="kaiming_uniform",
             init_scale=1.0,
             routing_top_k=2,
-            vectorize=False,
         )
         propagate_forward_pass_cache(token_choice_layer)
 
         with torch.no_grad():
             # make sure the gating is the same for both experts
-            token_choice_layer.router.gate.data[
-                :, 0
-            ] = token_choice_layer.router.gate.data[:, 1]
+            token_choice_layer.gate.data[:, 0] = token_choice_layer.gate.data[:, 1]
 
             # copy weights from experts to layer
             token_choice_layer.expert_inner_function.lin1_weight.data[0] = (

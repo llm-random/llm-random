@@ -73,15 +73,10 @@ class TokenChoiceFF(LoggingLayer):
         )
 
     @time_measured("assign_tokens_to_input")
-    def extract(self, x, tokens_per_expert_indices, tokens_per_expert_values):
-        capacity = tokens_per_expert_indices.shape[0]
-        indicies_reshaped = tokens_per_expert_indices.T.reshape(
-            self.n_experts * capacity
-        )
-        values_reshaped = tokens_per_expert_values.T.reshape(
-            self.n_experts * capacity, 1
-        )
-        experts_input = x[indicies_reshaped, :] * values_reshaped
+    def extract(self, x, token_indicies):
+        capacity = token_indicies.shape[0]
+        token_indicies = token_indicies.T.reshape(self.n_experts * capacity)
+        experts_input = x[token_indicies, :]
         experts_input = experts_input.reshape(self.n_experts, capacity, self.dmodel)
         return experts_input
 
@@ -89,8 +84,8 @@ class TokenChoiceFF(LoggingLayer):
     def merge(
         self,
         experts_output,
-        masked_expert_gate,
-        tokens_per_expert_indices,
+        token_expert_values,
+        token_expert_indices,
         batch_size,
         seq_len,
         x,
@@ -102,37 +97,31 @@ class TokenChoiceFF(LoggingLayer):
             layout=x.layout,
             device=x.device,
         )
+        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
+            token_expert_values **= self.moe_values_exp
+        experts_output *= token_expert_values.T.unsqueeze(-1)
         output.index_add_(
             dim=0,
-            index=tokens_per_expert_indices.T.flatten(),
+            index=token_expert_indices.T.flatten(),
             source=experts_output.reshape(
                 self.n_experts * experts_output.shape[1], self.doutput
             ),
         )
-        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
-            masked_expert_gate **= self.moe_values_exp
-        output *= masked_expert_gate.sum(dim=1, keepdim=True)
         output = output.reshape(batch_size, seq_len, self.doutput)
         return output
 
     def forward(self, x: torch.Tensor):
         batch_size, seq_len, _ = x.shape
 
-        (
-            tokens_per_expert_indices,
-            tokens_per_expert_values,
-            masked_expert_gate,
-        ) = self.router(x)
+        token_expert_indices, token_expert_values = self.router(x)
 
         x = x.flatten(start_dim=0, end_dim=1)
-        experts_input = self.extract(
-            x, tokens_per_expert_indices, tokens_per_expert_values
-        )
+        experts_input = self.extract(x, token_expert_indices)
         experts_output = self.expert_inner_function(experts_input).to(x.dtype)
         output = self.merge(
             experts_output,
-            masked_expert_gate,
-            tokens_per_expert_indices,
+            token_expert_values,
+            token_expert_indices,
             batch_size,
             seq_len,
             x,
