@@ -267,7 +267,12 @@ class TokenGating(MoeGating):
                 top_tokens_per_expert_values,
                 top_tokens_per_expert_indices,
             ) = expert_mask.topk(k=capacity, dim=0)
-        self.log_dropped_tokens(top_tokens_per_expert_values, top_tokens_per_expert_indices, expert_mask, n_tokens)
+        self.log_dropped_tokens(
+            top_tokens_per_expert_values,
+            top_tokens_per_expert_indices,
+            expert_mask,
+            n_tokens,
+        )
         # from a list of finally chosen tokens, create a mask with their respective values
         expert_values = (
             torch.gather(gate_out, 0, top_tokens_per_expert_indices)
@@ -276,7 +281,13 @@ class TokenGating(MoeGating):
         self.calculate_balancing_loss(gate_out, expert_mask)
         return top_tokens_per_expert_indices, expert_values
 
-    def log_dropped_tokens(self, top_tokens_per_expert_values, top_tokens_per_expert_indices, expert_mask, n_tokens):
+    def log_dropped_tokens(
+        self,
+        top_tokens_per_expert_values,
+        top_tokens_per_expert_indices,
+        expert_mask,
+        n_tokens,
+    ):
         # TODO this below is just for logging, we maybe should remove it
         with measure_time(self, "create_truncated_mask"):
             truncated_expert_mask = torch.zeros_like(expert_mask)
