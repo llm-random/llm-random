@@ -1,3 +1,4 @@
+from unittest.mock import patch
 import torch
 
 from lizrd.core import llm
@@ -345,6 +346,43 @@ class LLMTest(GeneralTestCase):
         output = model(input)
 
         self.assertShape(output, (batch, seql, output_size))
+
+
+class TokenReductionTest(unittest.TestCase):
+    @patch("lizrd.core.llm.TokenReduction._random_indices")
+    def test_choose_random_indeces(self, random_indices):
+        random_indices.return_value = torch.tensor([[0, 2], [1, 3]])
+        input_tokens = torch.tensor(
+            [
+                [
+                    [0.2259, 0.5644, 0.2027],
+                    [0.9595, 0.3028, 0.2740],
+                    [0.4867, 0.2119, 0.4860],
+                    [0.3254, 0.2677, 0.3041],
+                ],
+                [
+                    [0.8549, 0.1331, 0.2383],
+                    [0.5108, 0.6336, 0.0501],
+                    [0.3324, 0.3816, 0.7916],
+                    [0.8967, 0.4223, 0.4191],
+                ],
+            ]
+        )
+        correct_output = torch.tensor(
+            [
+                [
+                    [0.2259, 0.5644, 0.2027],
+                    [0.4867, 0.2119, 0.4860],
+                ],
+                [
+                    [0.5108, 0.6336, 0.0501],
+                    [0.8967, 0.4223, 0.4191],
+                ],
+            ]
+        )
+        layer = llm.TokenReduction(result_seq_len=2)
+        out = layer(input_tokens)
+        assert torch.equal(out, correct_output)
 
 
 if __name__ == "__main__":

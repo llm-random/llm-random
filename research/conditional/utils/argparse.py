@@ -330,4 +330,8 @@ def introduce_parser_arguments(
         required=False,
     )
 
+
+    # token reduction
+    parser.add_argument("--reduced_number_of_tokens", type=int, default=None)
+
     return parser

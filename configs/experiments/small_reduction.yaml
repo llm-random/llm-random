@@ -1,0 +1,28 @@
+parent: configs/baselines/gpt/dense/small.yaml
+md5_parent_hash: 9bcdbfe14ff178e8ee90a04000ab9546
+time: "20:00:00"
+
+params:
+  name: "baseline_small"
+  use_neptune: true
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+  grad_clip: 1.0
+  tags: ["baseline", "small"]
+
+
+  n_steps: 100000
+  learning_rate: 1e-4
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  init_type: truncated_normal
+  init_scale: 0.1
+  save_weights_interval: 0
+  batch_size: 512
+  dataset_type: c4
+
+
+  # ^cutoff: [282, 307, 384, 512]
+  # # # cutoff: 307
+  # reduced_number_of_tokens: 256

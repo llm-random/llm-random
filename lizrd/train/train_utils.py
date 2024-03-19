@@ -34,6 +34,7 @@ def get_model(
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
+    reduced_number_of_tokens: int = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -53,7 +54,13 @@ def get_model(
             )
         )
 
-    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
+    if reduced_number_of_tokens is not None:
+        embedding_layer = torch.nn.Sequential(
+            llm.EmbeddingLayer(*embedding_components),
+            llm.TokenReduction(reduced_number_of_tokens),
+        ).to(first_gpu)
+    else:
+        embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(

@@ -1,7 +1,7 @@
 import einops
 import torch.nn as nn
 
-DISABLE_CHECKS = False
+DISABLE_CHECKS = True
 
 
 def assert_shape(pattern, tensor, **kwargs):

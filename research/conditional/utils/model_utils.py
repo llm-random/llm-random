@@ -196,6 +196,22 @@ def chungized_llm_loss_and_gradient(
     clear_additional_losses(model)
     return total_loss, aux_info
 
+def bisxd( input, dim, index):
+    """
+    origin: https://discuss.pytorch.org/t/batched-index-select/9115/8
+    input: B x * x ... x *
+    dim: 0 < scalar
+    index: B x M
+    """
+    views = [input.shape[0]] + [
+        1 if i != dim else -1 for i in range(1, len(input.shape))
+    ]
+    expanse = list(input.shape)
+    expanse[0] = -1
+    expanse[dim] = -1
+    index = index.view(views).expand(expanse)
+    return torch.gather(input, dim, index)
+
 
 def calculate_llm_loss_and_gradient(
     batch: LLMBatch,
@@ -215,9 +231,12 @@ def calculate_llm_loss_and_gradient(
         with torch.autocast(
             device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
         ):
-            model_output = model(input_tokens)
+            model_output, indices_mask = model(input_tokens)
 
         # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
+        if indices_mask is not None:
+            mask = bisxd(mask, 1, indices_mask)
+            gt_tokens = bisxd(gt_tokens, 1, indices_mask)
         gt_tokens = gt_tokens.to(model_output.device)
         mask = mask.to(model_output.device)
 
