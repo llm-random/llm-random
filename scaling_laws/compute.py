@@ -153,7 +153,7 @@ def plot_params(scaling_laws, plot_dim, show_model_sizes, show_points=False, ext
         if len(groups) > 2:
             groups.append(((32.0,), []))
             groups.append(((64.0,), []))
-            #groups.append(((128.0,), []))
+            #groups.append(((128.0,), []))  # TUTAJ ODKOMENTOWAĆ JAK SIĘ DODA NOWE GRANULARNOŚCI
         colors = cm_f(np.linspace(0, 1, len(groups)))
 
         B_predictions, B_opt_params, names = [], [], []
