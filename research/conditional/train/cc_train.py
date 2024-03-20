@@ -249,6 +249,9 @@ def main(
     if args.torch_compile:
         model = torch.compile(model)
 
+    for name, param in model.named_parameters():
+        print(name, param.shape)
+
     param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
 
     optimizer = torch.optim.AdamW(
