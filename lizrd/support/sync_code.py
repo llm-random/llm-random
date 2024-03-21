@@ -9,7 +9,6 @@ from argparse import ArgumentParser
 from git import Repo
 import paramiko.ssh_exception
 
-from lizrd.support.code_versioning import find_git_root, version_code
 from lizrd.support.misc import generate_random_string
 
 _SSH_HOSTS_TO_PASSPHRASES = {}
@@ -41,12 +40,11 @@ def ConnectWithPassphrase(*args, **kwargs) -> Generator[Connection, None, None]:
 
 
 def cd_to_root_dir():
-    git_root = find_git_root()
-    repo = Repo(git_root)
+    repo = Repo()
     assert repo.remotes.origin.url in [
         "git@github.com:llm-random/llm-random.git",
     ], "You're not in the right repo! Move to the llm-random folder, and make sure your origin is the llm-random repo. Aborting..."
-    os.chdir(git_root)
+    os.chdir(repo.working_dir)
 
 
 def rsync_to_remote(host, local_dir):
@@ -89,7 +87,7 @@ def athena_user_to_workdir(connection):
 
 def get_base_directory(connection):
     if connection.host == "athena.cyfronet.pl":
-        base_dir = f"/net/pr2/projects/plgrid/plggllmeffi/{athena_user_to_workdir(connection)}/llm-random"
+        base_dir = f"/net/pr2/projects/plgrid/plggsubgoal/{athena_user_to_workdir(connection)}/llm-random"
     else:
         base_dir = f"~/llm-random"
     return base_dir
@@ -107,7 +105,7 @@ def get_proxy_command(connection):
 def set_up_permissions(host):
     try:
         with ConnectWithPassphrase(host) as connection:
-            path = f"{get_base_directory(connection)}/lizrd/scripts/grid_entrypoint.sh"
+            path = f"{get_base_directory(connection)}/lizrd/grid/grid_entrypoint.sh"
             print(f"Changing permissions for {path}...")
             connection.run(f"chmod +x {path}")
             print("The permissions for the script have been changed successfully.")
@@ -141,4 +139,3 @@ if __name__ == "__main__":
     )
     with open("/tmp/git_branch.txt", "w") as f:
         f.write(name_for_branch)
-    version_code(name_for_branch)

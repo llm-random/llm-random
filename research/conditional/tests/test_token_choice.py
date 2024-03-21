@@ -9,14 +9,12 @@ from lizrd.train.checkpointing import (
     second_forward_manager,
 )
 
-from research.conditional.moe_layers.token_choice import (
-    TokenChoiceFF,
-    ExpertRelu,
-    ExpertSwiGLU,
+from research.conditional.moe_layers._token_choice_old import (
+    TokenChoiceFFOld,
+    ExpertReluOld,
 )
-from research.conditional.moe_layers._token_choice_deprecated import (
-    TokenChoiceFF as OldTokenChoiceFF,
-)
+from research.conditional.moe_layers.token_choice import TokenChoiceFF
+from research.conditional.moe_layers.expert_types import ExpertGated, ExpertFF
 from lizrd.support.test_utils import GeneralTestCase
 
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -55,7 +53,9 @@ class TestTokenChoice(GeneralTestCase):
                 exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
         )
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic = ExpertFF(
+            dm, experts, exp_size, "kaiming_uniform", 1.0, activation_name="relu"
+        )
         token_choice_layer = TokenChoiceFF(
             dm,
             experts,
@@ -106,7 +106,9 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         lin = SwiGLUFeedForward(dm, exp_size, "kaiming_uniform", 1.0)
-        expert_logic = ExpertSwiGLU(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic = ExpertGated(
+            dm, experts, exp_size, "kaiming_uniform", 1.0, activation_name="silu"
+        )
         token_choice_layer = TokenChoiceFF(
             dm,
             experts,
@@ -119,10 +121,10 @@ class TestTokenChoice(GeneralTestCase):
         propagate_forward_pass_cache(token_choice_layer)
 
         token_choice_layer.expert_inner_function.lin1_weight.data = (
-            lin.w1_gate.weight[0:exp_size].data.transpose(0, 1).unsqueeze(0)
+            lin.w1_gate.weight[exp_size:].data.transpose(0, 1).unsqueeze(0)
         )
-        token_choice_layer.expert_inner_function.swi_glu_gate_weight.data = (
-            lin.w1_gate.weight.data[exp_size:].transpose(0, 1).unsqueeze(0)
+        token_choice_layer.expert_inner_function.gate_weight.data = (
+            lin.w1_gate.weight.data[0:exp_size].transpose(0, 1).unsqueeze(0)
         )
         token_choice_layer.expert_inner_function.lin2_weight.data = (
             lin.w2.weight.data.transpose(0, 1).unsqueeze(0)
@@ -139,14 +141,14 @@ class TestTokenChoice(GeneralTestCase):
         output_lin.sum().backward()
         output_token_choice.sum().backward()
         self.assertTensorAlmostEqual(
-            lin.w1_gate.weight.grad[0:exp_size],
+            lin.w1_gate.weight.grad[exp_size:],
             token_choice_layer.expert_inner_function.lin1_weight.grad.squeeze(
                 0
             ).transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
-            lin.w1_gate.weight.grad[exp_size:],
-            token_choice_layer.expert_inner_function.swi_glu_gate_weight.grad.squeeze(
+            lin.w1_gate.weight.grad[0:exp_size],
+            token_choice_layer.expert_inner_function.gate_weight.grad.squeeze(
                 0
             ).transpose(0, 1),
         )
@@ -164,7 +166,7 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 11
         seq_len = 13
         x = torch.rand((batch, seq_len, dm))
-        expert_logic = ExpertRelu(
+        expert_logic = ExpertFF(
             dm, experts, exp_size, "kaiming_uniform", 1.0, use_einsum=True
         )
         einsum_module = TokenChoiceFF(
@@ -197,7 +199,7 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 7
         seql = 11
 
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic = ExpertFF(dm, experts, exp_size, "kaiming_uniform", 1.0)
         tc = TokenChoiceFF(
             dm,
             experts,
@@ -237,7 +239,7 @@ class TestTokenChoice(GeneralTestCase):
 
         non_reentrant_wrapper = make_checkpoint_wrapper_function()
 
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic = ExpertFF(dm, experts, exp_size, "kaiming_uniform", 1.0)
 
         tc = torch.nn.Sequential(
             TokenChoiceFF(
@@ -270,7 +272,8 @@ class TestTokenChoice(GeneralTestCase):
         exp_size = 7
         seql = 11
 
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic = ExpertFF(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic_old = ExpertReluOld(dm, experts, exp_size, "kaiming_uniform", 1.0)
 
         # non_reentrant_wrapper = make_checkpoint_wrapper_function()
         tc = TokenChoiceFF(
@@ -282,20 +285,25 @@ class TestTokenChoice(GeneralTestCase):
             routing_top_k=1,
             init_type="kaiming_uniform",
             init_scale=1.0,
-            vectorize=False,
         )
-        old_tc = OldTokenChoiceFF(
+        old_tc = TokenChoiceFFOld(
             dm,
             experts,
-            exp_size,
             1.0,
+            expert_inner_function=expert_logic_old,
             load_balancing_loss_weight=0.1,
+            routing_top_k=1,
             init_type="kaiming_uniform",
             init_scale=1.0,
+            vectorize=True,
         )
         with torch.no_grad():
-            old_tc.lin1_weight.data = tc.expert_inner_function.lin1_weight.data.clone()
-            old_tc.lin2_weight.data = tc.expert_inner_function.lin2_weight.data.clone()
+            old_tc.expert_inner_function.lin1_weight.data = (
+                tc.expert_inner_function.lin1_weight.data.clone()
+            )
+            old_tc.expert_inner_function.lin2_weight.data = (
+                tc.expert_inner_function.lin2_weight.data.clone()
+            )
             old_tc.router.gate.data = tc.router.gate.data.clone()
 
         propagate_forward_pass_cache(tc)
@@ -320,10 +328,12 @@ class TestTokenChoice(GeneralTestCase):
         ).backward()
 
         self.assertTensorAlmostEqual(
-            tc.expert_inner_function.lin1_weight.grad, old_tc.lin1_weight.grad
+            tc.expert_inner_function.lin1_weight.grad,
+            old_tc.expert_inner_function.lin1_weight.grad,
         )
         self.assertTensorAlmostEqual(
-            tc.expert_inner_function.lin2_weight.grad, old_tc.lin2_weight.grad
+            tc.expert_inner_function.lin2_weight.grad,
+            old_tc.expert_inner_function.lin2_weight.grad,
         )
         self.assertTensorAlmostEqual(tc.router.gate.grad, old_tc.router.gate.grad)
 
@@ -357,7 +367,9 @@ class TestTokenChoice(GeneralTestCase):
 
         expert1 = make_expert()
         expert2 = make_expert()
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
+        expert_logic = ExpertFF(dm, experts, exp_size, "kaiming_uniform", 1.0)
+
+        # non_reentrant_wrapper = make_checkpoint_wrapper_function()
         token_choice_layer = TokenChoiceFF(
             dm,
             experts,
@@ -367,7 +379,6 @@ class TestTokenChoice(GeneralTestCase):
             init_type="kaiming_uniform",
             init_scale=1.0,
             routing_top_k=2,
-            vectorize=False,
         )
         propagate_forward_pass_cache(token_choice_layer)
 
@@ -426,53 +437,3 @@ class TestTokenChoice(GeneralTestCase):
             .squeeze(0)
             .transpose(0, 1),
         )
-
-    def test_vectorized_vs_nonvectorized(self):
-        batch = 3
-        dm = 5
-        experts = 7
-        exp_size = 11
-        seq_len = 13
-        x = torch.rand((batch, seq_len, dm))
-        expert_logic = ExpertRelu(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        nonvectorized_module = TokenChoiceFF(
-            dm,
-            experts,
-            100.0,
-            expert_inner_function=expert_logic,
-            load_balancing_loss_weight=0.1,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
-        )
-
-        vectorized_module = deepcopy(nonvectorized_module)
-        vectorized_module.vectorize = vectorized_module.router.vectorize = True
-
-        propagate_forward_pass_cache(nonvectorized_module)
-        propagate_forward_pass_cache(vectorized_module)
-        self.assertTensorAlmostEqual(vectorized_module(x), nonvectorized_module(x))
-
-    def test_vectorized_vs_nonvectorized_swiglu(self):
-        batch = 3
-        dm = 5
-        experts = 7
-        exp_size = 11
-        seq_len = 13
-        x = torch.rand((batch, seq_len, dm))
-        expert_logic = ExpertSwiGLU(dm, experts, exp_size, "kaiming_uniform", 1.0)
-        nonvectorized_module = TokenChoiceFF(
-            dm,
-            experts,
-            100.0,
-            expert_inner_function=expert_logic,
-            load_balancing_loss_weight=0.1,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
-        )
-
-        vectorized_module = deepcopy(nonvectorized_module)
-        vectorized_module.vectorize = vectorized_module.router.vectorize = True
-
-        propagate_forward_pass_cache(nonvectorized_module)
-        propagate_forward_pass_cache(vectorized_module)
-        self.assertTensorAlmostEqual(vectorized_module(x), nonvectorized_module(x))

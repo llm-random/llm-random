@@ -8,6 +8,7 @@ import torch
 
 import torch.nn as nn
 from lizrd.support.logging import get_current_logger
+from functools import wraps
 
 
 def get_registered_name(name):
@@ -106,6 +107,30 @@ class LayerManager:
                     param.requires_grad = is_learning_temperature
 
 
+class MeasuringLayer(nn.Module):
+    def __init__(self, layer, name, parent):
+        super().__init__()
+        self.l = layer
+        self.name = name
+        self.parent = [parent]
+
+    def forward(self, *args, **kwargs):
+        with measure_time(self.parent[0], self.name):
+            return self.l(*args, **kwargs)
+
+
+def time_measured(name):
+    def _decorator(func):
+        @wraps(func)
+        def _decorator_wrapper(self, *args, **kwargs):
+            with measure_time(self, name):
+                return func(self, *args, **kwargs)
+
+        return _decorator_wrapper
+
+    return _decorator
+
+
 class LoggingLayer(nn.Module):
     def __init__(self):
         super().__init__()
@@ -179,6 +204,11 @@ class LoggingLayer(nn.Module):
             times_fig = px.bar(x=instr_names, y=instr_times)
             log["time"] = times_fig
         return log
+
+    def measure(self, module, name, exists=True):
+        if not exists:
+            return nn.Identity()
+        return MeasuringLayer(module, name, self)
 
 
 @contextmanager

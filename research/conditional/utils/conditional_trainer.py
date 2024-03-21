@@ -1,5 +1,4 @@
 from collections import defaultdict
-import os.path
 import copy
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
@@ -14,16 +13,18 @@ from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
+from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import temp_modify_attr
 from research.conditional.utils.model_utils import (
-    make_loss_function,
+    make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
+from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 
 
 @define(slots=False)
@@ -46,7 +47,7 @@ class ConditionalTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
-    _calculate_loss: Optional[Callable] = None
+    _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
@@ -54,7 +55,6 @@ class ConditionalTrainer:
     n_gpus: int = 1
     save_weights_path: str = None
     save_weights_interval: int = 1000
-    load_weights_path: str = None
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
@@ -75,6 +75,9 @@ class ConditionalTrainer:
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
+    rank: Optional[int] = None
+    start_step: int = 0
+    checkpoint: Optional[dict[str, torch.Tensor]] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -89,7 +92,7 @@ class ConditionalTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
-        self._calculate_loss = make_loss_function(
+        self._calculate_loss_and_gradient = make_loss_and_gradient_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
         self.layer_manager = LayerManager(
@@ -126,8 +129,8 @@ class ConditionalTrainer:
         Train the model for n_steps steps.
         """
         self._before_train_operations()
-        if self.load_weights_path is not None:
-            self._load_model_weights()
+        if self.scaler is not None and self.checkpoint is not None:
+            load_scaler_state(self.scaler, self.checkpoint)
 
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
@@ -141,7 +144,7 @@ class ConditionalTrainer:
             with_flops=True,
             with_modules=True,
         ) as p:
-            for step in range(n_steps + 1):
+            for step in range(self.start_step, n_steps + 1):
                 self._train_step(step)
                 if self.profiler_enabled:
                     p.step()
@@ -174,9 +177,8 @@ class ConditionalTrainer:
         processed_batch = self.train_dataloader.get_batch()
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
-        loss, aux_info = self.calculate_loss_and_maybe_optimize(
-            processed_batch, should_optimize=True
-        )
+        loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+        self._apply_gradient()
         if self.is_logging_process:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
@@ -185,50 +187,38 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def calculate_loss_and_maybe_optimize(
-        self, processed_batch: LLMBatch, should_optimize: bool
-    ):
-        """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them"""
+    def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
+        """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
+        NOTE: this function will not set the gradients for the model if model is in eval mode
+        """
         total_cross_entropy_loss = 0.0
         correct_tokens_value = 0
         total_masked_tokens_value = 0
         losses = {}
 
         for i in range(self.gradient_accumulation_steps):
+            # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
             for _, tensor in batch_copy:
                 tensor.data = get_ith_chunk(
                     tensor.data, self.gradient_accumulation_steps, i
                 )
 
-            cross_entropy_loss, aux_info = self._calculate_loss(
+            cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
                 batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
-                vocab_size=self.vocab_size,
+                num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
+                scaler=self.scaler,
             )
 
-            # clear computation graph, store gradients, only apply gradients at the end
-            should_apply_gradient = i == self.gradient_accumulation_steps - 1
-
-            loss_to_optimize = cross_entropy_loss
-            for key, value in aux_info["losses"].items():
-                loss_to_optimize += value
-
-            # since we sum gradients averaged over multiple smaller batches, we need to normalize here
-            loss_to_optimize /= self.gradient_accumulation_steps
-
-            if should_optimize:
-                self._optimize(
-                    loss_to_optimize, should_apply_gradient=should_apply_gradient
-                )
-            total_cross_entropy_loss += cross_entropy_loss.item()
+            total_cross_entropy_loss += cross_entropy_loss
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
 
             for key, value in aux_info["losses"].items():
-                losses[key] = losses.get(key, 0) + value
+                losses[key] = losses.get(key, 0) + value.item()
 
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
@@ -236,32 +226,22 @@ class ConditionalTrainer:
             "losses": losses,
         }
 
-    def _optimize(self, loss, should_apply_gradient=False):
-        if self.gradient_accumulation_steps == 1:
-            self.optimizer.zero_grad()
-        # clear computation graph, store gradients
+    def _apply_gradient(self):
         if self.scaler is None:
-            loss.backward()
+            if self.gradient_clipping is not None:
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
+            self.optimizer.step()
         else:
-            self.scaler.scale(loss).backward()
-        if should_apply_gradient:
-            if self.scaler is None:
-                if self.gradient_clipping is not None:
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.gradient_clipping
-                    )
-                self.optimizer.step()
-            else:
-                if self.gradient_clipping is not None:
-                    self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.gradient_clipping
-                    )
-                self.scaler.step(self.optimizer)
-                if self.scaler is not None:
-                    self.scaler.update()
-            if self.gradient_accumulation_steps > 1:
-                self.optimizer.zero_grad()
+            if self.gradient_clipping is not None:
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        self.optimizer.zero_grad()
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]
@@ -273,7 +253,14 @@ class ConditionalTrainer:
         layers = [
             l
             for _, l in self.layer_manager._layers
-            if isinstance(l, (ContinuousMoE, ExpertChoiceFF))
+            if isinstance(
+                l,
+                (
+                    ContinuousMoE,
+                    ExpertChoiceFFOld,
+                    ExpertChoiceFF,
+                ),
+            )
         ]
         if self.eval_dynamic_groupsize:
             original_group_size = layers[0].group_size
@@ -314,9 +301,7 @@ class ConditionalTrainer:
         extra_losses = defaultdict(float)
         for processed_batch in batches:
             with torch.no_grad():
-                loss, aux_info = self.calculate_loss_and_maybe_optimize(
-                    processed_batch, should_optimize=False
-                )
+                loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
             total_masked_tokens += aux_info["total_masked_tokens"]
@@ -449,27 +434,13 @@ class ConditionalTrainer:
             and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
-            checkpoint = {
-                "model": self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-            }
-            if self.scaler is not None:
-                checkpoint["scaler"] = self.scaler.state_dict()
-
-            torch.save(checkpoint, os.path.join(self.save_weights_path, f"{step}.pth"))
-            print(f"Weights saved to {self.save_weights_path} (step {step})")
-
-    def _load_model_weights(self):
-        if os.path.exists(self.load_weights_path):
-            print(f"Loading weights from {self.load_weights_path}")
-            checkpoint = torch.load(self.load_weights_path)
-            self.model.load_state_dict(checkpoint["model"], strict=False)
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
-            if self.scaler is not None:
-                self.scaler.load_state_dict(checkpoint["scaler"])
-        else:
-            raise ValueError(
-                f"Path {self.load_weights_path} does not exist. Aborting ..."
+            save_checkpoint(
+                self.model,
+                self.optimizer,
+                self.scaler,
+                self.save_weights_path,
+                self.rank,
+                step,
             )
 
     def _check_config(self):
