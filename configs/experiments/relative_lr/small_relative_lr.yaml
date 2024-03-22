@@ -15,9 +15,9 @@ params:
   grad_clip: 1.0
   # tags: []
 
-  lr_ratio_modules: ["residual_feedforward.layer.feedforward."]
+  lr_ratio_modules: ["attention.input_projection.weight"]
   ^lr_ratios: [0.1, 0.2, 0.5, 1, 2, 5, 10]
-
+  tags: ["relative_lr", "attention.input_projection.weight"]
 
   n_steps: 10000
   learning_rate: 1e-3
