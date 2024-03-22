@@ -73,24 +73,19 @@ def log_batch(
 
 def make_param_groups_and_lr_ratios(args, model):
     lr = args.learning_rate
-    if args.lr_ratio_modules is None:
-        assert (
-            args.lr_ratios is None
-        ), "lr_ratios must be None if lr_ratio_modules is None"
-        return [{"params": model.parameters(), "lr": lr}], [1.0]
+    use_hidden_fanin = args.use_hidden_weights_fanin
 
-    assert len(args.lr_ratio_modules) == len(
-        args.lr_ratios
-    ), "Length mismatch of lr_ratio_modules and lr_ratios."
+    if not use_hidden_fanin:
+        param_grops = [{"params": model.parameters(), "lr": lr}]
+        ratios_in_group_order = [1.0]
+        return param_grops, ratios_in_group_order
 
     lr_to_params = defaultdict(list)
     for name, param in model.named_parameters():
-        ratio = 1.0
-        for possible_name in args.lr_ratio_modules:
-            if possible_name in name:
-                ratio = args.lr_ratios[args.lr_ratio_modules.index(possible_name)]
-                break
-        lr_to_params[ratio * lr].append(param)
+        if "bias" in name or "norm" in name or "head" in name or "embedding" in name:
+            lr_to_params[lr].append(param)
+        else:
+            lr_to_params[lr / param.shape[-1]].append(param)
     param_grops = [
         {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
     ]

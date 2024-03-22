@@ -34,6 +34,8 @@ def get_model(
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
+    output_weight_multiplier: float = 1.0,
+    output_weight_relative_init_scale: float = 1.0,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -66,7 +68,11 @@ def get_model(
     )
 
     head = llm.PredictionHead(
-        dm, vocab_size, init_type=init_type, init_scale=init_scale
+        dm,
+        vocab_size,
+        init_type=init_type,
+        init_scale=init_scale * output_weight_relative_init_scale,
+        multiplier=output_weight_multiplier,
     ).to(last_gpu)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)

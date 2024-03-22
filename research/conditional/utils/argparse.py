@@ -331,17 +331,20 @@ def introduce_parser_arguments(
     )
 
     parser.add_argument(
-        "--lr_ratio_modules",
-        type=str,
-        default=None,
-        nargs="*",
+        "--use_hidden_weights_fanin",
+        action="store_true",
     )
 
     parser.add_argument(
-        "--lr_ratios",
+        "--output_weight_relative_init_scale",
         type=float,
-        default=None,
-        nargs="*",
+        default=1.0,
+    )
+
+    parser.add_argument(
+        "--output_weight_multiplier",
+        type=float,
+        default=1.0,
     )
 
     return parser
