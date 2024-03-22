@@ -14,7 +14,7 @@ from einops import rearrange, repeat
 
 from lizrd.core.initialization import get_init_weight
 
-from research.conditional.moe_layers.token_choice import (
+from research.conditional.moe_layers.load_balancing_loss import (
     calculate_load_balancing_loss,
 )
 from research.conditional.utils.layer_manager import measure_time, LoggingLayer
@@ -341,10 +341,10 @@ class MambaRouter(LoggingLayer):
         x = x * tokens_scales
         return x.reshape(batch_size, seq_len, din)
 
-    def log_light(self):
-        return {
-            "dropped_tokens_scale": self.dropped_tokens_scale.item(),
-        }
+    # def log_heavy(self):
+    #     return {
+    #         "dropped_tokens_scale": self.dropped_tokens_scale,
+    #     }
 
 
 class MambaTokenChoiceFunction(LoggingLayer):
