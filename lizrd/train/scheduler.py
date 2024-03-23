@@ -4,22 +4,26 @@ import math
 from torch.optim import Optimizer
 
 
-def get_scheduler(args):
-    if args.scheduler == "constant":
+def get_scheduler(
+    scheduler_type,
+    lr_warmup_steps,
+    learning_rate,
+    final_lr_step,
+    final_lr_fraction,
+):
+    if scheduler_type == "constant":
         return ConstantScheduler(
-            lr_warmup_steps=args.lr_warmup_steps, lr=args.learning_rate
+            lr_warmup_steps=lr_warmup_steps, lr=learning_rate
         )
-    elif args.scheduler == "cosine":
-        if args.final_lr_step is None:
-            args.final_lr_step = args.n_steps
+    elif scheduler_type == "cosine":
         return CosineScheduler(
-            lr_warmup_steps=args.lr_warmup_steps,
-            lr=args.learning_rate,
-            final_lr_step=args.final_lr_step,
-            final_lr_fraction=args.final_lr_fraction,
+            lr_warmup_steps=lr_warmup_steps,
+            lr=learning_rate,
+            final_lr_step=final_lr_step,
+            final_lr_fraction=final_lr_fraction,
         )
     else:
-        raise ValueError(f"Unknown scheduler: {args.scheduler}")
+        raise ValueError(f"Unknown scheduler: {scheduler_type}")
 
 
 class AbstractLRScheduler(ABC):

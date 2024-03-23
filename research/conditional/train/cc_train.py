@@ -230,7 +230,13 @@ def main(
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args)
+    scheduler = scheduler = get_scheduler(
+        args.scheduler_type,
+        args.lr_warmup_steps,
+        args.learning_rate,
+        args.final_lr_step,
+        args.final_lr_fraction,
+    )
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
