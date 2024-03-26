@@ -10,7 +10,6 @@ from lizrd.core import misc
 from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
-from lizrd.support import ash
 from research.conditional.utils.layer_manager import LoggingLayer
 
 
@@ -29,7 +28,6 @@ def decode_bias_string(bias):
     return bias_first, bias_second
 
 
-@ash.check("... d -> ... d")
 class SwiGLUFeedForward(LoggingLayer):
     def __init__(
         self,
@@ -52,7 +50,6 @@ class SwiGLUFeedForward(LoggingLayer):
         return self.w2(activation * gate)
 
 
-@ash.check("... d -> ... d")
 def FeedForward(
     dmodel,
     dff,
@@ -113,7 +110,7 @@ class EveryOtherLayer:
         return layer
 
 
-@ash.check("... -> ... ")
+
 class Residual(LoggingLayer):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -151,7 +148,7 @@ class Residual(LoggingLayer):
         }
 
 
-@ash.check("... -> ... ")
+
 class Parallel(nn.Module):
     def __init__(self, *layers):
         super(Parallel, self).__init__()
@@ -161,7 +158,7 @@ class Parallel(nn.Module):
         return sum(layer(x) for layer in self.layers)
 
 
-@ash.check("... dinp -> ... a b")
+
 class SplitLastAxis(nn.Module):
     def __init__(self, a, b):
         super(SplitLastAxis, self).__init__()
@@ -177,7 +174,7 @@ class SplitLastAxis(nn.Module):
         return result
 
 
-@ash.check("... a b -> ... dout")
+
 class MergeLastAxis(nn.Module):
     def forward(self, x):
         result = x.reshape(x.shape[:-2] + (-1,))
@@ -185,14 +182,14 @@ class MergeLastAxis(nn.Module):
         return result
 
 
-@ash.check("... a b -> ... b a")
+
 class Transpose(nn.Module):
     def forward(self, x):
         # return einops.rearrange(x, '... a b -> ... b a')
         return torch.transpose(x, -1, -2)
 
 
-@ash.check("... dinp -> ... dout")
+
 def LowRank(dinput, doutput, dlowrank):
     return nn.Sequential(
         Linear(dinput, dlowrank, bias=False),
@@ -263,7 +260,7 @@ class AttentionMechanism(nn.Module):
         )
 
 
-@ash.check("... d -> ... d")
+
 class Attention(LoggingLayer):
     def __init__(
         self,
@@ -337,7 +334,7 @@ class RoPE(nn.Module):
         return x * self.cos + x_rotated * self.sin
 
 
-@ash.check("... d -> ... d")
+
 class AttentionRoPE(LoggingLayer):
     def __init__(
         self,
@@ -397,7 +394,7 @@ class AttentionRoPE(LoggingLayer):
         return output
 
 
-@ash.check("... d -> ... d")
+
 class Attention(LoggingLayer):
     def __init__(
         self,
@@ -523,7 +520,7 @@ def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     )
 
 
-@ash.check("... d -> ... d")
+
 class TransformerBlock(nn.Module):
     def __init__(self, dmodel, layers, residual_fn):
         super(TransformerBlock, self).__init__()
@@ -539,7 +536,7 @@ class TransformerBlock(nn.Module):
         return self.block(x)
 
 
-@ash.check("... d -> ... d")
+
 class TransformerTower(nn.Module):
     def __init__(
         self,
@@ -604,7 +601,7 @@ class TransformerTower(nn.Module):
         )
 
 
-@ash.check("... -> ... d")
+
 def TokenEmbedding(
     vocab_size,
     embedding_dim,
@@ -620,7 +617,7 @@ def TokenEmbedding(
     return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
 
 
-@ash.check("... -> ... d")
+
 class PositionalEmbedding(nn.Module):
     def __init__(
         self,
@@ -660,7 +657,7 @@ class PredictionHead(Linear):
         )
 
 
-@ash.check("... -> ... out")
+
 class LLM(nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()

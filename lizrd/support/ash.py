@@ -4,10 +4,7 @@ import torch.nn as nn
 DISABLE_CHECKS = False
 
 
-def assert_shape(pattern, tensor, **kwargs):
-    if DISABLE_CHECKS:
-        return
-    einops.rearrange(tensor, f"{pattern} -> {pattern}", **kwargs)
+
 
 
 class Check(nn.Module):
