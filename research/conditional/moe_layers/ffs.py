@@ -488,7 +488,7 @@ class BatchSplitFF(nn.Module):
         with Timer("batchedFF", disable_inner=False):
             # BATCH, embedding
             assert_shape("... B d", x, d=self.dm)
-            
+
             # batch, set, embedding <-- this is just reshape
             grouped = einops.rearrange(x, f"... (b t) d -> {self.ogp}", t=self.sparsity)
 

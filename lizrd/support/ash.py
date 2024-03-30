@@ -4,9 +4,6 @@ import torch.nn as nn
 DISABLE_CHECKS = False
 
 
-
-
-
 class Check(nn.Module):
     def __init__(self, signature, layer, **kwargs):
         super(Check, self).__init__()

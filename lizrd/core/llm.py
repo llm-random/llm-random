@@ -110,7 +110,6 @@ class EveryOtherLayer:
         return layer
 
 
-
 class Residual(LoggingLayer):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -148,7 +147,6 @@ class Residual(LoggingLayer):
         }
 
 
-
 class Parallel(nn.Module):
     def __init__(self, *layers):
         super(Parallel, self).__init__()
@@ -156,7 +154,6 @@ class Parallel(nn.Module):
 
     def forward(self, x):
         return sum(layer(x) for layer in self.layers)
-
 
 
 class SplitLastAxis(nn.Module):
@@ -174,7 +171,6 @@ class SplitLastAxis(nn.Module):
         return result
 
 
-
 class MergeLastAxis(nn.Module):
     def forward(self, x):
         result = x.reshape(x.shape[:-2] + (-1,))
@@ -182,12 +178,10 @@ class MergeLastAxis(nn.Module):
         return result
 
 
-
 class Transpose(nn.Module):
     def forward(self, x):
         # return einops.rearrange(x, '... a b -> ... b a')
         return torch.transpose(x, -1, -2)
-
 
 
 def LowRank(dinput, doutput, dlowrank):
@@ -258,7 +252,6 @@ class AttentionMechanism(nn.Module):
             causal=causal,
             flash=self.use_flash_attention,
         )
-
 
 
 class Attention(LoggingLayer):
@@ -334,7 +327,6 @@ class RoPE(nn.Module):
         return x * self.cos + x_rotated * self.sin
 
 
-
 class AttentionRoPE(LoggingLayer):
     def __init__(
         self,
@@ -392,7 +384,6 @@ class AttentionRoPE(LoggingLayer):
         output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
 
         return output
-
 
 
 class Attention(LoggingLayer):
@@ -520,7 +511,6 @@ def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     )
 
 
-
 class TransformerBlock(nn.Module):
     def __init__(self, dmodel, layers, residual_fn):
         super(TransformerBlock, self).__init__()
@@ -534,7 +524,6 @@ class TransformerBlock(nn.Module):
 
     def forward(self, x):
         return self.block(x)
-
 
 
 class TransformerTower(nn.Module):
@@ -601,7 +590,6 @@ class TransformerTower(nn.Module):
         )
 
 
-
 def TokenEmbedding(
     vocab_size,
     embedding_dim,
@@ -615,7 +603,6 @@ def TokenEmbedding(
         scale=init_scale,
     )
     return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
-
 
 
 class PositionalEmbedding(nn.Module):
@@ -655,7 +642,6 @@ class PredictionHead(Linear):
         super(PredictionHead, self).__init__(
             embedding_dim, output_size, init_type=init_type, init_scale=init_scale
         )
-
 
 
 class LLM(nn.Module):

@@ -59,7 +59,6 @@ class GenericLog(nn.Module):
         pass
 
 
-
 class LogValue(GenericLog):
     def __init__(self, name, metric_writer=None, aggregate=torch.mean, subname=None):
         if subname is None:
@@ -71,7 +70,6 @@ class LogValue(GenericLog):
         mean_x = self.aggregate(x)
         self.add_scalar(mean_x)
         return x
-
 
 
 class LogGradient(GenericLog):

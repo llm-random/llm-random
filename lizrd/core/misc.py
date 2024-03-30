@@ -65,7 +65,6 @@ class EinMix(nn.Module):
         return newoutput
 
 
-
 def DenseEinMix(dinp, dout):
     return EinMix(
         "... dinp -> ... dout",
@@ -74,7 +73,6 @@ def DenseEinMix(dinp, dout):
         dinp=dinp,
         dout=dout,
     )
-
 
 
 class Linear(nn.Linear):
@@ -101,7 +99,6 @@ def check_layer_funs(*layer_funs):
             )
 
 
-
 class StopGradient(nn.Module):
     def __init__(self):
         super(StopGradient, self).__init__()
@@ -112,7 +109,6 @@ class StopGradient(nn.Module):
 
 def stop_gradient(x):
     return x.detach()
-
 
 
 class StopValuePassGradient(nn.Module):

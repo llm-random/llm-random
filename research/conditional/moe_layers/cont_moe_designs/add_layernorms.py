@@ -6,7 +6,6 @@ import lizrd.core.initialization
 from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
 
-
 class ContinuousMoELayernorm(ContinuousMoeBaseClass):
     def merge_map_emit(self, x, merge_weights, emit_weights):
         x = misc.einsum(
