@@ -79,6 +79,7 @@ class RewrittenSplitFF(nn.Module):
         # that we need for
         with Timer("rewrittenFF", disable_inner=False):
             # BATCH, embedding
+            assert_shape("... B d", x, d=self.dm)
             # batch, set, embedding <-- this is just reshape
             with Timer("grouping", disable=True):
                 grouped = einops.rearrange(

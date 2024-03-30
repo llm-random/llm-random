@@ -1,5 +1,4 @@
 from typing import Literal, Union, Optional
-import einops
 import plotly.express as px
 import torch
 import torch.nn.functional as F
@@ -474,7 +473,7 @@ class ExpertChoiceFFOld(LoggingLayer):
                 x,
                 self.lin2_weight,
             )
-            self.assertEqual(x.shape, (self.n_experts, topk, self.doutput))
+            assert x.shape, (self.n_experts, topk, self.doutput)
         return x
 
     def gating_postprocess_onehot(
@@ -497,7 +496,7 @@ class ExpertChoiceFFOld(LoggingLayer):
     ):
         # multiply by softmax
         with measure_time(self, "multiply_softmax"):
-            self.assertEqual(topk_values.shape, (self.n_experts, topk))
+            assert topk_values.shape, (self.n_experts, topk)
             x = einsum(
                 "n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values
             )
