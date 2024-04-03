@@ -189,11 +189,11 @@ def default(x, d):
 
 
 def print_available_gpus():
-    if torch.cuda.is_available():
-        count = torch.cuda.device_count()
-        print("Found {} GPU(s)".format(count))
-        for i in range(count):
-            print("GPU {}: {}".format(i, torch.cuda.get_device_name(i)))
+    count = torch.cuda.device_count()
+    print("Found {} GPU(s)".format(count))
+    for i in range(count):
+        print("GPU {}: {}".format(i, torch.cuda.get_device_name(i)))
+    return count
 
 
 def are_state_dicts_the_same(
