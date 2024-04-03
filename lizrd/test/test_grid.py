@@ -452,6 +452,8 @@ class TestGrid(unittest.TestCase):
                 "5e-4",
                 "--n_gpus",
                 "2",
+                "--logger_types",
+                "stdout",
             ],
             [
                 "sbatch",
@@ -509,6 +511,8 @@ class TestGrid(unittest.TestCase):
                 "7e-4",
                 "--n_gpus",
                 "2",
+                "--logger_types",
+                "stdout",
             ],
         ]
         experiments, _ = create_subprocess_args(
