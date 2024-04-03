@@ -9,7 +9,6 @@ from argparse import ArgumentParser
 from git import Repo
 import paramiko.ssh_exception
 
-from lizrd.support.code_versioning import version_code
 from lizrd.support.misc import generate_random_string
 
 _SSH_HOSTS_TO_PASSPHRASES = {}
@@ -106,7 +105,7 @@ def get_proxy_command(connection):
 def set_up_permissions(host):
     try:
         with ConnectWithPassphrase(host) as connection:
-            path = f"{get_base_directory(connection)}/lizrd/scripts/grid_entrypoint.sh"
+            path = f"{get_base_directory(connection)}/lizrd/grid/grid_entrypoint.sh"
             print(f"Changing permissions for {path}...")
             connection.run(f"chmod +x {path}")
             print("The permissions for the script have been changed successfully.")
@@ -140,4 +139,3 @@ if __name__ == "__main__":
     )
     with open("/tmp/git_branch.txt", "w") as f:
         f.write(name_for_branch)
-    version_code(name_for_branch)

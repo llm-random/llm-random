@@ -6,32 +6,33 @@
 # EXAMPLE USAGE: bash lizrd/scripts/run_exp_remotely.sh atena lizrd/configs/quick.json
 set -e
 
+branch_filename="__branch__name__.txt"
+experiment_dir_filename="__experiment__dir__.txt"
+
 source venv/bin/activate
-# run your python script
-python3 -m lizrd.support.sync_and_version --host $1
-base_dir=$(cat /tmp/base_dir.txt)
-git_branch=$(cat /tmp/git_branch.txt)
-rm /tmp/base_dir.txt
-rm /tmp/git_branch.txt
-
-
+python3 -m lizrd.support.sync_code --host $1
 
 run_grid_remotely() {
   host=$1
   config=$2
-  session_name=$(date "+%Y_%m_%d_%H_%M_%S")
-  echo "Running grid search on $host with config $config"
 
-  script="cd $base_dir && tmux new-session -d -s $session_name bash"
-  script+="; tmux send-keys -t $session_name 'python3 -m lizrd.scripts.grid --config_path=$config --git_branch=$git_branch"
+  # Streamlining the output to some variable and to output at the same time is not possible
+  python3 -m submit_experiment --host $host --config $config --clone_only  --save_branch_and_dir
+  experiment_branch=$(< $branch_filename)
+  experiment_directory=$(< $experiment_dir_filename)
+  rm $branch_filename
+  rm $experiment_dir_filename
+
+  script="cd $experiment_directory && tmux new-session -d -s $experiment_branch bash"
+  script+="; tmux send-keys -t $experiment_branch '"
   if [ -n "$NEPTUNE_API_TOKEN" ]; then
-    script+=" --neptune_key=$NEPTUNE_API_TOKEN"
+    script+="NEPTUNE_API_TOKEN=$NEPTUNE_API_TOKEN "
   fi
   if [ -n "$WANDB_API_KEY" ]; then
-    script+=" --wandb_key=$WANDB_API_KEY"
+    script+="WANDB_API_KEY=$WANDB_API_KEY"
   fi
-  script+="' C-m"
-  script+="; tmux attach -t $session_name"
+  script+="./run_experiment.sh' C-m"
+  script+="; tmux attach -t $experiment_branch"
   script+="; echo 'done'" #black magic: without it, interactive sessions like "srun" cannot be detached from without killing the session
 
   ssh -t $host "$script"
