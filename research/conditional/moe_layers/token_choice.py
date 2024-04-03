@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 from research.conditional.utils.layer_manager import (
@@ -14,14 +12,8 @@ class TokenChoiceFF(LoggingLayer):
         self,
         dmodel: int,
         n_experts: int,
-        capacity_factor: float,
-        load_balancing_loss_weight: float,
-        init_type: str,
-        init_scale: float,
         expert_inner_function: LoggingLayer,
-        doutput: Optional[int] = None,
-        routing_top_k: int = 1,
-        use_einsum: bool = False,
+        **kwargs,
     ):
         """
         Args:
@@ -34,23 +26,11 @@ class TokenChoiceFF(LoggingLayer):
             expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
         """
         super().__init__()
-
         self.dmodel = dmodel
-        self.doutput = self.dmodel if doutput is None else doutput
         self.n_experts = n_experts
-        self.capacity_factor = capacity_factor
         self.expert_inner_function = expert_inner_function
-        self.load_balancing_loss_weight = load_balancing_loss_weight
-        self.router = TokenGating(
-            dmodel=dmodel,
-            n_experts=n_experts,
-            capacity_factor=capacity_factor,
-            load_balancing_loss_weight=load_balancing_loss_weight,
-            init_type=init_type,
-            init_scale=init_scale,
-            routing_top_k=routing_top_k,
-            use_einsum=use_einsum,
-        )
+        self.doutput = self.expert_inner_function.doutput
+        self.router = TokenGating(dmodel=dmodel, n_experts=n_experts, **kwargs)
 
     @time_measured("assign_tokens_to_input")
     def extract(self, x, tokens_per_expert_indices, tokens_per_expert_values):

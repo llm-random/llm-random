@@ -123,16 +123,18 @@ class ExpertLinear(LoggingLayer):
         expert_size: int,
         init_type: str,
         init_scale: float,
-        doutput: Optional[int] = None,
+        fan_in: Optional[int] = None,
+        **kwargs,
     ):
         super().__init__()
         self.dmodel = dmodel
-        assert doutput is None or doutput == expert_size
         self.doutput = expert_size
         self.n_experts = n_experts
 
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        self.lin1_weight = init(shape=(n_experts, dmodel, expert_size), fan_in=dmodel)
+        self.lin1_weight = init(
+            shape=(n_experts, dmodel, expert_size), fan_in=fan_in or dmodel
+        )
 
     @time_measured("process_by_experts")
     def forward(self, x: torch.Tensor):

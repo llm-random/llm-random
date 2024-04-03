@@ -57,9 +57,9 @@ class TestTokenChoice(GeneralTestCase):
             dm, experts, exp_size, "kaiming_uniform", 1.0, activation_name="relu"
         )
         token_choice_layer = TokenChoiceFF(
-            dm,
-            experts,
-            5.0,
+            dmodel=dm,
+            n_experts=experts,
+            capacity_factor=5.0,
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
@@ -110,9 +110,9 @@ class TestTokenChoice(GeneralTestCase):
             dm, experts, exp_size, "kaiming_uniform", 1.0, activation_name="silu"
         )
         token_choice_layer = TokenChoiceFF(
-            dm,
-            experts,
-            5.0,
+            dmodel=dm,
+            n_experts=experts,
+            capacity_factor=5.0,
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
@@ -170,9 +170,9 @@ class TestTokenChoice(GeneralTestCase):
             dm, experts, exp_size, "kaiming_uniform", 1.0, use_einsum=True
         )
         einsum_module = TokenChoiceFF(
-            dm,
-            experts,
-            5.0,
+            dmodel=dm,
+            n_experts=experts,
+            capacity_factor=5.0,
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
@@ -201,9 +201,9 @@ class TestTokenChoice(GeneralTestCase):
 
         expert_logic = ExpertFF(dm, experts, exp_size, "kaiming_uniform", 1.0)
         tc = TokenChoiceFF(
-            dm,
-            experts,
-            5.0,
+            dmodel=dm,
+            n_experts=experts,
+            capacity_factor=5.0,
             load_balancing_loss_weight=0.1,
             init_type="kaiming_uniform",
             init_scale=1.0,
@@ -243,9 +243,9 @@ class TestTokenChoice(GeneralTestCase):
 
         tc = torch.nn.Sequential(
             TokenChoiceFF(
-                dm,
-                experts,
-                5.0,
+                dmodel=dm,
+                n_experts=experts,
+                capacity_factor=5.0,
                 load_balancing_loss_weight=0.1,
                 init_type="kaiming_uniform",
                 init_scale=1.0,
@@ -277,9 +277,9 @@ class TestTokenChoice(GeneralTestCase):
 
         # non_reentrant_wrapper = make_checkpoint_wrapper_function()
         tc = TokenChoiceFF(
-            dm,
-            experts,
-            1.0,
+            dmodel=dm,
+            n_experts=experts,
+            capacity_factor=1.0,
             expert_inner_function=expert_logic,
             load_balancing_loss_weight=0.1,
             routing_top_k=1,

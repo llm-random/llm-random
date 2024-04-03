@@ -4,9 +4,10 @@ time: 0-05:00:00
 
 params:
   name: "laptop_check"
-  ff_mode: expert_double_choice
+  ff_mode: double_choice
+  double_routing_type: token_choice
+  double_linear_first: true
+  double_relu_with_first: true
   cutoff: 16
   granularity: 1
   dataset_type: wikibook
-  torch_compile: false
-  mixed_precision_dtype: "float16"

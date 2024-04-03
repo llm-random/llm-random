@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Literal
 import torch
 from fancy_einsum import einsum
 from plotly import express as px
@@ -18,12 +18,13 @@ from lizrd.core.initialization import get_init_fun
 class MoeGating(LoggingLayer):
     def __init__(
         self,
-        n_experts,
-        group_by_batch,
-        softmax_ungrouped,
-        softmax_over,
-        use_torch_bmm,
-        gate,
+        n_experts: int,
+        group_by_batch: bool = False,
+        softmax_ungrouped: bool = False,
+        softmax_over: Literal["tokens", "experts"] = "tokens",
+        use_torch_bmm: bool = False,
+        gate=None,
+        **kwargs,
     ):
         super().__init__()
         self.n_experts = n_experts
@@ -34,6 +35,7 @@ class MoeGating(LoggingLayer):
         self.gate = gate
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
         assert softmax_over in ["tokens", "experts"]
+        assert not self.softmax_ungrouped or self.group_by_batch
 
     def calculate_gate(self, x, batch_size, seq_len):
         with measure_time(self, "expert_embedding"):
@@ -94,10 +96,10 @@ class MoeGating(LoggingLayer):
 class ExpertGating(MoeGating):
     def __init__(
         self,
-        topk_fraction,
-        one_hot_impl,
-        random_perm,
-        n_gating_heatmaps,
+        topk_fraction: float,
+        one_hot_impl: bool = False,
+        random_perm: bool = False,
+        n_gating_heatmaps: int = 4,
         *args,
         **kwargs,
     ):
@@ -106,6 +108,9 @@ class ExpertGating(MoeGating):
         self.one_hot_impl = one_hot_impl
         self.random_perm = random_perm
         self.n_gating_heatmaps = n_gating_heatmaps
+        assert (
+            not one_hot_impl or self.group_by_batch
+        ), "Not implemented, would require a lot of memory"
 
     def forward(self, x: torch.Tensor, batch_size: int, seq_len: int):
         # expert embedding
@@ -192,6 +197,7 @@ class TokenGating(MoeGating):
         init_scale: float,
         routing_top_k: int = 1,
         use_einsum: bool = False,
+        **kwargs,
     ):
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
         gate = init(shape=(dmodel, n_experts), fan_in=dmodel)
