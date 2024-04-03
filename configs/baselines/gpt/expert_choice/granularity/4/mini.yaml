@@ -1,5 +1,5 @@
 parent: configs/baselines/gpt/expert_choice/mini.yaml
-md5_parent_hash: 61ba915c04b82bd97d74bb7ef99a1c18
+md5_parent_hash: 82d742bc8362b507068f1ae5dabb41c9
 
 params:
   name: "granular_4_mini"
