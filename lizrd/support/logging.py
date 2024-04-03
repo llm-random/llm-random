@@ -136,9 +136,9 @@ class AbstractLogger(ABC):
                 metric_x_flop_logarithmic = self.get_log_x_scale_metric(
                     metric_x_flop["value"], metric_x_flop["iteration"]
                 )
-                auxiliary_metrics[f"{title}_(x_flop_logarithmic)"] = (
-                    metric_x_flop_logarithmic
-                )
+                auxiliary_metrics[
+                    f"{title}_(x_flop_logarithmic)"
+                ] = metric_x_flop_logarithmic
 
             metric_logarithmic = self.get_log_x_scale_metric(value, iteration)
             auxiliary_metrics[f"{title}_(x_logarithmic)"] = metric_logarithmic
@@ -309,7 +309,6 @@ class WandbLogger(AbstractLogger):
 
 
 class StdoutLogger(AbstractLogger):
-
     def print_out_metric(
         self,
         title: str,
@@ -321,7 +320,7 @@ class StdoutLogger(AbstractLogger):
         NAME_SPACE = 40
         info = f"/{series}" if series is not None else ""
         name = f"{title}{info}"
-        space_1 = max(0, ITERATION_SPACE  - len(str(iteration))) * " "
+        space_1 = max(0, ITERATION_SPACE - len(str(iteration))) * " "
         space_2 = max(0, NAME_SPACE - len(name)) * " "
         print(f"Step:{iteration}{space_1}{name}{space_2} ==> {value} ")
 
@@ -375,7 +374,6 @@ class StdoutLogger(AbstractLogger):
 
 
 class JointLogger(AbstractLogger):
-
     def __init__(self, loggers: List[AbstractLogger]):
         self.loggers = loggers
         set_current_logger(self)
