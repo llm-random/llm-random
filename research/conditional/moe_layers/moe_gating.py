@@ -217,9 +217,6 @@ class TokenGating(MoeGating):
         self.use_einsum = use_einsum
         self.routing_top_k = routing_top_k
 
-        if routing_top_k != 1:
-            raise ValueError("vectorize and routing_top_k != 1 are incompatible")
-
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
         batch_size, seq_len, _ = x.shape
@@ -233,8 +230,6 @@ class TokenGating(MoeGating):
         gate_out = self.calculate_gate(x, batch_size, seq_len).T
         assert gate_out.shape == (n_tokens, self.n_experts)
 
-        x = x.reshape((n_tokens, self.dmodel))
-
         with measure_time(self, "choose_expert"):
             expert_index, expert_gate = self.calculate_topk(
                 gate_out, self.routing_top_k
@@ -243,22 +238,7 @@ class TokenGating(MoeGating):
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
 
-        (
-            expert_mask,
-            truncated_expert_mask,
-            top_tokens_per_expert_indices,
-            top_tokens_per_expert_values,
-        ) = self.calculate_expert_mask(capacity, expert_index, n_tokens)
-
-        self.calculate_balancing_loss(gate_out, expert_mask)
-
-        masked_expert_gate = gate_out * truncated_expert_mask
-
-        return (
-            top_tokens_per_expert_indices,
-            top_tokens_per_expert_values,
-            masked_expert_gate,
-        )
+        return self.apply_capacity(capacity, expert_index, gate_out, n_tokens)
 
     def calculate_balancing_loss(self, gate_out, expert_mask):
         with measure_time(self, "calculate aux loss"):
@@ -276,7 +256,8 @@ class TokenGating(MoeGating):
         self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
         self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
 
-    def calculate_expert_mask(self, capacity, expert_index, n_tokens):
+    def apply_capacity(self, capacity, expert_index, gate_out, n_tokens):
+        # create a mask telling if a token is assigned to an expert
         with measure_time(self, "create_expert_mask"):
             expanded_expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
             assert expanded_expert_mask.shape == (
@@ -286,11 +267,36 @@ class TokenGating(MoeGating):
             )
             expert_mask = expanded_expert_mask.sum(dim=1)
             assert expert_mask.shape == (n_tokens, self.n_experts)
+
+        # now apply fixed capacity: for a given expert we can have only capacity tokens
         with measure_time(self, "experts_lists"):
             (
                 top_tokens_per_expert_values,
                 top_tokens_per_expert_indices,
             ) = expert_mask.topk(k=capacity, dim=0)
+
+        self.log_dropped_tokens(
+            top_tokens_per_expert_values,
+            top_tokens_per_expert_indices,
+            expert_mask,
+            n_tokens,
+        )
+        # from a list of finally chosen tokens, create a mask with their respective values
+        expert_values = (
+            torch.gather(gate_out, 0, top_tokens_per_expert_indices)
+            * top_tokens_per_expert_values
+        )
+        self.calculate_balancing_loss(gate_out, expert_mask)
+        return top_tokens_per_expert_indices, expert_values
+
+    def log_dropped_tokens(
+        self,
+        top_tokens_per_expert_values,
+        top_tokens_per_expert_indices,
+        expert_mask,
+        n_tokens,
+    ):
+        # TODO this below is just for logging, we maybe should remove it
         with measure_time(self, "create_truncated_mask"):
             truncated_expert_mask = torch.zeros_like(expert_mask)
             truncated_expert_mask.scatter_(
@@ -303,12 +309,6 @@ class TokenGating(MoeGating):
             "dropped_tokens_ratio",
             ((n_tokens * self.routing_top_k) - n_selected_tokens)
             / (n_tokens * self.routing_top_k),
-        )
-        return (
-            expert_mask,
-            truncated_expert_mask,
-            top_tokens_per_expert_indices,
-            top_tokens_per_expert_values,
         )
 
     def log_light(self):

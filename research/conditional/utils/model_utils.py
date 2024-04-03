@@ -640,7 +640,6 @@ def get_ff_layer(args):
             init_type=args.init_type,
             vectorize=(not args.dont_vectorize_switch),
         )
-
     elif args.ff_mode == "double_choice":
         args = determine_moe_args(args)
         ff_args = get_expert_choice_args_old(args)
@@ -661,7 +660,6 @@ def get_ff_layer(args):
             "load_balancing_loss_weight": args.load_balancing_loss_weight,
         }
         return_fn = partial(DoubleChoiceFF, **ff_args)
-
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
 
