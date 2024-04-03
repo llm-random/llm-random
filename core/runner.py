@@ -51,7 +51,7 @@ class Runner:
         ff_function = ff_partial_functions[args.ff_mode]
 
         embedding = embedding_function()
-        print("embedding_weights: ", embedding.layers[0].weight[1])
+        print("embedding: ", embedding.layers[0].weight[1])
         encoder = layers.TransformerTower(
             args.n_blocks,
             {

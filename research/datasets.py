@@ -9,11 +9,22 @@ from lizrd.text import datasets, packers, data, tokenizers
 
 class DataloaderWrapper:
     def __init__(self, dataloader: DataLoader, device: torch.device):
-        self.generator = iter(dataloader)
         self.device = device
+        self.generator = iter(dataloader)
 
     def get_batch(self) -> data.LLMBatch:
         return next(self.generator).to(self.device)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            batch = next(self.generator)
+        except StopIteration:
+            raise StopIteration
+
+        return batch.to(self.device)
 
 
 def worker_init_fn(seed, worker_id):

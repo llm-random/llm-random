@@ -1,0 +1,67 @@
+time: 0-05:00:00
+# runner: "mycore"
+
+params:
+  name: "tst"
+
+  # base bass
+  mixed_precision: false
+  flash_attention: false
+
+  # logging etc.
+  use_neptune: true
+  project_name: "crewtool/mojtestproject"
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  save_weights_path: "model_ckpt"
+  save_weights_interval: 25_000
+
+  final_lr_step: 250_000
+  scheduler: cosine
+  lr_warmup_steps: 2500
+
+  grad_clip: 100
+
+  ##########################
+  # name: "dense_laptop"
+  cutoff: 16
+  n_blocks: 2
+  dmodel: 8
+  n_att_heads: 4
+  dhead: 2
+
+  dataset_type: c4
+  model_type: gpt
+  # embedding_mode: vanilla
+  residual_mode: pre_norm
+  
+
+  ff_mode: vanilla
+  attention_mode: vanilla
+  init_type: kaiming_uniform
+  init_scale: 1.0
+  flash_attention: false
+
+  dff: 32
+
+  # optimizer_adam_beta1: 0.9
+  # optimizer_adam_beta2: 0.999
+  # optimizer_weight_decay: 0.0
+
+  learning_rate: 0.005
+
+  final_lr_step: 250_000
+  final_lr_fraction: 0.1
+
+  batch_size: 10
+  num_workers: 1
+  use_dummy_dataset: true
+
+  n_steps: 10
+
+  data_seed: 1
+
+  norm_class: "layer_norm"
+  torch_seed: 42
+
+  deterministic_experiment: true

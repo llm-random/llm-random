@@ -12,9 +12,7 @@ def get_scheduler(
     final_lr_fraction,
 ):
     if scheduler_type == "constant":
-        return ConstantScheduler(
-            lr_warmup_steps=lr_warmup_steps, lr=learning_rate
-        )
+        return ConstantScheduler(lr_warmup_steps=lr_warmup_steps, lr=learning_rate)
     elif scheduler_type == "cosine":
         return CosineScheduler(
             lr_warmup_steps=lr_warmup_steps,

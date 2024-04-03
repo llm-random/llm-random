@@ -4,6 +4,7 @@ import pprint
 from itertools import product
 from typing import List, Tuple
 
+from core.add_arguments import add_default_parser_arguments
 from research.conditional.utils.argparse import (
     introduce_parser_arguments as cc_introduce_parser_arguments,
 )
@@ -185,6 +186,10 @@ def get_train_main_function(runner: str):
         from research.blanks.train import main as blanks_train_main
 
         return blanks_train_main
+    elif runner == "mycore":
+        from core import main as my_runner
+
+        return my_runner
     else:
         raise ValueError(f"Unknown runner: {runner}")
 
@@ -218,8 +223,12 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
             parser = argparse.ArgumentParser()
             if runner == "research.conditional.train.cc_train":
                 parser = cc_introduce_parser_arguments(parser)
-            else:
+            elif runner == "research.blanks.train":
                 parser = blanks_introduce_parser_arguments(parser)
+            elif runner == "mycore":
+                parser = add_default_parser_arguments(parser)
+            else:
+                raise ValueError(f"Unknown runner: {runner}")
 
             try:
                 args, extra = parser.parse_known_args(runner_params)

@@ -80,6 +80,7 @@ class ConditionalTrainer:
     checkpoint: Optional[dict[str, torch.Tensor]] = None
 
     def __attrs_post_init__(self):
+        print("embedding_weights: ", self.model.embedding_layer.layers[0].layer.weight[1])
         if self.mixed_precision_dtype == torch.float16:
             self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.loss_accumulators = {
@@ -178,6 +179,7 @@ class ConditionalTrainer:
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+        print(loss)
         self._apply_gradient()
         if self.is_logging_process:
             self._log_train_stats(loss, step)

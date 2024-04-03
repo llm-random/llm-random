@@ -231,7 +231,7 @@ def main(
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
     scheduler = scheduler = get_scheduler(
-        args.scheduler_type,
+        args.scheduler,
         args.lr_warmup_steps,
         args.learning_rate,
         args.final_lr_step,
@@ -270,19 +270,19 @@ def main(
     )
 
     if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE)
+        logger = get_logger(args)
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=(
-                tokenizers.GPTTokenizer
-                if args.model_type == "gpt"
-                else tokenizers.BertTokenizer
-            ),
-        )
+    # if args.model_type == "gpt" and is_logging_process:
+    #     log_batch(
+    #         train_dataloader,
+    #         tokenizer_maker=(
+    #             tokenizers.GPTTokenizer
+    #             if args.model_type == "gpt"
+    #             else tokenizers.BertTokenizer
+    #         ),
+    #     )
 
     profiler_schedule = (
         torch.profiler.schedule(

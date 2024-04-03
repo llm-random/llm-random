@@ -152,10 +152,6 @@ class AbstractLogger(ABC):
         return auxiliary_metrics
 
 
-class ClearMLLogger(AbstractLogger):
-    pass
-
-
 class NeptuneLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
@@ -326,7 +322,7 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
     logger.report_plotly(figure=figure, title=title, series=series, iteration=iteration)
 
 
-def get_logger(args, model, VOCAB_SIZE):
+def get_logger(args):
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
     if args.use_neptune:
@@ -341,19 +337,9 @@ def get_logger(args, model, VOCAB_SIZE):
         all_config_paths = args.all_config_paths.split(",")
         run["all_configs"].upload_files(all_config_paths)
 
-        args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
+        # args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
         return NeptuneLogger(run, args)
 
-    elif args.use_clearml:
-        task = Task.init(
-            project_name=args.project_name,
-            task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-        )
-        task.connect(vars(args))
-        if args.tags:
-            task.add_tags(args.tags)
-        logger = ClearMLLogger(task, args, model, VOCAB_SIZE)
-        return logger
     elif args.use_wandb:
         wandb.init(
             entity=args.wandb_entity,
