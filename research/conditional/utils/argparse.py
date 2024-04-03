@@ -130,9 +130,7 @@ def introduce_parser_arguments(
     parser.add_argument("--n_gpus", type=int, default=1)
 
     # Logging parameters
-    parser.add_argument("--use_clearml", action="store_true")
-    parser.add_argument("--use_neptune", action="store_true")
-    parser.add_argument("--use_wandb", action="store_true")
+    parser.add_argument("--logger_types", type=str, required=True)
     parser.add_argument("--wandb_entity", type=str, default="ideas_cv")
     parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
     parser.add_argument("--name", type=str, default="")
