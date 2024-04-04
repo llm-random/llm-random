@@ -7,7 +7,7 @@ It is missing:
 - model parallelism
 - setting anomaly ( set_detect_anomaly)
 - distributed (DDP/FSDP) training
-- checkpointing
+- gradient checkpointing
 - the logging of the model's learnable parameters
 - the logging of the model's non-embedding learnable parameters
 - compiling model
