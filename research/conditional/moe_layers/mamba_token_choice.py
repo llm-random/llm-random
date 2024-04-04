@@ -302,7 +302,8 @@ class MambaRouter(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.dropped_tokens_scale = nn.Parameter(torch.tensor(1 / n_experts))
+        self.register_buffer("dropped_tokens_scale", torch.tensor(0.0))
+        # self.dropped_tokens_scale = nn.Parameter(torch.tensor(1 / n_experts))
 
     def make_routing_params(self, x: torch.Tensor):
         """
@@ -334,10 +335,10 @@ class MambaRouter(LoggingLayer):
             return x
         batch_size, seq_len, din = x.shape
         tokens_scales = masked_expert_gate.sum(dim=1, keepdim=True)
-        dropped_tokens_mask = tokens_scales.flatten() == 0
+        # dropped_tokens_mask = tokens_scales.flatten() == 0
         x = x.reshape(batch_size * seq_len, din)
-        scale = self.dropped_tokens_scale.to(tokens_scales.dtype)
-        tokens_scales[dropped_tokens_mask] = scale
+        # scale = self.dropped_tokens_scale.to(tokens_scales.dtype)
+        # tokens_scales[dropped_tokens_mask] = scale
         x = x * tokens_scales
         return x.reshape(batch_size, seq_len, din)
 
@@ -391,7 +392,7 @@ class MambaTokenChoiceFunction(LoggingLayer):
                     self.n_experts * experts_output.shape[1], doutput
                 ),
             )
-        output[dropped_tokens_mask] = dropped_tokens_output
+        # output[dropped_tokens_mask] = dropped_tokens_output
         output = output.reshape(-1, self.seq_len, doutput)
         return output
 
@@ -416,14 +417,14 @@ class LinearExpertsMamba(MambaTokenChoiceFunction):
             )
         )
 
-        self.lin_dropped = nn.Parameter(
-            get_init_weight(
-                shape=(dinput, doutput),
-                fan_in=dinput,
-                init_type=init_type,
-                scale=init_scale,
-            )
-        )
+        # self.lin_dropped = nn.Parameter(
+        #     get_init_weight(
+        #         shape=(dinput, doutput),
+        #         fan_in=dinput,
+        #         init_type=init_type,
+        #         scale=init_scale,
+        #     )
+        # )
 
     def _inner_forward(self, expert_inputs, dropped_tokens):
         (n_experts, capacity, dinput) = expert_inputs.shape
@@ -434,13 +435,13 @@ class LinearExpertsMamba(MambaTokenChoiceFunction):
         with measure_time(self, "process_by_experts"):
             experts_output = torch.matmul(expert_inputs, self.lin_experts)
 
-        with measure_time(self, "process_dropped"):
-            dropped_output = torch.matmul(dropped_tokens, self.lin_dropped)
+        # with measure_time(self, "process_dropped"):
+        #     dropped_output = torch.matmul(dropped_tokens, self.lin_dropped)
 
         assert experts_output.shape == (n_experts, capacity, self.doutput)
-        assert dropped_output.shape == (n_dropped_tokens, self.doutput)
+        # assert dropped_output.shape == (n_dropped_tokens, self.doutput)
 
-        return experts_output, dropped_output
+        return experts_output, torch.zeros(n_dropped_tokens, self.doutput)
 
 
 class MambaTokenChoice(LoggingLayer):
