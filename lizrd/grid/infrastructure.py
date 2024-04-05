@@ -77,7 +77,7 @@ class AthenaBackend(MachineBackend):
         return "lizrd/grid/grid_entrypoint.sh"
 
     def get_cemetery_directory(self):
-        return f"/net/pr2/projects/plgrid/plggsubgoal/{os.environ.get('USER')}/llm_random_cemetery"
+        return f"/net/pr2/projects/plgrid/plggllmeffi/{os.environ.get('USER')}/llm_random_cemetery"
 
     def get_subprocess_args(
         self,
@@ -92,7 +92,7 @@ class AthenaBackend(MachineBackend):
             f"--gres=gpu:{setup_args['n_gpus']}",
             "--partition=plgrid-gpu-a100",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
-            "--account=plgsubslearnath-gpu-a100",
+            "--account=plgllmefficont-gpu-a100",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
