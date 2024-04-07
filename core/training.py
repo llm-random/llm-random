@@ -1,4 +1,3 @@
-from collections import namedtuple
 from typing import Literal
 from dataclasses import dataclass
 
@@ -14,6 +13,7 @@ from research.datasets import DataloaderWrapper
 class StepMetric:
     loss: float
     norm: float
+
 
 class TrainingMetricHolder:
     def __init__(self):
@@ -50,24 +50,29 @@ class BaseTrainer:
     train_dataloader: DataloaderWrapper
     lr_scheduler: AbstractLRScheduler
     dataset_type: Literal["wikibook", "c4"]
+    gradient_accumulation_steps: int
     hold_metrics: bool = False
 
     def __attrs_post_init__(self):
         self.metric_holder = TrainingMetricHolder()
-        self.hold_metrics = True  # TODO remove
+        self.hold_metrics = True
 
     def train(self, n_steps: int):
         for step in range(n_steps):
+            total_loss = 0.0
             self.model.train()
             self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
-            batch = next(self.train_dataloader)
-            loss, aux_info = self.calculate_loss(batch)
-            loss.backward()
+            for _ in range(self.gradient_accumulation_steps):
+                batch = next(self.train_dataloader)
+                loss, _ = self.calculate_loss(batch)
+                total_loss += loss.item() / self.gradient_accumulation_steps
+                loss.backward()
+
             self._apply_gradient()
 
             # Metrics for testing purposes only
             if self.hold_metrics:
-                self.metric_holder.append_metrics(step, loss.item(), self.model)
+                self.metric_holder.append_metrics(step, total_loss, self.model)
 
         return self.metric_holder
 

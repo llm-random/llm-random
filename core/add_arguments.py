@@ -45,7 +45,7 @@ def add_default_parser_arguments(
     )
     parser.add_argument("--n_att_heads", type=int, required=True)
     parser.add_argument("--n_blocks", type=int, required=True)
-    parser.add_argument("--n_gpus", type=int, default=1)
+    parser.add_argument("--n_gpus", type=int, required=True)
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument(
         "--norm_class",
@@ -70,4 +70,5 @@ def add_default_parser_arguments(
         action="store_true",
         help="whether to use dummy dataset (for debugging or tests)",
     )
+    parser.add_argument("--gradient_accumulation_steps", type=int, required=True)
     return parser

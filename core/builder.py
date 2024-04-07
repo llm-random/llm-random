@@ -155,7 +155,7 @@ class Builder:
             "sequence_length": args.seq_length,
             "device": device,
             "num_workers": args.num_workers,
-            "batch_size": args.batch_size,
+            "batch_size": args.batch_size // args.gradient_accumulation_steps,
             "seed": args.data_seed,
             "model_type": args.model_type,
             "dataset_type": args.dataset_type,

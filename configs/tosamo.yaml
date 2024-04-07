@@ -65,3 +65,5 @@ params:
   torch_seed: 42
 
   deterministic_experiment: true
+
+  gradient_accumulation_steps: 2

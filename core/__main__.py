@@ -47,7 +47,8 @@ def main(
     builder = Builder(args, device)
     trainer = BaseTrainer(
         **builder.get_train_artefacts(),
-        dataset_type=args.dataset_type
+        dataset_type=args.dataset_type,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
     )
     trainer.train(args.n_steps)
     return trainer.metric_holder
