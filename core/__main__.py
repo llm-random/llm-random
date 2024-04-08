@@ -5,58 +5,45 @@ this file with your own implementations.
 """
 
 import argparse
+import os
 import random
+import socket
 from typing import Optional
-
+import torch.multiprocessing as mp
 import torch
 
+from core.runner import handle_args, runner
 from lizrd.support.misc import set_seed
 from core.add_arguments import add_default_parser_arguments
 from core.builder import Builder
 from core.training import BaseTrainer
+from torch.distributed import init_process_group, destroy_process_group
 
 
-def handle_args(args=None, runner_params=None):
-    parser = argparse.ArgumentParser()
-    add_default_parser_arguments(parser)
-    if runner_params is not None:
-        args, extra = parser.parse_known_args(runner_params)
-        if len(extra):
-            print("Unknown args:", extra)
-    elif args is None:
-            args = parser.parse_args()
-
-    if args.data_seed < 0:
-        args.data_seed = random.randint(0, 10000000)
-    return args
-
-
-def main(
-    args: Optional[argparse.Namespace] = None,
-    runner_params: Optional[list] = None,
-):
-    """
-    args: is used to pass parsed arguments to the main function when we run this file as a script.
-    runner_params: is used in the 'grid' to pass the arguments to the main function,
-        so we run the experiment as a local backend (and in the same process).
-    """
-    args = handle_args(args, runner_params)
-    set_seed(args.torch_seed)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    builder = Builder(args, device)
-    trainer = BaseTrainer(
-        **builder.get_train_artefacts(),
-        dataset_type=args.dataset_type,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-    )
-    trainer.train(args.n_steps)
-    return trainer.metric_holder
+def find_free_port(address: str = "") -> str:
+    """Helper function to find a free port on the local machine."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((address, 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        port = s.getsockname()[1]
+    return str(port)
 
 
 if __name__ == "__main__":
     args = handle_args()
-    _ = main(args=args)
+    if args.fsdp_enabled:
+        random.seed(args.data_seed)
+        data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
+
+        port = find_free_port()
+        mp.spawn(
+            runner,
+            args=[data_seeds, port, args],
+            nprocs=args.n_gpus,
+        )
+    else:
+        _ = runner(None, args=args)
+
 
 
 

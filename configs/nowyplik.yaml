@@ -1,8 +1,8 @@
 time: 0-05:00:00
-runner: "mycore"
+runner: "core"
 
 params:
-  # name: "dense_laptop"
+  name: "tomojtest"
   seq_length: 16
   n_blocks: 2
   dmodel: 8
@@ -44,3 +44,11 @@ params:
 
   norm_class: "layer_norm"
   torch_seed: 42
+
+  gradient_accumulation_steps: 2
+
+  fsdp_enabled: true
+  fsdp_mixed_precision_dtype: float32
+  fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+  fsdp_selective_precision_modules: "TransformerBlock,EmbeddingLayer,PredictionHead"
+  

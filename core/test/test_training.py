@@ -1,7 +1,7 @@
 from argparse import Namespace
 import unittest
 
-from core.__main__ import main
+from core.runner import runner
 from core.training import StepMetric, TrainingMetricHolder
 
 
@@ -45,6 +45,7 @@ class TestBasicTraining(unittest.TestCase):
             train_dataset_path=None,
             use_dummy_dataset=True,
             gradient_accumulation_steps=1,
+            fsdp_enabled=False
         )
         correct_holder = TrainingMetricHolder()
         metrics = {
@@ -60,7 +61,7 @@ class TestBasicTraining(unittest.TestCase):
             9: StepMetric(12.516630172729492, 672.8267211914062),
         }
         correct_holder.set_metrics(metrics)
-        result = main(args=args)
+        result = runner(rank=None, args=args, device="cpu")
         self.assertEqual(result, correct_holder)
 
     def test_gradient_accumulation(self):
@@ -102,6 +103,7 @@ class TestBasicTraining(unittest.TestCase):
             train_dataset_path=None,
             use_dummy_dataset=True,
             gradient_accumulation_steps=2,
+            fsdp_enabled=False
         )
         correct_holder = TrainingMetricHolder()
         metrics = {
@@ -117,5 +119,5 @@ class TestBasicTraining(unittest.TestCase):
             9: StepMetric(12.516631126403809, 672.8267211914062)
         }
         correct_holder.set_metrics(metrics)
-        result = main(args=args)
+        result = runner(rank=None, args=args, device="cpu")
         self.assertEqual(result, correct_holder)

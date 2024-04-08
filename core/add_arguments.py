@@ -4,6 +4,7 @@ import argparse
 def add_default_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
+    parser.add_argument("--name", type=str, required=True)
     parser.add_argument("--all_config_paths", type=str, required=False)
     parser.add_argument(
         "--attention_mode", type=str, choices=["vanilla"], required=True
@@ -71,4 +72,29 @@ def add_default_parser_arguments(
         help="whether to use dummy dataset (for debugging or tests)",
     )
     parser.add_argument("--gradient_accumulation_steps", type=int, required=True)
+
+    parser.add_argument("--fsdp_enabled", action="store_true") 
+    parser.add_argument(
+        "--fsdp_mixed_precision_dtype",
+        type=str,
+        choices=["float32"], #TODO adjust
+        default=None,
+    )
+    parser.add_argument("--fsdp_modules_to_wrap", type=str, required=False)
+    parser.add_argument(
+        "--fsdp_selective_precision_modules",
+        type=str,
+        default=None,
+        help="comma-separated list of modules whose parameters should be wrapped in FSDP with a different precision than the rest of the model. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
+    )
+    parser.add_argument(
+        "--fsdp_offload_params",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--fsdp_min_num_params",
+        type=int,
+        default=None,
+        help="This argument is used only if fsdp_enabled is set to True. It is used to set the minimum number of parameters in a module to be wrapped in FSDP. If the number of parameters is smaller than this value, then the module is not wrapped in FSDP. This is useful for small modules, where the overhead of FSDP is too large compared to the compute of the module.",
+    )
     return parser

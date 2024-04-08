@@ -186,10 +186,10 @@ def get_train_main_function(runner: str):
         from research.blanks.train import main as blanks_train_main
 
         return blanks_train_main
-    elif runner == "mycore":
-        from core import main as my_runner
+    elif runner == "core":
+        from core.runner import runner
 
-        return my_runner
+        return runner
     else:
         raise ValueError(f"Unknown runner: {runner}")
 
