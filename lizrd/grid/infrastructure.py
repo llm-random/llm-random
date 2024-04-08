@@ -6,6 +6,9 @@ from lizrd.grid.setup_arguments import make_singularity_mount_paths
 
 
 class MachineBackend(abc.ABC):
+    def __init__(self, connection=None):
+        self.connection = connection
+
     @abc.abstractmethod
     def get_common_directory(self) -> str:
         pass
@@ -67,17 +70,25 @@ class MachineBackend(abc.ABC):
 
 
 class AthenaBackend(MachineBackend):
+    def __init__(self, connection=None):
+        super().__init__(connection)
+        self.username = (
+            connection.user if self.connection is not None else os.environ.get("USER")
+        )
+
     def get_common_directory(self) -> str:
         return "/net/pr2/projects/plgrid/plggllmeffi"
 
     def get_cache_path(self) -> str:
-        return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
+        return f"/net/tscratch/people/{self.username}/.cache"
 
     def get_grid_entrypoint(self) -> str:
         return "lizrd/grid/grid_entrypoint.sh"
 
     def get_cemetery_directory(self):
-        return f"/net/pr2/projects/plgrid/plggllmeffi/{os.environ.get('USER')}/llm_random_cemetery"
+        return (
+            f"/net/pr2/projects/plgrid/plggllmeffi/{self.username}/llm_random_cemetery"
+        )
 
     def get_subprocess_args(
         self,
@@ -246,14 +257,14 @@ COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
 }
 
 
-def get_machine_backend(node=None) -> MachineBackend:
+def get_machine_backend(node=None, connection=None) -> MachineBackend:
     if node is None:
         node = platform.uname().node
     if node == "asusgpu0":
-        return EntropyBackend()
+        return EntropyBackend(connection)
     elif "athena" in node:
-        return AthenaBackend()
+        return AthenaBackend(connection)
     elif node == "login01":
-        return IdeasBackend()
+        return IdeasBackend(connection)
     else:
-        return LocalBackend()
+        return LocalBackend(connection)
