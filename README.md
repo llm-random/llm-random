@@ -21,7 +21,7 @@ Use the baseline configuration as a template, which is in `configs/test/test_bas
 `python -m lizrd.grid path/to/config`
 
 ### Running Remotely
-`bash lizrd/scripts/run_exp_remotely.sh <remote_cluster_name> lizrd/scripts/run_configs/<your_config>`
+`bash scripts/run_exp_remotely.sh <remote_cluster_name> scripts/run_configs/<your_config>`
 
 # License
 
