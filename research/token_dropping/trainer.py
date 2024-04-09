@@ -6,6 +6,7 @@ from typing import Callable, Iterable, Optional, Literal
 import torch
 from torch.profiler import profile, ProfilerActivity
 from attr import define
+from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
@@ -87,6 +88,7 @@ class ConditionalTrainer:
         )
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
+        propagate_forward_pass_cache(self.model)
 
     def train(self, n_steps: int):
         """
