@@ -105,5 +105,5 @@ def validate_configs(configs: List[dict]):
         assert config["runner"] in [
             "research.conditional.train.cc_train",
             "research.blanks.train",
-            "project_template.runner"
+            "project_template.runner",
         ], f"Unknown runner: {config['runner']} \nIf a new one was implemented, include it here as well"

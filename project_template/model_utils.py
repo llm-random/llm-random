@@ -1,6 +1,6 @@
 from functools import partial
 
-from typing import Optional, Type, Union, Callable
+from typing import Type, Union, Callable
 import torch
 from torch.nn import LayerNorm
 import torch.nn.functional as F
@@ -40,6 +40,7 @@ def calculate_single_chung_loss(
     total_tokens = mask.sum()
 
     return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
+
 
 def chungized_llm_loss_and_gradient(
     batch: LLMBatch,
