@@ -1,7 +1,7 @@
 def check_args(args):
     assert (not args.mixed_precision) or (
         args.mixed_precision and args.mixed_precision_dtype is not None
-    ), "To use mixed_precision set mixed_precision_dtype either to 'float16' or 'bfloat16'"
+    ), "To use mixed_precision set mixed_precision_dtype either to 'bfloat16'"
 
     assert (not args.flash_attention) or (
         args.flash_attention and args.mixed_precision
