@@ -530,5 +530,4 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-        print(returned_output)
         self.assertUnifiedEqual(returned_output, expected_output)
