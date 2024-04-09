@@ -1,11 +1,12 @@
-runner: "research.token_dropping.runner"
+# runner: "research.token_dropping.runner"
+runner: "research.conditional.train.cc_train"
 time: 2-00:00:00
 n_gpus: 1
 interactive_debug: false
 
 # train params
 params:
-  name: "small_baseline_ckpt"
+  name: "small_baseline_ckpt_old_with_dataseed_21"
 
 
   model_type: gpt
@@ -42,6 +43,10 @@ params:
 
   #hyper
   learning_rate: 0.0001
+
+
+  deterministic_experiment: true
+  data_seed: 21
 
   gradient_accumulation_steps: 2
   init_type: truncated_normal
