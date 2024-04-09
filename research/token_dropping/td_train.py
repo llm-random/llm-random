@@ -1,7 +1,7 @@
 import argparse
 import os
 import random
-from typing import Callable, Optional
+from typing import Optional
 import socket
 
 import torch
@@ -9,10 +9,9 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
-from lizrd.core.llm import EmbeddingLayer, Parallel
-from lizrd.support.logging import get_current_logger, get_logger
+from lizrd.core.llm import EmbeddingLayer
+from lizrd.support.logging import get_logger
 from lizrd.support.misc import (
-    get_argument_attributes,
     get_n_learnable_parameters,
     set_seed,
 )
@@ -21,7 +20,7 @@ from lizrd.train.train_utils import (
 )
 from lizrd.text import tokenizers
 from research.token_dropping.utils.check_args import check_args
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from research.datasets import get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.token_dropping.utils.trainer import ConditionalTrainer
 from research.token_dropping.utils.argparse import introduce_parser_arguments
@@ -30,44 +29,15 @@ from research.token_dropping.utils.model_utils import (
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
-    get_mamba_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     get_classes_from_module_names,
-    update_model_fit_gpu_info,
-    get_vanilla_mamba_layer,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
     load_optimizer_state,
     prepare_save_weights_path,
 )
-
-
-def log_batch(
-    wrapper: DataloaderWrapper,
-    tokenizer_maker: Callable[[], tokenizers.AbstractTokenizer],
-):
-    # In case of GPT, log an example sequence for a possible inspection
-
-    print("Logging example batch...")
-    batch = wrapper.get_batch()
-    hf_tokenizer = tokenizer_maker().tokenizer
-
-    num_to_log = 5
-    for i in range(min(num_to_log, len(batch.input_ids))):
-        get_current_logger().report_text(
-            title=f"example_sequence/seq{i}/input_text",
-            value=hf_tokenizer.decode(batch.input_ids[i]),
-            iteration=0,
-        )
-        get_current_logger().report_text(
-            title=f"example_sequence/seq{i}/target_text",
-            value=hf_tokenizer.decode(batch.target_ids[i]),
-            iteration=0,
-        )
-
-    print("Logged example batch.")
 
 
 def main(
@@ -141,31 +111,14 @@ def main(
 
     residual_fn = get_residual_layer(args)
 
-    model_fit_gpu_info_params = get_argument_attributes(
-        args, args.model_fit_gpu_info_params
-    )
-    update_model_fit_gpu_info(
-        args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
-    )
-
     block_modules = {}
     for module_name in args.block_modules:
         if module_name == "attention":
             block_modules[module_name] = get_attention_layer(args)
         elif module_name == "feedforward":
             block_modules[module_name] = get_ff_layer(args)
-        elif module_name == "mamba":
-            block_modules[module_name] = get_mamba_layer(args)
-        elif module_name == "vanilla_mamba":
-            block_modules[module_name] = get_vanilla_mamba_layer(args)
         else:
             raise ValueError(f"Unknown module name: {module_name}")
-
-    if args.parallel_blocks:
-        modules = block_modules.items()
-        block_modules = {
-            "parallel": lambda: Parallel(*[module() for _, module in modules])
-        }
 
     checkpoint = (
         get_checkpoint_from_path(args.load_weights_path)
@@ -268,16 +221,6 @@ def main(
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=(
-                tokenizers.GPTTokenizer
-                if args.model_type == "gpt"
-                else tokenizers.BertTokenizer
-            ),
-        )
-
     profiler_schedule = (
         torch.profiler.schedule(
             wait=args.profiler_schedule_wait,
@@ -324,8 +267,6 @@ def main(
         eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
         eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
-        model_fit_gpu_info_database_path=args.model_fit_gpu_info_database_path,
-        model_fit_gpu_info_params=model_fit_gpu_info_params,
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,

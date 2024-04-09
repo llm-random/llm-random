@@ -7,23 +7,17 @@ import torch
 from torch.profiler import profile, ProfilerActivity
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
-from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
-from research.token_dropping.moe_layers.continuous_moe import ContinuousMoE
-from research.token_dropping.moe_layers._expert_choice_old import ExpertChoiceFFOld
-from research.token_dropping.moe_layers.expert_choice import ExpertChoiceFF
 from research.token_dropping.utils.layer_manager import LayerManager
-from research.token_dropping.utils.misc_tools import temp_modify_attr
 from research.token_dropping.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
-from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 
 
@@ -70,8 +64,6 @@ class ConditionalTrainer:
     is_logging_process: bool = True
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
-    model_fit_gpu_info_database_path: str = None
-    model_fit_gpu_info_params: [str] = None
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
@@ -103,32 +95,11 @@ class ConditionalTrainer:
         )
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
-        self._check_config()
-
-    def _before_train_operations(self):
-        propagate_forward_pass_cache(self.model)
-        update_model_fit_gpu_info(
-            self.model_fit_gpu_info_database_path,
-            self.model_fit_gpu_info_params,
-            "failure",
-        )
-
-    def _after_train_operations(self):
-        update_model_fit_gpu_info(
-            self.model_fit_gpu_info_database_path,
-            self.model_fit_gpu_info_params,
-            "success",
-        )
-
-    def _after_step_operations(self, step):
-        self.model.forward_pass_cache.clear()
-        self.layer_manager.manage_learnable_temperature(step)
 
     def train(self, n_steps: int):
         """
         Train the model for n_steps steps.
         """
-        self._before_train_operations()
         if self.scaler is not None and self.checkpoint is not None:
             load_scaler_state(self.scaler, self.checkpoint)
 
@@ -155,17 +126,8 @@ class ConditionalTrainer:
                     and step % self.eval_interval == 0
                 ):
                     self._eval_step(step)
-                if (
-                    self.model_type == "gpt"
-                    and self.decoding_interval > 0
-                    and step % self.decoding_interval == 0
-                    and self.is_logging_process
-                ):
-                    try:
-                        self._decode_samples(step)
-                    except:
-                        print("Decoding failed, skipping...")
-                self._after_step_operations(step)
+
+                self.model.forward_pass_cache.clear()
 
     def _train_step(
         self,
@@ -184,7 +146,6 @@ class ConditionalTrainer:
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
-            self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
     def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
@@ -250,18 +211,6 @@ class ConditionalTrainer:
             step=step,
             variant_name="normal",
         )
-        layers = [
-            l
-            for _, l in self.layer_manager._layers
-            if isinstance(
-                l,
-                (
-                    ContinuousMoE,
-                    ExpertChoiceFFOld,
-                    ExpertChoiceFF,
-                ),
-            )
-        ]
 
     def _eval_single_variant(
         self, batches: Iterable[LLMBatch], step: int, variant_name: str
@@ -296,32 +245,6 @@ class ConditionalTrainer:
                     value=loss_value / self.n_eval_batches,
                     iteration=step,
                 )
-
-    def _decode_samples(self, step):
-        examples = [
-            "1, 2, 3, 4, 5",
-            "Our Father, who art in heaven,",
-            "Warsaw -> Poland Paris -> France Berlin ->",
-            "Speech at a funeral of a fly: ",
-        ]
-        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-        for example in examples:
-            tokens = torch.tensor(
-                tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))
-            ).to(self.train_dataloader.device)
-            output_tokens = decode_single_example(
-                self.model,
-                self.max_sequence_length,
-                tokens,
-                tokenizer._convert_token_to_id("<|endoftext|>"),
-            )
-            decoded_output = tokenizer.decode(output_tokens)
-            print(f"{example}: {decoded_output}")
-            self.logger.report_text(
-                title=f"decoding_sample/{example}",
-                value=decoded_output,
-                iteration=step,
-            )
 
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
@@ -385,21 +308,6 @@ class ConditionalTrainer:
             self.correct_tokens_accumulator = 0.0
             self.total_tokens_accumulator = 0.0
 
-    def _log_auxiliary_losses(self, losses, step):
-        for name, loss in losses.items():
-            self.auxiliary_losses_accumulator[name] = (
-                self.auxiliary_losses_accumulator.get(name, 0) + loss
-            )
-
-        if step % self.logging_interval_loss == 0 and step > 0:
-            for name, loss in losses.items():
-                self.logger.report_scalar(
-                    title=f"{name}",
-                    value=loss / self.logging_interval_loss,
-                    iteration=step,
-                )
-            self.auxiliary_losses_accumulator.clear()
-
     def _save_weights(self, step):
         if (
             self.save_weights_path is not None
@@ -413,12 +321,4 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
-            )
-
-    def _check_config(self):
-        if self.eval_dynamic_groupsize:
-            assert self.eval_max_group_size_logfactor is not None
-            assert self.eval_min_group_size_logfactor is not None
-            assert (
-                self.eval_min_group_size_logfactor <= self.eval_max_group_size_logfactor
             )
