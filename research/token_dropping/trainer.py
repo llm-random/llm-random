@@ -14,7 +14,6 @@ from research.token_dropping.model_utils import (
     make_loss_and_gradient_function,
 )
 from research.datasets import DataloaderWrapper
-from lizrd.text.datasets import C4Dataset
 from lizrd.train.load_and_save_model import save_checkpoint
 
 
@@ -191,8 +190,6 @@ class ConditionalTrainer:
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
         )
-        if self.dataset_type == "c4":
-            self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
             stats.acc += loss_value
             if stats.interval > 0 and step > 0 and step % stats.interval == 0:
@@ -226,15 +223,6 @@ class ConditionalTrainer:
             )
             for name, value in {**g_norms, **w_norms}.items():
                 self.logger.report_scalar(title=name, value=value, iteration=step)
-
-    def _log_fraction_dataset_processed(self, step):
-        processed = step * self.batch_size * self.max_sequence_length
-        total = C4Dataset.total_gpt2_tokens
-        self.logger.report_scalar(
-            title="Fraction of dataset that is processed (assumuing no DDP)",
-            value=processed / total,
-            iteration=step,
-        )
 
     def _log_accuracy(self, aux_info, step):
         self.correct_tokens_accumulator += aux_info["correct_tokens"]
