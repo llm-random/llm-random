@@ -10,8 +10,8 @@ from research.conditional.utils.argparse import (
 from research.blanks.argparse import (
     introduce_parser_arguments as blanks_introduce_parser_arguments,
 )
-from research.token_dropping.argparse import (
-    introduce_parser_arguments as td_introduce_parser_arguments,
+from project_template.argparse import (
+    introduce_parser_arguments as template_introduce_parser_arguments,
 )
 
 
@@ -188,10 +188,10 @@ def get_train_main_function(runner: str):
         from research.blanks.train import main as blanks_train_main
 
         return blanks_train_main
-    elif runner == "research.token_dropping.runner":
-        from research.token_dropping.runner import main as token_dropping_main
+    elif runner == "project_template.runner":
+        from project_template.runner import main as runner
 
-        return token_dropping_main
+        return runner
     else:
         raise ValueError(f"Unknown runner: {runner}")
 
@@ -227,8 +227,8 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
                 parser = cc_introduce_parser_arguments(parser)
             elif runner == "research.blanks.train":
                 parser = blanks_introduce_parser_arguments(parser)
-            elif runner == "research.token_dropping.runner":
-                parser = td_introduce_parser_arguments(parser)
+            elif runner == "project_template.runner":
+                parser = template_introduce_parser_arguments(parser)
 
             try:
                 args, extra = parser.parse_known_args(runner_params)

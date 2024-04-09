@@ -19,12 +19,12 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
-from research.token_dropping.check_args import check_args
+from project_template.check_args import check_args
 from research.datasets import get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.token_dropping.trainer import ConditionalTrainer
-from research.token_dropping.argparse import introduce_parser_arguments
-from research.token_dropping.model_utils import (
+from project_template.trainer import ConditionalTrainer
+from project_template.argparse import introduce_parser_arguments
+from project_template.model_utils import (
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,

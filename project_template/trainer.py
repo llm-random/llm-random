@@ -9,8 +9,8 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
-from research.token_dropping.layer_manager import LayerManager
-from research.token_dropping.model_utils import (
+from project_template.layer_manager import LayerManager
+from project_template.model_utils import (
     make_loss_and_gradient_function,
 )
 from research.datasets import DataloaderWrapper

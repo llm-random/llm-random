@@ -1,13 +1,12 @@
-# runner: "research.token_dropping.runner"
-runner: "research.conditional.train.cc_train"
+#Compare your run with: LLMRANDOM-8301
+runner: "project_template.runner"
 time: 2-00:00:00
 n_gpus: 1
 interactive_debug: false
 
 # train params
 params:
-  name: "small_baseline_ckpt_old_with_dataseed_21"
-
+  name: "medium_baseline"
 
   model_type: gpt
   dataset_type: c4
@@ -21,8 +20,6 @@ params:
   project_name: "pmtest/llm-random"
   logging_interval_heavy: 5000
   logging_interval_loss: 1000
-  # save_weights_path: "model_ckpt"
-  # save_weights_interval: 25_000
 
   # shallower bass
   cutoff: 256
@@ -43,7 +40,6 @@ params:
 
   #hyper
   learning_rate: 0.0001
-
 
   deterministic_experiment: true
   data_seed: 21
