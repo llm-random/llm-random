@@ -262,32 +262,6 @@ class ConditionalTrainer:
                 ),
             )
         ]
-        if self.eval_dynamic_groupsize:
-            original_group_size = layers[0].group_size
-            for log_group_size_factor in range(
-                self.eval_min_group_size_logfactor,
-                self.eval_max_group_size_logfactor + 1,
-            ):
-                current_group_size = int(2**log_group_size_factor * original_group_size)
-                if (
-                    current_group_size
-                    <= self.batch_size // self.gradient_accumulation_steps
-                    and current_group_size > 0
-                ):
-                    with temp_modify_attr(layers, "group_size", current_group_size):
-                        self._eval_single_variant(
-                            batches=batches,
-                            step=step,
-                            variant_name=f"group size={current_group_size}",
-                        )
-
-        if self.eval_discrete_mot:
-            with temp_modify_attr(layers, "use_discrete_routing", True):
-                self._eval_single_variant(
-                    batches=batches,
-                    step=step,
-                    variant_name="discrete MoT routing",
-                )
 
     def _eval_single_variant(
         self, batches: Iterable[LLMBatch], step: int, variant_name: str
