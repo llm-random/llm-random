@@ -13,73 +13,6 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
-from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
-    ContinuousMoECommonWeightedParameters,
-)
-from research.conditional.moe_layers.cont_moe_designs.learnable_temperature_positive import (
-    ContinuousMoEAdaTempPositive,
-)
-from research.conditional.moe_layers.cont_moe_designs.random_grouping import (
-    ContinuousMoERandomGroups,
-)
-from research.conditional.moe_layers.cont_moe_designs.learn_temp_and_common_base import (
-    ContinuousMoEFinal,
-)
-from research.conditional.moe_layers.cont_moe_designs.learnable_temperature import (
-    ContinuousMoEAdaTemp,
-)
-from research.conditional.moe_layers.cont_moe_designs.add_layernorms import (
-    ContinuousMoELayernorm,
-)
-from research.conditional.moe_layers.cont_moe_designs.no_softmax_on_weights import (
-    ContinuousMoENosoftmax,
-)
-from research.conditional.moe_layers.cont_moe_designs.send_result_only_to_top1_token import (
-    ContinuousMoETopmerge,
-)
-from research.conditional.moe_layers.cont_moe_designs.merge_without_weights import (
-    ContinuousMoERawmerge,
-)
-from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base import (
-    ContinuousMoEMergeDifferentlyCommonBase,
-)
-from research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights import (
-    ContinuousMoEMergeDifferentlySimple,
-)
-from research.conditional.moe_layers.cont_moe_designs.separate_weighted_parameter_matrices import (
-    ContinuousMoESeparateWeightedParameters,
-)
-from research.conditional.moe_layers.continuous_moe import (
-    ContinuousMoE,
-    LegacyContinuousMoE,
-)
-from research.conditional.moe_layers._expert_choice_old import (
-    ExpertChoiceFFOld,
-    ExpertGatingOld,
-)
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from research.conditional.moe_layers._token_choice_old import (
-    TokenChoiceFFOld,
-    TokenChoiceRouterOld,
-    ExpertReluOld,
-    ExpertSwiGLUOld,
-)
-from research.conditional.moe_layers.moe_gating import (
-    MoeGating,
-    ExpertGating,
-    TokenGating,
-)
-from research.conditional.moe_layers.token_choice import (
-    TokenChoiceFF,
-)
-from research.conditional.moe_layers.expert_types import (
-    ExpertFF,
-    ExpertGated,
-    ExpertLinear,
-)
-from research.mamba.moe_in_mamba import MambaInProj
-from research.conditional.moe_layers.ff_timed import FeedForwardTimed
-
 
 def make_loss_and_gradient_function(
     loss_checkpoint_chungs: int,
@@ -640,7 +573,7 @@ def get_ff_layer(args):
             vectorize=(not args.dont_vectorize_switch),
         )
     elif args.ff_mode == "kernelized_fc":
-        from research.conditional.moe_layers.kernelized import FCKernelized
+        from research.token_dropping.moe_layers.kernelized import FCKernelized
 
         return_fn = lambda: FCKernelized(
             dmodel=args.dmodel,
