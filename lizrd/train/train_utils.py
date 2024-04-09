@@ -30,17 +30,10 @@ def get_model(
     activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     is_logging_process: bool,
     rank=None,
-    model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
 ):
-    if model_fragmentation is None or device == torch.device("cpu"):
-        first_gpu = device
-        last_gpu = device
-    else:
-        first_gpu = torch.device("cuda:0")
-        last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
     embedding_components = [
         llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
@@ -53,7 +46,7 @@ def get_model(
             )
         )
 
-    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
+    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
@@ -61,13 +54,13 @@ def get_model(
         dm,
         block_modules,
         device,
-        model_fragmentation=model_fragmentation,
+        model_fragmentation=None,
         residual_fn=residual_fn,
     )
 
     head = llm.PredictionHead(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
-    ).to(last_gpu)
+    ).to(device)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
