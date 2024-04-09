@@ -21,89 +21,73 @@ def make_loss_and_gradient_function(
 
 def calculate_single_chung_loss(
     model: torch.nn.Module,
-    mixed_precision_dtype: torch.dtype,
     encoder_output: torch.Tensor,
     gt: torch.Tensor,
     mask: torch.Tensor,
 ):
     output = model(encoder_output)
-    with torch.autocast(device_type="cuda", enabled=False, dtype=mixed_precision_dtype):
-        gt = gt.to(output.device)
-        loss = F.cross_entropy(
-            output.flatten(0, -2),
-            gt.reshape(-1).long(),
-            reduction="none",
-        )
+    gt = gt.to(output.device)
+    loss = F.cross_entropy(
+        output.flatten(0, -2),
+        gt.reshape(-1).long(),
+        reduction="none",
+    )
 
-        correct_tokens = gt.long() == output.argmax(dim=-1)
-        correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
-        correct_tokens = correct_tokens.sum()
+    correct_tokens = gt.long() == output.argmax(dim=-1)
+    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+    correct_tokens = correct_tokens.sum()
 
-        total_tokens = mask.sum()
+    total_tokens = mask.sum()
 
     return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
-
-
-def run_backward(
-    loss: torch.Tensor,
-    mixed_precision_dtype: torch.dtype,
-):
-    with torch.autocast(device_type="cuda", enabled=False, dtype=mixed_precision_dtype):
-        loss.backward()
 
 def chungized_llm_loss_and_gradient(
     batch: LLMBatch,
     model: torch.nn.Module,
-    mixed_precision: bool,
     n_chungs: int,
-    mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
 ) -> tuple[float, dict]:
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
 
-    with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
+    embeddings = model.embedding_layer(input_tokens)
+    encoder_output = model.encoder(embeddings)
+    encoder_output_detach = encoder_output.detach()
+    encoder_output_detach.requires_grad = True
+    chunged_encoder_outputs = torch.chunk(encoder_output_detach, n_chungs, dim=0)
+    chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
+    chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
+
+    total_loss = 0
+    total_correct_tokens = 0
+    total_masked_tokens = 0
+    for chunged_encoder_output, chunged_gt, chunged_mask in zip(
+        chunged_encoder_outputs, chunged_non_masked_inputs, chunged_non_masked_masks
     ):
-        embeddings = model.embedding_layer(input_tokens)
-        encoder_output = model.encoder(embeddings)
-        encoder_output_detach = encoder_output.detach()
-        encoder_output_detach.requires_grad = True
-        chunged_encoder_outputs = torch.chunk(encoder_output_detach, n_chungs, dim=0)
-        chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
-        chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
+        (
+            single_chung_loss,
+            single_chung_correct_tokens,
+            single_chung_masked_tokens,
+        ) = calculate_single_chung_loss(
+            model.head,
+            chunged_encoder_output,
+            chunged_gt,
+            chunged_mask,
+        )
+        partial_loss = (
+            single_chung_loss.mean() / n_chungs / num_checkpoint_accumulation_steps
+        )
+        if model.training:
+            partial_loss.backward()
+        total_loss += partial_loss.item()
+        total_correct_tokens += single_chung_correct_tokens
+        total_masked_tokens += single_chung_masked_tokens
 
-        total_loss = 0
-        total_correct_tokens = 0
-        total_masked_tokens = 0
-        for chunged_encoder_output, chunged_gt, chunged_mask in zip(
-            chunged_encoder_outputs, chunged_non_masked_inputs, chunged_non_masked_masks
-        ):
-            (
-                single_chung_loss,
-                single_chung_correct_tokens,
-                single_chung_masked_tokens,
-            ) = calculate_single_chung_loss(
-                model.head,
-                mixed_precision_dtype,
-                chunged_encoder_output,
-                chunged_gt,
-                chunged_mask,
-            )
-            partial_loss = (
-                single_chung_loss.mean() / n_chungs / num_checkpoint_accumulation_steps
-            )
-            if model.training:
-                run_backward(partial_loss, mixed_precision_dtype)
-            total_loss += partial_loss.item()
-            total_correct_tokens += single_chung_correct_tokens
-            total_masked_tokens += single_chung_masked_tokens
-
-        aux_info = {
-            "correct_tokens": total_correct_tokens,
-            "total_masked_tokens": total_masked_tokens,
-        }
+    aux_info = {
+        "correct_tokens": total_correct_tokens,
+        "total_masked_tokens": total_masked_tokens,
+    }
 
     if model.training:
         # ok, we need to backward one loss (because of torch autograd)
@@ -117,8 +101,6 @@ def chungized_llm_loss_and_gradient(
 def calculate_llm_loss_and_gradient(
     batch: LLMBatch,
     model: torch.nn.Module,
-    mixed_precision: bool,
-    mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
 ) -> tuple[float, dict]:
     def hack_for_python_garbage_collection():
@@ -128,10 +110,7 @@ def calculate_llm_loss_and_gradient(
         gt_tokens = batch.target_ids
         mask = batch.should_calculate_loss
 
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
-        ):
-            model_output = model(input_tokens)
+        model_output = model(input_tokens)
 
         # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
         gt_tokens = gt_tokens.to(model_output.device)
@@ -159,7 +138,7 @@ def calculate_llm_loss_and_gradient(
     loss, aux_info = hack_for_python_garbage_collection()
     if model.training:
         loss_to_optimize = loss.clone()
-        run_backward(loss_to_optimize, mixed_precision_dtype)
+        loss_to_optimize.backward()
 
     return loss.item(), aux_info
 

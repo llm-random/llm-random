@@ -130,8 +130,6 @@ class ConditionalTrainer:
             cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
                 batch=batch_copy,
                 model=self.model,
-                mixed_precision=self.mixed_precision,
-                mixed_precision_dtype=self.mixed_precision_dtype,
                 num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
             )
 
