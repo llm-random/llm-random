@@ -435,6 +435,7 @@ def get_logger(args, model, VOCAB_SIZE):
         logger_types = []
     else:
         logger_types = args.logger_types.split(",")
+        assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
     for logger_type in logger_types:
         if logger_type == "neptune":
