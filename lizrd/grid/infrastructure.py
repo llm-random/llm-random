@@ -76,6 +76,16 @@ class AthenaBackend(MachineBackend):
             connection.user if self.connection is not None else os.environ.get("USER")
         )
 
+    def get_default_train_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/train"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/validation"
+        return super().get_default_train_dataset_path(dataset_type)
+
     def get_common_directory(self) -> str:
         return "/net/pr2/projects/plgrid/plggllmeffi"
 
