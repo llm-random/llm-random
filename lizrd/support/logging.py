@@ -455,7 +455,7 @@ def get_logger(args, model, VOCAB_SIZE):
         elif logger_type == "wandb":
             wandb.init(
                 entity=args.wandb_entity,
-                project=args.project_name,
+                project=args.wandb_project,
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
                 tags=args.tags,
                 config=vars(args),

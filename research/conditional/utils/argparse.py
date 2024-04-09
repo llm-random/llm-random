@@ -133,6 +133,7 @@ def introduce_parser_arguments(
     parser.add_argument("--logger_types", type=str, required=True)
     parser.add_argument("--wandb_entity", type=str, default="ideas_cv")
     parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
+    parser.add_argument("--wandb_project", type=str, default="llm-random")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
