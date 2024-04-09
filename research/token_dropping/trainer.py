@@ -6,15 +6,13 @@ from typing import Callable, Iterable, Optional, Literal
 import torch
 from torch.profiler import profile, ProfilerActivity
 from attr import define
-from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
-from research.token_dropping.utils.layer_manager import LayerManager
-from research.token_dropping.utils.model_utils import (
+from research.token_dropping.layer_manager import LayerManager
+from research.token_dropping.model_utils import (
     make_loss_and_gradient_function,
-    update_model_fit_gpu_info,
 )
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
@@ -42,7 +40,6 @@ class ConditionalTrainer:
     batch_size: int
     lr_scheduler: AbstractLRScheduler
     _calculate_loss_and_gradient: Optional[Callable] = None
-    mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None

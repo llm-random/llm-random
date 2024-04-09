@@ -19,12 +19,12 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
-from research.token_dropping.utils.check_args import check_args
+from research.token_dropping.check_args import check_args
 from research.datasets import get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.token_dropping.utils.trainer import ConditionalTrainer
-from research.token_dropping.utils.argparse import introduce_parser_arguments
-from research.token_dropping.utils.model_utils import (
+from research.token_dropping.trainer import ConditionalTrainer
+from research.token_dropping.argparse import introduce_parser_arguments
+from research.token_dropping.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
@@ -239,7 +239,6 @@ def main(
         train_dataloader=train_dataloader,
         eval_dataloader=eval_dataloader,
         vocab_size=VOCAB_SIZE,
-        mask_percent=args.mask_percent,
         mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
         mixed_precision_dtype=args.mixed_precision_dtype,
         logger=logger,

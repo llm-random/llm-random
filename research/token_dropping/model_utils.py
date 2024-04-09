@@ -2,7 +2,6 @@ from functools import partial
 
 from typing import Optional, Type, Union, Callable
 import torch
-import torch.nn as nn
 from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
@@ -10,7 +9,7 @@ from torch.profiler import ProfilerAction
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
-from lizrd.core.llm import Parallel
+
 
 def make_loss_and_gradient_function(
     loss_checkpoint_chungs: int,
@@ -263,6 +262,7 @@ def clear_additional_losses(model: torch.nn.Module):
 
     if "load_balancing_losses" in model.forward_pass_cache:
         model.forward_pass_cache.pop("load_balancing_losses", None)
+
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
