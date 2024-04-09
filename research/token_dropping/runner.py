@@ -171,9 +171,6 @@ def main(
         f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
     )
 
-    if args.torch_compile:
-        model = torch.compile(model)
-
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
@@ -260,12 +257,7 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_logging_process=is_logging_process,
-        eval_dynamic_groupsize=args.eval_dynamic_groupsize,
-        eval_discrete_mot=args.eval_discrete_mot,
         decoding_interval=args.decoding_interval,
-        eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
-        eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
-        steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
