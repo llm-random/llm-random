@@ -82,9 +82,6 @@ def main(
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
 
-
-    if args.mixed_precision_dtype == "float16":
-        args.mixed_precision_dtype = torch.float16
     elif args.mixed_precision_dtype == "bfloat16":
         args.mixed_precision_dtype = torch.bfloat16
 

@@ -47,14 +47,9 @@ def calculate_single_chung_loss(
 def run_backward(
     loss: torch.Tensor,
     mixed_precision_dtype: torch.dtype,
-    scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ):
     with torch.autocast(device_type="cuda", enabled=False, dtype=mixed_precision_dtype):
-        if scaler is None:
-            loss.backward()
-        else:
-            scaler.scale(loss).backward()
-
+        loss.backward()
 
 def chungized_llm_loss_and_gradient(
     batch: LLMBatch,
@@ -63,7 +58,6 @@ def chungized_llm_loss_and_gradient(
     n_chungs: int,
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
-    scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> tuple[float, dict]:
     input_tokens = batch.input_ids
     gt_tokens = batch.target_ids
@@ -101,7 +95,7 @@ def chungized_llm_loss_and_gradient(
                 single_chung_loss.mean() / n_chungs / num_checkpoint_accumulation_steps
             )
             if model.training:
-                run_backward(partial_loss, mixed_precision_dtype, scaler)
+                run_backward(partial_loss, mixed_precision_dtype)
             total_loss += partial_loss.item()
             total_correct_tokens += single_chung_correct_tokens
             total_masked_tokens += single_chung_masked_tokens
@@ -126,7 +120,6 @@ def calculate_llm_loss_and_gradient(
     mixed_precision: bool,
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
-    scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> tuple[float, dict]:
     def hack_for_python_garbage_collection():
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
@@ -166,7 +159,7 @@ def calculate_llm_loss_and_gradient(
     loss, aux_info = hack_for_python_garbage_collection()
     if model.training:
         loss_to_optimize = loss.clone()
-        run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
+        run_backward(loss_to_optimize, mixed_precision_dtype)
 
     return loss.item(), aux_info
 

@@ -1,4 +1,3 @@
-from collections import defaultdict
 import copy
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
@@ -16,7 +15,7 @@ from research.token_dropping.model_utils import (
 )
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
-from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+from lizrd.train.load_and_save_model import save_checkpoint
 
 
 @define(slots=False)
@@ -40,7 +39,6 @@ class ConditionalTrainer:
     batch_size: int
     lr_scheduler: AbstractLRScheduler
     _calculate_loss_and_gradient: Optional[Callable] = None
-    scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
@@ -61,8 +59,6 @@ class ConditionalTrainer:
     checkpoint: Optional[dict[str, torch.Tensor]] = None
 
     def __attrs_post_init__(self):
-        if self.mixed_precision_dtype == torch.float16:
-            self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
         self.loss_accumulators = {
             f"loss_interval/{i}": SN(acc=0.0, interval=i)
             for i in self.loss_log_intervals
@@ -89,16 +85,10 @@ class ConditionalTrainer:
         """
         Train the model for n_steps steps.
         """
-        if self.scaler is not None and self.checkpoint is not None:
-            load_scaler_state(self.scaler, self.checkpoint)
 
         for step in range(self.start_step, n_steps + 1):
             self._train_step(step)
-            if (
-                step > 0
-                and self.eval_interval > 0
-                and step % self.eval_interval == 0
-            ):
+            if step > 0 and self.eval_interval > 0 and step % self.eval_interval == 0:
                 self._eval_step(step)
 
             self.model.forward_pass_cache.clear()
@@ -144,7 +134,6 @@ class ConditionalTrainer:
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
                 num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
-                scaler=self.scaler,
             )
 
             total_cross_entropy_loss += cross_entropy_loss
@@ -157,20 +146,11 @@ class ConditionalTrainer:
         }
 
     def _apply_gradient(self):
-        if self.scaler is None:
-            if self.gradient_clipping is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
-            self.optimizer.step()
-        else:
-            if self.gradient_clipping is not None:
-                self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+        if self.gradient_clipping is not None:
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.gradient_clipping
+            )
+        self.optimizer.step()
         self.optimizer.zero_grad()
 
     def _eval_step(self, step: int):
@@ -277,7 +257,7 @@ class ConditionalTrainer:
             save_checkpoint(
                 self.model,
                 self.optimizer,
-                self.scaler,
+                None,
                 self.save_weights_path,
                 self.rank,
                 step,

@@ -7,10 +7,6 @@ def check_args(args):
         args.flash_attention and args.mixed_precision
     ), "Flash attention requires mixed precision to be enabled. Please set `--mixed_precision True`."
 
-    assert (not args.fsdp_enabled) or (
-        args.fsdp_enabled and args.mixed_precision_dtype != "float16"
-    ), "Our FSDP implementation currently does not support float16 precision (no distributed GradScaler implemented). Please use bfloat16 or disable mixed precision and set its type to None."
-
     if args.save_weights_path is not None:
         filename = args.save_weights_path.split("/")[-1]
         assert (

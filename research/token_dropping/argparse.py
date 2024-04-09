@@ -74,7 +74,7 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--mixed_precision_dtype",
         type=str,
-        choices=["float16", "bfloat16"],
+        choices=["bfloat16"],
         default=None,
     )
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
