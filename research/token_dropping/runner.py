@@ -25,7 +25,6 @@ from lizrd.train.scheduler import get_scheduler
 from research.token_dropping.trainer import ConditionalTrainer
 from research.token_dropping.argparse import introduce_parser_arguments
 from research.token_dropping.model_utils import (
-    disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
@@ -218,18 +217,6 @@ def main(
     else:
         logger = None
 
-    profiler_schedule = (
-        torch.profiler.schedule(
-            wait=args.profiler_schedule_wait,
-            warmup=args.profiler_schedule_warmup,
-            active=args.profiler_schedule_active,
-            repeat=args.profiler_schedule_repeat,
-            skip_first=args.profiler_schedule_skip_first,
-        )
-        if args.profiler_enabled
-        else disable_profile_schedule_fn
-    )
-
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
@@ -258,9 +245,6 @@ def main(
         max_sequence_length=args.cutoff,
         is_logging_process=is_logging_process,
         decoding_interval=args.decoding_interval,
-        profiler_enabled=args.profiler_enabled,
-        profiler_trace_path=args.profiler_trace_path,
-        profiler_schedule=profiler_schedule,
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,

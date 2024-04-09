@@ -4,7 +4,6 @@ from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
 import torch
-from torch.profiler import profile, ProfilerActivity
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.logging import AbstractLogger
@@ -57,9 +56,6 @@ class ConditionalTrainer:
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
     is_logging_process: bool = True
-    profiler_enabled: bool = False
-    profiler_trace_path: str = None
-    profiler_schedule: None = None
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
@@ -96,31 +92,16 @@ class ConditionalTrainer:
         if self.scaler is not None and self.checkpoint is not None:
             load_scaler_state(self.scaler, self.checkpoint)
 
-        with profile(
-            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-            schedule=self.profiler_schedule,
-            on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                self.profiler_trace_path
-            ),
-            record_shapes=True,
-            profile_memory=True,
-            with_stack=True,
-            with_flops=True,
-            with_modules=True,
-        ) as p:
-            for step in range(self.start_step, n_steps + 1):
-                self._train_step(step)
-                if self.profiler_enabled:
-                    p.step()
+        for step in range(self.start_step, n_steps + 1):
+            self._train_step(step)
+            if (
+                step > 0
+                and self.eval_interval > 0
+                and step % self.eval_interval == 0
+            ):
+                self._eval_step(step)
 
-                if (
-                    step > 0
-                    and self.eval_interval > 0
-                    and step % self.eval_interval == 0
-                ):
-                    self._eval_step(step)
-
-                self.model.forward_pass_cache.clear()
+            self.model.forward_pass_cache.clear()
 
     def _train_step(
         self,
@@ -169,7 +150,6 @@ class ConditionalTrainer:
             total_cross_entropy_loss += cross_entropy_loss
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
-
 
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,

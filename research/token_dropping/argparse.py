@@ -140,15 +140,6 @@ def introduce_parser_arguments(
     parser.add_argument("--git_branch", type=str, default=None)
     parser.add_argument("--decoding_interval", type=int, default=0)
 
-    # profiler parameters
-    parser.add_argument("--profiler_enabled", action="store_true")
-    parser.add_argument("--profiler_trace_path", type=str, default=None)
-    parser.add_argument("--profiler_schedule_wait", type=int, default=None)
-    parser.add_argument("--profiler_schedule_warmup", type=int, default=None)
-    parser.add_argument("--profiler_schedule_active", type=int, default=None)
-    parser.add_argument("--profiler_schedule_repeat", type=int, default=None)
-    parser.add_argument("--profiler_schedule_skip_first", type=int, default=None)
-
     # model versioning
 
     parser.add_argument("--save_weights_path", type=str, default=None)

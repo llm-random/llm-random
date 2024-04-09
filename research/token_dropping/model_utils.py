@@ -5,7 +5,6 @@ import torch
 from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
-from torch.profiler import ProfilerAction
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
@@ -311,10 +310,3 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         ignored_classes += list(selective_precision_modules)
 
     return ignored_classes
-
-
-def disable_profile_schedule_fn(_: int) -> ProfilerAction:
-    """
-    Passing this function to the profiler as a scheduler disables profiling
-    """
-    return ProfilerAction.NONE
