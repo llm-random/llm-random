@@ -76,7 +76,6 @@ class ConditionalTrainer:
         )
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
-        self.auxiliary_losses_accumulator = dict()
         self._calculate_loss_and_gradient = make_loss_and_gradient_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
@@ -149,7 +148,6 @@ class ConditionalTrainer:
         total_cross_entropy_loss = 0.0
         correct_tokens_value = 0
         total_masked_tokens_value = 0
-        losses = {}
 
         for i in range(self.gradient_accumulation_steps):
             # TODO: make a way to avoid copying the whole batch just to get a slice
@@ -172,13 +170,10 @@ class ConditionalTrainer:
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
 
-            for key, value in aux_info["losses"].items():
-                losses[key] = losses.get(key, 0) + value.item()
 
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
-            "losses": losses,
         }
 
     def _apply_gradient(self):
@@ -213,15 +208,12 @@ class ConditionalTrainer:
         total_loss = 0.0
         total_correct_tokens = 0
         total_masked_tokens = 0
-        extra_losses = defaultdict(float)
         for processed_batch in batches:
             with torch.no_grad():
                 loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
             total_masked_tokens += aux_info["total_masked_tokens"]
-            for name, loss_value in aux_info["losses"].items():
-                extra_losses[name] += loss_value
         if self.is_logging_process:
             self.logger.report_scalar(
                 title=f"eval/total_loss/{variant_name}",
@@ -233,12 +225,6 @@ class ConditionalTrainer:
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
-            for name, loss_value in extra_losses.items():
-                self.logger.report_scalar(
-                    title=f"eval/{name}/{variant_name}",
-                    value=loss_value / self.n_eval_batches,
-                    iteration=step,
-                )
 
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)

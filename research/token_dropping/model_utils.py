@@ -110,20 +110,14 @@ def chungized_llm_loss_and_gradient(
         aux_info = {
             "correct_tokens": total_correct_tokens,
             "total_masked_tokens": total_masked_tokens,
-            "losses": retrieve_additional_losses(model),
         }
 
-    for key, value in aux_info["losses"].items():
-        aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     if model.training:
         # ok, we need to backward one loss (because of torch autograd)
         # the "loss" that has the same gradient as the original cross entropy loss is the sum below
         assert encoder_output_detach.grad.shape == encoder_output.shape
         loss_to_optimize = (encoder_output * encoder_output_detach.grad).sum()
-        for value in aux_info["losses"].values():
-            loss_to_optimize += value if scaler is None else scaler.scale(value)
         loss_to_optimize.backward()
-    clear_additional_losses(model)
     return total_loss, aux_info
 
 
@@ -167,20 +161,14 @@ def calculate_llm_loss_and_gradient(
         aux_info = {
             "correct_tokens": correct_tokens,
             "total_masked_tokens": total_masked_tokens,
-            "losses": retrieve_additional_losses(model),
         }
         return loss, aux_info
 
     loss, aux_info = hack_for_python_garbage_collection()
-    for key, value in aux_info["losses"].items():
-        aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     if model.training:
         loss_to_optimize = loss.clone()
-        for value in aux_info["losses"].values():
-            loss_to_optimize += value
         run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
 
-    clear_additional_losses(model)
     return loss.item(), aux_info
 
 
@@ -238,30 +226,6 @@ def get_residual_layer(args):
         return partial(llm.RezeroBlock, dmodel=args.dmodel, norm_class=norm_class)
     else:
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
-
-
-def retrieve_additional_losses(model: torch.nn.Module):
-    losses = {}
-    if not hasattr(model, "forward_pass_cache"):
-        return losses
-
-    if "load_balancing_losses" in model.forward_pass_cache:
-        load_balancing_losses = model.forward_pass_cache.get(
-            "load_balancing_losses", []
-        )
-        load_balancing_losses = torch.stack(load_balancing_losses)
-        load_balancing_loss = torch.mean(load_balancing_losses)
-        losses["load_balancing_loss"] = load_balancing_loss
-
-    return losses
-
-
-def clear_additional_losses(model: torch.nn.Module):
-    if not hasattr(model, "forward_pass_cache"):
-        return
-
-    if "load_balancing_losses" in model.forward_pass_cache:
-        model.forward_pass_cache.pop("load_balancing_losses", None)
 
 
 def get_ff_layer(args):
