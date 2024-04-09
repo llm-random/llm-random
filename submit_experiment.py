@@ -57,7 +57,7 @@ def submit_experiment(
     with ConnectWithPassphrase(hostname) as connection:
         result = connection.run("uname -n", hide=True)
         node = result.stdout.strip()
-        cluster = get_machine_backend(node)
+        cluster = get_machine_backend(node, connection)
 
         cemetery_dir = cluster.get_cemetery_directory()
         connection.run(f"mkdir -p {cemetery_dir}")

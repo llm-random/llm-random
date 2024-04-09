@@ -712,6 +712,103 @@ def get_vanilla_mamba_layer(args):
     )
 
 
+def make_inner_projections_mamba(
+    dmodel: int,
+    n_experts: int,
+    expert_modules: list[str],
+    expansion_factor: float,
+    seq_len: int,
+    init_type,
+    init_scale,
+    capacity_factor,
+    load_balancing_loss_weight,
+):
+    import research.conditional.moe_layers.mamba_token_choice as mtc
+
+    print(expert_modules)
+
+    dinner = int(dmodel * expansion_factor)
+
+    input_module = (
+        mtc.LinearExpertsMamba(
+            seq_len=seq_len,
+            dinput=dmodel,
+            doutput=dinner,
+            n_experts=n_experts,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        if "input" in expert_modules
+        else nn.Linear(dmodel, dinner, bias=False)
+    )
+    gate_module = (
+        mtc.LinearExpertsMamba(
+            seq_len=seq_len,
+            dinput=dmodel,
+            doutput=dinner,
+            n_experts=n_experts,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        if "gate" in expert_modules
+        else nn.Linear(dmodel, dinner, bias=False)
+    )
+
+    output_module = (
+        mtc.LinearExpertsMamba(
+            seq_len=seq_len,
+            dinput=dinner,
+            doutput=dmodel,
+            n_experts=n_experts,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        if "output" in expert_modules
+        else nn.Linear(dinner, dmodel, bias=False)
+    )
+
+    router = mtc.MambaRouter(
+        dinput=dmodel,
+        capacity_factor=capacity_factor,
+        load_balancing_loss_weight=load_balancing_loss_weight,
+        n_experts=n_experts,
+        expert_modules=expert_modules,
+        init_type=init_type,
+        init_scale=init_scale,
+    )
+    return mtc.MambaTokenChoice(
+        d_model=dmodel,
+        expand=expansion_factor,
+        input_module=input_module,
+        gate_module=gate_module,
+        output_module=output_module,
+        router=router,
+    )
+
+
+def get_inner_projections_moe_mamba(args):
+    print(args.expert_modules)
+    if args.expert_modules is None:
+        expert_modules = []
+    else:
+        expert_modules_str: str = args.expert_modules
+        expert_modules = expert_modules_str.split(",")
+        if "" in expert_modules:
+            expert_modules.remove("")
+    return partial(
+        make_inner_projections_mamba,
+        dmodel=args.dmodel,
+        n_experts=args.n_experts,
+        expert_modules=expert_modules,
+        expansion_factor=args.mamba_expansion,
+        seq_len=args.cutoff,
+        init_type=args.init_type,
+        init_scale=args.init_scale,
+        capacity_factor=args.capacity_factor,
+        load_balancing_loss_weight=args.load_balancing_loss_weight,
+    )
+
+
 def get_mamba_layer(args):
     import mamba_ssm
 
@@ -779,6 +876,8 @@ def get_mamba_layer(args):
             return mamba
 
         return_fn = modified_out_mamba
+    elif args.mamba_mode == "inner_projections_moe":
+        return_fn = get_inner_projections_moe_mamba(args)
     else:
         raise NotImplementedError(f"Mamba mode {args.mamba_mode} not implemented")
 
@@ -827,6 +926,14 @@ def get_classes_from_module_names(
             classes.append(ExpertGating)
         elif name == "Softmax":
             classes.append(torch.nn.Softmax)
+        elif name == "TokenChoiceSeparateRouter":
+            import research.conditional.moe_layers.mamba_token_choice as mtc
+
+            classes.append(mtc.TokenChoiceSeparateRouter)
+        elif name == "MambaRouter":
+            import research.conditional.moe_layers.mamba_token_choice as mtc
+
+            classes.append(mtc.MambaRouter)
         elif name == "TokenChoiceRouterOld":
             classes.append(TokenChoiceRouterOld)
         elif name == "TokenGating":
