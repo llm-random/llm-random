@@ -73,19 +73,6 @@ def rsync_to_remote(host, local_dir):
         raise Exception(f"[RSYNC ERROR]: An error occurred during rsync: {str(e)}")
 
 
-def athena_user_to_workdir(connection):
-    d = {
-        "plglizard": "jaszczur",
-        "plgcrewtool": "crewtool",
-        "plgmaciejpioro": "maciejpioro",
-        "plgludziej": "ludziej",
-        "plgsimontwice": "simontwice",
-        "plgkciebiera": "plgkciebiera",
-    }
-    user = connection.user
-    return d[user] if user in d else user[3:]
-
-
 def get_base_directory(connection):
     if connection.host == "athena.cyfronet.pl":
         base_dir = f"/net/pr2/projects/plgrid/plggllmeffi/{connection.user}/llm-random"
