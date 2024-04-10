@@ -18,3 +18,5 @@ params:
   cutoff: 256
 
   name: "lr_grid"
+
+  logger_types: "stdout"
