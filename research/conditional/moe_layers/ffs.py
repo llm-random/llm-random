@@ -6,12 +6,17 @@ from lizrd.core import misc
 import torch.nn as nn
 from lizrd.core.llm import SplitLastAxis, Transpose, MergeLastAxis
 from lizrd.core.misc import EinMix
-from lizrd.support import ash
 from lizrd.support.profile import Timer, TimerLayer
 from lizrd.core.initialization import get_init_weight, get_init_bias
 
 
-@ash.check("... d -> ... d")
+def assert_shape(pattern, tensor, **kwargs):
+    DISABLE_CHECKS = False
+    if DISABLE_CHECKS:
+        return
+    einops.rearrange(tensor, f"{pattern} -> {pattern}", **kwargs)
+
+
 class RewrittenSplitFF(nn.Module):
     def __init__(
         self,
@@ -74,7 +79,7 @@ class RewrittenSplitFF(nn.Module):
         # that we need for
         with Timer("rewrittenFF", disable_inner=False):
             # BATCH, embedding
-            ash.assert_shape("... B d", x, d=self.dm)
+            assert_shape("... B d", x, d=self.dm)
             # batch, set, embedding <-- this is just reshape
             with Timer("grouping", disable=True):
                 grouped = einops.rearrange(
@@ -162,7 +167,6 @@ class RewrittenSplitFF(nn.Module):
             return result_final
 
 
-@ash.check("... d -> ... d")
 class SimpleSplitFF(nn.Module):
     def __init__(
         self,
@@ -231,7 +235,7 @@ class SimpleSplitFF(nn.Module):
         # that we need for
         with Timer("batchedFF", disable_inner=False):
             # BATCH, embedding
-            ash.assert_shape("... B d", x, d=self.dm)
+            assert_shape("... B d", x, d=self.dm)
             # batch, set, embedding <-- this is just reshape
             grouped = einops.rearrange(x, f"... (b t) d -> {self.ogp}", t=self.sparsity)
 
@@ -300,7 +304,6 @@ class SimpleSplitFF(nn.Module):
             return result_final
 
 
-@ash.check("... d -> ... d")
 class BatchSplitFF(nn.Module):
     def __init__(
         self,
@@ -428,7 +431,7 @@ class BatchSplitFF(nn.Module):
             best_choice = (
                 gradient_similarity == gradient_similarity.max(dim=-1, keepdim=True)[0]
             ) * 1.0
-            ash.assert_shape("... e t", best_choice)
+            assert_shape("... e t", best_choice)
         # # for now we completely ignore which experts were activated etc.
         # x = self.last_x.detach()
         # grad_output = grad_output[0].detach()
@@ -461,7 +464,7 @@ class BatchSplitFF(nn.Module):
         #     # TODO(jaszczur): the line below is unnecessary, but it's a reminder
         #     gradient_similarity = gradient_similarity / self.dm ** 0.5  # This is to normalize outputs
         #     best_choice = (gradient_similarity == gradient_similarity.max(dim=-1, keepdim=True)[0]) * 1.0
-        #     ash.assert_shape('... e t', best_choice)
+        #     assert_shape('... e t', best_choice)
 
         with torch.enable_grad():
             ## CONTROLLER:
@@ -485,7 +488,8 @@ class BatchSplitFF(nn.Module):
         # that we need for
         with Timer("batchedFF", disable_inner=False):
             # BATCH, embedding
-            ash.assert_shape("... B d", x, d=self.dm)
+            assert_shape("... B d", x, d=self.dm)
+
             # batch, set, embedding <-- this is just reshape
             grouped = einops.rearrange(x, f"... (b t) d -> {self.ogp}", t=self.sparsity)
 
@@ -547,7 +551,6 @@ class BatchSplitFF(nn.Module):
             return result_final
 
 
-@ash.check("... dinp -> ... dout")
 class FactoredDense(nn.Module):
     def __init__(self, dinput, doutput, modules):
         super(FactoredDense, self).__init__()
@@ -573,7 +576,6 @@ class FactoredDense(nn.Module):
         return y
 
 
-@ash.check("... dinp -> ... dinp")
 def PermutationDense(dinput):
     sqdi = int(round(dinput**0.5))
     assert sqdi * sqdi == dinput
@@ -652,12 +654,10 @@ def PermutationDense(dinput):
     )
 
 
-@ash.check("... -> ...")
 def NoopDense():
     return nn.Sequential()
 
 
-@ash.check("... dinp -> ... dout")
 def FactoredDense(dinput, doutput, modules):
     assert doutput % modules == 0
     dmodule = doutput // modules
