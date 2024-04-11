@@ -395,13 +395,17 @@ class TestGrid(unittest.TestCase):
     def test_lr_grid(self, os_getcwd):
         os_getcwd.return_value = experiment_path
         CLUSTER = AthenaTestBackend()
+        train_dataset_path = "/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/train"
+        validation_dataset_path = (
+            "/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/validation"
+        )
         expected_output = [
             [
                 "sbatch",
                 "--gres=gpu:2",
                 "--partition=plgrid-gpu-a100",
                 "--mem=250G",
-                "--account=plgsubslearnath-gpu-a100",
+                "--account=plgllmefficont-gpu-a100",
                 "--job-name=lr_grid",
                 "--time=40:00:00",
                 "lizrd/grid/grid_entrypoint.sh",
@@ -410,7 +414,7 @@ class TestGrid(unittest.TestCase):
                 "--bind=/net:/net",
                 "--env",
                 f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN={neptune_api_key},WANDB_API_KEY={wandb_api_key}",
-                f"-B={experiment_path}:/llm-random,{hf_dataset_cache}:{hf_dataset_cache}",
+                f"-B={experiment_path}:/llm-random,{train_dataset_path}:{train_dataset_path},{validation_dataset_path}:{validation_dataset_path}",
                 "--nv",
                 f"{image_path}",
                 "python3",
@@ -452,6 +456,10 @@ class TestGrid(unittest.TestCase):
                 "5e-4",
                 "--n_gpus",
                 "2",
+                "--train_dataset_path",
+                f"{train_dataset_path}",
+                "--validation_dataset_path",
+                f"{validation_dataset_path}",
                 "--logger_types",
                 "stdout",
             ],
@@ -460,7 +468,7 @@ class TestGrid(unittest.TestCase):
                 "--gres=gpu:2",
                 "--partition=plgrid-gpu-a100",
                 "--mem=250G",
-                "--account=plgsubslearnath-gpu-a100",
+                "--account=plgllmefficont-gpu-a100",
                 "--job-name=lr_grid",
                 "--time=40:00:00",
                 "lizrd/grid/grid_entrypoint.sh",
@@ -469,7 +477,7 @@ class TestGrid(unittest.TestCase):
                 "--bind=/net:/net",
                 "--env",
                 f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN={neptune_api_key},WANDB_API_KEY={wandb_api_key}",
-                f"-B={experiment_path}:/llm-random,{hf_dataset_cache}:{hf_dataset_cache}",
+                f"-B={experiment_path}:/llm-random,{train_dataset_path}:{train_dataset_path},{validation_dataset_path}:{validation_dataset_path}",
                 "--nv",
                 f"{image_path}",
                 "python3",
@@ -511,6 +519,10 @@ class TestGrid(unittest.TestCase):
                 "7e-4",
                 "--n_gpus",
                 "2",
+                "--train_dataset_path",
+                f"{train_dataset_path}",
+                "--validation_dataset_path",
+                f"{validation_dataset_path}",
                 "--logger_types",
                 "stdout",
             ],
@@ -525,5 +537,4 @@ class TestGrid(unittest.TestCase):
             skip_copy_code=True,
         )
         returned_output = [experiment[0] for experiment in experiments]
-
         self.assertUnifiedEqual(returned_output, expected_output)
