@@ -8,4 +8,3 @@ params:
   cutoff: 16
   ^granularity: [4]
   dataset_type: wikibook
-  loss_checkpoint_chungs: 8
