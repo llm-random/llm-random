@@ -1,5 +1,5 @@
 parent: configs/baselines/gpt/dense/large.yaml
-md5_parent_hash: 0ce50b80b78d47fb6f0b5981b2e991cc
+md5_parent_hash: 66aa609ebcff1d88f0bb900b0a0966fb
 time: 7-00:00:00
 
 params:

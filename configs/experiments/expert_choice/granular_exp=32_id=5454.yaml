@@ -16,7 +16,7 @@ params:
     - "mode_expert_choice"
     - "granularity_grid_test"
     - "more_decay"
-  use_neptune: true
+  logger_types: "neptune"
   n_steps: 150000
   dmodel: 768
   dff: 3072
