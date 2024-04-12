@@ -25,6 +25,7 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+from tqdm import tqdm
 
 
 @define(slots=False)
@@ -144,7 +145,7 @@ class ConditionalTrainer:
             with_flops=True,
             with_modules=True,
         ) as p:
-            for step in range(self.start_step, n_steps + 1):
+            for step in tqdm(range(self.start_step, n_steps + 1)):
                 self._train_step(step)
                 if self.profiler_enabled:
                     p.step()
