@@ -1,6 +1,6 @@
 from lizrd.core import misc
 from lizrd.core.misc import resolve_activation_name
-from research.conditional.utils.layer_manager import LoggingLayer, measure_time
+from lizrd.core.misc import LoggingLayer, measure_time
 
 
 class FeedForwardTimed(LoggingLayer):

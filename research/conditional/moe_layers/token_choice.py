@@ -2,7 +2,7 @@ from typing import Optional
 
 import torch
 
-from research.conditional.utils.layer_manager import (
+from lizrd.core.misc import (
     LoggingLayer,
     time_measured,
 )
