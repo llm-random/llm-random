@@ -15,20 +15,18 @@ from lizrd.support.misc import (
     get_n_learnable_parameters,
     set_seed,
 )
-from lizrd.train.train_utils import (
-    get_model,
-)
 from lizrd.text import tokenizers
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.token_reduction.trainer import Trainer
 from research.token_reduction.argparse import introduce_parser_arguments, check_args
-from research.token_reduction.model_utils import (
+from research.token_reduction.build import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
     get_mixed_precision_ignored_classes,
+    get_model,
     get_residual_layer,
     get_classes_from_module_names,
 )
