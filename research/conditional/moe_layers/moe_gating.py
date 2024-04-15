@@ -10,8 +10,7 @@ import torch.nn.functional as F
 from research.conditional.moe_layers.load_balancing_loss import (
     calculate_load_balancing_loss,
 )
-from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.utils.layer_manager import measure_time
+from lizrd.core.misc import LoggingLayer, measure_time
 from lizrd.core.initialization import get_init_fun
 
 
