@@ -1,26 +1,21 @@
+from collections import OrderedDict
 from functools import partial
 
-from typing import Optional, Type, Union, Callable
+from typing import Type, Union, Callable
 import torch
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+    apply_activation_checkpointing,
+)
 from torch.nn import LayerNorm
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
 
 from lizrd.core import llm
 
-
-from typing import Callable, Optional, Union, Type
-
-import torch
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
-    apply_activation_checkpointing,
-)
-
-from lizrd.core import llm
-from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
+from . import layers
+from lizrd.core.distributed import wrap_in_ddp, wrap_in_fsdp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
-
 
 
 def get_attention_layer(args):
@@ -189,37 +184,31 @@ def get_model(
     activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     is_logging_process: bool,
     rank=None,
-    model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
-    include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
     reduced_number_of_tokens: int = None,
 ):
-    if model_fragmentation is None or device == torch.device("cpu"):
-        first_gpu = device
-        last_gpu = device
-    else:
-        first_gpu = torch.device("cuda:0")
-        last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
     embedding_components = [
-        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
+        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale),
+        llm.PositionalEmbedding(
+            max_length, dm, init_type=init_type, init_scale=init_scale
+        ),
     ]
-
-    if include_positional_embedding:
-        embedding_components.append(
-            llm.PositionalEmbedding(
-                max_length, dm, init_type=init_type, init_scale=init_scale
-            )
-        )
+    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
 
     if reduced_number_of_tokens is not None:
         embedding_layer = torch.nn.Sequential(
-            llm.EmbeddingLayer(*embedding_components),
-            llm.TokenReduction(reduced_number_of_tokens),
-        ).to(first_gpu)
-    else:
-        embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
+            OrderedDict(
+                [
+                    ("normal", embedding_layer),
+                    (
+                        "token_reduction",
+                        layers.TokenReductionLayer(reduced_number_of_tokens),
+                    ),
+                ]
+            )
+        ).to(device)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
@@ -227,16 +216,21 @@ def get_model(
         dm,
         block_modules,
         device,
-        model_fragmentation=model_fragmentation,
+        model_fragmentation=None,
         residual_fn=residual_fn,
     )
 
     head = llm.PredictionHead(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
-    ).to(last_gpu)
+    ).to(device)
 
-    model = llm.LLM(embedding_layer, encoder_tower, head)
-
+    model = (
+        layers.TokenReductionLLM(
+            embedding_layer, encoder_tower, head, reduced_number_of_tokens
+        )
+        if reduced_number_of_tokens is not None
+        else llm.LLM(embedding_layer, encoder_tower, head)
+    )
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
 

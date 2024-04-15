@@ -106,11 +106,6 @@ def main(
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
 
-    if args.model_parallelism_fragmentation is not None:
-        args.model_parallelism_fragmentation = [
-            int(s) for s in args.model_parallelism_fragmentation.split(",")
-        ]
-
     if args.mixed_precision_dtype == "float16":
         args.mixed_precision_dtype = torch.float16
     elif args.mixed_precision_dtype == "bfloat16":
@@ -174,12 +169,9 @@ def main(
         fsdp_min_num_params=args.fsdp_min_num_params,
         fsdp_modules_to_wrap=fsdp_modules_to_wrap,
         activation_checkpointing_modules=activation_checkpointing_modules,
-        model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
         rank=rank,
-        include_positional_embedding=(not args.no_positional_embedding)
-        and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
     )
 
@@ -233,6 +225,7 @@ def main(
         dataset_split="train",
         dataset_path=args.train_dataset_path,
     )
+    common_dataloaders_kwargs["sequence_length"] = args.reduced_number_of_tokens
 
     eval_split = (
         "eval"

@@ -4,6 +4,9 @@ import argparse
 def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
+    # TOKEN REDUCTION
+    parser.add_argument("--reduced_number_of_tokens", type=int, default=None)
+
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
@@ -109,10 +112,7 @@ def introduce_parser_arguments(
         help="comma-separated list of modules whose parameters should be wrapped in FSDP with a different precision than the rest of the model. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
     )
     parser.add_argument(
-        "--model_parallelism_fragmentation",
-        type=str,
-        default=None,
-        help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
+        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
     )
     parser.add_argument("--detect_anomaly", action="store_true")
     parser.add_argument("--flash_attention", action="store_true")
@@ -306,14 +306,6 @@ def introduce_parser_arguments(
 
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
-
-    # mamba
-    parser.add_argument("--mamba_mode", type=str, default="vanilla")
-    parser.add_argument(
-        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
-    )
-    parser.add_argument("--mamba_expansion", type=float, default=2.0)
-    parser.add_argument("--no_positional_embedding", action="store_true")
 
     parser.add_argument(
         "--norm_class",

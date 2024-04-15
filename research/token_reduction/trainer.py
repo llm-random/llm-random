@@ -18,6 +18,25 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+from research.token_reduction.layers import TokenReductionLLM
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+
+
+def keep_given_indeces(input, dim, index):
+    """
+    origin: https://discuss.pytorch.org/t/batched-index-select/9115/8
+    input: B x * x ... x *
+    dim: 0 < scalar
+    index: B x M
+    """
+    views = [input.shape[0]] + [
+        1 if i != dim else -1 for i in range(1, len(input.shape))
+    ]
+    expanse = list(input.shape)
+    expanse[0] = -1
+    expanse[dim] = -1
+    index = index.view(views).expand(expanse)
+    return torch.gather(input, dim, index)
 
 
 def make_loss_and_gradient_function(
@@ -150,6 +169,17 @@ def calculate_llm_loss_and_gradient(
             device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
         ):
             model_output = model(input_tokens)
+
+        if (
+            isinstance(model, TokenReductionLLM)
+            or (
+                isinstance(model, FSDP)
+                and isinstance(model._fsdp_wrapped_module, TokenReductionLLM)
+            )
+        ) and model.training:
+            indices_to_keep = model.embedding_layer.token_reduction.indices_to_keep
+            mask = keep_given_indeces(mask, 1, indices_to_keep)
+            gt_tokens = keep_given_indeces(gt_tokens, 1, indices_to_keep)
 
         # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
         gt_tokens = gt_tokens.to(model_output.device)
