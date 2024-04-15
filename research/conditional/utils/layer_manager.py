@@ -2,7 +2,6 @@ import re
 
 import torch
 
-from lizrd.core.llm import LoggingLayer
 from lizrd.support.logging import get_current_logger
 
 
