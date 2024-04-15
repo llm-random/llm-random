@@ -1,6 +1,8 @@
 from collections import OrderedDict
+from contextlib import contextmanager
+import time
 from typing import Literal, Callable, Optional, Union
-from functools import partial
+from functools import partial, wraps
 from plotly import express as px
 
 import torch
@@ -617,6 +619,46 @@ class TransformerBlock(nn.Module):
 
     def forward(self, x):
         return self.block(x)
+
+
+@contextmanager
+def measure_time(layer: LoggingLayer, instruction_name: str):
+    """
+    This simple context manager is used to measure the time of a block of code.
+    Args:
+        layer: The LoggingLayer object that will be used to cache the time.
+        instruction_name: The name of the instruction that is being measured.
+    """
+    if layer.logging_switch:
+        if torch.cuda.is_available():
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
+        else:
+            start = time.time()
+    yield
+    if layer.logging_switch:
+        if torch.cuda.is_available():
+            end.record()
+            torch.cuda.synchronize()
+            layer.update_cache_for_logging(
+                "time", {instruction_name: start.elapsed_time(end)}
+            )
+        else:
+            end = time.time()
+            layer.update_cache_for_logging("time", {instruction_name: end - start})
+
+
+def time_measured(name):
+    def _decorator(func):
+        @wraps(func)
+        def _decorator_wrapper(self, *args, **kwargs):
+            with measure_time(self, name):
+                return func(self, *args, **kwargs)
+
+        return _decorator_wrapper
+
+    return _decorator
 
 
 class TransformerTower(nn.Module):
