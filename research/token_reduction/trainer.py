@@ -254,7 +254,6 @@ class Trainer:
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
         )
-        self._check_config()
 
     def train(self, n_steps: int):
         """
@@ -503,12 +502,4 @@ class Trainer:
                 self.save_weights_path,
                 self.rank,
                 step,
-            )
-
-    def _check_config(self):
-        if self.eval_dynamic_groupsize:
-            assert self.eval_max_group_size_logfactor is not None
-            assert self.eval_min_group_size_logfactor is not None
-            assert (
-                self.eval_min_group_size_logfactor <= self.eval_max_group_size_logfactor
             )
