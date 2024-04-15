@@ -10,6 +10,9 @@ from research.conditional.utils.argparse import (
 from research.blanks.argparse import (
     introduce_parser_arguments as blanks_introduce_parser_arguments,
 )
+from research.token_reduction.argparse import (
+    introduce_parser_arguments as token_reduction_introduce_parser_arguments,
+)
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -185,6 +188,10 @@ def get_train_main_function(runner: str):
         from research.blanks.train import main as blanks_train_main
 
         return blanks_train_main
+    elif runner == "research.token_reduction.runner":
+        from research.token_reduction.runner import main as runner
+
+        return runner
     else:
         raise ValueError(f"Unknown runner: {runner}")
 
@@ -218,8 +225,12 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
             parser = argparse.ArgumentParser()
             if runner == "research.conditional.train.cc_train":
                 parser = cc_introduce_parser_arguments(parser)
-            else:
+            elif runner == "research.blanks.train":
                 parser = blanks_introduce_parser_arguments(parser)
+            elif runner == "research.token_reduction.runner":
+                parser = token_reduction_introduce_parser_arguments(parser)
+            else:
+                raise ValueError(f"Unknown runner: {runner}")
 
             try:
                 args, extra = parser.parse_known_args(runner_params)
