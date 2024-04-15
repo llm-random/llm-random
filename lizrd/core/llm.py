@@ -1,13 +1,14 @@
 from collections import OrderedDict
-from typing import Literal, Callable, Optional
+from typing import Literal, Callable, Optional, Union
 from functools import partial
+from plotly import express as px
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
-from lizrd.core.misc import default, Aggregate
+from lizrd.core.misc import default, Aggregate, measure_time
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
 from research.conditional.utils.layer_manager import LoggingLayer
@@ -509,6 +510,98 @@ def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
             )
         )
     )
+
+
+class MeasuringLayer(nn.Module):
+    def __init__(self, layer, name, parent):
+        super().__init__()
+        self.l = layer
+        self.name = name
+        self.parent = [parent]
+
+    def forward(self, *args, **kwargs):
+        with measure_time(self.parent[0], self.name):
+            return self.l(*args, **kwargs)
+
+
+class LoggingLayer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # info about position in model
+        self.layer_type: Union[str, None] = None
+        self.block_number: Union[int, None] = None
+
+        # whether to log
+        self.logging_switch = False
+
+        # caches for logging and propagation
+        self.logging_cache = {}
+        self.forward_pass_cache: Union[dict, None] = None
+
+    def clean_up_after_logging(self):
+        assert self.logging_switch
+        self.logging_switch = False
+        self.logging_cache = {}
+
+    def prepare_for_logging(self):
+        self.logging_switch = True
+
+    def update_cache_for_logging(self, key, value):
+        if self.logging_switch:
+            if isinstance(value, dict):
+                if key in self.logging_cache:
+                    self.logging_cache[key].update(value)
+                else:
+                    self.logging_cache[key] = value
+            elif isinstance(value, torch.Tensor):
+                self.logging_cache[key] = value.clone().detach().cpu()
+            elif isinstance(value, float) or isinstance(value, int):
+                self.logging_cache[key] = value
+            else:
+                raise NotImplementedError
+
+    def _combine_to_dict_key(self, key, layer_type, block_number):
+        return f"block_{block_number}_{layer_type}_{key}"
+
+    def update_forward_pass_cache(self, key, value):
+        combined_key = self._combine_to_dict_key(
+            key, self.layer_type, self.block_number
+        )
+        self.forward_pass_cache[combined_key] = value
+
+    def get_from_forward_pass_cache(self, key, block_number, layer_type):
+        combined_key = self._combine_to_dict_key(key, layer_type, block_number)
+        return self.forward_pass_cache[combined_key]
+
+    def log(self, verbosity_level):
+        if verbosity_level == 0:
+            return self.log_time()
+        elif verbosity_level == 1:
+            return self.log_light()
+        elif verbosity_level == 2:
+            return self.log_heavy()
+        else:
+            raise Exception("Invalid verbosity level")
+
+    def log_light(self):
+        return {}
+
+    def log_heavy(self):
+        return {}
+
+    def log_time(self):
+        log = {}
+        if "time" in self.logging_cache:
+            instr_names = list(self.logging_cache["time"].keys())
+            instr_times = list(self.logging_cache["time"].values())
+            times_fig = px.bar(x=instr_names, y=instr_times)
+            log["time"] = times_fig
+        return log
+
+    def measure(self, module, name, exists=True):
+        if not exists:
+            return nn.Identity()
+        return MeasuringLayer(module, name, self)
 
 
 class TransformerBlock(nn.Module):

@@ -1,3 +1,6 @@
+from contextlib import contextmanager
+from functools import wraps
+import time
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
 import torch
@@ -5,6 +8,7 @@ from torch.utils.checkpoint import checkpoint
 
 import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
+from lizrd.core.llm import LoggingLayer
 
 
 class Noop(nn.Module):
@@ -302,3 +306,43 @@ def propagate_forward_pass_cache(module: nn.Module, forward_pass_cache=None):
     module.forward_pass_cache = forward_pass_cache
     for child in module.children():
         propagate_forward_pass_cache(child, forward_pass_cache)
+
+
+@contextmanager
+def measure_time(layer: LoggingLayer, instruction_name: str):
+    """
+    This simple context manager is used to measure the time of a block of code.
+    Args:
+        layer: The LoggingLayer object that will be used to cache the time.
+        instruction_name: The name of the instruction that is being measured.
+    """
+    if layer.logging_switch:
+        if torch.cuda.is_available():
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
+        else:
+            start = time.time()
+    yield
+    if layer.logging_switch:
+        if torch.cuda.is_available():
+            end.record()
+            torch.cuda.synchronize()
+            layer.update_cache_for_logging(
+                "time", {instruction_name: start.elapsed_time(end)}
+            )
+        else:
+            end = time.time()
+            layer.update_cache_for_logging("time", {instruction_name: end - start})
+
+
+def time_measured(name):
+    def _decorator(func):
+        @wraps(func)
+        def _decorator_wrapper(self, *args, **kwargs):
+            with measure_time(self, name):
+                return func(self, *args, **kwargs)
+
+        return _decorator_wrapper
+
+    return _decorator
