@@ -646,13 +646,13 @@ def get_ff_layer(args):
 
         use_topk_initialization = get_expert_init(
             args.expert_use_topk_initialization,
-            default=args.double_routing_type == "expert_choice",
+            default=args.dr_routing_type == "expert_choice",
         )
         ff_args = {
             **ff_args,
-            "routing_type": args.double_routing_type,
-            "linear_first": args.double_linear_first,
-            "relu_with_first": args.double_relu_with_first,
+            "routing_type": args.dr_routing_type,
+            "linear_first": args.dr_linear_first,
+            "relu_with_first": args.dr_relu_with_first,
             "init_topk": use_topk_initialization,
             "activation_type": args.activation_type,
             "routing_top_k": args.routing_top_k,

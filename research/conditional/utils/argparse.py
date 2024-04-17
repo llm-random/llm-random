@@ -25,30 +25,6 @@ def introduce_parser_arguments(
     parser.add_argument("--no_ff", action="store_true")
     parser.add_argument("--moe_inner_expert", type=str, default="ff")
 
-    parser.add_argument(
-        "--double_routing_from_start",
-        action="store_true",
-        help="Whether second routing is calculated before 1 linear",
-    )
-    parser.add_argument(
-        "--double_routing_use_single",
-        action="store_true",
-        help="Mock single routing with double routing",
-    )
-    parser.add_argument(
-        "--double_mot", action="store_true", help="Double routing with MoT"
-    )
-    parser.add_argument(
-        "--double_routing_before_relu",
-        action="store_true",
-        help="Whether second routing is calculated before relu",
-    )
-    parser.add_argument(
-        "--double_routing_snd_ln",
-        action="store_true",
-        help="Whether second routing has another layer norm",
-    )
-
     # CORE training hyperparameters, almost always specified in baseline configs
 
     parser.add_argument("--n_steps", type=int, required=True)
@@ -343,13 +319,13 @@ def introduce_parser_arguments(
     parser.add_argument("--no_positional_embedding", action="store_true")
 
     parser.add_argument(
-        "--double_routing_type",
+        "--dr_routing_type",
         type=str,
         choices=["expert_choice", "token_choice"],
         default="token_choice",
     )
-    parser.add_argument("--double_linear_first", action="store_true")
-    parser.add_argument("--double_relu_with_first", action="store_true")
+    parser.add_argument("--dr_linear_first", action="store_true")
+    parser.add_argument("--dr_relu_with_first", action="store_true")
 
     parser.add_argument(
         "--norm_class",

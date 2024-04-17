@@ -5,9 +5,9 @@ time: 0-10:00:00
 params:
   name: "double_choice_grid_test_entropy"
   ff_mode: double_choice
-  ^double_routing_type: [expert_choice, token_choice]
-  ^double_linear_first: [false, true]
-  ^double_relu_with_first: [false, true]
+  ^dr_routing_type: [expert_choice, token_choice]
+  ^dr_linear_first: [false, true]
+  ^dr_relu_with_first: [false, true]
   ^granularity: [1]
   loss_checkpoint_chungs: 0
   logging_interval_heavy: 0

@@ -8,7 +8,7 @@ from functools import partial
 from lizrd.core.misc import resolve_activation_name
 
 
-def get_router(routing_type, topk_fraction, routing_top_k, *args, **kwargs):
+def get_moe(routing_type, topk_fraction, routing_top_k, *args, **kwargs):
     if routing_type == "expert_choice":
         return ExpertChoiceFF(topk_fraction=topk_fraction, *args, **kwargs)
     elif routing_type == "token_choice":
@@ -17,11 +17,11 @@ def get_router(routing_type, topk_fraction, routing_top_k, *args, **kwargs):
         raise ValueError(f"Unknown routing type: {routing_type}")
 
 
-def with_nonlinearity(layer, activation_type, add_first=False):
+def with_nonlinearity(layer, activation_type, act_first=False):
     activation = resolve_activation_name(activation_type)
     return (
         nn.Sequential(activation, layer)
-        if add_first
+        if act_first
         else nn.Sequential(layer, activation)
     )
 
@@ -52,11 +52,11 @@ class DoubleChoiceInner(LoggingLayer):
         if relu_with_first:
             linear_1 = act(linear_1)
         else:
-            linear_2 = act(linear_2, add_first=True)
+            linear_2 = act(linear_2, act_first=True)
 
         # second routing should not "expand" number of tokens inside
         kwargs.update(topk_fraction=1 / n_experts, routing_top_k=1)
-        route = partial(get_router, n_experts=n_experts, *args, **kwargs)
+        route = partial(get_moe, n_experts=n_experts, *args, **kwargs)
         if linear_first:
             self.linear_1 = linear_1
             self.linear_2 = route(dmodel=expert_size, expert_inner_function=linear_2)
@@ -74,7 +74,7 @@ class DoubleChoiceFF(LoggingLayer):
     def __init__(self, *args, **kwargs):
         super().__init__()
         inner = DoubleChoiceInner(*args, **kwargs)
-        self.router = get_router(expert_inner_function=inner, *args, **kwargs)
+        self.router = get_moe(expert_inner_function=inner, *args, **kwargs)
 
     def forward(self, x: torch.Tensor):
         return self.router(x)
