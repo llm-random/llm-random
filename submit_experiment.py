@@ -64,13 +64,14 @@ def submit_experiment(
         experiment_directory = f"{cemetery_dir}/{experiment_branch_name}"
 
         if "NEPTUNE_API_TOKEN" in os.environ:
-            connection.config["run"]["env"] = {
-                "NEPTUNE_API_TOKEN": os.environ["NEPTUNE_API_TOKEN"]
-            }
+            connection.config["run"]["env"]["NEPTUNE_API_TOKEN"] = os.environ[
+                "NEPTUNE_API_TOKEN"
+            ]
+
         if "WANDB_API_KEY" in os.environ:
-            connection.config["run"]["env"] = {
-                "WANDB_API_KEY": os.environ["WANDB_API_KEY"]
-            }
+            connection.config["run"]["env"]["WANDB_API_KEY"] = os.environ[
+                "WANDB_API_KEY"
+            ]
 
         if connection.run(f"test -d {experiment_directory}", warn=True).failed:
             print(f"Cloning {experiment_branch_name} to {experiment_directory}...")

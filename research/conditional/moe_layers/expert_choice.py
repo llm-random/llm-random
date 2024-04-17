@@ -6,8 +6,7 @@ from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
 from lizrd.core.initialization import get_init_fun
-from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.utils.layer_manager import measure_time, time_measured
+from lizrd.core.misc import LoggingLayer, measure_time, time_measured
 from research.conditional.moe_layers.moe_gating import ExpertGating
 
 

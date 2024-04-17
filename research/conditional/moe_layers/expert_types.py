@@ -5,7 +5,7 @@ from fancy_einsum import einsum
 
 from lizrd.core.initialization import get_init_fun
 from lizrd.core.misc import resolve_activation_name
-from research.conditional.utils.layer_manager import LoggingLayer, time_measured
+from lizrd.core.misc import LoggingLayer, time_measured
 
 
 class ExpertFF(LoggingLayer):
