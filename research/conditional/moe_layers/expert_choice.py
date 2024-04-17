@@ -20,11 +20,16 @@ class ExpertChoiceFF(LoggingLayer):
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
         expert_inner_function: LoggingLayer,
+        random_perm: bool = False,
+        group_by_batch: bool = False,
         one_hot_impl: bool = False,
+        softmax_ungrouped: bool = False,
+        softmax_over: Literal["tokens", "experts"] = "tokens",
+        n_gating_heatmaps: int = 4,
         group_size: int = 1,
         use_torch_bmm: bool = False,
         use_layer_norm: bool = True,
-        **kwargs,
+        **_,
     ):
         """
         Args:
@@ -64,7 +69,11 @@ class ExpertChoiceFF(LoggingLayer):
             one_hot_impl=one_hot_impl,
             use_torch_bmm=use_torch_bmm,
             gate=gate,
-            **kwargs,
+            group_by_batch=group_by_batch,
+            softmax_ungrouped=softmax_ungrouped,
+            softmax_over=softmax_over,
+            random_perm=random_perm,
+            n_gating_heatmaps=n_gating_heatmaps,
         )
 
     def forward(self, x: torch.Tensor):

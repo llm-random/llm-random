@@ -12,8 +12,14 @@ class TokenChoiceFF(LoggingLayer):
         self,
         dmodel: int,
         n_experts: int,
+        capacity_factor: float,
+        load_balancing_loss_weight: float,
+        init_type: str,
+        init_scale: float,
         expert_inner_function: LoggingLayer,
-        **kwargs,
+        routing_top_k: int = 1,
+        use_einsum: bool = False,
+        **_,
     ):
         """
         Args:
@@ -30,7 +36,16 @@ class TokenChoiceFF(LoggingLayer):
         self.n_experts = n_experts
         self.expert_inner_function = expert_inner_function
         self.doutput = self.expert_inner_function.doutput
-        self.router = TokenGating(dmodel=dmodel, n_experts=n_experts, **kwargs)
+        self.router = TokenGating(
+            dmodel=dmodel,
+            n_experts=n_experts,
+            capacity_factor=capacity_factor,
+            load_balancing_loss_weight=load_balancing_loss_weight,
+            init_type=init_type,
+            init_scale=init_scale,
+            routing_top_k=routing_top_k,
+            use_einsum=use_einsum,
+        )
 
     @time_measured("assign_tokens_to_input")
     def extract(self, x, token_indicies):
