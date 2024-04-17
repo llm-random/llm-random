@@ -72,6 +72,9 @@ class DoubleChoiceInner(LoggingLayer):
 
 class DoubleChoiceFF(LoggingLayer):
     def __init__(self, *args, **kwargs):
+        """
+        These kwargs are meant to initialize Token Choice or Expert Choice, dependently on the routing type.
+        """
         super().__init__()
         inner = DoubleChoiceInner(*args, **kwargs)
         self.router = get_moe(expert_inner_function=inner, *args, **kwargs)
