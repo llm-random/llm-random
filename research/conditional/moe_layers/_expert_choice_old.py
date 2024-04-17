@@ -9,8 +9,7 @@ import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
 from lizrd.support.logging import make_histogram
 from lizrd.train import checkpointing
-from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.utils.layer_manager import measure_time
+from lizrd.core.misc import LoggingLayer, measure_time
 
 
 class ExpertGatingOld(LoggingLayer):
