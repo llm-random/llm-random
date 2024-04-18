@@ -8,5 +8,3 @@ params:
   cutoff: 16
   granularity: 4
   dataset_type: wikibook
-  torch_compile: false
-  mixed_precision_dtype: "float16"

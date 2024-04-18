@@ -28,6 +28,7 @@ class ExpertChoiceFF(LoggingLayer):
         group_size: int = 1,
         use_torch_bmm: bool = False,
         use_layer_norm: bool = True,
+        **_,
     ):
         """
         Args:
@@ -42,27 +43,14 @@ class ExpertChoiceFF(LoggingLayer):
 
         self.dmodel = dmodel
         self.n_experts = n_experts
-        self.topk_fraction = topk_fraction
-        self.random_perm = random_perm
-        self.group_by_batch = group_by_batch
-        self.one_hot_impl = one_hot_impl
-        self.softmax_ungrouped = softmax_ungrouped
         self.group_size = group_size
-        self.use_torch_bmm = use_torch_bmm
-        self.use_layer_norm = use_layer_norm
         self.expert_inner_function = expert_inner_function
         self.doutput = self.expert_inner_function.doutput
-
-        assert (
-            not self.one_hot_impl or self.group_by_batch
-        ), "Not implemented, would require a lot of memory"
-        assert not self.softmax_ungrouped or self.group_by_batch
 
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
         gate = init((dmodel, n_experts), dmodel)
 
         self.ln = self.measure(LayerNorm(self.doutput), "layer_norm", use_layer_norm)
-        self.softmax_over = softmax_over
 
         if use_torch_bmm:
             self.extract = self.extract_bmm
@@ -76,14 +64,14 @@ class ExpertChoiceFF(LoggingLayer):
 
         self.expert_gating = ExpertGating(
             n_experts=n_experts,
+            topk_fraction=topk_fraction,
+            one_hot_impl=one_hot_impl,
+            use_torch_bmm=use_torch_bmm,
+            gate=gate,
             group_by_batch=group_by_batch,
             softmax_ungrouped=softmax_ungrouped,
             softmax_over=softmax_over,
-            topk_fraction=topk_fraction,
-            one_hot_impl=one_hot_impl,
             random_perm=random_perm,
-            use_torch_bmm=use_torch_bmm,
-            gate=gate,
             n_gating_heatmaps=n_gating_heatmaps,
         )
 

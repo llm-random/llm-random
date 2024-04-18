@@ -319,6 +319,15 @@ def introduce_parser_arguments(
     parser.add_argument("--no_positional_embedding", action="store_true")
 
     parser.add_argument(
+        "--dr_routing_type",
+        type=str,
+        choices=["expert_choice", "token_choice"],
+        default="token_choice",
+    )
+    parser.add_argument("--dr_linear_first", action="store_true")
+    parser.add_argument("--dr_relu_with_first", action="store_true")
+
+    parser.add_argument(
         "--norm_class",
         type=str,
         choices=[

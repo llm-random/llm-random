@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 from lizrd.core.misc import (
@@ -19,9 +17,9 @@ class TokenChoiceFF(LoggingLayer):
         init_type: str,
         init_scale: float,
         expert_inner_function: LoggingLayer,
-        doutput: Optional[int] = None,
         routing_top_k: int = 1,
         use_einsum: bool = False,
+        **_,
     ):
         """
         Args:
@@ -34,13 +32,10 @@ class TokenChoiceFF(LoggingLayer):
             expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
         """
         super().__init__()
-
         self.dmodel = dmodel
-        self.doutput = self.dmodel if doutput is None else doutput
         self.n_experts = n_experts
-        self.capacity_factor = capacity_factor
         self.expert_inner_function = expert_inner_function
-        self.load_balancing_loss_weight = load_balancing_loss_weight
+        self.doutput = self.expert_inner_function.doutput
         self.router = TokenGating(
             dmodel=dmodel,
             n_experts=n_experts,
