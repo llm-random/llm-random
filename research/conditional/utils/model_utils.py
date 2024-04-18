@@ -391,6 +391,19 @@ def get_expert_init(parameter, default=False):
         raise ValueError(f"Unknown expert init type {parameter}")
 
 
+def get_weightless_args(args):
+    try:
+        moe_values_exp = float(args.moe_values_exp)
+    except ValueError:
+        moe_values_exp = None
+
+    return dict(
+        get_router_values_from=args.get_router_values_from,
+        moe_values_exp=moe_values_exp,
+        detach_gate=args.moe_detach_gate,
+    )
+
+
 def get_expert_choice_args(args):
     use_topk_initialization = get_expert_init(
         args.expert_use_topk_initialization, default=True
@@ -400,9 +413,7 @@ def get_expert_choice_args(args):
     )
     args = dict(
         **get_expert_choice_args_old(args),
-        get_router_values_from=args.get_router_values_from,
-        moe_values_exp=args.moe_values_exp,
-        detach_gate=args.moe_detach_gate,
+        **get_weightless_args(args),
     )
     del args["use_full_einsum"]  # this is no longer compatible
     del args["expert_size"]
@@ -614,9 +625,7 @@ def get_ff_layer(args):
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
-            get_router_values_from=args.get_router_values_from,
-            moe_values_exp=args.moe_values_exp,
-            detach_gate=args.moe_detach_gate,
+            **get_weightless_args(args),
         )
     elif args.ff_mode == "token_choice_old":
         args = determine_moe_args(args)

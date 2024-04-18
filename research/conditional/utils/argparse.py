@@ -346,11 +346,11 @@ def introduce_parser_arguments(
 
     parser.add_argument(
         "--moe_values_exp",
-        type=float,
-        default=1.0,
+        type=str,
+        default="1.0",
         help="Exponent for values multiplier in MoE routing. "
         "0 means no multiplier, 1 is the standard, 2 is the square of the standard, etc. "
-        "-1 means trainable.",
+        "'trainable' means that the exponent is trainable. ",
     )
 
     parser.add_argument(

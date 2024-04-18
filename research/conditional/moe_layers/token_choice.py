@@ -46,7 +46,7 @@ class TokenChoiceFF(LoggingLayer):
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.moe_values_exp = (
             moe_values_exp
-            if moe_values_exp != -1
+            if moe_values_exp is not None
             else torch.nn.Parameter(torch.tensor(1.0))
         )
         self.gate = None
