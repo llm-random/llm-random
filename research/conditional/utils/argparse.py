@@ -130,11 +130,10 @@ def introduce_parser_arguments(
     parser.add_argument("--n_gpus", type=int, default=1)
 
     # Logging parameters
-    parser.add_argument("--use_clearml", action="store_true")
-    parser.add_argument("--use_neptune", action="store_true")
-    parser.add_argument("--use_wandb", action="store_true")
+    parser.add_argument("--logger_types", type=str, required=True)
     parser.add_argument("--wandb_entity", type=str, default="ideas_cv")
     parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
+    parser.add_argument("--wandb_project", type=str, default="llm-random")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
@@ -318,6 +317,15 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--mamba_expansion", type=float, default=2.0)
     parser.add_argument("--no_positional_embedding", action="store_true")
+
+    parser.add_argument(
+        "--dr_routing_type",
+        type=str,
+        choices=["expert_choice", "token_choice"],
+        default="token_choice",
+    )
+    parser.add_argument("--dr_linear_first", action="store_true")
+    parser.add_argument("--dr_relu_with_first", action="store_true")
 
     parser.add_argument(
         "--norm_class",

@@ -1,3 +1,8 @@
+from contextlib import contextmanager
+from functools import wraps
+import time
+from typing import Union
+from plotly import express as px
 from einops.layers.torch import EinMix as OGEinMix
 import opt_einsum
 import torch
@@ -5,7 +10,6 @@ from torch.utils.checkpoint import checkpoint
 
 import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
-from lizrd.support import ash
 
 
 class Noop(nn.Module):
@@ -66,7 +70,6 @@ class EinMix(nn.Module):
         return newoutput
 
 
-@ash.check("... inp -> ... out")
 def DenseEinMix(dinp, dout):
     return EinMix(
         "... dinp -> ... dout",
@@ -77,7 +80,6 @@ def DenseEinMix(dinp, dout):
     )
 
 
-@ash.check("... inp -> ... out")
 class Linear(nn.Linear):
     def __init__(self, *args, init_type, init_scale, **kwargs):
         if "bias" not in kwargs:
@@ -102,7 +104,6 @@ def check_layer_funs(*layer_funs):
             )
 
 
-@ash.check("... -> ...")
 class StopGradient(nn.Module):
     def __init__(self):
         super(StopGradient, self).__init__()
@@ -115,7 +116,6 @@ def stop_gradient(x):
     return x.detach()
 
 
-@ash.check("... -> ...")
 class StopValuePassGradient(nn.Module):
     def __init__(self):
         super(StopValuePassGradient, self).__init__()
@@ -309,3 +309,135 @@ def propagate_forward_pass_cache(module: nn.Module, forward_pass_cache=None):
     module.forward_pass_cache = forward_pass_cache
     for child in module.children():
         propagate_forward_pass_cache(child, forward_pass_cache)
+
+
+class MeasuringLayer(nn.Module):
+    def __init__(self, layer, name, parent):
+        super().__init__()
+        self.l = layer
+        self.name = name
+        self.parent = [parent]
+
+    def forward(self, *args, **kwargs):
+        with measure_time(self.parent[0], self.name):
+            return self.l(*args, **kwargs)
+
+
+class LoggingLayer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # info about position in model
+        self.layer_type: Union[str, None] = None
+        self.block_number: Union[int, None] = None
+
+        # whether to log
+        self.logging_switch = False
+
+        # caches for logging and propagation
+        self.logging_cache = {}
+        self.forward_pass_cache: Union[dict, None] = None
+
+    def clean_up_after_logging(self):
+        assert self.logging_switch
+        self.logging_switch = False
+        self.logging_cache = {}
+
+    def prepare_for_logging(self):
+        self.logging_switch = True
+
+    def update_cache_for_logging(self, key, value):
+        if self.logging_switch:
+            if isinstance(value, dict):
+                if key in self.logging_cache:
+                    self.logging_cache[key].update(value)
+                else:
+                    self.logging_cache[key] = value
+            elif isinstance(value, torch.Tensor):
+                self.logging_cache[key] = value.clone().detach().cpu()
+            elif isinstance(value, float) or isinstance(value, int):
+                self.logging_cache[key] = value
+            else:
+                raise NotImplementedError
+
+    def _combine_to_dict_key(self, key, layer_type, block_number):
+        return f"block_{block_number}_{layer_type}_{key}"
+
+    def update_forward_pass_cache(self, key, value):
+        combined_key = self._combine_to_dict_key(
+            key, self.layer_type, self.block_number
+        )
+        self.forward_pass_cache[combined_key] = value
+
+    def get_from_forward_pass_cache(self, key, block_number, layer_type):
+        combined_key = self._combine_to_dict_key(key, layer_type, block_number)
+        return self.forward_pass_cache[combined_key]
+
+    def log(self, verbosity_level):
+        if verbosity_level == 0:
+            return self.log_time()
+        elif verbosity_level == 1:
+            return self.log_light()
+        elif verbosity_level == 2:
+            return self.log_heavy()
+        else:
+            raise Exception("Invalid verbosity level")
+
+    def log_light(self):
+        return {}
+
+    def log_heavy(self):
+        return {}
+
+    def log_time(self):
+        log = {}
+        if "time" in self.logging_cache:
+            instr_names = list(self.logging_cache["time"].keys())
+            instr_times = list(self.logging_cache["time"].values())
+            times_fig = px.bar(x=instr_names, y=instr_times)
+            log["time"] = times_fig
+        return log
+
+    def measure(self, module, name, exists=True):
+        if not exists:
+            return nn.Identity()
+        return MeasuringLayer(module, name, self)
+
+
+@contextmanager
+def measure_time(layer: LoggingLayer, instruction_name: str):
+    """
+    This simple context manager is used to measure the time of a block of code.
+    Args:
+        layer: The LoggingLayer object that will be used to cache the time.
+        instruction_name: The name of the instruction that is being measured.
+    """
+    if layer.logging_switch:
+        if torch.cuda.is_available():
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
+        else:
+            start = time.time()
+    yield
+    if layer.logging_switch:
+        if torch.cuda.is_available():
+            end.record()
+            torch.cuda.synchronize()
+            layer.update_cache_for_logging(
+                "time", {instruction_name: start.elapsed_time(end)}
+            )
+        else:
+            end = time.time()
+            layer.update_cache_for_logging("time", {instruction_name: end - start})
+
+
+def time_measured(name):
+    def _decorator(func):
+        @wraps(func)
+        def _decorator_wrapper(self, *args, **kwargs):
+            with measure_time(self, name):
+                return func(self, *args, **kwargs)
+
+        return _decorator_wrapper
+
+    return _decorator

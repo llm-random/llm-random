@@ -79,6 +79,7 @@ from research.conditional.moe_layers.expert_types import (
 )
 from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
+from research.conditional.moe_layers.expert_double_choice import DoubleChoiceFF
 
 
 def make_loss_and_gradient_function(
@@ -656,6 +657,26 @@ def get_ff_layer(args):
             init_type=args.init_type,
             vectorize=(not args.dont_vectorize_switch),
         )
+    elif args.ff_mode == "double_choice":
+        args = determine_moe_args(args)
+        ff_args = get_expert_choice_args_old(args)
+
+        use_topk_initialization = get_expert_init(
+            args.expert_use_topk_initialization,
+            default=args.dr_routing_type == "expert_choice",
+        )
+        ff_args = {
+            **ff_args,
+            "routing_type": args.dr_routing_type,
+            "linear_first": args.dr_linear_first,
+            "relu_with_first": args.dr_relu_with_first,
+            "init_topk": use_topk_initialization,
+            "activation_type": args.activation_type,
+            "routing_top_k": args.routing_top_k,
+            "capacity_factor": args.capacity_factor,
+            "load_balancing_loss_weight": args.load_balancing_loss_weight,
+        }
+        return_fn = partial(DoubleChoiceFF, **ff_args)
     elif args.ff_mode == "kernelized_fc":
         from research.conditional.moe_layers.kernelized import FCKernelized
 
@@ -838,6 +859,8 @@ def get_classes_from_module_names(
             classes.append(ExpertChoiceFFOld)
         elif name == "ExpertChoiceFF":
             classes.append(ExpertChoiceFF)
+        elif name == "DoubleChoiceFF":
+            classes.append(DoubleChoiceFF)
         elif name == "ExpertGatingOld":
             classes.append(ExpertGatingOld)
         elif name == "ExpertGating":

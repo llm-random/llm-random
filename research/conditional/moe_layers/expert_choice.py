@@ -5,8 +5,7 @@ import torch.nn.functional as F
 from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
-from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.utils.layer_manager import measure_time, time_measured
+from lizrd.core.misc import LoggingLayer, measure_time, time_measured
 from research.conditional.moe_layers.moe_gating import ExpertGating
 
 
@@ -31,6 +30,7 @@ class ExpertChoiceFF(LoggingLayer):
         get_router_values_from: str = "weights",
         moe_values_exp: Optional[int] = 1,
         detach_gate: bool = False,
+        **_,
     ):
         """
         Args:
@@ -45,24 +45,11 @@ class ExpertChoiceFF(LoggingLayer):
 
         self.dmodel = dmodel
         self.n_experts = n_experts
-        self.topk_fraction = topk_fraction
-        self.random_perm = random_perm
-        self.group_by_batch = group_by_batch
-        self.one_hot_impl = one_hot_impl
-        self.softmax_ungrouped = softmax_ungrouped
         self.group_size = group_size
-        self.use_torch_bmm = use_torch_bmm
-        self.use_layer_norm = use_layer_norm
         self.expert_inner_function = expert_inner_function
         self.doutput = self.expert_inner_function.doutput
 
-        assert (
-            not self.one_hot_impl or self.group_by_batch
-        ), "Not implemented, would require a lot of memory"
-        assert not self.softmax_ungrouped or self.group_by_batch
-
         self.ln = self.measure(LayerNorm(self.doutput), "layer_norm", use_layer_norm)
-        self.softmax_over = softmax_over
 
         if use_torch_bmm:
             self.extract = self.extract_bmm
@@ -76,13 +63,13 @@ class ExpertChoiceFF(LoggingLayer):
 
         self.gating = ExpertGating(
             n_experts=n_experts,
+            topk_fraction=topk_fraction,
+            one_hot_impl=one_hot_impl,
+            use_torch_bmm=use_torch_bmm,
             group_by_batch=group_by_batch,
             softmax_ungrouped=softmax_ungrouped,
             softmax_over=softmax_over,
-            topk_fraction=topk_fraction,
-            one_hot_impl=one_hot_impl,
             random_perm=random_perm,
-            use_torch_bmm=use_torch_bmm,
             n_gating_heatmaps=n_gating_heatmaps,
             dmodel=dmodel,
             get_router_values_from=get_router_values_from,

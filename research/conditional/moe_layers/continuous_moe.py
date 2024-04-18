@@ -9,7 +9,7 @@ from lizrd.core import misc
 import torch.nn as nn
 import lizrd.core.initialization
 from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
-from research.conditional.utils.layer_manager import LoggingLayer
+from lizrd.core.misc import LoggingLayer
 
 
 @dataclasses.dataclass(eq=False, repr=False)

@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Literal
 import torch
 from fancy_einsum import einsum
 from plotly import express as px
@@ -10,26 +10,26 @@ import torch.nn.functional as F
 from research.conditional.moe_layers.load_balancing_loss import (
     calculate_load_balancing_loss,
 )
-from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.utils.layer_manager import measure_time
+from lizrd.core.misc import LoggingLayer, measure_time
 from lizrd.core.initialization import get_init_fun
 
 
 class MoeGating(LoggingLayer):
     def __init__(
         self,
-        n_experts,
-        group_by_batch,
-        softmax_ungrouped,
-        softmax_over,
-        use_torch_bmm,
-        dmodel,
+        dmodel: int,
+        n_experts: int,
         get_router_values_from,
         init_scale,
         init_type,
         moe_values_exp=1.0,
         detach_gate=False,
         expert_inner_function=None,
+        group_by_batch: bool = False,
+        softmax_ungrouped: bool = False,
+        softmax_over: Literal["tokens", "experts"] = "tokens",
+        use_torch_bmm: bool = False,
+        **kwargs,
     ):
         super().__init__()
         self.dmodel = dmodel
@@ -56,6 +56,7 @@ class MoeGating(LoggingLayer):
         )
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
         assert softmax_over in ["tokens", "experts"]
+        assert not self.softmax_ungrouped or self.group_by_batch
 
     def calculate_gate(self, x, batch_size, seq_len):
         with measure_time(self, "expert_embedding"):
@@ -145,10 +146,10 @@ class MoeGating(LoggingLayer):
 class ExpertGating(MoeGating):
     def __init__(
         self,
-        topk_fraction,
-        one_hot_impl,
-        random_perm,
-        n_gating_heatmaps,
+        topk_fraction: float,
+        one_hot_impl: bool = False,
+        random_perm: bool = False,
+        n_gating_heatmaps: int = 4,
         *args,
         **kwargs,
     ):
@@ -157,6 +158,9 @@ class ExpertGating(MoeGating):
         self.one_hot_impl = one_hot_impl
         self.random_perm = random_perm
         self.n_gating_heatmaps = n_gating_heatmaps
+        assert (
+            not one_hot_impl or self.group_by_batch
+        ), "Not implemented, would require a lot of memory"
 
     def forward(self, x: torch.Tensor, batch_size: int, seq_len: int):
         # expert embedding
@@ -244,12 +248,12 @@ class TokenGating(MoeGating):
         **kwargs,
     ):
         super().__init__(
-            n_experts,
+            dmodel=dmodel,
+            n_experts=n_experts,
             group_by_batch=False,
             softmax_ungrouped=False,
             softmax_over="experts",
             use_torch_bmm=not use_einsum,
-            dmodel=dmodel,
             **kwargs,
         )
 
@@ -308,12 +312,14 @@ class TokenGating(MoeGating):
             )
             expert_mask = expanded_expert_mask.sum(dim=1)
             assert expert_mask.shape == (n_tokens, self.n_experts)
+
         # now apply fixed capacity: for a given expert we can have only capacity tokens
         with measure_time(self, "experts_lists"):
             (
                 top_tokens_per_expert_values,
                 top_tokens_per_expert_indices,
             ) = expert_mask.topk(k=capacity, dim=0)
+
         self.log_dropped_tokens(
             top_tokens_per_expert_values,
             top_tokens_per_expert_indices,

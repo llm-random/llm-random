@@ -16,7 +16,7 @@ params:
   mixed_precision_dtype: "float16"
   tags:
     - "test"
-  use_wandb: true
+  logger_types: "wandb"
   n_steps: 10
   dmodel: 64
   dff: 256
