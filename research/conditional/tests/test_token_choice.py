@@ -304,7 +304,7 @@ class TestTokenChoice(GeneralTestCase):
             old_tc.expert_inner_function.lin2_weight.data = (
                 tc.expert_inner_function.lin2_weight.data.clone()
             )
-            old_tc.router.gate.data = tc.gate.data.clone()
+            old_tc.router.gate.data = tc.gating.gate.data.clone()
 
         propagate_forward_pass_cache(tc)
         propagate_forward_pass_cache(old_tc)
@@ -335,7 +335,7 @@ class TestTokenChoice(GeneralTestCase):
             tc.expert_inner_function.lin2_weight.grad,
             old_tc.expert_inner_function.lin2_weight.grad,
         )
-        self.assertTensorAlmostEqual(tc.gate.grad, old_tc.router.gate.grad)
+        self.assertTensorAlmostEqual(tc.gating.gate.grad, old_tc.router.gate.grad)
 
     def test_topk2_equivalence_linear(self):
         """
@@ -384,7 +384,9 @@ class TestTokenChoice(GeneralTestCase):
 
         with torch.no_grad():
             # make sure the gating is the same for both experts
-            token_choice_layer.gate.data[:, 0] = token_choice_layer.gate.data[:, 1]
+            token_choice_layer.gating.gate.data[
+                :, 0
+            ] = token_choice_layer.gating.gate.data[:, 1]
 
             # copy weights from experts to layer
             token_choice_layer.expert_inner_function.lin1_weight.data[0] = (

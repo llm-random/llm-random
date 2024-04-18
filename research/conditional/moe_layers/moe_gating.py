@@ -23,15 +23,37 @@ class MoeGating(LoggingLayer):
         softmax_ungrouped,
         softmax_over,
         use_torch_bmm,
-        get_gate,
+        dmodel,
+        get_router_values_from,
+        init_scale,
+        init_type,
+        moe_values_exp=1.0,
+        detach_gate=False,
+        expert_inner_function=None,
     ):
         super().__init__()
+        self.dmodel = dmodel
         self.n_experts = n_experts
         self.group_by_batch = group_by_batch
         self.softmax_ungrouped = softmax_ungrouped
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
-        self.get_gate = get_gate
+        self.detach_gate = detach_gate
+        self.gate, self.get_gate = self.init_gate(
+            expert_inner_function,
+            get_router_values_from,
+            init_scale,
+            init_type,
+        )
+        if self.detach_gate:
+            old_gate = self.get_gate
+            self.get_gate = lambda: old_gate().detach()
+
+        self.moe_values_exp = (
+            moe_values_exp
+            if moe_values_exp is not None
+            else torch.nn.Parameter(torch.tensor(1.0))
+        )
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
         assert softmax_over in ["tokens", "experts"]
 
@@ -59,6 +81,9 @@ class MoeGating(LoggingLayer):
                 gate_out = torch.softmax(gate_out, dim=0)
         if self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+
+        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
+            gate_out = gate_out**self.moe_values_exp
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         return gate_out
@@ -89,6 +114,32 @@ class MoeGating(LoggingLayer):
         else:
             topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
         return topk_indices, topk_values
+
+    def init_gate(
+        self,
+        expert_inner_function,
+        get_router_values_from,
+        init_scale,
+        init_type,
+    ):
+        if get_router_values_from == "weights":
+            init = get_init_fun(init_type=init_type, init_scale=init_scale)
+            gate = init((self.dmodel, self.n_experts), self.dmodel)
+            gate = gate.requires_grad_(False) if self.detach_gate else gate
+            return gate, lambda: self.gate
+        elif get_router_values_from in ["gate_weight", "lin1_weight"] and hasattr(
+            expert_inner_function, get_router_values_from
+        ):
+            return (
+                None,
+                lambda: torch.mean(
+                    getattr(expert_inner_function, get_router_values_from), dim=-1
+                ).T,
+            )
+        else:
+            raise Exception(
+                f"Bad get_router_values_from value: {get_router_values_from}"
+            )
 
 
 class ExpertGating(MoeGating):
@@ -188,27 +239,20 @@ class TokenGating(MoeGating):
         n_experts: int,
         capacity_factor: float,
         load_balancing_loss_weight: float,
-        init_type: str,
-        init_scale: float,
         routing_top_k: int = 1,
         use_einsum: bool = False,
-        get_gate=None,
+        **kwargs,
     ):
-        if get_gate is None:
-            init = get_init_fun(init_type=init_type, init_scale=init_scale)
-            self.gate = init(shape=(dmodel, n_experts), fan_in=dmodel)
-            get_gate = lambda: self.gate
-
         super().__init__(
             n_experts,
             group_by_batch=False,
             softmax_ungrouped=False,
             softmax_over="experts",
             use_torch_bmm=not use_einsum,
-            get_gate=get_gate,
+            dmodel=dmodel,
+            **kwargs,
         )
 
-        self.dmodel = dmodel
         self.capacity_factor = capacity_factor
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
@@ -330,29 +374,3 @@ def make_heatmap(tensor, expert_num, **kwargs):
     dist_for_expert = torch.softmax(flatten_dist.float(), dim=-1)
     dist_for_expert = dist_for_expert.reshape(batch_size, seq_len)
     return px.imshow(dist_for_expert.detach().cpu().numpy(), **kwargs)
-
-
-def init_gate(
-    router,
-    dmodel,
-    get_router_values_from,
-    init_scale,
-    init_type,
-    n_experts,
-    detach_gate,
-):
-    postprocess = (lambda x: x.detach()) if detach_gate else lambda x: x
-    if get_router_values_from == "weights":
-        init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        router.gate = init((dmodel, n_experts), dmodel)
-        return lambda: postprocess(router.gate)
-    elif get_router_values_from in ["gate_weight", "lin1_weight"] and hasattr(
-        router.expert_inner_function, get_router_values_from
-    ):
-        return lambda: postprocess(
-            torch.mean(
-                getattr(router.expert_inner_function, get_router_values_from), dim=-1
-            ).T
-        )
-    else:
-        raise Exception(f"Bad get_router_values_from value: {get_router_values_from}")

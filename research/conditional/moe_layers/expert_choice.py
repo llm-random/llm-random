@@ -7,7 +7,7 @@ from torch.nn import LayerNorm
 
 from research.conditional.utils.layer_manager import LoggingLayer
 from research.conditional.utils.layer_manager import measure_time, time_measured
-from research.conditional.moe_layers.moe_gating import ExpertGating, init_gate
+from research.conditional.moe_layers.moe_gating import ExpertGating
 
 
 class ExpertChoiceFF(LoggingLayer):
@@ -55,27 +55,11 @@ class ExpertChoiceFF(LoggingLayer):
         self.use_layer_norm = use_layer_norm
         self.expert_inner_function = expert_inner_function
         self.doutput = self.expert_inner_function.doutput
-        self.gate = None
-        self.moe_values_exp = (
-            moe_values_exp
-            if moe_values_exp is not None
-            else torch.nn.Parameter(torch.tensor(1.0))
-        )
 
         assert (
             not self.one_hot_impl or self.group_by_batch
         ), "Not implemented, would require a lot of memory"
         assert not self.softmax_ungrouped or self.group_by_batch
-
-        get_gate = init_gate(
-            self,
-            dmodel,
-            get_router_values_from,
-            init_scale,
-            init_type,
-            n_experts,
-            detach_gate,
-        )
 
         self.ln = self.measure(LayerNorm(self.doutput), "layer_norm", use_layer_norm)
         self.softmax_over = softmax_over
@@ -90,7 +74,7 @@ class ExpertChoiceFF(LoggingLayer):
             self.extract = self.extract_index_select
             self.merge = self.merge_index_select
 
-        self.expert_gating = ExpertGating(
+        self.gating = ExpertGating(
             n_experts=n_experts,
             group_by_batch=group_by_batch,
             softmax_ungrouped=softmax_ungrouped,
@@ -99,8 +83,14 @@ class ExpertChoiceFF(LoggingLayer):
             one_hot_impl=one_hot_impl,
             random_perm=random_perm,
             use_torch_bmm=use_torch_bmm,
-            get_gate=get_gate,
             n_gating_heatmaps=n_gating_heatmaps,
+            dmodel=dmodel,
+            get_router_values_from=get_router_values_from,
+            init_scale=init_scale,
+            init_type=init_type,
+            detach_gate=detach_gate,
+            expert_inner_function=self.expert_inner_function,
+            moe_values_exp=moe_values_exp,
         )
 
     def forward(self, x: torch.Tensor):
@@ -116,10 +106,7 @@ class ExpertChoiceFF(LoggingLayer):
             )
             x = x.reshape(batch_size, seq_len, self.dmodel)
 
-        topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
-
-        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
-            topk_values **= self.moe_values_exp
+        topk, topk_indices, topk_values = self.gating(x, batch_size, seq_len)
 
         x, one_hot = self.extract(x, topk, topk_indices)
         x = self.expert_inner_function(x)
@@ -261,9 +248,9 @@ class ExpertChoiceFF(LoggingLayer):
         if "time" in self.logging_cache:
             instr_names = list(self.logging_cache["time"].keys())
             instr_times = list(self.logging_cache["time"].values())
-            if "time" in self.expert_gating.logging_cache:
-                instr_names += list(self.expert_gating.logging_cache["time"].keys())
-                instr_times += list(self.expert_gating.logging_cache["time"].values())
+            if "time" in self.gating.logging_cache:
+                instr_names += list(self.gating.logging_cache["time"].keys())
+                instr_times += list(self.gating.logging_cache["time"].values())
             times_fig = px.bar(x=instr_names, y=instr_times)
             log["time"] = times_fig
         return log

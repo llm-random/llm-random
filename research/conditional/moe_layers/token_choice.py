@@ -1,12 +1,11 @@
 from typing import Optional
-
 import torch
 
 from research.conditional.utils.layer_manager import (
     LoggingLayer,
     time_measured,
 )
-from research.conditional.moe_layers.moe_gating import TokenGating, init_gate
+from research.conditional.moe_layers.moe_gating import TokenGating
 
 
 class TokenChoiceFF(LoggingLayer):
@@ -44,23 +43,8 @@ class TokenChoiceFF(LoggingLayer):
         self.capacity_factor = capacity_factor
         self.expert_inner_function = expert_inner_function
         self.load_balancing_loss_weight = load_balancing_loss_weight
-        self.moe_values_exp = (
-            moe_values_exp
-            if moe_values_exp is not None
-            else torch.nn.Parameter(torch.tensor(1.0))
-        )
-        self.gate = None
 
-        get_gate = init_gate(
-            self,
-            dmodel,
-            get_router_values_from,
-            init_scale,
-            init_type,
-            n_experts,
-            detach_gate,
-        )
-        self.router = TokenGating(
+        self.gating = TokenGating(
             dmodel=dmodel,
             n_experts=n_experts,
             capacity_factor=capacity_factor,
@@ -69,7 +53,10 @@ class TokenChoiceFF(LoggingLayer):
             init_scale=init_scale,
             routing_top_k=routing_top_k,
             use_einsum=use_einsum,
-            get_gate=get_gate,
+            get_router_values_from=get_router_values_from,
+            detach_gate=detach_gate,
+            expert_inner_function=self.expert_inner_function,
+            moe_values_exp=moe_values_exp,
         )
 
     @time_measured("assign_tokens_to_input")
@@ -97,8 +84,6 @@ class TokenChoiceFF(LoggingLayer):
             layout=x.layout,
             device=x.device,
         )
-        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
-            token_expert_values **= self.moe_values_exp
         experts_output *= token_expert_values.T.unsqueeze(-1)
         output.index_add_(
             dim=0,
@@ -113,7 +98,7 @@ class TokenChoiceFF(LoggingLayer):
     def forward(self, x: torch.Tensor):
         batch_size, seq_len, _ = x.shape
 
-        token_expert_indices, token_expert_values = self.router(x)
+        token_expert_indices, token_expert_values = self.gating(x)
 
         x = x.flatten(start_dim=0, end_dim=1)
         experts_input = self.extract(x, token_expert_indices)
