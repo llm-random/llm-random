@@ -173,6 +173,7 @@ def main(
         is_logging_process=is_logging_process,
         rank=rank,
         checkpoint=checkpoint,
+        reduced_number_of_tokens=args.reduced_number_of_tokens
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
@@ -227,6 +228,7 @@ def main(
     )
     if args.reduced_number_of_tokens is not None:
         common_dataloaders_kwargs["sequence_length"] = args.reduced_number_of_tokens
+        # common_dataloaders_kwargs["sequence_length"] = 1024
 
     eval_split = (
         "eval"
