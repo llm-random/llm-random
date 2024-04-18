@@ -312,12 +312,18 @@ def main(
     if rank is not None:
         destroy_process_group()
 
+def assert_n_gpus(n_gpus):
+    if torch.cuda.is_available():
+        count = torch.cuda.device_count()
+        assert count == n_gpus+1, f"Expected {n_gpus} GPUs, but found {count}."
+    
 
 if __name__ == "__main__":
     misc.print_available_gpus()
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
     args = parser.parse_args()
+    assert_n_gpus(args.n_gpus)
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
