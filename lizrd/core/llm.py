@@ -637,10 +637,16 @@ class EmbeddingLayer(Aggregate):
 
 
 class PredictionHead(Linear):
-    def __init__(self, embedding_dim, output_size, init_type, init_scale):
+    def __init__(
+        self, embedding_dim, output_size, init_type, init_scale, multiplier=1.0
+    ):
         super(PredictionHead, self).__init__(
             embedding_dim, output_size, init_type=init_type, init_scale=init_scale
         )
+        self.register_buffer("multiplier", torch.tensor(multiplier))
+
+    def forward(self, x):
+        return self.multiplier * super(PredictionHead, self).forward(x)
 
 
 class LLM(nn.Module):

@@ -1,4 +1,5 @@
 import argparse
+from collections import defaultdict
 import os
 import random
 from typing import Callable, Optional
@@ -68,6 +69,28 @@ def log_batch(
         )
 
     print("Logged example batch.")
+
+
+def make_param_groups_and_lr_ratios(args, model):
+    lr = args.learning_rate
+    use_hidden_fanin = args.use_hidden_weights_fanin
+
+    if not use_hidden_fanin:
+        param_grops = [{"params": model.parameters(), "lr": lr}]
+        ratios_in_group_order = [1.0]
+        return param_grops, ratios_in_group_order
+
+    lr_to_params = defaultdict(list)
+    for name, param in model.named_parameters():
+        if "bias" in name or "norm" in name or "head" in name or "embedding" in name:
+            lr_to_params[lr].append(param)
+        else:
+            lr_to_params[lr / param.shape[-1]].append(param)
+    param_grops = [
+        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
+    ]
+    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
+    return param_grops, ratios_in_group_order
 
 
 def main(
@@ -221,16 +244,23 @@ def main(
     if args.torch_compile:
         model = torch.compile(model)
 
+    for name, param in model.named_parameters():
+        print(name, param.shape)
+
+    param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
+
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        param_grops,
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
+
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args)
+    scheduler = get_scheduler(args, ratios_in_group_order)
+    print(f"Scheduler_ratios: {scheduler.ratios}")
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size

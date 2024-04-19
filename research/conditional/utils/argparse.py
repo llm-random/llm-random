@@ -338,4 +338,21 @@ def introduce_parser_arguments(
         required=False,
     )
 
+    parser.add_argument(
+        "--use_hidden_weights_fanin",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "--output_weight_relative_init_scale",
+        type=float,
+        default=1.0,
+    )
+
+    parser.add_argument(
+        "--output_weight_multiplier",
+        type=float,
+        default=1.0,
+    )
+
     return parser

@@ -1,0 +1,32 @@
+parent: configs/baselines/gpt/dense/small.yaml
+md5_parent_hash: 9c33561435876b217623fcc532b8ab73
+time: "2:00:00"
+
+params:
+  # tokenizer: gpt
+
+  name: "relative_lr_small"
+  mixed_precision: false
+  flash_attention: false
+  # use_neptune: false
+  # mixed_precision: true
+  # mixed_precision_dtype: bfloat16
+  # flash_attention: true
+  grad_clip: 1.0
+  # tags: []
+
+  lr_ratio_modules: ["attention.input_projection.weight"]
+  ^lr_ratios: [0.1, 0.2, 0.5, 1, 2, 5, 10]
+  tags: ["relative_lr", "attention.input_projection.weight"]
+
+  n_steps: 10000
+  learning_rate: 1e-3
+  scheduler: "constant"
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  init_type: truncated_normal
+  init_scale: 0.1
+  save_weights_interval: 0
+  batch_size: 128
+  dataset_type: c4
+
