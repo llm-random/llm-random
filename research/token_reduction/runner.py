@@ -317,7 +317,7 @@ def main(
 def assert_n_gpus(n_gpus):
     if torch.cuda.is_available():
         count = torch.cuda.device_count()
-        assert count == n_gpus+1, f"Expected {n_gpus} GPUs, but found {count}."
+        assert count == n_gpus, f"Expected {n_gpus} GPUs, but found {count}."
     
 
 if __name__ == "__main__":
