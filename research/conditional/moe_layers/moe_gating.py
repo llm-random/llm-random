@@ -24,6 +24,7 @@ class MoeGating(LoggingLayer):
         softmax_over,
         use_torch_bmm,
         gate,
+        principled_moe=False,
     ):
         super().__init__()
         self.n_experts = n_experts
@@ -32,6 +33,7 @@ class MoeGating(LoggingLayer):
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
         self.gate = gate
+        self.principled_moe = principled_moe
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
         assert softmax_over in ["tokens", "experts"]
 
@@ -52,11 +54,13 @@ class MoeGating(LoggingLayer):
         if not self.group_by_batch and not self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
         # perform softmax either over tokens for each expert or over experts for each token
-        with measure_time(self, "softmax"):
-            if self.softmax_over == "tokens":
-                gate_out = torch.softmax(gate_out, dim=1)
-            elif self.softmax_over == "experts":
-                gate_out = torch.softmax(gate_out, dim=0)
+        if not self.principled_moe:
+            with measure_time(self, "softmax"):
+                if self.softmax_over == "tokens":
+                    gate_out = torch.softmax(gate_out, dim=1)
+                elif self.softmax_over == "experts":
+                    gate_out = torch.softmax(gate_out, dim=0)
+
         if self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 

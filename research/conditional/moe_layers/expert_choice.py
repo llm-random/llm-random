@@ -29,6 +29,7 @@ class ExpertChoiceFF(LoggingLayer):
         group_size: int = 1,
         use_torch_bmm: bool = False,
         use_layer_norm: bool = True,
+        principled_moe: bool = False,
     ):
         """
         Args:
@@ -86,7 +87,10 @@ class ExpertChoiceFF(LoggingLayer):
             use_torch_bmm=use_torch_bmm,
             gate=gate,
             n_gating_heatmaps=n_gating_heatmaps,
+            principled_moe=principled_moe,
         )
+
+        self.principled_moe = principled_moe
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -103,9 +107,32 @@ class ExpertChoiceFF(LoggingLayer):
 
         topk, topk_indices, topk_values = self.expert_gating(x, batch_size, seq_len)
 
-        x, one_hot = self.extract(x, topk, topk_indices)
-        x = self.expert_inner_function(x)
-        x = self.merge(x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot)
+        # from icecream import ic
+
+        # ic(self.expert_gating.gate.shape)
+        # ic(x.shape)
+        # ic(topk, topk_indices.shape, topk_values.shape)
+
+        # topk -> how many tokens each expert gets
+        # topk_indices -> which tokens each expert gets (indices)
+        # topk_values -> how much of each token each expert gets (values), [n_experts, topk]
+        if self.principled_moe:
+            x, one_hot = self.extract(x, topk, topk_indices)
+            x = self.expert_inner_function(x, topk_values)
+            # einsum(
+            #     "n_exp topk doutput, n_exp topk -> n_exp topk doutput", x, topk_values
+            # )
+            x = self.merge(
+                x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
+            )
+
+        else:
+            x, one_hot = self.extract(x, topk, topk_indices)
+            # ic(x.shape)  # n_experts, topk, dmodel
+            x = self.expert_inner_function(x)
+            x = self.merge(
+                x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
+            )
 
         x = self.ln(x)
 
@@ -154,6 +181,27 @@ class ExpertChoiceFF(LoggingLayer):
         with measure_time(self, "lin1_perm"):
             x = x.permute(2, 0, 3, 1).reshape(n_exp, seq_len * topk, self.dmodel)
         return x, one_hot_perm
+
+    def extract_principled(
+        self,
+        x: torch.Tensor,
+        topk,
+        topk_indices: torch.Tensor,
+        topk_values: torch.Tensor,
+    ):
+        batch_size, _, _ = x.shape
+        # flatten x s. t. first dimension is tokens instead of batch_size x seq_len
+        with measure_time(self, "first_flatten"):
+            x = x.flatten(start_dim=0, end_dim=1)
+            topk_values = topk_values.flatten()
+        with measure_time(self, "index_select"):
+            x = torch.index_select(x, dim=0, index=topk_indices.flatten())
+            topk_values = torch.index_select(
+                topk_values, dim=0, index=topk_indices.flatten()
+            )
+        with measure_time(self, "reshape"):
+            x = x.reshape((self.n_experts, topk, self.dmodel))
+        return x, None
 
     def extract_index_select(self, x: torch.Tensor, topk, topk_indices: torch.Tensor):
         batch_size, _, _ = x.shape
@@ -215,9 +263,12 @@ class ExpertChoiceFF(LoggingLayer):
     ):
         # multiply by softmax
         with measure_time(self, "multiply_softmax"):
-            x = einsum(
-                "n_exp topk doutput, n_exp topk -> n_exp topk doutput", x, topk_values
-            )
+            if not self.principled_moe:
+                x = einsum(
+                    "n_exp topk doutput, n_exp topk -> n_exp topk doutput",
+                    x,
+                    topk_values,
+                )
 
         # flatten x s. t. first dimension is tokens instead of n_experts x topk
         with measure_time(self, "second_flatten"):

@@ -208,6 +208,55 @@ class EntropyBackend(MachineBackend):
         ]
 
 
+class WriterBackend(MachineBackend):
+    def get_common_directory(self) -> str:
+        return "/home/ubuntu/llm-random"
+
+    def get_cache_path(self) -> str:
+        return "/home/ubuntu/llm-random"
+
+    def get_grid_entrypoint(self) -> str:
+        return "lizrd/grid/grid_entrypoint.sh"
+
+    # def get_default_train_dataset_path(self, dataset_type: str):
+    #     if dataset_type == "c4":
+    #         return "/local_storage_2/llm-random/datasets/c4_train"
+    #     return super().get_default_train_dataset_path(dataset_type)
+
+    # def get_default_validation_dataset_path(self, dataset_type: str):
+    #     if dataset_type == "c4":
+    #         return "/local_storage_2/llm-random/datasets/c4_validation"
+    #     return super().get_default_train_dataset_path(dataset_type)
+
+    def get_cemetery_directory(self):
+        return "/home/ubuntu/llm-random-cemetery"
+
+    def get_subprocess_args(
+        self,
+        slurm_command,
+        setup_args,
+        training_args,
+        singularity_env_arguments,
+        runner_params,
+    ):
+        return [
+            slurm_command,
+            f"--gres=gpu:a100:{setup_args['n_gpus']}",
+            f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--job-name={training_args['name']}",
+            f"--time={setup_args['time']}",
+            f"{setup_args['grid_entrypoint']}",
+            "singularity",
+            "run",
+            *singularity_env_arguments,
+            make_singularity_mount_paths(setup_args, training_args),
+            "--nv",
+            setup_args["singularity_image"],
+            *self.get_runner_command(setup_args["runner"], runner_params),
+        ]
+
+
 class LocalBackend(MachineBackend):
     def get_common_directory(self) -> str:
         return os.getenv("HOME")
@@ -255,5 +304,7 @@ def get_machine_backend(node=None) -> MachineBackend:
         return AthenaBackend()
     elif node == "login01":
         return IdeasBackend()
+    elif node == "164-152-24-115":
+        return WriterBackend()
     else:
         return LocalBackend()
