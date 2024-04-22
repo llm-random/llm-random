@@ -338,4 +338,31 @@ def introduce_parser_arguments(
         required=False,
     )
 
+    parser.add_argument(
+        "--get_router_values_from",
+        type=str,
+        choices=[
+            "weights",
+            "gate_weight",
+            "lin1_weight",
+        ],
+        default="weights",
+        required=False,
+        help="'weights' is default MoE, 'gate' maximizes average activation in gating,"
+        "'lin1' is similar but takes the weights from lin1 and is compatible with non-gated expert",
+    )
+
+    parser.add_argument(
+        "--moe_values_exp",
+        type=str,
+        default="1.0",
+        help="Exponent for values multiplier in MoE routing. "
+        "0 means no multiplier, 1 is the standard, 2 is the square of the standard, etc. "
+        "'trainable' means that the exponent is trainable. ",
+    )
+
+    parser.add_argument(
+        "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
+    )
+
     return parser

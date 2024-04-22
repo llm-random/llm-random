@@ -17,21 +17,43 @@ from lizrd.core.initialization import get_init_fun
 class MoeGating(LoggingLayer):
     def __init__(
         self,
+        dmodel: int,
         n_experts: int,
+        get_router_values_from,
+        init_scale,
+        init_type,
+        moe_values_exp=1.0,
+        detach_gate=False,
+        expert_inner_function=None,
         group_by_batch: bool = False,
         softmax_ungrouped: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         use_torch_bmm: bool = False,
-        gate=None,
         **kwargs,
     ):
         super().__init__()
+        self.dmodel = dmodel
         self.n_experts = n_experts
         self.group_by_batch = group_by_batch
         self.softmax_ungrouped = softmax_ungrouped
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
-        self.gate = gate
+        self.detach_gate = detach_gate
+        self.gate, self.get_gate = self.init_gate(
+            expert_inner_function,
+            get_router_values_from,
+            init_scale,
+            init_type,
+        )
+        if self.detach_gate:
+            old_gate = self.get_gate
+            self.get_gate = lambda: old_gate().detach()
+
+        self.moe_values_exp = (
+            moe_values_exp
+            if moe_values_exp is not None
+            else torch.nn.Parameter(torch.tensor(1.0))
+        )
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
         assert softmax_over in ["tokens", "experts"]
         assert not self.softmax_ungrouped or self.group_by_batch
@@ -39,7 +61,7 @@ class MoeGating(LoggingLayer):
     def calculate_gate(self, x, batch_size, seq_len):
         with measure_time(self, "expert_embedding"):
             if self.use_torch_bmm:
-                gate = self.gate.unsqueeze(0).expand(batch_size, -1, -1)
+                gate = self.get_gate().unsqueeze(0).expand(batch_size, -1, -1)
                 gate_out = torch.bmm(x, gate).permute(2, 0, 1)
                 assert gate_out.shape == (self.n_experts, batch_size, seq_len)
             else:
@@ -47,7 +69,7 @@ class MoeGating(LoggingLayer):
                     "batch_size seq_len dmodel, dmodel n_experts "
                     "-> n_experts batch_size seq_len ",
                     x,
-                    self.gate,
+                    self.get_gate(),
                 )
         # each expert chooses k within dimension 1
         if not self.group_by_batch and not self.softmax_ungrouped:
@@ -60,6 +82,9 @@ class MoeGating(LoggingLayer):
                 gate_out = torch.softmax(gate_out, dim=0)
         if self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+
+        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
+            gate_out = gate_out**self.moe_values_exp
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         return gate_out
@@ -90,6 +115,32 @@ class MoeGating(LoggingLayer):
         else:
             topk_values, topk_indices = torch.topk(gate_out, k=topk, dim=1)
         return topk_indices, topk_values
+
+    def init_gate(
+        self,
+        expert_inner_function,
+        get_router_values_from,
+        init_scale,
+        init_type,
+    ):
+        if get_router_values_from == "weights":
+            init = get_init_fun(init_type=init_type, init_scale=init_scale)
+            gate = init((self.dmodel, self.n_experts), self.dmodel)
+            gate = gate.requires_grad_(False) if self.detach_gate else gate
+            return gate, lambda: self.gate
+        elif get_router_values_from in ["gate_weight", "lin1_weight"] and hasattr(
+            expert_inner_function, get_router_values_from
+        ):
+            return (
+                None,
+                lambda: torch.mean(
+                    getattr(expert_inner_function, get_router_values_from), dim=-1
+                ).T,
+            )
+        else:
+            raise Exception(
+                f"Bad get_router_values_from value: {get_router_values_from}"
+            )
 
 
 class ExpertGating(MoeGating):
@@ -192,25 +243,20 @@ class TokenGating(MoeGating):
         n_experts: int,
         capacity_factor: float,
         load_balancing_loss_weight: float,
-        init_type: str,
-        init_scale: float,
         routing_top_k: int = 1,
         use_einsum: bool = False,
         **kwargs,
     ):
-        init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        gate = init(shape=(dmodel, n_experts), fan_in=dmodel)
-
         super().__init__(
-            n_experts,
+            dmodel=dmodel,
+            n_experts=n_experts,
             group_by_batch=False,
             softmax_ungrouped=False,
             softmax_over="experts",
             use_torch_bmm=not use_einsum,
-            gate=gate,
+            **kwargs,
         )
 
-        self.dmodel = dmodel
         self.capacity_factor = capacity_factor
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum

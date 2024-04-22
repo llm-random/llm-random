@@ -136,7 +136,7 @@ class TestExpertChoice(GeneralTestCase):
         )
         layer_old.lin1_weight.data = layer.expert_inner_function.lin1_weight.data
         layer_old.lin2_weight.data = layer.expert_inner_function.lin2_weight.data
-        layer_old.expert_gating.gate.data = layer.expert_gating.gate.data
+        layer_old.expert_gating.gate.data = layer.gating.gate.data
         layer_old.ln = layer.ln
 
         input = torch.rand((batch, seql, dm))
@@ -179,7 +179,7 @@ class TestExpertChoice(GeneralTestCase):
         layer_einsum.expert_inner_function.lin2_weight.data = (
             layer.expert_inner_function.lin2_weight.data
         )
-        layer_einsum.expert_gating.gate.data = layer.expert_gating.gate.data
+        layer_einsum.gating.gate.data = layer.gating.gate.data
         layer_einsum.ln = layer.ln
 
         input = torch.rand((batch, seql, dm))
@@ -226,7 +226,7 @@ class TestExpertChoice(GeneralTestCase):
         layer_onehot.expert_inner_function.lin2_weight.data = (
             layer.expert_inner_function.lin2_weight.data
         )
-        layer_onehot.expert_gating.gate.data = layer.expert_gating.gate.data
+        layer_onehot.gating.gate.data = layer.gating.gate.data
         layer_onehot.ln = layer.ln
 
         input = torch.rand((batch, seql, dm))
