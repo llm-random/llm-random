@@ -421,6 +421,7 @@ def get_expert_choice_args_old(args):
         "init_scale": args.init_scale,
         "use_torch_bmm": args.use_torch_bmm,
         "use_layer_norm": args.layer_norm_in_expert_choice,
+        "principled_moe": args.use_principled_moe,
     }
 
 
@@ -677,7 +678,11 @@ def get_ff_layer(args):
 
 def get_inner_expert(args):
     if args.moe_inner_expert == "ff":
-        expert_inner_class = partial(ExpertFF, activation_name=args.activation_type)
+        expert_inner_class = partial(
+            ExpertFF,
+            activation_name=args.activation_type,
+            principled_moe=args.use_principled_moe,
+        )
     elif args.moe_inner_expert == "ff_gated":
         expert_inner_class = partial(ExpertGated, activation_name=args.activation_type)
     elif args.moe_inner_expert == "linear":

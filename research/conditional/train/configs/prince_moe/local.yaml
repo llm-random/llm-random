@@ -1,0 +1,21 @@
+parent: configs/baselines/gpt/expert_choice/granularity/4/mini.yaml
+md5_parent_hash: 8c55b8c4ca676c8235c39a0555debad3
+time: 0-05:00:00
+
+params:
+  name: "laptop_check"
+  ff_mode: expert_choice
+  # cutoff: 17
+  dataset_type: wikibook
+  use_dummy_dataset: true
+  torch_compile: false
+  mixed_precision_dtype: "float16"
+  moe_inner_expert: ff
+  # activation_type: softmax_last
+  activation_type: relu
+
+
+  save_weights_interval: -1
+  # batch_size: 32
+  n_blocks: 1
+  use_principled_moe: true

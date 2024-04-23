@@ -21,6 +21,7 @@ class ExpertFF(LoggingLayer):
         activation_name: str = "relu",
         topk: int = 1,
         use_topk_initialization: bool = False,
+        principled_moe: bool = False,
     ):
         super().__init__()
         self.dmodel = dmodel
@@ -39,9 +40,10 @@ class ExpertFF(LoggingLayer):
             shape=(n_experts, expert_size, self.doutput),
             fan_in=int(fan_in_factor * expert_size),
         )
+        self.principled_moe = principled_moe
 
     @time_measured("process_by_experts")
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, inner_values: Optional[torch.Tensor] = None):
         n_experts, capacity, dmodel = x.shape
 
         assert n_experts == self.n_experts
@@ -57,6 +59,14 @@ class ExpertFF(LoggingLayer):
             )
         else:
             experts_output = torch.matmul(x, self.lin1_weight)
+
+        if self.principled_moe:
+            assert inner_values is not None
+            # from icecream import ic
+
+            print("adding inner values to experts output")
+            print(experts_output.shape, inner_values.shape)
+            experts_output = experts_output + inner_values.squeeze(1).unsqueeze(-1)
 
         experts_output = self.activation(experts_output)
         if self.use_einsum:

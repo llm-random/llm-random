@@ -301,6 +301,11 @@ def introduce_parser_arguments(
         "linear operations performed using torch.bmm",
     )
     parser.add_argument(
+        "--use_principled_moe",
+        action="store_true",
+    )
+
+    parser.add_argument(
         "--use_dummy_dataset",
         action="store_true",
         help="whether to use dummy dataset (for debugging or tests)",
