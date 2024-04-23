@@ -57,20 +57,21 @@ def submit_experiment(
     with ConnectWithPassphrase(hostname) as connection:
         result = connection.run("uname -n", hide=True)
         node = result.stdout.strip()
-        cluster = get_machine_backend(node)
+        cluster = get_machine_backend(node, connection)
 
         cemetery_dir = cluster.get_cemetery_directory()
         connection.run(f"mkdir -p {cemetery_dir}")
         experiment_directory = f"{cemetery_dir}/{experiment_branch_name}"
 
         if "NEPTUNE_API_TOKEN" in os.environ:
-            connection.config["run"]["env"] = {
-                "NEPTUNE_API_TOKEN": os.environ["NEPTUNE_API_TOKEN"]
-            }
+            connection.config["run"]["env"]["NEPTUNE_API_TOKEN"] = os.environ[
+                "NEPTUNE_API_TOKEN"
+            ]
+
         if "WANDB_API_KEY" in os.environ:
-            connection.config["run"]["env"] = {
-                "WANDB_API_KEY": os.environ["WANDB_API_KEY"]
-            }
+            connection.config["run"]["env"]["WANDB_API_KEY"] = os.environ[
+                "WANDB_API_KEY"
+            ]
 
         if connection.run(f"test -d {experiment_directory}", warn=True).failed:
             print(f"Cloning {experiment_branch_name} to {experiment_directory}...")

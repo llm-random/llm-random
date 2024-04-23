@@ -7,11 +7,9 @@ from torch.nn import LayerNorm
 
 import torch.nn as nn
 from lizrd.core.initialization import get_init_weight
-from lizrd.support import ash
 from lizrd.support.logging import make_histogram
 from lizrd.train import checkpointing
-from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.utils.layer_manager import measure_time
+from lizrd.core.misc import LoggingLayer, measure_time
 
 
 class ExpertGatingOld(LoggingLayer):
@@ -474,7 +472,7 @@ class ExpertChoiceFFOld(LoggingLayer):
                 x,
                 self.lin2_weight,
             )
-            ash.assert_shape("e k m", x, e=self.n_experts, k=topk, m=self.doutput)
+            assert x.shape, (self.n_experts, topk, self.doutput)
         return x
 
     def gating_postprocess_onehot(
@@ -497,7 +495,7 @@ class ExpertChoiceFFOld(LoggingLayer):
     ):
         # multiply by softmax
         with measure_time(self, "multiply_softmax"):
-            ash.assert_shape("e k", topk_values, e=self.n_experts, k=topk)
+            assert topk_values.shape, (self.n_experts, topk)
             x = einsum(
                 "n_exp topk dmodel, n_exp topk -> n_exp topk dmodel", x, topk_values
             )

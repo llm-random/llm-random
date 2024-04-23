@@ -8,6 +8,9 @@ from lizrd.grid.setup_arguments import make_singularity_mount_paths
 
 
 class MachineBackend(abc.ABC):
+    def __init__(self, username=None):
+        self.username = username
+
     @abc.abstractmethod
     def get_common_directory(self) -> str:
         pass
@@ -69,17 +72,29 @@ class MachineBackend(abc.ABC):
 
 
 class AthenaBackend(MachineBackend):
+    def get_default_train_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/train"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/validation"
+        return super().get_default_train_dataset_path(dataset_type)
+
     def get_common_directory(self) -> str:
         return "/net/pr2/projects/plgrid/plggllmeffi"
 
     def get_cache_path(self) -> str:
-        return f"/net/tscratch/people/{os.environ.get('USER')}/.cache"
+        return f"/net/tscratch/people/{self.username}/.cache"
 
     def get_grid_entrypoint(self) -> str:
         return "lizrd/grid/grid_entrypoint.sh"
 
     def get_cemetery_directory(self):
-        return f"/net/pr2/projects/plgrid/plggsubgoal/{os.environ.get('USER')}/llm_random_cemetery"
+        return (
+            f"/net/pr2/projects/plgrid/plggllmeffi/{self.username}/llm_random_cemetery"
+        )
 
     def get_subprocess_args(
         self,
@@ -94,7 +109,7 @@ class AthenaBackend(MachineBackend):
             f"--gres=gpu:{setup_args['n_gpus']}",
             "--partition=plgrid-gpu-a100",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
-            "--account=plgsubslearnath-gpu-a100",
+            "--account=plgllmefficont-gpu-a100",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
@@ -297,19 +312,20 @@ COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
 }
 
 
-def get_machine_backend(node=None) -> MachineBackend:
+def get_machine_backend(node=None, connection=None) -> MachineBackend:
     if node is None:
         node = platform.uname().node
+    username = os.environ.get("USER") if connection is None else connection.user
     if node == "asusgpu0":
-        return EntropyBackend()
+        return EntropyBackend(username)
     elif "athena" in node:
-        return AthenaBackend()
+        return AthenaBackend(username)
     elif node == "login01":
-        return IdeasBackend()
+        return IdeasBackend(username)
     elif (
         hashlib.sha256(node.encode()).hexdigest()
         == "53cb84932d7356993300456b370e2e796c68d28be3e584c17f5eeacad9d36a12"
     ):  # no need for anyone to know the hostname :)
-        return WriterBackend()
+        return WriterBackend(username)
     else:
-        return LocalBackend()
+        return LocalBackend(username)

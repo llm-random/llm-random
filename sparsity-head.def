@@ -3,6 +3,7 @@ From: sparsity-base.sif
 
 %files
     requirements.txt
+    requirements_mamba.txt
     install_requirements.sh
 
 %post

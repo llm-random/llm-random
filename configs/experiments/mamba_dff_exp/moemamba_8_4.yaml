@@ -1,4 +1,4 @@
-md5_parent_hash: e1ad1f2706fb54ba63da097b126d0cc0
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
 parent: configs/baselines/gpt/dense/medium.yaml
 # singularity_image: /common/llm-random/images/sparsity_2023.12.14_16.44.42.sif
 # singularity_image:
