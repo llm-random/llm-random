@@ -104,6 +104,16 @@ def get_ff_layer(args):
     return return_fn
 
 
+def get_token_reduction_layer(type_name, reduced_number_of_tokens, dm):
+    if type_name == "merging":
+        return_fn = lambda: layers.TokenMergingLayer(reduced_number_of_tokens, dm)
+    elif type_name == "dropping":
+        return_fn = lambda: layers.TokenDroppingLayer(reduced_number_of_tokens)
+    else:
+        return_fn = None
+    return return_fn
+
+
 def get_classes_from_module_names(
     packed_names,
 ) -> Union[tuple[Type[torch.nn.Module]], None]:
@@ -187,6 +197,7 @@ def get_model(
     residual_fn: Callable[[], torch.nn.Module] = None,
     checkpoint: dict[str, torch.Tensor] = None,
     reduced_number_of_tokens: int = None,
+    reduction_layer_type: str = None,
 ):
 
     embedding_components = [
@@ -197,14 +208,18 @@ def get_model(
     ]
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
 
-    if reduced_number_of_tokens is not None:
+    reduction_layer = get_token_reduction_layer(
+        reduction_layer_type, reduced_number_of_tokens, dm
+    )
+
+    if reduction_layer is not None:
         embedding_layer = torch.nn.Sequential(
             OrderedDict(
                 [
                     ("normal", embedding_layer),
                     (
                         "token_reduction",
-                        layers.TokenReductionLayer(reduced_number_of_tokens),
+                        reduction_layer(),
                     ),
                 ]
             )

@@ -173,7 +173,8 @@ def main(
         is_logging_process=is_logging_process,
         rank=rank,
         checkpoint=checkpoint,
-        reduced_number_of_tokens=args.reduced_number_of_tokens
+        reduced_number_of_tokens=args.reduced_number_of_tokens,
+        reduction_layer_type=args.reduction_layer_type,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
