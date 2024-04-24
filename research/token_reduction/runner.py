@@ -229,7 +229,6 @@ def main(
     )
     if args.reduced_number_of_tokens is not None:
         common_dataloaders_kwargs["sequence_length"] = args.reduced_number_of_tokens
-        # common_dataloaders_kwargs["sequence_length"] = 1024
 
     eval_split = (
         "eval"
