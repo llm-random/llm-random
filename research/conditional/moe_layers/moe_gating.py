@@ -39,6 +39,7 @@ class MoeGating(LoggingLayer):
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
         self.detach_gate = detach_gate
+        self.check_gate = lambda: ()
         self.gate, self.get_gate = self.init_gate(
             expert_inner_function,
             get_router_values_from,
@@ -59,6 +60,7 @@ class MoeGating(LoggingLayer):
         assert not self.softmax_ungrouped or self.group_by_batch
 
     def calculate_gate(self, x, batch_size, seq_len):
+        self.check_gate()
         with measure_time(self, "expert_embedding"):
             if self.use_torch_bmm:
                 gate = self.get_gate().unsqueeze(0).expand(batch_size, -1, -1)
@@ -128,13 +130,14 @@ class MoeGating(LoggingLayer):
             gate = init((self.dmodel, self.n_experts), self.dmodel)
             gate = gate.requires_grad_(False) if self.detach_gate else gate
             return gate, lambda: self.gate
-        elif get_router_values_from in ["gate_weight", "lin1_weight"] and hasattr(
+        elif get_router_values_from in ["get_lin1", "get_gate_weight"] and hasattr(
             expert_inner_function, get_router_values_from
         ):
+            self.check_gate = expert_inner_function.check_matching
             return (
                 None,
                 lambda: torch.mean(
-                    getattr(expert_inner_function, get_router_values_from), dim=-1
+                    getattr(expert_inner_function, get_router_values_from)(), dim=-1
                 ).T,
             )
         else:

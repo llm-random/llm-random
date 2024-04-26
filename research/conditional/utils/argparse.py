@@ -343,8 +343,8 @@ def introduce_parser_arguments(
         type=str,
         choices=[
             "weights",
-            "gate_weight",
-            "lin1_weight",
+            "get_gate_weight",
+            "get_lin1",
         ],
         default="weights",
         required=False,
@@ -365,4 +365,6 @@ def introduce_parser_arguments(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
 
+    parser.add_argument("--moe_clustering_interval", type=int, default=1)
+    parser.add_argument("--moe_clustering_iters", type=int, default=1)
     return parser

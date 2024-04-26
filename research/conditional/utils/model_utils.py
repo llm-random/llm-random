@@ -76,6 +76,7 @@ from research.conditional.moe_layers.expert_types import (
     ExpertFF,
     ExpertGated,
     ExpertLinear,
+    ExpertClustered,
 )
 from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
@@ -718,6 +719,13 @@ def get_inner_expert(args):
         expert_inner_class = partial(ExpertFF, activation_name=args.activation_type)
     elif args.moe_inner_expert == "ff_gated":
         expert_inner_class = partial(ExpertGated, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "ff_clustered":
+        expert_inner_class = partial(
+            ExpertClustered,
+            activation_name=args.activation_type,
+            clustering_interval=args.moe_clustering_interval,
+            clustering_iters=args.moe_clustering_iters,
+        )
     elif args.moe_inner_expert == "linear":
         expert_inner_class = ExpertLinear
     # these experts names are left for backward compatibility

@@ -83,6 +83,9 @@ class ExpertGated(ExpertFF):
         self.gate_weight = self.init_fun(
             shape=(self.n_experts, self.dmodel, self.expert_size), fan_in=self.dmodel
         )
+        self.get_lin1 = lambda: self.lin1_weight
+        self.get_lin2 = lambda: self.lin2_weight
+        self.get_gate_weight = lambda: self.gate_weight
 
     @time_measured("process_by_experts")
     def forward(self, x: torch.Tensor):
@@ -90,17 +93,17 @@ class ExpertGated(ExpertFF):
             experts_output = einsum(
                 "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
                 x,
-                self.lin1_weight,
+                self.get_lin1(),
             )
 
             gate = einsum(
                 "n_experts capacity dmodel, n_experts dmodel expert_size -> n_experts capacity expert_size",
                 x,
-                self.gate_weight,
+                self.get_gate_weight(),
             )
         else:
-            experts_output = torch.matmul(x, self.lin1_weight)
-            gate = torch.matmul(x, self.gate_weight)
+            experts_output = torch.matmul(x, self.get_lin1())
+            gate = torch.matmul(x, self.get_gate_weight())
 
         experts_output = self.activation(gate) * experts_output
 
@@ -108,11 +111,65 @@ class ExpertGated(ExpertFF):
             experts_output = einsum(
                 "n_experts capacity expert_size, n_experts expert_size doutput -> n_experts capacity doutput",
                 experts_output,
-                self.lin2_weight,
+                self.get_lin2(),
             )
         else:
-            experts_output = torch.matmul(experts_output, self.lin2_weight)
+            experts_output = torch.matmul(experts_output, self.get_lin2())
         return experts_output
+
+
+class ExpertClustered(ExpertGated):
+    def __init__(self, clustering_interval, clustering_iters, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.clustering_interval = clustering_interval
+        self.clustering_iters = clustering_iters
+        self.curent_step = 0
+        self.neuron_expert_perm = torch.arange(self.n_experts * self.expert_size)
+        self.get_gate_weight = lambda: self.permute_weights(self.gate_weight)
+        self.get_lin1 = lambda: self.permute_weights(self.lin1_weight)
+        self.get_lin2 = lambda: self.permute_weights(self.lin2_weight, False)
+
+    def permute_weights(self, weight, transpose=True):
+        if transpose:
+            weight = weight.permute(0, 2, 1)
+        weight = weight.reshape(self.n_experts * self.expert_size, -1)
+        weight = weight[self.neuron_expert_perm]
+        weight = weight.reshape(self.n_experts, self.expert_size, -1)
+        if transpose:
+            weight = weight.permute(0, 2, 1)
+        return weight
+
+    @torch.no_grad()
+    def calculate_new_matching(self):
+        from k_means_constrained import KMeansConstrained
+
+        weight = self.gate_weight.permute(0, 2, 1).reshape(
+            self.n_experts * self.expert_size, -1
+        )
+        weight = torch.nn.functional.normalize(weight)
+        inits = self.get_gate_weight().mean(dim=2)
+        clf = KMeansConstrained(
+            n_clusters=self.n_experts,
+            size_min=self.expert_size,
+            size_max=self.expert_size,
+            n_init=1,
+            max_iter=self.clustering_iters,
+            init=inits,
+        )
+        labels = clf.fit_predict(weight.detach().cpu().numpy())
+        counts = torch.zeros(self.n_experts)
+        for i in range(self.n_experts * self.expert_size):
+            self.neuron_expert_perm[i] = labels[i] * self.n_experts + counts[labels[i]]
+            counts[labels[i]] += 1
+
+    def check_matching(self):
+        if self.training and self.curent_step % self.clustering_interval == 0:
+            self.calculate_new_matching()
+        if self.training:
+            self.curent_step += 1
+
+    def forward(self, x: torch.Tensor):
+        return super().forward(x)
 
 
 class ExpertLinear(LoggingLayer):
