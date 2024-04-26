@@ -1,8 +1,7 @@
 from typing import Optional
-
 import torch
 
-from research.conditional.utils.layer_manager import (
+from lizrd.core.misc import (
     LoggingLayer,
     time_measured,
 )
@@ -19,9 +18,12 @@ class TokenChoiceFF(LoggingLayer):
         init_type: str,
         init_scale: float,
         expert_inner_function: LoggingLayer,
-        doutput: Optional[int] = None,
         routing_top_k: int = 1,
         use_einsum: bool = False,
+        get_router_values_from: str = "weights",
+        moe_values_exp: Optional[int] = 1,
+        detach_gate: bool = False,
+        **_,
     ):
         """
         Args:
@@ -34,14 +36,11 @@ class TokenChoiceFF(LoggingLayer):
             expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
         """
         super().__init__()
-
         self.dmodel = dmodel
-        self.doutput = self.dmodel if doutput is None else doutput
         self.n_experts = n_experts
-        self.capacity_factor = capacity_factor
         self.expert_inner_function = expert_inner_function
-        self.load_balancing_loss_weight = load_balancing_loss_weight
-        self.router = TokenGating(
+        self.doutput = self.expert_inner_function.doutput
+        self.gating = TokenGating(
             dmodel=dmodel,
             n_experts=n_experts,
             capacity_factor=capacity_factor,
@@ -50,6 +49,10 @@ class TokenChoiceFF(LoggingLayer):
             init_scale=init_scale,
             routing_top_k=routing_top_k,
             use_einsum=use_einsum,
+            get_router_values_from=get_router_values_from,
+            detach_gate=detach_gate,
+            expert_inner_function=self.expert_inner_function,
+            moe_values_exp=moe_values_exp,
         )
 
     @time_measured("assign_tokens_to_input")
@@ -91,7 +94,7 @@ class TokenChoiceFF(LoggingLayer):
     def forward(self, x: torch.Tensor):
         batch_size, seq_len, _ = x.shape
 
-        token_expert_indices, token_expert_values = self.router(x)
+        token_expert_indices, token_expert_values = self.gating(x)
 
         x = x.flatten(start_dim=0, end_dim=1)
         experts_input = self.extract(x, token_expert_indices)

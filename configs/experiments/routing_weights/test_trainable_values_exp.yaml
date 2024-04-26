@@ -1,0 +1,12 @@
+parent: configs/baselines/gpt/expert_choice/small.yaml
+md5_parent_hash: c11efe41b6bdcd50cb970eb85f922f25
+time: 0-20:00:00
+hf_datasets_cache: "/net/tscratch/people/plgjkrajewski/cache"
+
+params:
+  name: gating_exp
+  ff_mode: expert_choice
+  moe_inner_expert: ff_gated
+  ^moe_values_exp: [2., 1., -1., 0.5, 3.]
+  ^activation_type: [silu, softmax]
+  save_weights_interval: 0

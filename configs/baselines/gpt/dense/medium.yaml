@@ -1,5 +1,5 @@
 parent: configs/baselines/gpt/dense/common.yaml
-md5_parent_hash: 39bc251cbb3e537b96be92f785f64e15
+md5_parent_hash: 1b1451abcd3779c5960c78b2f48aecbc
 
 params:
   dmodel: 512

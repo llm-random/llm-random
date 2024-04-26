@@ -3,14 +3,13 @@ import os
 import secrets
 from abc import ABC, abstractmethod
 from argparse import Namespace
-from typing import Optional
+from typing import List, Optional
 
 import neptune
 import numpy as np
 import plotly
 import plotly.express as px
 import torch
-from clearml import Task
 import wandb
 
 from lizrd.support.misc import (
@@ -36,11 +35,6 @@ class AbstractLogger(ABC):
     def __init__(self, logger, args: Namespace):
         self.instance_logger = logger
         self.args = vars(args)
-        set_current_logger(self)
-
-    @abstractmethod
-    def flush_if_necessary(self):
-        pass
 
     @abstractmethod
     def report_scalar(
@@ -248,9 +242,6 @@ class NeptuneLogger(AbstractLogger):
             figure=figure, title=title, series=series, iteration=iteration
         )
 
-    def flush_if_necessary(self):
-        pass
-
 
 class WandbLogger(AbstractLogger):
     def __init__(self, logger, args: Namespace):
@@ -316,8 +307,119 @@ class WandbLogger(AbstractLogger):
         )
         return
 
-    def flush_if_necessary(self):
+
+class StdoutLogger(AbstractLogger):
+    def print_out_metric(
+        self,
+        title: str,
+        value: float,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        ITERATION_SPACE = 7
+        NAME_SPACE = 40
+        info = f"/{series}" if series is not None else ""
+        name = f"{title}{info}"
+        space_1 = max(0, ITERATION_SPACE - len(str(iteration))) * " "
+        space_2 = max(0, NAME_SPACE - len(name)) * " "
+        print(f"Step:{iteration}{space_1}{name}{space_2} ==> {value} ")
+
+    def report_generic_info(self, *, title: str, iteration: int, data):
+        if isinstance(data, plotly.graph_objs.Figure):
+            self.report_plotly(figure=data, title=title, iteration=iteration)
+        elif isinstance(data, list):
+            if isinstance(data[0], float):
+                for i, scalar in enumerate(data):
+                    self.report_scalar(
+                        title=title, value=scalar, series=str(i), iteration=iteration
+                    )
+            else:
+                raise NotImplementedError()
+        else:
+            self.report_scalar(title=title, value=data, iteration=iteration)
+
+    def report_scalar(
+        self,
+        *,
+        title: str,
+        value: float,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        self.print_out_metric(
+            title=title, value=value, iteration=iteration, series=series
+        )
+
+    def report_text(
+        self,
+        *,
+        title: str,
+        value: str,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        self.print_out_metric(
+            title=title, value=value, iteration=iteration, series=series
+        )
+
+    def report_plotly(
+        self,
+        *,
+        figure: plotly.graph_objs.Figure,
+        title: str,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
         pass
+
+
+class JointLogger(AbstractLogger):
+    def __init__(self, loggers: List[AbstractLogger]):
+        self.loggers = loggers
+        set_current_logger(self)
+
+    def report_generic_info(self, *, title: str, iteration: int, data):
+        for logger in self.loggers:
+            logger.report_generic_info(title=title, iteration=iteration, data=data)
+
+    def report_scalar(
+        self,
+        *,
+        title: str,
+        value: float,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        for logger in self.loggers:
+            logger.report_scalar(
+                title=title, value=value, iteration=iteration, series=series
+            )
+
+    def report_text(
+        self,
+        *,
+        title: str,
+        value: str,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        for logger in self.loggers:
+            logger.report_text(
+                title=title, value=value, iteration=iteration, series=series
+            )
+
+    def report_plotly(
+        self,
+        *,
+        figure: plotly.graph_objs.Figure,
+        title: str,
+        iteration: int,
+        series: Optional[str] = None,
+    ):
+        for logger in self.loggers:
+            logger.report_plotly(
+                figure=figure, title=title, iteration=iteration, series=series
+            )
 
 
 def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteration: int):
@@ -329,49 +431,47 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
 def get_logger(args, model, VOCAB_SIZE):
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
-    if args.use_neptune:
-        run = neptune.init_run(
-            project=args.project_name,
-            tags=args.tags,
-            name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-        )
-        run["args"] = vars(args)
-        run["working_directory"] = os.getcwd()
-        run["config"].upload(args.path_to_entry_config)
-        all_config_paths = args.all_config_paths.split(",")
-        run["all_configs"].upload_files(all_config_paths)
-
-        args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
-        return NeptuneLogger(run, args)
-
-    elif args.use_clearml:
-        task = Task.init(
-            project_name=args.project_name,
-            task_name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-        )
-        task.connect(vars(args))
-        if args.tags:
-            task.add_tags(args.tags)
-        logger = ClearMLLogger(task, args, model, VOCAB_SIZE)
-        return logger
-    elif args.use_wandb:
-        wandb.init(
-            entity=args.wandb_entity,
-            project=args.project_name,
-            name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-            tags=args.tags,
-            config=vars(args),
-        )
-        # define our custom x axis metric
-        wandb.define_metric("train/step")
-        # set all other train/ metrics to use this step
-        wandb.define_metric("*", step_metric="train/step")
-        return WandbLogger(wandb, args)
+    if args.logger_types == "":
+        logger_types = []
     else:
-        print(
-            "No logger specified! either args.use_neptune / args.use_clearml / args.use_wandb must be True"
-        )
-        raise NotImplementedError
+        logger_types = args.logger_types.split(",")
+        assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
+    initialized_loggers = []
+    for logger_type in logger_types:
+        if logger_type == "neptune":
+            run = neptune.init_run(
+                project=args.project_name,
+                tags=args.tags,
+                name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+            )
+            run["args"] = vars(args)
+            run["working_directory"] = os.getcwd()
+            run["config"].upload(args.path_to_entry_config)
+            all_config_paths = args.all_config_paths.split(",")
+            run["all_configs"].upload_files(all_config_paths)
+
+            args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
+            initialized_loggers.append(NeptuneLogger(run, args))
+        elif logger_type == "wandb":
+            wandb.init(
+                entity=args.wandb_entity,
+                project=args.wandb_project,
+                name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+                tags=args.tags,
+                config=vars(args),
+            )
+            # define our custom x axis metric
+            wandb.define_metric("train/step")
+            # set all other train/ metrics to use this step
+            wandb.define_metric("*", step_metric="train/step")
+            initialized_loggers.append(WandbLogger(wandb, args))
+        elif logger_type == "stdout":
+            initialized_loggers.append(StdoutLogger(None, args))
+        else:
+            raise NotImplementedError(
+                f"Logger of type '{logger_type}' is not implemented."
+            )
+    return JointLogger(initialized_loggers)
 
 
 def prepare_tensor_for_logging(

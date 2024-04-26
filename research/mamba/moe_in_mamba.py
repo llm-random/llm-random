@@ -1,7 +1,7 @@
 import torch
 from einops import rearrange
 
-from research.conditional.utils.layer_manager import LoggingLayer
+from lizrd.core.misc import LoggingLayer
 
 
 class MambaInProj(LoggingLayer):

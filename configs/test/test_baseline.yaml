@@ -15,7 +15,7 @@ params:
   mixed_precision_dtype: "float16"
   tags:
     - "test"
-  use_neptune: true
+  logger_types: "neptune"
   n_steps: 10
   dmodel: 64
   dff: 256
