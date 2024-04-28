@@ -37,7 +37,7 @@ class MachineBackend(abc.ABC):
         pass
 
     def get_singularity_image(self) -> str:
-        image_name = "sparsity_2024.02.06_16.14.02.sif"
+        image_name = "sparsity_2024.04.28_18.46.11.sif"
         common_dir = self.get_common_directory()
         return f"{common_dir}/images/{image_name}"
 

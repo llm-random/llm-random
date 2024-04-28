@@ -1,0 +1,16 @@
+parent: configs/baselines/gpt/expert_choice/medium.yaml
+md5_parent_hash: 0421a0c8a9dd60d8b8ff2a660f570688
+time: 0-24:00:00
+
+params:
+  name: weightless_gating_clustered_i
+  expansion_rate: 8
+  ff_mode: expert_choice
+  moe_inner_expert: ff_clustered
+  get_router_values_from: get_gate_weight
+  ^granularity: [1]
+  ^moe_detach_gate: [false,true]
+  activation_type: silu
+  save_weights_interval: 0
+  ^moe_clustering_interval: [1,10]
+  ^moe_clustering_iters: [1,10]
