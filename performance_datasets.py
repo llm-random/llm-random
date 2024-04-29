@@ -10,7 +10,7 @@ times = []
 curr_time = time()
 for i, dataset in enumerate(dataset):
     document = dataset[randint(0, len(dataset))]["text"]
-    print(document[:100])
+    # print(document[:100])
     read_time = time() - curr_time
     print(f"Time: {read_time}s")
     times.append(read_time)
