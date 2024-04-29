@@ -1,27 +1,23 @@
-parent: configs/baselines/gpt/dense/small.yaml
-md5_parent_hash: 9bcdbfe14ff178e8ee90a04000ab9546
-time: "2:00:00"
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+time: "8:00:00"
 
 params:
   # tokenizer: gpt
 
-  name: "relative_lr_small"
+  name: "relative_lr_medium"
   mixed_precision: false
   flash_attention: false
-  # use_neptune: false
-  # mixed_precision: true
-  # mixed_precision_dtype: bfloat16
-  # flash_attention: true
   grad_clip: 1.0
-  # tags: []
 
-  lr_ratio_modules: ["attention.input_projection.weight"]
-  ^lr_ratios: [0.1, 0.2, 0.5, 1, 2, 5, 10]
-  tags: ["relative_lr", "attention.input_projection.weight"]
+  lr_ratio_modules: ["logging_ff_pre_relu.weight", "logging_ff_post_relu.weight"]
+  ^lr_ratios: [[5, 5], [5, 2], [5, 1], [5, 0.5], [5, 0.2], [2, 5], [2, 2], [2, 1], [2, 0.5], [2, 0.2], [1, 5], [1, 2], [1, 1], [1, 0.5], [1, 0.2], [0.5, 5], [0.5, 2], [0.5, 1], [0.5, 0.5], [0.5, 0.2], [0.2, 5], [0.2, 2], [0.2, 1], [0.2, 0.5], [0.2, 0.2]]
+  tags: ["relative_lr", "ff_vs_rest"]
 
-  n_steps: 10000
+  n_steps: 15000
   learning_rate: 1e-3
-  scheduler: "constant"
+  lr_warmup_steps: 150
+  scheduler: "cosine"
   decoding_interval: 0
   logging_interval_heavy: 1000
   init_type: truncated_normal
