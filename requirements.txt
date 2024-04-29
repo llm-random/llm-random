@@ -24,3 +24,4 @@ GitPython==3.1.17
 diskcache==5.6.3
 wandb==0.16.2
 k_means_constrained
+ortools==9.3.10497
