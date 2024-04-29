@@ -16,5 +16,7 @@ for i, document in enumerate(dataset):
     read_time = time() - curr_time
     print(f"Time: {read_time}s")
     times.append(read_time)
+    if i == 20:
+        break
     curr_time = time()
 print(f"Average time: {sum(times) / len(times):.3f}s")
