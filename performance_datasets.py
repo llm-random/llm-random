@@ -3,7 +3,7 @@ from datasets import load_from_disk
 from random import randint
 
 load_start = time()
-dataset = load_from_disk("/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/train")
+dataset = load_from_disk("/net/tscratch/people/plgkciebiera/datasets/c4/train")
 load_time = time() - load_start
 print(f"Load time: {load_time:.3f}s")
 times = []
