@@ -29,7 +29,7 @@ run_grid_remotely() {
     script+="NEPTUNE_API_TOKEN=$NEPTUNE_API_TOKEN "
   fi
   if [ -n "$WANDB_API_KEY" ]; then
-    script+="WANDB_API_KEY=$WANDB_API_KEY"
+    script+="WANDB_API_KEY=$WANDB_API_KEY "
   fi
   script+="./run_experiment.sh' C-m"
   script+="; tmux attach -t $experiment_branch"
