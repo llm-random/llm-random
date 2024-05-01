@@ -154,7 +154,7 @@ class ExpertClustered(ExpertGated):
             size_max=self.expert_size,
             n_init=1,
             max_iter=self.clustering_iters,
-            init=inits,
+            init=inits.detach().cpu().numpy(),
         )
         labels = clf.fit_predict(weight.detach().cpu().numpy())
         counts = torch.zeros(self.n_experts)
