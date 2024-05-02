@@ -22,7 +22,6 @@ from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
 
 
-
 def get_attention_layer(args):
     causal = args.model_type == "gpt"
     if args.attention_mode == "vanilla":

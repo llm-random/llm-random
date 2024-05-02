@@ -14,6 +14,10 @@ from research.token_reduction.argparse import (
     introduce_parser_arguments as token_reduction_introduce_parser_arguments,
 )
 
+from research.grad_norm.argparse import (
+    introduce_parser_arguments as grad_norm_introduce_parser_arguments,
+)
+
 
 def split_params(params: dict) -> Tuple[list, list, list]:
     functions = []
@@ -233,6 +237,8 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
                 parser = blanks_introduce_parser_arguments(parser)
             elif runner == "research.token_reduction.runner":
                 parser = token_reduction_introduce_parser_arguments(parser)
+            elif runner == "research.grad_norm.runner":
+                parser = grad_norm_introduce_parser_arguments(parser)
             else:
                 raise ValueError(f"Unknown runner: {runner}")
 
