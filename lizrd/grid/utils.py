@@ -192,6 +192,10 @@ def get_train_main_function(runner: str):
         from research.token_reduction.runner import main as runner
 
         return runner
+    elif runner == "research.grad_norm.runner":
+        from research.grad_norm.runner import main as runner
+
+        return runner
     else:
         raise ValueError(f"Unknown runner: {runner}")
 

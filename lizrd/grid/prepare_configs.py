@@ -106,4 +106,5 @@ def validate_configs(configs: List[dict]):
             "research.conditional.train.cc_train",
             "research.blanks.train",
             "research.token_reduction.runner",
+            "research.grad_norm.runner",
         ], f"Unknown runner: {config['runner']} \nIf a new one was implemented, include it here as well"
