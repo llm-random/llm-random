@@ -13,7 +13,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
-from research.token_reduction.layer_manager import LayerManager
+from research.grad_norm.layer_manager import LayerManager
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer

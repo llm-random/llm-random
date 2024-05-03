@@ -18,9 +18,9 @@ from lizrd.support.misc import (
 from lizrd.text import tokenizers
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.token_reduction.trainer import Trainer
-from research.token_reduction.argparse import introduce_parser_arguments, check_args
-from research.token_reduction.build import (
+from research.grad_norm.trainer import Trainer
+from research.grad_norm.argparse import introduce_parser_arguments, check_args
+from research.grad_norm.build import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
