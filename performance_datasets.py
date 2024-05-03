@@ -1,11 +1,14 @@
 from time import time
-from datasets import load_from_disk
+import dask.dataframe
+
+# from datasets import load_from_disk
+import dask
 
 from random import randint
 
 load_start = time()
-dataset = load_from_disk("/net/tscratch/people/plgkciebiera/datasets/c4/train").shuffle(
-    seed=42
+dataset = dask.dataframe.read_parquet(
+    "/net/tscratch/people/plgkciebiera/datasets/c4/train"
 )
 load_time = time() - load_start
 print(f"Load time: {load_time:.3f}s")
