@@ -8,7 +8,8 @@ from random import randint
 
 load_start = time()
 dataset = dask.dataframe.read_parquet(
-    "/net/tscratch/people/plgkciebiera/datasets/c4/train"
+    "/net/tscratch/people/plgkciebiera/datasets/c4/train",
+    parquet_file_extension=(".arrow"),
 )
 load_time = time() - load_start
 print(f"Load time: {load_time:.3f}s")
