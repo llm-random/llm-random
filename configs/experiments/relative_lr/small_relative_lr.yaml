@@ -1,6 +1,6 @@
 parent: configs/baselines/gpt/dense/medium.yaml
 md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
-time: "8:00:00"
+time: "5:00:00"
 
 params:
   # tokenizer: gpt
@@ -10,7 +10,7 @@ params:
   flash_attention: false
   grad_clip: 1.0
 
-  lr_ratio_modules: ["attention.input_projection", "attention.output_projection"]
+  lr_ratio_modules: ["logging_ff_pre_relu.weight", "logging_ff_post_relu.weight"]
   ^lr_ratios: [[5, 5], [5, 2], [5, 1], [5, 0.5], [5, 0.2], [2, 5], [2, 2], [2, 1], [2, 0.5], [2, 0.2], [1, 5], [1, 2], [1, 1], [1, 0.5], [1, 0.2], [0.5, 5], [0.5, 2], [0.5, 1], [0.5, 0.5], [0.5, 0.2], [0.2, 5], [0.2, 2], [0.2, 1], [0.2, 0.5], [0.2, 0.2]]
   tags: ["relative_lr", "ff_vs_rest"]
 
