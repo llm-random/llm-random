@@ -133,7 +133,8 @@ class MoeGating(LoggingLayer):
         elif get_router_values_from in ["get_lin1", "get_gate_weight"] and hasattr(
             expert_inner_function, get_router_values_from
         ):
-            self.check_gate = expert_inner_function.check_matching
+            if hasattr(expert_inner_function, "check_matching"):
+                self.check_gate = expert_inner_function.check_matching
             return (
                 None,
                 lambda: torch.mean(

@@ -123,7 +123,7 @@ class ExpertClustered(ExpertGated):
         super().__init__(*args, **kwargs)
         self.clustering_interval = clustering_interval
         self.clustering_iters = clustering_iters
-        self.curent_step = 0
+        self.current_step = 0
         self.neuron_expert_perm = torch.arange(self.n_experts * self.expert_size)
         self.get_gate_weight = lambda: self.permute_weights(self.gate_weight)
         self.get_lin1 = lambda: self.permute_weights(self.lin1_weight)
@@ -159,14 +159,16 @@ class ExpertClustered(ExpertGated):
         labels = clf.fit_predict(weight.detach().cpu().numpy())
         counts = torch.zeros(self.n_experts)
         for i in range(self.n_experts * self.expert_size):
-            self.neuron_expert_perm[i] = labels[i] * self.n_experts + counts[labels[i]]
+            self.neuron_expert_perm[i] = (
+                labels[i] * self.expert_size + counts[labels[i]]
+            )
             counts[labels[i]] += 1
 
     def check_matching(self):
-        if self.training and self.curent_step % self.clustering_interval == 0:
+        if self.training and self.current_step % self.clustering_interval == 0:
             self.calculate_new_matching()
         if self.training:
-            self.curent_step += 1
+            self.current_step += 1
 
     def forward(self, x: torch.Tensor):
         return super().forward(x)
