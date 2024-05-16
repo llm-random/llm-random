@@ -23,7 +23,8 @@ class MoeGating(LoggingLayer):
         softmax_ungrouped,
         softmax_over,
         use_torch_bmm,
-        gate,
+        small_gate,
+        big_gate,
     ):
         super().__init__()
         self.n_experts = n_experts
@@ -31,9 +32,29 @@ class MoeGating(LoggingLayer):
         self.softmax_ungrouped = softmax_ungrouped
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
-        self.gate = gate
+        self.small_gate = small_gate
+        self.big_gate = big_gate
+        self.use_big_gate = False
         self._checkpointed_topk_indices: Union[None, torch.Tensor] = None
         assert softmax_over in ["tokens", "experts"]
+
+    @property
+    def gate(self):
+        return self.big_gate if self.use_big_gate else self.small_gate
+
+    def double_n_experts(self):
+        assert not self.use_big_gate
+        self.n_experts = self.n_experts * 2
+        self.big_gate.data = self.small_gate.data.repeat_interleave(2, dim=1)
+        self.use_big_gate = True
+
+    def half_n_experts(self):
+        assert self.use_big_gate
+        self.n_experts = self.n_experts // 2
+        self.small_gate.data = self.big_gate.data.reshape(-1, self.n_experts, 2).sum(
+            dim=-1
+        )
+        self.use_big_gate = False
 
     def calculate_gate(self, x, batch_size, seq_len):
         with measure_time(self, "expert_embedding"):
@@ -194,7 +215,8 @@ class TokenGating(MoeGating):
         use_einsum: bool = False,
     ):
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        gate = init(shape=(dmodel, n_experts), fan_in=dmodel)
+        small_gate = init(shape=(dmodel, n_experts), fan_in=dmodel)
+        big_gate = init(shape=(dmodel, 2 * n_experts), fan_in=dmodel)
 
         super().__init__(
             n_experts,
@@ -202,7 +224,8 @@ class TokenGating(MoeGating):
             softmax_ungrouped=False,
             softmax_over="experts",
             use_torch_bmm=not use_einsum,
-            gate=gate,
+            small_gate=small_gate,
+            big_gate=big_gate,
         )
 
         self.dmodel = dmodel

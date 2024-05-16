@@ -1,0 +1,35 @@
+parent: configs/baselines/gpt/expert_choice/medium.yaml
+md5_parent_hash: 6cf838824bd0834411030b771c73398f
+time: 1-00:00:00
+
+params:
+  name: "cross_granularity_medium"
+  tags: ["8_HALF_4"]
+  granularity: 4
+
+  lr_warmup_steps: 300
+  n_steps: 30000
+  final_lr_step: 30000
+
+
+  #eval and logging
+
+  log_gradients_and_weights: false
+  decoding_interval: 0
+  logging_interval_heavy: 0
+  eval_interval: 1000
+  save_weights_interval: 0
+
+  #fsdp
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+#  fsdp_min_num_params: 10000
+  fsdp_selective_precision_modules: "AttentionMechanism,ExpertGating"
+
+  #throughput
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: false
+  gradient_accumulation_steps: 8
+
+  activation_checkpointing_modules: "TransformerBlock,EmbeddingLayer,PredictionHead"

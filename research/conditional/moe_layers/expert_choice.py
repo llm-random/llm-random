@@ -60,7 +60,8 @@ class ExpertChoiceFF(LoggingLayer):
         assert not self.softmax_ungrouped or self.group_by_batch
 
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
-        gate = init((dmodel, n_experts), dmodel)
+        small_gate = init((dmodel, n_experts), dmodel)
+        big_gate = init((dmodel, n_experts * 2), dmodel)
 
         self.ln = self.measure(LayerNorm(self.doutput), "layer_norm", use_layer_norm)
         self.softmax_over = softmax_over
@@ -84,9 +85,20 @@ class ExpertChoiceFF(LoggingLayer):
             one_hot_impl=one_hot_impl,
             random_perm=random_perm,
             use_torch_bmm=use_torch_bmm,
-            gate=gate,
+            small_gate=small_gate,
+            big_gate=big_gate,
             n_gating_heatmaps=n_gating_heatmaps,
         )
+
+    def double_n_experts(self):
+        self.n_experts = 2 * self.n_experts
+        self.expert_inner_function.double_n_experts()
+        self.expert_gating.double_n_experts()
+
+    def half_n_experts(self):
+        self.n_experts = self.n_experts // 2
+        self.expert_inner_function.half_n_experts()
+        self.expert_gating.half_n_experts()
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)

@@ -32,13 +32,27 @@ class ExpertFF(LoggingLayer):
 
         fan_in_factor = topk if use_topk_initialization else n_experts
         self.init_fun = get_init_fun(init_type=init_type, init_scale=init_scale)
-        self.lin1_weight = self.init_fun(
+        self._lin1_weight = self.init_fun(
             shape=(n_experts, dmodel, expert_size), fan_in=dmodel
         )
-        self.lin2_weight = self.init_fun(
+        self._lin2_weight = self.init_fun(
             shape=(n_experts, expert_size, self.doutput),
             fan_in=int(fan_in_factor * expert_size),
         )
+
+    @property
+    def lin1_weight(self):
+        return self._lin1_weight.reshape(self.n_experts, self.dmodel, -1)
+
+    @property
+    def lin2_weight(self):
+        return self._lin2_weight.reshape(self.n_experts, -1, self.doutput)
+
+    def double_n_experts(self):
+        self.n_experts = 2 * self.n_experts
+
+    def half_n_experts(self):
+        self.n_experts = self.n_experts // 2
 
     @time_measured("process_by_experts")
     def forward(self, x: torch.Tensor):
@@ -133,6 +147,12 @@ class ExpertLinear(LoggingLayer):
 
         init = get_init_fun(init_type=init_type, init_scale=init_scale)
         self.lin1_weight = init(shape=(n_experts, dmodel, expert_size), fan_in=dmodel)
+
+    def double_n_experts(self):
+        raise NotImplementedError
+
+    def half_n_experts(self):
+        raise NotImplementedError
 
     @time_measured("process_by_experts")
     def forward(self, x: torch.Tensor):

@@ -52,6 +52,16 @@ class TokenChoiceFF(LoggingLayer):
             use_einsum=use_einsum,
         )
 
+    def double_n_experts(self):
+        self.n_experts = 2 * self.n_experts
+        self.expert_inner_function.double_n_experts()
+        self.router.double_n_experts()
+
+    def half_n_experts(self):
+        self.n_experts = self.n_experts // 2
+        self.expert_inner_function.half_n_experts()
+        self.router.half_n_experts()
+
     @time_measured("assign_tokens_to_input")
     def extract(self, x, token_indicies):
         capacity = token_indicies.shape[0]
