@@ -29,6 +29,7 @@ from research.grad_norm.build import (
     get_model,
     get_residual_layer,
     get_classes_from_module_names,
+    GradModifPlacement,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -132,7 +133,9 @@ def main(
         args.activation_checkpointing_modules
     )
 
-    residual_fn = get_residual_layer(args)
+    # TODO modify residual_fn based on GradModifPlacement
+    grad_modif_placement: GradModifPlacement = set(args.grad_modif_placement)
+    residual_fn = get_residual_layer(args, grad_modif_placement)
 
     block_modules = {}
     for module_name in args.block_modules:

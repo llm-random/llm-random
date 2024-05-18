@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from research.grad_norm.grad_norm import GradientSTDNormLayer
+from research.grad_norm.modules.grad_norm import GradientSTDNormLayer
 
 
 class TestGradientSTDNormLayer(unittest.TestCase):

@@ -9,17 +9,18 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 
 
-from typing import Callable, Optional, Union, Type
+from typing import Callable, Optional, Union, Type, Literal
 
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
 )
 
-from lizrd.core import llm
+from lizrd.core import llm, GradModifPlacement
 from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
+
 
 
 def get_attention_layer(args):
@@ -62,7 +63,7 @@ def get_norm_class(norm_class):
         raise NotImplementedError(f"Norm type {norm_class} not implemented")
 
 
-def get_residual_layer(args):
+def get_residual_layer(args, grad_modif_placement: GradModifPlacement):
     norm_class = get_norm_class(args.norm_class)
     if args.residual_mode == "pre_norm":
         return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)

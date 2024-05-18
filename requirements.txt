@@ -23,3 +23,4 @@ fabric==3.2.1
 GitPython==3.1.17
 diskcache==5.6.3
 wandb==0.16.2
+pytest
