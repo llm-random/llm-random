@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from research.conditional.moe_layers.load_balancing_loss import (
     calculate_load_balancing_loss,
+    calculate_z_loss,
 )
 from lizrd.core.misc import LoggingLayer, measure_time
 from lizrd.core.initialization import get_init_fun
@@ -243,6 +244,7 @@ class TokenGating(MoeGating):
         n_experts: int,
         capacity_factor: float,
         load_balancing_loss_weight: float,
+        zloss_weight: float = 0,
         routing_top_k: int = 1,
         use_einsum: bool = False,
         **kwargs,
@@ -261,6 +263,7 @@ class TokenGating(MoeGating):
         self.load_balancing_loss_weight = load_balancing_loss_weight
         self.use_einsum = use_einsum
         self.routing_top_k = routing_top_k
+        self.zloss_weight = zloss_weight
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -283,9 +286,23 @@ class TokenGating(MoeGating):
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
 
-        return self.apply_capacity(capacity, expert_index, gate_out, n_tokens)
+        if self.zloss_weight != 0:
+            gate = self.get_gate().unsqueeze(0).expand(batch_size, -1, -1)
+            router_logits = torch.bmm(x, gate).permute(2, 0, 1)
+            return self.apply_capacity(
+                capacity,
+                expert_index,
+                gate_out,
+                n_tokens,
+                zloss_weight=self.zloss_weight,
+                router_logits=router_logits,
+            )
+        else:
+            return self.apply_capacity(capacity, expert_index, gate_out, n_tokens)
 
-    def calculate_balancing_loss(self, gate_out, expert_mask):
+    def calculate_balancing_loss(
+        self, gate_out, expert_mask, zloss_weight=0, router_logits=None
+    ):
         with measure_time(self, "calculate aux loss"):
             tokens_per_expert = expert_mask.sum(dim=0, dtype=gate_out.dtype)
             load_balancing_loss = calculate_load_balancing_loss(
@@ -294,6 +311,11 @@ class TokenGating(MoeGating):
                 tokens_per_expert,
                 use_einsum=self.use_einsum,
             )
+            if zloss_weight > 0:
+                zloss = calculate_z_loss(
+                    zloss_weight=zloss_weight, router_logits=router_logits
+                )
+                load_balancing_loss += zloss
         if "load_balancing_losses" not in self.forward_pass_cache:
             self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
         else:
@@ -301,7 +323,15 @@ class TokenGating(MoeGating):
         self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
         self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
 
-    def apply_capacity(self, capacity, expert_index, gate_out, n_tokens):
+    def apply_capacity(
+        self,
+        capacity,
+        expert_index,
+        gate_out,
+        n_tokens,
+        zloss_weight=0,
+        router_logits=None,
+    ):
         # create a mask telling if a token is assigned to an expert
         with measure_time(self, "create_expert_mask"):
             expanded_expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
@@ -331,7 +361,12 @@ class TokenGating(MoeGating):
             torch.gather(gate_out, 0, top_tokens_per_expert_indices)
             * top_tokens_per_expert_values
         )
-        self.calculate_balancing_loss(gate_out, expert_mask)
+        self.calculate_balancing_loss(
+            gate_out,
+            expert_mask,
+            zloss_weight=zloss_weight,
+            router_logits=router_logits,
+        )
         return top_tokens_per_expert_indices, expert_values
 
     def log_dropped_tokens(
