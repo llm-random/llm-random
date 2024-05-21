@@ -164,3 +164,6 @@ full_config*.yaml
 schema.json
 
 wandb
+
+# pre-commit
+.githooks/

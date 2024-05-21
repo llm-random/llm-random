@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 
 from research.grad_norm.modules.gn_transformer_block import (
-    BlockGradModifPlacement, GradModifiedTransformerBlock,
-    GradMofiedPreNormBlock)
-from research.grad_norm.modules.grad_modif_placement import \
-    BlockGradModifPlacement
+    BlockGradModifPlacement,
+    GradModifiedTransformerBlock,
+    GradMofiedPreNormBlock,
+)
 from research.grad_norm.tests.test_modules.utils import TorchIdModule
 
 
@@ -80,9 +80,7 @@ def test_single_full_block(mock_grad_modidied_pre_norm_block, mock_layer):
     assert call_args_list[1].kwargs["gn_placement"] is gn_placement.ff_mod
 
 
-@pytest.mark.parametrize(
-    "layers", [["attention"], ["feedforward"], ["attention", "feedforward"]]
-)
+@pytest.mark.parametrize("layers", [["attention"], ["feedforward"], ["attention", "feedforward"]])
 def test_block_ff(mock_layer, layers: List[str]):
     gn_placement = BlockGradModifPlacement.create_full()
     block = GradModifiedTransformerBlock(

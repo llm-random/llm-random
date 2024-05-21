@@ -6,8 +6,7 @@ import torch.nn as nn
 
 from lizrd.core.llm import Residual
 from research.grad_norm.modules.gn_pre_norm_block import GradMofiedPreNormBlock
-from research.grad_norm.modules.grad_modif_placement import \
-    LayerGradModifPlacement
+from research.grad_norm.modules.grad_modif_placement import LayerGradModifPlacement
 from research.grad_norm.tests.test_modules.utils import TorchIdModule
 
 
@@ -48,9 +47,7 @@ def test_grad_modified_pre_norm_block_ff(gn_placement: LayerGradModifPlacement):
     )
 
     gn_layer_factory = Mock()
-    gn_layer_factory.side_effect = lambda: Mock(
-        spec=nn.Module, name="test_gn_layer_factory", wraps=TorchIdModule()
-    )
+    gn_layer_factory.side_effect = lambda: Mock(spec=nn.Module, name="test_gn_layer_factory", wraps=TorchIdModule())
     pre_norm = GradMofiedPreNormBlock(
         dmodel=16,
         layer=layer,
@@ -65,6 +62,6 @@ def test_grad_modified_pre_norm_block_ff(gn_placement: LayerGradModifPlacement):
 
     assert layer.call_count == 1
     assert norm_class_factory.call_count == 1
-    assert gn_layer_factory.call_count == int(gn_placement.post_norm) + int(
-        gn_placement.post_layer
-    ) + int(gn_placement.post_add)
+    assert gn_layer_factory.call_count == int(gn_placement.post_norm) + int(gn_placement.post_layer) + int(
+        gn_placement.post_add
+    )

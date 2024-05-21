@@ -70,9 +70,7 @@ class LayerManager:
         verbosity_levels = []
         if self.logging_interval_heavy > 0 and step % self.logging_interval_heavy == 0:
             verbosity_levels = [2, 1, 0]
-        elif (
-            self.logging_interval_light > 0 and step % self.logging_interval_light == 0
-        ):
+        elif self.logging_interval_light > 0 and step % self.logging_interval_light == 0:
             verbosity_levels = [1, 0]
 
         should_clean_up = len(verbosity_levels) > 0
@@ -86,9 +84,7 @@ class LayerManager:
                     info = layer.log(verbosity_level)
                     for name, data in info.items():
                         logging_name = block_name + "/" + name
-                        self.logger.report_generic_info(
-                            title=logging_name, iteration=step, data=data
-                        )
+                        self.logger.report_generic_info(title=logging_name, iteration=step, data=data)
         if should_clean_up:
             for _, layer in self._logable_layers:
                 if isinstance(layer, LoggingLayer):

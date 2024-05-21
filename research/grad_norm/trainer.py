@@ -80,9 +80,7 @@ def chungized_llm_loss_and_gradient(
     gt_tokens = batch.target_ids
     mask = batch.should_calculate_loss
 
-    with torch.autocast(
-        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
-    ):
+    with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype):
         embeddings = model.embedding_layer(input_tokens)
         encoder_output = model.encoder(embeddings)
         encoder_output_detach = encoder_output.detach()
@@ -108,9 +106,7 @@ def chungized_llm_loss_and_gradient(
                 chunged_gt,
                 chunged_mask,
             )
-            partial_loss = (
-                single_chung_loss.mean() / n_chungs / num_checkpoint_accumulation_steps
-            )
+            partial_loss = single_chung_loss.mean() / n_chungs / num_checkpoint_accumulation_steps
             if model.training:
                 run_backward(partial_loss, mixed_precision_dtype, scaler)
             total_loss += partial_loss.item()
@@ -147,9 +143,7 @@ def calculate_llm_loss_and_gradient(
         gt_tokens = batch.target_ids
         mask = batch.should_calculate_loss
 
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
-        ):
+        with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype):
             model_output = model(input_tokens)
 
         # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
@@ -236,13 +230,8 @@ class Trainer:
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
             self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
-        self.loss_accumulators = {
-            f"loss_interval/{i}": SN(acc=0.0, interval=i)
-            for i in self.loss_log_intervals
-        }
-        self.loss_accumulators["loss"] = SN(
-            acc=0.0, interval=self.logging_interval_loss
-        )
+        self.loss_accumulators = {f"loss_interval/{i}": SN(acc=0.0, interval=i) for i in self.loss_log_intervals}
+        self.loss_accumulators["loss"] = SN(acc=0.0, interval=self.logging_interval_loss)
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
@@ -267,9 +256,7 @@ class Trainer:
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
             schedule=self.profiler_schedule,
-            on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                self.profiler_trace_path
-            ),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(self.profiler_trace_path),
             record_shapes=True,
             profile_memory=True,
             with_stack=True,
@@ -281,11 +268,7 @@ class Trainer:
                 if self.profiler_enabled:
                     p.step()
 
-                if (
-                    step > 0
-                    and self.eval_interval > 0
-                    and step % self.eval_interval == 0
-                ):
+                if step > 0 and self.eval_interval > 0 and step % self.eval_interval == 0:
                     self._eval_step(step)
                 if (
                     self.model_type == "gpt"
@@ -295,8 +278,8 @@ class Trainer:
                 ):
                     try:
                         self._decode_samples(step)
-                    except:
-                        print("Decoding failed, skipping...")
+                    except Exception as e:
+                        print(f"Decoding failed due to {str(e)}, skipping...")
                 self.model.forward_pass_cache.clear()
 
     def _train_step(
@@ -330,9 +313,7 @@ class Trainer:
             # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
             for _, tensor in batch_copy:
-                tensor.data = get_ith_chunk(
-                    tensor.data, self.gradient_accumulation_steps, i
-                )
+                tensor.data = get_ith_chunk(tensor.data, self.gradient_accumulation_steps, i)
 
             cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
                 batch=batch_copy,
@@ -355,16 +336,12 @@ class Trainer:
     def _apply_gradient(self):
         if self.scaler is None:
             if self.gradient_clipping is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clipping)
             self.optimizer.step()
         else:
             if self.gradient_clipping is not None:
                 self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clipping)
             self.scaler.step(self.optimizer)
             self.scaler.update()
         self.optimizer.zero_grad()
@@ -377,9 +354,7 @@ class Trainer:
             variant_name="normal",
         )
 
-    def _eval_single_variant(
-        self, batches: Iterable[LLMBatch], step: int, variant_name: str
-    ):
+    def _eval_single_variant(self, batches: Iterable[LLMBatch], step: int, variant_name: str):
         self.model.eval()
         total_loss = 0.0
         total_correct_tokens = 0
@@ -411,9 +386,9 @@ class Trainer:
         ]
         tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
         for example in examples:
-            tokens = torch.tensor(
-                tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))
-            ).to(self.train_dataloader.device)
+            tokens = torch.tensor(tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))).to(
+                self.train_dataloader.device
+            )
             output_tokens = decode_single_example(
                 self.model,
                 self.max_sequence_length,
@@ -430,9 +405,7 @@ class Trainer:
 
     def _log_train_stats(self, loss_value, step):
         self.logger.report_scalar(title="step", value=step, iteration=step)
-        self.logger.report_scalar(
-            title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
-        )
+        self.logger.report_scalar(title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step)
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
@@ -460,12 +433,8 @@ class Trainer:
                 if value.requires_grad:
                     norm = torch.linalg.norm(value)
                     w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
-            g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
-                torch.tensor(list(g_norms.values()))
-            )
-            w_norms[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
-                torch.tensor(list(w_norms.values()))
-            )
+            g_norms["weight_norms/grad_norm_total"] = torch.linalg.norm(torch.tensor(list(g_norms.values())))
+            w_norms["weight_norms/weight_norm_total"] = torch.linalg.norm(torch.tensor(list(w_norms.values())))
             for name, value in {**g_norms, **w_norms}.items():
                 self.logger.report_scalar(title=name, value=value, iteration=step)
 

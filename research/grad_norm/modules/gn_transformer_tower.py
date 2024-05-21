@@ -5,10 +5,8 @@ import torch
 import torch.nn as nn
 
 from lizrd.core import misc
-from research.grad_norm.modules.gn_transformer_block import \
-    GradModifiedTransformerBlock
-from research.grad_norm.modules.grad_modif_placement import \
-    BlockGradModifPlacement
+from research.grad_norm.modules.gn_transformer_block import GradModifiedTransformerBlock
+from research.grad_norm.modules.grad_modif_placement import BlockGradModifPlacement
 
 
 class GradModiedTransformerTower(nn.Module):
@@ -25,15 +23,11 @@ class GradModiedTransformerTower(nn.Module):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
         self.blocks = []
-        self.model_fragmentation = (
-            [] if model_fragmentation is None else model_fragmentation
-        )
+        self.model_fragmentation = [] if model_fragmentation is None else model_fragmentation
         self.device = device
 
         for i_block in range(n_blocks):
-            layers_info = [
-                (name, layer_fun()) for name, layer_fun in layer_dict.items()
-            ]
+            layers_info = [(name, layer_fun()) for name, layer_fun in layer_dict.items()]
 
             for name, layer in layers_info:
                 layer.layer_type = name
@@ -72,6 +66,4 @@ class GradModiedTransformerTower(nn.Module):
             if split_num > block_num:
                 return block_num in self.model_fragmentation, torch.device(f"cuda:{i}")
 
-        return block_num in self.model_fragmentation, torch.device(
-            f"cuda:{len(self.model_fragmentation)}"
-        )
+        return block_num in self.model_fragmentation, torch.device(f"cuda:{len(self.model_fragmentation)}")

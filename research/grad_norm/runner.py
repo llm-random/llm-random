@@ -13,19 +13,23 @@ from lizrd.core.llm import EmbeddingLayer, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import get_n_learnable_parameters, set_seed
 from lizrd.text import tokenizers
-from lizrd.train.load_and_save_model import (get_checkpoint_from_path,
-                                             load_optimizer_state,
-                                             prepare_save_weights_path)
+from lizrd.train.load_and_save_model import (
+    get_checkpoint_from_path,
+    load_optimizer_state,
+    prepare_save_weights_path,
+)
 from lizrd.train.scheduler import get_scheduler
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from research.grad_norm.argparse import check_args, introduce_parser_arguments
-from research.grad_norm.build import (GradModifPlacement,
-                                      disable_profile_schedule_fn,
-                                      get_attention_layer,
-                                      get_classes_from_module_names,
-                                      get_ff_layer,
-                                      get_mixed_precision_ignored_classes,
-                                      get_model, get_residual_layer)
+from research.grad_norm.build import (
+    disable_profile_schedule_fn,
+    get_attention_layer,
+    get_classes_from_module_names,
+    get_ff_layer,
+    get_mixed_precision_ignored_classes,
+    get_model,
+    get_residual_layer,
+)
 from research.grad_norm.trainer import Trainer
 
 
@@ -89,9 +93,7 @@ def main(
         set_seed(args.torch_seed)
 
     VOCAB_SIZE = (
-        tokenizers.BertTokenizer.VOCAB_SIZE
-        if args.model_type == "bert"
-        else tokenizers.GPTTokenizer.VOCAB_SIZE
+        tokenizers.BertTokenizer.VOCAB_SIZE if args.model_type == "bert" else tokenizers.GPTTokenizer.VOCAB_SIZE
     )
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -99,9 +101,7 @@ def main(
         torch.autograd.set_detect_anomaly(True)
 
     if args.model_parallelism_fragmentation is not None:
-        args.model_parallelism_fragmentation = [
-            int(s) for s in args.model_parallelism_fragmentation.split(",")
-        ]
+        args.model_parallelism_fragmentation = [int(s) for s in args.model_parallelism_fragmentation.split(",")]
 
     if args.mixed_precision_dtype == "float16":
         args.mixed_precision_dtype = torch.float16
@@ -120,13 +120,10 @@ def main(
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
     is_logging_process = True if rank is None or rank == 0 else False
 
-    activation_checkpointing_modules = get_classes_from_module_names(
-        args.activation_checkpointing_modules
-    )
+    activation_checkpointing_modules = get_classes_from_module_names(args.activation_checkpointing_modules)
 
     # TODO modify residual_fn based on GradModifPlacement
-    grad_modif_placement: GradModifPlacement = set(args.grad_modif_placement)
-    residual_fn = get_residual_layer(args, grad_modif_placement)
+    residual_fn = get_residual_layer(args)
 
     block_modules = {}
     for module_name in args.block_modules:
@@ -139,15 +136,9 @@ def main(
 
     if args.parallel_blocks:
         modules = block_modules.items()
-        block_modules = {
-            "parallel": lambda: Parallel(*[module() for _, module in modules])
-        }
+        block_modules = {"parallel": lambda: Parallel(*[module() for _, module in modules])}
 
-    checkpoint = (
-        get_checkpoint_from_path(args.load_weights_path)
-        if args.load_weights_path is not None
-        else None
-    )
+    checkpoint = get_checkpoint_from_path(args.load_weights_path) if args.load_weights_path is not None else None
 
     model = get_model(
         max_length=args.cutoff,
@@ -172,8 +163,7 @@ def main(
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
         rank=rank,
-        include_positional_embedding=(not args.no_positional_embedding)
-        and (args.attention_mode != "rope"),
+        include_positional_embedding=(not args.no_positional_embedding) and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
     )
 
@@ -185,14 +175,10 @@ def main(
     head = model.head
 
     n_learnable_nonembedding_parameters = (
-        n_learnable_parameters
-        - get_n_learnable_parameters(embedding)
-        - get_n_learnable_parameters(head)
+        n_learnable_parameters - get_n_learnable_parameters(embedding) - get_n_learnable_parameters(head)
     )
     args.n_learnable_nonembedding_parameters = n_learnable_nonembedding_parameters
-    print(
-        f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
-    )
+    print(f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}")
 
     if args.torch_compile:
         model = torch.compile(model)
@@ -228,11 +214,7 @@ def main(
         dataset_path=args.train_dataset_path,
     )
 
-    eval_split = (
-        "eval"
-        if args.dataset_type == "wikibook"
-        else ("train" if args.use_dummy_dataset else "validation")
-    )
+    eval_split = "eval" if args.dataset_type == "wikibook" else ("train" if args.use_dummy_dataset else "validation")
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split=eval_split,
@@ -247,11 +229,7 @@ def main(
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
             train_dataloader,
-            tokenizer_maker=(
-                tokenizers.GPTTokenizer
-                if args.model_type == "gpt"
-                else tokenizers.BertTokenizer
-            ),
+            tokenizer_maker=(tokenizers.GPTTokenizer if args.model_type == "gpt" else tokenizers.BertTokenizer),
         )
 
     profiler_schedule = (

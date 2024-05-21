@@ -4,8 +4,7 @@ from typing import Callable, Optional
 import torch.nn as nn
 
 from lizrd.core.llm import Residual
-from research.grad_norm.modules.grad_modif_placement import \
-    LayerGradModifPlacement
+from research.grad_norm.modules.grad_modif_placement import LayerGradModifPlacement
 
 
 def GradMofiedPreNormBlock(
@@ -26,11 +25,7 @@ def GradMofiedPreNormBlock(
     on_residual_blocks = [
         (
             "residual",
-            Residual(
-                nn.Sequential(
-                    OrderedDict([b for b in inside_residual_blocks if b is not None])
-                )
-            ),
+            Residual(nn.Sequential(OrderedDict([b for b in inside_residual_blocks if b is not None]))),
         ),
         ("post_add_gn", gn_layer()) if gn_placement.post_add else None,
     ]

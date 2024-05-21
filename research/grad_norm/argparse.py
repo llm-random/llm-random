@@ -5,9 +5,7 @@ def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
-    parser.add_argument(
-        "--model_type", type=str, choices=["gpt", "bert"], required=True
-    )
+    parser.add_argument("--model_type", type=str, choices=["gpt", "bert"], required=True)
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--attention_mode", type=str, default="vanilla")
     parser.add_argument("--parallel_blocks", action="store_true")
@@ -53,9 +51,7 @@ def introduce_parser_arguments(
 
     # CORE data hyperparameters, almost always specified in baseline configs
 
-    parser.add_argument(
-        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
-    )
+    parser.add_argument("--dataset_type", type=str, choices=["wikibook", "c4"], required=True)
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--cutoff", type=int, required=True)
 
@@ -121,9 +117,7 @@ def introduce_parser_arguments(
 
     parser.add_argument("--mask_loss_weight", type=float, default=1.0)
     parser.add_argument("--mask_percent", type=float, default=0.15)
-    parser.add_argument(
-        "--data_seed", type=int, default=-1, help="Negative value means random seed"
-    )
+    parser.add_argument("--data_seed", type=int, default=-1, help="Negative value means random seed")
     parser.add_argument("--torch_seed", type=int, default=42)
 
     # hardware
@@ -164,7 +158,7 @@ def introduce_parser_arguments(
 
     # paremeters for specific experiments
 
-    ## used by MoE (common)
+    # used by MoE (common)
     parser.add_argument(
         "--eval_dynamic_groupsize",
         action="store_true",
@@ -183,7 +177,7 @@ def introduce_parser_arguments(
         help="During evaluation, the largest group size is group_size * 2**eval_max_group_size_logfactor",
     )
 
-    ## used often by Continuous MoE
+    # used often by Continuous MoE
 
     parser.add_argument("--eval_discrete_mot", action="store_true")
     parser.add_argument("--emit_softmax_over_experts", action="store_true")
@@ -197,7 +191,7 @@ def introduce_parser_arguments(
     parser.add_argument("--share_by_emit_merge", action="store_true")
     parser.add_argument("--flop_matched", action="store_true")
 
-    ## used by MoE (specific)
+    # used by MoE (specific)
     parser.add_argument(
         "--load_balancing_loss_weight",
         type=float,
@@ -309,9 +303,7 @@ def introduce_parser_arguments(
 
     # mamba
     parser.add_argument("--mamba_mode", type=str, default="vanilla")
-    parser.add_argument(
-        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
-    )
+    parser.add_argument("--block_modules", type=str, default=["attention", "feedforward"], nargs="+")
     parser.add_argument("--mamba_expansion", type=float, default=2.0)
     parser.add_argument("--no_positional_embedding", action="store_true")
 

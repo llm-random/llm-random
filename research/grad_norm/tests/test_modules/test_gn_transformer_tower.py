@@ -3,10 +3,8 @@ from unittest.mock import Mock, patch
 import torch
 import torch.nn as nn
 
-from research.grad_norm.modules.gn_transformer_tower import \
-    GradModiedTransformerTower
-from research.grad_norm.modules.grad_modif_placement import \
-    BlockGradModifPlacement
+from research.grad_norm.modules.gn_transformer_tower import GradModiedTransformerTower
+from research.grad_norm.modules.grad_modif_placement import BlockGradModifPlacement
 from research.grad_norm.tests.test_modules.utils import TorchIdModule
 
 
@@ -21,12 +19,8 @@ def test_transformer_tower_basic_build():
     grad_modif_fn = Mock(name="grad_modif_fn")
     grad_modif_fn.side_effect = lambda: Mock(spec=nn.Module, wraps=TorchIdModule())
     layer_dict = {
-        "attention": Mock(
-            return_value=Mock(spec=nn.Module, name="attention", wraps=TorchIdModule())
-        ),
-        "feedforward": Mock(
-            return_value=Mock(spec=nn.Module, name="feedforward", wraps=TorchIdModule())
-        ),
+        "attention": Mock(return_value=Mock(spec=nn.Module, name="attention", wraps=TorchIdModule())),
+        "feedforward": Mock(return_value=Mock(spec=nn.Module, name="feedforward", wraps=TorchIdModule())),
     }
     gn_tt = GradModiedTransformerTower(
         device=torch.device("cpu"),

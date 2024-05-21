@@ -2,8 +2,9 @@ from functools import partial
 from typing import Callable, Optional, Type, Union
 
 import torch
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import \
-    apply_activation_checkpointing
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+    apply_activation_checkpointing,
+)
 from torch.nn import LayerNorm
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
@@ -38,9 +39,7 @@ def get_attention_layer(args):
             init_scale=args.init_scale,
         )
     else:
-        raise NotImplementedError(
-            f"Attention type {args.attention_mode} not implemented"
-        )
+        raise NotImplementedError(f"Attention type {args.attention_mode} not implemented")
 
     return attention_layer_fun
 
@@ -59,9 +58,7 @@ def get_residual_layer(args):
     if args.residual_mode == "pre_norm":
         return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "parallel_pre_norm":
-        return partial(
-            llm.ParallelPreNormBlock, dmodel=args.dmodel, norm_class=norm_class
-        )
+        return partial(llm.ParallelPreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "post_norm":
         return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "rezero":
@@ -72,9 +69,7 @@ def get_residual_layer(args):
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        return_fn = lambda: llm.FeedForward(
-            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
-        )
+        return_fn = lambda: llm.FeedForward(args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale)
     elif args.ff_mode == "swi_glu":
         return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
@@ -83,9 +78,7 @@ def get_ff_layer(args):
 
     if args.every_other_layer:
         if args.standard_ff_first:
-            return_fn = llm.EveryOtherLayer(
-                lambda: llm.FeedForward(args.dmodel, args.dff), return_fn
-            )
+            return_fn = llm.EveryOtherLayer(lambda: llm.FeedForward(args.dmodel, args.dff), return_fn)
         else:
             return_fn = llm.EveryOtherLayer(
                 return_fn,
@@ -145,9 +138,7 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         _BatchNorm,
     ]
 
-    selective_precision_modules = get_classes_from_module_names(
-        args.fsdp_selective_precision_modules
-    )
+    selective_precision_modules = get_classes_from_module_names(args.fsdp_selective_precision_modules)
     if selective_precision_modules is not None:
         ignored_classes += list(selective_precision_modules)
 
@@ -192,16 +183,10 @@ def get_model(
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
-    embedding_components = [
-        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
-    ]
+    embedding_components = [llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)]
 
     if include_positional_embedding:
-        embedding_components.append(
-            llm.PositionalEmbedding(
-                max_length, dm, init_type=init_type, init_scale=init_scale
-            )
-        )
+        embedding_components.append(llm.PositionalEmbedding(max_length, dm, init_type=init_type, init_scale=init_scale))
 
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
 
@@ -215,9 +200,7 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    head = llm.PredictionHead(
-        dm, vocab_size, init_type=init_type, init_scale=init_scale
-    ).to(last_gpu)
+    head = llm.PredictionHead(dm, vocab_size, init_type=init_type, init_scale=init_scale).to(last_gpu)
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 

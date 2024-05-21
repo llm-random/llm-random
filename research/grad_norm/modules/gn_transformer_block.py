@@ -5,8 +5,7 @@ from typing import Callable, Optional
 import torch.nn as nn
 
 from research.grad_norm.modules.gn_pre_norm_block import GradMofiedPreNormBlock
-from research.grad_norm.modules.grad_modif_placement import \
-    BlockGradModifPlacement
+from research.grad_norm.modules.grad_modif_placement import BlockGradModifPlacement
 
 
 class GradModifiedTransformerBlock(nn.Module):
@@ -28,9 +27,7 @@ class GradModifiedTransformerBlock(nn.Module):
             elif name == "feedforward":
                 layer_gn_placement = gn_placement.ff_mod
             else:
-                raise ValueError(
-                    "Supprted layer types are 'attention' and 'feedforward'"
-                )
+                raise ValueError("Supprted layer types are 'attention' and 'feedforward'")
 
             norm_class_kwargs = {}
             if norm_class is not None:
@@ -44,9 +41,7 @@ class GradModifiedTransformerBlock(nn.Module):
                 **norm_class_kwargs,
             )
 
-            residual_layers.append(
-                (f"residual_{name}", residual_fn(layer=layer, name=name))
-            )
+            residual_layers.append((f"residual_{name}", residual_fn(layer=layer, name=name)))
 
         self.block = nn.Sequential(OrderedDict(residual_layers))
 
