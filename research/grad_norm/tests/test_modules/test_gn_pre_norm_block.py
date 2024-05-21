@@ -1,11 +1,13 @@
 from unittest.mock import Mock
-import torch.nn as nn
+
 import pytest
 import torch
+import torch.nn as nn
 
 from lizrd.core.llm import Residual
 from research.grad_norm.modules.gn_pre_norm_block import GradMofiedPreNormBlock
-from research.grad_norm.modules.grad_modif_placement import LayerGradModifPlacement
+from research.grad_norm.modules.grad_modif_placement import \
+    LayerGradModifPlacement
 from research.grad_norm.tests.test_modules.utils import TorchIdModule
 
 

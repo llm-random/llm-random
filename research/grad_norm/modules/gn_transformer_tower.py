@@ -1,11 +1,14 @@
-import torch.nn as nn
-import torch
-from typing import Optional, Callable
 from collections import OrderedDict
+from typing import Callable, Optional
+
+import torch
+import torch.nn as nn
 
 from lizrd.core import misc
-from research.grad_norm.modules.gn_transformer_block import GradModifiedTransformerBlock
-from research.grad_norm.modules.grad_modif_placement import BlockGradModifPlacement
+from research.grad_norm.modules.gn_transformer_block import \
+    GradModifiedTransformerBlock
+from research.grad_norm.modules.grad_modif_placement import \
+    BlockGradModifPlacement
 
 
 class GradModiedTransformerTower(nn.Module):

@@ -1,11 +1,13 @@
-import torch.nn as nn
-import torch
 from unittest.mock import Mock, patch
 
-from research.grad_norm.tests.test_modules.utils import TorchIdModule
+import torch
+import torch.nn as nn
 
-from research.grad_norm.modules.gn_transformer_tower import GradModiedTransformerTower
-from research.grad_norm.modules.grad_modif_placement import BlockGradModifPlacement
+from research.grad_norm.modules.gn_transformer_tower import \
+    GradModiedTransformerTower
+from research.grad_norm.modules.grad_modif_placement import \
+    BlockGradModifPlacement
+from research.grad_norm.tests.test_modules.utils import TorchIdModule
 
 
 @patch(

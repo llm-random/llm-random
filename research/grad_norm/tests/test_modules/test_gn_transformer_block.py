@@ -1,16 +1,16 @@
+from typing import List
 from unittest.mock import Mock, patch
-import torch.nn as nn
+
 import pytest
 import torch
+import torch.nn as nn
 
-from typing import List
-from research.grad_norm.tests.test_modules.utils import TorchIdModule
 from research.grad_norm.modules.gn_transformer_block import (
-    GradModifiedTransformerBlock,
-    BlockGradModifPlacement,
-    GradMofiedPreNormBlock,
-)
-from research.grad_norm.modules.grad_modif_placement import BlockGradModifPlacement
+    BlockGradModifPlacement, GradModifiedTransformerBlock,
+    GradMofiedPreNormBlock)
+from research.grad_norm.modules.grad_modif_placement import \
+    BlockGradModifPlacement
+from research.grad_norm.tests.test_modules.utils import TorchIdModule
 
 
 @pytest.fixture

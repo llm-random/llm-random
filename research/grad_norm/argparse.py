@@ -360,10 +360,16 @@ def check_args(args):
         and args.profiler_trace_path is not None
     ), "To use profiler set all profiler_schedule arguments"
 
-    assert (
-        set(args.grad_modif_placement)
-        .issubset({"post_attn", "post_attn_norm", "post_attn_add", "post_ff", "post_ff_norm", "post_ff_add"})
-        ), "grad_modif_placement should be a list of strings, each of which is one of the following: post_attn, post_attn_norm, post_attn_add, post_ff, post_ff_norm, post_ff_add"
+    assert set(args.grad_modif_placement).issubset(
+        {
+            "post_attn",
+            "post_attn_norm",
+            "post_attn_add",
+            "post_ff",
+            "post_ff_norm",
+            "post_ff_add",
+        }
+    ), "grad_modif_placement should be a list of strings, each of which is one of the following: post_attn, post_attn_norm, post_attn_add, post_ff, post_ff_norm, post_ff_add"
 
     if args.save_weights_path is not None:
         filename = args.save_weights_path.split("/")[-1]

@@ -1,9 +1,11 @@
+from collections import OrderedDict
+from typing import Callable, Optional
+
 import torch.nn as nn
 
-from collections import OrderedDict
 from lizrd.core.llm import Residual
-from typing import Callable, Optional
-from research.grad_norm.modules.grad_modif_placement import LayerGradModifPlacement
+from research.grad_norm.modules.grad_modif_placement import \
+    LayerGradModifPlacement
 
 
 def GradMofiedPreNormBlock(

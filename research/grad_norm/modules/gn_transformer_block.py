@@ -1,11 +1,12 @@
+from collections import OrderedDict
+from functools import partial
+from typing import Callable, Optional
+
 import torch.nn as nn
 
-from typing import Callable, Optional
-from functools import partial
-from collections import OrderedDict
-
 from research.grad_norm.modules.gn_pre_norm_block import GradMofiedPreNormBlock
-from research.grad_norm.modules.grad_modif_placement import BlockGradModifPlacement
+from research.grad_norm.modules.grad_modif_placement import \
+    BlockGradModifPlacement
 
 
 class GradModifiedTransformerBlock(nn.Module):

@@ -1,41 +1,32 @@
 import argparse
 import os
 import random
-from typing import Callable, Optional
 import socket
+from typing import Callable, Optional
 
 import torch
 import torch.multiprocessing as mp
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import destroy_process_group, init_process_group
 
 from lizrd.core import misc
 from lizrd.core.llm import EmbeddingLayer, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
-from lizrd.support.misc import (
-    get_n_learnable_parameters,
-    set_seed,
-)
+from lizrd.support.misc import get_n_learnable_parameters, set_seed
 from lizrd.text import tokenizers
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from lizrd.train.load_and_save_model import (get_checkpoint_from_path,
+                                             load_optimizer_state,
+                                             prepare_save_weights_path)
 from lizrd.train.scheduler import get_scheduler
+from research.datasets import DataloaderWrapper, get_processed_dataset
+from research.grad_norm.argparse import check_args, introduce_parser_arguments
+from research.grad_norm.build import (GradModifPlacement,
+                                      disable_profile_schedule_fn,
+                                      get_attention_layer,
+                                      get_classes_from_module_names,
+                                      get_ff_layer,
+                                      get_mixed_precision_ignored_classes,
+                                      get_model, get_residual_layer)
 from research.grad_norm.trainer import Trainer
-from research.grad_norm.argparse import introduce_parser_arguments, check_args
-from research.grad_norm.build import (
-    disable_profile_schedule_fn,
-    get_classes_from_module_names,
-    get_ff_layer,
-    get_attention_layer,
-    get_mixed_precision_ignored_classes,
-    get_model,
-    get_residual_layer,
-    get_classes_from_module_names,
-    GradModifPlacement,
-)
-from lizrd.train.load_and_save_model import (
-    get_checkpoint_from_path,
-    load_optimizer_state,
-    prepare_save_weights_path,
-)
 
 
 def log_batch(

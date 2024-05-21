@@ -1,23 +1,15 @@
 from functools import partial
+from typing import Callable, Optional, Type, Union
 
-from typing import Optional, Type, Union, Callable
 import torch
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import \
+    apply_activation_checkpointing
 from torch.nn import LayerNorm
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
 
 from lizrd.core import llm
-
-
-from typing import Callable, Optional, Union, Type
-
-import torch
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
-    apply_activation_checkpointing,
-)
-
-from lizrd.core import llm
-from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
+from lizrd.core.distributed import wrap_in_ddp, wrap_in_fsdp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
 
@@ -191,7 +183,7 @@ def get_model(
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
-    checkpoint: dict[str, torch.Tensor] = None
+    checkpoint: dict[str, torch.Tensor] = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device

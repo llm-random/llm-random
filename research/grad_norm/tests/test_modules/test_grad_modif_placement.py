@@ -1,7 +1,5 @@
 from research.grad_norm.modules.grad_modif_placement import (
-    LayerGradModifPlacement,
-    BlockGradModifPlacement,
-)
+    BlockGradModifPlacement, LayerGradModifPlacement)
 
 
 def test_layer_all_placements():

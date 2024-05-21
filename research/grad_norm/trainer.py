@@ -1,23 +1,24 @@
 import copy
 from functools import partial
 from types import SimpleNamespace as SN
-from typing import Callable, Iterable, Optional, Literal
+from typing import Callable, Iterable, Literal, Optional
 
 import torch
 import torch.nn.functional as F
-from torch.profiler import profile, ProfilerActivity
 from attr import define
+from torch.profiler import ProfilerActivity, profile
+from transformers import GPT2Tokenizer
+
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
-from lizrd.train.scheduler import AbstractLRScheduler
-from research.grad_norm.layer_manager import LayerManager
-from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
-from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+from lizrd.train.scheduler import AbstractLRScheduler
+from research.datasets import DataloaderWrapper
+from research.grad_norm.layer_manager import LayerManager
 
 
 def make_loss_and_gradient_function(
