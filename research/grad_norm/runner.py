@@ -140,6 +140,9 @@ def main(
 
     checkpoint = get_checkpoint_from_path(args.load_weights_path) if args.load_weights_path is not None else None
 
+    args.grad_modif_placement  # TODO verify
+    args.grad_modif_fn  # TODO verify
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -165,6 +168,8 @@ def main(
         rank=rank,
         include_positional_embedding=(not args.no_positional_embedding) and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
+        grad_modif_placement=args.grad_modif_placement,
+        grad_modif_fn=args.grad_modif_fn,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)

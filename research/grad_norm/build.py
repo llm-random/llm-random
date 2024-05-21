@@ -13,6 +13,10 @@ from lizrd.core import llm
 from lizrd.core.distributed import wrap_in_ddp, wrap_in_fsdp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
+from research.grad_norm.modules import (
+    BlockGradModifPlacement,
+    GradModiedTransformerTower,
+)
 
 
 def get_attention_layer(args):
@@ -175,7 +179,17 @@ def get_model(
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
+    grad_modif_placement: Optional[BlockGradModifPlacement] = None,
+    grad_modif_fn: Callable[[], torch.nn.Module] = None,
 ):
+
+    if grad_modif_placement is not None and grad_modif_fn is None:
+        raise ValueError("grad_modif_fn must be provided if grad_modif_placement is provided")
+
+    if grad_modif_placement is None:
+        # no gradient modification on default
+        grad_modif_placement = BlockGradModifPlacement()
+
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
         last_gpu = device
@@ -191,13 +205,15 @@ def get_model(
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
-    encoder_tower = llm.TransformerTower(
+    encoder_tower = GradModiedTransformerTower(
         n_blocks,
         dm,
         block_modules,
         device,
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
+        gn_placement=grad_modif_placement,
+        grad_modif_fn=grad_modif_fn,
     )
 
     head = llm.PredictionHead(dm, vocab_size, init_type=init_type, init_scale=init_scale).to(last_gpu)
