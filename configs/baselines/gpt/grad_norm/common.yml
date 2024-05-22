@@ -1,10 +1,12 @@
-parent: configs/baselines/gpt/dense/common.yaml
-md5_parent_hash: 1b1451abcd3779c5960c78b2f48aecbc
+parent: configs/baselines/common.yaml
+md5_parent_hash: e2448c63fe6cc2c972f4bbb52f2043ea
 
 runner: "research.grad_norm.runner"
 
 params:
-  name: "grad_norm"
+  name: "grad_norm_common"
+  model_type: gpt
+  dataset_type: wikibook
 
   # technical/common params
   ff_mode: vanilla
