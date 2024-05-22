@@ -1,0 +1,18 @@
+parent: configs/baselines/common.yaml
+md5_parent_hash: e2448c63fe6cc2c972f4bbb52f2043ea
+
+params:
+  name: "grad_norm"
+
+  # technical/common params
+  ff_mode: vanilla
+  use_torch_bmm: true
+  torch_compile: false
+  mixed_precision_dtype: "bfloat16"
+
+  # params
+  learning_rate: 1e-4
+
+  # init
+  init_type: truncated_normal
+  init_scale: 0.1

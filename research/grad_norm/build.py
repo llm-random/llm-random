@@ -27,12 +27,12 @@ def get_grad_modif_placement(args) -> BlockGradModifPlacement:
     return BlockGradModifPlacement.from_list(args.grad_modif_placement)
 
 
-def get_grad_modif_fn(args) -> Callable[[], torch.nn.Module]:
+def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
     grad_modif_type = args.get("grad_modif_type")
     grad_modif_params = args.get("grad_modif_params", [])
 
     if grad_modif_type is None:
-        raise ValueError("grad_modif_fn not found in args")
+        return None
 
     param_dict = dict()
     for param in grad_modif_params:

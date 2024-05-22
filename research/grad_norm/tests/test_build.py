@@ -65,10 +65,18 @@ def test_get_grad_modif_fn_std_norm(args_mock):
             "grad_modif_type": "std_norm",
         },
         {"grad_modif_type": "std_norm", "grad_modif_params": ["cc=1"]},
-        {},
     ],
     indirect=True,
 )
 def test_get_grad_modif_fn_error_handling(args_mock):
     with pytest.raises(ValueError):
         get_grad_modif_fn(args_mock)
+
+
+@pytest.mark.parametrize(
+    "args_mock",
+    [{"grad_modif_params": ["c=1"]}, {}],
+    indirect=True,
+)
+def test_get_grad_modif_fn_returns_none(args_mock):
+    assert get_grad_modif_fn(args_mock) is None
