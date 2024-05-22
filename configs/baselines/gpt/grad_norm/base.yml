@@ -1,5 +1,5 @@
 parent: configs/baselines/gpt/grad_norm/common.yml
-md5_parent_hash: a12c2a0ab82802d656af2c11054d133c
+md5_parent_hash: fcbfaf83d757cd20c85acd2ffff7517f
 time: 2-00:00:00
 
 params:
@@ -7,3 +7,4 @@ params:
   dmodel: 768
   n_blocks: 12
   n_att_heads: 12
+  dff: 3072

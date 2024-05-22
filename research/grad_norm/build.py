@@ -28,8 +28,8 @@ def get_grad_modif_placement(args) -> BlockGradModifPlacement:
 
 
 def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
-    grad_modif_type = args.get("grad_modif_type")
-    grad_modif_params = args.get("grad_modif_params", [])
+    grad_modif_type = getattr(args, "grad_modif_type", None)
+    grad_modif_params = getattr(args, "grad_modif_params", [])
 
     if grad_modif_type is None:
         return None
@@ -239,7 +239,6 @@ def get_model(
         block_modules,
         device,
         model_fragmentation=model_fragmentation,
-        residual_fn=residual_fn,
         gn_placement=grad_modif_placement,
         grad_modif_fn=grad_modif_fn,
     )
