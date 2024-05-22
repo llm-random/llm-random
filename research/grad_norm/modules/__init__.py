@@ -5,6 +5,7 @@ from research.grad_norm.modules.grad_modif_placement import (
     BlockGradModifPlacement,
     LayerGradModifPlacement,
 )
+from research.grad_norm.modules.grad_norm import GradientSTDNormLayer
 
 __all__ = [
     "GradMofiedPreNormBlock",
@@ -12,4 +13,5 @@ __all__ = [
     "GradModiedTransformerTower",
     "LayerGradModifPlacement",
     "BlockGradModifPlacement",
+    "GradientSTDNormLayer",
 ]

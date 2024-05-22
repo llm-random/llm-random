@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 from typing import Callable, Optional, Type, Union
 
@@ -15,8 +16,37 @@ from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
 from research.grad_norm.modules import (
     BlockGradModifPlacement,
+    GradientSTDNormLayer,
     GradModiedTransformerTower,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def get_grad_modif_placement(args) -> BlockGradModifPlacement:
+    return BlockGradModifPlacement.from_list(args.grad_modif_placement)
+
+
+def get_grad_modif_fn(args) -> Callable[[], torch.nn.Module]:
+    grad_modif_type = args.get("grad_modif_type")
+    grad_modif_params = args.get("grad_modif_params", [])
+
+    if grad_modif_type is None:
+        raise ValueError("grad_modif_fn not found in args")
+
+    param_dict = dict()
+    for param in grad_modif_params:
+        t = tuple(map(str.strip, param.split("=")))
+        if len(t) != 2:
+            raise ValueError(f"Invalid grad_modif_params value {param}")
+        param_dict[t[0]] = t[1]
+
+    if grad_modif_type == "std_norm":
+        if "c" not in param_dict:
+            raise ValueError("Parameter 'c' is required for grad_modif_type 'std_norm' (add it to 'grad_modif_params')")
+        return partial(GradientSTDNormLayer, c=float(param_dict["c"]))
+    else:
+        raise ValueError(f"Unknown grad_modif_type {grad_modif_type}")
 
 
 def get_attention_layer(args):
@@ -174,20 +204,18 @@ def get_model(
     fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
     activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     is_logging_process: bool,
+    grad_modif_placement: BlockGradModifPlacement,
+    grad_modif_fn: Optional[Callable[[], torch.nn.Module]] = None,
     rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
-    grad_modif_placement: Optional[BlockGradModifPlacement] = None,
-    grad_modif_fn: Callable[[], torch.nn.Module] = None,
 ):
 
-    if grad_modif_placement is not None and grad_modif_fn is None:
-        raise ValueError("grad_modif_fn must be provided if grad_modif_placement is provided")
-
-    if grad_modif_placement is None:
-        # no gradient modification on default
+    if grad_modif_fn is None:
+        logger.warning("No grad_modif_fn provided. No gradient modification will be applied.")
+        grad_modif_fn = lambda: torch.nn.Identity()
         grad_modif_placement = BlockGradModifPlacement()
 
     if model_fragmentation is None or device == torch.device("cpu"):

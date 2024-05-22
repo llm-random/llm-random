@@ -327,11 +327,12 @@ def introduce_parser_arguments(
     )
 
     parser.add_argument(
-        "--grad_modif_fn",
+        "--grad_modif_type",
         type=str,
-        default="std_norm",
         required=False,
     )
+
+    parser.add_argument("--grad_modif_params", type=str, nargs="+", default=[], required=False)
 
     return parser
 

@@ -1,5 +1,3 @@
-import abc
-
 import torch
 import torch.nn as nn
 
@@ -23,6 +21,8 @@ class GradientSTDNormFunction(torch.autograd.Function):
 class GradientSTDNormLayer(nn.Module):
     def __init__(self, c: float = 1):
         super().__init__()
+        if not 0 <= c <= 1:
+            raise ValueError("c must be in [0, 1]")
         self.c = c
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

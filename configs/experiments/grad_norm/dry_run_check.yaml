@@ -36,3 +36,14 @@ params:
   use_dummy_dataset: true
   init_type: kaiming_uniform
   init_scale: 1.0
+  grad_modif_type:
+    - "std_norm"
+  grad_modif_params:
+    - "c=1.0"
+  grad_modif_placement:
+    - "post_attn"
+    - "post_att_norm"
+    - "post_attn_add"
+    - "post_ff"
+    - "post_ff_norm"
+    - "post_ff_add"

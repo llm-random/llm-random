@@ -26,6 +26,8 @@ from research.grad_norm.build import (
     get_attention_layer,
     get_classes_from_module_names,
     get_ff_layer,
+    get_grad_modif_fn,
+    get_grad_modif_placement,
     get_mixed_precision_ignored_classes,
     get_model,
     get_residual_layer,
@@ -140,8 +142,8 @@ def main(
 
     checkpoint = get_checkpoint_from_path(args.load_weights_path) if args.load_weights_path is not None else None
 
-    args.grad_modif_placement  # TODO verify
-    args.grad_modif_fn  # TODO verify
+    grad_modif_placement = get_grad_modif_placement(args)
+    grad_modif_fn = get_grad_modif_fn(args)
 
     model = get_model(
         max_length=args.cutoff,
@@ -168,8 +170,8 @@ def main(
         rank=rank,
         include_positional_embedding=(not args.no_positional_embedding) and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
-        grad_modif_placement=args.grad_modif_placement,
-        grad_modif_fn=args.grad_modif_fn,
+        grad_modif_placement=grad_modif_placement,
+        grad_modif_fn=grad_modif_fn,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
