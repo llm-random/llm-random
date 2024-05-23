@@ -35,7 +35,9 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
     dataset_path: Optional[str] = None,
+    num_gpus: int = 1,
 ):
+    workers_multiplier = num_gpus if num_gpus > 1 else 1
     if dataset_type == "wikibook":
         dataset = partial(
             datasets.WikiBookDataset,
@@ -48,6 +50,7 @@ def get_processed_dataset(
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
             dataset_path=dataset_path,
+            total_workers=workers_multiplier * num_workers,
         )
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")

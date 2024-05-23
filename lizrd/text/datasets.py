@@ -85,13 +85,14 @@ class C4Dataset(AbstractDataset):
         split: str = "train",
         use_dummy_dataset: bool = False,
         dataset_path: Optional[str] = None,
+        total_workers: int = 1,
     ):
         super().__init__(seed=seed)
+        self.offset = seed
+        self.total_workers = total_workers
         assert split in ["train", "validation"]
         if dataset_path is not None:
-            self.dataset = load_from_disk(dataset_path).shuffle(
-                seed=self.py_rng.randint(0, 2**32)
-            )
+            self.dataset = load_from_disk(dataset_path)
         elif use_dummy_dataset:
             if split != "train":
                 raise NameError(
@@ -100,13 +101,12 @@ class C4Dataset(AbstractDataset):
             self.dataset = load_dataset("stas/c4-en-10k", split=split)
         else:
             self.dataset = load_dataset("c4", "en", split=split)
-        self.dataset_iterator = iter(self.dataset)
 
     def get_document(self) -> str:
-        try:
-            return next(self.dataset_iterator)["text"]
-        except StopIteration:
-            self.dataset_iterator = iter(
-                self.dataset.shuffle(seed=self.py_rng.randint(0, 2**32))
-            )
-            return next(self.dataset_iterator)["text"]
+        document_id = self.offset % len(self.dataset)
+        self.offset = (self.offset + self.total_workers) % len(self.dataset)
+        return self.dataset[document_id]["text"]
+
+    def set_rng(self, seed: int | None = None):
+        super().set_rng(seed)
+        self.offset = seed

@@ -244,6 +244,7 @@ def main(
         "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
+        "num_gpus": args.n_gpus,
     }
 
     train_dataloader = get_processed_dataset(
@@ -349,7 +350,7 @@ if __name__ == "__main__":
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
-        data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
+        data_seeds = [args.data_seed + args.num_workers * i for i in range(args.n_gpus)]
 
         # find free port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
