@@ -13,8 +13,7 @@ print(f"Load time: {load_time:.3f}s")
 times = []
 curr_time = time()
 for i in range(100):
-    document = dataset[randint(0, len(dataset) - 1)]
-    document = document["text"]
+    document = dataset["text"][randint(0, len(dataset) - 1)]
     read_time = time() - curr_time
     times.append(read_time)
     if i == 100:
