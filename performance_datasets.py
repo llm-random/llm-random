@@ -1,14 +1,12 @@
 from time import time
 
-from datasets import load_dataset
-
+# from datasets import load_dataset
+import dask.dataframe as dd
 from random import randint
 
 load_start = time()
-dataset = load_dataset(
-    "parquet",
-    data_files="/net/tscratch/people/plgkciebiera/datasets2/c4/validation/validation.parquet",
-    split="validation",
+dataset = dd.read_parquet(
+    data_files="/net/tscratch/people/plgkciebiera/datasets2/c4/validation/validation.parquet"
 )
 load_time = time() - load_start
 print(f"Load time: {load_time:.3f}s")
