@@ -315,6 +315,8 @@ class TokenGating(MoeGating):
                 zloss = calculate_z_loss(
                     zloss_weight=zloss_weight, router_logits=router_logits
                 )
+                # print(f"load_balancing_loss: {load_balancing_loss}")
+                # print(f"zloss: {zloss}")
                 load_balancing_loss += zloss
         if "load_balancing_losses" not in self.forward_pass_cache:
             self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]

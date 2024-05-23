@@ -623,6 +623,7 @@ def get_ff_layer(args):
             capacity_factor=args.capacity_factor,
             expert_inner_function=make_expert_inner_function(),
             load_balancing_loss_weight=args.load_balancing_loss_weight,
+            zloss_weight=args.zloss_weight,
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,

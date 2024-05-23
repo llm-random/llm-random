@@ -207,6 +207,12 @@ def introduce_parser_arguments(
         default=0.01,
         help="Whether to use auxiliary loss in loss calculations",
     )
+    parser.add_argument(
+        "--zloss_weight",
+        default=0.0,
+        type=float,
+        help="zloss_weight, if 0 zloss won't be computed, works with moe",
+    )
     parser.add_argument("--topk_fraction", type=float)
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument(
