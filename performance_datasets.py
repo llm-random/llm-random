@@ -1,12 +1,14 @@
 from time import time
 
-from datasets import load_from_disk
+from datasets import load_dataset
 
 from random import randint
 
 load_start = time()
-dataset = load_from_disk(
-    "/net/tscratch/people/plgkciebiera/datasets/c4/train",
+dataset = load_dataset(
+    "parquet",
+    data_files="/net/tscratch/people/plgkciebiera/datasets2/c4/validation/validation.parquet",
+    split="validation",
 )
 load_time = time() - load_start
 print(f"Load time: {load_time:.3f}s")
