@@ -6,7 +6,7 @@ from random import randint
 
 load_start = time()
 dataset = dd.read_parquet(
-    data_files="/net/tscratch/people/plgkciebiera/datasets2/c4/validation/validation.parquet"
+    "/net/tscratch/people/plgkciebiera/datasets2/c4/validation/validation.parquet"
 )
 load_time = time() - load_start
 print(f"Load time: {load_time:.3f}s")
