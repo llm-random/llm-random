@@ -128,6 +128,7 @@ class ConditionalTrainer:
         """
         Train the model for n_steps steps.
         """
+        print("Starting training...", flush=True)
         self._before_train_operations()
         if self.scaler is not None and self.checkpoint is not None:
             load_scaler_state(self.scaler, self.checkpoint)
@@ -145,6 +146,7 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(self.start_step, n_steps + 1):
+                print(f"Step {step}", flush=True)
                 self._train_step(step)
                 if self.profiler_enabled:
                     p.step()

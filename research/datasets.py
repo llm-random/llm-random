@@ -13,6 +13,7 @@ class DataloaderWrapper:
         self.device = device
 
     def get_batch(self) -> data.LLMBatch:
+        print("Getting batch", flush=True)
         return next(self.generator).to(self.device)
 
 
@@ -78,6 +79,7 @@ def get_processed_dataset(
         worker_init_fn=partial(worker_init_fn, seed),
         shuffle=False,
         pin_memory=True,
+        timeout=10,
     )
 
     return DataloaderWrapper(dataloader, device)

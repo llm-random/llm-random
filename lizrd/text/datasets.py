@@ -89,7 +89,7 @@ class C4Dataset(AbstractDataset):
     ):
         super().__init__(seed=seed)
         self.offset = seed
-        self.total_workers = total_workers
+        self.total_workers = total_workers if total_workers > 0 else 1
         assert split in ["train", "validation"]
         if dataset_path is not None:
             self.dataset = load_from_disk(dataset_path)
@@ -105,6 +105,8 @@ class C4Dataset(AbstractDataset):
     def get_document(self) -> str:
         document_id = self.offset % len(self.dataset)
         self.offset = (self.offset + self.total_workers) % len(self.dataset)
+        print(document_id, flush=True)
+        print(self.dataset[document_id], flush=True)
         return self.dataset[document_id]["text"]
 
     def set_rng(self, seed: int | None = None):
