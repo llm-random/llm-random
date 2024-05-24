@@ -1,10 +1,10 @@
 from research.datasets import get_processed_dataset
 
 loader = get_processed_dataset(
-    batch_size=4,
+    batch_size=512,
     sequence_length=16,
     device="cpu",
-    num_workers=1,
+    num_workers=8,
     seed=42,
     model_type="gpt",
     dataset_type="c4",
