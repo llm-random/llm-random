@@ -1,0 +1,13 @@
+parent: configs/baselines/gpt/mot/mini.yaml
+md5_parent_hash: f0d95ccc34c46d3535ba41943d8aa5b7
+
+
+time: "00:30:00"
+
+params:
+  name: "gradient_accumulation_steps_8"
+  gradient_accumulation_steps: 8
+  save_weights_interval: 0
+  logging_interval_heavy: 1000
+  tags: ["cluster_test", "gradient_accumulation_steps"]
+  n_steps: 5000

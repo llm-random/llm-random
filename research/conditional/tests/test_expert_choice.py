@@ -11,6 +11,8 @@ from lizrd.train.checkpointing import (
 )
 
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
+from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
+from research.conditional.moe_layers.expert_types import ExpertFF
 from lizrd.support.test_utils import GeneralTestCase
 from lizrd.core.misc import Linear
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -26,6 +28,38 @@ def mock_topk_factory(topk_fn):
     return mock_topk
 
 
+def create_expert_choice(
+    dmodel,
+    n_experts,
+    expert_size,
+    topk_fracton,
+    init_type="kaiming_uniform",
+    init_scale=1.0,
+    *args,
+    **kwargs
+):
+    topk = int(topk_fracton * n_experts)
+    expert_inner = ExpertFF(
+        dmodel,
+        n_experts,
+        expert_size,
+        init_type,
+        init_scale,
+        topk=topk,
+        use_topk_initialization=True,
+    )
+    return ExpertChoiceFF(
+        dmodel,
+        n_experts,
+        topk_fracton,
+        expert_inner_function=expert_inner,
+        init_type=init_type,
+        init_scale=init_scale,
+        *args,
+        **kwargs,
+    )
+
+
 class TestExpertChoice(GeneralTestCase):
     def test_permutation(self):
         """
@@ -38,32 +72,29 @@ class TestExpertChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         topk_fraction = 1
-        layer = ExpertChoiceFF(
-            dm,
-            experts,
-            exp_size,
-            topk_fraction,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
-        )
+        layer = create_expert_choice(dm, experts, exp_size, topk_fraction)
         layer.ln = Identity()
 
         # make sure weights don't change input
-        layer.lin1_weight.data = torch.eye(m=exp_size, n=dm).unsqueeze(0)
-        layer.lin2_weight.data = torch.eye(m=dm, n=exp_size).unsqueeze(0)
+        layer.expert_inner_function.lin1_weight.data = torch.eye(
+            m=exp_size, n=dm
+        ).unsqueeze(0)
+        layer.expert_inner_function.lin2_weight.data = torch.eye(
+            m=dm, n=exp_size
+        ).unsqueeze(0)
 
         # make sure weight matrices are identity
         input = torch.rand((1, batch * seql, dm))
         x = einsum(
             "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
             input,
-            layer.lin1_weight,
+            layer.expert_inner_function.lin1_weight,
         )
         x = F.relu(x)
         output = einsum(
             "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
             x,
-            layer.lin2_weight,
+            layer.expert_inner_function.lin2_weight,
         )
         self.assertTensorAlmostEqual(output, input)
 
@@ -75,6 +106,46 @@ class TestExpertChoice(GeneralTestCase):
             output = layer(input)
         self.assertTensorAlmostEqual(output, input)
 
+    def test_old_new_equivalence(self):
+        """
+        Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
+        """
+        batch, dm = 2, 2
+        experts = 2
+        exp_size = 6
+        seql = 2
+        topk_fraction = 0.5
+        layer = create_expert_choice(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            one_hot_impl=True,
+            group_by_batch=True,
+            use_torch_bmm=True,
+        )
+        layer_old = ExpertChoiceFFOld(
+            dm,
+            experts,
+            exp_size,
+            topk_fraction,
+            init_type="kaiming_uniform",
+            init_scale=1.0,
+            one_hot_impl=True,
+            group_by_batch=True,
+        )
+        layer_old.lin1_weight.data = layer.expert_inner_function.lin1_weight.data
+        layer_old.lin2_weight.data = layer.expert_inner_function.lin2_weight.data
+        layer_old.expert_gating.gate.data = layer.gating.gate.data
+        layer_old.ln = layer.ln
+
+        input = torch.rand((batch, seql, dm))
+
+        output = layer.forward(input)
+        output_onehot = layer_old.forward(input)
+
+        self.assertTensorAlmostEqual(output, output_onehot)
+
     def test_onehot_bmm_equivalence(self):
         """
         Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
@@ -84,73 +155,31 @@ class TestExpertChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         topk_fraction = 0.5
-        layer = ExpertChoiceFF(
+
+        layer = create_expert_choice(
             dm,
             experts,
             exp_size,
             topk_fraction,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
             one_hot_impl=True,
             group_by_batch=True,
             use_torch_bmm=True,
         )
-        layer_einsum = ExpertChoiceFF(
+        layer_einsum = create_expert_choice(
             dm,
             experts,
             exp_size,
             topk_fraction,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
-            one_hot_impl=True,
-            group_by_batch=True,
-            use_full_einsum=True,
-        )
-        layer_einsum.lin1_weight.data = layer.lin1_weight.data
-        layer_einsum.lin2_weight.data = layer.lin2_weight.data
-        layer_einsum.expert_gating.gate.data = layer.expert_gating.gate.data
-        layer_einsum.ln = layer.ln
-
-        input = torch.rand((batch, seql, dm))
-
-        output = layer.forward(input)
-        output_onehot = layer_einsum.forward(input)
-
-        self.assertTensorAlmostEqual(output, output_onehot)
-
-    def test_onehot_full_equivalence(self):
-        """
-        Test that checks if the one-hot implementation of ExpertChoiceFF is equivalent to the original.
-        """
-        batch, dm = 2, 2
-        experts = 2
-        exp_size = 6
-        seql = 2
-        topk_fraction = 0.5
-        layer = ExpertChoiceFF(
-            dm,
-            experts,
-            exp_size,
-            topk_fraction,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
             one_hot_impl=True,
             group_by_batch=True,
         )
-        layer_einsum = ExpertChoiceFF(
-            dm,
-            experts,
-            exp_size,
-            topk_fraction,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
-            group_by_batch=True,
-            use_full_einsum=True,
-            one_hot_impl=True,
+        layer_einsum.expert_inner_function.lin1_weight.data = (
+            layer.expert_inner_function.lin1_weight.data
         )
-        layer_einsum.lin1_weight.data = layer.lin1_weight.data
-        layer_einsum.lin2_weight.data = layer.lin2_weight.data
-        layer_einsum.expert_gating.gate.data = layer.expert_gating.gate.data
+        layer_einsum.expert_inner_function.lin2_weight.data = (
+            layer.expert_inner_function.lin2_weight.data
+        )
+        layer_einsum.gating.gate.data = layer.gating.gate.data
         layer_einsum.ln = layer.ln
 
         input = torch.rand((batch, seql, dm))
@@ -169,16 +198,19 @@ class TestExpertChoice(GeneralTestCase):
         exp_size = 6
         seql = 2
         topk_fraction = 0.5
-        layer = ExpertChoiceFF(
+
+        layer = create_expert_choice(
             dm,
             experts,
             exp_size,
             topk_fraction,
             init_type="kaiming_uniform",
             init_scale=1.0,
+            one_hot_impl=False,
             group_by_batch=True,
         )
-        layer_onehot = ExpertChoiceFF(
+
+        layer_onehot = create_expert_choice(
             dm,
             experts,
             exp_size,
@@ -188,9 +220,13 @@ class TestExpertChoice(GeneralTestCase):
             one_hot_impl=True,
             group_by_batch=True,
         )
-        layer_onehot.lin1_weight.data = layer.lin1_weight.data
-        layer_onehot.lin2_weight.data = layer.lin2_weight.data
-        layer_onehot.expert_gating.gate.data = layer.expert_gating.gate.data
+        layer_onehot.expert_inner_function.lin1_weight.data = (
+            layer.expert_inner_function.lin1_weight.data
+        )
+        layer_onehot.expert_inner_function.lin2_weight.data = (
+            layer.expert_inner_function.lin2_weight.data
+        )
+        layer_onehot.gating.gate.data = layer.gating.gate.data
         layer_onehot.ln = layer.ln
 
         input = torch.rand((batch, seql, dm))
@@ -223,16 +259,18 @@ class TestExpertChoice(GeneralTestCase):
                 exp_size, dm, init_type="kaiming_uniform", init_scale=1.0, bias=False
             ),
         )
-        ec = ExpertChoiceFF(
+        ec = create_expert_choice(
             dm,
             experts,
             exp_size,
             topk_fraction,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
         )
-        ec.lin1_weight.data = lin[0].weight.data.transpose(0, 1).unsqueeze(0)
-        ec.lin2_weight.data = lin[2].weight.data.transpose(0, 1).unsqueeze(0)
+        ec.expert_inner_function.lin1_weight.data = (
+            lin[0].weight.data.transpose(0, 1).unsqueeze(0)
+        )
+        ec.expert_inner_function.lin2_weight.data = (
+            lin[2].weight.data.transpose(0, 1).unsqueeze(0)
+        )
         ln = ec.ln
 
         # make sure weights act the same
@@ -244,7 +282,7 @@ class TestExpertChoice(GeneralTestCase):
         x = einsum(
             "n_exp topk dmodel, n_exp dmodel exp_size -> n_exp topk exp_size",
             input,
-            ec.lin1_weight,
+            ec.expert_inner_function.lin1_weight,
         )
 
         x = F.relu(x)
@@ -253,7 +291,7 @@ class TestExpertChoice(GeneralTestCase):
         output_ec = einsum(
             "n_exp topk exp_size, n_exp exp_size dmodel -> n_exp topk dmodel",
             x,
-            ec.lin2_weight,
+            ec.expert_inner_function.lin2_weight,
         )
         output_ec = output_ec.reshape(batch, seql, dm)
         self.assertTensorAlmostEqual(output_lin, output_ec)
@@ -270,10 +308,12 @@ class TestExpertChoice(GeneralTestCase):
         output_lin.sum().backward()
         output_ec.sum().backward()
         self.assertTensorAlmostEqual(
-            lin[0].weight.grad, ec.lin1_weight.grad.squeeze(0).transpose(0, 1)
+            lin[0].weight.grad,
+            ec.expert_inner_function.lin1_weight.grad.squeeze(0).transpose(0, 1),
         )
         self.assertTensorAlmostEqual(
-            lin[2].weight.grad, ec.lin2_weight.grad.squeeze(0).transpose(0, 1)
+            lin[2].weight.grad,
+            ec.expert_inner_function.lin2_weight.grad.squeeze(0).transpose(0, 1),
         )
 
     def test_checkpointing(self):
@@ -287,13 +327,11 @@ class TestExpertChoice(GeneralTestCase):
         seql = 11
         topk_fraction = 0.5
 
-        ec = ExpertChoiceFF(
+        ec = create_expert_choice(
             dm,
             experts,
             exp_size,
             topk_fraction,
-            init_type="kaiming_uniform",
-            init_scale=1.0,
         )
 
         x = torch.rand((batch, seql, dm))
@@ -326,13 +364,11 @@ class TestExpertChoice(GeneralTestCase):
         non_reentrant_wrapper = make_checkpoint_wrapper_function()
 
         ec = torch.nn.Sequential(
-            ExpertChoiceFF(
+            create_expert_choice(
                 dm,
                 experts,
                 exp_size,
                 topk_fraction,
-                init_type="kaiming_uniform",
-                init_scale=1.0,
             )
         )
 

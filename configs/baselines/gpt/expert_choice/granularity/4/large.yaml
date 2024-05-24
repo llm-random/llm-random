@@ -1,0 +1,6 @@
+parent: configs/baselines/gpt/expert_choice/large.yaml
+md5_parent_hash: 02c448534481a173ded2c389a3909720
+
+params:
+  name: "granular_4_large"
+  granularity: 4

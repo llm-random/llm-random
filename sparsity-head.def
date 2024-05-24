@@ -3,6 +3,7 @@ From: sparsity-base.sif
 
 %files
     requirements.txt
+    requirements_mamba.txt
     install_requirements.sh
 
 %post
@@ -13,7 +14,7 @@ From: sparsity-base.sif
 
     ./install_requirements.sh
 
-    ldconfig  # this fixes the problem with libcuda.so not being found when using torch.compie
+    ldconfig  # this fixes the problem with libcuda.so not being found when using torch.compile
 
 %runscript
     . /opt/venv/bin/activate

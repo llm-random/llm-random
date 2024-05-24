@@ -2,6 +2,7 @@
 We are LLM-Random, a research group at [IDEAS NCBR](https://ideas-ncbr.pl/en/) (Warsaw, Poland). We develop this repo and use it to conduct research. To learn more about us and our research, check out our blog, [llm-random.github.io](https://llm-random.github.io/).
 
 ## Publications, preprints and blogposts
+- Scaling Laws for Fine-Grained Mixture of Experts ([arxiv](https://arxiv.org/abs/2402.07871))
 - MoE-Mamba: Efficient Selective State Space Models with Mixture of Experts ([arxiv](https://arxiv.org/abs/2401.04081), [blogpost](https://llm-random.github.io/posts/moe_mamba/))
 - Mixture of Tokens: Efficient LLMs through Cross-Example Aggregation ([arxiv](https://arxiv.org/abs/2310.15961), [blogpost](https://llm-random.github.io/posts/mixture_of_tokens/))
 
@@ -14,13 +15,13 @@ In the root directory run `./start-dev.sh`. This will create a virtual environme
 ## Running Experiments (WIP)
 
 ### Experiments config
-Use the baseline configuration as a template, which is in `research/conditional/train/configs/test/test_baseline.yaml`. Based on this template, create a new experiment config and put it in `lizrd/scripts/run_configs`.
+Use the baseline configuration as a template, which is in `configs/test/test_baseline.yaml`. Based on this template, create a new experiment config and put it in `lizrd/scripts/run_configs`.
 
 ### Running Locally
-`python -m lizrd.scripts.grid path/to/config`
+`python -m lizrd.grid path/to/config`
 
 ### Running Remotely
-`bash lizrd/scripts/run_exp_remotely.sh <remote_cluster_name> lizrd/scripts/run_configs/<your_config>`
+`bash scripts/run_exp_remotely.sh <remote_cluster_name> scripts/run_configs/<your_config>`
 
 # License
 

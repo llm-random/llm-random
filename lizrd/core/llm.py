@@ -9,9 +9,7 @@ import torch.nn.functional as F
 from lizrd.core import misc
 from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight
-from lizrd.core.misc import Linear
-from lizrd.support import ash
-from research.conditional.utils.layer_manager import LoggingLayer
+from lizrd.core.misc import Linear, LoggingLayer
 
 
 def decode_bias_string(bias):
@@ -29,7 +27,28 @@ def decode_bias_string(bias):
     return bias_first, bias_second
 
 
-@ash.check("... d -> ... d")
+class SwiGLUFeedForward(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_scale: float,
+    ):
+        super().__init__()
+        self.w1_gate = Linear(
+            dmodel, dff * 2, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w2 = Linear(
+            dff, dmodel, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, x):
+        pre_activation, gate = torch.chunk(self.w1_gate(x), 2, dim=-1)
+        activation = nn.functional.silu(pre_activation)
+        return self.w2(activation * gate)
+
+
 def FeedForward(
     dmodel,
     dff,
@@ -90,7 +109,6 @@ class EveryOtherLayer:
         return layer
 
 
-@ash.check("... -> ... ")
 class Residual(LoggingLayer):
     def __init__(self, layer):
         super(Residual, self).__init__()
@@ -128,17 +146,15 @@ class Residual(LoggingLayer):
         }
 
 
-@ash.check("... -> ... ")
 class Parallel(nn.Module):
     def __init__(self, *layers):
         super(Parallel, self).__init__()
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
-        return x + sum(layer(x) for layer in self.layers)
+        return sum(layer(x) for layer in self.layers)
 
 
-@ash.check("... dinp -> ... a b")
 class SplitLastAxis(nn.Module):
     def __init__(self, a, b):
         super(SplitLastAxis, self).__init__()
@@ -154,7 +170,6 @@ class SplitLastAxis(nn.Module):
         return result
 
 
-@ash.check("... a b -> ... dout")
 class MergeLastAxis(nn.Module):
     def forward(self, x):
         result = x.reshape(x.shape[:-2] + (-1,))
@@ -162,14 +177,12 @@ class MergeLastAxis(nn.Module):
         return result
 
 
-@ash.check("... a b -> ... b a")
 class Transpose(nn.Module):
     def forward(self, x):
         # return einops.rearrange(x, '... a b -> ... b a')
         return torch.transpose(x, -1, -2)
 
 
-@ash.check("... dinp -> ... dout")
 def LowRank(dinput, doutput, dlowrank):
     return nn.Sequential(
         Linear(dinput, dlowrank, bias=False),
@@ -240,7 +253,6 @@ class AttentionMechanism(nn.Module):
         )
 
 
-@ash.check("... d -> ... d")
 class Attention(LoggingLayer):
     def __init__(
         self,
@@ -296,6 +308,152 @@ class Attention(LoggingLayer):
         return output
 
 
+class RoPE(nn.Module):
+    # features are paired x_i, x_{i + d_head/2}
+    def __init__(self, dhead, length):
+        super().__init__()
+        self.dhead = dhead
+        self.length = length
+        angle_exponents = torch.arange(0, dhead, 2) / dhead
+        angles = torch.pow(1 / 10000, angle_exponents).reshape(1, -1)
+        angle_per_token = angles * torch.arange(0, length).reshape(-1, 1)
+        self.register_buffer("sin", torch.sin(angle_per_token).repeat(1, 2))
+        self.register_buffer("cos", torch.cos(angle_per_token).repeat(1, 2))
+
+    def forward(self, x):
+        [y1, y2] = torch.chunk(x, chunks=2, dim=-1)
+        x_rotated = torch.cat([-y2, y1], dim=-1)
+        return x * self.cos + x_rotated * self.sin
+
+
+class AttentionRoPE(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        heads,
+        causal,
+        length,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
+        super(AttentionRoPE, self).__init__()
+        if dhead is None:
+            assert dmodel % heads == 0
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+
+        self.input_projection = Linear(
+            dmodel,
+            3 * heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.rope = RoPE(dhead, length=length)
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
+
+    def forward(self, x):
+        projected = self.input_projection(x)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+        q = self.rope(q)
+        k = self.rope(k)
+
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+        )
+
+        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
+
+        return output
+
+
+class Attention(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        heads,
+        causal,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
+        super(Attention, self).__init__()
+        if dhead is None:
+            assert dmodel % heads == 0
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+
+        self.input_projection = Linear(
+            dmodel,
+            3 * heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
+
+    def forward(self, x):
+        projected = self.input_projection(x)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+        )
+
+        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
+
+        return output
+
+
+class RMSNorm(nn.Module):
+    def __init__(self, dmodel, eps=1e-5):
+        super().__init__()
+        self.eps = eps
+
+        self.g = nn.Parameter(torch.ones(dmodel))
+        self.b = nn.Parameter(torch.zeros(dmodel))
+
+    def forward(self, x):
+        norm = torch.mean(x**2, dim=-1, keepdim=True)
+        x = x * torch.rsqrt(norm + self.eps)
+        return x * self.g + self.b
+
+
 class ReZero(nn.Module):
     def __init__(self, fn, init=0.0):
         super().__init__()
@@ -310,23 +468,41 @@ def RezeroBlock(dmodel, layer, name):
     return Residual(ReZero(layer))
 
 
-def PostNormBlock(dmodel, layer, name):
+def PostNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return nn.Sequential(
         OrderedDict(
             [
                 (f"{name}", Residual(layer)),
-                ("post_norm", nn.LayerNorm(dmodel)),
+                ("post_norm", norm_class(dmodel)),
             ]
         )
     )
 
 
-def PreNormBlock(dmodel, layer, name):
+def ParallelPreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
+    assert isinstance(layer, Parallel)
+    layer.layers = nn.ModuleList(
+        *[
+            torch.nn.Sequential(
+                OrderedDict(
+                    [
+                        ("pre_norm", norm_class(dmodel)),
+                        (f"{type(module)}", module),
+                    ]
+                )
+            )
+            for module in layer.layers
+        ]
+    )
+    return Residual(layer)
+
+
+def PreNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return Residual(
         nn.Sequential(
             OrderedDict(
                 [
-                    ("pre_norm", nn.LayerNorm(dmodel)),
+                    ("pre_norm", norm_class(dmodel)),
                     (f"{name}", layer),
                 ]
             )
@@ -334,7 +510,6 @@ def PreNormBlock(dmodel, layer, name):
     )
 
 
-@ash.check("... d -> ... d")
 class TransformerBlock(nn.Module):
     def __init__(self, dmodel, layers, residual_fn):
         super(TransformerBlock, self).__init__()
@@ -350,7 +525,6 @@ class TransformerBlock(nn.Module):
         return self.block(x)
 
 
-@ash.check("... d -> ... d")
 class TransformerTower(nn.Module):
     def __init__(
         self,
@@ -415,7 +589,6 @@ class TransformerTower(nn.Module):
         )
 
 
-@ash.check("... -> ... d")
 def TokenEmbedding(
     vocab_size,
     embedding_dim,
@@ -431,7 +604,6 @@ def TokenEmbedding(
     return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
 
 
-@ash.check("... -> ... d")
 class PositionalEmbedding(nn.Module):
     def __init__(
         self,
@@ -471,7 +643,6 @@ class PredictionHead(Linear):
         )
 
 
-@ash.check("... -> ... out")
 class LLM(nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()

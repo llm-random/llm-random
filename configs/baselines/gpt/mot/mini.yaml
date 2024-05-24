@@ -1,0 +1,23 @@
+parent: configs/baselines/gpt/dense/mini.yaml
+md5_parent_hash: f181bf20ef729beb781a926a284a7e4f
+
+params:
+
+  # technical/common params
+  ff_mode: cont_moe
+  flash_attention: true
+  tags: [mot]
+  learning_rate: 2e-3
+  loss_checkpoint_chungs: 64
+  init_type: truncated_normal
+  init_scale: 1.0
+
+  # MoT specific
+  group_size: 32
+  n_experts: 512
+  share_by_experts: true
+  share_by_emit_merge: true
+  sparsity_dim: 0
+  flop_matched: true
+  temperature: 1.0
+  decoding_interval: 0

@@ -1,0 +1,6 @@
+parent: configs/baselines/gpt/expert_choice/granularity/4/mini.yaml
+md5_parent_hash: 8ec94d03f80551c4d742f1b75b67c73f
+time: 0-05:00:00
+
+params:
+  ^use_torch_bmm: [false, true]

@@ -1,0 +1,9 @@
+parent: configs/baselines/gpt/expert_choice/common.yaml
+md5_parent_hash: c8fa324536a6964908602dd6aa8796d4
+time: 2-00:00:00
+
+params:
+  name: "expert_choice_base"
+  dmodel: 768
+  n_blocks: 12
+  n_att_heads: 12

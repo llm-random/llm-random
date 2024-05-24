@@ -1,0 +1,9 @@
+parent: configs/baselines/gpt/expert_choice/medium.yaml
+md5_parent_hash: 0421a0c8a9dd60d8b8ff2a660f570688
+time: 0-10:00:00
+
+params:
+  name: old_new_grid
+  tags: ["moe_refactor"]
+  ^ff_mode: [expert_choice, expert_choice_old,
+             token_choice, token_choice_old]

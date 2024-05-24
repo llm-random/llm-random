@@ -1,0 +1,37 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+interactive_debug: false
+time: 00:10:00
+n_gpus: 1
+
+cuda_visible: "1"
+params:
+    ^group_size: [32, 64, 128, 256, 512]
+    ^batch_size: [32, 64, 128]
+
+
+    flash_attention: true
+    n_steps: 3
+    learning_rate: 2e-3
+    n_experts: 1024
+    
+    ff_mode: cont_moe
+    flop_matched: true
+    sparsity_dim: 0
+    temperature: 1.0
+    name: mot_memory_fit_grid_base
+    tags: [MoT, memory, base]
+    loss_checkpoint_chungs: 64
+    decoding_interval: 0
+    save_weights_interval: 0
+    logging_interval_heavy: 100000000000
+
+    use_dummy_dataset: true
+
+    init_type: "truncated_normal"
+    init_scale: 0.1
+
+    model_fit_gpu_info_database_path: "model_fits_info"
+    model_fit_gpu_info_params: "dmodel,dff,n_blocks,n_att_heads,group_size,batch_size"
+
+    mixed_precision_dtype: "bfloat16"

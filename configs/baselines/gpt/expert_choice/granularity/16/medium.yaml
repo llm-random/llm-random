@@ -1,0 +1,6 @@
+parent: configs/baselines/gpt/expert_choice/medium.yaml
+md5_parent_hash: 0421a0c8a9dd60d8b8ff2a660f570688
+
+params:
+  name: "granular_16_medium"
+  granularity: 16

@@ -1,0 +1,22 @@
+runner: "research.conditional.train.cc_train"
+n_gpus: 2
+time: "40:00:00"
+
+params:
+  ^learning_rate: [5e-4, 7e-4]
+  n_blocks: 16
+
+  model_type: "gpt"
+  dmodel: 16
+  n_att_heads: 4
+  n_steps: 100
+  scheduler: "cosine"
+  init_type: "truncated_normal"
+  init_scale: 0.02
+  dataset_type: "c4"
+  batch_size: 32
+  cutoff: 256
+
+  name: "lr_grid"
+
+  logger_types: "stdout"

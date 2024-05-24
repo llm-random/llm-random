@@ -9,6 +9,8 @@ def introduce_parser_arguments(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
+    parser.add_argument("--attention_mode", type=str, default="vanilla")
+    parser.add_argument("--parallel_blocks", action="store_true")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
@@ -21,6 +23,7 @@ def introduce_parser_arguments(
     parser.add_argument("--every_other_layer", action="store_true")
     parser.add_argument("--standard_ff_first", action="store_true")
     parser.add_argument("--no_ff", action="store_true")
+    parser.add_argument("--moe_inner_expert", type=str, default="ff")
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
@@ -58,6 +61,11 @@ def introduce_parser_arguments(
 
     # other data hyperparameters
     parser.add_argument("--num_workers", type=int, default=8)
+
+    # as of 8.02.2024 below only works for C4 dataset, as wikibook is technically two separate datasets, but wikibook is small enough to use hf datasets_cashe
+    # as of 8.02.2024 it is set automatically on DGX, on other machines use manually
+    parser.add_argument("--train_dataset_path", type=str, default=None)
+    parser.add_argument("--validation_dataset_path", type=str, default=None)
 
     # training tricks for memory and speed
     parser.add_argument(
@@ -113,16 +121,19 @@ def introduce_parser_arguments(
 
     parser.add_argument("--mask_loss_weight", type=float, default=1.0)
     parser.add_argument("--mask_percent", type=float, default=0.15)
-    parser.add_argument("--data_seed", type=int, default=42)
+    parser.add_argument(
+        "--data_seed", type=int, default=-1, help="Negative value means random seed"
+    )
     parser.add_argument("--torch_seed", type=int, default=42)
 
     # hardware
     parser.add_argument("--n_gpus", type=int, default=1)
 
     # Logging parameters
-    parser.add_argument("--use_clearml", action="store_true")
-    parser.add_argument("--use_neptune", action="store_true")
+    parser.add_argument("--logger_types", type=str, required=True)
+    parser.add_argument("--wandb_entity", type=str, default="ideas_cv")
     parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
+    parser.add_argument("--wandb_project", type=str, default="llm-random")
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
@@ -219,6 +230,13 @@ def introduce_parser_arguments(
         type=int,
         help="How much FLOPS we want to spend on FF, in multiples of d_model",
     )
+    parser.add_argument(
+        "--expert_use_topk_initialization",
+        type=str,
+        choices=["Always", "Never", "Default"],
+        default="Default",
+        help="Whether to init fan_in of Lin2 in Experts with topk or not. Default means yes for EC and no for TC.",
+    )
     parser.add_argument("--effective_dff", type=int)
     parser.add_argument("--softmax_over", type=str, default="tokens")
     parser.add_argument("--use_opt_einsum", action="store_true")
@@ -256,6 +274,11 @@ def introduce_parser_arguments(
         "parameters of the experts are modified to adjust compute used bu experts. Possible values: modify_expert_size, "
         "modify_topk_fraction, modify_n_experts",
     )
+    parser.add_argument(
+        "--dont_vectorize_switch",
+        action="store_true",
+        help="This argument is used in Token Choice to force it to use `for`-s",
+    )
 
     parser.add_argument("--group_granular_moe_by_batch", action="store_true")
     parser.add_argument("--layer_norm_in_expert_choice", action="store_true")
@@ -292,6 +315,54 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
     )
+    parser.add_argument("--mamba_expansion", type=float, default=2.0)
     parser.add_argument("--no_positional_embedding", action="store_true")
+
+    parser.add_argument(
+        "--dr_routing_type",
+        type=str,
+        choices=["expert_choice", "token_choice"],
+        default="token_choice",
+    )
+    parser.add_argument("--dr_linear_first", action="store_true")
+    parser.add_argument("--dr_relu_with_first", action="store_true")
+
+    parser.add_argument(
+        "--norm_class",
+        type=str,
+        choices=[
+            "layer_norm",
+            "rms_norm",
+        ],
+        default="layer_norm",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--get_router_values_from",
+        type=str,
+        choices=[
+            "weights",
+            "gate_weight",
+            "lin1_weight",
+        ],
+        default="weights",
+        required=False,
+        help="'weights' is default MoE, 'gate' maximizes average activation in gating,"
+        "'lin1' is similar but takes the weights from lin1 and is compatible with non-gated expert",
+    )
+
+    parser.add_argument(
+        "--moe_values_exp",
+        type=str,
+        default="1.0",
+        help="Exponent for values multiplier in MoE routing. "
+        "0 means no multiplier, 1 is the standard, 2 is the square of the standard, etc. "
+        "'trainable' means that the exponent is trainable. ",
+    )
+
+    parser.add_argument(
+        "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
+    )
 
     return parser
