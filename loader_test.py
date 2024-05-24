@@ -1,8 +1,8 @@
 from research.datasets import get_processed_dataset
 
 loader = get_processed_dataset(
-    batch_size=512,
-    sequence_length=16,
+    batch_size=32,
+    sequence_length=1024,
     device="cpu",
     num_workers=8,
     seed=42,
