@@ -77,6 +77,7 @@ from research.conditional.moe_layers.expert_types import (
     ExpertGated,
     ExpertLinear,
     ExpertClustered,
+    ExpertProjectedFF,
 )
 from research.mamba.moe_in_mamba import MambaInProj
 from research.conditional.moe_layers.ff_timed import FeedForwardTimed
@@ -716,25 +717,56 @@ def get_ff_layer(args):
 
 def get_inner_expert(args):
     if args.moe_inner_expert == "ff":
-        expert_inner_class = partial(ExpertFF, activation_name=args.activation_type)
+        expert_inner_class = partial(
+            ExpertFF,
+            activation_name=args.activation_type,
+            use_mock_gating_g=args.use_mock_gating_g,
+        )
+    elif args.moe_inner_expert == "ff_projected":
+        expert_inner_class = partial(
+            ExpertProjectedFF,
+            activation_name=args.activation_type,
+            weights_base_relative=args.weights_base_relative,
+            use_layer_norm=args.layer_norm_in_projected,
+            project_only_one_dim=args.project_only_one_dim,
+            project_skip_softmax=args.project_skip_softmax,
+            project_whole_matrix=args.project_whole_matrix,
+            use_id_init=args.use_id_init,
+            detach_projection_for_iters=args.detach_projection_for_iters,
+        )
     elif args.moe_inner_expert == "ff_gated":
-        expert_inner_class = partial(ExpertGated, activation_name=args.activation_type)
+        expert_inner_class = partial(
+            ExpertGated,
+            activation_name=args.activation_type,
+            use_mock_gating_g=args.use_mock_gating_g,
+        )
     elif args.moe_inner_expert == "ff_clustered":
         expert_inner_class = partial(
             ExpertClustered,
             activation_name=args.activation_type,
             clustering_interval=args.moe_clustering_interval,
             clustering_iters=args.moe_clustering_iters,
+            use_mock_gating_g=args.use_mock_gating_g,
         )
     elif args.moe_inner_expert == "linear":
         expert_inner_class = ExpertLinear
     # these experts names are left for backward compatibility
     elif args.moe_inner_expert == "relu":
-        expert_inner_class = partial(ExpertFF, activation_name="relu")
+        expert_inner_class = partial(
+            ExpertFF, activation_name="relu", use_mock_gating_g=args.use_mock_gating_g
+        )
     elif args.moe_inner_expert == "swi_glu":
-        expert_inner_class = partial(ExpertGated, activation_name="silu")
+        expert_inner_class = partial(
+            ExpertGated,
+            activation_name="silu",
+            use_mock_gating_g=args.use_mock_gating_g,
+        )
     elif args.moe_inner_expert == "geglu":
-        expert_inner_class = partial(ExpertGated, activation_name="gelu")
+        expert_inner_class = partial(
+            ExpertGated,
+            activation_name="gelu",
+            use_mock_gating_g=args.use_mock_gating_g,
+        )
     else:
         raise NotImplementedError(
             f'Inner expert type "{args.moe_inner_expert}" not implemented'

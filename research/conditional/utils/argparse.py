@@ -367,4 +367,13 @@ def introduce_parser_arguments(
 
     parser.add_argument("--moe_clustering_interval", type=int, default=1)
     parser.add_argument("--moe_clustering_iters", type=int, default=1)
+    parser.add_argument("--weights_base_relative", type=float, default=1.0)
+    parser.add_argument("--layer_norm_in_projected", action="store_true")
+    parser.add_argument("--project_only_one_dim", action="store_true")
+    parser.add_argument("--project_skip_softmax", action="store_true")
+    parser.add_argument("--use_mock_gating_g", type=int, default=0)
+    parser.add_argument("--project_whole_matrix", action="store_true")
+    parser.add_argument("--use_id_init", action="store_true")
+    parser.add_argument("--detach_projection_for_iters", type=int, default=0)
+
     return parser
