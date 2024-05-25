@@ -103,8 +103,7 @@ class C4Dataset(AbstractDataset):
             self.dataset = load_dataset("c4", "en", split=split)
 
     def get_document(self) -> str:
-        document_id = self.offset % len(self.dataset)
-        self.offset = (self.offset + self.total_workers) % len(self.dataset)
+        document_id = self.py_rng.randint(0, len(self.dataset) - 1)
         # print(document_id, flush=True)
         # print(self.dataset[document_id], flush=True)
         return self.dataset[document_id]["text"]
