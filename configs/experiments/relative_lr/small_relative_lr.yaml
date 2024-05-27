@@ -10,15 +10,9 @@ params:
   flash_attention: false
   grad_clip: 1.0
 
-<<<<<<< HEAD
   lr_ratio_modules: ["attention.input_projection.weight", "attention.output_projection.weight"]
   ^lr_ratios: [[5, 5], [5, 2], [5, 1], [5, 0.5], [5, 0.2], [2, 5], [2, 2], [2, 1], [2, 0.5], [2, 0.2], [1, 5], [1, 2], [1, 1], [1, 0.5], [1, 0.2], [0.5, 5], [0.5, 2], [0.5, 1], [0.5, 0.5], [0.5, 0.2], [0.2, 5], [0.2, 2], [0.2, 1], [0.2, 0.5], [0.2, 0.2]]
   tags: ["relative_lr", "attention_kqv_o", attention.input_projection.weight", "attention.output_projection.weight"]
-=======
-  lr_ratio_modules: ["logging_ff_pre_relu.weight", "logging_ff_post_relu.weight", "attention.output_projection.weight"]
-  lr_ratios: [2, 0.2, 0.2]
-  tags: ["relative_lr", "fusion_best"]
->>>>>>> 1e0376e38bfb4fa388df00213a56c705360f5763
 
   n_steps: 15000
   learning_rate: 1e-3
