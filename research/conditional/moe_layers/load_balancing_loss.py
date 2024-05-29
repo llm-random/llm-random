@@ -28,8 +28,8 @@ def calculate_load_balancing_loss(
     return load_balancing_loss
 
 
-def calculate_z_loss(zloss_weight: float = 0, router_logits: torch.Tensor = None):
-    zloss = torch.logsumexp(router_logits, dim=0)
+def calculate_z_loss(zloss_weight: float = 0, gate_logits: torch.Tensor = None):
+    zloss = torch.logsumexp(gate_logits, dim=0)
     zloss = torch.square(zloss)
     zloss = zloss.mean()
     zloss = zloss_weight * zloss
