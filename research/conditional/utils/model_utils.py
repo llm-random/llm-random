@@ -497,6 +497,12 @@ def retrieve_additional_losses(model: torch.nn.Module):
         load_balancing_loss = torch.mean(load_balancing_losses)
         losses["load_balancing_loss"] = load_balancing_loss
 
+    if "z_losses" in model.forward_pass_cache:
+        z_losses = model.forward_pass_cache.get("z_losses", [])
+        z_losses = torch.stack(z_losses)
+        z_loss = torch.mean(z_losses)
+        losses["z_loss"] = z_loss
+
     return losses
 
 
@@ -506,6 +512,9 @@ def clear_additional_losses(model: torch.nn.Module):
 
     if "load_balancing_losses" in model.forward_pass_cache:
         model.forward_pass_cache.pop("load_balancing_losses", None)
+
+    if "z_losses" in model.forward_pass_cache:
+        model.forward_pass_cache.pop("z_losses", None)
 
 
 def get_common_mot_kwargs(args):

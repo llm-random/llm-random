@@ -311,17 +311,22 @@ class TokenGating(MoeGating):
                 tokens_per_expert,
                 use_einsum=self.use_einsum,
             )
-            if zloss_weight > 0:
-                zloss = calculate_z_loss(
-                    zloss_weight=zloss_weight, router_logits=router_logits
-                )
-                # print(f"load_balancing_loss: {load_balancing_loss}")
-                # print(f"zloss: {zloss}")
-                load_balancing_loss += zloss
         if "load_balancing_losses" not in self.forward_pass_cache:
             self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
         else:
             self.forward_pass_cache["load_balancing_losses"].append(load_balancing_loss)
+
+        if zloss_weight > 0:
+            with measure_time(self, "calculate aux loss"):
+                zloss = calculate_z_loss(
+                    zloss_weight=zloss_weight, router_logits=router_logits
+                )
+            if "z_losses" not in self.forward_pass_cache:
+                self.forward_pass_cache["z_losses"] = [zloss]
+            else:
+                self.forward_pass_cache["z_losses"].append(zloss)
+            self.update_cache_for_logging("z_losses", zloss)
+
         self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
         self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
 
