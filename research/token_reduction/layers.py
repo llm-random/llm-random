@@ -2,7 +2,77 @@ import torch
 import torch.nn as nn
 
 from lizrd.core.misc import Linear
+def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_reduce):
+    """
+    This function generates random indices to keep and indices of tokens to reduce.
 
+    - batch_size: the number of sequences in the batch
+    - seq_len: the length of the sequences in the batch from dataloader
+    - result_seq_len: the length of the sequences after token reduction
+    - n_tokens_to_reduce: the number of tokens to reduce
+
+    If n_tokens_to_reduce is less than the difference between the original sequence length and the result sequence length,
+    remaining tokens at the end of the sequence will be dropped upfront e.g.
+    seq_len = 7, result_seq_len = 3, n_tokens_to_reduce = 2
+    We start with ids:
+    0 1 2 3 4 5 6
+    We drop the last two tokens:
+    0 1 2 3 4
+
+    With the remaining tokens, we randomly permute them and split them into two groups:
+    - indices_to_keep
+    - indices_to_reduct
+
+    It returns a tuple of two tensors:
+    - indices_to_keep: (batch_size, result_seq_len) containing the indices of the tokens to keep
+    - indices_to_reduct: (batch_size, seq_len - result_seq_len) containing the indices of the tokens to reduce
+    """
+    assert result_seq_len + n_tokens_to_reduce <= seq_len, "Too many tokens to reduce"
+
+    # We do not want to reduce the last token, because we do not have a token to merge it with or it does not make sense to drop the last token
+    is_last_undroppable = result_seq_len + n_tokens_to_reduce == seq_len
+
+    permutation_len = result_seq_len + n_tokens_to_reduce
+    if is_last_undroppable:
+        permutation_len -= 1
+
+    random_perms = [torch.randperm(permutation_len) for _ in range(batch_size)]
+    if is_last_undroppable:
+        pairs = [
+            (
+                torch.cat(
+                    (
+                        torch.sort(permutation[: result_seq_len - 1])[0],
+                        torch.tensor(
+                            [permutation_len]
+                        ),  # Add the last token, so it is not reduced so we can merge antecendent token
+                    )
+                ),
+                permutation[result_seq_len - 1 :],
+            )
+            for permutation in random_perms
+        ]
+    else:
+        pairs = [
+            (
+                torch.sort(permutation[:result_seq_len])[0],
+                permutation[result_seq_len:],
+            )
+            for permutation in random_perms
+        ]
+
+    for i, (indices_to_keep, indices_to_reduct) in enumerate(pairs):
+        indices_to_keep += i * seq_len
+        indices_to_reduct += i * seq_len
+
+    indices_to_keep, indices_to_reduct = zip(*pairs)
+
+    indices_to_keep, indices_to_reduct = torch.stack(indices_to_keep), torch.stack(
+        indices_to_reduct
+    )
+    indices_to_keep = torch.flatten(indices_to_keep)
+    indices_to_reduct = torch.flatten(indices_to_reduct)
+    return indices_to_keep, indices_to_reduct
 
 class TokenDroppingLayer(nn.Module):
     """
