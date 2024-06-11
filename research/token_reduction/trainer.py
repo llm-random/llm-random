@@ -7,7 +7,6 @@ import torch
 import torch.nn.functional as F
 from torch.profiler import profile, ProfilerActivity
 from attr import define
-from lizrd.core.llm import EmbeddingLayer
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
@@ -19,11 +18,15 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
-from research.token_reduction.layers import TokenDroppingLayer, TokenMergingLayer, TokenReductionLLM
+from research.token_reduction.layers import (
+    TokenDroppingLayer,
+    TokenMergingLayer,
+    TokenReductionEmbedding,
+)
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 
-def keep_given_indeces(input, dim, index):
+def keep_given_indeces_old(input, dim, index):
     """
     origin: https://discuss.pytorch.org/t/batched-index-select/9115/8
     input: B x * x ... x *
@@ -40,11 +43,12 @@ def keep_given_indeces(input, dim, index):
     return torch.gather(input, dim, index)
 
 
-def keep_given_indeces2(input, index):
+def keep_given_indeces(input, index):
     batch_size, _ = input.shape
     input = input.view(-1)
     output = torch.index_select(input, 0, index)
     return output.view(batch_size, -1)
+
 
 def make_loss_and_gradient_function(
     loss_checkpoint_chungs: int,
@@ -178,30 +182,27 @@ def calculate_llm_loss_and_gradient(
             model_output = model(input_tokens)
 
         if (
-            not isinstance(model.embedding_layer, EmbeddingLayer)
-            and not (
+            isinstance(model.embedding_layer, TokenReductionEmbedding)
+            or (
                 isinstance(model, FSDP)
                 and isinstance(
-                    model._fsdp_wrapped_module.embedding_layer, EmbeddingLayer
+                    model._fsdp_wrapped_module.embedding_layer, TokenReductionEmbedding
                 )
             )
             and model.training
         ):
             reduction_layer = (
-                model.embedding_layer.token_reduction
+                model.embedding_layer.reduction_layer
                 if not isinstance(model, FSDP)
-                else model._fsdp_wrapped_module.embedding_layer.token_reduction
+                else model._fsdp_wrapped_module.embedding_layer.reduction_layer
             )
 
-            if isinstance(reduction_layer, TokenDroppingLayer):
+            if isinstance(reduction_layer, TokenDroppingLayer) or isinstance(
+                reduction_layer, TokenMergingLayer
+            ):
                 indices_to_keep = reduction_layer.indices_to_keep
-                mask = keep_given_indeces(mask, 1, indices_to_keep)
-                gt_tokens = keep_given_indeces(gt_tokens, 1, indices_to_keep)
-
-            if isinstance(reduction_layer, TokenMergingLayer):
-                indices_to_keep = reduction_layer.indices_to_keep
-                mask = keep_given_indeces2(mask, indices_to_keep)
-                gt_tokens = keep_given_indeces2(gt_tokens, indices_to_keep)
+                mask = keep_given_indeces(mask, indices_to_keep)
+                gt_tokens = keep_given_indeces(gt_tokens, indices_to_keep)
 
         # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
         gt_tokens = gt_tokens.to(model_output.device)

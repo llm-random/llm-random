@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 
 from lizrd.core.misc import Linear
+
+
 def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_reduce):
     """
     This function generates random indices to keep and indices of tokens to reduce.
@@ -74,7 +76,8 @@ def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_re
     indices_to_reduct = torch.flatten(indices_to_reduct)
     return indices_to_keep, indices_to_reduct
 
-class TokenDroppingLayer(nn.Module):
+
+class TokenDroppingLayerOld(nn.Module):
     """
     This function randomly selects a `result_seq_len` subset of tokens from the input
     """
@@ -114,6 +117,29 @@ class TokenDroppingLayer(nn.Module):
         indices_to_keep = self._random_indeces(batch_size, seq_len).to(x.device)
         self.indices_to_keep = indices_to_keep
         return self._batched_index_select(x, 1, indices_to_keep)
+
+
+class TokenDroppingLayer(nn.Module):
+    """
+    This function randomly selects a `result_seq_len` subset of tokens from the input
+    """
+
+    def __init__(self, result_seq_len):
+        super(TokenDroppingLayer, self).__init__()
+        self.result_seq_len = result_seq_len
+
+    def forward(self, x):
+        batch_size, seq_len, _ = x.shape
+        assert self.result_seq_len <= seq_len
+
+        indices_to_keep, _ = choose_indeces_to_reduce(
+            batch_size, seq_len, self.result_seq_len, seq_len - self.result_seq_len
+        )
+        self.indices_to_keep = indices_to_keep
+        selected_tokens = x.view(batch_size * seq_len, -1).index_select(
+            0, indices_to_keep
+        )
+        return selected_tokens.view(batch_size, self.result_seq_len, -1)
 
 
 class TokenMergingLayer(nn.Module):
@@ -182,24 +208,15 @@ class TokenMergingLayer(nn.Module):
         return kept_tokens.view(batch_size, self.result_seq_len, -1)
 
 
-class TokenReductionLLM(nn.Module):
 
-    def __init__(self, embedding_layer, encoder_tower, head, reduced_number_of_tokens):
-        super(TokenReductionLLM, self).__init__()
-        self.embedding_layer = embedding_layer
-        self.encoder = encoder_tower
-        self.head = head
-        self.reduced_number_of_tokens = reduced_number_of_tokens
+class TokenReductionEmbedding(nn.Module):
+    def __init__(self, base_embedding_layer, reduction_layer):
+        super().__init__()
+        self.base_embedding_layer = base_embedding_layer
+        self.reduction_layer = reduction_layer
 
     def forward(self, x):
+        x = self.base_embedding_layer(x)
         if self.training:
-            x = self.embedding_layer(x)
-        else:
-            x = self.embedding_layer.normal(x)
-
-        x = self.encoder(x)
-        x = self.head(x)
+            x = self.reduction_layer(x)
         return x
-
-    def get_chosen_indices(self):
-        return self.embedding_layer.token_reduction.indices_to_keep

@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from functools import partial
 
 from typing import Type, Union, Callable
@@ -104,14 +103,33 @@ def get_ff_layer(args):
     return return_fn
 
 
-def get_token_reduction_layer(type_name, reduced_number_of_tokens, dm):
-    if type_name == "merging":
-        return_fn = lambda: layers.TokenMergingLayer(reduced_number_of_tokens, dm)
-    elif type_name == "dropping":
-        return_fn = lambda: layers.TokenDroppingLayer(reduced_number_of_tokens)
-    else:
-        return_fn = None
-    return return_fn
+def get_embedding_layer(
+    max_length: int,
+    vocab_size: int,
+    dm: int,
+    init_type: str,
+    init_scale: float,
+    device: torch.device,
+    reduction_layer_type: str,
+    reduced_number_of_tokens: int,
+):
+    embedding_components = [
+        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale),
+        llm.PositionalEmbedding(
+            max_length, dm, init_type=init_type, init_scale=init_scale
+        ),
+    ]
+    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
+
+    if reduction_layer_type == "none":
+        return embedding_layer
+
+    if reduction_layer_type == "merging":
+        reduction_layer = lambda: layers.TokenMergingLayer(reduced_number_of_tokens, dm)
+    elif reduction_layer_type == "dropping":
+        reduction_layer = lambda: layers.TokenDroppingLayer(reduced_number_of_tokens)
+
+    return layers.TokenReductionEmbedding(embedding_layer, reduction_layer()).to(device)
 
 
 def get_classes_from_module_names(
@@ -200,30 +218,16 @@ def get_model(
     reduction_layer_type: str = None,
 ):
 
-    embedding_components = [
-        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale),
-        llm.PositionalEmbedding(
-            max_length, dm, init_type=init_type, init_scale=init_scale
-        ),
-    ]
-    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
-
-    reduction_layer = get_token_reduction_layer(
-        reduction_layer_type, reduced_number_of_tokens, dm
+    embedding_layer = get_embedding_layer(
+        max_length,
+        vocab_size,
+        dm,
+        init_type,
+        init_scale,
+        device,
+        reduction_layer_type,
+        reduced_number_of_tokens,
     )
-
-    if reduction_layer is not None:
-        embedding_layer = torch.nn.Sequential(
-            OrderedDict(
-                [
-                    ("normal", embedding_layer),
-                    (
-                        "token_reduction",
-                        reduction_layer(),
-                    ),
-                ]
-            )
-        ).to(device)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
@@ -239,13 +243,8 @@ def get_model(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(device)
 
-    model = (
-        layers.TokenReductionLLM(
-            embedding_layer, encoder_tower, head, reduced_number_of_tokens
-        )
-        if reduced_number_of_tokens is not None
-        else llm.LLM(embedding_layer, encoder_tower, head)
-    )
+    model = llm.LLM(embedding_layer, encoder_tower, head)
+
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
 
