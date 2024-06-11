@@ -40,6 +40,7 @@ class MoeGating(LoggingLayer):
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
         self.detach_gate = detach_gate
+        self.get_router_values_from = get_router_values_from
         self.gate, self.get_gate = self.init_gate(
             expert_inner_function,
             get_router_values_from,
@@ -60,41 +61,53 @@ class MoeGating(LoggingLayer):
         assert not self.softmax_ungrouped or self.group_by_batch
 
     def calculate_gate(self, x, batch_size, seq_len, return_logits=False):
-        with measure_time(self, "expert_embedding"):
-            if self.use_torch_bmm:
-                gate = self.get_gate().unsqueeze(0).expand(batch_size, -1, -1)
-                gate_logits = torch.bmm(x, gate).permute(2, 0, 1)
-                assert gate_logits.shape == (self.n_experts, batch_size, seq_len)
-            else:
-                gate_logits = einsum(
-                    "batch_size seq_len dmodel, dmodel n_experts "
-                    "-> n_experts batch_size seq_len ",
-                    x,
-                    self.get_gate(),
-                )
-        # each expert chooses k within dimension 1
-        if not self.group_by_batch and not self.softmax_ungrouped:
-            gate_logits = gate_logits.reshape(self.n_experts, batch_size * seq_len)
-        # perform softmax either over tokens for each expert or over experts for each token
-        with measure_time(self, "softmax"):
-            if self.softmax_over == "tokens":
-                gate_out = torch.softmax(gate_logits, dim=1)
-            elif self.softmax_over == "experts":
-                gate_out = torch.softmax(gate_logits, dim=0)
-        if self.softmax_ungrouped:
-            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
-
-        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
-            gate_out = gate_out**self.moe_values_exp
-
-        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
-        if return_logits:
-            self.update_cache_for_logging(
-                "gate_logits_all_values", gate_logits.to(torch.float32)
+        if self.get_router_values_from == "ground_truth_weightless":
+            assert x.shape == (batch_size, seq_len, self.dmodel)
+            tokens_for_all_experts = x.reshape(
+                1, batch_size * seq_len, self.dmodel
+            ).repeat(self.n_experts, 1, 1)
+            experts_output = self.expert_inner_function(tokens_for_all_experts).to(
+                x.dtype
             )
-            return gate_out, gate_logits
+            gate_out = experts_output.sum(-1)
+            gate_out = gate_out.reshape(self.n_experts, batch_size, seq_len)
+            return gate_out
+        else:
+            with measure_time(self, "expert_embedding"):
+                if self.use_torch_bmm:
+                    gate = self.get_gate().unsqueeze(0).expand(batch_size, -1, -1)
+                    gate_logits = torch.bmm(x, gate).permute(2, 0, 1)
+                    assert gate_logits.shape == (self.n_experts, batch_size, seq_len)
+                else:
+                    gate_logits = einsum(
+                        "batch_size seq_len dmodel, dmodel n_experts "
+                        "-> n_experts batch_size seq_len ",
+                        x,
+                        self.get_gate(),
+                    )
+            # each expert chooses k within dimension 1
+            if not self.group_by_batch and not self.softmax_ungrouped:
+                gate_logits = gate_logits.reshape(self.n_experts, batch_size * seq_len)
+            # perform softmax either over tokens for each expert or over experts for each token
+            with measure_time(self, "softmax"):
+                if self.softmax_over == "tokens":
+                    gate_out = torch.softmax(gate_logits, dim=1)
+                elif self.softmax_over == "experts":
+                    gate_out = torch.softmax(gate_logits, dim=0)
+            if self.softmax_ungrouped:
+                gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 
-        return gate_out
+            if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
+                gate_out = gate_out**self.moe_values_exp
+
+            self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+            if return_logits:
+                self.update_cache_for_logging(
+                    "gate_logits_all_values", gate_logits.to(torch.float32)
+                )
+                return gate_out, gate_logits
+
+            return gate_out
 
     def calculate_topk(self, gate_out, topk):
         is_in_first = checkpointing.is_in_first_forward()
@@ -144,7 +157,15 @@ class MoeGating(LoggingLayer):
                     getattr(expert_inner_function, get_router_values_from), dim=-1
                 ).T,
             )
+        elif get_router_values_from == "ground_truth_weightless":
+            return (
+                None,
+                lambda: torch.mean(torch.tensor([6, 9])),
+            )
         else:
+            print(
+                f"\nget_router_values_from: {get_router_values_from}\nexpert_inner_function: {expert_inner_function}\nhasattr: {hasattr(expert_inner_function, get_router_values_from)}"
+            )
             raise Exception(
                 f"Bad get_router_values_from value: {get_router_values_from}"
             )
