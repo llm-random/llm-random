@@ -1,0 +1,55 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: 0-40:00:00
+interactive_debug_session: false
+n_gpus: 1
+
+# train params
+params:
+  name: "vanilla_transformer_kan"
+  tags: [vanilla kan]
+  logger_types: "neptune"
+  project_name: pmtest/llm-random
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+
+  # model
+  model_type: gpt
+  ^ff_mode: [vanilla_timed, kan, vanilla]
+  batch_size: 32
+  cutoff: 128
+  dmodel: 256
+  dff: 1024
+  n_blocks: 4
+  n_att_heads: 4
+
+  final_lr_fraction: 0.1
+  scheduler: cosine
+  final_lr_step: 10000
+  n_steps: 10000
+  lr_warmup_steps: 1000
+  grad_clip: 1.0
+  weight_decay: 0.01
+  learning_rate: 5e-4
+  logging_interval_heavy: 500
+  logging_interval_loss: 100
+  dataset_type: c4
+  
+  # use_dummy_dataset: true
+  init_type: kaiming_uniform
+  init_scale: 0.1
+
+  no_ff: false
+
+  # # tiny
+  # batch_size: 4
+  # cutoff: 16
+  # dmodel: 16
+  # dff: 64
+  # n_blocks: 2
+  # n_att_heads: 2
+
+  # n_gpus: 0
+  # use_dummy_dataset: true
+  # logger_types: "stdout"
+
