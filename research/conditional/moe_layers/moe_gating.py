@@ -40,6 +40,7 @@ class MoeGating(LoggingLayer):
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
         self.detach_gate = detach_gate
+        self.expert_inner_function = expert_inner_function
         self.get_router_values_from = get_router_values_from
         self.gate, self.get_gate = self.init_gate(
             expert_inner_function,
@@ -62,16 +63,41 @@ class MoeGating(LoggingLayer):
 
     def calculate_gate(self, x, batch_size, seq_len, return_logits=False):
         if self.get_router_values_from == "ground_truth_weightless":
-            assert x.shape == (batch_size, seq_len, self.dmodel)
-            tokens_for_all_experts = x.reshape(
-                1, batch_size * seq_len, self.dmodel
-            ).repeat(self.n_experts, 1, 1)
-            experts_output = self.expert_inner_function(tokens_for_all_experts).to(
-                x.dtype
-            )
-            gate_out = experts_output.sum(-1)
-            gate_out = gate_out.reshape(self.n_experts, batch_size, seq_len)
-            return gate_out
+            with torch.no_grad():
+                assert x.shape == (batch_size, seq_len, self.dmodel)
+                # memory error, to large tensor i think :(
+                # tokens_for_all_experts = x.reshape(
+                #     1, batch_size * seq_len, self.dmodel
+                # ).repeat(self.n_experts, 1, 1)
+                # experts_output = self.expert_inner_function(tokens_for_all_experts).to(
+                #     x.dtype
+                # )
+                gate_out = torch.empty((self.n_experts, batch_size * seq_len)).to(
+                    x.device
+                )
+                tokens_for_all_experts = x.reshape(1, batch_size * seq_len, self.dmodel)
+                chunk_size = batch_size * seq_len // self.n_experts
+                for i in range(self.n_experts - 1):
+                    start_index = i * chunk_size
+                    chunk_tokens = tokens_for_all_experts[
+                        :, start_index : start_index + chunk_size, :
+                    ]
+                    chunk_tokens = chunk_tokens.repeat(self.n_experts, 1, 1)
+                    experts_output = self.expert_inner_function(chunk_tokens).to(
+                        x.dtype
+                    )
+                    gate_out[
+                        :, start_index : start_index + chunk_size
+                    ] = experts_output.sum(-1)
+
+                start_index = (self.n_experts - 1) * chunk_size
+                chunk_tokens = tokens_for_all_experts[:, start_index:, :]
+                chunk_tokens = chunk_tokens.repeat(self.n_experts, 1, 1)
+                experts_output = self.expert_inner_function(chunk_tokens).to(x.dtype)
+                gate_out[:, start_index:] = experts_output.sum(-1)
+
+                gate_out = gate_out.reshape(self.n_experts, batch_size, seq_len)
+
         else:
             with measure_time(self, "expert_embedding"):
                 if self.use_torch_bmm:
@@ -100,14 +126,14 @@ class MoeGating(LoggingLayer):
             if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
                 gate_out = gate_out**self.moe_values_exp
 
-            self.update_cache_for_logging("gate_softmax_all_values", gate_out)
             if return_logits:
                 self.update_cache_for_logging(
                     "gate_logits_all_values", gate_logits.to(torch.float32)
                 )
                 return gate_out, gate_logits
 
-            return gate_out
+        self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+        return gate_out
 
     def calculate_topk(self, gate_out, topk):
         is_in_first = checkpointing.is_in_first_forward()
