@@ -76,6 +76,7 @@ from research.conditional.moe_layers.token_choice import (
 from research.conditional.moe_layers.expert_types import (
     ExpertFF,
     ExpertGated,
+    ExpertKAN,
     ExpertLinear,
 )
 from research.mamba.moe_in_mamba import MambaInProj
@@ -747,6 +748,8 @@ def get_inner_expert(args):
         expert_inner_class = partial(ExpertGated, activation_name="silu")
     elif args.moe_inner_expert == "geglu":
         expert_inner_class = partial(ExpertGated, activation_name="gelu")
+    elif args.moe_inner_expert == "kan":
+        expert_inner_class = partial(ExpertKAN, activation_name="relu")
     else:
         raise NotImplementedError(
             f'Inner expert type "{args.moe_inner_expert}" not implemented'
