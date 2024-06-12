@@ -288,6 +288,8 @@ def resolve_activation_name(activation: str) -> nn.Module:
         return nn.GELU()
     elif activation == "silu":
         return nn.SiLU()
+    elif activation == "softmax_last":
+        return nn.Softmax(dim=-1)
     elif activation == "softmax":
         return nn.Softmax()
     elif activation == "tanh":

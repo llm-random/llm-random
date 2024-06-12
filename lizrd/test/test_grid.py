@@ -395,9 +395,9 @@ class TestGrid(unittest.TestCase):
     def test_lr_grid(self, os_getcwd):
         os_getcwd.return_value = experiment_path
         CLUSTER = AthenaTestBackend()
-        train_dataset_path = "/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/train"
+        train_dataset_path = "/net/tscratch/people/plgkciebiera/datasets/c4/train"
         validation_dataset_path = (
-            "/net/pr2/projects/plgrid/plggllmeffi/datasets/c4/validation"
+            "/net/tscratch/people/plgkciebiera/datasets/c4/validation"
         )
         expected_output = [
             [

@@ -1,0 +1,14 @@
+parent: configs/baselines/gpt/expert_choice/small.yaml
+md5_parent_hash: c11efe41b6bdcd50cb970eb85f922f25
+time: 0-10:00:00
+
+params:
+  name: weightless_gating
+  ^granularity: [8]
+  ff_mode: expert_choice
+  moe_inner_expert: ff_gated
+  ^moe_detach_gate: [false, true]
+  ^activation_type: [silu, softmax]
+  ^moe_values_exp: [1., 0.]
+  ^get_router_values_from: [gate_weight, weights]
+  save_weights_interval: 0
