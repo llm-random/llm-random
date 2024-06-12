@@ -121,7 +121,7 @@ def get_embedding_layer(
     ]
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
 
-    if reduction_layer_type == "none":
+    if reduction_layer_type is None:
         return embedding_layer
 
     if reduction_layer_type == "merging":

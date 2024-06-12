@@ -227,7 +227,10 @@ def main(
         dataset_split="train",
         dataset_path=args.train_dataset_path,
     )
-    if args.reduced_number_of_tokens is not None:
+    if (
+        args.reduced_number_of_tokens is not None
+        and args.reduction_layer_type is not None
+    ):
         common_dataloaders_kwargs["sequence_length"] = args.reduced_number_of_tokens
 
     eval_split = (
@@ -246,15 +249,15 @@ def main(
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=(
-                tokenizers.GPTTokenizer
-                if args.model_type == "gpt"
-                else tokenizers.BertTokenizer
-            ),
-        )
+    # if args.model_type == "gpt" and is_logging_process:
+    #     log_batch(
+    #         train_dataloader,
+    #         tokenizer_maker=(
+    #             tokenizers.GPTTokenizer
+    #             if args.model_type == "gpt"
+    #             else tokenizers.BertTokenizer
+    #         ),
+    #     )
 
     profiler_schedule = (
         torch.profiler.schedule(
@@ -314,11 +317,12 @@ def main(
     if rank is not None:
         destroy_process_group()
 
+
 def assert_n_gpus(n_gpus):
     if torch.cuda.is_available():
         count = torch.cuda.device_count()
         assert count == n_gpus, f"Expected {n_gpus} GPUs, but found {count}."
-    
+
 
 if __name__ == "__main__":
     misc.print_available_gpus()
