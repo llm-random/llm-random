@@ -1,6 +1,6 @@
 parent: configs/baselines/gpt/dense/medium.yaml
 md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
-time: "5:00:00"
+time: "9:00:00"
 
 params:
   # tokenizer: gpt
@@ -10,9 +10,9 @@ params:
   flash_attention: false
   mixed_precision: false
 
-  ^lr_ratio_modules: [["layer.feedforward.logging_ff"], ["layer.attention"], ["embedding_layer"], ["head"]]
-  ^lr_ratios: [[0.2], [0.5], [2], [5]]
-  tags: ["relative_lr", "single_difference"]
+  ^lr_ratio_modules: [["embedding_layer", "head", "layer.feedforward.logging_ff"], ["embedding_layer", "head", "layer.attention"]]
+  ^lr_ratios: [[5, 0.2, 0.2], [5, 0.2, 0.5], [5, 0.2, 2], [5, 0.2, 5]]
+  tags: ["relative_lr", "check_relative_with_emb_head"]
 
   n_steps: 15000
   learning_rate: 1e-3
