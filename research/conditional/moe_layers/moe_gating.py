@@ -83,9 +83,9 @@ class MoeGating(LoggingLayer):
                         :, start_index : start_index + chunk_size, :
                     ]
                     chunk_tokens = chunk_tokens.repeat(self.n_experts, 1, 1)
-                    experts_output = self.expert_inner_function(chunk_tokens).to(
-                        x.dtype
-                    )
+                    experts_output = torch.matmul(
+                        chunk_tokens, self.expert_inner_function.lin1_weight
+                    ).to(x.dtype)
                     gate_out[
                         :, start_index : start_index + chunk_size
                     ] = experts_output.sum(-1)
@@ -93,10 +93,12 @@ class MoeGating(LoggingLayer):
                 start_index = (self.n_experts - 1) * chunk_size
                 chunk_tokens = tokens_for_all_experts[:, start_index:, :]
                 chunk_tokens = chunk_tokens.repeat(self.n_experts, 1, 1)
-                experts_output = self.expert_inner_function(chunk_tokens).to(x.dtype)
+                experts_output = torch.matmul(
+                    chunk_tokens, self.expert_inner_function.lin1_weight
+                ).to(x.dtype)
                 gate_out[:, start_index:] = experts_output.sum(-1)
 
-                gate_out = gate_out.reshape(self.n_experts, batch_size, seq_len)
+                gate_out = torch.softmax(gate_out, dim=0)
 
         else:
             with measure_time(self, "expert_embedding"):
@@ -328,9 +330,7 @@ class TokenGating(MoeGating):
         )
         self.update_cache_for_logging("n_tokens", torch.Tensor([n_tokens]))
 
-        gate_out, gate_logits = self.calculate_gate(
-            x, batch_size, seq_len, return_logits=True
-        )
+        gate_out = self.calculate_gate(x, batch_size, seq_len, return_logits=False)
         gate_out = gate_out.T
 
         assert gate_out.shape == (n_tokens, self.n_experts)
@@ -350,7 +350,6 @@ class TokenGating(MoeGating):
                 gate_out,
                 n_tokens,
                 zloss_weight=self.zloss_weight,
-                gate_logits=gate_logits,
             )
         else:
             return self.apply_capacity(capacity, expert_index, gate_out, n_tokens)
@@ -467,9 +466,6 @@ class TokenGating(MoeGating):
         return {
             "gate_softmax_all_values": make_histogram(
                 self.logging_cache["gate_softmax_all_values"].flatten()  # move
-            ),
-            "gate_logits_all_values": make_histogram(
-                self.logging_cache["gate_logits_all_values"].flatten()  # move
             ),
             "tokens_per_expert_counts": make_histogram(
                 self.logging_cache["tokens_per_expert"]
