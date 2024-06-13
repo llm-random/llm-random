@@ -35,21 +35,22 @@ params:
   logging_interval_loss: 100
   dataset_type: c4
   
+  
   # use_dummy_dataset: true
   init_type: kaiming_uniform
   init_scale: 0.1
 
   no_ff: false
 
-  # # tiny
-  # batch_size: 4
-  # cutoff: 16
-  # dmodel: 16
-  # dff: 64
-  # n_blocks: 2
-  # n_att_heads: 2
+  # tiny
+  batch_size: 4
+  cutoff: 16
+  dmodel: 16
+  dff: 64
+  n_blocks: 2
+  n_att_heads: 2
 
-  # n_gpus: 0
-  # use_dummy_dataset: true
-  # logger_types: "stdout"
+  n_gpus: 0
+  use_dummy_dataset: true
+  logger_types: "stdout"
 
