@@ -13,7 +13,6 @@ from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.template.utils.layer_manager import LayerManager
-from research.template.utils.misc_tools import temp_modify_attr
 from research.template.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
