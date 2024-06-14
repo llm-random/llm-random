@@ -10,12 +10,12 @@ params:
   flash_attention: false
   mixed_precision: false
 
-  ^lr_ratio_modules: [["embedding_layer", "head", "layer.feedforward.logging_ff"], ["embedding_layer", "head", "layer.attention"]]
-  ^lr_ratios: [[5, 0.2, 0.2], [5, 0.2, 0.5], [5, 0.2, 2], [5, 0.2, 5]]
-  tags: ["relative_lr", "check_relative_with_emb_head"]
+  lr_ratio_modules: ["embedding_layer", "head"]
+  lr_ratios: [5, 0.2]
+  tags: ["relative_lr", "check_tuned_lr_with_relative"]
 
   n_steps: 15000
-  learning_rate: 1e-3
+  ^learning_rate: [2e-4, 5e-4, 1e-3, 2e-3, 5e-3]
   lr_warmup_steps: 150
   scheduler: "cosine"
   decoding_interval: 0
