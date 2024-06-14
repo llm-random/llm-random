@@ -7,6 +7,9 @@ from typing import List, Tuple
 from research.conditional.utils.argparse import (
     introduce_parser_arguments as cc_introduce_parser_arguments,
 )
+from research.inverted.utils.argparse import (
+    introduce_parser_arguments as inverted_introduce_parser_arguments,
+)
 from research.blanks.argparse import (
     introduce_parser_arguments as blanks_introduce_parser_arguments,
 )
@@ -181,6 +184,10 @@ def get_train_main_function(runner: str):
         from research.conditional.train.cc_train import main as cc_train_main
 
         return cc_train_main
+    elif runner == "research.inverted.train.cc_train":
+        from research.inverted.train.cc_train import main as cc_train_main
+
+        return cc_train_main
     elif runner == "research.blanks.train":
         from research.blanks.train import main as blanks_train_main
 
@@ -218,6 +225,8 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
             parser = argparse.ArgumentParser()
             if runner == "research.conditional.train.cc_train":
                 parser = cc_introduce_parser_arguments(parser)
+            elif runner == "research.inverted.train.cc_train":
+                parser = inverted_introduce_parser_arguments(parser)
             else:
                 parser = blanks_introduce_parser_arguments(parser)
 

@@ -105,6 +105,7 @@ def validate_configs(configs: List[dict]):
 
     for config in configs:
         assert config["runner"] in [
+            "research.inverted.train.cc_train",
             "research.conditional.train.cc_train",
             "research.blanks.train",
         ], f"Unknown runner: {config['runner']} \nIf a new one was implemented, include it here as well"
