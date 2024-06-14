@@ -6,7 +6,7 @@ from fancy_einsum import einsum
 from lizrd.core.initialization import get_init_fun
 from lizrd.core.misc import resolve_activation_name
 from lizrd.core.misc import LoggingLayer, time_measured
-from lizrd.core.kan import KanFF
+from lizrd.core.kan import KanFF, Kan_sQare
 
 
 class ExpertKAN(LoggingLayer):
@@ -20,6 +20,7 @@ class ExpertKAN(LoggingLayer):
         use_topk_initialization,
         activation_name: str = "relu",
         topk: int = 1,
+        kan_square=False,
     ):
         super().__init__()
         self.dmodel = dmodel
@@ -28,9 +29,14 @@ class ExpertKAN(LoggingLayer):
         self.activation = resolve_activation_name(activation_name)
         self.doutput = dmodel
 
-        self.kan_experts = torch.nn.ModuleList(
-            [KanFF(dmodel=dmodel, dff=4 * dmodel) for _ in range(n_experts)]
-        )
+        if kan_square:
+            self.kan_experts = torch.nn.ModuleList(
+                [Kan_sQare(dmodel=dmodel) for _ in range(n_experts)]
+            )
+        else:
+            self.kan_experts = torch.nn.ModuleList(
+                [KanFF(dmodel=dmodel, dff=dmodel // 2) for _ in range(n_experts)]
+            )
 
     @time_measured("process_by_experts")
     def forward(self, x: torch.Tensor):

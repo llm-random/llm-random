@@ -750,6 +750,8 @@ def get_inner_expert(args):
         expert_inner_class = partial(ExpertGated, activation_name="gelu")
     elif args.moe_inner_expert == "kan":
         expert_inner_class = partial(ExpertKAN, activation_name="relu")
+    elif args.moe_inner_expert == "kan_squared":
+        expert_inner_class = partial(ExpertKAN, activation_name="relu", kan_square=True)
     else:
         raise NotImplementedError(
             f'Inner expert type "{args.moe_inner_expert}" not implemented'

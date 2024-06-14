@@ -299,3 +299,13 @@ def KanFF(
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
     return KAN(layers_hidden=[dmodel, dff, dmodel])
+
+
+def Kan_sQare(
+    dmodel,
+    dff=None,
+    init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
+    init_scale: float = 0.0,
+    bias: Literal["both", "first", "second", "none"] = "both",
+):
+    return KAN(layers_hidden=[dmodel, dmodel])
