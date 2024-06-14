@@ -1,0 +1,52 @@
+parent: configs/baselines/gpt/dense/mini.yaml
+md5_parent_hash: f181bf20ef729beb781a926a284a7e4f
+# cuda_visible: "2"
+interactive_debug: true
+runner: "research.inverted.train.cc_train"
+
+
+# LOCAL:
+n_gpus: 0
+
+params:
+  # tokenizer: gpt
+
+  # blanx args
+  name: "DELETE_ME"
+  mixed_precision: false
+  flash_attention: false
+  logger_types: ["stdout"]
+  # use_neptune: false
+  # mixed_precision: true
+  # mixed_precision_dtype: bfloat16
+  # flash_attention: true
+  grad_clip: 1.0
+
+
+  n_steps: 100
+  learning_rate: 1e-3
+  decoding_interval: 0
+  logging_interval_heavy: 500
+  # eval_interval: 1000
+  init_type: truncated_normal
+  init_scale: 0.1
+
+  # use_hidden_weights_fanin: true
+  # output_weight_relative_init_scale: 0.1
+  # output_weight_multiplier: 1.0
+
+  # loss_checkpoint_chungs: 2
+
+  # mamba_mode: 'recursive'
+  # mamba_n_levels: 2
+  # block_modules: ["mamba"]
+
+  # LOCAL:
+  dataset_type: c4
+  batch_size: 8
+  # train_dataset_path: "train_dataset_path"
+  # validation_dataset_path: "aaa/ggg"
+
+  use_dummy_dataset: true
+  num_workers: 0
+  save_weights_interval: 0
