@@ -117,12 +117,14 @@ class ExpertChoiceFF(LoggingLayer):
         # topk_indices -> which tokens each expert gets (indices)
         # topk_values -> how much of each token each expert gets (values), [n_experts, topk]
         if self.principled_moe:
-            x, one_hot = self.extract(x, topk, topk_indices, topk_values)
-            x = self.expert_inner_function(x, topk_values)
+            x, one_hot, topk_values_assigned = self.extract_bmm_principled(
+                x, topk, topk_indices, topk_values
+            )
+            x = self.expert_inner_function(x, topk_values_assigned)
             # einsum(
             #     "n_exp topk doutput, n_exp topk -> n_exp topk doutput", x, topk_values
             # )
-            x = self.merge(
+            x = self.merge_bmm_principled(
                 x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
             )
 
@@ -157,7 +159,7 @@ class ExpertChoiceFF(LoggingLayer):
         x = x.reshape((self.n_experts, topk, self.dmodel))
         return x, one_hot
 
-    def extract_bmm(
+    def extract_bmm_principled(
         self,
         x: torch.Tensor,
         topk,
@@ -169,8 +171,62 @@ class ExpertChoiceFF(LoggingLayer):
             one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
         n_exp, topk, seq_len, _ = one_hot.shape
         # topk_values = topk_values[]
+        # topk_values_expanded = one_hot * 0.0
+        # topk_values_expanded[topk_indices] = topk_values
         topk_values_expanded = one_hot * 0.0
-        topk_values_expanded[topk_indices] = topk_values
+        topk_values_container = torch.ones_like(x)[:, :, :1]
+        # print(
+        #     topk_values.shape,
+        #     topk_values_expanded.shape,
+        #     topk_indices.shape,
+        #     topk_values_container.shape,
+        # )
+        topk_values_expanded.scatter_(
+            -1, topk_indices.unsqueeze(-1), topk_values.type(x.dtype).unsqueeze(-1)
+        )
+        # BROAD here means that dimension is broadcasted, N means it's copied from left,
+        # M means it's copied from right and MUL means it's multiplied
+        # maybe we should rewrite it as "fancy_bmm" with similar notation to einsum
+
+        # batch_size seq_len dmodel, n_exp topk seq_len batch_size,
+        # x * one_hot (BROAD seq_len, MUL=batch_size, N=dmodel, M=(topk, n_exp))
+        # -> seq_len dmodel n_exp topk
+        with measure_time(self, "shuffle_preprocess_perm"):
+            x = x.permute(1, 2, 0)  # bs, sl, dmodel -> sl, dmodel, bs
+            topk_values_container = topk_values_container.permute(1, 2, 0)
+            one_hot_perm = one_hot.permute(2, 3, 0, 1).reshape(
+                seq_len, batch_size, n_exp * topk
+            )  # n_exp, topk, seq_len, batch_size -> seq_len, batch_size, n_exp * topk
+            topk_values_expanded = topk_values_expanded.permute(2, 3, 0, 1).reshape(
+                seq_len, batch_size, n_exp * topk
+            )
+        with measure_time(self, "shuffle_preprocess"):
+            x = torch.bmm(x, one_hot_perm).reshape(
+                seq_len, self.dmodel, n_exp, topk
+            )  # sl, dmodel, bs / seq_len, batch_size, n_exp * topk -> sl, dmodel, n_exp * topk -> sl, dmodel, n_exp, topk
+            topk_values_container = torch.bmm(
+                topk_values_container, topk_values_expanded
+            ).reshape(seq_len, 1, n_exp, topk)
+
+        with measure_time(self, "lin1_perm"):
+            x = x.permute(2, 0, 3, 1).reshape(
+                n_exp, seq_len * topk, self.dmodel
+            )  # n_exp, sl * topk, dmodel
+            topk_values_container = topk_values_container.permute(2, 0, 3, 1).reshape(
+                n_exp, seq_len * topk, 1
+            )
+        # we want topk_values_expanded
+        assert x.shape[:2] == topk_values_container.shape[:2]
+        return x, one_hot_perm, topk_values_container
+
+    def extract_bmm(self, x: torch.Tensor, topk, topk_indices: torch.Tensor):
+        batch_size, _, _ = x.shape
+        with measure_time(self, "one_hot_instanciate"):
+            one_hot = F.one_hot(topk_indices, num_classes=batch_size).type(x.dtype)
+        n_exp, topk, seq_len, _ = one_hot.shape
+        # topk_values = topk_values[]
+        # topk_values_expanded = one_hot * 0.0
+        # topk_values_expanded[topk_indices] = topk_values
         # BROAD here means that dimension is broadcasted, N means it's copied from left,
         # M means it's copied from right and MUL means it's multiplied
         # maybe we should rewrite it as "fancy_bmm" with similar notation to einsum
@@ -257,6 +313,33 @@ class ExpertChoiceFF(LoggingLayer):
         # x * topk_values -> n_exp seq_len topk dmodel
         with measure_time(self, "gating_weight_mul"):
             x *= topk_values.permute(0, 2, 1).unsqueeze(-1)
+
+        #  n_exp topk seq_len batch_size, n_exp seq_len topk dmodel
+        # x * one_hot (BROAD seq_len, MUL=(n_exp, topk), N=batch_size, M=dmodel)
+        # -> batch_size seq_len dmodel
+
+        with measure_time(self, "shuffle_postprocess_permute"):
+            x = x.permute(1, 0, 2, 3).reshape(seq_len, n_exp * topk, self.doutput)
+
+        with measure_time(self, "shuffle_postprocess"):
+            x = torch.bmm(one_hot, x).permute(1, 0, 2)
+
+        assert x.shape == (batch_size, seq_len, self.doutput)
+        return x
+
+    def merge_bmm_principled(
+        self, x, batch_size, topk, seq_len, topk_values, topk_indices, one_hot
+    ):
+        n_exp = self.n_experts
+        _, topk, _ = topk_values.shape
+        assert x.shape == (n_exp, seq_len * topk, self.doutput)
+
+        x = x.reshape(n_exp, seq_len, topk, self.doutput)
+
+        # n_exp seq_len topk dmodel, n_exp topk seq_len,
+        # x * topk_values -> n_exp seq_len topk dmodel
+        # with measure_time(self, "gating_weight_mul"):
+        #     x *= topk_values.permute(0, 2, 1).unsqueeze(-1)
 
         #  n_exp topk seq_len batch_size, n_exp seq_len topk dmodel
         # x * one_hot (BROAD seq_len, MUL=(n_exp, topk), N=batch_size, M=dmodel)

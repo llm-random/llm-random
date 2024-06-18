@@ -10,9 +10,9 @@ params:
   mixed_precision_dtype: "float16"
   moe_inner_expert: ff
   activation_type: relu
-  granularity: 1
+  # granularity: 1
 
   save_weights_interval: -1
   # ^use_principled_moe: [true, false]
-  ^use_principled_moe: [false]
-  use_dummy_dataset: true
+  ^use_principled_moe: [true]
+  # use_dummy_dataset: true

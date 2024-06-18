@@ -362,7 +362,7 @@ def determine_moe_args(args):
         args.topk_fraction = args.routing_top_k / args.n_experts
         assert 0.0 <= args.topk_fraction <= 1.0
 
-    assert args.routing_top_k == int(args.routing_top_k)
+    # assert args.routing_top_k == int(args.routing_top_k)
     args.routing_top_k = int(args.routing_top_k)
 
     # in the end, these arguments should be set

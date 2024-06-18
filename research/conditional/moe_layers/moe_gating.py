@@ -175,10 +175,14 @@ class ExpertGating(MoeGating):
         )
         return {
             "gate_softmax_topk_vals": make_histogram(
-                self.logging_cache["gate_softmax_topk_vals"].flatten()
+                self.logging_cache["gate_softmax_topk_vals"]
+                .flatten()
+                .type(torch.float32)
             ),
             "gate_softmax_all_values": make_histogram(
-                self.logging_cache["gate_softmax_all_values"].flatten()
+                self.logging_cache["gate_softmax_all_values"]
+                .flatten()
+                .type(torch.float32)
             ),
             "indexes_choose_counts": make_histogram(indexes_choose_counts),
             **uf_gate_out,
