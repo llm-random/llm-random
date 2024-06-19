@@ -29,13 +29,15 @@ class ExpertKAN(LoggingLayer):
         self.activation = resolve_activation_name(activation_name)
         self.doutput = dmodel
 
+        print(f"\nexpert_size = dff = {expert_size}\n")
+
         if kan_square:
             self.kan_experts = torch.nn.ModuleList(
                 [Kan_sQare(dmodel=dmodel) for _ in range(n_experts)]
             )
         else:
             self.kan_experts = torch.nn.ModuleList(
-                [KanFF(dmodel=dmodel, dff=dmodel // 2) for _ in range(n_experts)]
+                [KanFF(dmodel=dmodel, dff=expert_size) for _ in range(n_experts)]
             )
 
     @time_measured("process_by_experts")

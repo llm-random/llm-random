@@ -18,14 +18,15 @@ params:
   cutoff: 1024
   final_lr_fraction: 0.1
   scheduler: cosine
-  final_lr_step: 25000
-  n_steps: 25000
-  lr_warmup_steps: 2500
+  final_lr_step: 50000
+  n_steps: 50000
+  lr_warmup_steps: 5000
   grad_clip: 1.0
   weight_decay: 0.01
-  learning_rate: 5e-4
-  logging_interval_heavy: 2500
-  logging_interval_loss: 500
+  ^learning_rate: [2e-4, 5e-4]
+  # learning_rate: 5e-4
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
   mixed_precision: true
   mixed_precision_dtype: bfloat16
   torch_compile: false
@@ -41,22 +42,21 @@ params:
   n_blocks: 12
 
   # medium size (otherwise cuda out of memory error)
-  dmodel: 256
-  dff: 1024
-  n_att_heads: 4
-  n_blocks: 4
+  dmodel: 512
+  n_blocks: 8
+  n_att_heads: 8
 
   # moe
   effective_dff_x: 4
   expansion_rate: 8
   granularity: 1
   ff_mode: token_choice
-  ^moe_inner_expert: [kan_squared, kan, ff_gated]
+  ^moe_inner_expert: [ff]
   use_torch_bmm: true
   softmax_over: experts
   group_granular_moe_by_batch: true
   granular_moe_one_hot_impl: true
-  ^layer_norm_in_expert_choice: [true]
+  layer_norm_in_expert_choice: true
   zloss_weight: 0
 
   # init
@@ -67,6 +67,9 @@ params:
   # logger_types: "stdout"
   # use_dummy_dataset: true
   # n_blocks: 1
-  # dmodel: 16
   # n_att_heads: 1
   # zloss_weight: 0
+
+  # dmodel: 16
+  # n_blocks: 1
+  # n_att_heads: 2

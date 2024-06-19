@@ -298,7 +298,7 @@ def KanFF(
     init_scale: float = 0.0,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
-    return KAN(layers_hidden=[dmodel, dff, dmodel])
+    return KAN(layers_hidden=[dmodel, dff // 8, dmodel])
 
 
 def Kan_sQare(
