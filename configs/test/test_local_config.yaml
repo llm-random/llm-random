@@ -1,12 +1,13 @@
 parent: configs/baselines/gpt/dense/mini.yaml
 md5_parent_hash: f181bf20ef729beb781a926a284a7e4f
+time: 0-5:00:00
 # cuda_visible: "2"
 interactive_debug: true
 runner: "research.inverted.train.cc_train"
 
 
 # LOCAL:
-n_gpus: 0
+n_gpus: 1
 
 params:
   # tokenizer: gpt
@@ -15,7 +16,7 @@ params:
   name: "DELETE_ME"
   mixed_precision: false
   flash_attention: false
-  logger_types: ["stdout"]
+  #logger_types: ["neptune"]
   # use_neptune: false
   # mixed_precision: true
   # mixed_precision_dtype: bfloat16
@@ -23,7 +24,7 @@ params:
   grad_clip: 1.0
 
 
-  n_steps: 100
+  n_steps: 10000
   learning_rate: 1e-3
   decoding_interval: 0
   logging_interval_heavy: 500
