@@ -3,13 +3,7 @@ import copy
 import pprint
 from itertools import product
 from typing import List, Tuple
-
-from research.conditional.utils.argparse import (
-    introduce_parser_arguments as cc_introduce_parser_arguments,
-)
-from research.blanks.argparse import (
-    introduce_parser_arguments as blanks_introduce_parser_arguments,
-)
+import sys
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -177,16 +171,11 @@ def list_to_clean_str(l: List[str]) -> str:
 
 
 def get_train_main_function(runner: str):
-    if runner == "research.conditional.train.cc_train":
-        from research.conditional.train.cc_train import main as cc_train_main
-
-        return cc_train_main
-    elif runner == "research.blanks.train":
-        from research.blanks.train import main as blanks_train_main
-
-        return blanks_train_main
-    else:
+    __import__(runner)
+    runner_module = sys.modules.get(runner, None)
+    if runner_module is None:
         raise ValueError(f"Unknown runner: {runner}")
+    return runner_module.main
 
 
 def translate_to_argparse(param_set: dict):
@@ -215,11 +204,19 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
         for i, training_args in enumerate(trainings_args):
             runner_params = translate_to_argparse(training_args)
             runner = setup_args["runner"]
+            argparse_module_name = setup_args.get("argparse", None)
+            if argparse_module_name is None:
+                argparse_module_name = runner.split(".")
+                argparse_module_name[-1] = "argparse"
+                argparse_module_name[-2] = "utils"
+                argparse_module_name = ".".join(argparse_module_name)
+            __import__(argparse_module_name)
+            argparse_module = sys.modules.get(argparse_module_name, None)
+            if argparse_module is None:
+                raise ValueError(f"Unknown argparse module: {argparse_module_name}")
+
             parser = argparse.ArgumentParser()
-            if runner == "research.conditional.train.cc_train":
-                parser = cc_introduce_parser_arguments(parser)
-            else:
-                parser = blanks_introduce_parser_arguments(parser)
+            parser = argparse_module.introduce_parser_arguments(parser)
 
             try:
                 args, extra = parser.parse_known_args(runner_params)
