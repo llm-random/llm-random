@@ -545,6 +545,10 @@ def get_ff_layer(args):
         return_fn = lambda: kan.KanFF(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
+    elif args.ff_mode == "kan_squared":
+        return_fn = lambda: kan.Kan_sQare(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
     elif args.ff_mode == "swi_glu":
         return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale

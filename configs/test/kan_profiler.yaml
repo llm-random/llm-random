@@ -5,7 +5,7 @@ runner: research.conditional.train.cc_train
 n_gpus: 1
 
 params:
-  name: "kanmoe_naive"
+  name: "kanmoe_profiler"
   save_weights_interval: -1
   tags: [kan]
 
@@ -14,16 +14,16 @@ params:
 
   fsdp_enabled: false
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE,ExpertGatingOld,TokenChoiceRouterOld"
-  batch_size: 32
-  cutoff: 1024
+  batch_size: 256
+  cutoff: 256
   final_lr_fraction: 0.1
   scheduler: cosine
-  final_lr_step: 50000
-  n_steps: 50000
-  lr_warmup_steps: 5000
+  final_lr_step: 1000
+  n_steps: 1000
+  lr_warmup_steps: 100
   grad_clip: 1.0
   weight_decay: 0.01
-  ^learning_rate: [2e-4, 5e-4]
+  ^learning_rate: [5e-4]
   # learning_rate: 5e-4
   logging_interval_heavy: 5000
   logging_interval_loss: 1000
@@ -34,6 +34,15 @@ params:
 
   dataset_type: c4
 
+  # profiler
+  profiler_enabled: true
+  profiler_trace_path: "kan_profiler"
+  profiler_schedule_wait: 10
+  profiler_schedule_warmup: 10
+  profiler_schedule_active: 10
+  profiler_schedule_repeat: 5
+  profiler_schedule_skip_first: 100
+
   # MODEL
   model_type: gpt
   activation_type: relu
@@ -41,10 +50,15 @@ params:
   n_att_heads: 12
   n_blocks: 12
 
-  # medium size (otherwise cuda out of memory error)
+  # medium size
   dmodel: 512
   n_blocks: 8
   n_att_heads: 8
+
+  # mini size
+  dmodel: 256
+  n_blocks: 4
+  n_att_heads: 4
 
   # moe
   effective_dff_x: 4
