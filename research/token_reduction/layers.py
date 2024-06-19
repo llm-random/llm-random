@@ -21,13 +21,9 @@ def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_re
     We drop the last two tokens:
     0 1 2 3 4
 
-    With the remaining tokens, we randomly permute them and split them into two groups:
-    - indices_to_keep
-    - indices_to_reduct
-
-    It returns a tuple of two tensors:
-    - indices_to_keep: (batch_size, result_seq_len) containing the indices of the tokens to keep
-    - indices_to_reduct: (batch_size, seq_len - result_seq_len) containing the indices of the tokens to reduce
+    With the remaining tokens, we randomly permute them and split them into two groups, which are later returned:
+    - indices_to_keep: tensor of shape (batch_size * result_seq_len) containing the indices of the tokens to keep
+    - indices_to_reduce: tensor of shape (batch_size * (seq_len - result_seq_len)) containing the indices of the tokens to reduce
     """
     assert result_seq_len + n_tokens_to_reduce <= seq_len, "Too many tokens to reduce"
 
@@ -63,18 +59,18 @@ def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_re
             for permutation in random_perms
         ]
 
-    for i, (indices_to_keep, indices_to_reduct) in enumerate(pairs):
+    for i, (indices_to_keep, indices_to_reduce) in enumerate(pairs):
         indices_to_keep += i * seq_len
-        indices_to_reduct += i * seq_len
+        indices_to_reduce += i * seq_len
 
-    indices_to_keep, indices_to_reduct = zip(*pairs)
+    indices_to_keep, indices_to_reduce = zip(*pairs)
 
-    indices_to_keep, indices_to_reduct = torch.stack(indices_to_keep), torch.stack(
-        indices_to_reduct
+    indices_to_keep, indices_to_reduce = torch.stack(indices_to_keep), torch.stack(
+        indices_to_reduce
     )
     indices_to_keep = torch.flatten(indices_to_keep)
-    indices_to_reduct = torch.flatten(indices_to_reduct)
-    return indices_to_keep, indices_to_reduct
+    indices_to_reduce = torch.flatten(indices_to_reduce)
+    return indices_to_keep, indices_to_reduce
 
 
 class TokenDroppingLayerOld(nn.Module):
@@ -143,6 +139,42 @@ class TokenDroppingLayer(nn.Module):
 
 
 class TokenMergingLayer(nn.Module):
+    """
+    This function randomly selects a `result_seq_len` subset of tokens from the input
+    """
+
+    def __init__(self, result_seq_len, dm, init_type="kaiming_uniform", init_scale=1.0):
+        super(TokenMergingLayer, self).__init__()
+        self.result_seq_len = result_seq_len
+
+        self.merge_linear_projection = Linear(
+            dm, dm, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, x):
+        batch_size, seq_len, _ = x.shape
+        assert self.result_seq_len <= seq_len
+
+        indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
+            batch_size, seq_len, self.result_seq_len, seq_len - self.result_seq_len
+        )
+        indices_to_keep, indices_to_reduce = indices_to_keep.to(
+            x.device
+        ), indices_to_reduce.to(x.device)
+
+        x = x.view(-1, x.shape[-1])
+        reduced_tokens = torch.index_select(x, 0, indices_to_reduce)
+        transformed_reduced_tokens = self.merge_linear_projection(
+            reduced_tokens
+        ).float()
+
+        x.index_add_(0, indices_to_reduce + 1, transformed_reduced_tokens)
+        kept_tokens = torch.index_select(x, 0, indices_to_keep)
+
+        self.indices_to_keep, self.indices_to_reduce = indices_to_keep, indices_to_reduce
+        return kept_tokens.view(batch_size, self.result_seq_len, -1)
+
+class TokenMergingLayerOld(nn.Module):
     """
     This function randomly selects a `result_seq_len` subset of tokens from the input
     """
