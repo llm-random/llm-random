@@ -189,8 +189,7 @@ def calculate_llm_loss_and_gradient(
                     model._fsdp_wrapped_module.embedding_layer, TokenReductionEmbedding
                 )
             )
-            and model.training
-        ):
+        ) and model.training:
             reduction_layer = (
                 model.embedding_layer.reduction_layer
                 if not isinstance(model, FSDP)
@@ -200,7 +199,7 @@ def calculate_llm_loss_and_gradient(
             if isinstance(reduction_layer, TokenDroppingLayer) or isinstance(
                 reduction_layer, TokenMergingLayer
             ):
-                indices_to_keep = reduction_layer.indices_to_keep
+                indices_to_keep = reduction_layer.indices_to_keep.to(mask.device)
                 mask = keep_given_indeces(mask, indices_to_keep)
                 gt_tokens = keep_given_indeces(gt_tokens, indices_to_keep)
 

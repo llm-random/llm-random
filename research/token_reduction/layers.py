@@ -137,7 +137,7 @@ class TokenDroppingLayer(nn.Module):
         )
         self.indices_to_keep = indices_to_keep
         selected_tokens = x.view(batch_size * seq_len, -1).index_select(
-            0, indices_to_keep
+            0, indices_to_keep.to(x.device)
         )
         return selected_tokens.view(batch_size, self.result_seq_len, -1)
 
@@ -206,7 +206,6 @@ class TokenMergingLayer(nn.Module):
         kept_tokens = torch.index_select(x, 0, indices_to_keep)
 
         return kept_tokens.view(batch_size, self.result_seq_len, -1)
-
 
 
 class TokenReductionEmbedding(nn.Module):
