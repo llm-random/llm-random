@@ -1,4 +1,9 @@
 import argparse
+import json
+
+
+def load_dict_in_args(s: str):
+    return json.loads(s.replace("'", '"'))
 
 
 def introduce_parser_arguments(
@@ -339,17 +344,9 @@ def introduce_parser_arguments(
     )
 
     parser.add_argument(
-        "--lr_ratio_modules",
-        type=str,
+        "--relative_lr",
+        type=load_dict_in_args,
         default=None,
-        nargs="*",
-    )
-
-    parser.add_argument(
-        "--lr_ratios",
-        type=float,
-        default=None,
-        nargs="*",
     )
 
     parser.add_argument(
