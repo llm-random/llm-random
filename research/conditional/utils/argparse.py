@@ -347,6 +347,19 @@ def introduce_parser_arguments(
         "--relative_lr",
         type=load_dict_in_args,
         default=None,
+        help="""Dictionary with relative learning rates for different modules
+        Example: --relative_lr "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
+        Example in config yaml:
+        relative_lr:
+            attention: 0.1
+            feedforward: 0.1
+            moe: 0.1
+        """,
+    )
+    parser.add_argument(
+        "--print_parameter_names",
+        action="store_true",
+        help="Print all parameter names in the model",
     )
 
     parser.add_argument(

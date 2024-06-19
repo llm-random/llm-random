@@ -73,22 +73,17 @@ def log_batch(
 
 def make_param_groups_and_lr_ratios(args, model):
     lr = args.learning_rate
-    if args.lr_ratio_modules is None:
-        assert (
-            args.lr_ratios is None
-        ), "lr_ratios must be None if lr_ratio_modules is None"
+    if args.relative_lr is None:
         return [{"params": model.parameters(), "lr": lr}], [1.0]
 
-    assert len(args.lr_ratio_modules) == len(
-        args.lr_ratios
-    ), "Length mismatch of lr_ratio_modules and lr_ratios."
+    relative_lr: dict = args.relative_lr
 
     lr_to_params = defaultdict(list)
     for name, param in model.named_parameters():
         ratio = 1.0
-        for possible_name in args.lr_ratio_modules:
+        for possible_name in relative_lr.keys():
             if possible_name in name:
-                ratio = args.lr_ratios[args.lr_ratio_modules.index(possible_name)]
+                ratio = relative_lr[possible_name]
                 break
         lr_to_params[ratio * lr].append(param)
     param_grops = [
@@ -249,8 +244,9 @@ def main(
     if args.torch_compile:
         model = torch.compile(model)
 
-    for name, param in model.named_parameters():
-        print(name, param.shape)
+    if args.print_parameter_names:
+        for name, param in model.named_parameters():
+            print(name, param.shape)
 
     param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
 
