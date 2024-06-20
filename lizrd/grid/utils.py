@@ -17,6 +17,9 @@ def split_params(params: dict) -> Tuple[list, list, list]:
             functions.append((k[1:], v))
         elif "," in k:
             grids.append((k, v))
+        elif isinstance(v, dict):
+            sub_grid = create_grid(v)
+            grids.append((k, sub_grid))
         else:
             normals.append((k, v))
     return grids, functions, normals
@@ -74,6 +77,11 @@ def shorten_val(val: str) -> str:
 def make_tags(arg, val) -> str:
     if isinstance(val, list):
         val = "_".join([shorten_val(v) for v in val])
+    if isinstance(val, dict) and "tags" in val:
+        to_return = val["tags"]
+        del val["tags"]
+        to_return = [f"{shorten_arg(arg)}:{tag}" for tag in to_return]
+        return to_return
     return f"{shorten_arg(arg)}={shorten_val(val)}"
 
 
@@ -123,8 +131,17 @@ def create_grid(params: dict) -> List[dict]:
     grids_values = product(*(v for k, v in grids))
     for value in grids_values:
         out_dict = copy.deepcopy(base_params)
+        value = copy.deepcopy(
+            value
+        )  # this is grids over dictionaries, we need to delete the tags inside
         grid_dict = dict(zip(grids_keys, value))
-        tags = [make_tags(k, v) for k, v in grid_dict.items()]
+        tags = []
+        for k, v in grid_dict.items():
+            new_tags = make_tags(k, v)
+            if isinstance(new_tags, list):
+                tags.extend(new_tags)
+            else:
+                tags.append(new_tags)
         if out_dict.get("tags") is None:
             out_dict["tags"] = []
         out_dict["tags"].extend(tags)
