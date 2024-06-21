@@ -1,0 +1,127 @@
+scalings:
+  - name: "Dense"
+    tags:
+      - "zubr_dense_grid"
+    tags_negative:
+      # - "short_small"
+      - "short_dense_2"
+    fixed:
+      expansion_rate: 1
+      granularity: 0
+    power_laws:
+      - - "n_params"
+      - - "n_steps"
+    init_dict:
+      n_params:
+        c: 16.3
+        p: -0.126
+      n_steps:
+        c: 26.7
+        p: -0.127
+      L0: 0.472
+    run_fit: false
+    cmap: copper
+    weight_decay: 0.00015
+    huber_delta: 0.1
+    opt_log_loss: true
+    remove_random: 0.0
+  - name: "Granular Scaling"
+    tags:
+      - "fixed_grid_wd"
+      - "big_models"
+      # - "long"
+    tags_negative:
+      - "gran_grid_failed"
+      - "mini_8"
+      # - "short_small"
+      - "lr_steps_bug"
+      - "small_gran"
+      # - "longest"
+      # - "mini_short"
+      # - "grid_shortest"
+      # - "short_small_ext"
+      # - "short_small_ext_ext"
+    fixed:
+      expansion_rate: 64
+    power_laws:
+      - - "n_params"
+        - "granularity"
+      - - "n_steps"
+    init_dict:
+      n_params:
+        a: 2.1
+        b: -0.58
+        c: 18.1
+        p: -0.115
+      n_steps:
+        c: 30.8
+        p: -0.147
+      L0: 0.472
+    run_fit: false
+    exp_inter: false
+    poly_inter: true
+    cmap: rainbow
+    resolve_interactive: true
+    use_active_params: false
+    weight_decay: 0.00005
+    huber_delta: 0.1
+    opt_log_loss: true
+    remove_random: 0.0
+plot_dims:
+  - - "opt"
+  - - "flops_save"
+  - - "predicted_loss"
+    - "granularity"
+#  - - "predicted_loss"
+#    - "n_steps"
+#  - - "predicted_loss"
+#    - "n_params"
+  - - "flops"
+    - "n_params"
+    - "n_steps"
+#  - - "flops"
+#    - "n_steps"
+#  - - "flops"
+#    - "n_params"
+#  - - "granularity"
+#  - - "n_steps"
+#  - - "n_params"
+extrapolate_factor: 3.0
+use_scipy: true
+load_model: false
+train_scaling_bias: false
+flops_min: 1e18
+flops_max: 1e26
+show_points: false
+show_model_sizes:
+#  10M: 10e6
+  64 x 100M: 100e6
+  64 x 1B: 1e9
+  64 x 3B: 3e9
+  64 x 7B: 7e9
+  64 x 70B: 70e9
+  64 x 300B: 300e9
+  64 x 1T: 1e12
+plot_points: 100
+no_title: true
+repeat: 1
+prompts:
+  64 x 100M:
+    n_params_active: 100e6
+  64 x 1B:
+    n_params_active: 1e9
+  64 x 3B:
+    n_params_active: 3e9
+  64 x 7B:
+    n_params_active: 7e9
+  64 x 70B:
+    n_params_active: 70e9
+  64 x 300B:
+    n_params_active: 300e9
+  64 x 1T:
+    n_params_active: 1e12
+#  flag:
+#    n_params_active: 393e6
+    #granularity: 1
+
+project_name: "pmtest/llm-random"
