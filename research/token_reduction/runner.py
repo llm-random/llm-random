@@ -35,7 +35,7 @@ from lizrd.train.load_and_save_model import (
     load_optimizer_state,
     prepare_save_weights_path,
 )
-
+import ast
 
 def log_batch(
     wrapper: DataloaderWrapper,
@@ -150,6 +150,12 @@ def main(
         else None
     )
 
+    scheduler_params = (
+        None
+        if args.reduction_layer_scheduler_params is None
+        else ast.literal_eval(args.reduction_layer_scheduler_params)
+    )
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
@@ -175,6 +181,7 @@ def main(
         checkpoint=checkpoint,
         reduced_number_of_tokens=args.reduced_number_of_tokens,
         reduction_layer_type=args.reduction_layer_type,
+        scheduler_params=scheduler_params,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)

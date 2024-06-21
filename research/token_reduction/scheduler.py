@@ -9,7 +9,7 @@ class TokenReductionScheduler:
                         - (start_step, end_step, constant_val): for a constant value
         """
         self.ranges = ranges
-        self.currrent_step = 0
+        self.step = 0
         self._validate_ranges()
 
     def _validate_ranges(self):
@@ -31,23 +31,20 @@ class TokenReductionScheduler:
             previous_end = end_step
 
     def set_step(self, new_step):
-        self.current_step = new_step
-
-    def step(self):
-        self.current_step += 1
+        self.step = new_step
 
     @property
     def value(self):
-        if self.current_step < self.ranges[0][0]:
+        if self.step < self.ranges[0][0]:
             return self.ranges[0][2]
         for r in self.ranges:
             start_step, end_step = r[0], r[1]
-            if start_step <= self.current_step <= end_step:
+            if start_step <= self.step <= end_step:
                 if len(r) == 3:  # Constant Value
                     return r[2]
                 elif len(r) == 4:  # Linear Change
                     start_val, end_val = r[2], r[3]
-                    relative_step = self.current_step - start_step
+                    relative_step = self.step - start_step
                     total_steps = end_step - start_step
                     return round(
                         start_val + (end_val - start_val) * relative_step / total_steps

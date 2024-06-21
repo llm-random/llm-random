@@ -73,7 +73,6 @@ def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_re
     return indices_to_keep, indices_to_reduce
 
 
-
 class TokenDroppingLayer(nn.Module):
     """
     This function randomly selects a `result_seq_len` subset of tokens from the input
@@ -84,9 +83,9 @@ class TokenDroppingLayer(nn.Module):
         self.result_seq_len = result_seq_len
         self.scheduler = scheduler
 
-    def scheduler_step(self):
+    def set_scheduler_step(self, step):
         if self.scheduler is not None:
-            self.scheduler.step()
+            self.scheduler.set_step(step)
 
     def forward(self, x):
         batch_size, seq_len, _ = x.shape
@@ -113,7 +112,14 @@ class TokenMergingLayer(nn.Module):
     This function randomly selects a `result_seq_len` subset of tokens from the input
     """
 
-    def __init__(self, result_seq_len, dm, scheduler=None, init_type="kaiming_uniform", init_scale=1.0):
+    def __init__(
+        self,
+        result_seq_len,
+        dm,
+        scheduler=None,
+        init_type="kaiming_uniform",
+        init_scale=1.0,
+    ):
         super(TokenMergingLayer, self).__init__()
         self.result_seq_len = result_seq_len
         self.scheduler = scheduler
@@ -122,15 +128,19 @@ class TokenMergingLayer(nn.Module):
             dm, dm, init_type=init_type, init_scale=init_scale, bias=False
         )
 
-    def scheduler_step(self):
+    def set_scheduler_step(self, step):
         if self.scheduler is not None:
-            self.scheduler.step()
+            self.scheduler.set_step(step)
 
     def forward(self, x):
         batch_size, seq_len, dm = x.shape
         assert self.result_seq_len <= seq_len
 
-        n_tokens_to_reduce = seq_len - self.result_seq_len if self.scheduler is None else self.scheduler.value
+        n_tokens_to_reduce = (
+            seq_len - self.result_seq_len
+            if self.scheduler is None
+            else self.scheduler.value
+        )
 
         indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
             batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
@@ -148,14 +158,22 @@ class TokenMergingLayer(nn.Module):
         x.index_add_(0, indices_to_reduce + 1, transformed_reduced_tokens)
         kept_tokens = torch.index_select(x, 0, indices_to_keep)
 
-        self.indices_to_keep, self.indices_to_reduce = indices_to_keep, indices_to_reduce
+        self.indices_to_keep, self.indices_to_reduce = (
+            indices_to_keep,
+            indices_to_reduce,
+        )
         return kept_tokens.view(batch_size, self.result_seq_len, -1)
+
 
 class TokenReductionEmbedding(nn.Module):
     def __init__(self, base_embedding_layer, reduction_layer):
         super().__init__()
         self.base_embedding_layer = base_embedding_layer
         self.reduction_layer = reduction_layer
+
+    def set_scheduler_step(self, step):
+        if self.reduction_layer is not None:
+            self.reduction_layer.set_scheduler_step(step)
 
     def forward(self, x):
         x = self.base_embedding_layer(x)

@@ -355,6 +355,11 @@ class Trainer:
         step,
     ):
         self.model.train()
+
+        embedding_layer = self.model.embedding_layer if not isinstance(self.model, FSDP) else self.model._fsdp_wrapped_module.embedding_layer
+        if isinstance(embedding_layer, TokenReductionEmbedding):
+            embedding_layer.set_scheduler_step(step)
+
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()

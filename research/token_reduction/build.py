@@ -1,6 +1,6 @@
 from functools import partial
 
-from typing import Type, Union, Callable
+from typing import List, Type, Union, Callable
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
@@ -12,6 +12,7 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 
 from . import layers
+from .scheduler import TokenReductionScheduler
 from lizrd.core.distributed import wrap_in_ddp, wrap_in_fsdp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
@@ -112,6 +113,7 @@ def get_embedding_layer(
     device: torch.device,
     reduction_layer_type: str,
     reduced_number_of_tokens: int,
+    scheduler_params: List[tuple[int, int, int]],
 ):
     embedding_components = [
         llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale),
@@ -124,10 +126,18 @@ def get_embedding_layer(
     if reduction_layer_type is None:
         return embedding_layer
 
+    scheduler = (
+        None if scheduler_params is None else TokenReductionScheduler(scheduler_params)
+    )
+
     if reduction_layer_type == "merging":
-        reduction_layer = lambda: layers.TokenMergingLayer(reduced_number_of_tokens, dm)
+        reduction_layer = lambda: layers.TokenMergingLayer(
+            reduced_number_of_tokens, dm, scheduler
+        )
     elif reduction_layer_type == "dropping":
-        reduction_layer = lambda: layers.TokenDroppingLayer(reduced_number_of_tokens)
+        reduction_layer = lambda: layers.TokenDroppingLayer(
+            reduced_number_of_tokens, scheduler
+        )
 
     return layers.TokenReductionEmbedding(embedding_layer, reduction_layer()).to(device)
 
@@ -216,6 +226,7 @@ def get_model(
     checkpoint: dict[str, torch.Tensor] = None,
     reduced_number_of_tokens: int = None,
     reduction_layer_type: str = None,
+    scheduler_params: List[tuple[int, int, int]] = None,
 ):
 
     embedding_layer = get_embedding_layer(
@@ -227,6 +238,7 @@ def get_model(
         device,
         reduction_layer_type,
         reduced_number_of_tokens,
+        scheduler_params,
     )
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
