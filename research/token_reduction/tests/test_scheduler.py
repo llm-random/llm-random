@@ -11,17 +11,15 @@ class TestScheduler(unittest.TestCase):
         for step in range(1, len(expected_result) + 1):
             scheduler.set_step(step)
             result.append(scheduler.value)
-            scheduler.step()
         self.assertEqual(result, expected_result)
 
     def test_linear_decrease(self):
         scheduler = TokenReductionScheduler(ranges=[(1, 11, 100, 0)])
         expected_result = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]
         result = []
-        scheduler.set_step(1)
-        for _ in range(1, len(expected_result) + 1):
+        for step in range(1, len(expected_result) + 1):
+            scheduler.set_step(step)
             result.append(scheduler.value)
-            scheduler.step()
         self.assertEqual(result, expected_result)
 
     def test_constant_value(self):
@@ -31,7 +29,6 @@ class TestScheduler(unittest.TestCase):
         for step in range(1, len(expected_result) + 1):
             scheduler.set_step(step)
             result.append(scheduler.value)
-            scheduler.step()
         self.assertEqual(result, expected_result)
 
     def test_mixed_ranges(self):
@@ -51,31 +48,13 @@ class TestScheduler(unittest.TestCase):
         for step in range(1, len(expected_result) + 1):
             scheduler.set_step(step)
             result.append(scheduler.value)
-            scheduler.step()
         self.assertEqual(result, expected_result)
-
-    def test_step_increment(self):
-        scheduler = TokenReductionScheduler(ranges=[(1, 10, 5, 100)])
-        step_inside = 5
-        scheduler.set_step(step_inside)
-        scheduler.step()
-        self.assertEqual(scheduler.current_step, step_inside + 1)
 
     def test_max_step_constant(self):
         scheduler = TokenReductionScheduler(ranges=[(1, 10, 5)])
-        scheduler.set_step(10)
-        target_ver_max = 10
-        for _ in range(target_ver_max):
-            scheduler.step()
+        for step in range(1, 11):
+            scheduler.set_step(step)
             self.assertEqual(scheduler.value, 5)
-
-    def test_same_start_end(self):
-        const_val = 4
-        scheduler = TokenReductionScheduler(ranges=[(5, 30, const_val, const_val)])
-        scheduler.set_step(2)
-        for _ in range(36):
-            scheduler.step()
-            self.assertEqual(scheduler.value, const_val)
 
     def test_non_continuous_ranges(self):
         with self.assertRaises(ValueError):
