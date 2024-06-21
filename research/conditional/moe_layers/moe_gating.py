@@ -72,33 +72,27 @@ class MoeGating(LoggingLayer):
                 # experts_output = self.expert_inner_function(tokens_for_all_experts).to(
                 #     x.dtype
                 # )
-                gate_out = torch.empty((self.n_experts, batch_size * seq_len)).to(
-                    x.device
-                )
+
+                # żeby nie było za dużych tensorów, to dzielę
+                gate_logits = []
+
                 tokens_for_all_experts = x.reshape(1, batch_size * seq_len, self.dmodel)
                 chunk_size = batch_size * seq_len // self.n_experts
-                for i in range(self.n_experts - 1):
-                    start_index = i * chunk_size
-                    chunk_tokens = tokens_for_all_experts[
-                        :, start_index : start_index + chunk_size, :
-                    ]
-                    chunk_tokens = chunk_tokens.repeat(self.n_experts, 1, 1)
+                split_tokens = torch.split(
+                    tokens_for_all_experts, split_size_or_sections=chunk_size, dim=1
+                )
+                for tokens in split_tokens:
+                    tokens = tokens.expand(self.n_experts, -1, -1)
                     experts_output = torch.matmul(
-                        chunk_tokens, self.expert_inner_function.lin1_weight
+                        tokens, self.expert_inner_function.lin1_weight
                     ).to(x.dtype)
-                    gate_out[
-                        :, start_index : start_index + chunk_size
-                    ] = experts_output.sum(-1)
-
-                start_index = (self.n_experts - 1) * chunk_size
-                chunk_tokens = tokens_for_all_experts[:, start_index:, :]
-                chunk_tokens = chunk_tokens.repeat(self.n_experts, 1, 1)
-                experts_output = torch.matmul(
-                    chunk_tokens, self.expert_inner_function.lin1_weight
-                ).to(x.dtype)
-                gate_out[:, start_index:] = experts_output.sum(-1)
-
-                gate_out = torch.softmax(gate_out, dim=0)
+                    experts_output = experts_output.sum(-1)
+                    gate_logits.append(experts_output)
+                gate_logits = torch.cat(gate_logits, dim=1)
+                if self.softmax_over == "tokens":
+                    gate_out = torch.softmax(gate_logits, dim=1)
+                elif self.softmax_over == "experts":
+                    gate_out = torch.softmax(gate_logits, dim=0)
 
         else:
             with measure_time(self, "expert_embedding"):

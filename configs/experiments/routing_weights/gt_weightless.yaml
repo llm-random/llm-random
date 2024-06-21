@@ -12,8 +12,8 @@ params:
   project_name: pmtest/llm-random
   fsdp_enabled: false
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE,ExpertGatingOld,TokenChoiceRouterOld"
-  batch_size: 32
-  cutoff: 1024
+  batch_size: 128
+  cutoff: 256
   final_lr_fraction: 0.1
   scheduler: cosine
   final_lr_step: 50000

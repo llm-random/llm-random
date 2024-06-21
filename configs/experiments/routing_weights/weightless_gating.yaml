@@ -22,12 +22,13 @@ params:
   lr_warmup_steps: 5_000
   final_lr_fraction: 0.1
 
-  # logger_types: "stdout"
 
 
-  # use_dummy_dataset: true
-  # n_blocks: 1
-  # dmodel: 16
-  # n_att_heads: 1
-  # zloss_weight: 0
-  # n_steps: 50
+  logger_types: "stdout"
+
+  use_dummy_dataset: true
+  n_blocks: 1
+  dmodel: 16
+  n_att_heads: 1
+  zloss_weight: 0
+  n_steps: 50
