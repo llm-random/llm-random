@@ -7,7 +7,8 @@ params:
   # tokenizer: gpt
 
   name: "relative_lr_base"
-  gradient_accumulation_steps: 2
+  gradient_accumulation_steps: 4
+  loss_checkpoint_chungs: 8
   grad_clip: 1.0
   flash_attention: false
   mixed_precision: false
