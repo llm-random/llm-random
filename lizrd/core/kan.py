@@ -1,8 +1,12 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
+from collections import OrderedDict
 import math
 
 from typing import Literal
+
+from lizrd.core.misc import Linear
 
 
 class KANLinear(torch.nn.Module):
@@ -291,6 +295,24 @@ class KAN(torch.nn.Module):
         )
 
 
+class IdentityModule(nn.Module):
+    def __init__(self):
+        super(IdentityModule, self).__init__()
+
+    def forward(self, x):
+        return x
+
+
+def Identity(
+    dmodel=None,
+    dff=None,
+    init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
+    init_scale: float = 0.0,
+    bias: Literal["both", "first", "second", "none"] = "both",
+):
+    return IdentityModule()
+
+
 def KanFF(
     dmodel,
     dff,
@@ -298,7 +320,7 @@ def KanFF(
     init_scale: float = 0.0,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
-    return KAN(layers_hidden=[dmodel, dff // 8, dmodel])
+    return KAN(layers_hidden=[dmodel, dff, dmodel])
 
 
 def Kan_sQare(
@@ -309,3 +331,61 @@ def Kan_sQare(
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
     return KAN(layers_hidden=[dmodel, dmodel])
+
+
+def KanMlp(
+    dmodel,
+    dff,
+    init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
+    init_scale: float = 0.0,
+    bias: Literal["both", "first", "second", "none"] = "both",
+):
+    return nn.Sequential(
+        OrderedDict(
+            [
+                (
+                    "KAN",
+                    KAN(layers_hidden=[dmodel, dff]),
+                ),
+                ("relu", nn.ReLU()),
+                (
+                    "MLP",
+                    Linear(
+                        dff,
+                        dmodel,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
+            ]
+        )
+    )
+
+
+def MlpKan(
+    dmodel,
+    dff,
+    init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
+    init_scale: float = 0.0,
+    bias: Literal["both", "first", "second", "none"] = "both",
+):
+    return nn.Sequential(
+        OrderedDict(
+            [
+                (
+                    "MLP",
+                    Linear(
+                        dmodel,
+                        dff,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
+                ("relu", nn.ReLU()),
+                (
+                    "KAN",
+                    KAN(layers_hidden=[dff, dmodel]),
+                ),
+            ]
+        )
+    )
