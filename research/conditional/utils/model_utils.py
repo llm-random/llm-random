@@ -555,6 +555,18 @@ def get_ff_layer(args):
         return_fn = lambda: kan.MlpKan(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
+    elif args.ff_mode == "mlp_kan_norelu":
+        return_fn = lambda: kan.MlpKan_norelu(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
+    elif args.ff_mode == "kan_latent":
+        return_fn = lambda: kan.KanLatent(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
+    elif args.ff_mode == "kan_square_latent":
+        return_fn = lambda: kan.KanSquareLatent(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
     elif args.ff_mode == "kan_mlp":
         return_fn = lambda: kan.KanMlp(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale

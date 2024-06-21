@@ -48,9 +48,10 @@ params:
   n_att_heads: 8
 
   # # mini size
-  # dmodel: 256
-  # n_blocks: 4
-  # n_att_heads: 4
+  dmodel: 256
+  dff: 128
+  n_blocks: 4
+  n_att_heads: 4
 
   # moe
   effective_dff_x: 4

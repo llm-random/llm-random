@@ -49,7 +49,7 @@ params:
 
   # # mini size
   dmodel: 256
-  # ^dff: [1024, 512]
+  ^dff: [92]
   n_blocks: 4
   n_att_heads: 4
 
@@ -59,7 +59,7 @@ params:
   logging_interval_heavy: 200
   logging_interval_loss: 50
 
-  ^ff_mode: [identity]
+  ^ff_mode: [kan_square_latent]
   use_torch_bmm: true
   softmax_over: experts
 
