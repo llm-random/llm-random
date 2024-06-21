@@ -1,7 +1,11 @@
 import unittest
 import torch
 
-from research.token_reduction.layers import TokenMergingLayer, choose_indeces_to_reduce
+from research.token_reduction.layers import (
+    TokenDroppingLayer,
+    TokenMergingLayer,
+    choose_indeces_to_reduce,
+)
 
 
 class TestRandomIndicesOutside(unittest.TestCase):
@@ -95,7 +99,22 @@ class TestRandomIndicesOutside(unittest.TestCase):
                 "All indices within a batch should be managed correctly",
             )
 
+
+class TestTokenDropping(unittest.TestCase):
+
+    def setUp(self):
+        self.batch_size = 2
+        self.seq_len = 7
+        self.result_seq_len = 4
+
         self.dm = 8
+        self.input = torch.randn(self.batch_size, self.seq_len, self.dm)
+
+    def test_output_shape(self):
+        merging_layer = TokenDroppingLayer(self.result_seq_len)
+        output = merging_layer(self.input)
+        self.assertEqual(output.shape, (self.batch_size, self.result_seq_len, self.dm))
+
 
 class TestTokenMerging(unittest.TestCase):
 
@@ -103,21 +122,20 @@ class TestTokenMerging(unittest.TestCase):
         self.batch_size = 2
         self.seq_len = 7
         self.result_seq_len = 4
-        self.n_tokens_to_reduce = 2
 
         self.dm = 8
         self.input = torch.randn(self.batch_size, self.seq_len, self.dm)
 
     def test_output_shape(self):
         merging_layer = TokenMergingLayer(
-            self.result_seq_len, self.dm, self.n_tokens_to_reduce
+            self.result_seq_len, self.dm
         )
         output = merging_layer(self.input)
         self.assertEqual(output.shape, (self.batch_size, self.result_seq_len, self.dm))
 
     def test_merged_token_exists(self):
         merging_layer = TokenMergingLayer(
-            self.result_seq_len, self.dm, self.n_tokens_to_reduce
+            self.result_seq_len, self.dm
         )
         input_copy = self.input.clone()
 
@@ -136,5 +154,3 @@ class TestTokenMerging(unittest.TestCase):
         merged_token = unchanged_input[reduced_index + 1] + transformed_reduced_token
 
         self.assertTrue(merged_token in output.view(-1, self.dm))
-
-

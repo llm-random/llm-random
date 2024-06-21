@@ -120,16 +120,27 @@ class TokenDroppingLayer(nn.Module):
     This function randomly selects a `result_seq_len` subset of tokens from the input
     """
 
-    def __init__(self, result_seq_len):
+    def __init__(self, result_seq_len, scheduler=None):
         super(TokenDroppingLayer, self).__init__()
         self.result_seq_len = result_seq_len
+        self.scheduler = scheduler
+
+    def scheduler_step(self):
+        if self.scheduler is not None:
+            self.scheduler.step()
 
     def forward(self, x):
         batch_size, seq_len, _ = x.shape
         assert self.result_seq_len <= seq_len
 
+        n_tokens_to_reduce = (
+            seq_len - self.result_seq_len
+            if self.scheduler is None
+            else self.scheduler.value
+        )
+
         indices_to_keep, _ = choose_indeces_to_reduce(
-            batch_size, seq_len, self.result_seq_len, seq_len - self.result_seq_len
+            batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
         )
         self.indices_to_keep = indices_to_keep
         selected_tokens = x.view(batch_size * seq_len, -1).index_select(
@@ -143,21 +154,27 @@ class TokenMergingLayer(nn.Module):
     This function randomly selects a `result_seq_len` subset of tokens from the input
     """
 
-    def __init__(self, result_seq_len, dm, n_tokens_to_reduce, init_type="kaiming_uniform", init_scale=1.0):
+    def __init__(self, result_seq_len, dm, scheduler=None, init_type="kaiming_uniform", init_scale=1.0):
         super(TokenMergingLayer, self).__init__()
         self.result_seq_len = result_seq_len
-        self.n_tokens_to_reduce = n_tokens_to_reduce
+        self.scheduler = scheduler
 
         self.merge_linear_projection = Linear(
             dm, dm, init_type=init_type, init_scale=init_scale, bias=False
         )
 
+    def scheduler_step(self):
+        if self.scheduler is not None:
+            self.scheduler.step()
+
     def forward(self, x):
         batch_size, seq_len, dm = x.shape
         assert self.result_seq_len <= seq_len
 
+        n_tokens_to_reduce = seq_len - self.result_seq_len if self.scheduler is None else self.scheduler.value
+
         indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
-            batch_size, seq_len, self.result_seq_len, self.n_tokens_to_reduce
+            batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
         )
         indices_to_keep, indices_to_reduce = indices_to_keep.to(
             x.device
