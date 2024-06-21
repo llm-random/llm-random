@@ -360,6 +360,24 @@ def introduce_parser_arguments(
         "0 means no multiplier, 1 is the standard, 2 is the square of the standard, etc. "
         "'trainable' means that the exponent is trainable. ",
     )
+    parser.add_argument(
+        "--chimera_change_after_percent",
+        type=float,
+        default=0.1,
+        help="Change the training model after this percent of training schedule"
+    )
+
+    parser.add_argument(
+        "--lr_restart_on_chimera",
+        action="store_true",
+        help="Restart LR on chimera change"
+    )
+
+    parser.add_argument(
+        "--lr_restart_first_full",
+        action="store_true",
+        help="First LR schedule on chimera is on full length, and interrupted in the middle (as opposed to two full small schedules)"
+    )
 
     parser.add_argument(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"

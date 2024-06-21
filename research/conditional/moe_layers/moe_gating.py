@@ -29,6 +29,7 @@ class MoeGating(LoggingLayer):
         softmax_ungrouped: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         use_torch_bmm: bool = False,
+        get_gate_fun=None,
         **kwargs,
     ):
         super().__init__()
@@ -44,6 +45,7 @@ class MoeGating(LoggingLayer):
             get_router_values_from,
             init_scale,
             init_type,
+            get_gate_fun,
         )
         if self.detach_gate:
             old_gate = self.get_gate
@@ -122,13 +124,9 @@ class MoeGating(LoggingLayer):
         get_router_values_from,
         init_scale,
         init_type,
+        get_gate_fun,
     ):
-        if get_router_values_from == "weights":
-            init = get_init_fun(init_type=init_type, init_scale=init_scale)
-            gate = init((self.dmodel, self.n_experts), self.dmodel)
-            gate = gate.requires_grad_(False) if self.detach_gate else gate
-            return gate, lambda: self.gate
-        elif get_router_values_from in ["gate_weight", "lin1_weight"] and hasattr(
+        if get_router_values_from in ["gate_weight", "lin1_weight"] and hasattr(
             expert_inner_function, get_router_values_from
         ):
             return (
@@ -137,6 +135,13 @@ class MoeGating(LoggingLayer):
                     getattr(expert_inner_function, get_router_values_from), dim=-1
                 ).T,
             )
+        elif get_gate_fun is not None:
+            return None, get_gate_fun
+        elif get_router_values_from == "weights":
+            init = get_init_fun(init_type=init_type, init_scale=init_scale)
+            gate = init((self.dmodel, self.n_experts), self.dmodel)
+            gate = gate.requires_grad_(False) if self.detach_gate else gate
+            return gate, lambda: self.gate
         else:
             raise Exception(
                 f"Bad get_router_values_from value: {get_router_values_from}"
@@ -357,12 +362,16 @@ class TokenGating(MoeGating):
         )
 
     def log_light(self):
+        if "dropped_tokens_ratio" not in self.logging_cache or "load_balancing_loss" not in self.logging_cache:
+            return {}
         return {
             "dropped_tokens_ratio": self.logging_cache["dropped_tokens_ratio"],
             "load_balancing_loss": self.logging_cache["load_balancing_loss"],
         }
 
     def log_heavy(self):
+        if "gate_softmax_values" not in self.logging_cache or "tokens_per_expert_counts" not in self.logging_cache:
+            return {}
         return {
             "gate_softmax_all_values": make_histogram(
                 self.logging_cache["gate_softmax_all_values"].flatten()  # move

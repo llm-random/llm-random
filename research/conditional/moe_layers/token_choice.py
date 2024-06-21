@@ -23,6 +23,7 @@ class TokenChoiceFF(LoggingLayer):
         get_router_values_from: str = "weights",
         moe_values_exp: Optional[int] = 1,
         detach_gate: bool = False,
+        get_gate_fun=None,
         **_,
     ):
         """
@@ -53,6 +54,7 @@ class TokenChoiceFF(LoggingLayer):
             detach_gate=detach_gate,
             expert_inner_function=self.expert_inner_function,
             moe_values_exp=moe_values_exp,
+            get_gate_fun=get_gate_fun
         )
 
     @time_measured("assign_tokens_to_input")

@@ -9,6 +9,18 @@ def get_scheduler(args):
         return ConstantScheduler(
             lr_warmup_steps=args.lr_warmup_steps, lr=args.learning_rate
         )
+    elif args.scheduler == "cosine" and args.lr_restart_on_chimera:
+        if args.final_lr_step is None:
+            args.final_lr_step = args.n_steps
+        restart_time = int(args.chimera_change_after_percent * args.final_lr_step)
+        return RestartCosineScheduler(
+            restart_time=restart_time,
+            lr_warmup_steps=args.lr_warmup_steps,
+            lr=args.learning_rate,
+            final_lr_step=args.final_lr_step,
+            final_lr_fraction=args.final_lr_fraction,
+            first_full=args.lr_restart_first_full,
+        )
     elif args.scheduler == "cosine":
         if args.final_lr_step is None:
             args.final_lr_step = args.n_steps
@@ -42,6 +54,44 @@ class ConstantScheduler(AbstractLRScheduler):
             return self.lr * (step + 1) / self.lr_warmup_steps
         else:
             return self.lr
+
+
+class RestartCosineScheduler(AbstractLRScheduler):
+    def __init__(
+        self,
+        restart_time: int,
+        lr_warmup_steps: int,
+        lr: float,
+        final_lr_step: int,
+        final_lr_fraction: float,
+        first_full: bool,
+    ):
+        assert isinstance(restart_time, int)
+        assert isinstance(lr_warmup_steps, int)
+        assert isinstance(lr, float)
+        assert isinstance(final_lr_step, int)
+        assert isinstance(final_lr_fraction, float)
+
+        self.restart_time = restart_time
+
+        self.first_scheduler = CosineScheduler(
+            lr_warmup_steps=lr_warmup_steps,
+            lr=lr,
+            final_lr_step=final_lr_step if first_full else restart_time,
+            final_lr_fraction=final_lr_fraction,
+        )
+        self.second_scheduler = CosineScheduler(
+            lr_warmup_steps=lr_warmup_steps,
+            lr=lr,
+            final_lr_step=final_lr_step - restart_time,
+            final_lr_fraction=final_lr_fraction,
+        )
+
+    def get_lr(self, step: int):
+        if step < self.restart_time:
+            return self.first_scheduler.get_lr(step)
+        else:
+            return self.second_scheduler.get_lr(step - self.restart_time)
 
 
 class CosineScheduler(AbstractLRScheduler):
