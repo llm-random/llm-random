@@ -14,19 +14,19 @@ params:
 
   fsdp_enabled: false
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE,ExpertGatingOld,TokenChoiceRouterOld"
-  batch_size: 256 # 128
+  batch_size: 128 # 128
   cutoff: 256
   final_lr_fraction: 0.1
   scheduler: cosine
-  final_lr_step: 10000
-  n_steps: 10000
-  lr_warmup_steps: 100
+  final_lr_step: 20000
+  n_steps: 20200
+  lr_warmup_steps: 200
   grad_clip: 1.0
   weight_decay: 0.01  # mby 0?
   ^learning_rate: [5e-4]
   # learning_rate: 5e-4
-  logging_interval_heavy: 50
-  logging_interval_loss: 10
+  logging_interval_heavy: 200
+  logging_interval_loss: 50
   mixed_precision: true
   mixed_precision_dtype: bfloat16
   torch_compile: false
@@ -48,11 +48,12 @@ params:
   n_att_heads: 8
 
   # # mini size
-  dmodel: 256
-  n_blocks: 4
-  n_att_heads: 4
+  # dmodel: 256
+  # dff: 128
+  # n_blocks: 4
+  # n_att_heads: 4
 
-  ^ff_mode: [kan_squared]
+  ^ff_mode: [kan, kan_squared]
   use_torch_bmm: true
   softmax_over: experts
 
@@ -61,13 +62,13 @@ params:
   init_type: truncated_normal
 
   # profiler
-  profiler_enabled: true
-  profiler_trace_path: "kan_profiler"
-  profiler_schedule_wait: 10
-  profiler_schedule_warmup: 10
-  profiler_schedule_active: 10
-  profiler_schedule_repeat: 5
-  profiler_schedule_skip_first: 20
+  # profiler_enabled: true
+  # profiler_trace_path: "kan_profiler"
+  # profiler_schedule_wait: 10
+  # profiler_schedule_warmup: 10
+  # profiler_schedule_active: 10
+  # profiler_schedule_repeat: 5
+  # profiler_schedule_skip_first: 20
 
   # debug
   # logger_types: "stdout"

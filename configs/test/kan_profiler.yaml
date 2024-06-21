@@ -30,7 +30,7 @@ params:
   mixed_precision: true
   mixed_precision_dtype: bfloat16
   torch_compile: false
-  loss_checkpoint_chungs: 2
+  loss_checkpoint_chungs: 8
 
   dataset_type: c4
 
