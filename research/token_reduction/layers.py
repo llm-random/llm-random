@@ -143,26 +143,27 @@ class TokenMergingLayer(nn.Module):
     This function randomly selects a `result_seq_len` subset of tokens from the input
     """
 
-    def __init__(self, result_seq_len, dm, init_type="kaiming_uniform", init_scale=1.0):
+    def __init__(self, result_seq_len, dm, n_tokens_to_reduce, init_type="kaiming_uniform", init_scale=1.0):
         super(TokenMergingLayer, self).__init__()
         self.result_seq_len = result_seq_len
+        self.n_tokens_to_reduce = n_tokens_to_reduce
 
         self.merge_linear_projection = Linear(
             dm, dm, init_type=init_type, init_scale=init_scale, bias=False
         )
 
     def forward(self, x):
-        batch_size, seq_len, _ = x.shape
+        batch_size, seq_len, dm = x.shape
         assert self.result_seq_len <= seq_len
 
         indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
-            batch_size, seq_len, self.result_seq_len, seq_len - self.result_seq_len
+            batch_size, seq_len, self.result_seq_len, self.n_tokens_to_reduce
         )
         indices_to_keep, indices_to_reduce = indices_to_keep.to(
             x.device
         ), indices_to_reduce.to(x.device)
 
-        x = x.view(-1, x.shape[-1])
+        x = x.view(-1, dm)
         reduced_tokens = torch.index_select(x, 0, indices_to_reduce)
         transformed_reduced_tokens = self.merge_linear_projection(
             reduced_tokens
