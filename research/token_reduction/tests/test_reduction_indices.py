@@ -95,6 +95,7 @@ class TestRandomIndicesOutside(unittest.TestCase):
                 "All indices within a batch should be managed correctly",
             )
 
+        self.dm = 8
 
 class TestTokenMerging(unittest.TestCase):
 
