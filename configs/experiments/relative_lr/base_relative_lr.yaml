@@ -9,6 +9,8 @@ params:
   name: "relative_lr_base"
   gradient_accumulation_steps: 2
   grad_clip: 1.0
+  flash_attention: false
+  mixed_precision: false
 
   relative_lr: 
     embedding_layer: 5
