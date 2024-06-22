@@ -11,6 +11,7 @@ import argparse
 import time
 import subprocess
 import neptune
+import logging
 
 
 def parse_config(config_path):
@@ -33,6 +34,11 @@ def run_command(command):
 def init_neptune_connection(project_name="pmtest/llm-random"):
     api_token = os.environ["NEPTUNE_API_TOKEN"]
     return neptune.init_project(api_token=api_token, project=project_name)
+
+
+def init_run(run_id, project_name="pmtest/llm-random"):
+    api_token = os.environ["NEPTUNE_API_TOKEN"]
+    return neptune.init_run(api_token=api_token, project=project_name, with_id=run_id)
 
 
 class TrainRun:
@@ -61,13 +67,19 @@ class TrainRun:
 
     def is_running(self):
         out = run_command(f"ssh -qt {self.server} 'squeue --states=R -o \"%.50j\"' | grep {self.pid} 2>/dev/null")
-        return len(out) > 1
+        return len(out) > 1 or self.is_in_neptune()
 
     def is_in_neptune(self):
         return self.get_run() is not None
 
     def is_finished(self):
-        return self.get_run()["status"] == "Inactive"
+        return self.get_run()["sys/state"] == "Inactive"
+
+    def add_sota_status(self):
+        run = init_run(self.get_run()["sys/id"])
+        run["sys/tags"].add("local_sota")
+        logging.getLogger("neptune").setLevel(logging.CRITICAL)
+        run.stop()
 
     def get_results(self):
         try:
@@ -77,7 +89,7 @@ class TrainRun:
 
 
 class LocalSearch:
-    def __init__(self, server_name, base_config, iters, tune_params, wait_time=5, param_change=(0.1, 0.5, 3, 10), configs_directory="local_search_configs"):
+    def __init__(self, server_name, base_config, iters, tune_params, wait_time=5, param_change=(0.2, 2/3, 3/2, 5), configs_directory="local_search_configs"):
         self.iters = iters
         self.server_name = server_name
         self.current_config = base_config
@@ -90,6 +102,7 @@ class LocalSearch:
         self.last_param = ""
         self.exp_name = self.get_param_val('name')
         Path(self.configs_directory).mkdir(parents=True, exist_ok=True)
+        logging.getLogger("neptune").setLevel(logging.CRITICAL)
         assert not self.current_config["interactive_debug_session"]
 
     def write_yaml(self, config_path, config):
@@ -137,8 +150,8 @@ class LocalSearch:
             for pid in pids:
                 if func(pid):
                     pids.remove(pid)
-                    trange.set_description(desc() + f" ({all-len(pids)}/{all})")
                     trange.update(1)
+            trange.set_description(desc() + f" ({all-len(pids)}/{all})")
             time.sleep(self.wait_time)
 
     def wait_for_runs_to_finish_and_get_best(self, pids, param):
@@ -150,15 +163,18 @@ class LocalSearch:
         self.wait_until_true(range, TrainRun.is_running, list(pids), lambda: "Exps queued, waiting for them to start")
         self.wait_until_true(range, TrainRun.is_in_neptune, list(pids), lambda: "Exps started, waiting for them to appear in Neptune")
         self.wait_until_true(range, TrainRun.is_finished, list(pids), lambda: f"Exps running for {param}: {get_results_str()}")
-
-        results =  [run.get_results() for run in pids]
-        trange.set_description(f"Results ({param}): {get_results_str()} ")
+        range.set_description(f"Results ({param}): {get_results_str()} ")
         range.close()
+
+        results = [run.get_results() for run in pids]
+        if any([result == "N/A" for result in results]):
+            raise Exception("Some runs did not finish properly")
         best_run = np.argmin(results)
         if self.last_score is None or results[best_run] < self.last_score:
             self.last_score = results[best_run]
             self.set_param_val(self.current_config, param, pids[best_run].val)
-            print(f"New best value [{param}] = {results[best_run]} with loss {results[best_run]}")
+            pids[best_run].add_sota_status()
+            print(f"New best value [{param}] = {pids[best_run].val} with loss {results[best_run]}")
             return True
         return False
 
@@ -174,7 +190,7 @@ class LocalSearch:
         return self.run_config_dict(self.current_config, param, val, iter=0)
 
     def run_iteration(self, i):
-        while (perm := np.random.permutation(self.tune_params))[0] == self.last_param: pass
+        while (perm := np.random.permutation(self.tune_params))[0] == self.last_param and len(self.tune_params) > 1: pass
         self.last_param = perm[-1]
         changed = False
         for param in perm:
@@ -182,6 +198,8 @@ class LocalSearch:
             if self.last_score is None:
                 pids.append(self.run_baseline_score(param))
             has_changed = self.wait_for_runs_to_finish_and_get_best(pids, param)
+            if len(pids) > len(self.param_change):
+                pids[-1].add_sota_status()
             changed = changed or has_changed
         return changed
 
@@ -198,6 +216,7 @@ class LocalSearch:
 
 
 if __name__ == "__main__":
+    logging.getLogger("neptune").setLevel(logging.CRITICAL)
     parser = argparse.ArgumentParser()
     parser.add_argument("--server_name", type=str, required=True)
     parser.add_argument("--config_path", type=str, required=True)
@@ -205,6 +224,3 @@ if __name__ == "__main__":
 
     local_search = LocalSearch(server_name=args.server_name, **parse_config(args.config_path))
     local_search.run()
-
-
-
