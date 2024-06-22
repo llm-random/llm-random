@@ -39,6 +39,9 @@ def introduce_parser_arguments(
         required=True,
     )
     parser.add_argument("--init_scale", type=float, required=True)
+    parser.add_argument("--init_scale_base", type=float, required=False)
+    parser.add_argument("--init_scale_spline", type=float, required=False)
+    parser.add_argument("--init_scale_noise", type=float, required=False)
 
     # other training hyperparameters
 
