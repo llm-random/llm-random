@@ -10,6 +10,7 @@ from pathlib import Path
 import argparse
 import time
 import subprocess
+import neptune
 
 
 def parse_config(config_path):
@@ -29,9 +30,9 @@ def run_command(command):
     return os.popen(command).read()
 
 
-def init_neptune_connection():
-    return None  # TODO
-    #raise Exception("Not implemented")
+def init_neptune_connection(project_name="pmtest/llm-random"):
+    api_token = os.environ["NEPTUNE_API_TOKEN"]
+    return neptune.init_project(api_token=api_token, project=project_name)
 
 
 class TrainRun:
@@ -42,6 +43,14 @@ class TrainRun:
         self.connection = search.connection
         self.server = search.server_name
         self.val = val
+        time.sleep(7)
+
+    def get_run(self):
+        runs = self.connection.fetch_runs_table(tag=self.pid).to_pandas()
+        if len(runs) == 0:
+            return None
+        assert len(runs) == 1  # There should be only one run with the same tag
+        return runs.iloc[0]
 
     def is_submitted(self):
         return self.process.poll() is not None
@@ -55,13 +64,16 @@ class TrainRun:
         return len(out) > 1
 
     def is_in_neptune(self):
-        raise Exception("Not implemented")
+        return self.get_run() is not None
 
     def is_finished(self):
-        raise Exception("Not implemented")
+        return self.get_run()["status"] == "Inactive"
 
     def get_results(self):
-        raise Exception("Not implemented")
+        try:
+            return self.get_run()["loss_interval/100"]
+        except KeyError as e:
+            return "N/A"
 
 
 class LocalSearch:
@@ -111,7 +123,7 @@ class LocalSearch:
 
         # add tags
         tags = self.get_param_val('tags', [])
-        tags += ["local_search", f"search_{self.exp_name}", f"tuning_{param}", f"iter_{iter}"]
+        tags += ["local_search", name, f"orig_val_{self.get_param_val(param)}", self.exp_name]
         self.set_param_val(config, 'tags', tags)
 
         self.write_yaml(config_path, config)
@@ -120,26 +132,27 @@ class LocalSearch:
 
     def wait_until_true(self, trange, func, pids, desc):
         all = len(pids)
+        trange.set_description(desc() + f" ({all-len(pids)}/{all})")
         while len(pids) > 0:
             for pid in pids:
                 if func(pid):
                     pids.remove(pid)
-                    trange.set_description(desc + f" ({all-len(pids)}/{all})")
+                    trange.set_description(desc() + f" ({all-len(pids)}/{all})")
                     trange.update(1)
             time.sleep(self.wait_time)
 
     def wait_for_runs_to_finish_and_get_best(self, pids, param):
+        get_results_str = lambda: ", ".join([f"{run.val}: {run.get_results()}" for run in pids])
+
         range = trange(5*len(pids), desc="Starting..", leave=True)
-        self.wait_until_true(range, TrainRun.is_submitted, list(pids), "Submitting exps..")
-        self.wait_until_true(range, TrainRun.is_queued, list(pids), "Exps submitted, waiting for them to queue..")
-        self.wait_until_true(range, TrainRun.is_running, list(pids), "Exps queued, waiting for them to start")
-        self.wait_until_true(range, TrainRun.is_in_neptune, list(pids), "Exps started, waiting for them to appear in Neptune")
-        self.wait_until_true(range, TrainRun.is_finished, list(pids), "Exps running, waiting for results")
+        self.wait_until_true(range, TrainRun.is_submitted, list(pids), lambda: "Submitting exps..")
+        self.wait_until_true(range, TrainRun.is_queued, list(pids), lambda: "Exps submitted, waiting for them to queue..")
+        self.wait_until_true(range, TrainRun.is_running, list(pids), lambda: "Exps queued, waiting for them to start")
+        self.wait_until_true(range, TrainRun.is_in_neptune, list(pids), lambda: "Exps started, waiting for them to appear in Neptune")
+        self.wait_until_true(range, TrainRun.is_finished, list(pids), lambda: f"Exps running for {param}: {get_results_str()}")
 
-        results = [run.get_results() for run in pids]
-
-        results_str = ", ".join([f"{run.val}: {res}" for run, res in zip(pids, results)])
-        trange.set_description(f"Results ({param}): {results_str} ")
+        results =  [run.get_results() for run in pids]
+        trange.set_description(f"Results ({param}): {get_results_str()} ")
         range.close()
         best_run = np.argmin(results)
         if self.last_score is None or results[best_run] < self.last_score:
