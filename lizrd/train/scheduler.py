@@ -27,6 +27,7 @@ def get_scheduler(
             final_lr_step=args.final_lr_step,
             final_lr_fraction=args.final_lr_fraction,
             first_full=args.lr_restart_first_full,
+            ratios=ratios_in_group_order,
         )
     elif args.scheduler == "cosine":
         if args.final_lr_step is None:
@@ -77,7 +78,9 @@ class RestartCosineScheduler(AbstractLRScheduler):
         final_lr_step: int,
         final_lr_fraction: float,
         first_full: bool,
+        ratios: list[float],
     ):
+        super().__init__(ratios=ratios)
         assert isinstance(restart_time, int)
         assert isinstance(lr_warmup_steps, int)
         assert isinstance(lr, float)
@@ -91,12 +94,14 @@ class RestartCosineScheduler(AbstractLRScheduler):
             lr=lr,
             final_lr_step=final_lr_step if first_full else restart_time,
             final_lr_fraction=final_lr_fraction,
+            ratios=ratios,
         )
         self.second_scheduler = CosineScheduler(
             lr_warmup_steps=lr_warmup_steps,
             lr=lr,
             final_lr_step=final_lr_step - restart_time,
             final_lr_fraction=final_lr_fraction,
+            ratios=ratios,
         )
 
     def get_lr(self, step: int):
