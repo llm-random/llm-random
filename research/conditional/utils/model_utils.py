@@ -77,6 +77,7 @@ from research.conditional.moe_layers.expert_types import (
     ExpertFF,
     ExpertGated,
     ExpertKAN,
+    ExpertMLPKAN,
     ExpertLinear,
 )
 from research.mamba.moe_in_mamba import MambaInProj
@@ -778,6 +779,12 @@ def get_inner_expert(args):
         expert_inner_class = partial(ExpertKAN, activation_name="relu")
     elif args.moe_inner_expert == "kan_squared":
         expert_inner_class = partial(ExpertKAN, activation_name="relu", kan_square=True)
+    elif args.moe_inner_expert == "mlp_kan":
+        expert_inner_class = partial(ExpertMLPKAN, activation_name="relu")
+    elif args.moe_inner_expert == "kan_square_latent":
+        expert_inner_class = partial(
+            ExpertMLPKAN, activation_name="relu", kan_square=True
+        )
     else:
         raise NotImplementedError(
             f'Inner expert type "{args.moe_inner_expert}" not implemented'
