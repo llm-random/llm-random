@@ -6,6 +6,7 @@ import math
 
 from typing import Literal
 
+from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
 
 
@@ -23,12 +24,14 @@ class KANLinear(torch.nn.Module):
         base_activation=torch.nn.SiLU,
         grid_eps=0.02,
         grid_range=[-1, 1],
+        init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
     ):
         super(KANLinear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.grid_size = grid_size
         self.spline_order = spline_order
+        self.init_type = init_type
 
         h = (grid_range[1] - grid_range[0]) / grid_size
         grid = (
@@ -60,9 +63,15 @@ class KANLinear(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        torch.nn.init.kaiming_uniform_(
-            self.base_weight, a=math.sqrt(5) * self.scale_base
+        self.base_weight.data = get_init_weight(
+            self.base_weight.shape, self.in_features, self.init_type, self.scale_base
         )
+
+        # Initialization from efficient-kan
+        # torch.nn.init.kaiming_uniform_(
+        #     self.base_weight, a=math.sqrt(5) * self.scale_base
+        # )
+
         with torch.no_grad():
             noise = (
                 (
@@ -81,8 +90,15 @@ class KANLinear(torch.nn.Module):
             )
             if self.enable_standalone_scale_spline:
                 # torch.nn.init.constant_(self.spline_scaler, self.scale_spline)
-                torch.nn.init.kaiming_uniform_(
-                    self.spline_scaler, a=math.sqrt(5) * self.scale_spline
+                # Initialization from efficient-kan
+                # torch.nn.init.kaiming_uniform_(
+                #     self.spline_scaler, a=math.sqrt(5) * self.scale_spline
+                # )
+                self.spline_scaler.data = get_init_weight(
+                    self.spline_scaler.shape,
+                    self.in_features,
+                    self.init_type,
+                    self.scale_spline,
                 )
 
     def b_splines(self, x: torch.Tensor):
@@ -259,6 +275,7 @@ class KAN(torch.nn.Module):
         base_activation=torch.nn.SiLU,
         grid_eps=0.02,
         grid_range=[-1, 1],
+        init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
     ):
         super(KAN, self).__init__()
         self.grid_size = grid_size
@@ -278,6 +295,7 @@ class KAN(torch.nn.Module):
                     base_activation=base_activation,
                     grid_eps=grid_eps,
                     grid_range=grid_range,
+                    init_type=init_type,
                 )
             )
 
@@ -317,20 +335,36 @@ def KanFF(
     dmodel,
     dff,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
-    init_scale: float = 0.0,
+    init_scale_base: float = 1.0,
+    init_scale_spline: float = 1.0,
+    init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
-    return KAN(layers_hidden=[dmodel, dff, dmodel])
+    return KAN(
+        layers_hidden=[dmodel, dff, dmodel],
+        init_type=init_type,
+        scale_base=init_scale_base,
+        scale_spline=init_scale_spline,
+        scale_noise=init_scale_noise,
+    )
 
 
 def Kan_sQare(
     dmodel,
     dff=None,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
-    init_scale: float = 0.0,
+    init_scale_base: float = 1.0,
+    init_scale_spline: float = 1.0,
+    init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
-    return KAN(layers_hidden=[dmodel, dmodel])
+    return KAN(
+        layers_hidden=[dmodel, dmodel],
+        init_type=init_type,
+        scale_base=init_scale_base,
+        scale_spline=init_scale_spline,
+        scale_noise=init_scale_noise,
+    )
 
 
 def KanMlp(
@@ -338,6 +372,9 @@ def KanMlp(
     dff,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
     init_scale: float = 0.0,
+    init_scale_base: float = 1.0,
+    init_scale_spline: float = 1.0,
+    init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
     return nn.Sequential(
@@ -345,7 +382,13 @@ def KanMlp(
             [
                 (
                     "KAN",
-                    KAN(layers_hidden=[dmodel, dff]),
+                    KAN(
+                        layers_hidden=[dmodel, dff],
+                        init_type=init_type,
+                        scale_base=init_scale_base,
+                        scale_spline=init_scale_spline,
+                        scale_noise=init_scale_noise,
+                    ),
                 ),
                 ("relu", nn.ReLU()),
                 (
@@ -367,6 +410,9 @@ def MlpKan(
     dff,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
     init_scale: float = 0.0,
+    init_scale_base: float = 1.0,
+    init_scale_spline: float = 1.0,
+    init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
     return nn.Sequential(
@@ -384,7 +430,13 @@ def MlpKan(
                 ("relu", nn.ReLU()),
                 (
                     "KAN",
-                    KAN(layers_hidden=[dff, dmodel]),
+                    KAN(
+                        layers_hidden=[dff, dmodel],
+                        init_type=init_type,
+                        scale_base=init_scale_base,
+                        scale_spline=init_scale_spline,
+                        scale_noise=init_scale_noise,
+                    ),
                 ),
             ]
         )
@@ -396,6 +448,9 @@ def MlpKan_norelu(
     dff,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
     init_scale: float = 0.0,
+    init_scale_base: float = 1.0,
+    init_scale_spline: float = 1.0,
+    init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
     return nn.Sequential(
@@ -412,7 +467,13 @@ def MlpKan_norelu(
                 ),
                 (
                     "KAN",
-                    KAN(layers_hidden=[dff, dmodel]),
+                    KAN(
+                        layers_hidden=[dff, dmodel],
+                        init_type=init_type,
+                        scale_base=init_scale_base,
+                        scale_spline=init_scale_spline,
+                        scale_noise=init_scale_noise,
+                    ),
                 ),
             ]
         )
@@ -424,6 +485,9 @@ def KanLatent(
     dff,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
     init_scale: float = 0.0,
+    init_scale_base: float = 1.0,
+    init_scale_spline: float = 1.0,
+    init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
     return nn.Sequential(
@@ -440,7 +504,13 @@ def KanLatent(
                 ),
                 (
                     "KAN",
-                    KAN(layers_hidden=[dff, 2 * dff]),
+                    KAN(
+                        layers_hidden=[dff, 2 * dff],
+                        init_type=init_type,
+                        scale_base=init_scale_base,
+                        scale_spline=init_scale_spline,
+                        scale_noise=init_scale_noise,
+                    ),
                 ),
                 (
                     "MLP_up",
@@ -461,6 +531,9 @@ def KanSquareLatent(
     dff,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
     init_scale: float = 0.0,
+    init_scale_base: float = 1.0,
+    init_scale_spline: float = 1.0,
+    init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
     return nn.Sequential(
@@ -477,7 +550,13 @@ def KanSquareLatent(
                 ),
                 (
                     "KAN",
-                    KAN(layers_hidden=[dff, dff]),
+                    KAN(
+                        layers_hidden=[dff, dff],
+                        init_type=init_type,
+                        scale_base=init_scale_base,
+                        scale_spline=init_scale_spline,
+                        scale_noise=init_scale_noise,
+                    ),
                 ),
                 (
                     "MLP_up",

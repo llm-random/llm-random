@@ -76,6 +76,9 @@ params:
   # init
   init_scale: 0.1
   init_type: truncated_normal
+  init_scale_base: 0.1
+  init_scale_spline: 0.1
+  init_scale_noise: 0.01
 
   # debug
   # logger_types: "stdout"
