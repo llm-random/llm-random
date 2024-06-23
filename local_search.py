@@ -113,14 +113,14 @@ class LocalSearch:
         return copy.deepcopy(self.current_config)
 
     def get_param_val(self, param, default=None):
+        if ":" in param:
+            param, sub_param = param.split(":")
+            return copy.deepcopy(self.current_config["params"][param][sub_param])
         if param not in self.current_config["params"]:
             if default is None:
                 raise Exception(f"Parameter {param} not found in config")
             else:
                 return default
-        if ":" in param:
-            param, sub_param = param.split(":")
-            return copy.deepcopy(self.current_config["params"][param][sub_param])
         return copy.deepcopy(self.current_config["params"][param])
 
     def set_param_val(self, config, param, val):
@@ -137,7 +137,7 @@ class LocalSearch:
     def run_config_dict(self, config, param, val, iter):
         # set name
         uuid = get_random_UUID()
-        name = f"{self.exp_name}_{iter}_{param}_{uuid}"
+        name = f"{self.exp_name}_{iter}_{param.replace(':', '_')}_{uuid}"
         config_path = f"{self.configs_directory}/{name}.yaml"
         self.set_param_val(config, 'name', name)
 
