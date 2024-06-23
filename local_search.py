@@ -118,10 +118,15 @@ class LocalSearch:
                 raise Exception(f"Parameter {param} not found in config")
             else:
                 return default
+        if ":" in param:
+            param, sub_param = param.split(":")
+            return copy.deepcopy(self.current_config["params"][param][sub_param])
         return copy.deepcopy(self.current_config["params"][param])
 
     def set_param_val(self, config, param, val):
-        config["params"][param] = val
+        if ":" in param:
+            param, sub_param = param.split(":")
+            config["params"][param][sub_param] = val
         return config
 
     def get_run_command(self, config_path):
