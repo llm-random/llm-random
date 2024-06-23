@@ -210,6 +210,8 @@ def translate_to_argparse(param_set: dict):
                 runner_params.append(f"--{k}")
                 if isinstance(v, list):
                     runner_params.extend([str(s) for s in v])
+                elif isinstance(v, dict):
+                    runner_params.append(f'{str(v).replace(" ", "")}')
                 else:
                     runner_params.append(str(v))
 
