@@ -1,27 +1,32 @@
 from typing import Optional
 
 import torch
-import math
 from fancy_einsum import einsum
+from typing import Literal
+
 
 from lizrd.core.initialization import get_init_fun
 from lizrd.core.misc import resolve_activation_name
 from lizrd.core.misc import LoggingLayer, time_measured
-from lizrd.core.kan import KanFF, Kan_sQare, MlpKan_norelu, KanSquareLatent
+from lizrd.core.kan import KanFF
 
 
 class ExpertKAN(LoggingLayer):
     def __init__(
         self,
+        kan_type: str,
         dmodel: int,
         n_experts: int,
         expert_size: int,
-        init_type: str,
-        init_scale: float,
         use_topk_initialization,
+        init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
+        init_scale: float = 0.1,
+        init_scale_base: float = 1.0,
+        init_scale_spline: float = 1.0,
+        init_scale_noise: float = 0.1,
+        latent_factor: float = 1.0,
         activation_name: str = "relu",
         topk: int = 1,
-        kan_square=False,
     ):
         super().__init__()
         self.dmodel = dmodel
@@ -32,54 +37,22 @@ class ExpertKAN(LoggingLayer):
 
         print(f"\nexpert_size = dff = {expert_size}\n")
 
-        if kan_square:
-            self.kan_experts = torch.nn.ModuleList(
-                [Kan_sQare(dmodel=dmodel) for _ in range(n_experts)]
-            )
-        else:
-            self.kan_experts = torch.nn.ModuleList(
-                [KanFF(dmodel=dmodel, dff=expert_size) for _ in range(n_experts)]
-            )
-
-
-class ExpertMLPKAN(LoggingLayer):
-    def __init__(
-        self,
-        dmodel: int,
-        n_experts: int,
-        expert_size: int,
-        init_type: str,
-        init_scale: float,
-        use_topk_initialization,
-        activation_name: str = "relu",
-        topk: int = 1,
-        kan_square=False,
-    ):
-        super().__init__()
-        self.dmodel = dmodel
-        self.n_experts = n_experts
-        self.expert_size = expert_size
-        self.activation = resolve_activation_name(activation_name)
-        self.doutput = dmodel
-
-        kan_bottleneck_size = self.calculate_kan_bottlneck(kan_square)
-
-        print(f"\nexpert_size = dff = {expert_size}\n")
-
-        if kan_square:
-            self.kan_experts = torch.nn.ModuleList(
-                [
-                    KanSquareLatent(dmodel=dmodel, dff=kan_bottleneck_size)
-                    for _ in range(n_experts)
-                ]
-            )
-        else:
-            self.kan_experts = torch.nn.ModuleList(
-                [
-                    MlpKan_norelu(dmodel=dmodel, dff=kan_bottleneck_size)
-                    for _ in range(n_experts)
-                ]
-            )
+        self.kan_experts = torch.nn.ModuleList(
+            [
+                KanFF(
+                    dmodel=dmodel,
+                    dff=expert_size,
+                    kan_type=kan_type,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                    init_scale_base=init_scale_base,
+                    init_scale_spline=init_scale_spline,
+                    init_scale_noise=init_scale_noise,
+                    latent_factor=latent_factor,
+                )
+                for _ in range(n_experts)
+            ]
+        )
 
     @time_measured("process_by_experts")
     def forward(self, x: torch.Tensor):
@@ -97,22 +70,6 @@ class ExpertMLPKAN(LoggingLayer):
         assert output.shape == x.shape
 
         return output
-
-    def calculate_kan_bottlneck(self, kan_square):
-        kan_bottlneck = None
-
-        if kan_square:
-            kan_bottlneck = int(
-                (
-                    math.sqrt(self.dmodel * (20 * self.expert_size + self.dmodel))
-                    - self.dmodel
-                )
-                / 10
-            )
-        else:
-            kan_bottlneck = int((2 / 11) * self.expert_size)
-
-        return kan_bottlneck
 
 
 class ExpertFF(LoggingLayer):

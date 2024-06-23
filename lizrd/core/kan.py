@@ -10,6 +10,37 @@ from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
 
 
+def calculate_kan_bottlneck(dmodel, expert_size, kan_type, latent_factor=1):
+    # this function calculates kan_bottlneck, so that KAN architecture is parameter matched with MLP
+    # kan types:
+    # kan_squared   KAN (dmodel, dmodel)
+    # kan:          KAN -> KAN (dmodel, kan_bottlneck, dmodel)                                      *ReLU
+    # mlp_kan:      MLP -> KAN (dmodel, kan_bottlneck, dmodel)                                      *no ReLU
+    # kan_latent:   MLP -> KAN -> MLP (dmodel, kan_bottlneck, kan_bottlneck*latent_factor, dmodel)  *no ReLU
+    kan_bottlneck = None
+
+    if kan_type == "kan":
+        kan_bottlneck = int((1 / 10) * expert_size)
+    elif kan_type == "mlp_kan":
+        kan_bottlneck = int((2 / 11) * expert_size)
+    elif kan_type == "kan_latent":
+        kan_bottlneck = int(
+            (
+                math.sqrt(
+                    dmodel
+                    * (
+                        80 * expert_size * latent_factor
+                        + dmodel * (latent_factor + 1) ** 2
+                    )
+                )
+                - dmodel * (latent_factor + 1)
+            )
+            / (20 * latent_factor)
+        )
+
+    return kan_bottlneck
+
+
 class KANLinear(torch.nn.Module):
     def __init__(
         self,
@@ -334,19 +365,102 @@ def Identity(
 def KanFF(
     dmodel,
     dff,
+    kan_type: str,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
+    init_scale: float = 0.1,
     init_scale_base: float = 1.0,
     init_scale_spline: float = 1.0,
     init_scale_noise: float = 0.1,
+    latent_factor: float = 1.0,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
-    return KAN(
-        layers_hidden=[dmodel, dff, dmodel],
-        init_type=init_type,
-        scale_base=init_scale_base,
-        scale_spline=init_scale_spline,
-        scale_noise=init_scale_noise,
-    )
+    print(f"kan_type: {kan_type}")
+    print(f"init_type: {init_type}")
+    print(f"init_scale: {init_scale}")
+    print(f"init_scale_base: {init_scale_base}")
+    print(f"init_scale_spline: {init_scale_spline}")
+    print(f"init_scale_noise: {init_scale_noise}")
+    print(f"latent_factor: {latent_factor}")
+    kan_bottlneck = calculate_kan_bottlneck(dmodel, dff, kan_type, latent_factor)
+    print(f"kan_bottlneck: {kan_bottlneck}")
+
+    if kan_type == "kan_squared":
+        return KAN(
+            layers_hidden=[dmodel, dmodel],
+            init_type=init_type,
+            scale_base=init_scale_base,
+            scale_spline=init_scale_spline,
+            scale_noise=init_scale_noise,
+        )
+    elif kan_type == "kan":
+        return KAN(
+            layers_hidden=[dmodel, kan_bottlneck, dmodel],
+            init_type=init_type,
+            scale_base=init_scale_base,
+            scale_spline=init_scale_spline,
+            scale_noise=init_scale_noise,
+        )
+    elif kan_type == "mlp_kan":
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        "MLP",
+                        Linear(
+                            dmodel,
+                            kan_bottlneck,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                    (
+                        "KAN",
+                        KAN(
+                            layers_hidden=[kan_bottlneck, dmodel],
+                            init_type=init_type,
+                            scale_base=init_scale_base,
+                            scale_spline=init_scale_spline,
+                            scale_noise=init_scale_noise,
+                        ),
+                    ),
+                ]
+            )
+        )
+    elif kan_type == "kan_latent":
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        "MLP_down",
+                        Linear(
+                            dmodel,
+                            kan_bottlneck,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                    (
+                        "KAN",
+                        KAN(
+                            layers_hidden=[dff, latent_factor * kan_bottlneck],
+                            init_type=init_type,
+                            scale_base=init_scale_base,
+                            scale_spline=init_scale_spline,
+                            scale_noise=init_scale_noise,
+                        ),
+                    ),
+                    (
+                        "MLP_up",
+                        Linear(
+                            latent_factor * kan_bottlneck,
+                            dmodel,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                ]
+            )
+        )
 
 
 def Kan_sQare(
@@ -371,19 +485,20 @@ def KanMlp(
     dmodel,
     dff,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
-    init_scale: float = 0.0,
+    init_scale: float = 0.1,
     init_scale_base: float = 1.0,
     init_scale_spline: float = 1.0,
     init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
+    kan_bottlneck = calculate_kan_bottlneck(dmodel, dff, "mlp_kan")
     return nn.Sequential(
         OrderedDict(
             [
                 (
                     "KAN",
                     KAN(
-                        layers_hidden=[dmodel, dff],
+                        layers_hidden=[dmodel, kan_bottlneck],
                         init_type=init_type,
                         scale_base=init_scale_base,
                         scale_spline=init_scale_spline,
@@ -394,10 +509,49 @@ def KanMlp(
                 (
                     "MLP",
                     Linear(
-                        dff,
+                        kan_bottlneck,
                         dmodel,
                         init_type=init_type,
                         init_scale=init_scale,
+                    ),
+                ),
+            ]
+        )
+    )
+
+
+def MlpKan_relu(
+    dmodel,
+    dff,
+    init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
+    init_scale: float = 0.1,
+    init_scale_base: float = 1.0,
+    init_scale_spline: float = 1.0,
+    init_scale_noise: float = 0.1,
+    bias: Literal["both", "first", "second", "none"] = "both",
+):
+    kan_bottlneck = calculate_kan_bottlneck(dmodel, dff, "mlp_kan")
+    return nn.Sequential(
+        OrderedDict(
+            [
+                (
+                    "MLP",
+                    Linear(
+                        dmodel,
+                        kan_bottlneck,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
+                ("relu", nn.ReLU()),
+                (
+                    "KAN",
+                    KAN(
+                        layers_hidden=[kan_bottlneck, dmodel],
+                        init_type=init_type,
+                        scale_base=init_scale_base,
+                        scale_spline=init_scale_spline,
+                        scale_noise=init_scale_noise,
                     ),
                 ),
             ]
@@ -415,6 +569,7 @@ def MlpKan(
     init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
+    kan_bottlneck = calculate_kan_bottlneck(dmodel, dff, "mlp_kan")
     return nn.Sequential(
         OrderedDict(
             [
@@ -422,45 +577,7 @@ def MlpKan(
                     "MLP",
                     Linear(
                         dmodel,
-                        dff,
-                        init_type=init_type,
-                        init_scale=init_scale,
-                    ),
-                ),
-                ("relu", nn.ReLU()),
-                (
-                    "KAN",
-                    KAN(
-                        layers_hidden=[dff, dmodel],
-                        init_type=init_type,
-                        scale_base=init_scale_base,
-                        scale_spline=init_scale_spline,
-                        scale_noise=init_scale_noise,
-                    ),
-                ),
-            ]
-        )
-    )
-
-
-def MlpKan_norelu(
-    dmodel,
-    dff,
-    init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
-    init_scale: float = 0.0,
-    init_scale_base: float = 1.0,
-    init_scale_spline: float = 1.0,
-    init_scale_noise: float = 0.1,
-    bias: Literal["both", "first", "second", "none"] = "both",
-):
-    return nn.Sequential(
-        OrderedDict(
-            [
-                (
-                    "MLP",
-                    Linear(
-                        dmodel,
-                        dff,
+                        kan_bottlneck,
                         init_type=init_type,
                         init_scale=init_scale,
                     ),
@@ -468,7 +585,7 @@ def MlpKan_norelu(
                 (
                     "KAN",
                     KAN(
-                        layers_hidden=[dff, dmodel],
+                        layers_hidden=[kan_bottlneck, dmodel],
                         init_type=init_type,
                         scale_base=init_scale_base,
                         scale_spline=init_scale_spline,
@@ -483,6 +600,7 @@ def MlpKan_norelu(
 def KanLatent(
     dmodel,
     dff,
+    latent_factor=1.0,
     init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
     init_scale: float = 0.0,
     init_scale_base: float = 1.0,
@@ -490,6 +608,7 @@ def KanLatent(
     init_scale_noise: float = 0.1,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
+    kan_bottlneck = calculate_kan_bottlneck(dmodel, dff, "mlp_kan", latent_factor)
     return nn.Sequential(
         OrderedDict(
             [
@@ -497,7 +616,7 @@ def KanLatent(
                     "MLP_down",
                     Linear(
                         dmodel,
-                        dff,
+                        kan_bottlneck,
                         init_type=init_type,
                         init_scale=init_scale,
                     ),
@@ -505,7 +624,7 @@ def KanLatent(
                 (
                     "KAN",
                     KAN(
-                        layers_hidden=[dff, 2 * dff],
+                        layers_hidden=[dff, latent_factor * kan_bottlneck],
                         init_type=init_type,
                         scale_base=init_scale_base,
                         scale_spline=init_scale_spline,
@@ -515,53 +634,7 @@ def KanLatent(
                 (
                     "MLP_up",
                     Linear(
-                        2 * dff,
-                        dmodel,
-                        init_type=init_type,
-                        init_scale=init_scale,
-                    ),
-                ),
-            ]
-        )
-    )
-
-
-def KanSquareLatent(
-    dmodel,
-    dff,
-    init_type: Literal["kaiming_uniform", "truncated_normal"] = "kaiming_uniform",
-    init_scale: float = 0.0,
-    init_scale_base: float = 1.0,
-    init_scale_spline: float = 1.0,
-    init_scale_noise: float = 0.1,
-    bias: Literal["both", "first", "second", "none"] = "both",
-):
-    return nn.Sequential(
-        OrderedDict(
-            [
-                (
-                    "MLP_down",
-                    Linear(
-                        dmodel,
-                        dff,
-                        init_type=init_type,
-                        init_scale=init_scale,
-                    ),
-                ),
-                (
-                    "KAN",
-                    KAN(
-                        layers_hidden=[dff, dff],
-                        init_type=init_type,
-                        scale_base=init_scale_base,
-                        scale_spline=init_scale_spline,
-                        scale_noise=init_scale_noise,
-                    ),
-                ),
-                (
-                    "MLP_up",
-                    Linear(
-                        dff,
+                        latent_factor * kan_bottlneck,
                         dmodel,
                         init_type=init_type,
                         init_scale=init_scale,

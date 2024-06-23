@@ -39,9 +39,16 @@ def introduce_parser_arguments(
         required=True,
     )
     parser.add_argument("--init_scale", type=float, required=True)
-    parser.add_argument("--init_scale_base", type=float, required=False)
-    parser.add_argument("--init_scale_spline", type=float, required=False)
-    parser.add_argument("--init_scale_noise", type=float, required=False)
+    parser.add_argument("--init_scale_base", type=float, default=0.1, required=False)
+    parser.add_argument("--init_scale_spline", type=float, default=0.1, required=False)
+    parser.add_argument("--init_scale_noise", type=float, default=0.1, required=False)
+    parser.add_argument(
+        "--kan_latent_factor",
+        type=float,
+        default=1.0,
+        required=False,
+        help="in kan_latent specity how many times kan should increase dimensionality",
+    )
 
     # other training hyperparameters
 

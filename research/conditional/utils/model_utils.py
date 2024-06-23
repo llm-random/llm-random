@@ -77,7 +77,6 @@ from research.conditional.moe_layers.expert_types import (
     ExpertFF,
     ExpertGated,
     ExpertKAN,
-    ExpertMLPKAN,
     ExpertLinear,
 )
 from research.mamba.moe_in_mamba import MambaInProj
@@ -544,73 +543,20 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "identity":
         return_fn = lambda: kan.Identity()
-    elif args.ff_mode == "kan":
+    elif args.ff_mode in ["kan_squared", "kan", "mlp_kan", "kan_latent"]:
+        latent_factor = None
+        if args.kan_latent_factor is not None:
+            latent_factor = args.kan_latent_factor
         return_fn = lambda: kan.KanFF(
             args.dmodel,
             args.dff,
-            init_type=args.init_type,
-            init_scale_base=args.init_scale_base,
-            init_scale_spline=args.init_scale_spline,
-            init_scale_noise=args.init_scale_noise,
-        )
-    elif args.ff_mode == "kan_squared":
-        return_fn = lambda: kan.Kan_sQare(
-            args.dmodel,
-            args.dff,
-            init_type=args.init_type,
-            init_scale_base=args.init_scale_base,
-            init_scale_spline=args.init_scale_spline,
-            init_scale_noise=args.init_scale_noise,
-        )
-    elif args.ff_mode == "mlp_kan":
-        return_fn = lambda: kan.MlpKan(
-            args.dmodel,
-            args.dff,
+            args.ff_mode,
             init_type=args.init_type,
             init_scale=args.init_scale,
             init_scale_base=args.init_scale_base,
             init_scale_spline=args.init_scale_spline,
             init_scale_noise=args.init_scale_noise,
-        )
-    elif args.ff_mode == "mlp_kan_norelu":
-        return_fn = lambda: kan.MlpKan_norelu(
-            args.dmodel,
-            args.dff,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-            init_scale_base=args.init_scale_base,
-            init_scale_spline=args.init_scale_spline,
-            init_scale_noise=args.init_scale_noise,
-        )
-    elif args.ff_mode == "kan_latent":
-        return_fn = lambda: kan.KanLatent(
-            args.dmodel,
-            args.dff,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-            init_scale_base=args.init_scale_base,
-            init_scale_spline=args.init_scale_spline,
-            init_scale_noise=args.init_scale_noise,
-        )
-    elif args.ff_mode == "kan_square_latent":
-        return_fn = lambda: kan.KanSquareLatent(
-            args.dmodel,
-            args.dff,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-            init_scale_base=args.init_scale_base,
-            init_scale_spline=args.init_scale_spline,
-            init_scale_noise=args.init_scale_noise,
-        )
-    elif args.ff_mode == "kan_mlp":
-        return_fn = lambda: kan.KanMlp(
-            args.dmodel,
-            args.dff,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-            init_scale_base=args.init_scale_base,
-            init_scale_spline=args.init_scale_spline,
-            init_scale_noise=args.init_scale_noise,
+            latent_factor=latent_factor,
         )
     elif args.ff_mode == "swi_glu":
         return_fn = lambda: llm.SwiGLUFeedForward(
@@ -815,15 +761,15 @@ def get_inner_expert(args):
         expert_inner_class = partial(ExpertGated, activation_name="silu")
     elif args.moe_inner_expert == "geglu":
         expert_inner_class = partial(ExpertGated, activation_name="gelu")
-    elif args.moe_inner_expert == "kan":
-        expert_inner_class = partial(ExpertKAN, activation_name="relu")
-    elif args.moe_inner_expert == "kan_squared":
-        expert_inner_class = partial(ExpertKAN, activation_name="relu", kan_square=True)
-    elif args.moe_inner_expert == "mlp_kan":
-        expert_inner_class = partial(ExpertMLPKAN, activation_name="relu")
-    elif args.moe_inner_expert == "kan_square_latent":
+    elif args.moe_inner_expert in ["kan_squared", "kan", "mlp_kan", "kan_latent"]:
         expert_inner_class = partial(
-            ExpertMLPKAN, activation_name="relu", kan_square=True
+            ExpertKAN,
+            kan_type=args.moe_inner_expert,
+            activation_name="relu",
+            init_scale_base=args.init_scale_base,
+            init_scale_spline=args.init_scale_spline,
+            init_scale_noise=args.init_scale_noise,
+            latent_factor=args.kan_latent_factor,
         )
     else:
         raise NotImplementedError(

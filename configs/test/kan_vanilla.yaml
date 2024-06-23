@@ -49,7 +49,7 @@ params:
 
   # # mini size
   dmodel: 256
-  ^dff: [92]
+  dff: 1024
   n_blocks: 4
   n_att_heads: 4
 
@@ -59,7 +59,7 @@ params:
   logging_interval_heavy: 200
   logging_interval_loss: 50
 
-  ^ff_mode: [kan_square_latent]
+  ^ff_mode: [kan]
   use_torch_bmm: true
   softmax_over: experts
 
@@ -69,6 +69,12 @@ params:
   init_scale_base: 0.1
   init_scale_spline: 0.1
   init_scale_noise: 0.01
+
+  init_scale: 69
+  init_type: truncated_normal
+  init_scale_base: 69
+  init_scale_spline: 69
+  init_scale_noise: 69
 
   # profiler
   # profiler_enabled: true
@@ -80,12 +86,12 @@ params:
   # profiler_schedule_skip_first: 20
 
   # debug
-  # logger_types: "stdout"
-  # use_dummy_dataset: true
-  # n_blocks: 1
-  # n_att_heads: 1
-  # zloss_weight: 0
+  logger_types: "stdout"
+  use_dummy_dataset: true
+  n_blocks: 1
+  n_att_heads: 1
+  zloss_weight: 0
 
-  # dmodel: 16
-  # n_blocks: 1
-  # n_att_heads: 2
+  dmodel: 16
+  n_blocks: 1
+  n_att_heads: 2
