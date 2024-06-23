@@ -1,5 +1,4 @@
 import argparse
-from collections import defaultdict
 import os
 import random
 from typing import Callable, Optional
@@ -21,22 +20,20 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
-from research.conditional.utils.check_args import check_args
+from research.template.utils.check_args import check_args
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.argparse import introduce_parser_arguments
-from research.conditional.utils.model_utils import (
+from research.template.utils.trainer import TemplateTrainer
+from research.template.utils.argparse import introduce_parser_arguments
+from research.template.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
-    get_mamba_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     get_classes_from_module_names,
     update_model_fit_gpu_info,
-    get_vanilla_mamba_layer,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -69,28 +66,6 @@ def log_batch(
         )
 
     print("Logged example batch.")
-
-
-def make_param_groups_and_lr_ratios(args, model):
-    lr = args.learning_rate
-    if args.relative_lr is None:
-        return [{"params": model.parameters(), "lr": lr}], [1.0]
-
-    relative_lr: dict = args.relative_lr
-
-    lr_to_params = defaultdict(list)
-    for name, param in model.named_parameters():
-        ratio = 1.0
-        for possible_name in relative_lr.keys():
-            if possible_name in name:
-                ratio = relative_lr[possible_name]
-                break
-        lr_to_params[ratio * lr].append(param)
-    param_grops = [
-        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
-    ]
-    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
-    return param_grops, ratios_in_group_order
 
 
 def main(
@@ -177,10 +152,6 @@ def main(
             block_modules[module_name] = get_attention_layer(args)
         elif module_name == "feedforward":
             block_modules[module_name] = get_ff_layer(args)
-        elif module_name == "mamba":
-            block_modules[module_name] = get_mamba_layer(args)
-        elif module_name == "vanilla_mamba":
-            block_modules[module_name] = get_vanilla_mamba_layer(args)
         else:
             raise ValueError(f"Unknown module name: {module_name}")
 
@@ -244,24 +215,16 @@ def main(
     if args.torch_compile:
         model = torch.compile(model)
 
-    if args.print_parameter_names:
-        for name, param in model.named_parameters():
-            print(name, param.shape)
-
-    param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
-
     optimizer = torch.optim.AdamW(
-        param_grops,
+        model.parameters(),
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
-
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args, ratios_in_group_order)
-    print(f"Scheduler_ratios: {scheduler.ratios}")
+    scheduler = get_scheduler(args)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
@@ -321,7 +284,7 @@ def main(
         else disable_profile_schedule_fn
     )
 
-    trainer = ConditionalTrainer(
+    trainer = TemplateTrainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,

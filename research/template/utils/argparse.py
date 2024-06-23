@@ -1,9 +1,4 @@
 import argparse
-import json
-
-
-def load_dict_in_args(s: str):
-    return json.loads(s.replace("'", '"'))
 
 
 def introduce_parser_arguments(
@@ -344,25 +339,6 @@ def introduce_parser_arguments(
     )
 
     parser.add_argument(
-        "--relative_lr",
-        type=load_dict_in_args,
-        default=None,
-        help="""Dictionary with relative learning rates for different modules
-        Example: --relative_lr "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
-        Example in config yaml:
-        relative_lr:
-            attention: 0.1
-            feedforward: 0.1
-            moe: 0.1
-        """,
-    )
-    parser.add_argument(
-        "--print_parameter_names",
-        action="store_true",
-        help="Print all parameter names in the model",
-    )
-
-    parser.add_argument(
         "--get_router_values_from",
         type=str,
         choices=[
@@ -383,24 +359,6 @@ def introduce_parser_arguments(
         help="Exponent for values multiplier in MoE routing. "
         "0 means no multiplier, 1 is the standard, 2 is the square of the standard, etc. "
         "'trainable' means that the exponent is trainable. ",
-    )
-    parser.add_argument(
-        "--chimera_change_after_percent",
-        type=float,
-        default=0.1,
-        help="Change the training model after this percent of training schedule"
-    )
-
-    parser.add_argument(
-        "--lr_restart_on_chimera",
-        action="store_true",
-        help="Restart LR on chimera change"
-    )
-
-    parser.add_argument(
-        "--lr_restart_first_full",
-        action="store_true",
-        help="First LR schedule on chimera is on full length, and interrupted in the middle (as opposed to two full small schedules)"
     )
 
     parser.add_argument(
