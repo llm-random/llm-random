@@ -127,6 +127,8 @@ class LocalSearch:
         if ":" in param:
             param, sub_param = param.split(":")
             config["params"][param][sub_param] = val
+        else:
+            config["params"][param] = val
         return config
 
     def get_run_command(self, config_path):
