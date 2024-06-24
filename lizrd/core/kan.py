@@ -374,15 +374,7 @@ def KanFF(
     latent_factor: float = 1.0,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
-    print(f"kan_type: {kan_type}")
-    print(f"init_type: {init_type}")
-    print(f"init_scale: {init_scale}")
-    print(f"init_scale_base: {init_scale_base}")
-    print(f"init_scale_spline: {init_scale_spline}")
-    print(f"init_scale_noise: {init_scale_noise}")
-    print(f"latent_factor: {latent_factor}")
     kan_bottlneck = calculate_kan_bottlneck(dmodel, dff, kan_type, latent_factor)
-    print(f"kan_bottlneck: {kan_bottlneck}")
 
     if kan_type == "kan_squared":
         return KAN(

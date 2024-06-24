@@ -5,9 +5,9 @@ runner: research.conditional.train.cc_train
 n_gpus: 1
 
 params:
-  name: "kanmlp"
+  name: "kan_grid"
   save_weights_interval: -1
-  tags: [kan]
+  tags: [kan, kan_grid, lr_grid]
 
   logger_types: "neptune"
   project_name: pmtest/llm-random
@@ -23,7 +23,7 @@ params:
   lr_warmup_steps: 200
   grad_clip: 1.0
   weight_decay: 0.01  # mby 0?
-  ^learning_rate: [5e-4]
+  ^learning_rate: [2e-2, 1e-2]
   # learning_rate: 5e-4
   logging_interval_heavy: 200
   logging_interval_loss: 50
@@ -59,7 +59,7 @@ params:
   logging_interval_heavy: 200
   logging_interval_loss: 50
 
-  ^ff_mode: [kan]
+  ^ff_mode: [mlp_kan]
   use_torch_bmm: true
   softmax_over: experts
 
@@ -70,11 +70,6 @@ params:
   init_scale_spline: 0.1
   init_scale_noise: 0.01
 
-  init_scale: 69
-  init_type: truncated_normal
-  init_scale_base: 69
-  init_scale_spline: 69
-  init_scale_noise: 69
 
   # profiler
   # profiler_enabled: true
@@ -86,12 +81,12 @@ params:
   # profiler_schedule_skip_first: 20
 
   # debug
-  logger_types: "stdout"
-  use_dummy_dataset: true
-  n_blocks: 1
-  n_att_heads: 1
-  zloss_weight: 0
+  # logger_types: "stdout"
+  # use_dummy_dataset: true
+  # n_blocks: 1
+  # n_att_heads: 1
+  # zloss_weight: 0
 
-  dmodel: 16
-  n_blocks: 1
-  n_att_heads: 2
+  # dmodel: 16
+  # n_blocks: 1
+  # n_att_heads: 2
