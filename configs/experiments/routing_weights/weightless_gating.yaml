@@ -1,14 +1,31 @@
 parent: configs/baselines/gpt/expert_choice/small.yaml
-md5_parent_hash: c11efe41b6bdcd50cb970eb85f922f25
+md5_parent_hash: 0d79a0a9b32b1aba9a9cef5dcac49141
 time: 0-10:00:00
 
 params:
-  name: weightless_gating
+  name: weightless_gating_gt
+  tags: [weightless ground_truth]
   ^granularity: [8]
-  ff_mode: expert_choice
-  moe_inner_expert: ff_gated
-  ^moe_detach_gate: [false, true]
-  ^activation_type: [silu, softmax]
-  ^moe_values_exp: [1., 0.]
-  ^get_router_values_from: [gate_weight, weights]
+  ff_mode: token_choice
+  moe_inner_expert: ff
+  ^moe_detach_gate: [false]
+  ^activation_type: [silu]
+  ^moe_values_exp: [1.]
+  ^get_router_values_from: ["ground_truth_weightless"]
   save_weights_interval: 0
+
+  cutoff: 256
+  ^batch_size: [128]
+  n_steps: 500_000
+  final_lr_step: 500_000
+  scheduler: cosine
+  lr_warmup_steps: 5_000
+  final_lr_fraction: 0.1
+
+  # debug
+  # logger_types: "stdout"
+  # use_dummy_dataset: true
+  # n_blocks: 1
+  # dmodel: 16
+  # n_att_heads: 1
+  # n_steps: 50
