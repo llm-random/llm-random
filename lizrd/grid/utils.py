@@ -3,13 +3,7 @@ import copy
 import pprint
 from itertools import product
 from typing import List, Tuple
-
-from research.conditional.utils.argparse import (
-    introduce_parser_arguments as cc_introduce_parser_arguments,
-)
-from research.blanks.argparse import (
-    introduce_parser_arguments as blanks_introduce_parser_arguments,
-)
+import sys
 
 
 def split_params(params: dict) -> Tuple[list, list, list]:
@@ -23,6 +17,9 @@ def split_params(params: dict) -> Tuple[list, list, list]:
             functions.append((k[1:], v))
         elif "," in k:
             grids.append((k, v))
+        elif isinstance(v, dict):
+            sub_grid = create_grid(v)
+            grids.append((k, sub_grid))
         else:
             normals.append((k, v))
     return grids, functions, normals
@@ -80,6 +77,11 @@ def shorten_val(val: str) -> str:
 def make_tags(arg, val) -> str:
     if isinstance(val, list):
         val = "_".join([shorten_val(v) for v in val])
+    if isinstance(val, dict) and "tags" in val:
+        to_return = val["tags"]
+        del val["tags"]
+        to_return = [f"{shorten_arg(arg)}:{tag}" for tag in to_return]
+        return to_return
     return f"{shorten_arg(arg)}={shorten_val(val)}"
 
 
@@ -129,8 +131,17 @@ def create_grid(params: dict) -> List[dict]:
     grids_values = product(*(v for k, v in grids))
     for value in grids_values:
         out_dict = copy.deepcopy(base_params)
+        value = copy.deepcopy(
+            value
+        )  # this is grids over dictionaries, we need to delete the tags inside
         grid_dict = dict(zip(grids_keys, value))
-        tags = [make_tags(k, v) for k, v in grid_dict.items()]
+        tags = []
+        for k, v in grid_dict.items():
+            new_tags = make_tags(k, v)
+            if isinstance(new_tags, list):
+                tags.extend(new_tags)
+            else:
+                tags.append(new_tags)
         if out_dict.get("tags") is None:
             out_dict["tags"] = []
         out_dict["tags"].extend(tags)
@@ -177,16 +188,11 @@ def list_to_clean_str(l: List[str]) -> str:
 
 
 def get_train_main_function(runner: str):
-    if runner == "research.conditional.train.cc_train":
-        from research.conditional.train.cc_train import main as cc_train_main
-
-        return cc_train_main
-    elif runner == "research.blanks.train":
-        from research.blanks.train import main as blanks_train_main
-
-        return blanks_train_main
-    else:
+    __import__(runner)
+    runner_module = sys.modules.get(runner, None)
+    if runner_module is None:
         raise ValueError(f"Unknown runner: {runner}")
+    return runner_module.main
 
 
 def translate_to_argparse(param_set: dict):
@@ -204,6 +210,8 @@ def translate_to_argparse(param_set: dict):
                 runner_params.append(f"--{k}")
                 if isinstance(v, list):
                     runner_params.extend([str(s) for s in v])
+                elif isinstance(v, dict):
+                    runner_params.append(f'{str(v).replace(" ", "")}')
                 else:
                     runner_params.append(str(v))
 
@@ -215,11 +223,19 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
         for i, training_args in enumerate(trainings_args):
             runner_params = translate_to_argparse(training_args)
             runner = setup_args["runner"]
+            argparse_module_name = setup_args.get("argparse", None)
+            if argparse_module_name is None:
+                argparse_module_name = runner.split(".")
+                argparse_module_name[-1] = "argparse"
+                argparse_module_name[-2] = "utils"
+                argparse_module_name = ".".join(argparse_module_name)
+            __import__(argparse_module_name)
+            argparse_module = sys.modules.get(argparse_module_name, None)
+            if argparse_module is None:
+                raise ValueError(f"Unknown argparse module: {argparse_module_name}")
+
             parser = argparse.ArgumentParser()
-            if runner == "research.conditional.train.cc_train":
-                parser = cc_introduce_parser_arguments(parser)
-            else:
-                parser = blanks_introduce_parser_arguments(parser)
+            parser = argparse_module.introduce_parser_arguments(parser)
 
             try:
                 args, extra = parser.parse_known_args(runner_params)
