@@ -5,15 +5,15 @@ runner: "research.token_reduction.runner"
 n_gpus: 1
 
 params:
-  name: "medium_merging_1024"
-  # logger_types: "neptune,wandb"
+  name: "medium_dropping_1024_v2"
+  logger_types: "neptune,wandb"
   mixed_precision: true
   mixed_precision_dtype: bfloat16
   flash_attention: true
   grad_clip: 1.0
   tags: ["medium", "token_reduction", "merging"]
 
-
+  wandb_project: "token_reduction"
   final_lr_step: 75_000
   scheduler: cosine
   lr_warmup_steps: 750
@@ -29,7 +29,7 @@ params:
   eval_interval: 100  
 
   ##### Mode change ##########
-  # reduction_layer_type: "dropping"
+  reduction_layer_type: "dropping"
 
   # reduction_layer_type: "merging"
   # gradient_accumulation_steps: 2
@@ -44,10 +44,12 @@ params:
   # learning_rate: 1e-4
 
   ##### Token reduction params #####
-  # ^cutoff: [1126, 1232, 1536, 2048]
-  # reduced_number_of_tokens: 1024
-  # batch_size: 64
-  # learning_rate: 1e-4
+  ^cutoff: [1126, 1232, 1536, 2048]
+  reduced_number_of_tokens: 1024
+  batch_size: 64
+  learning_rate: 1e-4
+
+  # gradient_accumulation_steps: 2
 
   # ^cutoff: [2252, 2464, 3072, 4096]
   # reduced_number_of_tokens: 2048
@@ -56,15 +58,15 @@ params:
 
 
   #### DEBUG ####
-  learning_rate: 5e-5
-  cutoff: 32
-  reduced_number_of_tokens: 24
-  batch_size: 8
-  dmodel: 32
-  dff: 128
-  n_blocks: 2
-  n_att_heads: 2
-  use_dummy_dataset: true
-  num_workers: 0
-  logger_types: "stdout"
+  # learning_rate: 5e-5
+  # cutoff: 32
+  # reduced_number_of_tokens: 24
+  # batch_size: 8
+  # dmodel: 32
+  # dff: 128
+  # n_blocks: 2
+  # n_att_heads: 2
+  # use_dummy_dataset: true
+  # num_workers: 0
+  # logger_types: "stdout"
 
