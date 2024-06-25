@@ -25,6 +25,7 @@ class ExpertKAN(LoggingLayer):
         init_scale_spline: float = 1.0,
         init_scale_noise: float = 0.1,
         latent_factor: float = 1.0,
+        parameter_matched: str = "true",
         activation_name: str = "relu",
         topk: int = 1,
     ):
@@ -49,6 +50,7 @@ class ExpertKAN(LoggingLayer):
                     init_scale_spline=init_scale_spline,
                     init_scale_noise=init_scale_noise,
                     latent_factor=latent_factor,
+                    parameter_matched=parameter_matched,
                 )
                 for _ in range(n_experts)
             ]

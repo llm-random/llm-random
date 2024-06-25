@@ -5,32 +5,32 @@ runner: research.conditional.train.cc_train
 n_gpus: 1
 
 params:
-  name: "kan_transformer"
+  name: "kan_param_matched"
   save_weights_interval: -1
-  tags: [kan]
+  tags: [kan, kanmoe_clean, kan_param_matched]
 
   logger_types: "neptune"
   project_name: pmtest/llm-random
 
   fsdp_enabled: false
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE,ExpertGatingOld,TokenChoiceRouterOld"
-  batch_size: 256
-  cutoff: 256
+  batch_size: 128 # 128
+  cutoff: 128
   final_lr_fraction: 0.1
   scheduler: cosine
-  final_lr_step: 50000
-  n_steps: 50000
-  lr_warmup_steps: 500
+  final_lr_step: 20000
+  n_steps: 20200
+  lr_warmup_steps: 200
   grad_clip: 1.0
-  weight_decay: 0.01
-  ^learning_rate: [5e-4]
+  weight_decay: 0.01  # mby 0?
+  ^learning_rate: [5e-3]
   # learning_rate: 5e-4
-  logging_interval_heavy: 5000
-  logging_interval_loss: 1000
+  logging_interval_heavy: 200
+  logging_interval_loss: 50
   mixed_precision: true
   mixed_precision_dtype: bfloat16
   torch_compile: false
-  loss_checkpoint_chungs: 2
+  loss_checkpoint_chungs: 8
 
   dataset_type: c4
 
@@ -43,25 +43,31 @@ params:
 
   # medium size
   dmodel: 512
-  dff: 256
+  dff: 2048
   n_blocks: 8
   n_att_heads: 8
 
   # # mini size
   dmodel: 256
-  dff: 128
-  n_blocks: 4
-  n_att_heads: 4
-
-  # moe
   effective_dff_x: 4
   expansion_rate: 8
-  granularity: 1
-  ^ff_mode: [kan, kan_squared]
+  granularity: 1  n_blocks: 4
+  n_att_heads: 4
+
+  final_lr_step: 10000
+  n_steps: 10100
+  lr_warmup_steps: 100
+  logging_interval_heavy: 200
+  logging_interval_loss: 50
+
+  ff_mode: token_choice
+  ^moe_inner_expert: [ff, mlp_kan, kan_latent]
   use_torch_bmm: true
   softmax_over: experts
 
   # init
+  # ^kan_latent_factor: [1.1, 1.2, 1.3, 1.5]
+  kan_parameter_matched: 'true'
   init_scale: 0.1
   init_type: truncated_normal
   init_scale_base: 0.1

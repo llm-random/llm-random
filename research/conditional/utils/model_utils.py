@@ -557,6 +557,7 @@ def get_ff_layer(args):
             init_scale_spline=args.init_scale_spline,
             init_scale_noise=args.init_scale_noise,
             latent_factor=latent_factor,
+            parameter_matched=args.kan_parameter_matched,
         )
     elif args.ff_mode == "swi_glu":
         return_fn = lambda: llm.SwiGLUFeedForward(
@@ -770,6 +771,7 @@ def get_inner_expert(args):
             init_scale_spline=args.init_scale_spline,
             init_scale_noise=args.init_scale_noise,
             latent_factor=args.kan_latent_factor,
+            parameter_matched=args.kan_parameter_matched,
         )
     else:
         raise NotImplementedError(

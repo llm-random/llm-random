@@ -49,6 +49,13 @@ def introduce_parser_arguments(
         required=False,
         help="in kan_latent specity how many times kan should increase dimensionality",
     )
+    parser.add_argument(
+        "--kan_parameter_matched",
+        type=str,
+        default="true",
+        required=False,
+        help="true if you want kan to be parameter matched to mlp architecture",
+    )
 
     # other training hyperparameters
 
