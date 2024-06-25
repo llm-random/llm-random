@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from lizrd.core.misc import Linear
+from lizrd.core.misc import Linear, LoggingLayer
 
 
 def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_reduce):
@@ -73,7 +73,7 @@ def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_re
     return indices_to_keep, indices_to_reduce
 
 
-class TokenDroppingLayer(nn.Module):
+class TokenDroppingLayer(LoggingLayer):
     """
     This function randomly selects a `result_seq_len` subset of tokens from the input
     """
@@ -96,6 +96,7 @@ class TokenDroppingLayer(nn.Module):
             if self.scheduler is None
             else self.scheduler.value
         )
+        self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
 
         indices_to_keep, _ = choose_indeces_to_reduce(
             batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
@@ -105,6 +106,11 @@ class TokenDroppingLayer(nn.Module):
             0, indices_to_keep.to(x.device)
         )
         return selected_tokens.view(batch_size, self.result_seq_len, -1)
+
+    def log_light(self):
+        return {
+            "reduced_tokens": self.logging_cache["reduced_tokens"],
+        }
 
 
 class TokenMergingLayer(nn.Module):

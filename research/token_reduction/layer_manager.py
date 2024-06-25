@@ -13,6 +13,8 @@ def get_registered_name(name):
     if match:
         block_name = match.group()
         return f"{block_name}/{short_name}"
+    if name == "embedding_layer.reduction_layer":
+        return "token_reduction_layer"
     return f"block_UNKNOWN/{name}"
 
 
