@@ -5,9 +5,9 @@ runner: research.conditional.train.cc_train
 n_gpus: 1
 
 params:
-  name: "kan_"
+  name: "kan_init_tune"
   save_weights_interval: -1
-  tags: [kan, kanmoe_clean, kan_param_matched, kan_overparametrised]
+  tags: [kan, kan_grid, init_grid]
 
   logger_types: "neptune"
   project_name: pmtest/llm-random
@@ -59,18 +59,18 @@ params:
   logging_interval_heavy: 200
   logging_interval_loss: 50
 
-  ^ff_mode: [vanilla]
+  ^ff_mode: [mlp_kan]
   use_torch_bmm: true
   softmax_over: experts
 
   # init
-  # ^kan_latent_factor: [1.1, 1.2, 1.3, 1.5]
+  # ^kan_latent_factor: [1.0, 1.1, 1.2, 1.3, 1.5]
   kan_parameter_matched: 'true'
   init_scale: 0.1
   init_type: truncated_normal
   init_scale_base: 0.1
   init_scale_spline: 0.1
-  init_scale_noise: 0.01
+  ^init_scale_noise: [0.005, 0.01, 0.02, 0.05]
 
   # debug
   # logger_types: "stdout"
