@@ -71,31 +71,14 @@ class MoeGating(LoggingLayer):
                 # experts_output = self.expert_inner_function(tokens_for_all_experts).to(
                 #     x.dtype
                 # )
-                gate_out = torch.empty((self.n_experts, batch_size * seq_len)).to(
-                    x.device
+                tokens = x.reshape(1, batch_size * seq_len, self.dmodel).repeat(
+                    self.n_experts, 1, 1
                 )
-                tokens_for_all_experts = x.reshape(1, batch_size * seq_len, self.dmodel)
-                chunk_size = batch_size * seq_len // self.n_experts
-                for i in range(self.n_experts - 1):
-                    start_index = i * chunk_size
-                    chunk_tokens = tokens_for_all_experts[
-                        :, start_index : start_index + chunk_size, :
-                    ]
-                    chunk_tokens = chunk_tokens.repeat(self.n_experts, 1, 1)
-                    experts_output = torch.matmul(
-                        chunk_tokens, self.expert_inner_function.lin1_weight
-                    ).to(x.dtype)
-                    gate_out[
-                        :, start_index : start_index + chunk_size
-                    ] = experts_output.sum(-1)
-
-                start_index = (self.n_experts - 1) * chunk_size
-                chunk_tokens = tokens_for_all_experts[:, start_index:, :]
-                chunk_tokens = chunk_tokens.repeat(self.n_experts, 1, 1)
-                experts_output = torch.matmul(
-                    chunk_tokens, self.expert_inner_function.lin1_weight
-                ).to(x.dtype)
-                gate_out[:, start_index:] = experts_output.sum(-1)
+                gate_out = einsum(
+                    "n_experts b_s dmodel, n_experts dmodel dff -> n_experts b_s",
+                    tokens,
+                    self.expert_inner_function.lin1_weight,
+                )
 
                 gate_out = torch.softmax(gate_out, dim=0)
 

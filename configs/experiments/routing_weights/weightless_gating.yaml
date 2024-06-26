@@ -54,7 +54,8 @@ params:
   ff_mode: token_choice
   moe_inner_expert: ff_gated
   ^moe_detach_gate: [false]
-  ^get_router_values_from: ["ground_truth_weightless", "weights", "gate_weight"]
+  ^get_router_values_from: ["ground_truth_weightless"]
+  # ^get_router_values_from: ["ground_truth_weightless", "weights", "gate_weight"]
   save_weights_interval: 0
   use_torch_bmm: true
   softmax_over: experts
