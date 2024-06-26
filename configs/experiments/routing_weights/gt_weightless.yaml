@@ -1,0 +1,72 @@
+
+time: 0-40:00:00
+interactive_debug_session: false
+runner: research.conditional.train.cc_train
+n_gpus: 1
+
+params:
+  name: "weightless_upperbound"
+  save_weights_interval: -1
+  tags: [weightless]
+  logger_types: "neptune"
+  project_name: pmtest/llm-random
+  fsdp_enabled: false
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE,ExpertGatingOld,TokenChoiceRouterOld"
+  batch_size: 128
+  cutoff: 256
+  final_lr_fraction: 0.1
+  scheduler: cosine
+  final_lr_step: 50000
+  n_steps: 50000
+  lr_warmup_steps: 5000
+  grad_clip: 1.0
+  weight_decay: 0.01
+  learning_rate: 5e-4
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  torch_compile: false
+  loss_checkpoint_chungs: 64
+  dataset_type: c4
+
+  # MODEL
+  model_type: gpt
+  activation_type: relu
+  dmodel: 768
+  n_att_heads: 12
+  n_blocks: 12
+
+  # medium size (otherwise cuda out of memory error)
+  dmodel: 512
+  n_att_heads: 8
+  n_blocks: 8
+
+  # moe
+  # n_experts: 8
+  effective_dff_x: 4
+  expansion_rate: 8
+  granularity: 1
+  ff_mode: token_choice
+  moe_inner_expert: ff_gated
+  use_torch_bmm: true
+  softmax_over: experts
+  group_granular_moe_by_batch: true
+  granular_moe_one_hot_impl: true
+  layer_norm_in_expert_choice: true
+  zloss_weight: 0
+
+  # init
+  init_scale: 0.1
+  init_type: truncated_normal
+
+  ^get_router_values_from: ["ground_truth_weightless", "gate_weight", "weights"]
+
+  # debug
+  # logger_types: "stdout"
+  # use_dummy_dataset: true
+  # n_blocks: 1
+  # dmodel: 16
+  # n_att_heads: 1
+  # zloss_weight: 0
+  # n_steps: 50
