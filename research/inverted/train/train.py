@@ -193,6 +193,7 @@ def main(
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
+        inverted=args.inverted,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)

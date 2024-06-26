@@ -39,6 +39,7 @@ def introduce_parser_arguments(
         required=True,
     )
     parser.add_argument("--init_scale", type=float, required=True)
+    parser.add_argument("--inverted", action="store_true")
 
     # other training hyperparameters
 

@@ -534,6 +534,7 @@ class TransformerTower(nn.Module):
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
+        inverted: bool = False,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -567,6 +568,7 @@ class TransformerTower(nn.Module):
             )
             self.blocks.append(name_and_block)
         self.blocks = nn.Sequential(OrderedDict(self.blocks))
+        self.inverted = inverted
 
     def forward(self, x):
         for i, block in enumerate(self.blocks):
@@ -574,6 +576,14 @@ class TransformerTower(nn.Module):
             if should_transfer:
                 x = x.to(current_device)
             x = block(x)
+
+        if self.inverted:
+            for i, block in reversed(list(enumerate(self.blocks))):
+                should_transfer, current_device = self.get_current_device(i)
+                if should_transfer:
+                    x = x.to(current_device)
+                x = block(x)
+
         return x
 
     def get_current_device(self, block_num):
