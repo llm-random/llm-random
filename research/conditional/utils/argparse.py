@@ -1,5 +1,6 @@
 import argparse
 import json
+from lizrd.core.initialization import ValidInits
 
 
 def load_dict_in_args(s: str):
@@ -40,7 +41,7 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--init_type",
         type=str,
-        choices=["kaiming_uniform", "truncated_normal"],
+        choices=ValidInits,
         required=True,
     )
     parser.add_argument("--init_scale", type=float, required=True)
