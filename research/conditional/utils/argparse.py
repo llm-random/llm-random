@@ -357,9 +357,28 @@ def introduce_parser_arguments(
         """,
     )
     parser.add_argument(
+        "--relative_init_scale",
+        type=load_dict_in_args,
+        default=None,
+        help="""Dictionary with relative initialization scales for different modules
+        Example: --relative_init_scale "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
+        Example in config yaml:
+        relative_lr:
+            attention: 0.1
+            feedforward: 0.1
+            moe: 0.1
+        """,
+    )
+    parser.add_argument(
         "--print_parameter_names",
         action="store_true",
         help="Print all parameter names in the model",
+    )
+
+    parser.add_argument(
+        "--verbose_relative_init_scale",
+        action="store_true",
+        help="Print names of parameters that were rescaled",
     )
 
     parser.add_argument(
