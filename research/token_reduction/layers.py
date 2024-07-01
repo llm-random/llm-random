@@ -113,7 +113,7 @@ class TokenDroppingLayer(LoggingLayer):
         }
 
 
-class TokenMergingLayer(nn.Module):
+class TokenMergingLayer(LoggingLayer):
     """
     This function randomly selects a `result_seq_len` subset of tokens from the input
     """
@@ -147,6 +147,7 @@ class TokenMergingLayer(nn.Module):
             if self.scheduler is None
             else self.scheduler.value
         )
+        self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
 
         indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
             batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
@@ -169,6 +170,11 @@ class TokenMergingLayer(nn.Module):
             indices_to_reduce,
         )
         return kept_tokens.view(batch_size, self.result_seq_len, -1)
+
+    def log_light(self):
+        return {
+            "reduced_tokens": self.logging_cache["reduced_tokens"],
+        }
 
 
 class TokenReductionEmbedding(nn.Module):
