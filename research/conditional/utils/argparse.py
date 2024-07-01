@@ -388,6 +388,7 @@ def introduce_parser_arguments(
             "weights",
             "gate_weight",
             "lin1_weight",
+            "ground_truth_weightless",
         ],
         default="weights",
         required=False,
