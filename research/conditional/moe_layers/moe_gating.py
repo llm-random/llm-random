@@ -64,24 +64,14 @@ class MoeGating(LoggingLayer):
         if self.get_router_values_from == "ground_truth_weightless":
             with torch.no_grad():
                 assert x.shape == (batch_size, seq_len, self.dmodel)
-                # memory error, to large tensor i think :(
-                # tokens_for_all_experts = x.reshape(
-                #     1, batch_size * seq_len, self.dmodel
-                # ).repeat(self.n_experts, 1, 1)
-                # experts_output = self.expert_inner_function(tokens_for_all_experts).to(
-                #     x.dtype
-                # )
-                tokens = x.reshape(1, batch_size * seq_len, self.dmodel).repeat(
-                    self.n_experts, 1, 1
-                )
+
                 gate_out = einsum(
-                    "n_experts b_s dmodel, n_experts dmodel dff -> n_experts b_s",
-                    tokens,
+                    "batch_size seq_len dmodel, n_experts dmodel dff "
+                    "-> n_experts batch_size seq_len dff ",
+                    x,
                     self.expert_inner_function.lin1_weight,
                 )
-
-                gate_out = torch.softmax(gate_out, dim=0)
-
+                gate_out = self.expert_inner_function.activation(gate_out).sum(-1)
         else:
             with measure_time(self, "expert_embedding"):
                 if self.use_torch_bmm:
@@ -95,20 +85,20 @@ class MoeGating(LoggingLayer):
                         x,
                         self.get_gate(),
                     )
-            # each expert chooses k within dimension 1
-            if not self.group_by_batch and not self.softmax_ungrouped:
-                gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
-            # perform softmax either over tokens for each expert or over experts for each token
-            with measure_time(self, "softmax"):
-                if self.softmax_over == "tokens":
-                    gate_out = torch.softmax(gate_out, dim=1)
-                elif self.softmax_over == "experts":
-                    gate_out = torch.softmax(gate_out, dim=0)
-            if self.softmax_ungrouped:
-                gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+        # each expert chooses k within dimension 1
+        if not self.group_by_batch and not self.softmax_ungrouped:
+            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+        # perform softmax either over tokens for each expert or over experts for each token
+        with measure_time(self, "softmax"):
+            if self.softmax_over == "tokens":
+                gate_out = torch.softmax(gate_out, dim=1)
+            elif self.softmax_over == "experts":
+                gate_out = torch.softmax(gate_out, dim=0)
+        if self.softmax_ungrouped:
+            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 
-            if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
-                gate_out = gate_out**self.moe_values_exp
+        if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
+            gate_out = gate_out**self.moe_values_exp
 
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         return gate_out
