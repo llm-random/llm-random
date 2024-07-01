@@ -1,5 +1,4 @@
 import argparse
-from lizrd.core.initialization import ValidInits
 
 
 def introduce_parser_arguments(
@@ -36,7 +35,7 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--init_type",
         type=str,
-        choices=ValidInits,
+        choices=["kaiming_uniform", "truncated_normal", "truncated_normal_fixed"],
         required=True,
     )
     parser.add_argument("--init_scale", type=float, required=True)
