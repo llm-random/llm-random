@@ -363,7 +363,7 @@ def introduce_parser_arguments(
         help="""Dictionary with relative initialization scales for different modules
         Example: --relative_init_scale "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
         Example in config yaml:
-        relative_lr:
+        relative_init_scale:
             attention: 0.1
             feedforward: 0.1
             moe: 0.1
