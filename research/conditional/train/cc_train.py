@@ -93,6 +93,23 @@ def make_param_groups_and_lr_ratios(args, model):
     return param_grops, ratios_in_group_order
 
 
+def rescale_params_after_init(args, model):
+    relative_scale: dict[str, float] = args.relative_init_scale
+    verbose = args.verbose_relative_init_scale
+
+    if relative_scale is None:
+        return
+    for name, param in model.named_parameters():
+        scale = 1.0
+        for possible_name in relative_scale.keys():
+            if possible_name in name:
+                if verbose:
+                    print(f"Rescaling {name} by {relative_scale[possible_name]}")
+                scale = relative_scale[possible_name]
+                break
+        param.data *= scale
+
+
 def main(
     rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
@@ -262,6 +279,7 @@ def main(
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
+    rescale_params_after_init(args, model)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
