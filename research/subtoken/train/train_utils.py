@@ -13,7 +13,6 @@ from lizrd.train.load_and_save_model import load_model_weights
 
 
 class SubtokenEmbeddingBlock(torch.nn.Module):
-
     def __init__(
         self,
         max_length,
