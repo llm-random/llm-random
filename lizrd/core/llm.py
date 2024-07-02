@@ -605,6 +605,7 @@ def TokenEmbedding(
 
 
 class PositionalEmbedding(nn.Module):
+
     def __init__(
         self,
         max_length,

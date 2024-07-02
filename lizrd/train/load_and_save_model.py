@@ -8,8 +8,6 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-from lizrd.support.misc import generate_random_string
-
 
 def get_checkpoint_from_path(load_weights_path: str) -> str:
     assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
@@ -52,10 +50,15 @@ def load_scaler_state(
 def prepare_save_weights_path(path_to_dir: Optional[str]) -> str:
     if path_to_dir is None:
         return None
-    weights_filename = f"{generate_random_string(10)}.pt"
-    os.makedirs(path_to_dir, exist_ok=True)
-    save_weights_path = os.path.join(path_to_dir, weights_filename)
+    slurmid = os.getenv("SLURM_JOB_ID")
+    if slurmid is not None:
+        id_segment = slurmid
+    else:
+        id_segment = "."
+
+    save_weights_path = os.path.join(path_to_dir, id_segment)
     save_weights_path = os.path.abspath(save_weights_path)
+    os.makedirs(save_weights_path, exist_ok=True)
     return save_weights_path
 
 

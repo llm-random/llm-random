@@ -1,0 +1,70 @@
+time: 0-40:00:00
+interactive_debug_session: false
+runner: research.subtoken.train.train
+n_gpus: 1
+
+
+params:
+  name: "subtoken"
+  tags: [subtoken_lr_grid]
+
+  logger_types: "neptune"
+  project_name: pmtest/llm-random
+
+  fsdp_enabled: true
+  # fsdp_selective_precision_modules: "AttentionMechanism,RoPE,ExpertGatingOld,TokenChoiceRouterOld"
+  fsdp_modules_to_wrap: "TransformerBlock,PredictionHead,EmbeddingLayer"
+  activation_checkpointing_modules: "TransformerBlock,PredictionHead,EmbeddingLayer"
+  batch_size: 1
+  cutoff: 1024
+  final_lr_fraction: 0.1
+  scheduler: cosine
+  final_lr_step: 2
+  n_steps: 2
+  lr_warmup_steps: 500
+  grad_clip: 1.0
+  weight_decay: 0.01
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  mixed_precision_dtype: bfloat16
+  torch_compile: false
+  flash_attention: true
+  # loss_checkpoint_chungs: 8
+
+  dataset_type: c4
+
+  # MODEL
+  model_type: gpt
+  activation_type: relu
+  dmodel: 4096
+  dff: 16384
+  n_att_heads: 16
+  n_blocks: 32
+  save_weights_path: checkpoints
+  save_weights_interval: 5000
+
+
+
+  # init
+  init_scale: 0.1
+  init_type: truncated_normal
+
+
+  mixed_precision: true
+  ^learning_rate: [3e-4]
+
+  ^use_subtoken_embedding: [false]
+  ^subtoken_lowrank_ratio: [0.015625]
+  ^subtoken_normalization: ['max_n_bytes']
+
+
+
+  # ^use_subtoken_embedding: [true]
+  # use_dummy_dataset: true
+  # batch_size: 2
+  # n_blocks: 1
+  # num_workers: 0
+  # ^learning_rate: [3e-4]
+  # subtoken_lowrank_ratio: 0.5
+  # ^subtoken_normalization: ['actual_n_bytes']
+

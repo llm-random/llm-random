@@ -6,9 +6,62 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
 )
 
 from lizrd.core import llm
+from research.subtoken.embedding import SubtokenEmbedding
 from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
+
+
+class SubtokenEmbeddingBlock(torch.nn.Module):
+
+    def __init__(
+        self,
+        max_length,
+        vocab_size,
+        dm,
+        init_type,
+        init_scale,
+        include_positional_embedding,
+        max_n_bytes_per_token: int,
+        include_subtoken_embedding: bool,  # Assuming this parameter should also be configurable
+        subtoken_lowrank_ratio: Optional[float],
+        subtoken_normalization: Optional[str],
+    ):
+        super().__init__()
+        self.token_embedding = llm.TokenEmbedding(
+            vocab_size, dm, init_type=init_type, init_scale=init_scale
+        )
+
+        if include_positional_embedding:
+            self.positional_embedding = llm.PositionalEmbedding(
+                max_length, dm, init_type=init_type, init_scale=init_scale
+            )
+        else:
+            self.positional_embedding = None
+
+        if include_subtoken_embedding:
+            self.subtoken_embedding = SubtokenEmbedding(
+                dm,
+                max_n_bytes_per_token,
+                init_type=init_type,
+                init_scale=init_scale,
+                lowrank_ratio=subtoken_lowrank_ratio,
+                normalization=subtoken_normalization,
+            )
+        else:
+            self.subtoken_embedding = None
+
+    def forward(self, input_ids: torch.Tensor, input_bytes: torch.Tensor):
+        tokens_embeddings = self.token_embedding(input_ids)
+        if self.positional_embedding is not None:
+            positional_embeddings = self.positional_embedding(input_ids)
+            tokens_embeddings += positional_embeddings
+
+        if self.subtoken_embedding is not None:
+            subtoken_embeddings = self.subtoken_embedding(input_bytes)
+            tokens_embeddings += subtoken_embeddings
+
+        return tokens_embeddings
 
 
 def get_model(
@@ -18,6 +71,7 @@ def get_model(
     dm: int,
     n_blocks: int,
     device: torch.device,
+    max_n_bytes_per_token: int,
     init_type,
     init_scale,
     ddp_enabled: bool,
@@ -29,11 +83,14 @@ def get_model(
     fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
     activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     is_logging_process: bool,
+    include_subtoken_embedding: bool,
     rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
+    subtoken_lowrank_ratio: Optional[float] = None,
+    subtoken_normalization: Optional[str] = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -42,25 +99,18 @@ def get_model(
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
-    embedding_components = [
-        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
-    ]
-
-    if include_positional_embedding:
-        embedding_components.append(
-            llm.PositionalEmbedding(
-                max_length, dm, init_type=init_type, init_scale=init_scale
-            )
-        )
-
-    # if include_subtoken_embedding:
-    #     embedding_components.append(
-    #         llm.SubtokenEmbedding(
-    #             max_length, dm, init_type=init_type, init_scale=init_scale
-    #         )
-    #     )
-
-    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
+    embedding_layer = SubtokenEmbeddingBlock(
+        max_length,
+        vocab_size,
+        dm,
+        init_type,
+        init_scale,
+        include_positional_embedding,
+        include_subtoken_embedding=include_subtoken_embedding,
+        max_n_bytes_per_token=max_n_bytes_per_token,
+        subtoken_lowrank_ratio=subtoken_lowrank_ratio,
+        subtoken_normalization=subtoken_normalization,
+    ).to(first_gpu)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
