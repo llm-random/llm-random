@@ -30,7 +30,7 @@ class MoeGating(LoggingLayer):
         softmax_ungrouped: bool = False,
         softmax_over: Literal["tokens", "experts"] = "tokens",
         use_torch_bmm: bool = False,
-        zloss_weight=0,
+        zloss_weight: float = 0.0,
         **kwargs,
     ):
         super().__init__()
@@ -92,7 +92,7 @@ class MoeGating(LoggingLayer):
             gate_out = gate_out**self.moe_values_exp
 
         # calculate z-loss
-        zloss = 0
+        zloss = 0.0
         if self.zloss_weight > 0:
             with measure_time(self, "calculate zloss"):
                 zloss = calculate_z_loss(
