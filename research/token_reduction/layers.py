@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
+import random
 
 from lizrd.core.misc import Linear, LoggingLayer
+
+GPT_EOT_ID = 50256
 
 
 def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_reduce):
@@ -73,6 +76,97 @@ def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_re
     return indices_to_keep, indices_to_reduce
 
 
+def select_non_contiguous_indexes(n, available_indexes: list):
+    """
+    Select n non-contiguous indexes from a list of available indexes.
+    """
+
+    if len(available_indexes) != len(set(available_indexes)):
+        raise ValueError("Available indexes must be unique.")
+
+    selected = []
+    while len(selected) < n and available_indexes:
+        selected_element = random.choice(available_indexes)
+        selected.append(selected_element)
+
+        # Update the available list to maintain the non-contiguity constraint
+        new_available = []
+        for element in available_indexes:
+            if abs(selected_element - element) > 1:
+                new_available.append(element)
+        available_indexes = new_available
+
+    if len(selected) < n:
+        raise ValueError("Not enough non-contiguous indexes available.")
+
+    return selected
+
+
+# TODO(crewtool) too long function, refactor
+def choose_batch_non_contiguous_indeces_to_reduce(
+    input_tokens, result_seq_len, n_tokens_to_reduce, is_last_token_nonreducible=True
+):
+    _, seq_len= input_tokens.shape
+    result_keep_indices = []
+    result_reduce_indices = []
+    for row_tokens in range(input_tokens):
+        indices_to_keep = []
+        if result_seq_len + n_tokens_to_reduce < seq_len:
+            row_tokens = row_tokens[: result_seq_len + n_tokens_to_reduce]
+        elif (
+            result_seq_len + n_tokens_to_reduce == seq_len
+            and is_last_token_nonreducible
+        ):
+            indices_to_keep.append(seq_len)
+            row_tokens = row_tokens[:-1]
+            available_indexes.pop()
+
+        available_indexes = []
+        for index, token in enumerate(row_tokens):
+            if token == GPT_EOT_ID:
+                indices_to_keep.append(index)
+            else:
+                available_indexes.append(index)
+        indices_to_reduce = []
+        while len(indices_to_reduce) < n_tokens_to_reduce and available_indexes:
+            selected_index = random.choice(available_indexes)
+            indices_to_reduce.append(selected_index)
+
+            # Update the available list to maintain the non-contiguity constraint and keep contiguous tokens
+            new_available = []
+            for index in available_indexes:
+                if abs(selected_index - index) > 1:
+                    new_available.append(index)
+                elif index == selected_index + 1:
+                    indices_to_keep.append(index)
+                elif index == selected_index - 1:
+                    indices_to_keep.append(index)
+            available_indexes = new_available
+
+        indices_to_keep += available_indexes
+
+        if len(indices_to_reduce) < n_tokens_to_reduce:
+            raise ValueError("Not enough non-contiguous indexes available.")
+        result_keep_indices.append(indices_to_keep)
+        result_reduce_indices.append(indices_to_reduce)
+
+    result_keep_indices = torch.tensor(result_keep_indices)
+    result_reduce_indices = torch.tensor(result_reduce_indices)
+
+    for i, indices in enumerate(result_keep_indices):
+        indices += i * seq_len
+
+    for i, indices in enumerate(result_reduce_indices):
+        indices += i * seq_len
+
+    indices_to_keep, indices_to_reduce = torch.stack(indices_to_keep), torch.stack(
+        indices_to_reduce
+    )
+    indices_to_keep = torch.flatten(indices_to_keep)
+    indices_to_reduce = torch.flatten(indices_to_reduce)
+    return indices_to_keep, indices_to_reduce
+
+
 class TokenDroppingLayer(LoggingLayer):
     """
     This function randomly selects a `result_seq_len` subset of tokens from the input
@@ -122,6 +216,7 @@ class TokenMergingLayer(LoggingLayer):
         self,
         result_seq_len,
         dm,
+        should_reduce_eot_id=False,
         scheduler=None,
         init_type="kaiming_uniform",
         init_scale=1.0,
@@ -129,6 +224,7 @@ class TokenMergingLayer(LoggingLayer):
         super(TokenMergingLayer, self).__init__()
         self.result_seq_len = result_seq_len
         self.scheduler = scheduler
+        self.should_reduce_eot_id = should_reduce_eot_id
 
         self.merge_linear_projection = Linear(
             dm, dm, init_type=init_type, init_scale=init_scale, bias=False
@@ -138,7 +234,9 @@ class TokenMergingLayer(LoggingLayer):
         if self.scheduler is not None:
             self.scheduler.set_step(step)
 
-    def forward(self, x):
+    def forward(self, reduction_input):
+        x, input_tokens = reduction_input
+
         batch_size, seq_len, dm = x.shape
         assert self.result_seq_len <= seq_len
 
@@ -147,11 +245,20 @@ class TokenMergingLayer(LoggingLayer):
             if self.scheduler is None
             else self.scheduler.value
         )
-        self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
 
-        indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
-            batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
-        )
+        if self.should_reduce_eot_id:
+            indices_to_keep, indices_to_reduce = (
+                choose_batch_non_contiguous_indeces_to_reduce(
+                    input_tokens,
+                    self.result_seq_len,
+                    n_tokens_to_reduce,
+                    is_last_token_nonreducible=True,
+                )
+            )
+        else:
+            indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
+                batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
+            )
         indices_to_keep, indices_to_reduce = indices_to_keep.to(
             x.device
         ), indices_to_reduce.to(x.device)
@@ -169,6 +276,7 @@ class TokenMergingLayer(LoggingLayer):
             indices_to_keep,
             indices_to_reduce,
         )
+        self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
         return kept_tokens.view(batch_size, self.result_seq_len, -1)
 
     def log_light(self):
@@ -188,7 +296,8 @@ class TokenReductionEmbedding(nn.Module):
             self.reduction_layer.set_scheduler_step(step)
 
     def forward(self, x):
+        unembedded_tokens = x.clone()
         x = self.base_embedding_layer(x)
         if self.training:
-            x = self.reduction_layer(x)
+            x = self.reduction_layer((x, unembedded_tokens))
         return x
