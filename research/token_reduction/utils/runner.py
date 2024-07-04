@@ -176,7 +176,7 @@ def main(
         checkpoint=checkpoint,
         reduction_layer_type=args.reduction_layer_type,
         # sequence_length_multiplier=args.sequence_length_multiplier,
-        scheduler_params=args.schedule,
+        scheduler_params=args.tr_schedule,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
