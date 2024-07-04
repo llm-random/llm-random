@@ -19,7 +19,7 @@ from lizrd.text import tokenizers
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.token_reduction.trainer import Trainer
-from research.token_reduction.argparse import introduce_parser_arguments, check_args
+from research.token_reduction.utils.argparse import introduce_parser_arguments, check_args
 from research.token_reduction.build import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
