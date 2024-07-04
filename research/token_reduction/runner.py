@@ -248,12 +248,6 @@ def main(
     else:
         logger = None
 
-    for l in logger.loggers: 
-        if type(l) == NeptuneLogger:
-            print(f'heheheh {l.instance_logger["sys/tags"]}')
-            l.instance_logger["sys/tags"].add("test=1")
-            print(f'heheheh {l.instance_logger["sys/tags"]}')
-
     # if args.model_type == "gpt" and is_logging_process:
     #     log_batch(
     #         train_dataloader,
