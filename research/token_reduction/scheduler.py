@@ -33,7 +33,6 @@ class SchedulerInterval:
 
 
 class TokenReductionScheduler:
-
     def __init__(self, total_steps, seq_len, schedule_str):
         self.total_steps = total_steps
         self.seq_len = seq_len

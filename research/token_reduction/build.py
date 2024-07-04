@@ -115,7 +115,6 @@ def get_embedding_layer(
     reduction_layer_type: str,
     scheduler_params: List[tuple[int, int, int]],
 ):
-
     scheduler = (
         None
         if scheduler_params is None
@@ -239,7 +238,6 @@ def get_model(
     reduction_layer_type: str = None,
     scheduler_params: List[tuple[int, int, int]] = None,
 ):
-
     embedding_layer, max_seq_len = get_embedding_layer(
         reference_seq_len,
         n_steps,

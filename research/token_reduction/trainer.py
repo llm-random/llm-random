@@ -356,7 +356,11 @@ class Trainer:
     ):
         self.model.train()
 
-        embedding_layer = self.model.embedding_layer if not isinstance(self.model, FSDP) else self.model._fsdp_wrapped_module.embedding_layer
+        embedding_layer = (
+            self.model.embedding_layer
+            if not isinstance(self.model, FSDP)
+            else self.model._fsdp_wrapped_module.embedding_layer
+        )
         if isinstance(embedding_layer, TokenReductionEmbedding):
             embedding_layer.set_scheduler_step(step)
 

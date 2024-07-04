@@ -5,7 +5,6 @@ import unittest
 
 
 class TestScheduler(unittest.TestCase):
-
     def test_linear_increase(self):
         scheduler = TokenReductionScheduler(
             total_steps=4, seq_len=10, schedule_str="100_lin_1-5"

@@ -10,7 +10,7 @@ from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
 from lizrd.core.llm import EmbeddingLayer, Parallel
-from lizrd.support.logging import NeptuneLogger, get_current_logger, get_logger
+from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_n_learnable_parameters,
     set_seed,
@@ -19,7 +19,10 @@ from lizrd.text import tokenizers
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.token_reduction.trainer import Trainer
-from research.token_reduction.utils.argparse import introduce_parser_arguments, check_args
+from research.token_reduction.utils.argparse import (
+    introduce_parser_arguments,
+    check_args,
+)
 from research.token_reduction.build import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,

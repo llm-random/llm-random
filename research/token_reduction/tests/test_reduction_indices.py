@@ -9,7 +9,6 @@ from research.token_reduction.layers import (
 
 
 class TestRandomIndicesOutside(unittest.TestCase):
-
     def test_basic_case(self):
         batch_size = 2
         seq_len = 7
@@ -101,7 +100,6 @@ class TestRandomIndicesOutside(unittest.TestCase):
 
 
 class TestTokenDropping(unittest.TestCase):
-
     def setUp(self):
         self.batch_size = 2
         self.seq_len = 7
@@ -117,7 +115,6 @@ class TestTokenDropping(unittest.TestCase):
 
 
 class TestTokenMerging(unittest.TestCase):
-
     def setUp(self):
         self.batch_size = 2
         self.seq_len = 7
@@ -127,16 +124,12 @@ class TestTokenMerging(unittest.TestCase):
         self.input = torch.randn(self.batch_size, self.seq_len, self.dm)
 
     def test_output_shape(self):
-        merging_layer = TokenMergingLayer(
-            self.result_seq_len, self.dm
-        )
+        merging_layer = TokenMergingLayer(self.result_seq_len, self.dm)
         output = merging_layer(self.input)
         self.assertEqual(output.shape, (self.batch_size, self.result_seq_len, self.dm))
 
     def test_merged_token_exists(self):
-        merging_layer = TokenMergingLayer(
-            self.result_seq_len, self.dm
-        )
+        merging_layer = TokenMergingLayer(self.result_seq_len, self.dm)
         input_copy = self.input.clone()
 
         reduced_index = None
