@@ -23,6 +23,17 @@ Use the baseline configuration as a template, which is in `configs/test/test_bas
 ### Running Remotely
 `bash scripts/run_exp_remotely.sh <remote_cluster_name> scripts/run_configs/<your_config>`
 
+### Initializing New Project
+
+```bash
+cd research/
+cp -r template new_project
+cd new_project
+find . -type f -exec sed -i 's/research\.template/research\.new_project/g' {} +
+```
+To use the runner of your new project, add `runner: <path to your train.py>` to your yaml config.
+If you move train.py or argparse.py, also add `argparse: <path to your argparse>` to your yaml config.
+
 # License
 
 This project is licensed under the terms of the Apache License, Version 2.0.
