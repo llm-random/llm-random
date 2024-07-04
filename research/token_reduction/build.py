@@ -105,41 +105,52 @@ def get_ff_layer(args):
 
 
 def get_embedding_layer(
-    max_length: int,
+    reference_seq_len: int,
+    n_steps: int,
     vocab_size: int,
     dm: int,
     init_type: str,
     init_scale: float,
     device: torch.device,
     reduction_layer_type: str,
-    reduced_number_of_tokens: int,
     scheduler_params: List[tuple[int, int, int]],
 ):
+
+    scheduler = (
+        None
+        if scheduler_params is None
+        else TokenReductionScheduler(n_steps, reference_seq_len, scheduler_params)
+    )
+
+    max_seq_len = (
+        reference_seq_len + scheduler.get_max_tokens_reduced()
+        if scheduler_params is not None
+        else reference_seq_len
+    )
     embedding_components = [
         llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale),
         llm.PositionalEmbedding(
-            max_length, dm, init_type=init_type, init_scale=init_scale
+            max_seq_len, dm, init_type=init_type, init_scale=init_scale
         ),
     ]
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
 
     if reduction_layer_type is None:
-        return embedding_layer
-
-    scheduler = (
-        None if scheduler_params is None else TokenReductionScheduler(scheduler_params)
-    )
+        return embedding_layer, max_seq_len
 
     if reduction_layer_type == "merging":
         reduction_layer = lambda: layers.TokenMergingLayer(
-            reduced_number_of_tokens, dm, scheduler
+            reference_seq_len, dm, scheduler
         )
     elif reduction_layer_type == "dropping":
         reduction_layer = lambda: layers.TokenDroppingLayer(
-            reduced_number_of_tokens, scheduler
+            reference_seq_len, scheduler
         )
 
-    return layers.TokenReductionEmbedding(embedding_layer, reduction_layer()).to(device)
+    return (
+        layers.TokenReductionEmbedding(embedding_layer, reduction_layer()).to(device),
+        max_seq_len,
+    )
 
 
 def get_classes_from_module_names(
@@ -204,7 +215,8 @@ def disable_profile_schedule_fn(_: int) -> ProfilerAction:
 
 
 def get_model(
-    max_length: int,
+    reference_seq_len: int,
+    n_steps: int,
     vocab_size: int,
     block_modules: dict[str, Callable[[], torch.nn.Module]],
     dm: int,
@@ -224,20 +236,19 @@ def get_model(
     rank=None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     checkpoint: dict[str, torch.Tensor] = None,
-    reduced_number_of_tokens: int = None,
     reduction_layer_type: str = None,
     scheduler_params: List[tuple[int, int, int]] = None,
 ):
 
-    embedding_layer = get_embedding_layer(
-        max_length,
+    embedding_layer, max_seq_len = get_embedding_layer(
+        reference_seq_len,
+        n_steps,
         vocab_size,
         dm,
         init_type,
         init_scale,
         device,
         reduction_layer_type,
-        reduced_number_of_tokens,
         scheduler_params,
     )
 
@@ -284,4 +295,4 @@ def get_model(
             checkpoint_wrapper_fn=make_checkpoint_wrapper_function(),
         )
 
-    return model
+    return model, max_seq_len

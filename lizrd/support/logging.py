@@ -444,6 +444,8 @@ def get_logger(args, model, VOCAB_SIZE):
                 tags=args.tags,
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
             )
+            # if args.group_tags is not None:
+            #     run["sys/group_tags"].add(args.group_tags)
             run["args"] = vars(args)
             run["working_directory"] = os.getcwd()
             run["config"].upload(args.path_to_entry_config)

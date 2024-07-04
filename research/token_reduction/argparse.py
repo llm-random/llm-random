@@ -5,9 +5,8 @@ def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     # TOKEN REDUCTION
-    parser.add_argument("--reduced_number_of_tokens", type=int, default=None)
     parser.add_argument("--reduction_layer_type", type=str, default=None)
-    parser.add_argument("--reduction_layer_scheduler_params", type=str, default=None)
+    parser.add_argument("--schedule", type=str, default=None)
 
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument(

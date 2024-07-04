@@ -10,7 +10,7 @@ from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
 from lizrd.core.llm import EmbeddingLayer, Parallel
-from lizrd.support.logging import get_current_logger, get_logger
+from lizrd.support.logging import NeptuneLogger, get_current_logger, get_logger
 from lizrd.support.misc import (
     get_n_learnable_parameters,
     set_seed,
@@ -35,7 +35,7 @@ from lizrd.train.load_and_save_model import (
     load_optimizer_state,
     prepare_save_weights_path,
 )
-import ast
+
 
 def log_batch(
     wrapper: DataloaderWrapper,
@@ -150,14 +150,9 @@ def main(
         else None
     )
 
-    scheduler_params = (
-        None
-        if args.reduction_layer_scheduler_params is None
-        else ast.literal_eval(args.reduction_layer_scheduler_params)
-    )
-
-    model = get_model(
-        max_length=args.cutoff,
+    model, train_sequence_length = get_model(
+        reference_seq_len=args.cutoff,
+        n_steps=args.n_steps,
         vocab_size=VOCAB_SIZE,
         block_modules=block_modules,
         dm=args.dmodel,
@@ -179,9 +174,9 @@ def main(
         is_logging_process=is_logging_process,
         rank=rank,
         checkpoint=checkpoint,
-        reduced_number_of_tokens=args.reduced_number_of_tokens,
         reduction_layer_type=args.reduction_layer_type,
-        scheduler_params=scheduler_params,
+        # sequence_length_multiplier=args.sequence_length_multiplier,
+        scheduler_params=args.schedule,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
@@ -219,7 +214,7 @@ def main(
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
     common_dataloaders_kwargs = {
-        "sequence_length": args.cutoff,
+        "sequence_length": train_sequence_length,
         "device": DEVICE,
         "num_workers": args.num_workers,
         "batch_size": batch_size,
@@ -234,11 +229,8 @@ def main(
         dataset_split="train",
         dataset_path=args.train_dataset_path,
     )
-    if (
-        args.reduced_number_of_tokens is not None
-        and args.reduction_layer_type is not None
-    ):
-        common_dataloaders_kwargs["sequence_length"] = args.reduced_number_of_tokens
+
+    common_dataloaders_kwargs["sequence_length"] = args.cutoff
 
     eval_split = (
         "eval"
@@ -255,6 +247,12 @@ def main(
         logger = get_logger(args, model, VOCAB_SIZE)
     else:
         logger = None
+
+    for l in logger.loggers: 
+        if type(l) == NeptuneLogger:
+            print(f'heheheh {l.instance_logger["sys/tags"]}')
+            l.instance_logger["sys/tags"].add("test=1")
+            print(f'heheheh {l.instance_logger["sys/tags"]}')
 
     # if args.model_type == "gpt" and is_logging_process:
     #     log_batch(
