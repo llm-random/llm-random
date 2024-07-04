@@ -31,6 +31,7 @@ class ExpertChoiceFF(LoggingLayer):
         get_router_values_from: str = "weights",
         moe_values_exp: Optional[int] = 1,
         detach_gate: bool = False,
+        zloss_weight: float = 0.0,
         **_,
     ):
         """
@@ -79,6 +80,7 @@ class ExpertChoiceFF(LoggingLayer):
             detach_gate=detach_gate,
             expert_inner_function=self.expert_inner_function,
             moe_values_exp=moe_values_exp,
+            zloss_weight=zloss_weight,
         )
 
     def forward(self, x: torch.Tensor):

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from lizrd.core import misc
 from lizrd.core.misc import default, Aggregate
-from lizrd.core.initialization import get_init_weight
+from lizrd.core.initialization import get_init_weight, ValidInitType
 from lizrd.core.misc import Linear, LoggingLayer
 
 
@@ -32,7 +32,7 @@ class SwiGLUFeedForward(LoggingLayer):
         self,
         dmodel,
         dff,
-        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_type: ValidInitType,
         init_scale: float,
     ):
         super().__init__()
@@ -52,7 +52,7 @@ class SwiGLUFeedForward(LoggingLayer):
 def FeedForward(
     dmodel,
     dff,
-    init_type: Literal["kaiming_uniform", "truncated_normal"],
+    init_type: ValidInitType,
     init_scale: float,
     bias: Literal["both", "first", "second", "none"] = "both",
 ):
@@ -592,7 +592,7 @@ class TransformerTower(nn.Module):
 def TokenEmbedding(
     vocab_size,
     embedding_dim,
-    init_type: Literal["kaiming_uniform", "truncated_normal"],
+    init_type: ValidInitType,
     init_scale: float,
 ):
     weight = get_init_weight(
@@ -609,7 +609,7 @@ class PositionalEmbedding(nn.Module):
         self,
         max_length,
         embedding_dim,
-        init_type: Literal["kaiming_uniform", "truncated_normal"],
+        init_type: ValidInitType,
         init_scale: float,
     ):
         super(PositionalEmbedding, self).__init__()

@@ -102,10 +102,3 @@ def prepare_configs(
 
 def validate_configs(configs: List[dict]):
     check_interactive_debug_not_in_further_configs(configs)
-
-    for config in configs:
-        assert config["runner"] in [
-            "research.conditional.train.cc_train",
-            "research.blanks.train",
-            "research.token_reduction.runner",
-        ], f"Unknown runner: {config['runner']} \nIf a new one was implemented, include it here as well"

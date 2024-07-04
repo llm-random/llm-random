@@ -1,9 +1,4 @@
 import argparse
-import json
-
-
-def load_dict_in_args(s: str):
-    return json.loads(s.replace("'", '"'))
 
 
 def introduce_parser_arguments(
@@ -212,12 +207,6 @@ def introduce_parser_arguments(
         default=0.01,
         help="Whether to use auxiliary loss in loss calculations",
     )
-    parser.add_argument(
-        "--zloss_weight",
-        default=0.0,
-        type=float,
-        help="zloss_weight, if 0 zloss won't be computed",
-    )
     parser.add_argument("--topk_fraction", type=float)
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument(
@@ -347,44 +336,6 @@ def introduce_parser_arguments(
         ],
         default="layer_norm",
         required=False,
-    )
-
-    parser.add_argument(
-        "--relative_lr",
-        type=load_dict_in_args,
-        default=None,
-        help="""Dictionary with relative learning rates for different modules
-        Example: --relative_lr "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
-        Example in config yaml:
-        relative_lr:
-            attention: 0.1
-            feedforward: 0.1
-            moe: 0.1
-        """,
-    )
-    parser.add_argument(
-        "--relative_init_scale",
-        type=load_dict_in_args,
-        default=None,
-        help="""Dictionary with relative initialization scales for different modules
-        Example: --relative_init_scale "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
-        Example in config yaml:
-        relative_init_scale:
-            attention: 0.1
-            feedforward: 0.1
-            moe: 0.1
-        """,
-    )
-    parser.add_argument(
-        "--print_parameter_names",
-        action="store_true",
-        help="Print all parameter names in the model",
-    )
-
-    parser.add_argument(
-        "--verbose_relative_init_scale",
-        action="store_true",
-        help="Print names of parameters that were rescaled",
     )
 
     parser.add_argument(
