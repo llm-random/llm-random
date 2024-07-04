@@ -18,7 +18,7 @@ In the root directory run `./start-dev.sh`. This will create a virtual environme
 Use the baseline configuration as a template, which is in `configs/test/test_baseline.yaml`. Based on this template, create a new experiment config and put it in `lizrd/scripts/run_configs`.
 
 ### Running Locally
-`python -m lizrd.grid path/to/config`
+`python -m lizrd.grid --confi_path path/to/config`
 
 ### Running Remotely
 `bash scripts/run_exp_remotely.sh <remote_cluster_name> scripts/run_configs/<your_config>`
