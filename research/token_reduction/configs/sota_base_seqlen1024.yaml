@@ -14,7 +14,7 @@ params:
   ^batch_size: [256]
   ^learning_rate: [1e-3]
   gradient_accumulation_steps: 4
-  tr_schedule: "90_lin_1.2-1;10_const_1"
+  ^tr_schedule: ["90_lin_1.2-1;10_const_1"]
 
   n_steps: 32_000
   final_lr_step: 32_000
