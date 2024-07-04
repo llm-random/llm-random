@@ -2,64 +2,50 @@ from research.token_reduction.scheduler import (
     TokenReductionScheduler,
 )
 import unittest
+
+
 class TestScheduler(unittest.TestCase):
 
     def test_linear_increase(self):
-        scheduler = TokenReductionScheduler(ranges=[(1, 11, 0, 100)])
-        expected_result = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+        scheduler = TokenReductionScheduler(
+            total_steps=4, seq_len=10, schedule_str="100_lin_1-5"
+        )
+        expected_result = [0, 10, 20, 30, 40]
         result = []
-        for step in range(1, len(expected_result) + 1):
+        for step in range(len(expected_result)):
             scheduler.set_step(step)
             result.append(scheduler.value)
         self.assertEqual(result, expected_result)
 
     def test_linear_decrease(self):
-        scheduler = TokenReductionScheduler(ranges=[(1, 11, 100, 0)])
-        expected_result = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]
+        scheduler = TokenReductionScheduler(
+            total_steps=8, seq_len=10, schedule_str="100_lin_5-1"
+        )
+        expected_result = [40, 35, 30, 25, 20, 15, 10, 5, 0]
         result = []
-        for step in range(1, len(expected_result) + 1):
+        for step in range(len(expected_result)):
             scheduler.set_step(step)
             result.append(scheduler.value)
         self.assertEqual(result, expected_result)
 
     def test_constant_value(self):
-        scheduler = TokenReductionScheduler(ranges=[(1, 10, 50)])
+        scheduler = TokenReductionScheduler(
+            total_steps=10, seq_len=25, schedule_str="100_const_3"
+        )
         expected_result = [50] * 10
         result = []
-        for step in range(1, len(expected_result) + 1):
+        for step in range(len(expected_result)):
             scheduler.set_step(step)
             result.append(scheduler.value)
         self.assertEqual(result, expected_result)
 
-    def test_mixed_ranges(self):
-        scheduler = TokenReductionScheduler(
-            ranges=[
-                (1, 11, 0, 100),  # Linear from 0 to 100
-                (12, 20, 100),  # Constant at 100
-                (21, 30, 80, 20),  # Linear from 80 to 20
-            ]
-        )
-        expected_result = (
-            [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]  # Linear
-            + [100] * 9  # Constant
-            + [80, 73, 67, 60, 53, 47, 40, 33, 27, 20]  # Linear
-        )
-        result = []
-        for step in range(1, len(expected_result) + 1):
-            scheduler.set_step(step)
-            result.append(scheduler.value)
-        self.assertEqual(result, expected_result)
-
-    def test_max_step_constant(self):
-        scheduler = TokenReductionScheduler(ranges=[(1, 10, 5)])
-        for step in range(1, 11):
-            scheduler.set_step(step)
-            self.assertEqual(scheduler.value, 5)
-
-    def test_non_continuous_ranges(self):
+    def test_below_sum_percentages(self):
         with self.assertRaises(ValueError):
-            TokenReductionScheduler(ranges=[(1, 10, 0, 100), (12, 20, 100)])
+            TokenReductionScheduler(10, 20, "80_lin_5-1;10_const_3")
 
-    def test_overlapping_ranges(self):
+    def test_above_sum_percentages(self):
         with self.assertRaises(ValueError):
-            TokenReductionScheduler(ranges=[(1, 10, 0, 100), (9, 20, 100)])
+            TokenReductionScheduler(10, 20, "80_lin_5-1;30_const_3")
+
+
+# TODO(anyone) Add more tests, especially for cosine schedule
