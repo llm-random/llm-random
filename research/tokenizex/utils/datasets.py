@@ -1,13 +1,15 @@
+
 from functools import partial
 from typing import Callable, List, Literal, Optional
 
 import torch
 from torch.utils.data import DataLoader
 
-from lizrd.text import datasets, tokenizers
+from lizrd.text import datasets
 from research.datasets import DataloaderWrapper, worker_init_fn
-from .packer import BlankEvalPacker, BlankPacker
-import research.blanks.data as data
+from research.tokenizex.utils.data import TokenizexBatch 
+from research.tokenizex.model.tokenizer import TokenizexTokenizer 
+from research.tokenizex.utils.packer import TokenizexGPTPacker
 
 
 def get_processed_dataset(
@@ -16,16 +18,12 @@ def get_processed_dataset(
     device: torch.device,
     num_workers: int,
     seed: int,
-    tokenizer_maker: Callable[[], tokenizers.AbstractTokenizer],
+    tokenizer_maker: Callable[[], TokenizexTokenizer],
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
-    n_blanks: int = 0,
-    blanks_ids: List[int] = [],
-    use_only_last_blank_loss: bool = False,
-    extend_sequence_by_n_blanks: bool = False,
     dataset_path: Optional[str] = None,
-):
+) -> DataloaderWrapper:
     if dataset_type == "wikibook":
         dataset = partial(
             datasets.WikiBookDataset,
@@ -42,36 +40,23 @@ def get_processed_dataset(
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
-    if dataset_split == "train":
-        packer = BlankPacker(
-            sequence_length=sequence_length,
-            dataset=dataset,
-            tokenizer_maker=tokenizer_maker,
-            n_blanks=n_blanks,
-            blanks_ids=blanks_ids,
-            use_only_last_blank_loss=use_only_last_blank_loss,
-            extend_sequence_by_n_blanks=extend_sequence_by_n_blanks,
-        )
-    elif dataset_split in ["eval", "validation"]:
-        packer = BlankEvalPacker(
-            sequence_length=sequence_length,
-            dataset=dataset,
-            tokenizer_maker=tokenizer_maker,
-            n_blanks=n_blanks,
-            blanks_ids=blanks_ids,
-            extend_sequence_by_n_blanks=extend_sequence_by_n_blanks,
-        )
-    else:
-        raise ValueError(f"Unknown dataset split: {dataset_split}")
+    packer = TokenizexGPTPacker(
+        sequence_length=sequence_length,
+        dataset=dataset,
+        tokenizer_maker=tokenizer_maker,
+        seed=seed
+    )
 
-    dataloader = DataLoader(
+    dataloader = DataLoader( #dev good?
         packer,
         num_workers=num_workers,
         batch_size=batch_size,
-        collate_fn=data.BlanxBatch,
+        collate_fn=TokenizexBatch,
         worker_init_fn=partial(worker_init_fn, seed),
         shuffle=False,
         pin_memory=True,
     )
 
     return DataloaderWrapper(dataloader, device)
+
+

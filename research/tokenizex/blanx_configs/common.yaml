@@ -1,0 +1,61 @@
+runner: "research.blanks.train"
+n_gpus: 1
+interactive_debug: false
+time: "0-20:00:00"
+cuda_visible: "7"
+argparse: "research.blanks.argparse"
+
+# train params
+params:
+  name: blanx-eval-testing
+  learning_rate: 1e-3
+  n_steps: 100000
+  init_type: kaiming_uniform
+  init_scale: 1.0
+
+  # base bass
+  mixed_precision: true
+
+  # logging etc.
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  save_weights_path: "model_ckpt"
+  save_weights_interval: 25_000
+
+  # shallower bass
+  cutoff: 256
+  batch_size: 256
+  n_steps: 100_000
+  final_lr_step: 100_000
+  scheduler: cosine
+  lr_warmup_steps: 2500
+  final_lr_fraction: 0.1
+  grad_clip: 0.5
+
+  dmodel: 512
+  dff: 2048
+  n_blocks: 4
+  n_att_heads: 8
+
+  tokenizer: gpt
+
+  # blanx args
+  ^n_blanks: [5]
+  # ^blanks_residual: [true] #dev
+  ^blanks_add_embedding: [false]
+  blanks_learnable_weights: true
+  ^blank_initial_weight: [0.00001]
+  ^blanks_use_straight_through: [true]
+  dataset_type: wikibook
+
+  # LOCAL DEBUG:
+  use_dummy_dataset: true
+  num_workers: 0
+  logger_types: "stdout"
+  batch_size: 2
+  n_steps: 20
+  blanks_use_custom_positional_embedding: true
+  blanks_use_custom_attention: true
+
+
