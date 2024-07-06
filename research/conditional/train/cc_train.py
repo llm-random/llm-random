@@ -93,6 +93,65 @@ def make_param_groups_and_lr_ratios(args, model):
     return param_grops, ratios_in_group_order
 
 
+# it's the function above but in a for-loop, and it returns param_groups,
+# where each group has a unique combination of relative optimizer related parameters
+def make_param_groups_for_relative_lr(
+    args, model, baseline_args, baseline_keys, relative_params_all
+):
+    assert len(baseline_args) == len(baseline_keys)
+    assert len(relative_params_all) == len(baseline_keys)
+
+    all_groups = []
+    for baseline_arg, key, relative_params in zip(
+        baseline_args, baseline_keys, relative_params_all
+    ):
+        if relative_params is None:
+            all_groups.append(
+                ([{"params": model.parameters(), key: baseline_arg}], [1.0])
+            )
+
+        relative_to_params = defaultdict(list)
+        for name, param in model.named_parameters():
+            ratio = 1.0
+            for possible_name in relative_params.keys():
+                if possible_name in name:
+                    ratio = relative_params[possible_name]
+                    break
+            relative_to_params[ratio * baseline_arg].append(param)
+        param_grops = [
+            {"params": params, key: relative_arg}
+            for relative_arg, params in relative_to_params.items()
+        ]
+        all_groups.append(param_grops)
+
+    param_groups = all_groups[0]
+    for group2 in all_groups[1:]:
+        param_groups = merge_params_dicts(param_groups, group2)
+
+    ratios_in_group_order = {key: [] for key in baseline_keys}
+    for param_group in param_groups:
+        for baseline_arg, key in zip(baseline_args, baseline_keys):
+            ratios_in_group_order[key].append(param_group[key] / baseline_arg)
+
+    return param_groups, ratios_in_group_order
+
+
+def merge_params_dicts(param_group_1: list, param_group_2: list):
+    key_param, key2 = param_group_2[0].keys()
+    out = []
+    for d1 in param_group_1:
+        params_1 = set(d1[key_param])
+        for d2 in param_group_2:
+            params_2 = set(d2[key_param])
+            val2 = d2[key2]
+            params = params_1 & params_2
+            if len(params) != 0:
+                out.append(d1.copy())
+                out[-1][key_param] = list(params).copy()
+                out[-1][key2] = val2
+    return out
+
+
 def rescale_params_after_init(args, model):
     relative_scale: dict[str, float] = args.relative_init_scale
     verbose = args.verbose_relative_init_scale
@@ -266,6 +325,12 @@ def main(
             print(name, param.shape)
 
     param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
+
+    # baseline_args = [args.learning_rate, args.final_lr_fraction]
+    # baseline_keys = ['ratios_lr_in_group_order', 'scheduler_fractions_in_group_order']
+    # relative_params_all = [args.relative_lr, args.relative_scheduler_fraction]
+
+    # param_grops, ratios_in_group_order = make_param_groups_for_relative_lr(args, model, baseline_args, baseline_keys, relative_params_all)
 
     optimizer = torch.optim.AdamW(
         param_grops,

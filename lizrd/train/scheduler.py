@@ -6,15 +6,19 @@ from torch.optim import Optimizer
 
 
 def get_scheduler(
-    args, ratios_in_group_order: Optional[list[float]] = None
+    args,
+    ratios_lr_in_group_order: Optional[list[float]] = None,
+    scheduler_fractions_in_group_order: Optional[list[float]] = None,
 ) -> "AbstractLRScheduler":
-    if ratios_in_group_order is None:
-        ratios_in_group_order = [1.0]
+    if ratios_lr_in_group_order is None:
+        ratios_lr_in_group_order = [1.0]
+    if scheduler_fractions_in_group_order is None:
+        scheduler_fractions_in_group_order = [1.0]
     if args.scheduler == "constant":
         return ConstantScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
             lr=args.learning_rate,
-            ratios=ratios_in_group_order,
+            ratios_lr=ratios_lr_in_group_order,
         )
     elif args.scheduler == "cosine":
         if args.final_lr_step is None:
@@ -24,28 +28,31 @@ def get_scheduler(
             lr=args.learning_rate,
             final_lr_step=args.final_lr_step,
             final_lr_fraction=args.final_lr_fraction,
-            ratios=ratios_in_group_order,
+            ratios_lr=ratios_lr_in_group_order,
+            scheduler_fractions=scheduler_fractions_in_group_order,
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 
 
 class AbstractLRScheduler(ABC):
-    def __init__(self, ratios: list[float]):
-        self.ratios = ratios
+    def __init__(self, ratios_lr: list[float]):
+        self.ratios_lr = ratios_lr
 
     def get_lr(self, step):
         raise NotImplementedError
 
     def set_lr(self, optimizer: Optimizer, step: int):
         new_lr = self.get_lr(step)
-        for param_group, ratio in zip(optimizer.param_groups, self.ratios, strict=True):
-            param_group["lr"] = new_lr * ratio
+        for param_group, ratio_lr in zip(
+            optimizer.param_groups, self.ratios_lr, strict=True
+        ):
+            param_group["lr"] = new_lr * ratio_lr
 
 
 class ConstantScheduler(AbstractLRScheduler):
-    def __init__(self, lr_warmup_steps: int, lr: float, ratios: list[float]):
-        super().__init__(ratios=ratios)
+    def __init__(self, lr_warmup_steps: int, lr: float, ratios_lr: list[float]):
+        super().__init__(ratios_lr=ratios_lr)
         self.lr_warmup_steps = lr_warmup_steps
         self.lr = lr
 
@@ -63,9 +70,10 @@ class CosineScheduler(AbstractLRScheduler):
         lr: float,
         final_lr_step: int,
         final_lr_fraction: float,
-        ratios: list[float],
+        ratios_lr: list[float],
+        scheduler_fractions: list[float],
     ):
-        super().__init__(ratios=ratios)
+        super().__init__(ratios_lr=ratios_lr)
         assert isinstance(lr_warmup_steps, int)
         assert isinstance(lr, float)
         assert isinstance(final_lr_step, int)
@@ -75,6 +83,7 @@ class CosineScheduler(AbstractLRScheduler):
         self.lr = lr
         self.final_lr_step = final_lr_step
         self.final_lr_fraction = final_lr_fraction
+        self.scheduler_fractions = scheduler_fractions
 
     def get_lr(self, step: int):
         if step < self.lr_warmup_steps:
@@ -93,3 +102,13 @@ class CosineScheduler(AbstractLRScheduler):
             )
         else:
             return self.lr * self.final_lr_fraction
+
+    def set_lr(self, optimizer: Optimizer, step: int):
+        new_lr = self.get_lr(step)
+        for param_group, ratio in zip(
+            optimizer.param_groups,
+            self.ratios_lr,
+            self.scheduler_fractions,
+            strict=True,
+        ):
+            param_group["lr"] = new_lr * ratio
