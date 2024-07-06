@@ -121,21 +121,23 @@ def get_embedding_layer(
         else TokenReductionScheduler(n_steps, reference_seq_len, scheduler_params)
     )
 
-    max_seq_len = (
-        reference_seq_len + scheduler.get_max_tokens_reduced()
+    train_seq_len = (
+        reference_seq_len
+        + scheduler.get_max_tokens_reduced()
+        + 1  # If it happen that we want to drop last token we need to have one more token to merge to
         if scheduler_params is not None
         else reference_seq_len
     )
     embedding_components = [
         llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale),
         llm.PositionalEmbedding(
-            max_seq_len, dm, init_type=init_type, init_scale=init_scale
+            train_seq_len, dm, init_type=init_type, init_scale=init_scale
         ),
     ]
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
 
     if reduction_layer_type is None:
-        return embedding_layer, max_seq_len
+        return embedding_layer, train_seq_len
 
     if reduction_layer_type == "merging":
         reduction_layer = lambda: layers.TokenMergingLayer(
@@ -148,7 +150,7 @@ def get_embedding_layer(
 
     return (
         layers.TokenReductionEmbedding(embedding_layer, reduction_layer()).to(device),
-        max_seq_len,
+        train_seq_len,
     )
 
 
@@ -238,7 +240,7 @@ def get_model(
     reduction_layer_type: str = None,
     scheduler_params: List[tuple[int, int, int]] = None,
 ):
-    embedding_layer, max_seq_len = get_embedding_layer(
+    embedding_layer, train_seq_len = get_embedding_layer(
         reference_seq_len,
         n_steps,
         vocab_size,
@@ -293,4 +295,4 @@ def get_model(
             checkpoint_wrapper_fn=make_checkpoint_wrapper_function(),
         )
 
-    return model, max_seq_len
+    return model, train_seq_len

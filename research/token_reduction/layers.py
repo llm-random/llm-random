@@ -3,6 +3,8 @@ import torch.nn as nn
 
 from lizrd.core.misc import Linear, LoggingLayer
 
+GPT_EOT_ID = 50256
+
 
 def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_reduce):
     """
@@ -73,6 +75,57 @@ def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_re
     return indices_to_keep, indices_to_reduce
 
 
+def make_available_ids(unembedded_input, result_seq_len, n_tokens_to_reduce, eot_id):
+    _, train_seq_len = unembedded_input.shape
+    assert (
+        train_seq_len > result_seq_len + n_tokens_to_reduce
+    ), "Not enough tokens in the input sequence"
+    droppable_ids, saved_ids = [], []
+    for row_number, tokens in enumerate(unembedded_input):
+        droppable_tokens_mask = tokens[: result_seq_len + n_tokens_to_reduce] != eot_id
+        droppable_ids.append(
+            droppable_tokens_mask.nonzero(as_tuple=True)[0] + train_seq_len * row_number
+        )
+        saved_ids.append(
+            (~droppable_tokens_mask).nonzero(as_tuple=True)[0]
+            + train_seq_len * row_number
+        )
+    return droppable_ids, saved_ids
+
+
+def choose_ids_to_reduce(available_ids, prior_saved_ids, n_tokens_to_reduce):
+    permuted_ids = [ids[torch.randperm(len(ids))] for ids in available_ids]
+
+    split_pairs = [
+        (ids[:n_tokens_to_reduce], ids[n_tokens_to_reduce:]) for ids in permuted_ids
+    ]
+
+    sorted_results = [
+        (torch.cat((save_ids, prior_ids)).sort()[0], reduce_ids)
+        for ((reduce_ids, save_ids), prior_ids) in zip(split_pairs, prior_saved_ids)
+    ]
+
+    ids_to_save, ids_to_reduce = zip(*sorted_results)
+    ids_to_save, ids_to_reduce = torch.stack(ids_to_save), torch.stack(ids_to_reduce)
+
+    return ids_to_save, ids_to_reduce
+
+
+def get_save_reduce_split(unembedded_input, result_seq_len, n_tokens_to_reduce, eot_id):
+    available_ids, prior_saved_ids = make_available_ids(
+        unembedded_input=unembedded_input,
+        result_seq_len=result_seq_len,
+        n_tokens_to_reduce=n_tokens_to_reduce,
+        eot_id=eot_id,
+    )
+
+    ids_to_save, ids_to_reduce = choose_ids_to_reduce(
+        available_ids, prior_saved_ids, n_tokens_to_reduce
+    )
+
+    return ids_to_save, ids_to_reduce
+
+
 class TokenDroppingLayer(LoggingLayer):
     """
     This function randomly selects a `result_seq_len` subset of tokens from the input
@@ -87,7 +140,8 @@ class TokenDroppingLayer(LoggingLayer):
         if self.scheduler is not None:
             self.scheduler.set_step(step)
 
-    def forward(self, x):
+    def forward(self, token_reduction_input):
+        x, unembedded_input = token_reduction_input
         batch_size, seq_len, _ = x.shape
         assert self.result_seq_len <= seq_len
 
@@ -138,7 +192,8 @@ class TokenMergingLayer(LoggingLayer):
         if self.scheduler is not None:
             self.scheduler.set_step(step)
 
-    def forward(self, x):
+    def forward(self, token_reduction_input):
+        x, unembedded_input = token_reduction_input
         batch_size, seq_len, dm = x.shape
         assert self.result_seq_len <= seq_len
 
@@ -149,25 +204,26 @@ class TokenMergingLayer(LoggingLayer):
         )
         self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
 
-        indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
-            batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
+        ids_to_save, ids_to_reduce = get_save_reduce_split(
+            unembedded_input, self.result_seq_len, n_tokens_to_reduce, GPT_EOT_ID
         )
-        indices_to_keep, indices_to_reduce = indices_to_keep.to(
+
+        ids_to_save, ids_to_reduce = ids_to_save.to(x.device), ids_to_reduce.to(
             x.device
-        ), indices_to_reduce.to(x.device)
+        )
 
         x = x.view(-1, dm)
-        reduced_tokens = torch.index_select(x, 0, indices_to_reduce)
+        reduced_tokens = torch.index_select(x, 0, ids_to_reduce)
         transformed_reduced_tokens = self.merge_linear_projection(
             reduced_tokens
         ).float()
 
-        x.index_add_(0, indices_to_reduce + 1, transformed_reduced_tokens)
-        kept_tokens = torch.index_select(x, 0, indices_to_keep)
+        x.index_add_(0, ids_to_reduce + 1, transformed_reduced_tokens)
+        kept_tokens = torch.index_select(x, 0, ids_to_save)
 
         self.indices_to_keep, self.indices_to_reduce = (
-            indices_to_keep,
-            indices_to_reduce,
+            ids_to_save,
+            ids_to_reduce,
         )
         return kept_tokens.view(batch_size, self.result_seq_len, -1)
 
@@ -188,7 +244,8 @@ class TokenReductionEmbedding(nn.Module):
             self.reduction_layer.set_scheduler_step(step)
 
     def forward(self, x):
+        unembedded_tokens = x.clone()
         x = self.base_embedding_layer(x)
         if self.training:
-            x = self.reduction_layer(x)
+            x = self.reduction_layer((x, unembedded_tokens))
         return x
