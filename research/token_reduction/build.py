@@ -143,9 +143,7 @@ def get_embedding_layer(
     if reduction_layer_type == "merging":
         reduction_layer = lambda: layers.TokenMergingLayer(dm)
     elif reduction_layer_type == "dropping":
-        reduction_layer = lambda: layers.TokenDroppingLayer(
-            reference_seq_len, scheduler
-        )
+        reduction_layer = layers.TokenDroppingLayer
 
     return (
         layers.TokenReductionEmbedding(
