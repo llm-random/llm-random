@@ -114,6 +114,7 @@ def get_embedding_layer(
     device: torch.device,
     reduction_layer_type: str,
     scheduler_params: List[tuple[int, int, int]],
+    is_eot_id_reducible: bool = False,
 ):
     scheduler = (
         None
@@ -148,7 +149,11 @@ def get_embedding_layer(
 
     return (
         layers.TokenReductionEmbedding(
-            embedding_layer, reduction_layer(), reference_seq_len, scheduler=scheduler
+            embedding_layer,
+            reduction_layer(),
+            reference_seq_len,
+            scheduler=scheduler,
+            is_eot_id_reducible=is_eot_id_reducible,
         ).to(device),
         train_seq_len,
     )
@@ -239,6 +244,7 @@ def get_model(
     checkpoint: dict[str, torch.Tensor] = None,
     reduction_layer_type: str = None,
     scheduler_params: List[tuple[int, int, int]] = None,
+    is_eot_id_reducible: bool = False,
 ):
     embedding_layer, train_seq_len = get_embedding_layer(
         reference_seq_len,
@@ -250,6 +256,7 @@ def get_model(
         device,
         reduction_layer_type,
         scheduler_params,
+        is_eot_id_reducible,
     )
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
