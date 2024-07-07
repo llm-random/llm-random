@@ -10,6 +10,7 @@ from lizrd.grid.grid import create_subprocess_args
 
 from lizrd.grid.infrastructure import LocalBackend, get_machine_backend
 import subprocess
+import random
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -23,6 +24,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--skip_confirmation", action="store_true")
     parser.add_argument("--skip_copy_code", action="store_true")
+    parser.add_argument("--use_tpu", action="store_true")
     args = parser.parse_args()
     CLUSTER = get_machine_backend()
     experiments, interactive_debug_session = create_subprocess_args(
@@ -47,10 +49,19 @@ if __name__ == "__main__":
                 print("Ran only the first experiment in interactive mode. Aborting...")
                 break
         print("Successfully ran all experiments.")
+    elif args.use_tpu:
+        N_WORKERS = 16
+        import torch_xla.distributed.xla_multiprocessing as xmp
+        import torch.distributed as dist
 
+        # print(runner_params)
+        # random.seed(runner_params.data_seed)
+        runner_main_function, runner_params = experiments[0]
+        data_seeds = [random.randint(0, 10000000) for _ in range(N_WORKERS)]
+        xmp.spawn(runner_main_function, args=[data_seeds, runner_params], nprocs=None)
     else:
         runner_main_function, runner_params = experiments[0]
-        # We run the experiment directly, not through a grid entrypoint script
-        # because we want to be able to debug it
-        runner_main_function(None, runner_params=runner_params)
-        exit(0)
+        # # We run the experiment directly, not through a grid entrypoint script
+        # # because we want to be able to debug it
+        # runner_main_function(None, runner_params=runner_params)
+        # exit(0)

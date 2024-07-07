@@ -10,8 +10,15 @@ from research.subtoken.text import packers, data, tokenizers
 
 class DataloaderWrapper:
     def __init__(self, dataloader: DataLoader, device: torch.device):
-        self.generator = iter(dataloader)
         self.device = device
+        self.use_tpu = "xla" in str(device)
+
+        if self.use_tpu:
+            import torch_xla.distributed.parallel_loader as pl
+
+            self.generator = iter(pl.MpDeviceLoader(dataloader, device))
+        else:
+            self.generator = iter(dataloader)
 
     def get_batch(self) -> data.SubtokenLLMBatch:
         return next(self.generator).to(self.device)
@@ -76,6 +83,7 @@ def get_processed_dataset(
         worker_init_fn=partial(worker_init_fn, seed),
         shuffle=False,
         pin_memory=True,
+        drop_last=False,
     )
 
-    return DataloaderWrapper(dataloader, device)
+    return DataloaderWrapper(dataloader=dataloader, device=device)

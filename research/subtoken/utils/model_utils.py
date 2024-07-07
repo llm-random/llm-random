@@ -1,3 +1,4 @@
+import contextlib
 from functools import partial
 
 # import json
@@ -13,14 +14,23 @@ from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from research.subtoken.text.data import SubtokenLLMBatch
 
+try:
+    from torch_xla.amp import xla_autocast
+    import torch_xla.core.xla_model as xm
+except:
+    pass
+
 
 def make_loss_and_gradient_function(
-    loss_checkpoint_chungs: int,
+    loss_checkpoint_chungs: int, use_tpu: bool
 ) -> Callable:
-    if loss_checkpoint_chungs == 0:
-        return calculate_llm_loss_and_gradient
-    else:
-        return partial(chungized_llm_loss_and_gradient, n_chungs=loss_checkpoint_chungs)
+    return xla_calculate_llm_loss_and_gradient
+    # if use_tpu and (loss_checkpoint_chungs > 0):
+    #     raise NotImplementedError("Chunking not yet implemented for TPUs")
+    # if loss_checkpoint_chungs == 0:
+    #     return partial(calculate_llm_loss_and_gradient, use_tpu=use_tpu)
+    # else:
+    #     return partial(chungized_llm_loss_and_gradient, n_chungs=loss_checkpoint_chungs)
 
 
 def calculate_single_chung_loss(
@@ -130,6 +140,59 @@ def chungized_llm_loss_and_gradient(
     return total_loss, aux_info
 
 
+def xla_calculate_llm_loss_and_gradient(
+    batch: SubtokenLLMBatch,
+    model: torch.nn.Module,
+    mixed_precision: bool,
+    mixed_precision_dtype: torch.dtype,
+    num_checkpoint_accumulation_steps: int,
+    scaler: Optional[torch.cuda.amp.GradScaler] = None,
+) -> tuple[float, dict]:
+
+    input_tokens = batch.input_ids
+    input_bytes = batch.input_bytes
+    gt_tokens = batch.target_ids
+    mask = batch.should_calculate_loss
+
+    autocast_context_manager = (
+        xla_autocast(model.device) if mixed_precision else contextlib.nullcontext()
+    )
+
+    with autocast_context_manager:
+        model_output = model(input_ids=input_tokens, input_bytes=input_bytes)
+
+        mask_loss = F.cross_entropy(
+            model_output.flatten(0, -2),
+            gt_tokens.reshape(-1).long(),
+            reduction="none",
+        )
+        mask_loss = mask_loss[mask.reshape(-1) == 1]
+        loss = mask_loss.mean() / num_checkpoint_accumulation_steps
+
+    correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+    del model_output
+    correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+    correct_tokens = correct_tokens.sum()
+    total_masked_tokens = mask.sum()
+    aux_info = {
+        "correct_tokens": correct_tokens,
+        "total_masked_tokens": total_masked_tokens,
+        "losses": retrieve_additional_losses(model),
+    }
+
+    for key, value in aux_info["losses"].items():
+        aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
+
+    if model.training:
+        loss_to_optimize = loss.clone()
+        for value in aux_info["losses"].values():
+            loss_to_optimize += value
+        run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
+
+    clear_additional_losses(model)
+    return loss, aux_info
+
+
 def calculate_llm_loss_and_gradient(
     batch: SubtokenLLMBatch,
     model: torch.nn.Module,
@@ -137,6 +200,7 @@ def calculate_llm_loss_and_gradient(
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
+    use_tpu: bool = False,
 ) -> tuple[float, dict]:
     def hack_for_python_garbage_collection():
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
@@ -146,22 +210,39 @@ def calculate_llm_loss_and_gradient(
         gt_tokens = batch.target_ids
         mask = batch.should_calculate_loss
 
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
-        ):
-            model_output = model(input_ids=input_tokens, input_bytes=input_bytes)
+        if use_tpu:
+            if mixed_precision:
+                with xla_autocast(model.device):
+                    model_output = model(
+                        input_ids=input_tokens, input_bytes=input_bytes
+                    )
+            else:
+                model_output = model(input_ids=input_tokens, input_bytes=input_bytes)
+        else:
+            with torch.autocast(
+                device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
+            ):
+                model_output = model(input_ids=input_tokens, input_bytes=input_bytes)
 
         # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
         gt_tokens = gt_tokens.to(model_output.device)
         mask = mask.to(model_output.device)
 
-        mask_loss = F.cross_entropy(
-            model_output.flatten(0, -2),
-            gt_tokens.reshape(-1).long(),
-            reduction="none",
-        )
-        mask_loss = mask_loss[mask.reshape(-1) == 1]
-        loss = mask_loss.mean() / num_checkpoint_accumulation_steps
+        def get_loss():
+            mask_loss = F.cross_entropy(
+                model_output.flatten(0, -2),
+                gt_tokens.reshape(-1).long(),
+                reduction="none",
+            )
+            mask_loss = mask_loss[mask.reshape(-1) == 1]
+            loss = mask_loss.mean() / num_checkpoint_accumulation_steps
+            return loss
+
+        if use_tpu and mixed_precision:
+            with xla_autocast(model.device):
+                loss = get_loss()
+        else:
+            loss = get_loss()
 
         correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
         correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
@@ -176,6 +257,7 @@ def calculate_llm_loss_and_gradient(
         return loss, aux_info
 
     loss, aux_info = hack_for_python_garbage_collection()
+
     for key, value in aux_info["losses"].items():
         aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     if model.training:
@@ -185,7 +267,8 @@ def calculate_llm_loss_and_gradient(
         run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
 
     clear_additional_losses(model)
-    return loss.item(), aux_info
+    print("cleared additional losses")
+    return loss, aux_info
 
 
 def get_attention_layer(args):

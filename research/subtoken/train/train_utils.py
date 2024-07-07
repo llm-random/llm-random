@@ -7,7 +7,7 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
 
 from lizrd.core import llm
 from research.subtoken.embedding import SubtokenEmbedding
-from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
+from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp, wrap_in_xla_fsdp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
 
@@ -91,7 +91,16 @@ def get_model(
     subtoken_lowrank_ratio: Optional[float] = None,
     subtoken_normalization: Optional[str] = None,
 ):
-    if model_fragmentation is None or device == torch.device("cpu"):
+    use_tpu = "xla" in str(device)
+    if use_tpu:
+        assert model_fragmentation is None and fsdp_enabled is True
+
+    if (
+        model_fragmentation is None
+        or model_fragmentation == []
+        or use_tpu
+        or device == torch.device("cpu")
+    ):
         first_gpu = device
         last_gpu = device
     else:
@@ -127,11 +136,40 @@ def get_model(
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
+    if use_tpu:
+        from torch_xla import runtime as xr
+        import torch_xla.core.xla_model as xm
+
+        xm.rendezvous("send model to device")
+        model = model.to(device)
+        if xr.using_pjrt():
+            xm.broadcast_master_param(model)
+
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
 
     if ddp_enabled:
         model = wrap_in_ddp(module=model, rank=rank)
+    elif use_tpu:
+        from torch_xla.distributed.fsdp.utils import checkpoint_module
+
+        if activation_checkpointing_modules is not None:
+            xm.master_print(
+                "You are using checkpointing with XLA FSDP - beware of indeterministic modules, which are not handled correctly."
+            )
+
+            apply_activation_checkpointing(
+                model,
+                check_fn=(lambda x: isinstance(x, activation_checkpointing_modules)),
+                checkpoint_wrapper_fn=checkpoint_module,
+            )
+        model = wrap_in_xla_fsdp(
+            module=model,
+            print_model=True,
+            min_num_params=fsdp_min_num_params,
+            modules_to_wrap=fsdp_modules_to_wrap,
+            is_logging_process=is_logging_process,
+        )
     elif fsdp_enabled:
         model = wrap_in_fsdp(
             module=model,
@@ -146,7 +184,7 @@ def get_model(
             is_logging_process=is_logging_process,
         )
 
-    if activation_checkpointing_modules is not None:
+    if not use_tpu and activation_checkpointing_modules is not None:
         check_fn = lambda x: isinstance(x, activation_checkpointing_modules)
         apply_activation_checkpointing(
             model,

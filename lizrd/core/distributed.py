@@ -63,3 +63,44 @@ def wrap_in_fsdp(
         print("--------------------------------------------")
 
     return wrapped
+
+
+def wrap_in_xla_fsdp(
+    module: nn.Module,
+    print_model: bool,
+    min_num_params: int,
+    modules_to_wrap: tuple[Type[nn.Module]],
+    is_logging_process: bool,
+):
+    from torch_xla.distributed.fsdp import XlaFullyShardedDataParallel as xla_FSDP
+    from torch_xla.distributed.fsdp.wrap import (
+        transformer_auto_wrap_policy,
+        size_based_auto_wrap_policy,
+    )
+
+    assert (modules_to_wrap is None and min_num_params is not None) or (
+        modules_to_wrap is not None and min_num_params is None
+    ), "The FSDP arguments `modules_to_wrap` and `min_num_params` are mutually exclusive. Either supply one, or the other."
+
+    if modules_to_wrap is not None:
+        wrap_policy = partial(
+            transformer_auto_wrap_policy, transformer_layer_cls=set(modules_to_wrap)
+        )
+    else:
+        wrap_policy = (
+            partial(size_based_auto_wrap_policy, min_num_params=min_num_params)
+            if min_num_params is not None
+            else size_based_auto_wrap_policy
+        )
+
+    wrapped = xla_FSDP(
+        module,
+        auto_wrap_policy=wrap_policy,
+    )
+
+    if print_model and is_logging_process:
+        print("------- MODEL AFTER WRAPPING IN FSDP -------")
+        print(wrapped)
+        print("--------------------------------------------")
+
+    return wrapped

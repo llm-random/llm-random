@@ -23,6 +23,7 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+import torch_xla.core.xla_model as xm
 
 
 @define(slots=False)
@@ -51,13 +52,14 @@ class SubtokenTrainer:
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
+    use_tpu: bool = False
     save_weights_path: str = None
     save_weights_interval: int = 1000
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
     log_gradients_and_weights: bool = False
-    loss_log_intervals: tuple[int] = (1, 10, 100, 1000)
+    loss_log_intervals: list[int] = [1, 10, 100, 1000]
     decoding_interval: int = 5_000
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
@@ -91,7 +93,7 @@ class SubtokenTrainer:
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
         self._calculate_loss_and_gradient = make_loss_and_gradient_function(
-            loss_checkpoint_chungs=self.loss_checkpoint_chungs,
+            loss_checkpoint_chungs=self.loss_checkpoint_chungs, use_tpu=self.use_tpu
         )
         self.layer_manager = LayerManager(
             self.model,
@@ -126,10 +128,10 @@ class SubtokenTrainer:
         """
         Train the model for n_steps steps.
         """
+        print("entered train", flush=True)
         self._before_train_operations()
         if self.scaler is not None and self.checkpoint is not None:
             load_scaler_state(self.scaler, self.checkpoint)
-
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
             schedule=self.profiler_schedule,
@@ -143,6 +145,11 @@ class SubtokenTrainer:
             with_modules=True,
         ) as p:
             for step in range(self.start_step, n_steps + 1):
+                if step == 50:
+                    import torch_xla.debug.profiler as xp
+
+                    xp.trace_detached("localhost:9012", "/home/mp/profiles")
+
                 self._train_step(step)
                 if self.profiler_enabled:
                     p.step()
@@ -169,21 +176,33 @@ class SubtokenTrainer:
         self,
         step,
     ):
+        print("entered train step", flush=True)
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
+        print("will get batch")
         processed_batch = self.train_dataloader.get_batch()
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
+        print("will calculcate loss and gradient")
         loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
-        self._apply_gradient()
+
         if self.is_logging_process:
-            self._log_train_stats(loss, step)
-            self._log_accuracy(aux_info, step)
-            self.layer_manager.log(step)
-            self._log_weights_and_gradients(step)
-            self._log_auxiliary_losses(aux_info["losses"], step)
-        self._save_weights(step)
+
+            def log_all(loss, step, aux_info):
+                print("entered log all")
+                self._log_train_stats(loss.item(), step)
+                self._log_accuracy(aux_info, step)
+                self.layer_manager.log(step)
+                self._log_weights_and_gradients(step)
+                self._log_auxiliary_losses(aux_info["losses"], step)
+
+            xm.add_step_closure(log_all, args=(loss, step, aux_info))
+
+        print("Will apply gradient")
+        self._apply_gradient()
+        xm.mark_step()
+        # self._save_weights(step)
 
     def calculate_loss_and_gradient(self, processed_batch: SubtokenLLMBatch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
@@ -194,29 +213,30 @@ class SubtokenTrainer:
         total_masked_tokens_value = 0
         losses = {}
 
-        for i in range(self.gradient_accumulation_steps):
-            # TODO: make a way to avoid copying the whole batch just to get a slice
-            batch_copy = copy.deepcopy(processed_batch)
-            for _, tensor in batch_copy:
-                tensor.data = get_ith_chunk(
-                    tensor.data, self.gradient_accumulation_steps, i
-                )
+        # for i in range(self.gradient_accumulation_steps):
+        # TODO: make a way to avoid copying the whole batch just to get a slice
+        # batch_copy = copy.deepcopy(processed_batch)
+        # for _, tensor in batch_copy:
+        #     tensor.data = get_ith_chunk(
+        #         tensor.data, self.gradient_accumulation_steps, i
+        #     )
 
-            cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
-                batch=batch_copy,
-                model=self.model,
-                mixed_precision=self.mixed_precision,
-                mixed_precision_dtype=self.mixed_precision_dtype,
-                num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
-                scaler=self.scaler,
-            )
+        cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
+            batch=processed_batch,
+            model=self.model,
+            mixed_precision=self.mixed_precision,
+            mixed_precision_dtype=self.mixed_precision_dtype,
+            num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
+            scaler=self.scaler,
+        )
+        print("Internal calculated loss")
 
-            total_cross_entropy_loss += cross_entropy_loss
-            correct_tokens_value += aux_info["correct_tokens"]
-            total_masked_tokens_value += aux_info["total_masked_tokens"]
+        total_cross_entropy_loss += cross_entropy_loss
+        correct_tokens_value += aux_info["correct_tokens"]
+        total_masked_tokens_value += aux_info["total_masked_tokens"]
 
-            for key, value in aux_info["losses"].items():
-                losses[key] = losses.get(key, 0) + value.item()
+        for key, value in aux_info["losses"].items():
+            losses[key] = losses.get(key, 0) + value.item()
 
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
@@ -225,21 +245,24 @@ class SubtokenTrainer:
         }
 
     def _apply_gradient(self):
-        if self.scaler is None:
-            if self.gradient_clipping is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
-            self.optimizer.step()
-        else:
-            if self.gradient_clipping is not None:
-                self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+        self.optimizer.step()
+        print("did step")
+        # if self.scaler is None:
+        #     if self.gradient_clipping is not None:
+        #         torch.nn.utils.clip_grad_norm_(
+        #             self.model.parameters(), self.gradient_clipping
+        #         )
+        #     self.optimizer.step()
+        # else:
+        #     if self.gradient_clipping is not None:
+        #         self.scaler.unscale_(self.optimizer)
+        #         torch.nn.utils.clip_grad_norm_(
+        #             self.model.parameters(), self.gradient_clipping
+        #         )
+        #     self.scaler.step(self.optimizer)
+        #     self.scaler.update()
         self.optimizer.zero_grad()
+        print("did zerograd")
 
     def _eval_step(self, step: int):
         batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches)]

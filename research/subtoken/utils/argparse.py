@@ -212,5 +212,6 @@ def introduce_parser_arguments(
         choices=["layernorm", "max_n_bytes", "actual_n_bytes", "none"],
         required=False,
     )
+    parser.add_argument("--use_tpu", action="store_true")
 
     return parser

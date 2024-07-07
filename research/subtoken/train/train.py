@@ -43,6 +43,19 @@ from lizrd.train.load_and_save_model import (
 )
 import pickle
 
+import torch_xla
+import torch_xla.debug.metrics as met
+import torch_xla.distributed.parallel_loader as pl
+import torch_xla.utils.utils as xu
+import torch_xla.core.xla_env_vars as xenv
+import torch_xla.core.xla_model as xm
+import torch_xla.debug.profiler as xp
+import torch_xla.distributed.xla_multiprocessing as xmp
+import torch_xla.test.test_utils as test_utils
+
+import torch.distributed as dist
+import torch_xla.distributed.xla_backend
+
 
 def log_batch(
     wrapper: DataloaderWrapper,
@@ -73,8 +86,8 @@ def log_batch(
 def main(
     rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
-    port: str = "29500",
-    args: Optional[argparse.Namespace] = None,
+    # port: str = "29500",
+    # args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
     return_model=False,
 ):
@@ -90,16 +103,26 @@ def main(
         if args.data_seed < 0:
             args.data_seed = random.randint(0, 10000000)
 
+    import torch_xla.debug.profiler as xp
+
+    server = xp.start_server(9012)
+
     check_args(args)
+
+    if args.use_tpu:
+        ordinal_info = f"local ordinal: {xm.get_local_ordinal()} / global ordinal: {xm.get_ordinal()}"
+        print(f"Initiating process group ({ordinal_info})")
+        dist.init_process_group("xla", init_method="xla://")
+        print(f"Joined process group ({ordinal_info})")
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
-    if rank is not None:
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = port
+    # if rank is not None:
+    # os.environ["MASTER_ADDR"] = "localhost"
+    # os.environ["MASTER_PORT"] = port
 
-        init_process_group("nccl", rank=rank, world_size=args.n_gpus)
-        torch.cuda.set_device(rank)
+    # init_process_group("nccl", rank=rank, world_size=args.n_gpus)
+    # torch.cuda.set_device(rank)
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
@@ -109,7 +132,10 @@ def main(
         if args.model_type == "bert"
         else tokenizers.GPTTokenizer.VOCAB_SIZE
     )
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.use_tpu:
+        DEVICE = xm.xla_device()
+    else:
+        DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
@@ -134,7 +160,8 @@ def main(
         fsdp_modules_to_wrap = None
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
-    is_logging_process = True if rank is None or rank == 0 else False
+    # is_logging_process = True if rank is None or rank == 0 else False
+    is_logging_process = xm.is_master_ordinal(local=False)
 
     activation_checkpointing_modules = get_classes_from_module_names(
         args.activation_checkpointing_modules
@@ -177,7 +204,7 @@ def main(
         dm=args.dmodel,
         n_blocks=args.n_blocks,
         device=(
-            DEVICE if rank is None else torch.device("cpu")
+            DEVICE if (rank is None or args.use_tpu) else torch.device("cpu")
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
@@ -223,7 +250,7 @@ def main(
     )
 
     if args.torch_compile:
-        model = torch.compile(model)
+        model = torch.compile(model, backend="openxla" if args.use_tpu else "inductor")
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -231,6 +258,8 @@ def main(
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
+    print("created optimizer", flush=True)
+
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
@@ -272,7 +301,7 @@ def main(
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
+    if args.model_type == "gpt" and is_logging_process and not args.use_tpu:
         log_batch(
             train_dataloader,
             tokenizer_maker=(
@@ -294,6 +323,7 @@ def main(
         else disable_profile_schedule_fn
     )
 
+    print("will create trainer", flush=True)
     trainer = SubtokenTrainer(
         model=model,
         optimizer=optimizer,
@@ -364,5 +394,36 @@ if __name__ == "__main__":
             args=[data_seeds, port, args],
             nprocs=args.n_gpus,
         )
+    else:
+        main(None, args=args)
+
+N_WORKERS = 1
+
+if __name__ == "__main__":
+    # misc.print_available_gpus()
+    parser = argparse.ArgumentParser()
+    introduce_parser_arguments(parser)
+    args = parser.parse_args()
+    if args.data_seed < 0:
+        args.data_seed = random.randint(0, 10000000)
+
+    slurmid = os.environ.get("SLURM_JOB_ID")
+    if slurmid is not None:
+        with open(f"{slurmid}_args.pickle", "wb") as f:
+            pickle.dump(args, f)
+
+    if args.ddp_enabled or args.fsdp_enabled:
+        random.seed(args.data_seed)
+        data_seeds = [random.randint(0, 10000000) for _ in range(N_WORKERS)]
+        xmp.spawn(main, args=[data_seeds, args], nprocs=N_WORKERS)
+        # find free port
+        # with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        #     s.bind(("", 0))
+        #     port = str(s.getsockname()[1])
+        # mp.spawn(
+        #     main,
+        #     args=[data_seeds, port, args],
+        #     nprocs=args.n_gpus,
+        # )
     else:
         main(None, args=args)

@@ -577,7 +577,11 @@ class TransformerTower(nn.Module):
         return x
 
     def get_current_device(self, block_num):
-        if self.model_fragmentation is None or self.device == torch.device("cpu"):
+        if (
+            self.model_fragmentation is None
+            or self.model_fragmentation == []
+            or self.device == torch.device("cpu")
+        ):
             return False, self.device
 
         for i, split_num in enumerate(self.model_fragmentation):
