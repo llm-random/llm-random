@@ -140,16 +140,16 @@ def get_embedding_layer(
         return embedding_layer, train_seq_len
 
     if reduction_layer_type == "merging":
-        reduction_layer = lambda: layers.TokenMergingLayer(
-            reference_seq_len, dm, scheduler
-        )
+        reduction_layer = lambda: layers.TokenMergingLayer(dm)
     elif reduction_layer_type == "dropping":
         reduction_layer = lambda: layers.TokenDroppingLayer(
             reference_seq_len, scheduler
         )
 
     return (
-        layers.TokenReductionEmbedding(embedding_layer, reduction_layer()).to(device),
+        layers.TokenReductionEmbedding(
+            embedding_layer, reduction_layer(), reference_seq_len, scheduler=scheduler
+        ).to(device),
         train_seq_len,
     )
 
