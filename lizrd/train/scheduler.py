@@ -104,6 +104,7 @@ class CosineScheduler(AbstractLRScheduler):
         else:
             return self.lr * self.final_lr_fraction
 
+    # had to overwrite it here, because AbstractLRScheduler doesn't know final_lr_fraction and othr params necessary for relative lr fractions
     def set_lr(self, optimizer: Optimizer, step: int):
         if self.scheduler_fractions is None:
             super.set_lr(optimizer, step)

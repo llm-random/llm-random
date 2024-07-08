@@ -95,7 +95,7 @@ def make_param_groups_and_lr_ratios(args, model):
 
 # it's the function above but in a for-loop, and it returns param_groups,
 # where each group has a unique combination of relative optimizer related parameters
-def make_param_groups_for_relative_lr(
+def make_param_groups_for_optimizer(
     model, baseline_args, baseline_keys, relative_params_all
 ):
     assert len(baseline_args) == len(baseline_keys)
@@ -323,15 +323,19 @@ def main(
         for name, param in model.named_parameters():
             print(name, param.shape)
 
-    param_grops_old, ratios_in_group_order_old = make_param_groups_and_lr_ratios(
-        args, model
-    )
+    # param_grops_old, ratios_in_group_order_old = make_param_groups_and_lr_ratios(
+    #     args, model
+    # )
 
+    # set args for optimizer param_groups
     baseline_args = [args.learning_rate, args.final_lr_fraction]
-    baseline_keys = ["ratios_lr_in_group_order", "scheduler_fractions_in_group_order"]
+    baseline_keys = [
+        "ratios_lr_in_group_order",
+        "scheduler_fractions_in_group_order",
+    ]  # names like arguments in get_scheduler :), best idea i had :(
     relative_params_all = [args.relative_lr, args.relative_scheduler_fraction]
 
-    param_grops, ratios_in_group_order = make_param_groups_for_relative_lr(
+    param_grops, ratios_in_group_order = make_param_groups_for_optimizer(
         model, baseline_args, baseline_keys, relative_params_all
     )
 
