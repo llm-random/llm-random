@@ -18,6 +18,7 @@ class TokenChoiceFF(LoggingLayer):
         init_type: str,
         init_scale: float,
         expert_inner_function: LoggingLayer,
+        zloss_weight: float = 0,
         routing_top_k: int = 1,
         use_einsum: bool = False,
         get_router_values_from: str = "weights",
@@ -54,7 +55,8 @@ class TokenChoiceFF(LoggingLayer):
             detach_gate=detach_gate,
             expert_inner_function=self.expert_inner_function,
             moe_values_exp=moe_values_exp,
-            get_gate_fun=get_gate_fun
+            get_gate_fun=get_gate_fun,
+            zloss_weight=zloss_weight,
         )
 
     @time_measured("assign_tokens_to_input")

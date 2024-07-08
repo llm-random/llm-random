@@ -46,9 +46,9 @@ class ContinuousMoeBaseClass(LoggingLayer):
             assert (
                 self.dff % self.n_experts == 0
             ), f"dff = {self.dff} is not divisible by n_experts = {self.n_experts}"
-            print(
-                f"expert_size is None, setting it to dff // n_experts = {self.dff // self.n_experts}"
-            )
+            # print(
+            #     f"expert_size is None, setting it to dff // n_experts = {self.dff // self.n_experts}"
+            # ) it prints value while running the tests
             self.expert_size = self.dff // self.n_experts
         self.init_core_parameters()
         self.init_additional_parameters()

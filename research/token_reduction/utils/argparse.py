@@ -1,14 +1,13 @@
 import argparse
-import json
-
-
-def load_dict_in_args(s: str):
-    return json.loads(s.replace("'", '"'))
 
 
 def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
+    # TOKEN REDUCTION
+    parser.add_argument("--reduction_layer_type", type=str, default=None)
+    parser.add_argument("--tr_schedule", type=str, default=None)
+
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
@@ -40,7 +39,7 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--init_type",
         type=str,
-        choices=["kaiming_uniform", "truncated_normal", "truncated_normal_fixed"],
+        choices=["kaiming_uniform", "truncated_normal"],
         required=True,
     )
     parser.add_argument("--init_scale", type=float, required=True)
@@ -114,10 +113,7 @@ def introduce_parser_arguments(
         help="comma-separated list of modules whose parameters should be wrapped in FSDP with a different precision than the rest of the model. For reference, see get_classes_from_module_names in research/conditional/utils/model_utils.py",
     )
     parser.add_argument(
-        "--model_parallelism_fragmentation",
-        type=str,
-        default=None,
-        help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
+        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
     )
     parser.add_argument("--detect_anomaly", action="store_true")
     parser.add_argument("--flash_attention", action="store_true")
@@ -151,9 +147,6 @@ def introduce_parser_arguments(
     parser.add_argument("--all_config_paths", type=str, default=None)
     parser.add_argument("--git_branch", type=str, default=None)
     parser.add_argument("--decoding_interval", type=int, default=0)
-
-    parser.add_argument("--model_fit_gpu_info_database_path", type=str, default=None)
-    parser.add_argument("--model_fit_gpu_info_params", type=str, default=None)
 
     # profiler parameters
     parser.add_argument("--profiler_enabled", action="store_true")
@@ -211,12 +204,6 @@ def introduce_parser_arguments(
         type=float,
         default=0.01,
         help="Whether to use auxiliary loss in loss calculations",
-    )
-    parser.add_argument(
-        "--zloss_weight",
-        default=0.0,
-        type=float,
-        help="zloss_weight, if 0 zloss won't be computed",
     )
     parser.add_argument("--topk_fraction", type=float)
     parser.add_argument("--expert_random_perm", action="store_true")
@@ -321,23 +308,6 @@ def introduce_parser_arguments(
     parser.add_argument("--x_flop", action="store_true")
     parser.add_argument("--x_logarithmic", action="store_true")
 
-    # mamba
-    parser.add_argument("--mamba_mode", type=str, default="vanilla")
-    parser.add_argument(
-        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
-    )
-    parser.add_argument("--mamba_expansion", type=float, default=2.0)
-    parser.add_argument("--no_positional_embedding", action="store_true")
-
-    parser.add_argument(
-        "--dr_routing_type",
-        type=str,
-        choices=["expert_choice", "token_choice"],
-        default="token_choice",
-    )
-    parser.add_argument("--dr_linear_first", action="store_true")
-    parser.add_argument("--dr_relu_with_first", action="store_true")
-
     parser.add_argument(
         "--norm_class",
         type=str,
@@ -349,87 +319,34 @@ def introduce_parser_arguments(
         required=False,
     )
 
-    parser.add_argument(
-        "--relative_lr",
-        type=load_dict_in_args,
-        default=None,
-        help="""Dictionary with relative learning rates for different modules
-        Example: --relative_lr "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
-        Example in config yaml:
-        relative_lr:
-            attention: 0.1
-            feedforward: 0.1
-            moe: 0.1
-        """,
-    )
-    parser.add_argument(
-        "--relative_init_scale",
-        type=load_dict_in_args,
-        default=None,
-        help="""Dictionary with relative initialization scales for different modules
-        Example: --relative_init_scale "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
-        Example in config yaml:
-        relative_init_scale:
-            attention: 0.1
-            feedforward: 0.1
-            moe: 0.1
-        """,
-    )
-    parser.add_argument(
-        "--print_parameter_names",
-        action="store_true",
-        help="Print all parameter names in the model",
-    )
-
-    parser.add_argument(
-        "--verbose_relative_init_scale",
-        action="store_true",
-        help="Print names of parameters that were rescaled",
-    )
-
-    parser.add_argument(
-        "--get_router_values_from",
-        type=str,
-        choices=[
-            "weights",
-            "gate_weight",
-            "lin1_weight",
-        ],
-        default="weights",
-        required=False,
-        help="'weights' is default MoE, 'gate' maximizes average activation in gating,"
-        "'lin1' is similar but takes the weights from lin1 and is compatible with non-gated expert",
-    )
-
-    parser.add_argument(
-        "--moe_values_exp",
-        type=str,
-        default="1.0",
-        help="Exponent for values multiplier in MoE routing. "
-        "0 means no multiplier, 1 is the standard, 2 is the square of the standard, etc. "
-        "'trainable' means that the exponent is trainable. ",
-    )
-    parser.add_argument(
-        "--chimera_change_after_percent",
-        type=float,
-        default=0.1,
-        help="Change the training model after this percent of training schedule"
-    )
-
-    parser.add_argument(
-        "--lr_restart_on_chimera",
-        action="store_true",
-        help="Restart LR on chimera change"
-    )
-
-    parser.add_argument(
-        "--lr_restart_first_full",
-        action="store_true",
-        help="First LR schedule on chimera is on full length, and interrupted in the middle (as opposed to two full small schedules)"
-    )
-
-    parser.add_argument(
-        "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
-    )
-
     return parser
+
+
+def check_args(args):
+    assert (not args.mixed_precision) or (
+        args.mixed_precision and args.mixed_precision_dtype is not None
+    ), "To use mixed_precision set mixed_precision_dtype either to 'float16' or 'bfloat16'"
+
+    assert (not args.flash_attention) or (
+        args.flash_attention and args.mixed_precision
+    ), "Flash attention requires mixed precision to be enabled. Please set `--mixed_precision True`."
+
+    assert (not args.fsdp_enabled) or (
+        args.fsdp_enabled and args.mixed_precision_dtype != "float16"
+    ), "Our FSDP implementation currently does not support float16 precision (no distributed GradScaler implemented). Please use bfloat16 or disable mixed precision and set its type to None."
+
+    assert (not args.profiler_enabled) or (
+        args.profiler_enabled
+        and args.profiler_schedule_wait is not None
+        and args.profiler_schedule_warmup is not None
+        and args.profiler_schedule_active is not None
+        and args.profiler_schedule_repeat is not None
+        and args.profiler_schedule_skip_first is not None
+        and args.profiler_trace_path is not None
+    ), "To use profiler set all profiler_schedule arguments"
+
+    if args.save_weights_path is not None:
+        filename = args.save_weights_path.split("/")[-1]
+        assert (
+            "." not in filename
+        ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."

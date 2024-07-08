@@ -508,6 +508,12 @@ def retrieve_additional_losses(model: torch.nn.Module):
         load_balancing_loss = torch.mean(load_balancing_losses)
         losses["load_balancing_loss"] = load_balancing_loss
 
+    if "z_losses" in model.forward_pass_cache:
+        z_losses = model.forward_pass_cache.get("z_losses", [])
+        z_losses = torch.stack(z_losses)
+        z_loss = torch.mean(z_losses)
+        losses["z_loss"] = z_loss
+
     return losses
 
 
@@ -517,6 +523,9 @@ def clear_additional_losses(model: torch.nn.Module):
 
     if "load_balancing_losses" in model.forward_pass_cache:
         model.forward_pass_cache.pop("load_balancing_losses", None)
+
+    if "z_losses" in model.forward_pass_cache:
+        model.forward_pass_cache.pop("z_losses", None)
 
 
 def get_common_mot_kwargs(args):
@@ -616,7 +625,9 @@ def get_ff_layer(args):
         args = determine_moe_args(args)
         ff_args, make_expert_inner_function = get_expert_choice_args(args)
         return_fn = lambda: ExpertChoiceFF(
-            **ff_args, expert_inner_function=make_expert_inner_function()
+            **ff_args,
+            expert_inner_function=make_expert_inner_function(),
+            zloss_weight=args.zloss_weight,
         )
     elif args.ff_mode == "expert_choice_with_parallel_ff":
         expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
@@ -642,6 +653,9 @@ def get_ff_layer(args):
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            zloss_weight=args.zloss_weight,
+            routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
             **get_only_token_choice_args(args),

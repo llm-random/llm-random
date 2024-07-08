@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from research.conditional.moe_layers.load_balancing_loss import (
     calculate_load_balancing_loss,
+    calculate_z_loss,
 )
 from lizrd.core.misc import LoggingLayer, measure_time
 from lizrd.core.initialization import get_init_fun
@@ -30,6 +31,7 @@ class MoeGating(LoggingLayer):
         softmax_over: Literal["tokens", "experts"] = "tokens",
         use_torch_bmm: bool = False,
         get_gate_fun=None,
+        zloss_weight: float = 0.0,
         **kwargs,
     ):
         super().__init__()
@@ -40,6 +42,7 @@ class MoeGating(LoggingLayer):
         self.softmax_over = softmax_over
         self.use_torch_bmm = use_torch_bmm
         self.detach_gate = detach_gate
+        self.zloss_weight = zloss_weight
         self.gate, self.get_gate = self.init_gate(
             expert_inner_function,
             get_router_values_from,
@@ -64,10 +67,10 @@ class MoeGating(LoggingLayer):
         with measure_time(self, "expert_embedding"):
             if self.use_torch_bmm:
                 gate = self.get_gate().unsqueeze(0).expand(batch_size, -1, -1)
-                gate_out = torch.bmm(x, gate).permute(2, 0, 1)
-                assert gate_out.shape == (self.n_experts, batch_size, seq_len)
+                gate_logits = torch.bmm(x, gate).permute(2, 0, 1)
+                assert gate_logits.shape == (self.n_experts, batch_size, seq_len)
             else:
-                gate_out = einsum(
+                gate_logits = einsum(
                     "batch_size seq_len dmodel, dmodel n_experts "
                     "-> n_experts batch_size seq_len ",
                     x,
@@ -75,19 +78,34 @@ class MoeGating(LoggingLayer):
                 )
         # each expert chooses k within dimension 1
         if not self.group_by_batch and not self.softmax_ungrouped:
-            gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
+            gate_logits = gate_logits.reshape(self.n_experts, batch_size * seq_len)
         # perform softmax either over tokens for each expert or over experts for each token
         with measure_time(self, "softmax"):
             if self.softmax_over == "tokens":
-                gate_out = torch.softmax(gate_out, dim=1)
+                gate_out = torch.softmax(gate_logits, dim=1)
             elif self.softmax_over == "experts":
-                gate_out = torch.softmax(gate_out, dim=0)
+                gate_out = torch.softmax(gate_logits, dim=0)
+            else:
+                gate_out = gate_logits
         if self.softmax_ungrouped:
             gate_out = gate_out.reshape(self.n_experts, batch_size * seq_len)
 
         if self.moe_values_exp != 1.0 or not isinstance(self.moe_values_exp, float):
             gate_out = gate_out**self.moe_values_exp
 
+        # calculate z-loss
+        zloss = 0.0
+        if self.zloss_weight > 0:
+            with measure_time(self, "calculate zloss"):
+                zloss = calculate_z_loss(
+                    zloss_weight=self.zloss_weight, gate_logits=gate_logits
+                )
+            if "z_losses" not in self.forward_pass_cache:
+                self.forward_pass_cache["z_losses"] = [zloss]
+            else:
+                self.forward_pass_cache["z_losses"].append(zloss)
+
+        self.update_cache_for_logging("z_loss", zloss)
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
         return gate_out
 
@@ -367,6 +385,7 @@ class TokenGating(MoeGating):
         return {
             "dropped_tokens_ratio": self.logging_cache["dropped_tokens_ratio"],
             "load_balancing_loss": self.logging_cache["load_balancing_loss"],
+            "z_loss": self.logging_cache["z_loss"],
         }
 
     def log_heavy(self):
