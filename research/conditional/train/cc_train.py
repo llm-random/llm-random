@@ -106,23 +106,22 @@ def make_param_groups_for_relative_lr(
         baseline_args, baseline_keys, relative_params_all
     ):
         if relative_params is None:
-            all_groups.append(
-                ([{"params": model.parameters(), key: baseline_arg}], [1.0])
-            )
+            param_groups = [{"params": model.parameters(), key: baseline_arg}]
 
-        relative_to_params = defaultdict(list)
-        for name, param in model.named_parameters():
-            ratio = 1.0
-            for possible_name in relative_params.keys():
-                if possible_name in name:
-                    ratio = relative_params[possible_name]
-                    break
-            relative_to_params[ratio * baseline_arg].append(param)
-        param_grops = [
-            {"params": params, key: relative_arg}
-            for relative_arg, params in relative_to_params.items()
-        ]
-        all_groups.append(param_grops)
+        else:
+            relative_to_params = defaultdict(list)
+            for name, param in model.named_parameters():
+                ratio = 1.0
+                for possible_name in relative_params.keys():
+                    if possible_name in name:
+                        ratio = relative_params[possible_name]
+                        break
+                relative_to_params[ratio * baseline_arg].append(param)
+            param_groups = [
+                {"params": params, key: relative_arg}
+                for relative_arg, params in relative_to_params.items()
+            ]
+        all_groups.append(param_groups)
 
     param_groups = all_groups[0]
     for group2 in all_groups[1:]:
@@ -346,9 +345,8 @@ def main(
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    print(f"args.scheduler: {args.scheduler}")
     scheduler = get_scheduler(args, **ratios_in_group_order)
-    print(f"Scheduler_ratios: {scheduler.ratios_lr}")
+    # print(f"Scheduler_ratios: {scheduler.ratios_lr}")
     rescale_params_after_init(args, model)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
