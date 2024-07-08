@@ -98,8 +98,24 @@ def make_param_groups_and_lr_ratios(args, model):
 def make_param_groups_for_optimizer(
     model, baseline_args, baseline_keys, relative_params_all
 ):
+    # baseline_args: [lr, scheduler_fraction]
+    # baseline_keys: ["ratios_lr_in_group_order", "scheduler_fractions_in_group_order"] ~ like names of get_scheduler params
+    # relative_params_all: [dict_for_relative_lr, dict_for_relative_scheduler_fraction]
     assert len(baseline_args) == len(baseline_keys)
     assert len(relative_params_all) == len(baseline_keys)
+
+    ratios_in_group_order = {key: [] for key in baseline_keys}
+
+    if (relative_params_all[0] is None) & (relative_params_all[1] is None):
+        param_groups = {"params": model.parameters()}
+        for key, arg in zip(baseline_keys, baseline_args):
+            ratios_in_group_order[key] = 1.0
+            if arg is not None:
+                param_groups[key] = arg
+            else:
+                param_groups[key] = 1.0
+
+        return [param_groups], ratios_in_group_order
 
     all_groups = []
     for baseline_arg, key, relative_params in zip(
@@ -127,7 +143,6 @@ def make_param_groups_for_optimizer(
     for group2 in all_groups[1:]:
         param_groups = merge_params_dicts(param_groups, group2)
 
-    ratios_in_group_order = {key: [] for key in baseline_keys}
     for param_group in param_groups:
         for baseline_arg, key in zip(baseline_args, baseline_keys):
             ratios_in_group_order[key].append(param_group[key] / baseline_arg)
