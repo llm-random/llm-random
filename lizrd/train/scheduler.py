@@ -10,6 +10,7 @@ def get_scheduler(
     ratios_lr_in_group_order: Optional[list[float]] = None,
     scheduler_fractions_in_group_order: Optional[list[float]] = None,
 ) -> "AbstractLRScheduler":
+    print(args.scheduler)
     if ratios_lr_in_group_order is None:
         ratios_lr_in_group_order = [1.0]
     if scheduler_fractions_in_group_order is None:
@@ -104,11 +105,23 @@ class CosineScheduler(AbstractLRScheduler):
             return self.lr * self.final_lr_fraction
 
     def set_lr(self, optimizer: Optimizer, step: int):
-        new_lr = self.get_lr(step)
-        for param_group, ratio in zip(
-            optimizer.param_groups,
-            self.ratios_lr,
-            self.scheduler_fractions,
-            strict=True,
-        ):
-            param_group["lr"] = new_lr * ratio
+        if self.scheduler_fractions is None:
+            super.set_lr(optimizer, step)
+        else:
+            new_lr = self.get_lr(step)
+            for param_group, ratio_lr, fraction in zip(
+                optimizer.param_groups,
+                self.ratios_lr,
+                self.scheduler_fractions,
+                strict=True,
+            ):
+                if step < self.lr_warmup_steps:
+                    relative_lr = new_lr
+                elif step < self.final_lr_step:
+                    relative_lr = (new_lr - self.lr) * (
+                        1 - self.final_lr_fraction * fraction
+                    ) / (1 - self.final_lr_fraction) + self.lr
+                    relative_lr = relative_lr
+                else:
+                    relative_lr = new_lr * fraction
+                param_group["lr"] = relative_lr * ratio_lr

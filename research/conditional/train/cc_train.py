@@ -96,7 +96,7 @@ def make_param_groups_and_lr_ratios(args, model):
 # it's the function above but in a for-loop, and it returns param_groups,
 # where each group has a unique combination of relative optimizer related parameters
 def make_param_groups_for_relative_lr(
-    args, model, baseline_args, baseline_keys, relative_params_all
+    model, baseline_args, baseline_keys, relative_params_all
 ):
     assert len(baseline_args) == len(baseline_keys)
     assert len(relative_params_all) == len(baseline_keys)
@@ -324,13 +324,17 @@ def main(
         for name, param in model.named_parameters():
             print(name, param.shape)
 
-    param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
+    param_grops_old, ratios_in_group_order_old = make_param_groups_and_lr_ratios(
+        args, model
+    )
 
-    # baseline_args = [args.learning_rate, args.final_lr_fraction]
-    # baseline_keys = ['ratios_lr_in_group_order', 'scheduler_fractions_in_group_order']
-    # relative_params_all = [args.relative_lr, args.relative_scheduler_fraction]
+    baseline_args = [args.learning_rate, args.final_lr_fraction]
+    baseline_keys = ["ratios_lr_in_group_order", "scheduler_fractions_in_group_order"]
+    relative_params_all = [args.relative_lr, args.relative_scheduler_fraction]
 
-    # param_grops, ratios_in_group_order = make_param_groups_for_relative_lr(args, model, baseline_args, baseline_keys, relative_params_all)
+    param_grops, ratios_in_group_order = make_param_groups_for_relative_lr(
+        model, baseline_args, baseline_keys, relative_params_all
+    )
 
     optimizer = torch.optim.AdamW(
         param_grops,
@@ -342,8 +346,9 @@ def main(
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args, ratios_in_group_order)
-    print(f"Scheduler_ratios: {scheduler.ratios}")
+    print(f"args.scheduler: {args.scheduler}")
+    scheduler = get_scheduler(args, **ratios_in_group_order)
+    print(f"Scheduler_ratios: {scheduler.ratios_lr}")
     rescale_params_after_init(args, model)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
