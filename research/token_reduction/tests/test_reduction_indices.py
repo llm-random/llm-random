@@ -2,8 +2,6 @@ import unittest
 import torch
 
 from research.token_reduction.layers import (
-    TokenDroppingLayer,
-    TokenMergingLayer,
     choose_indeces_to_reduce,
 )
 

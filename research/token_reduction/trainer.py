@@ -19,8 +19,6 @@ from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 from research.token_reduction.layers import (
-    TokenDroppingLayer,
-    TokenMergingLayer,
     TokenReductionEmbedding,
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
