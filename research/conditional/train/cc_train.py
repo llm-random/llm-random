@@ -109,7 +109,7 @@ def make_param_groups_for_optimizer(
     if (relative_params_all[0] is None) & (relative_params_all[1] is None):
         param_groups = {"params": model.parameters()}
         for key, arg in zip(baseline_keys, baseline_args):
-            ratios_in_group_order[key] = 1.0
+            ratios_in_group_order[key] = [1.0]
             if arg is not None:
                 param_groups[key] = arg
             else:
