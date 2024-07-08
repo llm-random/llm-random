@@ -4,8 +4,9 @@ time: 0-05:00:00
 
 params:
   name: "laptop_check"
-  ff_mode: chimera
-  cutoff: 16
+  ff_mode: token_choice
+  cutoff: 8
+  batch_size: 32
   granularity: 4
   final_lr_step: 100
   lr_warmup_steps: 2
@@ -16,3 +17,12 @@ params:
   ^group_granular_moe_by_batch: [False]
   granular_moe_one_hot_impl: False
   use_torch_bmm: False
+  mixed_precision: False
+  flash_attention: False
+  init_type: truncated_normal_fixed
+  print_parameter_names: true
+  relative_lr:
+    embedding_layer: 5.
+    expert_inner_function: 6.
+    gating: 0.6
+    head: 0.2
