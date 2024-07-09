@@ -16,7 +16,7 @@ def get_scheduler(
             lr=args.learning_rate,
             ratios=ratios_in_group_order,
         )
-    elif args.scheduler == "cosine" and args.lr_restart_on_chimera:
+    elif args.scheduler == "cosine" and "lr_restart_on_chimera" in args and args.lr_restart_on_chimera:
         if args.final_lr_step is None:
             args.final_lr_step = args.n_steps
         restart_time = int(args.chimera_change_after_percent * args.final_lr_step)
@@ -52,7 +52,7 @@ class AbstractLRScheduler(ABC):
 
     def set_lr(self, optimizer: Optimizer, step: int):
         new_lr = self.get_lr(step)
-        for param_group, ratio in zip(optimizer.param_groups, self.ratios, strict=True):
+        for param_group, ratio in zip(optimizer.param_groups, self.ratios):
             param_group["lr"] = new_lr * ratio
 
 

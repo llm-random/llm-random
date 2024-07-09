@@ -1,0 +1,44 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+time: "2-00:00:00"
+runner: "research.token_reduction.utils.runner"
+n_gpus: 1
+
+params:
+  name: "base_token_rnn_merging"
+
+  ^reduction_layer_type: ["rnn_merging"]
+  ^cutoff: [1024]
+  ^batch_size: [256]
+  ^learning_rate: [1e-3]
+  gradient_accumulation_steps: 4
+  ^tr_schedule: ["100_const_1"]
+  ^rnn_type: ["rnn", "lstm"]
+
+  tags: [ "base", "token_reduction" , "baseline_tag_rnn"]
+
+  n_steps: 16_000
+  final_lr_step: 16_000
+  lr_warmup_steps: 160
+  final_lr_fraction: 0.1
+
+  # precision / distributed
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  grad_clip: 0.1
+  logger_types: "neptune"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  logging_interval_light: 100
+  save_weights_interval: 0
+  eval_interval: 100

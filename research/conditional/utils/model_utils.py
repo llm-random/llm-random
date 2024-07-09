@@ -428,7 +428,8 @@ def get_only_token_choice_args(args):
     return {
         "load_balancing_loss_weight": args.load_balancing_loss_weight,
         "routing_top_k": args.routing_top_k,
-        "capacity_factor": args.capacity_factor
+        "capacity_factor": args.capacity_factor,
+        "zloss_weight": args.zloss_weight,
     }
 
 
@@ -653,9 +654,6 @@ def get_ff_layer(args):
             dmodel=args.dmodel,
             n_experts=args.n_experts,
             expert_inner_function=make_expert_inner_function(),
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
-            zloss_weight=args.zloss_weight,
-            routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
             **get_only_token_choice_args(args),

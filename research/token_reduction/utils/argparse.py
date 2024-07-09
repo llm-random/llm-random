@@ -309,6 +309,18 @@ def introduce_parser_arguments(
     parser.add_argument("--x_logarithmic", action="store_true")
 
     parser.add_argument(
+        "--rnn_type",
+        type=str,
+        choices=[
+            "manual",
+            "rnn",
+            "lstm"
+        ],
+        default="lstm",
+        required=False,
+    )
+
+    parser.add_argument(
         "--norm_class",
         type=str,
         choices=[

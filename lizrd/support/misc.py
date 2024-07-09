@@ -26,7 +26,7 @@ def count_parameters(model, args, VOCAB_SIZE):
 
 
 def count_moe_non_emb_active_params(args):
-    return args.dmodel**2 * (4 + 2 * args.effective_dff_x) * args.n_blocks
+    return args.dmodel**2 * (4 + 2 * (args.effective_dff_x if args.effective_dff_x is not None else 4)) * args.n_blocks
 
 
 def count_tokens_per_step(args):

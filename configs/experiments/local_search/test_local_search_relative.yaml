@@ -5,7 +5,7 @@ interactive_debug_session: false
 interactive_debug: false
 
 params:
-  name: "local_search_relative_moe"
+  name: "local_search_relative_moe_short"
   ff_mode: token_choice
   capacity_factor: 1.0
 
@@ -19,9 +19,9 @@ params:
   batch_size: 512
   cutoff: 256
 
-  n_steps: 8_000
-  final_lr_step: 8_000
-  lr_warmup_steps: 80
+  n_steps: 4_000
+  final_lr_step: 4_000
+  lr_warmup_steps: 40
   scheduler: cosine
 
   final_lr_fraction: 0.066666
@@ -35,9 +35,9 @@ params:
 
   print_parameter_names: true
   relative_lr:
-    embedding_layer: 1.
+    embedding_layer: 5.
     head: 1.
-    expert_inner_function: 1.
+    expert_inner_function: 0.2
     gating: 1.
 
 tune_config:

@@ -22,6 +22,7 @@ from research.token_reduction.layers import (
     TokenDroppingLayer,
     TokenMergingLayer,
     TokenReductionEmbedding,
+    TokenRnnMergingLayer,
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
@@ -197,8 +198,8 @@ def calculate_llm_loss_and_gradient(
             )
 
             if isinstance(reduction_layer, TokenDroppingLayer) or isinstance(
-                reduction_layer, TokenMergingLayer
-            ):
+                reduction_layer, TokenMergingLayer  # I hate this so much
+            ) or isinstance(reduction_layer, TokenRnnMergingLayer):
                 indices_to_keep = reduction_layer.indices_to_keep.to(mask.device)
                 mask = keep_given_indeces(mask, indices_to_keep)
                 gt_tokens = keep_given_indeces(gt_tokens, indices_to_keep)

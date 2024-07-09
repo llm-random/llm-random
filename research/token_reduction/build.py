@@ -114,6 +114,7 @@ def get_embedding_layer(
     device: torch.device,
     reduction_layer_type: str,
     scheduler_params: List[tuple[int, int, int]],
+    rnn_type: str,
 ):
     scheduler = (
         None
@@ -144,6 +145,10 @@ def get_embedding_layer(
     elif reduction_layer_type == "dropping":
         reduction_layer = lambda: layers.TokenDroppingLayer(
             reference_seq_len, scheduler
+        )
+    elif reduction_layer_type == "rnn_merging":
+        reduction_layer = lambda: layers.TokenRnnMergingLayer(
+            reference_seq_len, dm, scheduler, rnn_type=rnn_type,
         )
 
     return (
@@ -237,6 +242,7 @@ def get_model(
     checkpoint: dict[str, torch.Tensor] = None,
     reduction_layer_type: str = None,
     scheduler_params: List[tuple[int, int, int]] = None,
+    rnn_type: str = "lstm",
 ):
     embedding_layer, max_seq_len = get_embedding_layer(
         reference_seq_len,
@@ -248,6 +254,7 @@ def get_model(
         device,
         reduction_layer_type,
         scheduler_params,
+        rnn_type,
     )
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
