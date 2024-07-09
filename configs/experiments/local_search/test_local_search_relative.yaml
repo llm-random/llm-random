@@ -25,7 +25,7 @@ params:
   scheduler: cosine
 
   final_lr_fraction: 0.066666
-  init_scale: 0.5
+  init_scale: 0.333
   learning_rate: 0.003
   weight_decay: 0.15
 
@@ -36,18 +36,38 @@ params:
   print_parameter_names: true
   relative_lr:
     embedding_layer: 5.
+    head: 0.666
+    expert_inner_function: 0.3
+    gating: 0.666
+
+  relative_init_scale:
+    embedding_layer: 1.
     head: 1.
-    expert_inner_function: 0.2
+    expert_inner_function: 1.
     gating: 1.
+
+  relative_scheduler_fraction:
+    embedding_layer: 1.
+    expert_inner_function: 1.
+    gating: 1.
+    head: 1.
+
 
 tune_config:
   iters: 30
   tune_params:
     - "learning_rate"
-    - "init_scale"
-#    - "weight_decay"
-#    - "final_lr_fraction"
     - "relative_lr:embedding_layer"
     - "relative_lr:head"
     - "relative_lr:expert_inner_function"
     - "relative_lr:gating"
+    - "init_scale"
+    - "relative_init_scale:embedding_layer"
+    - "relative_init_scale:head"
+    - "relative_init_scale:expert_inner_function"
+    - "relative_init_scale:gating"
+    - "final_lr_fraction"
+    - "relative_scheduler_fraction:embedding_layer"
+    - "relative_scheduler_fraction:head"
+    - "relative_scheduler_fraction:expert_inner_function"
+    - "relative_scheduler_fraction:gating"

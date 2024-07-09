@@ -12,8 +12,6 @@ params:
   lr_warmup_steps: 2
   dataset_type: wikibook
   chimera_change_after_percent: 0.1
-  lr_restart_on_chimera: true
-  lr_restart_first_full: true
   ^group_granular_moe_by_batch: [False]
   granular_moe_one_hot_impl: False
   use_torch_bmm: False
@@ -25,4 +23,9 @@ params:
     embedding_layer: 5.
     expert_inner_function: 6.
     gating: 0.6
+    head: 0.2
+
+relative_scheduler_fraction:
+    embedding_layer: 0.2
+    encoder: 0.2
     head: 0.2
