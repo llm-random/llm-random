@@ -12,6 +12,10 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
+from research.tokenizex.model.input_wise_attention import ManagerMaskSetter
+from research.tokenizex.model.input_wise_pe import ManagerPESetter
+from research.tokenizex.model.tokenizer import TokenizexTokenizer
+from research.tokenizex.utils.data import TokenizexBatch
 from research.tokenizex.utils.layer_manager import LayerManager
 from research.tokenizex.utils.model_utils import (
     make_loss_and_gradient_function,
@@ -24,12 +28,12 @@ from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 
 
 @define(slots=False)
-class TemplateTrainer:
+class TokenizexTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
     eval_dataloader: DataloaderWrapper
-    vocab_size: int
+    # vocab_size: int #dev ?
     mixed_precision: bool
     mixed_precision_dtype: torch.dtype
     logger: Optional[AbstractLogger]
@@ -43,8 +47,8 @@ class TemplateTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
-    _calculate_loss_and_gradient: Optional[Callable] = None
-    mask_percent: Optional[float] = None
+    # _calculate_loss_and_gradient: Optional[Callable] = None #dev ?
+    # mask_percent: Optional[float] = None #dev ?
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
@@ -102,22 +106,22 @@ class TemplateTrainer:
         self._check_config()
 
     def _before_train_operations(self):
-        propagate_forward_pass_cache(self.model)
-        update_model_fit_gpu_info(
+        propagate_forward_pass_cache(self.model) #dev ? 
+        update_model_fit_gpu_info( #dev ? 
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
             "failure",
         )
 
     def _after_train_operations(self):
-        update_model_fit_gpu_info(
+        update_model_fit_gpu_info( #dev ? 
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
             "success",
         )
 
     def _after_step_operations(self, step):
-        self.model.forward_pass_cache.clear()
+        self.model.forward_pass_cache.clear() #dev ? 
         self.layer_manager.manage_learnable_temperature(step)
 
     def train(self, n_steps: int):
@@ -248,7 +252,7 @@ class TemplateTrainer:
         )
 
     def _eval_single_variant(
-        self, batches: Iterable[LLMBatch], step: int, variant_name: str
+        self, batches: Iterable[TokenizexBatch], step: int, variant_name: str
     ):
         self.model.eval()
         total_loss = 0.0
@@ -281,23 +285,52 @@ class TemplateTrainer:
                     iteration=step,
                 )
 
+    @staticmethod
+    def decode_single_example(
+        model: torch.nn.Module,
+        max_sequence_length: int,
+        input_tokens_ids: torch.Tensor,
+        input_tokens_pos: torch.Tensor,
+        input_tokens_masks: torch.Tensor,
+        end_token_id: int,
+    ) -> torch.Tensor:
+        output_tokens_ids = torch.nn.functional.pad(
+            input_tokens_ids, (0, max_sequence_length - len(input_tokens_ids))
+        )
+        output_length = len(input_tokens_ids)
+        with model.eval(), torch.no_grad(), ManagerMaskSetter(model, input_tokens_masks), ManagerPESetter(model, input_tokens_pos):
+            while True:
+                predictions = model(output_tokens_ids)
+                next_token_id = torch.argmax(predictions, dim=-1)[output_length - 1].item()
+                output_tokens_ids[output_length] = next_token_id
+                output_length += 1
+                if output_length == max_sequence_length or next_token_id == end_token_id:
+                    break
+        return output_tokens_ids[:output_length]
+
+
     def _decode_samples(self, step):
+        raise NotImplementedError("TODO")
         examples = [
             "1, 2, 3, 4, 5",
             "Our Father, who art in heaven,",
             "Warsaw -> Poland Paris -> France Berlin ->",
             "Speech at a funeral of a fly: ",
         ]
-        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        tokenizer = TokenizexTokenizer()
         for example in examples:
-            tokens = torch.tensor(
-                tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))
-            ).to(self.train_dataloader.device)
-            output_tokens = decode_single_example(
+            tokens, pos, masks = tokenizer.text_to_ids_pos_mask(example)
+            tokens = torch.tensor(tokens).to(self.train_dataloader.device)
+            pos = torch.tensor(pos).to(self.train_dataloader.device)
+            masks = torch.tensor(masks).to(self.train_dataloader.device)
+
+            output_tokens = TokenizexTrainer.decode_single_example(
                 self.model,
                 self.max_sequence_length,
                 tokens,
-                tokenizer._convert_token_to_id("<|endoftext|>"),
+                pos,
+                masks,
+                tokenizer.eot_id_target,
             )
             decoded_output = tokenizer.decode(output_tokens)
             print(f"{example}: {decoded_output}")

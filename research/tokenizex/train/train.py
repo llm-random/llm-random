@@ -26,13 +26,12 @@ from lizrd.text import tokenizers
 from research.datasets import DataloaderWrapper
 from research.tokenizex.model.input_wise_pe import InputWisePositionalEmbedding
 from lizrd.train.scheduler import get_scheduler
-from research.tokenizex.utils.trainer import TemplateTrainer
+from research.tokenizex.utils.trainer import TokenizexTrainer
 from research.tokenizex.utils.argparse import introduce_parser_arguments
 from research.tokenizex.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
-    get_attention_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     update_model_fit_gpu_info,
@@ -41,7 +40,7 @@ from research.tokenizex.utils.model_utils import (
 
 from research.tokenizex.model.tokenizer import TokenizexTokenizer
 from research.tokenizex.utils.check_args import check_args
-from research.tokenizex.model.input_wise_attention import get_attention_layer as get_input_configured_attention_layer
+from research.tokenizex.model.input_wise_attention import get_attention_layer as get_input_wise_attention_layer
 from research.tokenizex.utils.datasets import get_processed_dataset
 from lizrd.train.train_utils import (
     get_model,
@@ -143,7 +142,7 @@ def main(
     residual_fn = get_residual_layer(args)
 
     model_fit_gpu_info_params = get_argument_attributes(
-        args, args.model_fit_gpu_info_params
+        args, args.model_fit_gpu_info_params #dev model_fit_gpu_info_params will be None from args, can it be?
     )
     update_model_fit_gpu_info(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
@@ -153,11 +152,10 @@ def main(
     for module_name in args.block_modules:
         if module_name == "attention":
             raise NotImplementedError("development - this train.py is only for tokenizex experiments")
-            block_modules[module_name] = get_attention_layer(args)
         elif module_name == "feedforward":
             block_modules[module_name] = get_ff_layer(args)
-        if module_name == "example_pe_mask_attention": # dev positional encoding and mask comes by example in batch with input
-            block_modules[module_name] = get_input_configured_attention_layer(args)
+        elif module_name == "example_pe_mask_attention": # dev positions and att masks comes by example in batch within input by Managers around model call
+            block_modules[module_name] = get_input_wise_attention_layer(args)
         else:
             raise ValueError(f"Unknown module name: {module_name}")
 
@@ -173,11 +171,11 @@ def main(
         if args.load_weights_path is not None
         else None
     )
-
+    
     embedding_components = [
         llm.TokenEmbedding(TokenizexTokenizer.VOCAB_SIZE, args.dmodel, init_type=args.init_type, init_scale=args.init_scale)
     ]
-    if args.tokenizex_positional_embedding:
+    if (not args.no_positional_embedding):
         embedding_components.append(
             InputWisePositionalEmbedding(args.cutoff, args.dmodel, init_type=args.init_type, init_scale=args.init_scale)
         )
@@ -257,7 +255,7 @@ def main(
         "num_workers": args.num_workers,
         "batch_size": batch_size,
         "seed": args.data_seed if data_seeds is None else data_seeds[rank],
-        "model_type": args.model_type,
+        "tokenizer_maker": TokenizexTokenizer,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
     }
@@ -294,8 +292,6 @@ def main(
             ),
         )
 
-    #dev check to this point ...
-
     profiler_schedule = (
         torch.profiler.schedule(
             wait=args.profiler_schedule_wait,
@@ -308,13 +304,12 @@ def main(
         else disable_profile_schedule_fn
     )
 
-    trainer = TemplateTrainer(
+    trainer = TokenizexTrainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
         eval_dataloader=eval_dataloader,
-        vocab_size=vocab_size,
-        mask_percent=args.mask_percent,
+        # mask_percent=args.mask_percent,
         mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
         mixed_precision_dtype=args.mixed_precision_dtype,
         logger=logger,

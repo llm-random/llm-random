@@ -25,13 +25,13 @@ def get_processed_dataset(
     dataset_path: Optional[str] = None,
 ) -> DataloaderWrapper:
     if dataset_type == "wikibook":
-        dataset = partial(
+        dataset_maker = partial(
             datasets.WikiBookDataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
         )
     elif dataset_type == "c4":
-        dataset = partial(
+        dataset_maker = partial(
             datasets.C4Dataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
@@ -42,7 +42,7 @@ def get_processed_dataset(
 
     packer = TokenizexGPTPacker(
         sequence_length=sequence_length,
-        dataset=dataset,
+        dataset_maker=dataset_maker,
         tokenizer_maker=tokenizer_maker,
         seed=seed
     )

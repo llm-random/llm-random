@@ -6,7 +6,7 @@ def introduce_parser_arguments(
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument(
-        "--model_type", type=str, choices=["gpt"], required=True
+        "--model_type", type=str, choices=["gpt"], default="gpt", required=False
     )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--attention_mode", type=str, default="vanilla") #dev my attention
@@ -306,10 +306,24 @@ def introduce_parser_arguments(
     )
 
 
-    # tokenizex parameters
+    # tokenizex parameters 
+    # #dev TODO
 
-    parser.add_argument("--atomization_strategy", action=list[tuple[float, float]], default=[(1,1)], help="steps proportion (first tuple el) to used with token atomization propabolity (second tuple el), applied in series (lists el). eg [(0.5,0), (0.5,1)] - first half of training has no tokens atomization, second half has all tokens atomization")
-    parser.add_argument("--input_part_no_atomized", action=float, default=0, help="beginning part of input no atomized") #dev optimization prop TODO
+    def parse_atomization_strategy(value):
+        try:
+            # Remove the surrounding square brackets
+            value = value.strip('[]')
+            # Split the string into tuple strings
+            tuples = value.split('), (')
+            # Convert each tuple string into an actual tuple
+            result = [tuple(map(float, t.strip('()').split(','))) for t in tuples]
+            return result
+        except ValueError:
+            raise argparse.ArgumentTypeError("Atomization strategy must be a list of tuples of floats, e.g., '[(1,1), (2,3)]'")
+
+
+    parser.add_argument("--atomization_strategy", type=parse_atomization_strategy, default=[(1.0, 1.0)], help="list[tuple[float, float]] : steps proportion (first tuple el) to used with token atomization propabolity (second tuple el), applied in series (lists el). eg [(0.5,0), (0.5,1)] - first half of training has no tokens atomization, second half has all tokens atomization")
+    parser.add_argument("--input_part_no_atomized", type=float, default=0, help="beginning part of input no atomized") #dev optimization prop TODO
     parser.add_argument("--input_wise_positional_embedding", action="store_true")
 
 

@@ -42,18 +42,18 @@ def check_args(args):
         steps_p_sum += e[0]
     normalized_a_strat = []
     for e in atomization_strategy:
-        normalized_a_strat.append((e[0]/normalized_a_strat, e[1]))
+        normalized_a_strat.append((e[0]/steps_p_sum, e[1]))
     args.atomization_strategy = normalized_a_strat
 
     if args.input_part_no_atomized != 0:
         raise NotImplementedError("Not implemented - optimization feature (mostly)")
     
-    if args.residual_mode is not None:
-        raise NotImplementedError("Not implemented")
-    
     if args.input_wise_positional_embedding and args.no_positional_embedding:
         raise Exception("Cannot have both")
     
-    if args.model_type is not None or args.model_type is not "gpt":
+    if args.model_type is not "gpt":
         raise Exception("Only GPT")
+    
+    if not args.input_wise_positional_embedding:
+        raise NotImplementedError("Not implemented other option")
     

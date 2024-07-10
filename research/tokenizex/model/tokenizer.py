@@ -17,7 +17,7 @@ class TokenizexTokenizer(AbstractTokenizer):
         disable_tokenizer_warnings(self.tokenizer) #dev
 
         self.eot_id = self.tokenizer.convert_tokens_to_ids("<|endoftext|>") #dev beware!
-        self.eot_id_target = 257 #dev beware!
+        self.eot_id_target = 256 #dev beware!
 
         self.head_cast = TokenizexTokenizer.reorder_atomize_tokens(self.tokenizer) # Head ids cast to default tokenizers atoms ids
         self.head_cast[self.eot_id_target] = self.eot_id

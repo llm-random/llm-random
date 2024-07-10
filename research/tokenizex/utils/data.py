@@ -9,8 +9,8 @@ from lizrd.text.data import LLMExample
 
 @dataclass
 class TokenizexExample(LLMExample):
-    positions: np.ndarray
-    attention_mask: np.ndarray
+    positions: np.ndarray#[int]
+    attention_mask: np.ndarray#[bool]
 
 class TokenizexBatch:
     def __init__(self, examples: List[TokenizexExample]):
@@ -58,8 +58,8 @@ class TokenizexBatch:
             self.input_ids.device
             == self.target_ids.device
             == self.should_calculate_loss.device
-            == self.attention_mask.device
             == self.positions.device
+            == self.attention_mask.device
         )
         return self.input_ids.device
 
@@ -67,6 +67,8 @@ class TokenizexBatch:
         self.input_ids = self.input_ids.to(device)
         self.target_ids = self.target_ids.to(device)
         self.should_calculate_loss = self.should_calculate_loss.to(device)
+        self.positions = self.positions.to(device)
+        self.attention_mask = self.attention_mask.to(device)
         return self
 
     def _make_tensor(self, list_of_lists: List[List[int]]) -> torch.Tensor:
