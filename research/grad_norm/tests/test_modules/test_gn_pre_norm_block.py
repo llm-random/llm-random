@@ -14,28 +14,34 @@ from research.grad_norm.tests.test_modules.utils import TorchIdModule
 def test_grad_modified_build(gn_placement: LayerGradModifPlacement):
     layer = Mock(spec=nn.Module, name="test_layer")
     grad_modif_layer = Mock(spec=nn.Module, name="test_grad_modif_layer")
+    grad_log_layer = Mock(spec=nn.Module, name="test_grad_log_layer")
     pre_norm = GradMofiedPreNormBlock(
         dmodel=16,
         layer=layer,
         name="test_layer",
         gn_placement=gn_placement,
         gn_layer=lambda: grad_modif_layer,
+        log_layer=lambda: grad_log_layer,
     )
 
     residual = pre_norm[0]
     assert isinstance(pre_norm, nn.Sequential)
     assert isinstance(residual, Residual)
 
-    assert hasattr(residual.layer, "post_norm_gn") == gn_placement.post_norm
     if gn_placement.post_norm:
         assert residual.layer.post_norm_gn == grad_modif_layer
-    assert hasattr(residual.layer, "post_layer_gn") == gn_placement.post_layer
+    else:
+        assert residual.layer.post_norm_log == grad_log_layer
     if gn_placement.post_layer:
         assert residual.layer.post_layer_gn == grad_modif_layer
+    else:
+        assert residual.layer.post_layer_log == grad_log_layer
 
-    assert (len(pre_norm) == 2) == gn_placement.post_add
+    assert len(pre_norm) == 2
     if gn_placement.post_add:
         assert pre_norm[1] == grad_modif_layer
+    else:
+        assert pre_norm[1] == grad_log_layer
 
 
 @pytest.mark.parametrize("gn_placement", LayerGradModifPlacement.all_placements())
@@ -48,6 +54,8 @@ def test_grad_modified_pre_norm_block_ff(gn_placement: LayerGradModifPlacement):
 
     gn_layer_factory = Mock()
     gn_layer_factory.side_effect = lambda: Mock(spec=nn.Module, name="test_gn_layer_factory", wraps=TorchIdModule())
+    log_layer_factory = Mock()
+    log_layer_factory.side_effect = lambda: Mock(spec=nn.Module, name="log_layer_factory", wraps=TorchIdModule())
     pre_norm = GradMofiedPreNormBlock(
         dmodel=16,
         layer=layer,
@@ -55,6 +63,7 @@ def test_grad_modified_pre_norm_block_ff(gn_placement: LayerGradModifPlacement):
         name="test_layer",
         gn_placement=gn_placement,
         gn_layer=gn_layer_factory,
+        log_layer=log_layer_factory,
     )
 
     x = torch.rand(1, 16)
@@ -65,3 +74,4 @@ def test_grad_modified_pre_norm_block_ff(gn_placement: LayerGradModifPlacement):
     assert gn_layer_factory.call_count == int(gn_placement.post_norm) + int(gn_placement.post_layer) + int(
         gn_placement.post_add
     )
+    assert gn_layer_factory.call_count + log_layer_factory.call_count == 3

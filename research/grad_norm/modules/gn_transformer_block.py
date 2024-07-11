@@ -15,6 +15,7 @@ class GradModifiedTransformerBlock(nn.Module):
         layers,
         gn_placement: BlockGradModifPlacement,
         grad_modif_fn: Callable[[], nn.Module],
+        grad_log_fn: Callable[[], nn.Module],
         norm_class: Optional[nn.Module] = None,
     ):
         super(GradModifiedTransformerBlock, self).__init__()
@@ -38,6 +39,7 @@ class GradModifiedTransformerBlock(nn.Module):
                 dmodel=dmodel,
                 gn_placement=layer_gn_placement,
                 gn_layer=grad_modif_fn,
+                log_layer=grad_log_fn,
                 **norm_class_kwargs,
             )
 

@@ -29,6 +29,7 @@ def test_single_attention_block_build(mock_grad_modidied_pre_norm_block, mock_la
         layers=[("attention", mock_layer)],
         gn_placement=gn_placement,
         grad_modif_fn=Mock(return_value=mock_layer),
+        grad_log_fn=Mock(return_value=mock_layer),
     )
 
     assert isinstance(block, GradModifiedTransformerBlock)
@@ -49,6 +50,7 @@ def test_single_ff_block(mock_grad_modidied_pre_norm_block, mock_layer):
         layers=[("feedforward", mock_layer)],
         gn_placement=gn_placement,
         grad_modif_fn=lambda: mock_layer,
+        grad_log_fn=Mock(return_value=mock_layer),
     )
 
     assert isinstance(block, GradModifiedTransformerBlock)
@@ -69,6 +71,7 @@ def test_single_full_block(mock_grad_modidied_pre_norm_block, mock_layer):
         layers=[("attention", mock_layer), ("feedforward", mock_layer)],
         gn_placement=gn_placement,
         grad_modif_fn=lambda: mock_layer,
+        grad_log_fn=Mock(return_value=mock_layer),
     )
 
     assert isinstance(block, GradModifiedTransformerBlock)
@@ -89,6 +92,7 @@ def test_block_ff(mock_layer, layers: List[str]):
         gn_placement=gn_placement,
         grad_modif_fn=Mock(return_value=mock_layer),
         norm_class=Mock(return_value=mock_layer),
+        grad_log_fn=Mock(return_value=mock_layer),
     )
 
     x = torch.rand(1, 16)

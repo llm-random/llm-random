@@ -18,7 +18,8 @@ class GradModiedTransformerTower(nn.Module):
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         gn_placement: Optional[BlockGradModifPlacement] = None,
-        grad_modif_fn: Optional[Callable[[], nn.Module]] = None,
+        grad_modif_fn: Callable[[], nn.Module] = None,
+        grad_log_fn: Callable[[], nn.Module] = None,
     ):
         super().__init__()
         misc.check_layer_funs(*layer_dict.values())
@@ -35,10 +36,7 @@ class GradModiedTransformerTower(nn.Module):
 
             _, current_device = self.get_current_device(i_block)
             block = GradModifiedTransformerBlock(
-                dmodel,
-                layers_info,
-                gn_placement=gn_placement,
-                grad_modif_fn=grad_modif_fn,
+                dmodel, layers_info, gn_placement=gn_placement, grad_modif_fn=grad_modif_fn, grad_log_fn=grad_log_fn
             )
             if current_device != torch.device("cpu"):
                 block = block.to(current_device)

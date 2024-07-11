@@ -3,6 +3,7 @@ from functools import partial
 from typing import Callable, Optional, Type, Union
 
 import torch
+import torch.nn as nn
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
 )
@@ -205,18 +206,13 @@ def get_model(
     activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     is_logging_process: bool,
     grad_modif_placement: BlockGradModifPlacement,
-    grad_modif_fn: Optional[Callable[[], torch.nn.Module]] = None,
+    grad_modif_fn: Callable[[], torch.nn.Module],
     rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
 ):
-
-    if grad_modif_fn is None:
-        logger.warning("No grad_modif_fn provided. No gradient modification will be applied.")
-        grad_modif_fn = lambda: torch.nn.Identity()
-        grad_modif_placement = BlockGradModifPlacement()
 
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -232,6 +228,8 @@ def get_model(
 
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
 
+    grad_log_fn = lambda: nn.Identity()
+
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = GradModiedTransformerTower(
         n_blocks,
@@ -241,6 +239,7 @@ def get_model(
         model_fragmentation=model_fragmentation,
         gn_placement=grad_modif_placement,
         grad_modif_fn=grad_modif_fn,
+        grad_log_fn=grad_log_fn,
     )
 
     head = llm.PredictionHead(dm, vocab_size, init_type=init_type, init_scale=init_scale).to(last_gpu)
