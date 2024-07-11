@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Callable, Optional
+from typing import Callable
 
 import torch.nn as nn
 
@@ -11,9 +11,9 @@ def GradMofiedPreNormBlock(
     dmodel,
     layer,
     name,
+    gn_layer: Callable[[], nn.Module],
     gn_placement: LayerGradModifPlacement,
     norm_class=nn.LayerNorm,
-    gn_layer: Optional[Callable[[], nn.Module]] = None,
 ):
     inside_residual_blocks = [
         ("pre_norm", norm_class(dmodel)),
