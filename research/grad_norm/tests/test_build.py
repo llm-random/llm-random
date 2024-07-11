@@ -15,8 +15,9 @@ def set_attrs_mock(m: MagicMock, d: dict):
             new_mock = MagicMock()
             set_attrs_mock(new_mock, v)
             setattr(m, k, new_mock)
-        if isinstance(v, (list, str)):
+        if isinstance(v, (list, str, type(None))):
             setattr(m, k, v)
+            pass
         else:
             raise ValueError("Invalid value type")
     return m
@@ -75,7 +76,7 @@ def test_get_grad_modif_fn_error_handling(args_mock):
 
 @pytest.mark.parametrize(
     "args_mock",
-    [{"grad_modif_params": ["c=1"]}, {}],
+    [{"grad_modif_params": ["c=1"], "grad_modif_type": None}, {"grad_modif_type": None}],
     indirect=True,
 )
 def test_get_grad_modif_fn_returns_none(args_mock):
