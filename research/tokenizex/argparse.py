@@ -4,7 +4,6 @@ import argparse
 def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
-    
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--tokenizer", type=str, choices=["gpt", "bert"], required=True)
     parser.add_argument("--ff_mode", type=str, default="vanilla")
@@ -82,8 +81,10 @@ def introduce_parser_arguments(
     # Logging parameters
     parser.add_argument("--use_clearml", action="store_true")
     parser.add_argument("--use_neptune", action="store_true")
-    parser.add_argument("--project_name", type=str, default="ms_tests/llm-random/tokenizer") #dev
-    parser.add_argument("--name", type=str, default="") #dev
+    parser.add_argument(
+        "--project_name", type=str, default="ms_tests/llm-random/tokenizer"
+    )  # dev
+    parser.add_argument("--name", type=str, default="")  # dev
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
@@ -171,7 +172,7 @@ def introduce_parser_arguments(
     #     action="store_true",
     #     help="in grouped ExpertChoice, use squash all linears with einsum",
     # )
-    
+
     parser.add_argument(
         "--use_dummy_dataset",
         action="store_true",

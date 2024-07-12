@@ -26,9 +26,9 @@ from lizrd.text import tokenizers
 from research.datasets import DataloaderWrapper
 from research.tokenizex.model.input_wise_pe import InputWisePositionalEmbedding
 from lizrd.train.scheduler import get_scheduler
-from research.tokenizex.utils.trainer import TokenizexTrainer
+from research.tokenizex.train.trainer import TokenizexTrainer
 from research.tokenizex.utils.argparse import introduce_parser_arguments
-from research.tokenizex.utils.model_utils import (
+from research.tokenizex.model.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
@@ -40,7 +40,9 @@ from research.tokenizex.utils.model_utils import (
 
 from research.tokenizex.model.tokenizer import TokenizexTokenizer
 from research.tokenizex.utils.check_args import check_args
-from research.tokenizex.model.input_wise_attention import get_attention_layer as get_input_wise_attention_layer
+from research.tokenizex.model.input_wise_attention import (
+    get_attention_layer as get_input_wise_attention_layer,
+)
 from research.tokenizex.utils.datasets import get_processed_dataset
 from lizrd.train.train_utils import (
     get_model,
@@ -84,15 +86,15 @@ def main(
     rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
     """
     if runner_params is not None:
-        parser = argparse.ArgumentParser() 
-        introduce_parser_arguments(parser) #dev done
+        parser = argparse.ArgumentParser()
+        introduce_parser_arguments(parser)  # dev done
         args, extra = parser.parse_known_args(runner_params)
         if len(extra):
             print("Unknown args:", extra)
         if args.data_seed < 0:
             args.data_seed = random.randint(0, 10000000)
 
-    check_args(args) #dev done
+    check_args(args)  # dev done
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
@@ -112,7 +114,7 @@ def main(
         torch.autograd.set_detect_anomaly(True)
 
     if args.model_parallelism_fragmentation is not None:
-        raise NotImplementedError("optim") #dev optim
+        raise NotImplementedError("optim")  # dev optim
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
@@ -123,7 +125,7 @@ def main(
         args.mixed_precision_dtype = torch.bfloat16
 
     if args.fsdp_enabled:
-        raise NotImplementedError("optim") #dev optim
+        raise NotImplementedError("optim")  # dev optim
         fsdp_param_precision = args.mixed_precision_dtype
         fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
         fsdp_modules_to_wrap = get_classes_from_module_names(args.fsdp_modules_to_wrap)
@@ -142,7 +144,8 @@ def main(
     residual_fn = get_residual_layer(args)
 
     model_fit_gpu_info_params = get_argument_attributes(
-        args, args.model_fit_gpu_info_params #dev model_fit_gpu_info_params will be None from args, can it be?
+        args,
+        args.model_fit_gpu_info_params,  # dev model_fit_gpu_info_params will be None from args, can it be?
     )
     update_model_fit_gpu_info(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
@@ -151,16 +154,20 @@ def main(
     block_modules = {}
     for module_name in args.block_modules:
         if module_name == "attention":
-            raise NotImplementedError("development - this train.py is only for tokenizex experiments")
+            raise NotImplementedError(
+                "development - this train.py is only for tokenizex experiments"
+            )
         elif module_name == "feedforward":
             block_modules[module_name] = get_ff_layer(args)
-        elif module_name == "example_pe_mask_attention": # dev positions and att masks comes by example in batch within input by Managers around model call
+        elif (
+            module_name == "example_pe_mask_attention"
+        ):  # dev positions and att masks comes by example in batch within input by Managers around model call
             block_modules[module_name] = get_input_wise_attention_layer(args)
         else:
             raise ValueError(f"Unknown module name: {module_name}")
 
     if args.parallel_blocks:
-        raise NotImplementedError("optim") #dev optim
+        raise NotImplementedError("optim")  # dev optim
         modules = block_modules.items()
         block_modules = {
             "parallel": lambda: llm.Parallel(*[module() for _, module in modules])
@@ -171,16 +178,28 @@ def main(
         if args.load_weights_path is not None
         else None
     )
-    
+
     embedding_components = [
-        llm.TokenEmbedding(TokenizexTokenizer.VOCAB_SIZE, args.dmodel, init_type=args.init_type, init_scale=args.init_scale)
+        llm.TokenEmbedding(
+            TokenizexTokenizer.VOCAB_SIZE,
+            args.dmodel,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
     ]
-    if (not args.no_positional_embedding):
+    if not args.no_positional_embedding:
         embedding_components.append(
-            InputWisePositionalEmbedding(args.cutoff, args.dmodel, init_type=args.init_type, init_scale=args.init_scale)
+            InputWisePositionalEmbedding(
+                args.cutoff,
+                args.dmodel,
+                init_type=args.init_type,
+                init_scale=args.init_scale,
+            )
         )
     else:
-        raise NotImplemented("Head needs to be initialized outside of get_model first - two vocab_sizes (for head and encoding)")
+        raise NotImplemented(
+            "Head needs to be initialized outside of get_model first - two vocab_sizes (for head and encoding)"
+        )
 
     model = get_model(
         max_length=args.cutoff,
@@ -208,14 +227,16 @@ def main(
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
-        embedding_components=embedding_components
+        embedding_components=embedding_components,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters
     print(f"Number of learnable parameters: {n_learnable_parameters:_}")
 
-    embedding = [m for m in model.modules() if isinstance(m, llm.EmbeddingLayer)][0] #dev why? 
+    embedding = [m for m in model.modules() if isinstance(m, llm.EmbeddingLayer)][
+        0
+    ]  # dev why?
     head = model.head
 
     n_learnable_nonembedding_parameters = (
@@ -278,8 +299,14 @@ def main(
     )
 
     if is_logging_process:
-        logger = get_logger(args, model, int((TokenizexTokenizer.HEAD_VOCAB_SIZE + TokenizexTokenizer.VOCAB_SIZE)/2)) # +- vocab size statistics for logging
-    else: 
+        logger = get_logger(
+            args,
+            model,
+            int(
+                (TokenizexTokenizer.HEAD_VOCAB_SIZE + TokenizexTokenizer.VOCAB_SIZE) / 2
+            ),
+        )  # +- vocab size statistics for logging
+    else:
         logger = None
 
     if args.model_type == "gpt" and is_logging_process:
@@ -361,7 +388,6 @@ if __name__ == "__main__":
         args.data_seed = random.randint(0, 10000000)
 
     if args.ddp_enabled or args.fsdp_enabled:
-        
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 

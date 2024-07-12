@@ -20,12 +20,13 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
-from research.template.utils.check_args import check_args
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from research.tokenizex_comp.utils.check_args import check_args
+from research.datasets import DataloaderWrapper
+from research.tokenizex_comp.utils.datasets import get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.template.utils.trainer import TemplateTrainer
-from research.template.utils.argparse import introduce_parser_arguments
-from research.template.utils.model_utils import (
+from research.tokenizex_comp.train.trainer import TemplateTrainer
+from research.tokenizex_comp.utils.argparse import introduce_parser_arguments
+from research.tokenizex_comp.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,

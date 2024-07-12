@@ -1,5 +1,4 @@
-# runner: "research.conditional.train.cc_train"
-runner: "research.template.train.train"
+runner: "research.tokenizex_comp.train.train"
 
 n_gpus: 1
 interactive_debug: false

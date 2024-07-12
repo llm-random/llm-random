@@ -31,27 +31,3 @@ def check_args(args):
         assert (
             "." not in filename
         ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
-
-    # Tokenizex
-
-    atomization_strategy = args.atomization_strategy
-    steps_p_sum = 0
-    for e in atomization_strategy:
-        assert e[1] <= 1 and e[1] >= 0
-        steps_p_sum += e[0]
-    normalized_a_strat = []
-    for e in atomization_strategy:
-        normalized_a_strat.append((e[0] / steps_p_sum, e[1]))
-    args.atomization_strategy = normalized_a_strat
-
-    if args.input_part_no_atomized != 0:
-        raise NotImplementedError("Not implemented - optimization feature (mostly)")
-
-    if args.input_wise_positional_embedding and args.no_positional_embedding:
-        raise Exception("Cannot have both")
-
-    if args.model_type != "gpt":
-        raise Exception("Only GPT")
-
-    if not args.input_wise_positional_embedding:
-        raise NotImplementedError("Not implemented other option")

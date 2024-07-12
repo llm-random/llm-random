@@ -10,15 +10,14 @@ from lizrd.text.data import LLMExample
 
 @dataclass
 class TokenizexExample(LLMExample):
-    positions: np.ndarray#[int]
-    attention_mask: np.ndarray#[bool]
+    positions: np.ndarray  # [int]
+    attention_mask: np.ndarray  # [bool]
     deftok_byte_scale: float
+
 
 class TokenizexBatch:
     def __init__(self, examples: List[TokenizexExample]):
-        self.input_ids = self._make_tensor(
-            [example.input_ids for example in examples]
-        )
+        self.input_ids = self._make_tensor([example.input_ids for example in examples])
         self.target_ids = self._make_tensor(
             [example.target_ids for example in examples]
         )
@@ -28,12 +27,11 @@ class TokenizexBatch:
         self.attention_mask = torch.from_numpy(
             np.stack([example.attention_mask for example in examples])
         )
-        self.positions = self._make_tensor(
-            [example.positions for example in examples]
+        self.positions = self._make_tensor([example.positions for example in examples])
+
+        self.deftok_byte_scale = mean(
+            [example.deftok_byte_scale for example in examples]
         )
-
-        self.deftok_byte_scale = mean([example.deftok_byte_scale for example in examples])
-
 
         assert self.input_ids.shape == self.target_ids.shape
         assert self.input_ids.shape == self.should_calculate_loss.shape

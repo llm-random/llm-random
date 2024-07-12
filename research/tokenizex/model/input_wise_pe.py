@@ -1,12 +1,11 @@
 from typing import Any, Literal
-from torch import nn
 import torch
 from lizrd.core.llm import PositionalEmbedding
 
 
 class InputWisePE:
     def __init__(self) -> None:
-        self.positions:torch.Tensor = None
+        self.positions: torch.Tensor = None
 
     def set_positions(self, positions: torch.Tensor):
         self.positions = positions
@@ -18,7 +17,7 @@ class InputWisePE:
 class ManagerPESetter:
     def __init__(self, model: Any, positions: torch.Tensor):
         self.positions = positions
-        self._layers:list[InputWisePE] = []
+        self._layers: list[InputWisePE] = []
         for _, layer in model.named_modules():
             if isinstance(layer, InputWisePE):
                 self._layers.append(layer)
@@ -34,7 +33,7 @@ class ManagerPESetter:
         # self.positions.squeeze_() #dev
         for layer in self._layers:
             layer.remove_positions()
-        
+
 
 class InputWisePositionalEmbedding(PositionalEmbedding, InputWisePE):
     def __init__(
@@ -44,10 +43,12 @@ class InputWisePositionalEmbedding(PositionalEmbedding, InputWisePE):
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
     ):
-        PositionalEmbedding.__init__(self, max_length, embedding_dim, init_type, init_scale)
+        PositionalEmbedding.__init__(
+            self, max_length, embedding_dim, init_type, init_scale
+        )
         InputWisePE.__init__(self)
         # super(InputWisePositionalEmbedding, self).__init__(max_length, embedding_dim, init_type, init_scale)
-        
+
     def forward(self, x):
         if self.positions is None:
             raise Exception("Positions were not managed (InputWisePE)")

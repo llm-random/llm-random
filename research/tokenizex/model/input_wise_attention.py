@@ -1,27 +1,14 @@
-from abc import ABC
-from collections import OrderedDict
-from typing import Any, Callable, Literal, Optional, List
-from lizrd.core import llm
-from research.blanks.utils import (
-    get_first_blanks_in_series,
-    get_is_blank,
-    shift_left,
-    shift_right,
-    make_blanks_fixed_positions,
-)
-from lizrd.core.initialization import get_init_weight
-
+from typing import Any
 
 import torch
-
-from lizrd.core import llm
-import lizrd.core.misc as misc
 import torch.nn.functional as F
+
+import lizrd.core.misc as misc
 
 
 class InputWiseMask:
     def __init__(self) -> None:
-        self.mask:torch.Tensor = None
+        self.mask: torch.Tensor = None
 
     def set_mask(self, mask: torch.Tensor):
         self.mask = mask
@@ -33,7 +20,7 @@ class InputWiseMask:
 class ManagerMaskSetter:
     def __init__(self, model: Any, mask: torch.Tensor):
         self.mask = mask
-        self._layers:list[InputWiseMask] = []
+        self._layers: list[InputWiseMask] = []
         for _, layer in model.named_modules():
             if isinstance(layer, InputWiseMask):
                 self._layers.append(layer)
@@ -49,7 +36,7 @@ class ManagerMaskSetter:
         self.mask.squeeze_()
         for layer in self._layers:
             layer.remove_mask()
-        
+
 
 def custom_mask_attention_mechanism(
     query: torch.Tensor,
@@ -61,7 +48,7 @@ def custom_mask_attention_mechanism(
 ):
     if mask is None:
         raise Exception("Mask was not set, not managed")
-            
+
     if flash:
         with torch.backends.cuda.sdp_kernel(
             enable_flash=True, enable_math=False, enable_mem_efficient=False
@@ -86,6 +73,7 @@ def custom_mask_attention_mechanism(
         output = output.transpose(1, 2)
 
     return output
+
 
 class TokenizexAttention(torch.nn.Module, InputWiseMask):
     def __init__(
@@ -154,36 +142,3 @@ def get_attention_layer(args):
         init_type=args.init_type,
         init_scale=args.init_scale,
     )
-
-
-
-# class BlankAttentionManager:
-#     def __init__(
-#         self,
-#         model: torch.nn.Module,
-#     ):
-#         self._layers = []
-#         self._register_layers(model)
-
-#     def _register_layers(self, model: torch.nn.Module):
-#         for _, layer in model.named_modules():
-#             if isinstance(layer, BlankAttention):
-#                 self._layers.append(layer)
-
-#     def set_mask(self, mask: torch.Tensor):
-#         mask.unsqueeze_(1)
-#         return MaskSetter(self._layers, mask)
-
-
-# class MaskSetter:
-#     def __init__(self, layers: List[BlankAttention], mask: torch.Tensor):
-#         self.layers = layers
-#         self.mask = mask
-
-#     def __enter__(self):
-#         for layer in self.layers:
-#             layer.set_mask(self.mask)
-
-#     def __exit__(self, exc_type, exc_value, exc_traceback):
-#         for layer in self.layers:
-#             layer.remove_mask()

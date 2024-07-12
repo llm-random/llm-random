@@ -1,7 +1,7 @@
-runner: "research.conditional.train.cc_train"
+runner: "research.tokenizex_comp.train.train"
 n_gpus: 1
 interactive_debug: false
-time: "0-10:00:00"
+time: "0-02:00:00"
 cuda_visible: "7"
 
 

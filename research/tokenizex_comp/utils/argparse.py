@@ -6,13 +6,11 @@ def introduce_parser_arguments(
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument(
-        "--model_type", type=str, choices=["gpt"], default="gpt", required=False
+        "--model_type", type=str, choices=["gpt"], required=True
     )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
-    parser.add_argument(
-        "--attention_mode", type=str, default="vanilla"
-    )  # dev my attention
-    parser.add_argument("--parallel_blocks", action="store_true")  # dev ?
+    parser.add_argument("--attention_mode", type=str, default="vanilla")
+    parser.add_argument("--parallel_blocks", action="store_true")
     parser.add_argument("--n_blocks", type=int, required=True)
     parser.add_argument("--dmodel", type=int, required=True)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
@@ -22,9 +20,9 @@ def introduce_parser_arguments(
     # other model hyperparameters
     parser.add_argument("--activation_type", type=str, default="relu")
     parser.add_argument("--residual_mode", type=str, default="pre_norm")
-    parser.add_argument("--every_other_layer", action="store_true")  # dev ?
-    parser.add_argument("--standard_ff_first", action="store_true")  # dev ?
-    parser.add_argument("--no_ff", action="store_true")  # dev ?
+    parser.add_argument("--every_other_layer", action="store_true")
+    parser.add_argument("--standard_ff_first", action="store_true")
+    parser.add_argument("--no_ff", action="store_true")
     parser.add_argument("--moe_inner_expert", type=str, default="ff")
 
     # CORE training hyperparameters, almost always specified in baseline configs
@@ -44,11 +42,11 @@ def introduce_parser_arguments(
 
     # other training hyperparameters
 
-    parser.add_argument("--deterministic_experiment", action="store_true")  # dev ?
-    parser.add_argument("--adam_beta1", type=float, default=0.9)  # dev ?
-    parser.add_argument("--adam_beta2", type=float, default=0.999)  # dev ?
+    parser.add_argument("--deterministic_experiment", action="store_true")
+    parser.add_argument("--adam_beta1", type=float, default=0.9)
+    parser.add_argument("--adam_beta2", type=float, default=0.999)
     parser.add_argument("--grad_clip", type=float, default=None)
-    parser.add_argument("--weight_decay", type=float, default=0.0)  # dev ?
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--lr_decay", type=float, default=None)
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
@@ -65,7 +63,7 @@ def introduce_parser_arguments(
     parser.add_argument("--num_workers", type=int, default=8)
 
     # as of 8.02.2024 below only works for C4 dataset, as wikibook is technically two separate datasets, but wikibook is small enough to use hf datasets_cashe
-    # as of 8.02.2024 it is set automatically on DGX, on other machines use manually  #dev ?
+    # as of 8.02.2024 it is set automatically on DGX, on other machines use manually
     parser.add_argument("--train_dataset_path", type=str, default=None)
     parser.add_argument("--validation_dataset_path", type=str, default=None)
 
@@ -84,10 +82,10 @@ def introduce_parser_arguments(
         choices=["float16", "bfloat16"],
         default=None,
     )
-    parser.add_argument("--torch_compile", action="store_true")  # dev to warto mieć
+    parser.add_argument("--torch_compile", action="store_true")
     parser.add_argument("--loss_checkpoint_chungs", type=int, default=0)
     parser.add_argument("--ddp_enabled", action="store_true")
-    parser.add_argument("--fsdp_enabled", action="store_true")  # dev ?
+    parser.add_argument("--fsdp_enabled", action="store_true")
     parser.add_argument(
         "--fsdp_offload_params",
         action="store_true",
@@ -116,13 +114,13 @@ def introduce_parser_arguments(
         default=None,
         help="comma-separated list of integers, that signify the numbers of model blocks that are first on the new device, e.g. 2,4 means that blocks 0,1 will be on GPU 0, blocks 2,3 will be on GPU 1, and the rest will be on GPU 2",
     )
-    parser.add_argument("--detect_anomaly", action="store_true")  # dev ?
+    parser.add_argument("--detect_anomaly", action="store_true")
     parser.add_argument("--flash_attention", action="store_true")
 
     # other parameters usually not changed for experiments
 
     parser.add_argument("--mask_loss_weight", type=float, default=1.0)
-    parser.add_argument("--mask_percent", type=float, default=0.15)  # dev ???
+    parser.add_argument("--mask_percent", type=float, default=0.15)
     parser.add_argument(
         "--data_seed", type=int, default=-1, help="Negative value means random seed"
     )
@@ -133,12 +131,10 @@ def introduce_parser_arguments(
 
     # Logging parameters
     parser.add_argument("--logger_types", type=str, required=True)
-    parser.add_argument("--wandb_entity", type=str, default="ideas_cv")  # dev ?
-    parser.add_argument("--project_name", type=str, default="llm-random/tokenizex")
-    parser.add_argument(
-        "--wandb_project", type=str, default="llm-random/tokenizex"
-    )  # dev ?
-    parser.add_argument("--name", type=str, default="tokenizex")
+    parser.add_argument("--wandb_entity", type=str, default="ideas_cv")
+    parser.add_argument("--project_name", type=str, default="pmtest/llm-random")
+    parser.add_argument("--wandb_project", type=str, default="llm-random")
+    parser.add_argument("--name", type=str, default="")
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
@@ -151,10 +147,8 @@ def introduce_parser_arguments(
     parser.add_argument("--git_branch", type=str, default=None)
     parser.add_argument("--decoding_interval", type=int, default=0)
 
-    parser.add_argument(
-        "--model_fit_gpu_info_database_path", type=str, default=None
-    )  # dev ?
-    parser.add_argument("--model_fit_gpu_info_params", type=str, default=None)  # dev ?
+    parser.add_argument("--model_fit_gpu_info_database_path", type=str, default=None)
+    parser.add_argument("--model_fit_gpu_info_params", type=str, default=None)
 
     # profiler parameters
     parser.add_argument("--profiler_enabled", action="store_true")
@@ -311,37 +305,6 @@ def introduce_parser_arguments(
         help="whether to use dummy dataset (for debugging or tests)",
     )
 
-    # tokenizex parameters
-    # #dev TODO
-
-    def parse_atomization_strategy(value):
-        try:
-            # Remove the surrounding square brackets
-            value = value.strip("[]")
-            # Split the string into tuple strings
-            tuples = value.split("), (")
-            # Convert each tuple string into an actual tuple
-            result = [tuple(map(float, t.strip("()").split(","))) for t in tuples]
-            return result
-        except ValueError:
-            raise argparse.ArgumentTypeError(
-                "Atomization strategy must be a list of tuples of floats, e.g., '[(1,1), (2,3)]'"
-            )
-
-    parser.add_argument(
-        "--atomization_strategy",
-        type=parse_atomization_strategy,
-        default=[(1.0, 1.0)],
-        help="list[tuple[float, float]] : steps proportion (first tuple el) to used with token atomization propabolity (second tuple el), applied in series (lists el). eg [(0.5,0), (0.5,1)] - first half of training has no tokens atomization, second half has all tokens atomization",
-    )
-    parser.add_argument(
-        "--input_part_no_atomized",
-        type=float,
-        default=0,
-        help="beginning part of input no atomized",
-    )  # dev optimization prop TODO
-    parser.add_argument("--input_wise_positional_embedding", action="store_true")
-
     # experimental/legacy parameters
 
     parser.add_argument("--x_flop", action="store_true")
@@ -350,10 +313,7 @@ def introduce_parser_arguments(
     # mamba
     parser.add_argument("--mamba_mode", type=str, default="vanilla")
     parser.add_argument(
-        "--block_modules",
-        type=str,
-        default=["example_pe_mask_attention", "feedforward"],
-        nargs="+",
+        "--block_modules", type=str, default=["attention", "feedforward"], nargs="+"
     )
     parser.add_argument("--mamba_expansion", type=float, default=2.0)
     parser.add_argument("--no_positional_embedding", action="store_true")
