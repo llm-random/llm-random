@@ -51,7 +51,7 @@ def check_args(args):
     if args.input_wise_positional_embedding and args.no_positional_embedding:
         raise Exception("Cannot have both")
     
-    if args.model_type is not "gpt":
+    if args.model_type != "gpt":
         raise Exception("Only GPT")
     
     if not args.input_wise_positional_embedding:

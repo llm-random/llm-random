@@ -41,7 +41,7 @@ class ManagerMaskSetter:
             raise Exception("No InputWiseMask modules in provided model")
 
     def __enter__(self):
-        self.mask.unsqueeze_(1) #dev ? propably to not batch but batch example wise
+        self.mask.unsqueeze_(1)
         for layer in self._layers:
             layer.set_mask(self.mask)
 

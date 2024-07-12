@@ -13,7 +13,7 @@ class TokenizexTokenizer(AbstractTokenizer):
     HEAD_VOCAB_SIZE = 256 + 1 #def have to consider special tokens, like eot token can be seen in GPT packer etc. 
 
     def __init__(self):
-        self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2") #dev GPT2TokenizerFast as base tokenizer
+        self.tokenizer:GPT2Tokenizer = GPT2Tokenizer.from_pretrained("gpt2") #dev GPT2TokenizerFast as base tokenizer
         disable_tokenizer_warnings(self.tokenizer) #dev
 
         self.eot_id = self.tokenizer.convert_tokens_to_ids("<|endoftext|>") #dev beware!

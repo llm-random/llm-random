@@ -1,3 +1,4 @@
+from statistics import mean
 from typing import List
 
 import numpy as np
@@ -11,6 +12,7 @@ from lizrd.text.data import LLMExample
 class TokenizexExample(LLMExample):
     positions: np.ndarray#[int]
     attention_mask: np.ndarray#[bool]
+    deftok_byte_scale: float
 
 class TokenizexBatch:
     def __init__(self, examples: List[TokenizexExample]):
@@ -29,6 +31,9 @@ class TokenizexBatch:
         self.positions = self._make_tensor(
             [example.positions for example in examples]
         )
+
+        self.deftok_byte_scale = mean([example.deftok_byte_scale for example in examples])
+
 
         assert self.input_ids.shape == self.target_ids.shape
         assert self.input_ids.shape == self.should_calculate_loss.shape

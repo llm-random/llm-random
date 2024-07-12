@@ -99,7 +99,9 @@ class TokenizexGPTPacker(AbstractPacker):
             masks_buffer.append(mask)
             terget_ids_buffer.append(tids)
 
-        
+        positions_buffer = [np.array(e) for e in positions_buffer]
+        for i in range(1, len(positions_buffer)):
+            positions_buffer[i] = positions_buffer[i] + positions_buffer[i-1][-1] #dev it could be usefull to not count previous document as a context, i think so ?
 
         ids = np.concatenate(ids_buffer)[:-1]
         pos = np.concatenate(positions_buffer)[:-1]
@@ -107,8 +109,11 @@ class TokenizexGPTPacker(AbstractPacker):
         mask = TokenizexTokenizer.sum_masks(len(ids)+1, masks_buffer)[:-1,:-1]
         calculate_loss = [1] * len(tids)
 
+        tids_def_tokenized = self.tokenizer.tokenizer.tokenize(self.tokenizer.tokenizer.decode(tids))
+        deftok_byte_scale = self.sequence_length/len(tids_def_tokenized)
+
         assert len(ids) == len(tids)
         assert len(ids) == len(pos)
         assert len(ids) == len(mask[0])
 
-        return TokenizexExample(ids.tolist(), tids.tolist(), calculate_loss, pos, mask.astype(bool))
+        return TokenizexExample(ids.tolist(), tids.tolist(), calculate_loss, pos, mask.astype(bool), deftok_byte_scale)

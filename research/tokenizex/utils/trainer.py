@@ -86,6 +86,10 @@ class TokenizexTrainer:
             f"loss_interval/{i}": SN(acc=0.0, interval=i)
             for i in self.loss_log_intervals
         }
+        self.deftok_loss = {
+            f"deftok_loss_interval/{i}": SN(acc=0.0, interval=i)
+            for i in self.loss_log_intervals
+        }
         self.loss_accumulators["loss"] = SN(
             acc=0.0, interval=self.logging_interval_loss
         )
@@ -181,6 +185,7 @@ class TokenizexTrainer:
         self._apply_gradient()
         if self.is_logging_process:
             self._log_train_stats(loss, step)
+            self._log_acc_stats(self.deftok_loss, aux_info["deftok_loss"], step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -224,6 +229,7 @@ class TokenizexTrainer:
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
+            "deftok_loss": aux_info["deftok_loss"],
         }
 
     def _apply_gradient(self):
@@ -349,6 +355,17 @@ class TokenizexTrainer:
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
             stats.acc += loss_value
+            if stats.interval > 0 and step > 0 and step % stats.interval == 0:
+                self.logger.report_scalar(
+                    title=name,
+                    value=stats.acc / stats.interval,
+                    iteration=step,
+                )
+                stats.acc = 0.0
+
+    def _log_acc_stats(self, stat_accumulator, stat_value, step):
+        for name, stats in stat_accumulator.items():
+            stats.acc += stat_value
             if stats.interval > 0 and step > 0 and step % stats.interval == 0:
                 self.logger.report_scalar(
                     title=name,

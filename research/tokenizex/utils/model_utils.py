@@ -153,6 +153,7 @@ def calculate_llm_loss_and_gradient( #dev TODO
         mask = batch.should_calculate_loss
         tokens_positions = batch.positions
         attention_masks = batch.attention_mask
+        deftok_byte_scale = batch.deftok_byte_scale
 
         with torch.autocast(
             device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
@@ -183,6 +184,9 @@ def calculate_llm_loss_and_gradient( #dev TODO
             "total_masked_tokens": total_masked_tokens,
             "losses": retrieve_additional_losses(model),
         }
+
+        aux_info["deftok_loss"] = loss.item()*deftok_byte_scale
+
         return loss, aux_info
 
     loss, aux_info = hack_for_python_garbage_collection()
