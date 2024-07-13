@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 import torch
 
@@ -65,3 +66,21 @@ class TestGradientSTDNormLayer(unittest.TestCase):
         grad2 = x.grad.clone()
 
         self.assertTrue(torch.abs(grad1.std() - 1) < torch.abs(grad2.std() - 1))
+
+    def test_grad_logging(self):
+        c = 1
+        _input = torch.randn(3, 4, 4, requires_grad=True)
+        layer = GradientSTDNormLayer(c=c)
+        layer.update_cache_for_logging = Mock()
+        output = layer(_input)
+
+        layer.update_cache_for_logging.assert_called_with("activations", _input)
+
+        rand_grad = torch.randn_like(output)
+        output.backward(gradient=rand_grad.clone())
+
+        call_args_list = layer.update_cache_for_logging.call_args_list
+        assert call_args_list[1].args[0] == "raw_grad"
+        assert torch.equal(call_args_list[1].args[1], rand_grad)
+        assert call_args_list[2].args[0] == "norm_grad"
+        assert torch.equal(call_args_list[2].args[1], rand_grad / (rand_grad.std() ** c + 1e-8))
