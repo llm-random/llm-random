@@ -3,7 +3,6 @@ from functools import partial
 from typing import Callable, Optional, Type, Union
 
 import torch
-import torch.nn as nn
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
 )
@@ -17,6 +16,7 @@ from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
 from research.grad_norm.modules import (
     BlockGradModifPlacement,
+    GradCaptureLayer,
     GradientSTDNormLayer,
     GradModiedTransformerTower,
 )
@@ -228,7 +228,7 @@ def get_model(
 
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
 
-    grad_log_fn = lambda: nn.Identity()
+    grad_log_fn = lambda: GradCaptureLayer()
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = GradModiedTransformerTower(
