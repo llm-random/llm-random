@@ -9,17 +9,16 @@ params:
   # model
   batch_size: 4
   cutoff: 16
-  project_name: "common/quickstarts"
-  name: "baseline_test"
-  mixed_precision: true
-  mixed_precision_dtype: "float16"
+  project_name: "pmtest/llm-random"
+  name: "grad_norm/dry_run_check"
+  mixed_precision: false
   tags:
     - "test"
     - "dry_run"
   logger_types: "neptune"
   n_steps: 2
   dmodel: 8
-  dff: 64
+  dff: 16
   n_blocks: 2
   "^model_type":
     - "gpt"
@@ -42,7 +41,7 @@ params:
     - "c=1.0"
   grad_modif_placement:
     - "post_attn"
-    - "post_att_norm"
+    - "post_attn_norm"
     - "post_attn_add"
     - "post_ff"
     - "post_ff_norm"
