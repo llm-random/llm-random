@@ -36,9 +36,9 @@ class GradCaptureLayer(LoggingLayer):
         activation_norms_mean = torch.mean(activation_norms)
         activation_norms_std = torch.std(activation_norms)
 
-        log_dict["grad_norms_mean"] = grad_norms_mean
-        log_dict["grad_norms_std"] = grad_norms_std
-        log_dict["activation_norms_mean"] = activation_norms_mean
-        log_dict["activation_norms_std"] = activation_norms_std
+        log_dict["grad_norms/mean"] = grad_norms_mean
+        log_dict["grad_norms/std"] = grad_norms_std
+        log_dict["activation_norms/mean"] = activation_norms_mean
+        log_dict["activation_norms/std"] = activation_norms_std
 
         return log_dict

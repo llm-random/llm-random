@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import Mock
 
 import torch
 
@@ -69,18 +68,22 @@ class TestGradientSTDNormLayer(unittest.TestCase):
 
     def test_grad_logging(self):
         c = 1
-        _input = torch.randn(3, 4, 4, requires_grad=True)
         layer = GradientSTDNormLayer(c=c)
-        layer.update_cache_for_logging = Mock()
-        output = layer(_input)
+        layer.update_cache_for_logging = layer.logging_cache.__setitem__
 
-        layer.update_cache_for_logging.assert_called_with("activations", _input)
+        x = torch.randn(3, 4, 4, requires_grad=True)
+        grad = torch.rand_like(x)
+        y = layer(x)
+        y.backward(grad)
 
-        rand_grad = torch.randn_like(output)
-        output.backward(gradient=rand_grad.clone())
-
-        call_args_list = layer.update_cache_for_logging.call_args_list
-        assert call_args_list[1].args[0] == "raw_grad"
-        assert torch.equal(call_args_list[1].args[1], rand_grad)
-        assert call_args_list[2].args[0] == "norm_grad"
-        assert torch.equal(call_args_list[2].args[1], rand_grad / (rand_grad.std() ** c + 1e-8))
+        logs = layer.log_heavy()
+        self.assertEqual(logs["activation_norms/mean"], torch.mean(torch.norm(x, dim=-1)))
+        self.assertEqual(logs["activation_norms/std"], torch.std(torch.norm(x, dim=-1)))
+        self.assertEqual(logs["raw_grad_norms/mean"], torch.mean(torch.norm(grad, dim=-1)))
+        self.assertEqual(logs["raw_grad_norms/std"], torch.std(torch.norm(grad, dim=-1)))
+        self.assertEqual(
+            logs["norm_grad_norms/mean"], torch.mean(torch.norm(grad / (torch.pow(grad.std(), c) + 1e-8), dim=-1))
+        )
+        self.assertEqual(
+            logs["norm_grad_norms/std"], torch.std(torch.norm(grad / (torch.pow(grad.std(), c) + 1e-8), dim=-1))
+        )
