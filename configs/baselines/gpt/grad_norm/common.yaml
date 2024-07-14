@@ -1,0 +1,36 @@
+runner: "research.grad_norm.runner"
+n_gpus: 1
+interactive_debug: false
+
+params:
+  name: "grad_norm_baseline"
+
+  # technical/common params
+  flash_attention: false
+  ff_mode: vanilla
+  use_torch_bmm: true
+  torch_compile: false
+  mixed_precision: false
+  #mixed_precision_dtype: float32
+  dataset_type: c4
+  model_type: gpt
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  save_weights_path: "model_ckpt"
+  save_weights_interval: 25_000
+
+  # hparams
+  learning_rate: 1e-4
+  final_lr_fraction: 0.1
+  grad_clip: 0.5
+  scheduler: cosine
+  cutoff: 256
+  batch_size: 256
+
+  # init
+  init_type: truncated_normal
+  init_scale: 0.1

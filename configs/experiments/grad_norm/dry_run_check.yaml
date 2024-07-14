@@ -15,14 +15,14 @@ params:
   tags:
     - "test"
     - "dry_run"
-  logger_types: "neptune"
+  logger_types: "stdout"
   n_steps: 2
   dmodel: 8
   dff: 16
   n_blocks: 2
-  "^model_type":
+  model_type:
     - "gpt"
-  "^ff_mode":
+  ff_mode:
     - "vanilla"
   logging_interval_heavy: 1
   logging_interval_loss: 1

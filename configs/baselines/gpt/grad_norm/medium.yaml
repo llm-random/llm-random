@@ -1,0 +1,35 @@
+parent: configs/baselines/gpt/grad_norm/common.yaml
+md5_parent_hash: ff85cb7babe9314dbd6b835bbd03df85
+time: 2-00:00:00
+
+params:
+  name: "grad_norm_medium"
+
+  # model architecture
+  dmodel: 512
+  n_blocks: 8
+  n_att_heads: 8
+  dff: 2048
+
+  # grad norm config
+  grad_modif_type:
+    - "std_norm"
+  grad_modif_params:
+    - "c=1.0"
+  grad_modif_placement:
+
+  tags:
+    - "medium"
+    - "grad_norm"
+    - "baseline"
+
+  # logging etc.
+  logging_interval_heavy: 160
+  logging_interval_loss: 160
+
+  # hparams
+  n_steps: 16_000
+  final_lr_step: 14_500
+  scheduler: cosine
+  lr_warmup_steps: 160
+  final_lr_fraction: 0.1
