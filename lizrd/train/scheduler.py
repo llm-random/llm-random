@@ -149,7 +149,7 @@ class CosineScheduler(AbstractLRScheduler):
             return start_lr * (step + 1) / self.lr_warmup_steps
         # cosine schedule that ends at final_lr_fraction * lr, then constant
         elif step < self.final_lr_step:
-            return end_lr + 0.5 * (1 - start_lr/end_lr) * start_lr * (
+            return end_lr + 0.5 * (1 - end_lr/start_lr) * start_lr * (
                 1
                 + math.cos(
                     math.pi
