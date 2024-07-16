@@ -19,13 +19,21 @@ params:
   flash_attention: False
   init_type: truncated_normal_fixed
   print_parameter_names: true
+
   relative_lr:
     embedding_layer: 5.
-    expert_inner_function: 6.
-    gating: 0.6
-    head: 0.2
+    head: 0.666
+    expert_inner_function: 0.3
+    gating: 0.666
 
-relative_scheduler_fraction:
-    embedding_layer: 0.2
-    encoder: 0.2
-    head: 0.2
+  relative_init_scale:
+    embedding_layer: 1.
+    head: 1.
+    expert_inner_function: 1.
+    gating: 1.
+
+  relative_scheduler_fraction:
+    embedding_layer: 1.
+    expert_inner_function: 1.
+    gating: 1.
+    head: 1.

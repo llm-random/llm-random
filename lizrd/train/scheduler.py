@@ -141,14 +141,15 @@ class CosineScheduler(AbstractLRScheduler):
         self.final_lr_fraction = final_lr_fraction
         self.scheduler_fractions = scheduler_fractions
 
-    def get_lr(self, step: int):
+    def get_lr(self, step: int, start_lr=None, end_lr=None):
+        start_lr = start_lr if start_lr is not None else self.lr
+        end_lr = end_lr if end_lr is not None else self.lr * self.final_lr_fraction
+
         if step < self.lr_warmup_steps:
-            return self.lr * (step + 1) / self.lr_warmup_steps
+            return start_lr * (step + 1) / self.lr_warmup_steps
         # cosine schedule that ends at final_lr_fraction * lr, then constant
         elif step < self.final_lr_step:
-            return self.final_lr_fraction * self.lr + 0.5 * (
-                1 - self.final_lr_fraction
-            ) * self.lr * (
+            return end_lr + 0.5 * (1 - start_lr/end_lr) * start_lr * (
                 1
                 + math.cos(
                     math.pi
@@ -157,26 +158,18 @@ class CosineScheduler(AbstractLRScheduler):
                 )
             )
         else:
-            return self.lr * self.final_lr_fraction
+            return end_lr
 
     # had to overwrite it here, because AbstractLRScheduler doesn't know final_lr_fraction and othr params necessary for relative lr fractions
     def set_lr(self, optimizer: Optimizer, step: int):
         if self.scheduler_fractions is None:
             super.set_lr(optimizer, step)
         else:
-            new_lr = self.get_lr(step)
             for param_group, ratio_lr, fraction in zip(
                 optimizer.param_groups,
                 self.ratios_lr,
                 self.scheduler_fractions,
             ):
-                if step < self.lr_warmup_steps:
-                    relative_lr = new_lr
-                elif step < self.final_lr_step:
-                    relative_lr = (new_lr - self.lr) * (
-                        1 - self.final_lr_fraction * fraction
-                    ) / (1 - self.final_lr_fraction) + self.lr
-                    relative_lr = relative_lr
-                else:
-                    relative_lr = new_lr * fraction
-                param_group["lr"] = relative_lr * ratio_lr
+                start_lr = self.lr * ratio_lr
+                end_lr = self.lr * self.final_lr_fraction * fraction
+                param_group["lr"] = self.get_lr(step, start_lr=start_lr, end_lr=end_lr)

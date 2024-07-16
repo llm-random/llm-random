@@ -35,22 +35,22 @@ params:
 
   print_parameter_names: true
   relative_lr:
-    embedding_layer: 5.
-    head: 0.666
+    embedding_layer: 3.333
+    head: 0.444
+    gating: 1.
     expert_inner_function: 0.3
-    gating: 0.666
 
   relative_init_scale:
-    embedding_layer: 1.
+    embedding_layer: 0.2
     head: 1.
+    gating: 0.2
     expert_inner_function: 1.
-    gating: 1.
 
   relative_scheduler_fraction:
-    embedding_layer: 1.
-    expert_inner_function: 1.
+    embedding_layer: 2.222
+    head: 0.444
     gating: 1.
-    head: 1.
+    expert_inner_function: 0.5
 
 
 tune_config:
@@ -61,11 +61,11 @@ tune_config:
     - "relative_lr:head"
     - "relative_lr:expert_inner_function"
     - "relative_lr:gating"
-    - "init_scale"
-    - "relative_init_scale:embedding_layer"
-    - "relative_init_scale:head"
-    - "relative_init_scale:expert_inner_function"
-    - "relative_init_scale:gating"
+#    - "init_scale"
+#    - "relative_init_scale:embedding_layer"
+#    - "relative_init_scale:head"
+#    - "relative_init_scale:expert_inner_function"
+#    - "relative_init_scale:gating"
     - "final_lr_fraction"
     - "relative_scheduler_fraction:embedding_layer"
     - "relative_scheduler_fraction:head"
