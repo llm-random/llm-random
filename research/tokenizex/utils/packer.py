@@ -46,7 +46,7 @@ class TokenizexGPTPacker(AbstractPacker):
                 + len(document_lengths)
                 - max(document_lengths)
                 - 1
-            ) > self.sequence_length:  # dev ? #dev compensated eot tokens
+            ) > self.sequence_length:  #dev check
                 break
 
         start = self.py_rng.randint(0, sum(document_lengths) - 1)
@@ -56,7 +56,7 @@ class TokenizexGPTPacker(AbstractPacker):
         for i, l in enumerate(document_lengths):
             if (
                 sum_len + l > start
-            ):  # dev źle np dla np. 10 ; 10, 10 - było, teraz jest chyba dobrze
+            ):  # dev check
                 documents_tokenization_buffer.append(
                     documents_buffer[i][sum_len - start :]
                 )
@@ -86,7 +86,6 @@ class TokenizexGPTPacker(AbstractPacker):
                 document = document[: int(self.sequence_length * 1.1)]
             ids, pos, mask = self.tokenizer.text_to_ids_pos_mask(document)
             mask = mask.tolist()  # dev
-            # print(f"document lenght {len(document)}")
             tids = self.tokenizer.text_to_ids(document, True)
 
             # appending eot token
@@ -119,7 +118,7 @@ class TokenizexGPTPacker(AbstractPacker):
         for i in range(1, len(positions_buffer)):
             positions_buffer[i] = (
                 positions_buffer[i] + positions_buffer[i - 1][-1]
-            )  # dev it could be usefull to not count previous document as a context, i think so ?
+            )
 
         ids = np.concatenate(ids_buffer)[:-1]
         pos = np.concatenate(positions_buffer)[:-1]

@@ -46,7 +46,7 @@ def get_processed_dataset(
         seed=seed,
     )
 
-    dataloader = DataLoader(  # dev good?
+    dataloader = DataLoader(
         packer,
         num_workers=num_workers,
         batch_size=batch_size,
