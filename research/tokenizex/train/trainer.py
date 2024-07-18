@@ -218,6 +218,7 @@ class TokenizexTrainer:
                 step,
                 int(self.fb_time_acc),
             )
+            self._log_avg_interval(100, "average/time/fb", self.fb_time_acc, step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -493,6 +494,14 @@ class TokenizexTrainer:
                     iteration=step,
                 )
             self.auxiliary_losses_accumulator.clear()
+
+    def _log_avg_interval(self, interval, name, value, iteration):
+        if iteration % interval == 0 and iteration > 0:
+            self.logger.report_scalar(
+                title=name,
+                value=value/iteration,
+                iteration=iteration,
+            )
 
     def _save_weights(self, step):
         if (

@@ -205,6 +205,7 @@ class TemplateTrainer:
             self._log_acc_stats(self.deftok_loss, loss, step)
             self._log_acc_time_stats(self.fb_time_byttok_loss, aux_info["byttok_loss"], step, int(self.fb_time_acc))
             self._log_acc_time_stats(self.fb_time_deftok_loss, loss, step, int(self.fb_time_acc))
+            self._log_avg_interval(100, "average/time/fb", self.fb_time_acc, step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -440,6 +441,14 @@ class TemplateTrainer:
                 stats.last_time = time_passed
                 stats.last_step = step
                 stats.acc = 0.0
+
+    def _log_avg_interval(self, interval, name, value, iteration):
+        if iteration % interval == 0 and iteration > 0:
+            self.logger.report_scalar(
+                title=name,
+                value=value/iteration,
+                iteration=iteration,
+            )
 
     def _save_weights(self, step):
         if (

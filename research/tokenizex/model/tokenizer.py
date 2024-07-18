@@ -20,8 +20,8 @@ class TokenizexTokenizer(AbstractTokenizer):
 
         self.eot_id = self.tokenizer.convert_tokens_to_ids(
             "<|endoftext|>"
-        )  # dev beware!
-        self.eot_id_target = 256  # dev beware!
+        )
+        self.eot_id_target = 256
 
         self.head_cast = TokenizexTokenizer.reorder_atomize_tokens(
             self.tokenizer
@@ -156,7 +156,7 @@ class TokenizexTokenizer(AbstractTokenizer):
         return o_mask
 
     @staticmethod
-    def reorder_atomize_tokens(tokenizer) -> dict:
+    def reorder_atomize_tokens(tokenizer) -> dict: #dev test with reversed
         res = {}
         new_order_c = 0
         vocab = tokenizer.get_vocab()
