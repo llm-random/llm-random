@@ -39,7 +39,7 @@ class TokenizexGPTPacker(AbstractPacker):
             document = self.dataset.get_document()
             documents_buffer.append(document)
             document_lengths.append(
-                len(self.tokenizer.prepare_for_tokenization(document))
+                len(self.tokenizer.tokenizer.tokenize(document))
             )
             if (
                 sum(document_lengths)
@@ -62,7 +62,7 @@ class TokenizexGPTPacker(AbstractPacker):
                 )
                 documents_tokenization_lengths.append(
                     len(
-                        self.tokenizer.prepare_for_tokenization(
+                        self.tokenizer.tokenizer.tokenize(
                             documents_buffer[i][sum_len - start :]
                         )
                     )
@@ -131,6 +131,7 @@ class TokenizexGPTPacker(AbstractPacker):
         )
         deftok_byte_scale = self.sequence_length / len(tids_def_tokenized)
 
+        assert len(ids) == self.sequence_length
         assert len(ids) == len(tids)
         assert len(ids) == len(pos)
         assert len(ids) == len(mask[0])
