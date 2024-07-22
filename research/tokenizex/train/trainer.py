@@ -25,6 +25,7 @@ from research.tokenizex.model.model_utils import (
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+from research.tokenizex.utils.packer import AtomizationManager
 
 
 @define(slots=False)
@@ -110,7 +111,8 @@ class TokenizexTrainer:
             )
             for i in self.loss_log_intervals
         }
-        self.fb_time_acc = 0
+        self.fb_time_acc = 0.0
+        self.fb_time_acc_interval = 0.0
         self.ts_start_training = None
 
         self.correct_tokens_accumulator = 0.0
@@ -180,6 +182,7 @@ class TokenizexTrainer:
                     and step % self.eval_interval == 0
                 ):
                     self._eval_step(step)
+
                 if (
                     self.model_type == "gpt"
                     and self.decoding_interval > 0
@@ -204,6 +207,7 @@ class TokenizexTrainer:
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
         self.fb_time_acc += aux_info["fb_time"]
+        self.fb_time_acc_interval += aux_info["fb_time"]
 
         self._apply_gradient()
         if self.is_logging_process:
@@ -219,7 +223,7 @@ class TokenizexTrainer:
                 step,
                 int(self.fb_time_acc),
             )
-            self._log_avg_interval(100, "average/time/fb", self.fb_time_acc, step)
+            self._log_avg_time_interval(100, "average/time/fb", step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -293,6 +297,53 @@ class TokenizexTrainer:
             step=step,
             variant_name="normal",
         )
+        with AtomizationManager(self.train_dataloader.dataloader.dataset, 1.0):
+            batches_full_atom = [self.train_dataloader.get_batch() for _ in range(self.n_eval_batches)]
+        self._eval_perplexity(
+            batches=batches_full_atom,
+            step=step
+        )
+
+    def _eval_perplexity(self, batches: Iterable[TokenizexBatch], step: int):
+        self.model.eval()
+        total_loss = 0.0
+        total_deftok_loss = 0
+        total_correct_tokens = 0
+        total_masked_tokens = 0
+        extra_losses = defaultdict(float)
+        for processed_batch in batches:
+            with torch.no_grad():
+                loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+
+            total_loss += loss
+            total_deftok_loss += aux_info["deftok_loss"]
+            total_correct_tokens += aux_info["correct_tokens"]
+            total_masked_tokens += aux_info["total_masked_tokens"]
+            for name, loss_value in aux_info["losses"].items():
+                extra_losses[name] += loss_value
+        if self.is_logging_process:
+            log_dir = "comp/perplexity/"
+            self.logger.report_scalar(
+                title=log_dir+f"byttok_loss", #dev change
+                value=total_loss / self.n_eval_batches,
+                iteration=step,
+            )
+            self.logger.report_scalar(
+                title=log_dir+f"deftok_loss", #dev change
+                value=total_deftok_loss / self.n_eval_batches,
+                iteration=step,
+            )
+            self.logger.report_scalar(
+                title=log_dir+f"accuracy",
+                value=total_correct_tokens / total_masked_tokens,
+                iteration=step,
+            )
+            for name, loss_value in extra_losses.items():
+                self.logger.report_scalar(
+                    title=log_dir+f"{name}",
+                    value=loss_value / self.n_eval_batches,
+                    iteration=step,
+                )
 
     def _eval_single_variant(
         self, batches: Iterable[TokenizexBatch], step: int, variant_name: str
@@ -411,12 +462,11 @@ class TokenizexTrainer:
                 stats.acc = 0.0
 
     def _log_acc_time_stats(self, stat_accumulator, stat_value, step, time_passed):
-        if step == 0:
-            return
         for name, stats in stat_accumulator.items():
             stats.acc += stat_value
             if (
-                stats.interval > 0
+                step != 0 
+                and stats.interval > 0
                 and time_passed > 0
                 and (time_passed - stats.last_time) > stats.interval
             ):
@@ -489,13 +539,14 @@ class TokenizexTrainer:
                 )
             self.auxiliary_losses_accumulator.clear()
 
-    def _log_avg_interval(self, interval, name, value, iteration):
+    def _log_avg_time_interval(self, interval, name, iteration):
         if iteration % interval == 0 and iteration > 0:
             self.logger.report_scalar(
                 title=name,
-                value=value/iteration,
+                value=self.fb_time_acc_interval/interval,
                 iteration=iteration,
             )
+            self.fb_time_acc_interval = 0.0
 
     def _save_weights(self, step):
         if (

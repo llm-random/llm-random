@@ -8,6 +8,21 @@ from research.tokenizex.model.tokenizer import TokenizexTokenizer
 from research.tokenizex.utils.data import TokenizexExample
 
 
+class AtomizationManager:
+    def __init__(self, packer: "TokenizexGPTPacker", atom_p: float):
+        self.atom_p = atom_p
+        self.packer = packer
+        self.switched_atom_p = None
+
+    def __enter__(self):
+        self.switched_atom_p = self.packer.atomization_p
+        self.packer.atomization_p = self.atom_p
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.packer.atomization_p = self.switched_atom_p
+        self.switched_atom_p = None
+
+
 class TokenizexGPTPacker(AbstractPacker):
     def __init__(
         self,
@@ -22,6 +37,7 @@ class TokenizexGPTPacker(AbstractPacker):
             tokenizer_maker,
             seed=seed,
         )
+        self.atomization_p: float = 0.0
         self.tokenizer: TokenizexTokenizer
 
     def get_sample(self) -> TokenizexExample:
@@ -53,6 +69,7 @@ class TokenizexGPTPacker(AbstractPacker):
         documents_tokenization_buffer = []
         documents_tokenization_lengths = []
         sum_len = 0
+        atimization_mask = None
         for i, l in enumerate(document_lengths):
             if (
                 sum_len + l > start
@@ -83,12 +100,12 @@ class TokenizexGPTPacker(AbstractPacker):
         ids_len = 0
         for document, document_len in zip(documents_buffer, document_lengths):
             if document_len > int(self.sequence_length * 1.1):
-                document = document[: int(self.sequence_length * 1.1)]
+                document = document[:len("".join(self.tokenizer.tokenizer.tokenize(document)[: int(self.sequence_length * 1.1)]))] #dev FIX 22.07
 
-            document_words = self.tokenizer.prepare_for_tokenization(document)
-            document_words = self.tokenizer.split_txt(document_words)
+            document_prep = self.tokenizer.prepare_for_tokenization(document)
+            document_words = self.tokenizer.split_txt(document_prep)
             random_array = np.random.rand(len(document_words)) #dev atomize
-            atimization_mask = (random_array < 0.3).astype(int) #dev atomize
+            atimization_mask = (random_array < self.atomization_p).astype(int) #dev atomize
 
             ids, pos, mask = self.tokenizer.text_to_ids_pos_mask(document, atimization_mask)
             mask = mask.tolist()  # dev

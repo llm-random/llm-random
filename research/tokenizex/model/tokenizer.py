@@ -187,7 +187,7 @@ class TokenizexTokenizer(AbstractTokenizer):
     
     def _full_tokens(self, w):
         ids = self.tokenizer.encode(w)
-        mask = np.eye(len(ids))
+        mask = np.tril(np.ones(len(ids)))
         pos = np.arange(len(ids))
         return ids, pos, mask
 
