@@ -13,6 +13,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
+from research.tokenizex.model.tokenizer import ReversedGPT2Tokenizer, TokenizexTokenizer
 from research.tokenizex_comp.utils.layer_manager import LayerManager
 from research.tokenizex_comp.utils.model_utils import (
     make_loss_and_gradient_function,
@@ -179,10 +180,11 @@ class TemplateTrainer:
                     and step % self.decoding_interval == 0
                     and self.is_logging_process
                 ):
-                    try:
-                        self._decode_samples(step)
-                    except:
-                        print("Decoding failed, skipping...")
+                    self._decode_samples(step)
+                    # try: #dev
+                    #     self._decode_samples(step)
+                    # except:
+                    #     print("Decoding failed, skipping...")
                 self._after_step_operations(step)
 
     def _train_step(
@@ -314,6 +316,29 @@ class TemplateTrainer:
                     iteration=step,
                 )
 
+    @staticmethod
+    def decode_single_example(
+        model: torch.nn.Module,
+        max_sequence_length: int,
+        input_tokens_ids: torch.Tensor,
+        end_token_id: int,
+    ) -> torch.Tensor:
+        output_tokens_ids = torch.nn.functional.pad(
+            input_tokens_ids, (0, max_sequence_length - len(input_tokens_ids[0]))
+        )
+        output_length = len(input_tokens_ids[0])
+        model.eval()
+
+        with torch.no_grad():
+            while True:
+                predictions = model(output_tokens_ids)[0]
+                next_token_id = torch.argmax(predictions, dim=-1)[output_length - 1].item()
+                output_tokens_ids[0][output_length] = next_token_id
+                output_length += 1
+                if output_length == max_sequence_length or next_token_id == end_token_id:
+                    break
+        return output_tokens_ids[0][:output_length].to("cpu").numpy()
+
     def _decode_samples(self, step):
         examples = [
             "1, 2, 3, 4, 5",
@@ -321,16 +346,21 @@ class TemplateTrainer:
             "Warsaw -> Poland Paris -> France Berlin ->",
             "Speech at a funeral of a fly: ",
         ]
-        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        # tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        tokenizer = ReversedGPT2Tokenizer(
+            GPT2Tokenizer.from_pretrained("research/tokenizex/model/reversed_tokenizer")
+        )
+
         for example in examples:
             tokens = torch.tensor(
-                tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))
+                [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))]
             ).to(self.train_dataloader.device)
-            output_tokens = decode_single_example(
-                self.model,
-                self.max_sequence_length,
-                tokens,
-                tokenizer._convert_token_to_id("<|endoftext|>"),
+            output_tokens = TemplateTrainer.decode_single_example(
+                model = self.model,
+                max_sequence_length = self.max_sequence_length,
+                input_tokens_ids = tokens,
+                end_token_id = tokenizer.convert_tokens_to_ids(tokenizer.eos_token)
+
             )
             decoded_output = tokenizer.decode(output_tokens)
             print(f"{example}: {decoded_output}")

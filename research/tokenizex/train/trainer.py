@@ -4,6 +4,7 @@ from time import time
 from types import SimpleNamespace as SN
 from typing import Iterable, Optional, Literal
 
+import numpy as np
 import torch
 from torch.profiler import profile, ProfilerActivity
 from attr import define
@@ -331,34 +332,34 @@ class TokenizexTrainer:
     def decode_single_example(
         model: torch.nn.Module,
         max_sequence_length: int,
-        input_tokens_ids: torch.Tensor,
-        input_tokens_pos: torch.Tensor,
-        input_tokens_masks: torch.Tensor,
+        input_text: str,
         end_token_id: int,
+        tokenizer:TokenizexTokenizer,
     ) -> torch.Tensor:
-        output_tokens_ids = torch.nn.functional.pad(
-            input_tokens_ids, (0, max_sequence_length - len(input_tokens_ids))
-        )
-        output_length = len(input_tokens_ids)
-        with model.eval(), torch.no_grad(), ManagerMaskSetter(
-            model, input_tokens_masks
-        ), ManagerPESetter(model, input_tokens_pos):
+        process_text = input_text
+
+        model.eval()
+        with torch.no_grad():
             while True:
-                predictions = model(output_tokens_ids)
-                next_token_id = torch.argmax(predictions, dim=-1)[
-                    output_length - 1
-                ].item()
-                output_tokens_ids[output_length] = next_token_id
-                output_length += 1
-                if (
-                    output_length == max_sequence_length
-                    or next_token_id == end_token_id
-                ):
+                ids, pos, mask = tokenizer.text_to_ids_pos_mask(process_text)
+                mask=np.expand_dims(mask, 0)
+                ids = torch.tensor([ids], device="cuda")
+                pos = torch.tensor([pos], device="cuda")
+                mask = torch.tensor(mask.astype(bool), device="cuda")
+
+                if mask.shape[0] >= max_sequence_length or next_token_id == end_token_id:
                     break
-        return output_tokens_ids[:output_length]
+
+                with ManagerMaskSetter(model, mask), ManagerPESetter(model, pos):
+                    predictions = model(ids)[0]
+
+                # predictions = model(output_tokens_ids)[0]
+                next_token_id = torch.argmax(predictions, dim=-1)[-1].item()
+
+                process_text = process_text+tokenizer.ids_to_text([next_token_id])
+        return process_text
 
     def _decode_samples(self, step):
-        raise NotImplementedError("TODO")
         examples = [
             "1, 2, 3, 4, 5",
             "Our Father, who art in heaven,",
@@ -367,24 +368,17 @@ class TokenizexTrainer:
         ]
         tokenizer = TokenizexTokenizer()
         for example in examples:
-            tokens, pos, masks = tokenizer.text_to_ids_pos_mask(example)
-            tokens = torch.tensor(tokens).to(self.train_dataloader.device)
-            pos = torch.tensor(pos).to(self.train_dataloader.device)
-            masks = torch.tensor(masks).to(self.train_dataloader.device)
-
-            output_tokens = TokenizexTrainer.decode_single_example(
+            output_text = TokenizexTrainer.decode_single_example(
                 self.model,
                 self.max_sequence_length,
-                tokens,
-                pos,
-                masks,
-                tokenizer.eot_id_target,
+                example,
+                end_token_id = tokenizer.tokenizer.convert_tokens_to_ids(tokenizer.tokenizer.eos_token),
+                tokenizer=tokenizer
             )
-            decoded_output = tokenizer.decode(output_tokens)
-            print(f"{example}: {decoded_output}")
+            print(f"{example}: {output_text}")
             self.logger.report_text(
                 title=f"decoding_sample/{example}",
-                value=decoded_output,
+                value=output_text,
                 iteration=step,
             )
 

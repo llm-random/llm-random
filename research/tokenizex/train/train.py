@@ -309,15 +309,15 @@ def main(
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=(
-                TokenizexTokenizer
-                if args.model_type == "gpt"
-                else tokenizers.BertTokenizer
-            ),
-        )
+    # if args.model_type == "gpt" and is_logging_process: # dev TODO
+    #     log_batch(
+    #         train_dataloader,
+    #         tokenizer_maker=(
+    #             TokenizexTokenizer
+    #             if args.model_type == "gpt"
+    #             else tokenizers.BertTokenizer
+    #         ),
+    #     )
 
     profiler_schedule = (
         torch.profiler.schedule(
