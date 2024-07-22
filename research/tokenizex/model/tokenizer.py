@@ -127,20 +127,15 @@ class TokenizexTokenizer(AbstractTokenizer):
             penc = self.tokenizer.encode(pdec)
             past_ids_pos.append(penc)
         return past_ids_pos
-
-    # def tokenize_atom(self, txt:str):
-    #     atxt = "".join(self.tokenizer.tokenize(txt))
-    #     atxt = list(atxt)
-    #     eatxt = self.tokenizer.encode(atxt)
-    #     return eatxt
     
-    def tokenize_atom(self, txt, atomize:np.array = None):
+    def tokenize_atom(self, txt, atomize_mask:np.array = None):
         txt_words = self.split_txt(txt)
-        if atomize is None:
-            atomize = np.ones(len(txt_words))
-        assert len(txt_words) == len(atomize)
+        if atomize_mask is None:
+            # atomize_mask = np.zeros(len(txt_words)) #dev
+            atomize_mask = np.ones(len(txt_words))
+        assert len(txt_words) == len(atomize_mask)
         token_atoms = []
-        for word, atomize in zip(txt_words, atomize):
+        for word, atomize in zip(txt_words, atomize_mask):
             word_tokenized = self.tokenizer.tokenize(word)
             if atomize:
                 token_atoms.extend(word_tokenized)
@@ -206,6 +201,7 @@ class TokenizexTokenizer(AbstractTokenizer):
         txtw = self.split_txt(txt)
 
         if splitted_words is None:
+            # splitted_words = np.zeros(len(txtw)) #dev
             splitted_words = np.ones(len(txtw))
 
         assert len(splitted_words) == len(txtw)

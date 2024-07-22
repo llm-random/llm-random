@@ -84,9 +84,15 @@ class TokenizexGPTPacker(AbstractPacker):
         for document, document_len in zip(documents_buffer, document_lengths):
             if document_len > int(self.sequence_length * 1.1):
                 document = document[: int(self.sequence_length * 1.1)]
-            ids, pos, mask = self.tokenizer.text_to_ids_pos_mask(document)
+
+            document_words = self.tokenizer.prepare_for_tokenization(document)
+            document_words = self.tokenizer.split_txt(document_words)
+            random_array = np.random.rand(len(document_words)) #dev atomize
+            atimization_mask = (random_array < 0.3).astype(int) #dev atomize
+
+            ids, pos, mask = self.tokenizer.text_to_ids_pos_mask(document, atimization_mask)
             mask = mask.tolist()  # dev
-            tids = self.tokenizer.text_to_ids(document, True)
+            tids = self.tokenizer.text_to_ids(document, True, atimization_mask)
 
             # appending eot token
             ids.append(eot_id)
@@ -135,6 +141,8 @@ class TokenizexGPTPacker(AbstractPacker):
         assert len(ids) == len(tids)
         assert len(ids) == len(pos)
         assert len(ids) == len(mask[0])
+
+        # mask = np.tril(np.ones(mask.shape)) #dev
 
         return TokenizexExample(
             ids.tolist(),
