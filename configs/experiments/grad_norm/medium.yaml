@@ -1,6 +1,5 @@
 parent: configs/baselines/gpt/grad_norm/medium.yaml
-md5_parent_hash: c8cdd9d9e918673b084bdc01ba7daf8f
-time: 2-00:00:00
+md5_parent_hash: 57459e7919aaaddd4397ed5ffb4a762d
 
 params:
   name: "grad_norm_medium"
@@ -15,4 +14,7 @@ params:
     - "post_ff"
     - "post_ff_norm"
     - "post_ff_add"
-  use_dummy_dataset: true
+  tags:
+    - "medium"
+    - "grad_norm"
+    - "std_norm"

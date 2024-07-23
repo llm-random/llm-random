@@ -1,6 +1,6 @@
 parent: configs/baselines/gpt/grad_norm/common.yaml
-md5_parent_hash: ff85cb7babe9314dbd6b835bbd03df85
-time: 2-00:00:00
+md5_parent_hash: 23ddca6ab48496a38bf21b6f8cb15663
+time: 0-12:00:00
 
 params:
   name: "grad_norm_medium"
