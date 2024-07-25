@@ -38,7 +38,7 @@ params:
   final_lr_fraction: 0.1
   grad_clip: 0.5
   dataset_type: wikibook
-  batch_size: 128
+  batch_size: 32
 
 
 

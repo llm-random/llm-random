@@ -472,7 +472,7 @@ class TokenizexTrainer:
             ):
                 self.logger.report_scalar(
                     title=name,
-                    value=stats.acc / (step - stats.last_step),
+                    value=stats.acc / (1 if (step - stats.last_step) == 0 else (step - stats.last_step)),
                     iteration=time_passed,
                 )
                 stats.last_time = time_passed
