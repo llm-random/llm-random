@@ -6,6 +6,8 @@ from lizrd.text.packers import AbstractPacker
 
 from research.tokenizex.model.tokenizer import TokenizexTokenizer
 from research.tokenizex.utils.data import TokenizexExample
+import multiprocessing as mp
+import ctypes
 
 
 class AtomizationManager:
@@ -15,11 +17,11 @@ class AtomizationManager:
         self.switched_atom_p = None
 
     def __enter__(self):
-        self.switched_atom_p = self.packer.atomization_p
-        self.packer.atomization_p = self.atom_p
+        self.switched_atom_p = self.packer.atomization_p.value
+        self.packer.atomization_p.value = self.atom_p
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        self.packer.atomization_p = self.switched_atom_p
+        self.packer.atomization_p.value = self.switched_atom_p
         self.switched_atom_p = None
 
 
@@ -30,6 +32,7 @@ class TokenizexGPTPacker(AbstractPacker):
         dataset_maker: AbstractDataset,
         tokenizer_maker: Callable[[], TokenizexTokenizer],
         seed: Optional[int] = None,
+        atomization_p: Optional[float] = 0.0
     ):
         super().__init__(
             sequence_length,
@@ -37,7 +40,7 @@ class TokenizexGPTPacker(AbstractPacker):
             tokenizer_maker,
             seed=seed,
         )
-        self.atomization_p: float = 0.0
+        self.atomization_p: mp.Value = mp.Value(ctypes.c_float, atomization_p)
         self.tokenizer: TokenizexTokenizer
 
     def get_sample(self) -> TokenizexExample:
@@ -105,7 +108,7 @@ class TokenizexGPTPacker(AbstractPacker):
             document_prep = self.tokenizer.prepare_for_tokenization(document)
             document_words = self.tokenizer.split_txt(document_prep)
             random_array = np.random.rand(len(document_words)) #dev atomize
-            atimization_mask = (random_array < self.atomization_p).astype(int) #dev atomize
+            atimization_mask = (random_array < self.atomization_p.value).astype(int) #dev atomize
 
             ids, pos, mask = self.tokenizer.text_to_ids_pos_mask(document, atimization_mask)
             mask = mask.tolist()  # dev
