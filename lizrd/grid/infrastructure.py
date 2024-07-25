@@ -107,6 +107,7 @@ class AthenaBackend(MachineBackend):
         return [
             slurm_command,
             f"--gres=gpu:{setup_args['n_gpus']}",
+            f"--cpus-per-gpu={setup_args['cpus_per_gpu']}", #dev
             "--partition=plgrid-gpu-a100",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
             "--account=plgllmefficont-gpu-a100",
