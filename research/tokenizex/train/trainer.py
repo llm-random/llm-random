@@ -34,6 +34,7 @@ class TokenizexTrainer:
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
     eval_dataloader: DataloaderWrapper
+    eval_train_dataloader: DataloaderWrapper
     # vocab_size: int #dev ?
     mixed_precision: bool
     mixed_precision_dtype: torch.dtype
@@ -297,8 +298,11 @@ class TokenizexTrainer:
             step=step,
             variant_name="normal",
         )
-        with AtomizationManager(self.train_dataloader.dataloader.dataset, 1.0):
-            batches_full_atom = [self.train_dataloader.get_batch() for _ in range(self.n_eval_batches)]
+        # print("Atomization ------------------------------") #dev
+        # with AtomizationManager(self.train_dataloader.dataloader.dataset, 1.0):
+        #     batches_full_atom = [self.train_dataloader.get_batch() for _ in range(self.n_eval_batches)]
+        batches_full_atom = [self.eval_train_dataloader.get_batch() for _ in range(self.n_eval_batches)]
+        # print("+++++++++++++++++++++++++++++++++++++++++++++Atomization ") #dev
         self._eval_perplexity(
             batches=batches_full_atom,
             step=step

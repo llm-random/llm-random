@@ -287,6 +287,13 @@ def main(
         dataset_path=args.train_dataset_path,
     )
 
+    eval_train_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs,
+        dataset_split="train",
+        dataset_path=args.train_dataset_path,
+        atomization_p=1.0
+    )
+
     eval_split = (
         "eval"
         if args.dataset_type == "wikibook"
@@ -335,6 +342,7 @@ def main(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
+        eval_train_dataloader=eval_train_dataloader,
         eval_dataloader=eval_dataloader,
         # mask_percent=args.mask_percent,
         mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
