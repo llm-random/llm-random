@@ -45,3 +45,5 @@ params:
   use_dummy_dataset: true
   num_workers: 0
   logger_types: "stdout"
+  decoding_interval: 10
+  load_weights_path: "default_model_ckpt/rev_default.pt"

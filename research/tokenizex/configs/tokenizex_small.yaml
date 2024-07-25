@@ -5,7 +5,6 @@ time: "0-02:00:00"
 cuda_visible: "7"
 argparse: "research.tokenizex.utils.argparse"
 
-
 params:
   name: tokenizex_small
   tags: ["ms", "tokenizex", "small"]
@@ -39,7 +38,7 @@ params:
   final_lr_fraction: 0.1
   grad_clip: 0.5
   dataset_type: wikibook
-  batch_size: 256
+  batch_size: 128
 
 
 
