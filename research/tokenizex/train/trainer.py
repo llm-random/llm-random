@@ -388,7 +388,7 @@ class TokenizexTrainer:
         tokenizer:TokenizexTokenizer,
     ) -> torch.Tensor:
         process_text = input_text
-
+        next_token_id = -1
         model.eval()
         with torch.no_grad():
             while True:
@@ -398,7 +398,7 @@ class TokenizexTrainer:
                 pos = torch.tensor([pos], device="cuda")
                 mask = torch.tensor(mask.astype(bool), device="cuda")
 
-                if mask.shape[0] >= max_sequence_length or next_token_id == end_token_id:
+                if mask.shape[-1] >= max_sequence_length or next_token_id == end_token_id:
                     break
 
                 with ManagerMaskSetter(model, mask), ManagerPESetter(model, pos):
