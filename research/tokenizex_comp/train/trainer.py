@@ -105,6 +105,7 @@ class TemplateTrainer:
             for i in self.loss_log_intervals
         }
         self.fb_time_acc = 0
+        self.fb_time_acc_interval = 0.0
         self.ts_start_training = None
 
         self.correct_tokens_accumulator = 0.0
@@ -199,6 +200,7 @@ class TemplateTrainer:
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
         self.fb_time_acc += aux_info["fb_time"]
+        self.fb_time_acc_interval += aux_info["fb_time"]
 
         self._apply_gradient()
         if self.is_logging_process:
@@ -207,7 +209,7 @@ class TemplateTrainer:
             self._log_acc_stats(self.deftok_loss, loss, step)
             self._log_acc_time_stats(self.fb_time_byttok_loss, aux_info["byttok_loss"], step, int(self.fb_time_acc))
             self._log_acc_time_stats(self.fb_time_deftok_loss, loss, step, int(self.fb_time_acc))
-            self._log_avg_interval(100, "average/time/fb", self.fb_time_acc, step)
+            self._log_avg_time_interval(100, "average/time/fb", step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -471,14 +473,15 @@ class TemplateTrainer:
                 stats.last_time = time_passed
                 stats.last_step = step
                 stats.acc = 0.0
-
-    def _log_avg_interval(self, interval, name, value, iteration):
+    
+    def _log_avg_time_interval(self, interval, name, iteration):
         if iteration % interval == 0 and iteration > 0:
             self.logger.report_scalar(
                 title=name,
-                value=value/iteration,
+                value=self.fb_time_acc_interval/interval,
                 iteration=iteration,
             )
+            self.fb_time_acc_interval = 0.0
 
     def _save_weights(self, step):
         if (
