@@ -53,7 +53,7 @@ params:
   # load_weights_path: "tokenizex_model_ckpt/ordzvaphob.pt"
   decoding_interval: 1000
   eval_interval: 10
-  atomization_strategy: "[(0, 0.1), (0.3, 0.5), (0.6, 1)]"
+  atomization_strategy: "[(0,0.0),(0.3,0.5),(0.6,1)]"
   atomization_strategy_period: 10_000 
 
 

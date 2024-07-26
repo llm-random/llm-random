@@ -315,18 +315,14 @@ def introduce_parser_arguments(
     # #dev TODO
 
     def parse_atomization_strategy(value):
-        try:
-            # Remove the surrounding square brackets
-            value = value.strip("[]")
-            # Split the string into tuple strings
-            tuples = value.split("), (")
-            # Convert each tuple string into an actual tuple
-            result = [tuple(map(float, t.strip("()").split(","))) for t in tuples]
-            return result
-        except ValueError:
-            raise argparse.ArgumentTypeError(
-                "Atomization strategy must be a list of tuples of floats, e.g., '[(1,1), (2,3)]'"
-            )
+        # Remove the surrounding square brackets
+        value = value.strip("[]")
+        # Split the string into tuple strings
+        tuples = value.split("),(")
+        # Convert each tuple string into an actual tuple
+        result = [tuple(map(float, t.strip("()").split(","))) for t in tuples]
+        return result
+
 
     parser.add_argument(
         "--atomization_strategy",
