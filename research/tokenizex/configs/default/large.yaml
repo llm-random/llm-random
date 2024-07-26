@@ -1,14 +1,14 @@
 runner: "research.tokenizex_comp.train.train"
 n_gpus: 1
-cpus_per_gpu: 5
+cpus_per_gpu: 6
 interactive_debug: false
 time: "0-02:00:00"
 cuda_visible: "7"
 
 
 params:
-  name: "tokenizex_baseline_medium"
-  tags: ["ms", "tokenizex", "baseline", "medium"]
+  name: "tokenizex_baseline_large"
+  tags: ["ms", "tokenizex", "baseline", "large"]
 
   model_type: gpt
   
@@ -22,10 +22,10 @@ params:
   decoding_interval: 25000
   
   # model
-  dmodel: 768
-  dff: 3072
-  n_blocks: 12
-  n_att_heads: 12 
+  dmodel: 1024
+  dff: 2048
+  n_blocks: 24
+  n_att_heads: 16 
   cutoff: 256
 
   # training

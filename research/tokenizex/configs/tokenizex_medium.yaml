@@ -1,14 +1,14 @@
 runner: "research.tokenizex.train.train"
 n_gpus: 1
-cpus_per_gpu: 8
+cpus_per_gpu: 9
 interactive_debug: false
 time: "0-02:00:00"
 cuda_visible: "7"
 argparse: "research.tokenizex.utils.argparse"
 
 params:
-  name: tokenizex_small
-  tags: ["ms", "tokenizex", "small"]
+  name: tokenizex_medium
+  tags: ["ms", "tokenizex", "medium"]
 
   # logging etc.
   logger_types: "neptune"

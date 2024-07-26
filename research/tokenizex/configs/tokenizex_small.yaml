@@ -17,7 +17,7 @@ params:
   logging_interval_loss: 1000
   save_weights_path: "tokenizex_model_ckpt"
   save_weights_interval: 25_000
-  decoding_interval: 5000
+  decoding_interval: 25000
   eval_interval: 200
 
   # model
