@@ -185,7 +185,8 @@ class TokenizexTrainer:
                     self._eval_step(step)
 
                 if (
-                    self.model_type == "gpt"
+                    step > 0 
+                    and self.model_type == "gpt"
                     and self.decoding_interval > 0
                     and step % self.decoding_interval == 0
                     and self.is_logging_process
