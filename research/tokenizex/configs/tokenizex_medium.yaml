@@ -1,31 +1,30 @@
-runner: "research.tokenizex_comp.train.train"
+runner: "research.tokenizex.train.train"
 n_gpus: 1
-cpus_per_gpu: 4
+cpus_per_gpu: 8
 interactive_debug: false
 time: "0-02:00:00"
 cuda_visible: "7"
-
+argparse: "research.tokenizex.utils.argparse"
 
 params:
-  name: "tokenizex_baseline"
-  tags: ["ms", "tokenizex", "baseline", "medium"]
+  name: tokenizex_small
+  tags: ["ms", "tokenizex", "small"]
 
-  model_type: gpt
-  
   # logging etc.
   logger_types: "neptune"
   project_name: "pmtest/llm-random"
   logging_interval_heavy: 5000
   logging_interval_loss: 1000
-  save_weights_path: "default_model_ckpt"
+  save_weights_path: "tokenizex_model_ckpt"
   save_weights_interval: 25_000
   decoding_interval: 25000
-  
+  eval_interval: 200
+
   # model
   dmodel: 768
   dff: 3072
   n_blocks: 12
-  n_att_heads: 12 
+  n_att_heads: 12
   cutoff: 256
 
   # training
@@ -41,3 +40,8 @@ params:
   grad_clip: 0.5
   dataset_type: wikibook
   batch_size: 64
+
+
+
+  # tokenizex
+  input_wise_positional_embedding: True  
