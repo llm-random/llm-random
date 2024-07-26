@@ -285,13 +285,14 @@ def main(
         **common_dataloaders_kwargs,
         dataset_split="train",
         dataset_path=args.train_dataset_path,
+        atomization_p=1.0
     )
 
     eval_train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split="train",
         dataset_path=args.train_dataset_path,
-        atomization_p=1.0
+        atomization_p=0.0
     )
 
     eval_split = (
