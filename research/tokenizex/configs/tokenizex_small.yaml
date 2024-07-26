@@ -39,9 +39,11 @@ params:
   final_lr_fraction: 0.1
   grad_clip: 0.5
   dataset_type: wikibook
-  batch_size: 128
+  batch_size: 64
 
 
 
   # tokenizex
   input_wise_positional_embedding: True  
+  atomization_strategy: '[(0, 0.1), (0.3, 0.5), (0.6, 1)]'
+  atomization_strategy_period: 20_000 

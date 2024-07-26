@@ -107,8 +107,8 @@ class TokenizexGPTPacker(AbstractPacker):
 
             document_prep = self.tokenizer.prepare_for_tokenization(document)
             document_words = self.tokenizer.split_txt(document_prep)
-            random_array = np.random.rand(len(document_words)) #dev atomize
-            atimization_mask = (random_array < self.atomization_p.value).astype(int) #dev atomize
+            random_array = np.random.rand(len(document_words))
+            atimization_mask = (random_array < self.atomization_p.value).astype(int)
 
             ids, pos, mask = self.tokenizer.text_to_ids_pos_mask(document, atimization_mask)
             mask = mask.tolist()  # dev

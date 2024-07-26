@@ -45,3 +45,5 @@ params:
 
   # tokenizex
   input_wise_positional_embedding: True  
+  atomization_strategy: '[(0, 0.1), (0.3, 0.5), (0.6, 1)]'
+  atomization_strategy_period: 10_000 
