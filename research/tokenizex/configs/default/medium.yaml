@@ -8,7 +8,7 @@ cuda_visible: "7"
 
 params:
   name: "tokenizex_baseline"
-  tags: ["ms", "tokenizex", "baseline", "default"]
+  tags: ["ms", "tokenizex", "baseline", "medium"]
 
   model_type: gpt
   
@@ -25,7 +25,7 @@ params:
   dmodel: 768
   dff: 3072
   n_blocks: 12
-  n_att_heads: 12
+  n_att_heads: 12 
   cutoff: 256
 
   # training
@@ -40,4 +40,4 @@ params:
   final_lr_fraction: 0.1
   grad_clip: 0.5
   dataset_type: wikibook
-  batch_size: 32
+  batch_size: 128
