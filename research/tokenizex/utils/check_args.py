@@ -44,21 +44,6 @@ def check_args(args):
         normalized_a_strat.append((int(e[0]*args.atomization_strategy_period), e[1]))
     args.atomization_strategy = normalized_a_strat
 
-    # steps_p_sum = 0
-    # for e in atomization_strategy:
-    #     assert e[1] <= 1 and e[1] >= 0
-    #     steps_p_sum += e[0]
-    # normalized_a_strat = []
-    # for e in atomization_strategy:
-    #     normalized_a_strat.append((e[0] / steps_p_sum, e[1]))
-    # args.atomization_strategy = normalized_a_strat
-
-    print(args.atomization_strategy)#dev
-    print(type(args.atomization_strategy))
-    print(type(args.atomization_strategy[0]))
-    print(type(args.atomization_strategy[0][0]))
-    print(type(args.atomization_strategy[0][1]))
-
     if args.input_part_no_atomized != 0:
         raise NotImplementedError("Not implemented - optimization feature (mostly)")
 

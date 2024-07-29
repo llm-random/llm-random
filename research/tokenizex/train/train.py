@@ -381,7 +381,8 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        atomization_strategy=args.atomization_strategy
+        atomization_strategy=args.atomization_strategy,
+        atomization_strategy_smoothness=args.atomization_strategy_smoothness
     )
     trainer.train(args.n_steps)
 

@@ -81,6 +81,7 @@ class TokenizexTrainer:
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
     atomization_strategy: Optional[list[tuple[int, float]]] = [(0, 1.0)]
+    atomization_strategy_smoothness: Optional[bool] = False
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -198,12 +199,17 @@ class TokenizexTrainer:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
 
-    def _calculate_atomization(self, step) -> float:
-        ret = 0
+    def _calculate_atomization(self, step, smooth=False) -> float:
+        ret_atomization = 0
+        passed_threashold = 0
         for threashold, atomization in self.atomization_strategy:
             if step >= threashold:
-                ret = atomization
-        return ret
+                ret_atomization = atomization
+                passed_threashold = threashold
+            if step < threashold and smooth: 
+                ret_atomization = ret_atomization + ((step - passed_threashold) / (threashold - passed_threashold)) * (atomization - ret_atomization)
+                return ret_atomization
+        return ret_atomization
 
     def _train_step(
         self,
@@ -213,7 +219,7 @@ class TokenizexTrainer:
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
 
-        self.train_dataloader.dataloader.dataset.atomization_p.value = self._calculate_atomization(step=step)
+        self.train_dataloader.dataloader.dataset.atomization_p.value = self._calculate_atomization(step=step, smooth=self.atomization_strategy_smoothness)
         processed_batch = self.train_dataloader.get_batch()
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
