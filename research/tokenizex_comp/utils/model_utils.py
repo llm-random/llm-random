@@ -61,7 +61,7 @@ def run_backward(
 
 
 def chungized_llm_loss_and_gradient(
-    batch: LLMBatch,
+    batch: CompLLMBatch,
     model: torch.nn.Module,
     mixed_precision: bool,
     n_chungs: int,
@@ -69,66 +69,67 @@ def chungized_llm_loss_and_gradient(
     num_checkpoint_accumulation_steps: int,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> tuple[float, dict]:
-    raise NotImplemented("Not comparable to tokenizex")
-    # input_tokens = batch.input_ids
-    # gt_tokens = batch.target_ids
-    # mask = batch.should_calculate_loss
+    input_tokens = batch.input_ids
+    gt_tokens = batch.target_ids
+    mask = batch.should_calculate_loss
+    byttok_scale = batch.byttok_scale
 
-    # with torch.autocast(
-    #     device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
-    # ):
-    #     embeddings = model.embedding_layer(input_tokens)
-    #     encoder_output = model.encoder(embeddings)
-    #     encoder_output_detach = encoder_output.detach()
-    #     encoder_output_detach.requires_grad = True
-    #     chunged_encoder_outputs = torch.chunk(encoder_output_detach, n_chungs, dim=0)
-    #     chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
-    #     chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
+    with torch.autocast(
+        device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
+    ):
+        embeddings = model.embedding_layer(input_tokens)
+        encoder_output = model.encoder(embeddings)
+        encoder_output_detach = encoder_output.detach()
+        encoder_output_detach.requires_grad = True
+        chunged_encoder_outputs = torch.chunk(encoder_output_detach, n_chungs, dim=0)
+        chunged_non_masked_inputs = torch.chunk(gt_tokens, n_chungs, dim=0)
+        chunged_non_masked_masks = torch.chunk(mask, n_chungs, dim=0)
 
-    #     total_loss = 0
-    #     total_correct_tokens = 0
-    #     total_masked_tokens = 0
-    #     for chunged_encoder_output, chunged_gt, chunged_mask in zip(
-    #         chunged_encoder_outputs, chunged_non_masked_inputs, chunged_non_masked_masks
-    #     ):
-    #         (
-    #             single_chung_loss,
-    #             single_chung_correct_tokens,
-    #             single_chung_masked_tokens,
-    #         ) = calculate_single_chung_loss(
-    #             model.head,
-    #             mixed_precision_dtype,
-    #             chunged_encoder_output,
-    #             chunged_gt,
-    #             chunged_mask,
-    #         )
-    #         partial_loss = (
-    #             single_chung_loss.mean() / n_chungs / num_checkpoint_accumulation_steps
-    #         )
-    #         if model.training:
-    #             run_backward(partial_loss, mixed_precision_dtype, scaler)
-    #         total_loss += partial_loss.item()
-    #         total_correct_tokens += single_chung_correct_tokens
-    #         total_masked_tokens += single_chung_masked_tokens
+        total_loss = 0
+        total_correct_tokens = 0
+        total_masked_tokens = 0
+        for chunged_encoder_output, chunged_gt, chunged_mask in zip(
+            chunged_encoder_outputs, chunged_non_masked_inputs, chunged_non_masked_masks
+        ):
+            (
+                single_chung_loss,
+                single_chung_correct_tokens,
+                single_chung_masked_tokens,
+            ) = calculate_single_chung_loss(
+                model.head,
+                mixed_precision_dtype,
+                chunged_encoder_output,
+                chunged_gt,
+                chunged_mask,
+            )
+            partial_loss = (
+                single_chung_loss.mean() / n_chungs / num_checkpoint_accumulation_steps
+            )
+            if model.training:
+                run_backward(partial_loss, mixed_precision_dtype, scaler)
+            total_loss += partial_loss.item()
+            total_correct_tokens += single_chung_correct_tokens
+            total_masked_tokens += single_chung_masked_tokens
 
-    #     aux_info = {
-    #         "correct_tokens": total_correct_tokens,
-    #         "total_masked_tokens": total_masked_tokens,
-    #         "losses": retrieve_additional_losses(model),
-    #     }
+        aux_info = {
+            "correct_tokens": total_correct_tokens,
+            "total_masked_tokens": total_masked_tokens,
+            "losses": retrieve_additional_losses(model),
+            "byttok_loss": total_loss/byttok_scale #dev
+        }
 
-    # for key, value in aux_info["losses"].items():
-    #     aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
-    # if model.training:
-    #     # ok, we need to backward one loss (because of torch autograd)
-    #     # the "loss" that has the same gradient as the original cross entropy loss is the sum below
-    #     assert encoder_output_detach.grad.shape == encoder_output.shape
-    #     loss_to_optimize = (encoder_output * encoder_output_detach.grad).sum()
-    #     for value in aux_info["losses"].values():
-    #         loss_to_optimize += value if scaler is None else scaler.scale(value)
-    #     loss_to_optimize.backward()
-    # clear_additional_losses(model)
-    # return total_loss, aux_info
+    for key, value in aux_info["losses"].items():
+        aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
+    if model.training:
+        # ok, we need to backward one loss (because of torch autograd)
+        # the "loss" that has the same gradient as the original cross entropy loss is the sum below
+        assert encoder_output_detach.grad.shape == encoder_output.shape
+        loss_to_optimize = (encoder_output * encoder_output_detach.grad).sum()
+        for value in aux_info["losses"].values():
+            loss_to_optimize += value if scaler is None else scaler.scale(value)
+        loss_to_optimize.backward()
+    clear_additional_losses(model)
+    return total_loss, aux_info
 
 
 def calculate_llm_loss_and_gradient(

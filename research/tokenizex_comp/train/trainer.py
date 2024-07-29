@@ -183,11 +183,10 @@ class TemplateTrainer:
                     and step % self.decoding_interval == 0
                     and self.is_logging_process
                 ):
-                    self._decode_samples(step)
-                    # try: #dev
-                    #     self._decode_samples(step)
-                    # except:
-                    #     print("Decoding failed, skipping...")
+                    try: #dev
+                        self._decode_samples(step)
+                    except:
+                        print("Decoding failed, skipping...")
                 self._after_step_operations(step)
 
     def _train_step(
