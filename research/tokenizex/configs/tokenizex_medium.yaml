@@ -1,8 +1,8 @@
 runner: "research.tokenizex.train.train"
 n_gpus: 1
-cpus_per_gpu: 9
+cpus_per_gpu: 16
 interactive_debug: false
-time: "0-02:00:00"
+time: "0-08:00:00"
 cuda_visible: "7"
 argparse: "research.tokenizex.utils.argparse"
 
@@ -28,22 +28,18 @@ params:
   cutoff: 256
 
   # training
-  n_steps: 100_000
+  n_steps: 50_005
   init_type: kaiming_uniform
   init_scale: 1.0
 
   learning_rate: 1e-4
-  final_lr_step: 100_000
+  final_lr_step: 50_005
   lr_warmup_steps: 2500
   scheduler: cosine
   final_lr_fraction: 0.1
-  grad_clip: 0.5
+  grad_clip: 1.0
   dataset_type: wikibook
-  batch_size: 64
-
-
+  batch_size: 512
 
   # tokenizex
   input_wise_positional_embedding: True  
-  atomization_strategy: "[(0,0.0),(0.3,0.5),(0.6,1)]"
-  atomization_strategy_period: 10_000 
