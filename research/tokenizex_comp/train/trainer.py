@@ -225,6 +225,7 @@ class TemplateTrainer:
         correct_tokens_value = 0
         total_masked_tokens_value = 0
         losses = {}
+        byttok_loss_acc = 0
 
         for i in range(self.gradient_accumulation_steps):
             # TODO: make a way to avoid copying the whole batch just to get a slice
@@ -249,6 +250,7 @@ class TemplateTrainer:
             correct_tokens_value += aux_info["correct_tokens"]
             total_masked_tokens_value += aux_info["total_masked_tokens"]
 
+            byttok_loss_acc += aux_info["byttok_loss"]
             for key, value in aux_info["losses"].items():
                 losses[key] = losses.get(key, 0) + value.item()
 
@@ -256,7 +258,7 @@ class TemplateTrainer:
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
-            "byttok_loss": aux_info["byttok_loss"],
+            "byttok_loss": byttok_loss_acc,
             "fb_time": fb_time
         }
 

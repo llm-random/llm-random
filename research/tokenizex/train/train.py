@@ -236,7 +236,7 @@ def main(
 
     embedding = [m for m in model.modules() if isinstance(m, llm.EmbeddingLayer)][
         0
-    ]  # dev why?
+    ]  # dev
     head = model.head
 
     n_learnable_nonembedding_parameters = (

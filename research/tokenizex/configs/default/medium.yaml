@@ -40,5 +40,6 @@ params:
   final_lr_fraction: 0.1
   grad_clip: 1.0
   dataset_type: wikibook
-  batch_size: 192
-  loss_checkpoint_chungs: 16
+  batch_size: 128
+  gradient_accumulation_steps: 4
+  

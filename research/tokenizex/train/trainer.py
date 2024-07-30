@@ -256,6 +256,7 @@ class TokenizexTrainer:
         correct_tokens_value = 0
         total_masked_tokens_value = 0
         losses = {}
+        deftok_loss_acc = 0
 
         for i in range(self.gradient_accumulation_steps):
             # TODO: make a way to avoid copying the whole batch just to get a slice
@@ -282,12 +283,13 @@ class TokenizexTrainer:
 
             for key, value in aux_info["losses"].items():
                 losses[key] = losses.get(key, 0) + value.item()
-
+            deftok_loss_acc += aux_info["deftok_loss"]
+            
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
-            "deftok_loss": aux_info["deftok_loss"],
+            "deftok_loss": deftok_loss_acc,
             "fb_time": fb_time,
         }
 
