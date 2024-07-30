@@ -40,5 +40,5 @@ params:
   final_lr_fraction: 0.1
   grad_clip: 1.0
   dataset_type: wikibook
-  batch_size: 512
-  loss_checkpoint_chungs: 512
+  batch_size: 192
+  loss_checkpoint_chungs: 16

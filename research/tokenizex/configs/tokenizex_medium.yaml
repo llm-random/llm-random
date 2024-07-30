@@ -39,7 +39,7 @@ params:
   final_lr_fraction: 0.1
   grad_clip: 1.0
   dataset_type: wikibook
-  batch_size: 512
+  batch_size: 192
 
   # tokenizex
   input_wise_positional_embedding: True  
