@@ -119,7 +119,7 @@ def chungized_llm_loss_and_gradient(
             "correct_tokens": total_correct_tokens,
             "total_masked_tokens": total_masked_tokens,
             "losses": retrieve_additional_losses(model),
-            "deftok_loss": total_loss * deftok_byte_scale
+            "deftok_loss": total_loss * deftok_byte_scale / num_checkpoint_accumulation_steps
         }
 
     for key, value in aux_info["losses"].items():
@@ -185,7 +185,7 @@ def calculate_llm_loss_and_gradient(
             "losses": retrieve_additional_losses(model),
         }
 
-        aux_info["deftok_loss"] = loss.item() * deftok_byte_scale
+        aux_info["deftok_loss"] = loss.item() * deftok_byte_scale / num_checkpoint_accumulation_steps
 
         return loss, aux_info
 
