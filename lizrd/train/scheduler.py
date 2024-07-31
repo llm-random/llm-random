@@ -1,13 +1,20 @@
 from abc import ABC
 import math
+from typing import Optional
 
 from torch.optim import Optimizer
 
 
-def get_scheduler(args):
+def get_scheduler(
+    args, ratios_in_group_order: Optional[list[float]] = None
+) -> "AbstractLRScheduler":
+    if ratios_in_group_order is None:
+        ratios_in_group_order = [1.0]
     if args.scheduler == "constant":
         return ConstantScheduler(
-            lr_warmup_steps=args.lr_warmup_steps, lr=args.learning_rate
+            lr_warmup_steps=args.lr_warmup_steps,
+            lr=args.learning_rate,
+            ratios=ratios_in_group_order,
         )
     elif args.scheduler == "cosine":
         if args.final_lr_step is None:
@@ -17,23 +24,28 @@ def get_scheduler(args):
             lr=args.learning_rate,
             final_lr_step=args.final_lr_step,
             final_lr_fraction=args.final_lr_fraction,
+            ratios=ratios_in_group_order,
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 
 
 class AbstractLRScheduler(ABC):
+    def __init__(self, ratios: list[float]):
+        self.ratios = ratios
+
     def get_lr(self, step):
         raise NotImplementedError
 
     def set_lr(self, optimizer: Optimizer, step: int):
         new_lr = self.get_lr(step)
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = new_lr
+        for param_group, ratio in zip(optimizer.param_groups, self.ratios, strict=True):
+            param_group["lr"] = new_lr * ratio
 
 
 class ConstantScheduler(AbstractLRScheduler):
-    def __init__(self, lr_warmup_steps: int, lr: float):
+    def __init__(self, lr_warmup_steps: int, lr: float, ratios: list[float]):
+        super().__init__(ratios=ratios)
         self.lr_warmup_steps = lr_warmup_steps
         self.lr = lr
 
@@ -51,7 +63,9 @@ class CosineScheduler(AbstractLRScheduler):
         lr: float,
         final_lr_step: int,
         final_lr_fraction: float,
+        ratios: list[float],
     ):
+        super().__init__(ratios=ratios)
         assert isinstance(lr_warmup_steps, int)
         assert isinstance(lr, float)
         assert isinstance(final_lr_step, int)

@@ -26,3 +26,12 @@ def calculate_load_balancing_loss(
         dot_product = torch.dot(per_expert_softmax_sum, n_tokens_in_each_expert)
     load_balancing_loss = alpha * n_experts * dot_product / n_tokens
     return load_balancing_loss
+
+
+def calculate_z_loss(zloss_weight: float = 0, gate_logits: torch.Tensor = None):
+    zloss = torch.logsumexp(gate_logits, dim=0)
+    zloss = torch.square(zloss)
+    zloss = zloss.mean()
+    zloss = zloss_weight * zloss
+
+    return zloss
