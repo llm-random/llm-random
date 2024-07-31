@@ -22,7 +22,7 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
     dataset_path: Optional[str] = None,
-    atomization_p: Optional[float] = 0.0, #dev
+    atomization_p: Optional[float] = 1.0,
 ) -> DataloaderWrapper:
     if dataset_type == "wikibook":
         dataset_maker = partial(

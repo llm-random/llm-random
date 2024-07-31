@@ -96,7 +96,6 @@ class CompGPTPacker(
 
         while True:
             document = self.dataset.get_document() #dev can load 53k doc
-            # tokens = self.tokenizer.text_to_ids(document) 
             tokens = self.tokenizer.tokenizer.encode(document) 
             buffer.extend(tokens + [eot_id])
 

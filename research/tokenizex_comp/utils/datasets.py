@@ -3,11 +3,10 @@ from typing import Literal, Optional
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import GPT2Tokenizer
 
 from lizrd.text import datasets, packers, tokenizers
 from research.datasets import DataloaderWrapper, worker_init_fn
-from research.tokenizex.model.tokenizer import ReversedGPT2Tokenizer, TokenizexTokenizer
+from research.tokenizex.model.tokenizer import TokenizexTokenizer
 from research.tokenizex_comp.utils.packer import CompGPTPacker, CompLLMBatch
 
 
@@ -49,7 +48,6 @@ def get_processed_dataset(
         packer = CompGPTPacker(
             sequence_length=sequence_length,
             dataset_maker=dataset,
-            # tokenizer_maker=tokenizers.GPTTokenizer, #dev
             tokenizer_maker=TokenizexTokenizer,
         )
     else:
