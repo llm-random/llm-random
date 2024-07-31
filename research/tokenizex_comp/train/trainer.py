@@ -97,11 +97,15 @@ class TemplateTrainer:
             for i in self.loss_log_intervals
         }
         self.fb_time_deftok_loss = {
-            f"comp/interval/time/fb/deftok_loss/{i}": SN(acc=0.0, interval=i, last_time=0.0, last_step=0)
+            f"comp/interval/time/fb/deftok_loss/{i}": SN(
+                acc=0.0, interval=i, last_time=0.0, last_step=0
+            )
             for i in self.loss_log_intervals
         }
         self.fb_time_byttok_loss = {
-            f"comp/interval/time/fb/byttok_loss/{i}": SN(acc=0.0, interval=i, last_time=0.0, last_step=0)
+            f"comp/interval/time/fb/byttok_loss/{i}": SN(
+                acc=0.0, interval=i, last_time=0.0, last_step=0
+            )
             for i in self.loss_log_intervals
         }
         self.fb_time_acc = 0
@@ -177,13 +181,13 @@ class TemplateTrainer:
                     self._eval_step(step)
 
                 if (
-                    step > 0 
+                    step > 0
                     and self.model_type == "gpt"
                     and self.decoding_interval > 0
                     and step % self.decoding_interval == 0
                     and self.is_logging_process
                 ):
-                    try: #dev
+                    try:  # dev
                         self._decode_samples(step)
                     except:
                         print("Decoding failed, skipping...")
@@ -208,8 +212,15 @@ class TemplateTrainer:
             self._log_train_stats(loss, step)
             self._log_acc_stats(self.byttok_loss, aux_info["byttok_loss"], step)
             self._log_acc_stats(self.deftok_loss, loss, step)
-            self._log_acc_time_stats(self.fb_time_byttok_loss, aux_info["byttok_loss"], step, int(self.fb_time_acc))
-            self._log_acc_time_stats(self.fb_time_deftok_loss, loss, step, int(self.fb_time_acc))
+            self._log_acc_time_stats(
+                self.fb_time_byttok_loss,
+                aux_info["byttok_loss"],
+                step,
+                int(self.fb_time_acc),
+            )
+            self._log_acc_time_stats(
+                self.fb_time_deftok_loss, loss, step, int(self.fb_time_acc)
+            )
             self._log_avg_time_interval(100, "average/time/fb", step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
@@ -261,7 +272,7 @@ class TemplateTrainer:
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
             "byttok_loss": byttok_loss_acc,
-            "fb_time": fb_time_acc
+            "fb_time": fb_time_acc,
         }
 
     def _apply_gradient(self):
@@ -339,10 +350,15 @@ class TemplateTrainer:
         with torch.no_grad():
             while True:
                 predictions = model(output_tokens_ids)[0]
-                next_token_id = torch.argmax(predictions, dim=-1)[output_length - 1].item()
+                next_token_id = torch.argmax(predictions, dim=-1)[
+                    output_length - 1
+                ].item()
                 output_tokens_ids[0][output_length] = next_token_id
                 output_length += 1
-                if output_length == max_sequence_length or next_token_id == end_token_id:
+                if (
+                    output_length == max_sequence_length
+                    or next_token_id == end_token_id
+                ):
                     break
         return output_tokens_ids[0][:output_length].to("cpu").numpy()
 
@@ -363,11 +379,10 @@ class TemplateTrainer:
                 [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(example))]
             ).to(self.train_dataloader.device)
             output_tokens = TemplateTrainer.decode_single_example(
-                model = self.model,
-                max_sequence_length = self.max_sequence_length,
-                input_tokens_ids = tokens,
-                end_token_id = tokenizer.convert_tokens_to_ids(tokenizer.eos_token)
-
+                model=self.model,
+                max_sequence_length=self.max_sequence_length,
+                input_tokens_ids=tokens,
+                end_token_id=tokenizer.convert_tokens_to_ids(tokenizer.eos_token),
             )
             decoded_output = tokenizer.decode(output_tokens)
             print(f"{example}: {decoded_output}")
@@ -454,7 +469,6 @@ class TemplateTrainer:
                 )
             self.auxiliary_losses_accumulator.clear()
 
-    
     def _log_acc_stats(self, stat_accumulator, stat_value, step):
         for name, stats in stat_accumulator.items():
             stats.acc += stat_value
@@ -469,21 +483,28 @@ class TemplateTrainer:
     def _log_acc_time_stats(self, stat_accumulator, stat_value, step, time_passed):
         for name, stats in stat_accumulator.items():
             stats.acc += stat_value
-            if stats.interval > 0 and time_passed > 0 and (time_passed-stats.last_time) > stats.interval:
+            if (
+                stats.interval > 0
+                and time_passed > 0
+                and (time_passed - stats.last_time) > stats.interval
+            ):
                 self.logger.report_scalar(
                     title=name,
-                    value=stats.acc / (1 if (step - stats.last_step) == 0 else (step - stats.last_step)),
+                    value=stats.acc
+                    / (
+                        1 if (step - stats.last_step) == 0 else (step - stats.last_step)
+                    ),
                     iteration=time_passed,
                 )
                 stats.last_time = time_passed
                 stats.last_step = step
                 stats.acc = 0.0
-    
+
     def _log_avg_time_interval(self, interval, name, iteration):
         if iteration % interval == 0 and iteration > 0:
             self.logger.report_scalar(
                 title=name,
-                value=self.fb_time_acc_interval/interval,
+                value=self.fb_time_acc_interval / interval,
                 iteration=iteration,
             )
             self.fb_time_acc_interval = 0.0

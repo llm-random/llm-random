@@ -41,7 +41,7 @@ def check_args(args):
         assert e[1] <= 1 and e[1] >= 0
         assert e[0] > le
         le = e[0]
-        normalized_a_strat.append((int(e[0]*args.atomization_strategy_period), e[1]))
+        normalized_a_strat.append((int(e[0] * args.atomization_strategy_period), e[1]))
     args.atomization_strategy = normalized_a_strat
 
     if args.input_part_no_atomized != 0:

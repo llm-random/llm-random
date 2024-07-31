@@ -45,7 +45,7 @@ def get_processed_dataset(
         dataset_maker=dataset_maker,
         tokenizer_maker=tokenizer_maker,
         seed=seed,
-        atomization_p=atomization_p
+        atomization_p=atomization_p,
     )
 
     dataloader = DataLoader(

@@ -28,9 +28,7 @@ def run_backward(
     mixed_precision_dtype: torch.dtype,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ):
-    with torch.autocast(
-        device_type="cuda", enabled=False, dtype=mixed_precision_dtype
-    ):
+    with torch.autocast(device_type="cuda", enabled=False, dtype=mixed_precision_dtype):
         if scaler is None:
             loss.backward()
         else:
@@ -61,6 +59,7 @@ def calculate_single_chung_loss(
 
     return loss[mask.reshape(-1) == 1], correct_tokens, total_tokens
 
+
 def chungized_llm_loss_and_gradient(
     batch: TokenizexBatch,
     model: torch.nn.Module,
@@ -79,7 +78,9 @@ def chungized_llm_loss_and_gradient(
 
     with torch.autocast(
         device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
-    ), ManagerMaskSetter(model, attention_masks), ManagerPESetter(model, tokens_positions):
+    ), ManagerMaskSetter(model, attention_masks), ManagerPESetter(
+        model, tokens_positions
+    ):
         embeddings = model.embedding_layer(input_tokens)
         encoder_output = model.encoder(embeddings)
         encoder_output_detach = encoder_output.detach()
@@ -118,7 +119,7 @@ def chungized_llm_loss_and_gradient(
             "correct_tokens": total_correct_tokens,
             "total_masked_tokens": total_masked_tokens,
             "losses": retrieve_additional_losses(model),
-            "deftok_loss": total_loss * deftok_byte_scale
+            "deftok_loss": total_loss * deftok_byte_scale,
         }
 
     for key, value in aux_info["losses"].items():
@@ -133,6 +134,7 @@ def chungized_llm_loss_and_gradient(
         loss_to_optimize.backward()
     clear_additional_losses(model)
     return total_loss, aux_info
+
 
 def calculate_llm_loss_and_gradient(
     batch: TokenizexBatch,

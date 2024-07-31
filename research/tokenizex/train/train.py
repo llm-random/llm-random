@@ -234,9 +234,7 @@ def main(
     args.n_learnable_parameters = n_learnable_parameters
     print(f"Number of learnable parameters: {n_learnable_parameters:_}")
 
-    embedding = [m for m in model.modules() if isinstance(m, llm.EmbeddingLayer)][
-        0
-    ]
+    embedding = [m for m in model.modules() if isinstance(m, llm.EmbeddingLayer)][0]
     head = model.head
 
     n_learnable_nonembedding_parameters = (
@@ -283,14 +281,14 @@ def main(
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split="train",
-        dataset_path=args.train_dataset_path
+        dataset_path=args.train_dataset_path,
     )
 
     eval_train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
         dataset_split="train",
         dataset_path=args.train_dataset_path,
-        atomization_p=1.0
+        atomization_p=1.0,
     )
 
     eval_split = (
@@ -302,7 +300,7 @@ def main(
         **common_dataloaders_kwargs,
         dataset_split=eval_split,
         dataset_path=args.validation_dataset_path,
-        atomization_p=1.0
+        atomization_p=1.0,
     )
 
     if is_logging_process:
@@ -381,7 +379,7 @@ def main(
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
         atomization_strategy=args.atomization_strategy,
-        atomization_strategy_smoothness=args.atomization_strategy_smoothness
+        atomization_strategy_smoothness=args.atomization_strategy_smoothness,
     )
     trainer.train(args.n_steps)
 

@@ -1,4 +1,3 @@
-
 from statistics import mean
 from typing import Callable, List, Optional
 
@@ -9,6 +8,7 @@ from lizrd.text.data import LLMExample
 from lizrd.text.datasets import AbstractDataset
 from lizrd.text.packers import AbstractPacker, take_circular
 from lizrd.text.tokenizers import AbstractTokenizer
+
 
 @dataclass
 class CompLLMExample(LLMExample):
@@ -95,8 +95,8 @@ class CompGPTPacker(
         document_lengths: List[int] = []
 
         while True:
-            document = self.dataset.get_document() #dev can load 53k doc
-            tokens = self.tokenizer.tokenizer.encode(document) 
+            document = self.dataset.get_document()  # dev can load 53k doc
+            tokens = self.tokenizer.tokenizer.encode(document)
             buffer.extend(tokens + [eot_id])
 
             document_lengths.append(len(tokens) + 1)
@@ -110,7 +110,15 @@ class CompGPTPacker(
         target_ids = list(take_circular(buffer, sample_start + 1, sample_end + 1))
         calculate_loss = [1] * len(target_ids)
 
-        target_bytes_c = len("".join(self.tokenizer.tokenizer.tokenize(self.tokenizer.tokenizer.decode(target_ids))))
-        byttok_scale = target_bytes_c/self.sequence_length
-        
-        return CompLLMExample(input_ids, target_ids, calculate_loss, byttok_scale=byttok_scale)
+        target_bytes_c = len(
+            "".join(
+                self.tokenizer.tokenizer.tokenize(
+                    self.tokenizer.tokenizer.decode(target_ids)
+                )
+            )
+        )
+        byttok_scale = target_bytes_c / self.sequence_length
+
+        return CompLLMExample(
+            input_ids, target_ids, calculate_loss, byttok_scale=byttok_scale
+        )

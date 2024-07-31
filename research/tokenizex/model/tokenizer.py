@@ -8,8 +8,8 @@ from lizrd.text.tokenizers import AbstractTokenizer, disable_tokenizer_warnings
 
 
 class ReversedGPT2Tokenizer:
-    def __init__(self, rev_tokenizer:GPT2Tokenizer):
-        self.__rev_tokenizer:GPT2Tokenizer = rev_tokenizer
+    def __init__(self, rev_tokenizer: GPT2Tokenizer):
+        self.__rev_tokenizer: GPT2Tokenizer = rev_tokenizer
 
     def prepare_for_tokenization(self, text):
         res_text, aux_info = self.__rev_tokenizer.prepare_for_tokenization(text[::-1])
@@ -22,14 +22,14 @@ class ReversedGPT2Tokenizer:
             return e[::-1]
         e = self.__rev_tokenizer.encode(text[::-1])
         return e[::-1]
-    
+
     def decode(self, tokens):
         d = self.__rev_tokenizer.decode(tokens[::-1])
         return d[::-1]
-    
+
     def tokenize(self, txt):
         return [e[::-1] for e in self.__rev_tokenizer.tokenize(txt[::-1])[::-1]]
-    
+
     def convert_tokens_to_ids(self, tokens):
         if isinstance(tokens, str):
             return self.__rev_tokenizer.convert_tokens_to_ids(tokens[::-1])
@@ -42,13 +42,13 @@ class ReversedGPT2Tokenizer:
 
     def get_vocab(self):
         vocab = self.__rev_tokenizer.get_vocab()
-        rvocab = {k[::-1]:v for k,v in vocab.items()}
+        rvocab = {k[::-1]: v for k, v in vocab.items()}
         return rvocab
-    
+
     @property
     def model_max_length(self):
         return self.__rev_tokenizer.model_max_length
-    
+
     @model_max_length.setter
     def model_max_length(self, v):
         self.__rev_tokenizer.model_max_length = v
@@ -60,27 +60,27 @@ class ReversedGPT2Tokenizer:
 
 class TokenizexTokenizer(AbstractTokenizer):
     """Best use with pretrained reversed tokenizer - trailing spaces required!"""
+
     VOCAB_SIZE = 50257
-    HEAD_VOCAB_SIZE = (
-        256 + 1
-    )
+    HEAD_VOCAB_SIZE = 256 + 1
 
     def __init__(self):
-
         self.tokenizer: ReversedGPT2Tokenizer = ReversedGPT2Tokenizer(
             GPT2Tokenizer.from_pretrained("research/tokenizex/model/reversed_tokenizer")
         )
         disable_tokenizer_warnings(self.tokenizer)
 
-        self.eot_id = self.tokenizer.convert_tokens_to_ids(
-            "<|endoftext|>"
-        )
+        self.eot_id = self.tokenizer.convert_tokens_to_ids("<|endoftext|>")
         self.eot_id_target = 0
 
         self._head_cast = self.reorder_atom_tokens(self.tokenizer)
         self._head_cast[self.eot_id_target] = self.eot_id
-        assert list(self._head_cast.keys()) == list(self._head_cast.values())   # Ose provided pretrained tokenizer,
-        assert self.eot_id_target == self.eot_id                                # or implement casting in target/head decoding.
+        assert list(self._head_cast.keys()) == list(
+            self._head_cast.values()
+        )  # Ose provided pretrained tokenizer,
+        assert (
+            self.eot_id_target == self.eot_id
+        )  # or implement casting in target/head decoding.
 
         assert isinstance(self.eot_id, int)
         assert isinstance(self.eot_id_target, int)
@@ -127,8 +127,8 @@ class TokenizexTokenizer(AbstractTokenizer):
             penc = self.tokenizer.encode(pdec)
             past_ids_pos.append(penc)
         return past_ids_pos
-    
-    def tokenize_atom(self, txt, atomize_mask:np.array = None):
+
+    def tokenize_atom(self, txt, atomize_mask: np.array = None):
         txt_words = self.split_txt(txt)
         if atomize_mask is None:
             atomize_mask = np.ones(len(txt_words))
@@ -159,7 +159,7 @@ class TokenizexTokenizer(AbstractTokenizer):
         else:
             txtw[0] = txtw[0][1:]
         return txtw
-    
+
     def split_txt(self, txt):
         txtw = [e + " " for e in txt.split(" ")]
         if "'" in txt:
@@ -175,7 +175,7 @@ class TokenizexTokenizer(AbstractTokenizer):
         else:
             txtw[-1] = txtw[-1][:-1]
         return txtw
-    
+
     def _full_tokens(self, w):
         ids = self.tokenizer.encode(w)
         mask = np.tril(np.ones(len(ids)))
@@ -214,45 +214,47 @@ class TokenizexTokenizer(AbstractTokenizer):
 
         :param str text: text for encoding+
         :return Tuple[List[int], List[int], List[List[int]]]: encoding, positions, attention masks
-        """        
+        """
         text = self.prepare_for_tokenization(text)
         return self.tokenizex_encode(text, splitted_words)
 
     def text_to_ids(self, text: str, is_target=False, splitted_words=None) -> List[int]:
         """Used mainly for training target, with option for training encodings"""
         if self.tokenizer.eos_token in text:
-            raise NotImplementedError("Not implemented special tokens atomization (aka. target ids gen)")
+            raise NotImplementedError(
+                "Not implemented special tokens atomization (aka. target ids gen)"
+            )
         text = self.prepare_for_tokenization(text)
         if is_target:
             return self.tokenize_atom(text, splitted_words)
         else:
             raise Exception("Only for target tokens")
             return self.tokenizex_encode(text)[0]
-        
+
     def ids_to_text(self, ids: list[int]) -> List[int]:
         return self.tokenizer.decode(ids)
 
     def validate_tokenization(self, txt, ids):
-        """ Only for full atomization
-        """        
+        """Only for full atomization"""
         txt = self.prepare_for_tokenization(txt)
         lids = self.tokenize_atom(txt)
         assert len(lids) == len(ids)
 
-    def validate_tokenization_hard(self, txt:str, ids:np.array, pos:np.array, mask:np.array):
-        """ Only for full atomization
-        """ 
+    def validate_tokenization_hard(
+        self, txt: str, ids: np.array, pos: np.array, mask: np.array
+    ):
+        """Only for full atomization"""
         txt = self.prepare_for_tokenization(txt)
 
         dec = self.tokenizer.decode(ids[mask[-1].astype(bool)])
-        assert dec == txt # transformer has no order, token positions out of order
+        assert dec == txt  # transformer has no order, token positions out of order
 
         lids = self.tokenize_atom(txt)
         assert len(lids) == len(ids)
 
         comp = pos[mask[-1].astype(bool)]
         for a, b in zip(comp.astype(int), list(range(len(comp)))):
-            assert a == b # transformer has no order, token positions out of order
+            assert a == b  # transformer has no order, token positions out of order
 
     @staticmethod
     def sum_masks(o_mask_size, masks):
@@ -267,17 +269,17 @@ class TokenizexTokenizer(AbstractTokenizer):
             iy += ms
             ix += ms
         return o_mask
-    
+
     @staticmethod
     def reorder_atom_tokens(tokenizer) -> dict:
         res = {}
         new_order_c = 0
         vocab = tokenizer.get_vocab()
-        vocabi = {v:k for k,v in vocab.items()}
+        vocabi = {v: k for k, v in vocab.items()}
         atom_vocab = {tid: tok for tid, tok in vocabi.items() if len(tok) == 1}
         for tid, tok in atom_vocab.items():
-            res[new_order_c+1] = tid
-            assert tid == new_order_c+1
+            res[new_order_c + 1] = tid
+            assert tid == new_order_c + 1
             new_order_c += 1
         return res
 

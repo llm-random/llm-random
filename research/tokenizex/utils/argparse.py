@@ -322,6 +322,7 @@ def introduce_parser_arguments(
         # Convert each tuple string into an actual tuple
         result = [tuple(map(float, t.strip("()").split(","))) for t in tuples]
         return result
+
     parser.add_argument(
         "--atomization_strategy",
         type=parse_atomization_strategy,
@@ -330,7 +331,7 @@ def introduce_parser_arguments(
     )
     parser.add_argument("--atomization_strategy_period", type=int, default=1)
     parser.add_argument("--atomization_strategy_smoothness", action="store_true")
-    
+
     parser.add_argument("--input_wise_positional_embedding", action="store_true")
     parser.add_argument(
         "--input_part_no_atomized",

@@ -184,7 +184,7 @@ class TokenizexTrainer:
                     self._eval_step(step)
 
                 if (
-                    step > 0 
+                    step > 0
                     and self.model_type == "gpt"
                     and self.decoding_interval > 0
                     and step % self.decoding_interval == 0
@@ -203,8 +203,10 @@ class TokenizexTrainer:
             if step >= threashold:
                 ret_atomization = atomization
                 passed_threashold = threashold
-            if step < threashold and smooth: 
-                ret_atomization = ret_atomization + ((step - passed_threashold) / (threashold - passed_threashold)) * (atomization - ret_atomization)
+            if step < threashold and smooth:
+                ret_atomization = ret_atomization + (
+                    (step - passed_threashold) / (threashold - passed_threashold)
+                ) * (atomization - ret_atomization)
                 return ret_atomization
         return ret_atomization
 
@@ -216,7 +218,11 @@ class TokenizexTrainer:
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
 
-        self.train_dataloader.dataloader.dataset.atomization_p.value = self._calculate_atomization(step=step, smooth=self.atomization_strategy_smoothness)
+        self.train_dataloader.dataloader.dataset.atomization_p.value = (
+            self._calculate_atomization(
+                step=step, smooth=self.atomization_strategy_smoothness
+            )
+        )
         processed_batch = self.train_dataloader.get_batch()
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
@@ -283,7 +289,7 @@ class TokenizexTrainer:
             for key, value in aux_info["losses"].items():
                 losses[key] = losses.get(key, 0) + value.item()
             deftok_loss_acc += aux_info["deftok_loss"]
-            
+
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
@@ -317,11 +323,10 @@ class TokenizexTrainer:
             variant_name="normal",
         )
 
-        batches_full_atom = [self.eval_train_dataloader.get_batch() for _ in range(self.n_eval_batches)]
-        self._eval_perplexity(
-            batches=batches_full_atom,
-            step=step
-        )
+        batches_full_atom = [
+            self.eval_train_dataloader.get_batch() for _ in range(self.n_eval_batches)
+        ]
+        self._eval_perplexity(batches=batches_full_atom, step=step)
 
     def _eval_perplexity(self, batches: Iterable[TokenizexBatch], step: int):
         self.model.eval()
@@ -343,23 +348,23 @@ class TokenizexTrainer:
         if self.is_logging_process:
             log_dir = "comp/perplexity/"
             self.logger.report_scalar(
-                title=log_dir+f"byttok_loss", #dev change
+                title=log_dir + f"byttok_loss",  # dev change
                 value=total_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title=log_dir+f"deftok_loss", #dev change
+                title=log_dir + f"deftok_loss",  # dev change
                 value=total_deftok_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title=log_dir+f"accuracy",
+                title=log_dir + f"accuracy",
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
             for name, loss_value in extra_losses.items():
                 self.logger.report_scalar(
-                    title=log_dir+f"{name}",
+                    title=log_dir + f"{name}",
                     value=loss_value / self.n_eval_batches,
                     iteration=step,
                 )
@@ -404,7 +409,7 @@ class TokenizexTrainer:
         max_sequence_length: int,
         input_text: str,
         end_token_id: int,
-        tokenizer:TokenizexTokenizer,
+        tokenizer: TokenizexTokenizer,
     ) -> torch.Tensor:
         process_text = input_text
         next_token_id = -1
@@ -412,12 +417,15 @@ class TokenizexTrainer:
         with torch.no_grad():
             while True:
                 ids, pos, mask = tokenizer.text_to_ids_pos_mask(process_text)
-                mask=np.expand_dims(mask, 0)
+                mask = np.expand_dims(mask, 0)
                 ids = torch.tensor([ids], device="cuda")
                 pos = torch.tensor([pos], device="cuda")
                 mask = torch.tensor(mask.astype(bool), device="cuda")
 
-                if mask.shape[-1] >= max_sequence_length or next_token_id == end_token_id:
+                if (
+                    mask.shape[-1] >= max_sequence_length
+                    or next_token_id == end_token_id
+                ):
                     break
 
                 with ManagerMaskSetter(model, mask), ManagerPESetter(model, pos):
@@ -426,7 +434,7 @@ class TokenizexTrainer:
                 # predictions = model(output_tokens_ids)[0]
                 next_token_id = torch.argmax(predictions, dim=-1)[-1].item()
 
-                process_text = process_text+tokenizer.ids_to_text([next_token_id])
+                process_text = process_text + tokenizer.ids_to_text([next_token_id])
         return process_text
 
     def _decode_samples(self, step):
@@ -442,8 +450,10 @@ class TokenizexTrainer:
                 self.model,
                 self.max_sequence_length,
                 example,
-                end_token_id = tokenizer.tokenizer.convert_tokens_to_ids(tokenizer.tokenizer.eos_token),
-                tokenizer=tokenizer
+                end_token_id=tokenizer.tokenizer.convert_tokens_to_ids(
+                    tokenizer.tokenizer.eos_token
+                ),
+                tokenizer=tokenizer,
             )
             print(f"{example}: {output_text}")
             self.logger.report_text(
@@ -484,14 +494,17 @@ class TokenizexTrainer:
         for name, stats in stat_accumulator.items():
             stats.acc += stat_value
             if (
-                step != 0 
+                step != 0
                 and stats.interval > 0
                 and time_passed > 0
                 and (time_passed - stats.last_time) > stats.interval
             ):
                 self.logger.report_scalar(
                     title=name,
-                    value=stats.acc / (1 if (step - stats.last_step) == 0 else (step - stats.last_step)),
+                    value=stats.acc
+                    / (
+                        1 if (step - stats.last_step) == 0 else (step - stats.last_step)
+                    ),
                     iteration=time_passed,
                 )
                 stats.last_time = time_passed
@@ -562,7 +575,7 @@ class TokenizexTrainer:
         if iteration % interval == 0 and iteration > 0:
             self.logger.report_scalar(
                 title=name,
-                value=self.fb_time_acc_interval/interval,
+                value=self.fb_time_acc_interval / interval,
                 iteration=iteration,
             )
             self.fb_time_acc_interval = 0.0

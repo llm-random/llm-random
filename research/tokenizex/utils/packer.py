@@ -32,7 +32,7 @@ class TokenizexGPTPacker(AbstractPacker):
         dataset_maker: AbstractDataset,
         tokenizer_maker: Callable[[], TokenizexTokenizer],
         seed: Optional[int] = None,
-        atomization_p: Optional[float] = 0.0
+        atomization_p: Optional[float] = 0.0,
     ):
         super().__init__(
             sequence_length,
@@ -57,9 +57,7 @@ class TokenizexGPTPacker(AbstractPacker):
         while True:
             document = self.dataset.get_document()
             documents_buffer.append(document)
-            document_lengths.append(
-                len(self.tokenizer.tokenizer.tokenize(document))
-            )
+            document_lengths.append(len(self.tokenizer.tokenizer.tokenize(document)))
             if (
                 sum(document_lengths)
                 + len(document_lengths)
@@ -74,9 +72,7 @@ class TokenizexGPTPacker(AbstractPacker):
         sum_len = 0
         atimization_mask = None
         for i, l in enumerate(document_lengths):
-            if (
-                sum_len + l > start
-            ):
+            if sum_len + l > start:
                 documents_tokenization_buffer.append(
                     documents_buffer[i][sum_len - start :]
                 )
@@ -103,14 +99,24 @@ class TokenizexGPTPacker(AbstractPacker):
         ids_len = 0
         for document, document_len in zip(documents_buffer, document_lengths):
             if document_len > int(self.sequence_length * 1.1):
-                document = document[:len("".join(self.tokenizer.tokenizer.tokenize(document)[: int(self.sequence_length * 1.1)]))]
+                document = document[
+                    : len(
+                        "".join(
+                            self.tokenizer.tokenizer.tokenize(document)[
+                                : int(self.sequence_length * 1.1)
+                            ]
+                        )
+                    )
+                ]
 
             document_prep = self.tokenizer.prepare_for_tokenization(document)
             document_words = self.tokenizer.split_txt(document_prep)
             random_array = np.random.rand(len(document_words))
             atimization_mask = (random_array < self.atomization_p.value).astype(int)
 
-            ids, pos, mask = self.tokenizer.text_to_ids_pos_mask(document, atimization_mask)
+            ids, pos, mask = self.tokenizer.text_to_ids_pos_mask(
+                document, atimization_mask
+            )
             mask = mask.tolist()  # dev
             tids = self.tokenizer.text_to_ids(document, True, atimization_mask)
 
@@ -142,9 +148,7 @@ class TokenizexGPTPacker(AbstractPacker):
 
         positions_buffer = [np.array(e) for e in positions_buffer]
         for i in range(1, len(positions_buffer)):
-            positions_buffer[i] = (
-                positions_buffer[i] + positions_buffer[i - 1][-1]
-            )
+            positions_buffer[i] = positions_buffer[i] + positions_buffer[i - 1][-1]
 
         ids = np.concatenate(ids_buffer)[:-1]
         pos = np.concatenate(positions_buffer)[:-1]
