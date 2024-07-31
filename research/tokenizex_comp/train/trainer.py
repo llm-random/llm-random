@@ -226,6 +226,7 @@ class TemplateTrainer:
         total_masked_tokens_value = 0
         losses = {}
         byttok_loss_acc = 0
+        fb_time_acc = 0
 
         for i in range(self.gradient_accumulation_steps):
             # TODO: make a way to avoid copying the whole batch just to get a slice
@@ -245,6 +246,7 @@ class TemplateTrainer:
                 scaler=self.scaler,
             )
             fb_time = time() - ts_start_fb
+            fb_time_acc += fb_time
 
             total_cross_entropy_loss += cross_entropy_loss
             correct_tokens_value += aux_info["correct_tokens"]
@@ -259,7 +261,7 @@ class TemplateTrainer:
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
             "byttok_loss": byttok_loss_acc,
-            "fb_time": fb_time
+            "fb_time": fb_time_acc
         }
 
     def _apply_gradient(self):
