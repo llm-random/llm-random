@@ -164,3 +164,7 @@ full_config*.yaml
 schema.json
 
 wandb
+
+
+# MS files
+testms_*
