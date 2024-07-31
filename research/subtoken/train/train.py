@@ -200,6 +200,7 @@ def main(
         include_subtoken_embedding=args.use_subtoken_embedding,
         subtoken_lowrank_ratio=args.subtoken_lowrank_ratio,
         subtoken_normalization=args.subtoken_normalization,
+        subtoken_use_lowrank=(not args.subtoken_omit_lowrank),
     )
 
     if return_model:

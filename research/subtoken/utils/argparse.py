@@ -202,6 +202,11 @@ def introduce_parser_arguments(
         required=False,
     )
     parser.add_argument(
+        "--subtoken_omit_lowrank",
+        action="store_true",
+        required=False,
+    )
+    parser.add_argument(
         "--subtoken_lowrank_ratio",
         type=float,
         required=False,

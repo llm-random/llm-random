@@ -10,9 +10,10 @@ params:
   logger_types: "neptune"
   project_name: pmtest/llm-random
 
-  fsdp_enabled: false
-  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE,ExpertGatingOld,TokenChoiceRouterOld"
-  batch_size: 32
+  fsdp_enabled: true
+  fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+  fsdp_modules_to_wrap: "TransformerBlock"
+  batch_size: 128
   cutoff: 1024
   final_lr_fraction: 0.1
   scheduler: cosine
@@ -26,6 +27,7 @@ params:
   mixed_precision_dtype: bfloat16
   torch_compile: true
   # loss_checkpoint_chungs: 8
+  subtoken_omit_lowrank: true
 
   dataset_type: c4
 
@@ -48,7 +50,8 @@ params:
   mixed_precision: true
   ^learning_rate: [3e-4]
 
-  ^use_subtoken_embedding: [false]
+  ^use_subtoken_embedding: [true]
+  ^subtoken_lowrank_ratio: [1.0]
   # ^subtoken_lowrank_ratio: [0.042, 0.063, 0.084, 0.105, 0.126, 0.147, 0.167]
   ^subtoken_normalization: ['none']
 

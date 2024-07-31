@@ -1,0 +1,32 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "00:10:00"
+n_gpus: 1
+
+# train params
+params:
+  # model
+  cutoff: 128
+  name: "mp"
+  tags:
+    - "debug_higher_mp_ram"
+    - "fixing_branch"
+    - revert change
+  use_neptune: true
+  n_steps: 150000
+  dmodel: 4
+  dff: 16
+  n_att_heads: 4
+  learning_rate: 1
+  scheduler: constant
+  dataset_type: wikibook
+  n_blocks: 4
+  "^model_type":
+    - "gpt"
+  "^ff_mode":
+    - "vanilla"
+  ^loss_checkpoint_chungs: [0]
+  ^mixed_precision: [true]
+  # loss_checkpoint_chungs: 0
+  logging_interval_heavy: 1000
+  logging_interval_loss: 10

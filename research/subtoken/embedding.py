@@ -24,6 +24,7 @@ class SubtokenEmbedding(torch.nn.Module):
         max_n_bytes: int,
         init_type: Literal["kaiming_uniform", "truncated_normal"],
         init_scale: float,
+        use_lowrank,
         lowrank_ratio,
         normalization,
     ):
@@ -39,6 +40,10 @@ class SubtokenEmbedding(torch.nn.Module):
             normalization = None
 
         lowrank_dim = int(lowrank_ratio * embedding_dim)
+
+        if not use_lowrank:
+            assert lowrank_dim == embedding_dim
+
         self.byte_embedding = torch.nn.Embedding(
             256,
             lowrank_dim,
@@ -49,10 +54,13 @@ class SubtokenEmbedding(torch.nn.Module):
                 scale=init_scale,
             ),
         )
-        self.upscaler = torch.nn.Linear(lowrank_dim, embedding_dim)
-        self.upscaler.weight.data = get_init_weight(
-            self.upscaler.weight.data.shape, lowrank_dim, init_type, init_scale
-        )
+        if use_lowrank:
+            self.upscaler = torch.nn.Linear(lowrank_dim, embedding_dim)
+            self.upscaler.weight.data = get_init_weight(
+                self.upscaler.weight.data.shape, lowrank_dim, init_type, init_scale
+            )
+        else:
+            self.upscaler = torch.nn.Identity()
         # print(self.upscaler.weight.shape)
         # self.positional_embedding = torch.nn.Embedding(
         #     max_n_bytes, (lowrank_dim * lowrank_dim)

@@ -1,0 +1,29 @@
+# grid args
+runner: "research.conditional.train.cc_train"
+time: "00:10:00"
+n_gpus: 1
+
+# train params
+params:
+  # model
+  ^batch_size: [2]
+  cutoff: 128
+  name: "mp"
+  tags:
+    - datasets_tests
+  use_neptune: true
+  n_steps: 150000
+  dmodel: 128
+  dff: 512
+  n_blocks: 4
+  ^dataset:
+    - wikibook
+  "^model_type":
+    - "bert"
+  "^ff_mode":
+    - "vanilla"
+  ^loss_checkpoint_chungs: [0, 32]
+  ^mixed_precision: [true]
+  # loss_checkpoint_chungs: 0
+  logging_interval_heavy: 1000
+  logging_interval_loss: 1000

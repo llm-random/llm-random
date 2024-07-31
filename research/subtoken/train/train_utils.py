@@ -25,6 +25,7 @@ class SubtokenEmbeddingBlock(torch.nn.Module):
         include_subtoken_embedding: bool,  # Assuming this parameter should also be configurable
         subtoken_lowrank_ratio: Optional[float],
         subtoken_normalization: Optional[str],
+        subtoken_use_lowrank: bool,
     ):
         super().__init__()
         self.token_embedding = llm.TokenEmbedding(
@@ -46,6 +47,7 @@ class SubtokenEmbeddingBlock(torch.nn.Module):
                 init_scale=init_scale,
                 lowrank_ratio=subtoken_lowrank_ratio,
                 normalization=subtoken_normalization,
+                use_lowrank=subtoken_use_lowrank,
             )
         else:
             self.subtoken_embedding = None
@@ -90,6 +92,7 @@ def get_model(
     checkpoint: dict[str, torch.Tensor] = None,
     subtoken_lowrank_ratio: Optional[float] = None,
     subtoken_normalization: Optional[str] = None,
+    subtoken_use_lowrank: bool = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -109,6 +112,7 @@ def get_model(
         max_n_bytes_per_token=max_n_bytes_per_token,
         subtoken_lowrank_ratio=subtoken_lowrank_ratio,
         subtoken_normalization=subtoken_normalization,
+        subtoken_use_lowrank=subtoken_use_lowrank,
     ).to(first_gpu)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict

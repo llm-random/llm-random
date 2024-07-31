@@ -1,0 +1,48 @@
+parent: research/conditional/train/configs/baselines/gpt/expert_choice/base.yaml
+md5_parent_hash: f499304b62693fcd5059e69b38c073de
+name: lr_tune
+interactive_debug: false
+
+# gpus
+n_gpus: 1
+cuda_visible: "4"
+
+params:
+  # The point of the experiment
+  ^gradient_checkpointing: [true]
+
+  # basics
+  # batch_size: 128
+  n_steps: 325_000
+  lr_warmup_steps: 2500
+  final_lr_step: 300_000
+  final_lr_fraction: 0.1
+  init_type: "truncated_normal"
+  init_scale: 0.1
+
+  # technical/common params
+  ff_mode: expert_choice
+  softmax_over: experts
+  group_granular_moe_by_batch: true
+  use_full_einsum: true
+  granular_moe_one_hot_impl: true
+  decoding_interval: 0
+  ^flash_attention: [true]
+  mixed_precision: true
+  data_distributed: true
+
+  # params of expert choice
+  expansion_rate: 32
+  effective_dff_x: 4
+  granularity: 1
+
+  # tags
+  tags: ["moe-checkpoint-test"]p
+
+  # param to tune
+  ^learning_rate: [1e-4]
+
+  # HAHAHA
+  # use_dummy_dataset: true
+  # dataset_type: wikibook
+  # batch_size: 2
