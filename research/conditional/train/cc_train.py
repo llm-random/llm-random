@@ -207,6 +207,21 @@ def main(
             "parallel": lambda: Parallel(*[module() for _, module in modules])
         }
 
+    if args.general_ff_layer_config is not None:
+        ff_layers = args.general_ff_layer_config.split(",")
+        ff_layer_funs = []
+        for layer in ff_layers:
+            args.ff_mode = layer
+            ff_layer_funs.append(get_ff_layer(args))
+        attention_fn = get_attention_layer(args)
+        block_modules = [
+            {
+                "attention": attention_fn,
+                "feedforward": ff_fun,
+            }
+            for ff_fun in ff_layer_funs
+        ]
+
     checkpoint = (
         get_checkpoint_from_path(args.load_weights_path)
         if args.load_weights_path is not None
