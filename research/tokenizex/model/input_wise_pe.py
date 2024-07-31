@@ -25,12 +25,10 @@ class ManagerPESetter:
             raise Exception("No InputWisePE modules in provided model")
 
     def __enter__(self):
-        # self.positions.unsqueeze_(1) #dev ? propably to not batch but batch example wise
         for layer in self._layers:
             layer.set_positions(self.positions)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        # self.positions.squeeze_() #dev
         for layer in self._layers:
             layer.remove_positions()
 
@@ -47,7 +45,6 @@ class InputWisePositionalEmbedding(PositionalEmbedding, InputWisePE):
             self, max_length, embedding_dim, init_type, init_scale
         )
         InputWisePE.__init__(self)
-        # super(InputWisePositionalEmbedding, self).__init__(max_length, embedding_dim, init_type, init_scale)
 
     def forward(self, x):
         if self.positions is None:

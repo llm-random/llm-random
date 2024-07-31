@@ -65,7 +65,7 @@ class TokenizexGPTPacker(AbstractPacker):
                 + len(document_lengths)
                 - max(document_lengths)
                 - 1
-            ) > self.sequence_length:  #dev check
+            ) > self.sequence_length:
                 break
 
         start = self.py_rng.randint(0, sum(document_lengths) - 1)
@@ -76,7 +76,7 @@ class TokenizexGPTPacker(AbstractPacker):
         for i, l in enumerate(document_lengths):
             if (
                 sum_len + l > start
-            ):  # dev check
+            ):
                 documents_tokenization_buffer.append(
                     documents_buffer[i][sum_len - start :]
                 )
@@ -103,7 +103,7 @@ class TokenizexGPTPacker(AbstractPacker):
         ids_len = 0
         for document, document_len in zip(documents_buffer, document_lengths):
             if document_len > int(self.sequence_length * 1.1):
-                document = document[:len("".join(self.tokenizer.tokenizer.tokenize(document)[: int(self.sequence_length * 1.1)]))] #dev FIX 22.07
+                document = document[:len("".join(self.tokenizer.tokenizer.tokenize(document)[: int(self.sequence_length * 1.1)]))]
 
             document_prep = self.tokenizer.prepare_for_tokenization(document)
             document_words = self.tokenizer.split_txt(document_prep)
@@ -161,8 +161,6 @@ class TokenizexGPTPacker(AbstractPacker):
         assert len(ids) == len(tids)
         assert len(ids) == len(pos)
         assert len(ids) == len(mask[0])
-
-        # mask = np.tril(np.ones(mask.shape)) #dev
 
         return TokenizexExample(
             ids.tolist(),

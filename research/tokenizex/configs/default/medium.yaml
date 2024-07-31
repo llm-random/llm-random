@@ -2,7 +2,7 @@ runner: "research.tokenizex_comp.train.train"
 n_gpus: 1
 cpus_per_gpu: 8
 interactive_debug: false
-time: "1-00:00:00"
+time: "4-00:00:00"
 cuda_visible: "7"
 
 

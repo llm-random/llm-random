@@ -87,14 +87,14 @@ def main(
     """
     if runner_params is not None:
         parser = argparse.ArgumentParser()
-        introduce_parser_arguments(parser)  # dev done
+        introduce_parser_arguments(parser)
         args, extra = parser.parse_known_args(runner_params)
         if len(extra):
             print("Unknown args:", extra)
         if args.data_seed < 0:
             args.data_seed = random.randint(0, 10000000)
 
-    check_args(args)  # dev done
+    check_args(args)
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
@@ -145,7 +145,7 @@ def main(
 
     model_fit_gpu_info_params = get_argument_attributes(
         args,
-        args.model_fit_gpu_info_params,  # dev model_fit_gpu_info_params will be None from args, can it be?
+        args.model_fit_gpu_info_params,
     )
     update_model_fit_gpu_info(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
@@ -161,7 +161,7 @@ def main(
             block_modules[module_name] = get_ff_layer(args)
         elif (
             module_name == "example_pe_mask_attention"
-        ):  # dev positions and att masks comes by example in batch within input by Managers around model call
+        ):  # positions and att masks comes by example in batch within input by Managers around model call
             block_modules[module_name] = get_input_wise_attention_layer(args)
         else:
             raise ValueError(f"Unknown module name: {module_name}")
@@ -236,7 +236,7 @@ def main(
 
     embedding = [m for m in model.modules() if isinstance(m, llm.EmbeddingLayer)][
         0
-    ]  # dev
+    ]
     head = model.head
 
     n_learnable_nonembedding_parameters = (
@@ -269,7 +269,6 @@ def main(
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
-    # dev TODO - tokenizex dataset/packer
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
         "device": DEVICE,

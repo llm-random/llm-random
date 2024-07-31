@@ -1,3 +1,4 @@
+# TODO - not configured for full training eg. steps, total time, lr
 runner: "research.tokenizex.train.train"
 n_gpus: 1
 cpus_per_gpu: 8

@@ -11,7 +11,7 @@ class DataloaderWrapper:
     def __init__(self, dataloader: DataLoader, device: torch.device):
         self.generator = iter(dataloader)
         self.device = device
-        self.dataloader = dataloader #dev 
+        self.dataloader = dataloader
 
     def get_batch(self) -> data.LLMBatch:
         return next(self.generator).to(self.device)

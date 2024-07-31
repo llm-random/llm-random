@@ -35,7 +35,6 @@ class TokenizexTrainer:
     train_dataloader: DataloaderWrapper
     eval_dataloader: DataloaderWrapper
     eval_train_dataloader: DataloaderWrapper
-    # vocab_size: int #dev ?
     mixed_precision: bool
     mixed_precision_dtype: torch.dtype
     logger: Optional[AbstractLogger]
@@ -49,8 +48,6 @@ class TokenizexTrainer:
     max_sequence_length: int
     batch_size: int
     lr_scheduler: AbstractLRScheduler
-    # _calculate_loss_and_gradient: Optional[Callable] = None #dev ?
-    # mask_percent: Optional[float] = None #dev ?
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
@@ -135,22 +132,22 @@ class TokenizexTrainer:
         self._check_config()
 
     def _before_train_operations(self):
-        propagate_forward_pass_cache(self.model)  # dev ?
-        update_model_fit_gpu_info(  # dev ?
+        propagate_forward_pass_cache(self.model)
+        update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
             "failure",
         )
 
     def _after_train_operations(self):
-        update_model_fit_gpu_info(  # dev ?
+        update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
             "success",
         )
 
     def _after_step_operations(self, step):
-        self.model.forward_pass_cache.clear()  # dev ?
+        self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
 
     def train(self, n_steps: int):
@@ -319,11 +316,8 @@ class TokenizexTrainer:
             step=step,
             variant_name="normal",
         )
-        # print("Atomization ------------------------------") #dev
-        # with AtomizationManager(self.train_dataloader.dataloader.dataset, 1.0):
-        #     batches_full_atom = [self.train_dataloader.get_batch() for _ in range(self.n_eval_batches)]
+
         batches_full_atom = [self.eval_train_dataloader.get_batch() for _ in range(self.n_eval_batches)]
-        # print("+++++++++++++++++++++++++++++++++++++++++++++Atomization ") #dev
         self._eval_perplexity(
             batches=batches_full_atom,
             step=step

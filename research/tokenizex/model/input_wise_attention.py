@@ -87,7 +87,6 @@ class TokenizexAttention(torch.nn.Module, InputWiseMask):
     ):
         torch.nn.Module.__init__(self)
         InputWiseMask.__init__(self)
-        # super(TokenizexAttention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
             dhead = dmodel // heads

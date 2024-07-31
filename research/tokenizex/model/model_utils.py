@@ -20,7 +20,6 @@ def make_loss_and_gradient_function(
     if loss_checkpoint_chungs == 0:
         return calculate_llm_loss_and_gradient
     else:
-        # raise NotImplementedError("Loss chungization not supported") #dev
         return partial(chungized_llm_loss_and_gradient, n_chungs=loss_checkpoint_chungs)
 
 
@@ -31,7 +30,7 @@ def run_backward(
 ):
     with torch.autocast(
         device_type="cuda", enabled=False, dtype=mixed_precision_dtype
-    ):  # dev do i need to have configured pe and att masks here?
+    ):
         if scaler is None:
             loss.backward()
         else:
@@ -166,7 +165,7 @@ def calculate_llm_loss_and_gradient(
         mask = mask.to(model_output.device)
 
         mask_loss = F.cross_entropy(
-            model_output.flatten(0, -2),  # dev check debug
+            model_output.flatten(0, -2),
             gt_tokens.reshape(-1).long(),
             reduction="none",
         )
