@@ -530,20 +530,33 @@ class TransformerTower(nn.Module):
         self,
         n_blocks,
         dmodel,
-        layer_dict,
+        layer_or_block_definition,
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
     ):
         super().__init__()
-        misc.check_layer_funs(*layer_dict.values())
+        if type(layer_or_block_definition) is dict:
+            misc.check_layer_funs(*layer_or_block_definition.values())
+        elif type(layer_or_block_definition) is list:
+            for layer in layer_or_block_definition:
+                misc.check_layer_funs(*layer)
+            assert len(layer_or_block_definition) == n_blocks
+        else:
+            raise ValueError("layer_definition must be dict or list")
+
         self.blocks = []
         self.model_fragmentation = (
             [] if model_fragmentation is None else model_fragmentation
         )
         self.device = device
 
-        for i_block in range(n_blocks):
+        if type(layer_or_block_definition) is dict:
+            block_definitions = [layer_or_block_definition] * n_blocks
+        else:
+            block_definitions = layer_or_block_definition
+
+        for i_block, layer_dict in enumerate(block_definitions):
             layers_info = [
                 (name, layer_fun()) for name, layer_fun in layer_dict.items()
             ]

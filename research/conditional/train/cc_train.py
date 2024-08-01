@@ -188,24 +188,39 @@ def main(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
     )
 
-    block_modules = {}
-    for module_name in args.block_modules:
-        if module_name == "attention":
-            block_modules[module_name] = get_attention_layer(args)
-        elif module_name == "feedforward":
-            block_modules[module_name] = get_ff_layer(args)
-        elif module_name == "mamba":
-            block_modules[module_name] = get_mamba_layer(args)
-        elif module_name == "vanilla_mamba":
-            block_modules[module_name] = get_vanilla_mamba_layer(args)
-        else:
-            raise ValueError(f"Unknown module name: {module_name}")
+    if args.general_ff_layer_config is None:
+        block_modules = {}
+        for module_name in args.block_modules:
+            if module_name == "attention":
+                block_modules[module_name] = get_attention_layer(args)
+            elif module_name == "feedforward":
+                block_modules[module_name] = get_ff_layer(args)
+            elif module_name == "mamba":
+                block_modules[module_name] = get_mamba_layer(args)
+            elif module_name == "vanilla_mamba":
+                block_modules[module_name] = get_vanilla_mamba_layer(args)
+            else:
+                raise ValueError(f"Unknown module name: {module_name}")
 
-    if args.parallel_blocks:
-        modules = block_modules.items()
-        block_modules = {
-            "parallel": lambda: Parallel(*[module() for _, module in modules])
-        }
+        if args.parallel_blocks:
+            modules = block_modules.items()
+            block_modules = {
+                "parallel": lambda: Parallel(*[module() for _, module in modules])
+            }
+    else:
+        ff_layers = args.general_ff_layer_config.split(",")
+        ff_layer_funs = []
+        for layer in ff_layers:
+            args.ff_mode = layer
+            ff_layer_funs.append(get_ff_layer(args))
+        attention_fn = get_attention_layer(args)
+        block_modules = [
+            {
+                "attention": attention_fn,
+                "feedforward": ff_fun,
+            }
+            for ff_fun in ff_layer_funs
+        ]
 
     checkpoint = (
         get_checkpoint_from_path(args.load_weights_path)
