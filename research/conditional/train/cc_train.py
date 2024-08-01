@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
-from lizrd.core.llm import EmbeddingLayer, Parallel
+from lizrd.core.llm import EmbeddingLayer, HarnessLM, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
@@ -240,6 +240,51 @@ def main(
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
     )
+
+    if args.harness_tasks is not None:
+        assert args.n_gpus <= 1, "For now, at most 1 GPU is supported for harness"
+        logger = get_logger(args, model, VOCAB_SIZE)
+
+        harness_wrapper = HarnessLM(
+            model,
+            batch_size=args.batch_size,
+            tokenizer=tokenizers.GPTTokenizer(),
+            max_length=args.cutoff,
+            device=DEVICE,
+        )
+        import lm_eval
+
+        task_manager = lm_eval.tasks.TaskManager()
+        harness_limit = args.harness_limit
+        if harness_limit is not None:
+            try:
+                harness_limit = int(harness_limit)
+            except ValueError:
+                print(
+                    f"Could not parse harness_limit ({harness_limit}) as int, trying float"
+                )
+                try:
+                    harness_limit = float(harness_limit)
+                except ValueError:
+                    print(
+                        f"Could not parse harness_limit ({harness_limit}) as float, aborting"
+                    )
+
+        results = lm_eval.simple_evaluate(  # call simple_evaluate
+            model=harness_wrapper,
+            tasks=args.harness_tasks.split(","),
+            num_fewshot=args.harness_n_fewshot,
+            task_manager=task_manager,
+            limit=harness_limit,
+        )
+        logger.report_text(
+            title="harness_results",
+            value=str(results),
+            iteration=0,
+        )
+        exit(0)
+
+    print(f"Harness finished, exiting")
 
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters

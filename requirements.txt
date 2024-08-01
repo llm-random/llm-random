@@ -8,7 +8,7 @@ line-profiler==4.0.3
 einops==0.4.0
 tensorflow==2.8.0; sys_platform != 'darwin'
 tensorflow~=2.13.0; sys_platform == 'darwin'
-datasets==2.14.6
+datasets>=2.14
 transformers==4.29.1
 apache-beam==2.47.0
 black==23.1.0
@@ -23,3 +23,4 @@ fabric==3.2.1
 GitPython==3.1.17
 diskcache==5.6.3
 wandb==0.16.2
+lm-eval==0.4.3
