@@ -293,14 +293,15 @@ def main(
             task_manager=task_manager,
             limit=harness_limit,
         )
-        logger.report_text(
-            title="harness_results",
-            value=str(results),
-            iteration=0,
-        )
-        exit(0)
 
-    print(f"Harness finished, exiting")
+        for benchmark_name in results["results"].keys():
+            for key in results["results"][benchmark_name].keys():
+                logger.report_generic_info(
+                    title=f"harness_results/{benchmark_name}/{key}",
+                    iteration=0,
+                    data=results["results"][benchmark_name][key],
+                )
+        exit(0)
 
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters
