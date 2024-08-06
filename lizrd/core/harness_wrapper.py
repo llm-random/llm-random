@@ -12,6 +12,8 @@ from tqdm.auto import tqdm
 import random
 from typing import List, Tuple
 
+from lizrd.text.data import LLMBatch
+
 
 class HarnessLM(TemplateLM):
     """
@@ -19,13 +21,22 @@ class HarnessLM(TemplateLM):
     This code is mostly taken from here: https://github.com/EleutherAI/lm-evaluation-harness/blob/7ad7c5b9d0f1c35c048af0ce8b197ebc2021dbd3/lm_eval/models/huggingface.py#L69 , i.e. it's in most part a copy of the HuggingFace wrapper class from lm-eval.
     """
 
-    def __init__(self, model: LLM, batch_size: int, tokenizer, max_length: int, device):
+    def __init__(
+        self,
+        model: LLM,
+        batch_size: int,
+        tokenizer,
+        max_length: int,
+        device,
+        dataset=None,
+    ):
         super().__init__()
         self.model = model
         self.batch_size = batch_size
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.device = device
+        self.dataset = dataset
 
     def eot_token_id(self):
         return self.tokenizer.eot_id
@@ -52,6 +63,7 @@ class HarnessLM(TemplateLM):
         return logits
 
     # _loglikelihood_tokens,
+    @torch.no_grad()
     def _loglikelihood_tokens(
         self,
         requests: List[Tuple[Tuple[str, str], List[int], List[int]]],
@@ -70,8 +82,9 @@ class HarnessLM(TemplateLM):
             #   automatic adaptive batches much much easier to implement
             # - any OOMs will happen right away rather than near the end
 
-            toks = req[1] + req[2]
-            return -len(toks), tuple(toks)
+            # toks = req[1] + req[2]
+            # return -len(toks), tuple(toks)
+            return id(req)
 
         def _lookup_one_token_cont(req: Tuple[Tuple[str, str], List[int], List[int]]):
             """Defines the key to group and lookup one-token continuations"""
@@ -181,18 +194,40 @@ class HarnessLM(TemplateLM):
                 cont_toks_list.append(continuation_enc)
                 inplens.append(inplen)
 
-            # create encoder attn mask and batched conts, if seq2seq
-            call_kwargs = {}
-            batched_inps = pad_and_concat(
+            batched_inps: torch.Tensor = pad_and_concat(
                 padding_len_inp, inps, padding_side="right"
             )  # [batch, padding_len_inp]
+            multi_logits = []
+            call_kwargs = {}
+            for inp in batched_inps:
+                # sample `batch_size` sequences from C4
+                batch: LLMBatch = self.dataset.get_batch()
+                # print(inp.shape)
+                inp_len = inp.shape[0]
+                shortened_batch = batch.input_ids[:, :inp_len]
+                random_idx = random.randint(0, self.batch_size - 1)
+                shortened_batch[random_idx, :] = inp
+                batch_logits = self.model(shortened_batch, **call_kwargs)
+                multi_logits.append(batch_logits[random_idx])
+                # replace one with the current input
+                # run model on that
+                # snap the logits of the test sequence
+            multi_logits = torch.stack(multi_logits)
+            multi_logits = F.log_softmax(multi_logits, dim=-1)
+            # self._model_call(batched_inps, **call_kwargs), dim=-1
+            # multi_logits =
+            # # create encoder attn mask and batched conts, if seq2seq
+            # call_kwargs = {}
+            # batched_inps = pad_and_concat(
+            #     padding_len_inp, inps, padding_side="right"
+            # )  # [batch, padding_len_inp]
 
+            # # multi_logits = F.log_softmax(
+            # #     self._model_call(batched_inps, **call_kwargs), dim=-1
+            # # )  # [batch, padding_length (inp or cont), vocab]
             # multi_logits = F.log_softmax(
-            #     self._model_call(batched_inps, **call_kwargs), dim=-1
+            #     self.model(batched_inps, **call_kwargs), dim=-1
             # )  # [batch, padding_length (inp or cont), vocab]
-            multi_logits = F.log_softmax(
-                self.model(batched_inps, **call_kwargs), dim=-1
-            )  # [batch, padding_length (inp or cont), vocab]
 
             for (request_str, ctx_tokens, _), logits, inplen, cont_toks in zip(
                 chunk, multi_logits, inplens, cont_toks_list
