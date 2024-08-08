@@ -10,7 +10,7 @@ params:
   ^learning_rate: [1e-3]
   gradient_accumulation_steps: 4
   ^tr_schedule: ["100_cos_1.2-1"]
-  rnn_type: "rnn"
+  rnn_type: "cnn"
 
   # common
   scheduler: cosine

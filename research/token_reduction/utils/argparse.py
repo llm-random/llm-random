@@ -314,7 +314,8 @@ def introduce_parser_arguments(
         choices=[
             "manual",
             "rnn",
-            "lstm"
+            "lstm",
+            "cnn"
         ],
         default="lstm",
         required=False,

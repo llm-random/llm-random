@@ -12,8 +12,8 @@ params:
   ^batch_size: [256]
   ^learning_rate: [1e-3]
   gradient_accumulation_steps: 4
-  ^tr_schedule: ["100_const_1"]
-  ^rnn_type: ["rnn", "lstm"]
+  ^tr_schedule: ["100_cos_1.2-1", "100_const_1"]
+  ^rnn_type: ["cnn"]
 
   tags: [ "base", "token_reduction" , "baseline_tag_rnn"]
 

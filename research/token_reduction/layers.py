@@ -203,6 +203,8 @@ class TokenRnnMergingLayer(LoggingLayer):
             return nn.RNN(dm, dm, batch_first=True)
         elif rnn_type == "lstm":
             return nn.LSTM(dm, dm, batch_first=True)
+        elif rnn_type == "cnn":
+            return nn.Conv1d(dm, dm, kernel_size=3, padding="valid")
 
     def set_scheduler_step(self, step):
         if self.scheduler is not None:
@@ -216,6 +218,8 @@ class TokenRnnMergingLayer(LoggingLayer):
             for i in range(seq_len):
                 hidden[:, i, :] = state = torch.tanh(self.rnn(state)) + x[:, i, :]
             return hidden
+        elif self.rnn_type == "cnn":
+            return x + self.rnn(nn.functional.pad(x.permute(0, 2, 1), (2,0))).permute(0, 2, 1)
         elif self.rnn_type in ["rnn", "lstm"]:
             return self.rnn(x)[0] + x
         else:
