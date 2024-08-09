@@ -1,0 +1,47 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+time: "2-00:00:00"
+runner: "research.token_reduction.runner"
+n_gpus: 1
+
+params:
+  name: "baseline_medium_finetuning_cutoff_512"
+  tags: ["medium", "vanilla"]
+
+
+  *>>: 
+    - ^reduction_layer_type: ["dropping"]
+    - ^reduced_number_of_tokens: [512]
+    -
+
+  ^cutoff: [512]
+  ^batch_size: [256]
+  # ^learning_rate: [2e-4, 5e-4, 7e-4, 1e-3]
+  ^learning_rate: [2e-3, 5e-3]
+  gradient_accumulation_steps: 2
+
+  n_steps: 32_000 #TODO replace with correct number of steps
+  final_lr_step: 32_000
+  lr_warmup_steps: 320
+  final_lr_fraction: 0.1
+
+
+  # precision / distributed
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  grad_clip: 1.0
+  logger_types: "neptune,wandb"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  save_weights_interval: 0
+  eval_interval: 100  

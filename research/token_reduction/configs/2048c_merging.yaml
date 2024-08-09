@@ -1,24 +1,34 @@
 parent: configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 763f39978a58f704200275285162594c
-time: "2-00:00:00"
+time: "3-00:00:00"
 runner: "research.token_reduction.utils.runner"
 n_gpus: 1
 
 params:
-  name: "base_merging_scheduled_1.2"
-  tags: ["base", "merging", "scheduled", "1.2", "token_reduction"]
+  # name: "base_merging_scheduled_1.1"
+  # tags: ["base", "merging", "scheduled", "1.1", "token_reduction"]
+  name: "base_vanilla"
+  tags: ["base", "vanilla", "token_reduction"]
   wandb_project: "token_reduction"
 
-  ^reduction_layer_type: ["merging"]
-  ^cutoff: [1024]
-  ^batch_size: [256]
-  ^learning_rate: [1e-3]
-  gradient_accumulation_steps: 4
-  ^tr_schedule: ["90_lin_1.2-1;10_const_1"]
+  # reduction_layer_type: "merging"
+  ^cutoff: [2048] 
+  batch_size: 256
+  learning_rate: 1e-3
+  gradient_accumulation_steps: 8
+  # ^tr_schedule: 
+  #   - "90_cos_1.1-1;10_const_1"
+  #   - "100_cos_1.1-1"
+    # - "90_lin_1.1-1;10_const_1"
+    # - "100_lin_1.1-1"
+    # - "45_const_1.1;45_lin_1.1-1;10_const_1"
+    # - "45_const_1.1;45_cos_1.1-1;10_const_1"
+    # - "100_const_1.1"
 
-  n_steps: 32_000
-  final_lr_step: 32_000
-  lr_warmup_steps: 320
+
+  n_steps: 16_000
+  final_lr_step: 16_000
+  lr_warmup_steps: 160
   final_lr_fraction: 0.1
 
 

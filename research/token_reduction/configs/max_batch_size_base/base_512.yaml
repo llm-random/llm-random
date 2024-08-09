@@ -1,0 +1,49 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+time: "0-01:00:00"
+runner: "research.token_reduction.runner"
+n_gpus: 2
+
+params:
+  name: "check_base_batch_size_seq_len_512"
+  tags: ["base", "vanilla", "check_only"]
+
+  ^cutoff: [512]
+  ^batch_size: [128, 256, 512]
+  learning_rate: 2e-4
+
+
+
+
+  n_steps: 100 #TODO replace with correct number of steps
+  final_lr_step: 32_000
+  lr_warmup_steps: 320
+  final_lr_fraction: 0.1
+
+
+  # precision / distributed
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+  activation_checkpointing_modules: "TransformerBlock,EmbeddingLayer,PredictionHead"
+
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  grad_clip: 1.0
+  logger_types: "neptune,wandb"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  save_weights_interval: 0
+  eval_interval: 100  
+
+  # gradient_accumulation_steps: 8

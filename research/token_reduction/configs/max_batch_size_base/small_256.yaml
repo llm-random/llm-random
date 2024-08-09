@@ -1,0 +1,41 @@
+parent: configs/baselines/gpt/dense/small.yaml
+md5_parent_hash: 9c33561435876b217623fcc532b8ab73
+time: "2-00:00:00"
+runner: "research.token_reduction.runner"
+n_gpus: 1
+
+params:
+  name: "baseline_check_small_cutoff_512"
+  tags: ["small", "vanilla"]
+
+  ^cutoff: [256]
+  ^batch_size: [256]
+  learning_rate: 5e-5
+
+  n_steps: 32_000 #TODO replace with correct number of steps
+  final_lr_step: 32_000
+  lr_warmup_steps: 320
+  final_lr_fraction: 0.1
+
+
+  # precision / distributed
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  grad_clip: 1.0
+  logger_types: "neptune,wandb"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  save_weights_interval: 0
+  eval_interval: 100  
+
+  gradient_accumulation_steps: 8

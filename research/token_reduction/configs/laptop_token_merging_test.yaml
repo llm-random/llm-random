@@ -1,0 +1,77 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+time: "0-20:00:00"
+runner: "research.token_reduction.runner"
+n_gpus: 1
+
+params:
+  # validation_dataset_path: "/net/tscratch/people/plgcrewtool/cache/validation"
+  # train_dataset_path: "/net/tscratch/people/plgcrewtool/cache"
+
+  # wandb_project: "token_reduction"
+  # name: "baseline_2048"
+  # logger_types: "neptune,wandb"
+  logger_types: "stdout"
+  mixed_precision: false
+  # mixed_precision_dtype: bfloat16
+  flash_attention: false
+  grad_clip: 1.0
+  tags: ["medium","baseline", "lr_tuning"]
+
+
+  final_lr_step: 75_000
+  scheduler: cosine
+  lr_warmup_steps: 750
+  final_lr_fraction: 0.1
+  n_steps: 100
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  init_type: truncated_normal
+  init_scale: 0.1
+  save_weights_interval: 0
+  dataset_type: c4
+  weight_decay: 0.1
+  eval_interval: 2  
+
+  gradient_accumulation_steps: 4
+
+  ##### Mode change ##########
+  # reduction_layer_type: "dropping"
+
+  reduction_layer_type: "merging"
+
+  #### Baseline params #####
+  # cutoff: 2048
+  # ^batch_size: [256,512]
+  # ^learning_rate: [1e-5, 2e-5, 5e-5, 1e-4, 2e-4]
+
+  # # cutoff: 1024
+  # batch_size: 64
+  # learning_rate: 1e-4
+
+  ##### Token reduction params #####
+  # ^cutoff: [1126, 1232, 1536, 2048]
+  # reduced_number_of_tokens: 1024
+  # batch_size: 64
+  # learning_rate: 1e-4
+
+  # ^cutoff: [2252, 2464, 3072] #, 4096]
+  # reduced_number_of_tokens: 2048
+  # ^batch_size: [256, 512]
+  # ^learning_rate: [5e-5, 1e-4, 2e-4]
+
+
+  #### DEBUG ####
+  project_name: "crewtool/mojtestproject"
+  learning_rate: 5e-5
+  cutoff: 32
+  reduced_number_of_tokens: 24
+  batch_size: 8
+  dmodel: 32
+  dff: 128
+  n_blocks: 2
+  n_att_heads: 2
+  use_dummy_dataset: true
+  num_workers: 0
+  logger_types: "stdout"
+

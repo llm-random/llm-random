@@ -1,0 +1,39 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+time: "2-00:00:00"
+runner: "research.token_reduction.runner"
+n_gpus: 1
+
+params:
+  wandb_project: "token_reduction"
+  name: "dropping_2048"
+  logger_types: "neptune,wandb"
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+  grad_clip: 1.0
+  tags: ["medium","dropping", "test"]
+
+
+  final_lr_step: 75_000
+  scheduler: cosine
+  lr_warmup_steps: 750
+  final_lr_fraction: 0.1
+  n_steps: 75_000
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  init_type: truncated_normal
+  init_scale: 0.1
+  save_weights_interval: 0
+  dataset_type: c4
+  weight_decay: 0.1
+  eval_interval: 100  
+
+
+  gradient_accumulation_steps: 8
+
+  reduction_layer_type: "dropping"
+  ^cutoff: [2252]
+  reduced_number_of_tokens: 2048
+  batch_size: 256
+  ^learning_rate: [2e-4]

@@ -5,11 +5,11 @@ runner: "research.token_reduction.utils.runner"
 n_gpus: 1
 
 params:
-  name: "base_merging_scheduled_1.2"
-  tags: ["base", "merging", "scheduled", "1.2", "token_reduction"]
+  name: "base_dropping_scheduled_1.2"
+  tags: ["base", "dropping", "scheduled", "1.2", "token_reduction"]
   wandb_project: "token_reduction"
 
-  ^reduction_layer_type: ["merging"]
+  ^reduction_layer_type: ["dropping"]
   ^cutoff: [1024]
   ^batch_size: [256]
   ^learning_rate: [1e-3]
@@ -33,7 +33,7 @@ params:
   init_scale: 0.1
   dataset_type: c4
   weight_decay: 0.1
-  grad_clip: 0.1
+  grad_clip: 1.0
   logger_types: "neptune,wandb"
 
   # intervals

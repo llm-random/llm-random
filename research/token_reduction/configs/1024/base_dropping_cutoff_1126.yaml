@@ -1,0 +1,149 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+time: "2-00:00:00"
+runner: "research.token_reduction.runner"
+n_gpus: 1
+
+params:
+  name: "base_dropping_scheduled_reduced_1126_to_1024"
+  tags: ["base", "dropping", "schedule_10"]
+  wandb_project: "token_reduction"
+
+  ^reduction_layer_type: ["dropping"]
+  ^reduced_number_of_tokens: [1024]
+  ^cutoff: [1126]
+  ^batch_size: [256]
+  ^learning_rate: [1e-3]
+  gradient_accumulation_steps: 4
+  # 100, 50, 10
+  # ^reduction_layer_scheduler_params: ["[[0,32000,102,0]]", "[[0,16000,102],[16001,32000,102,0]]", "[[0,28800,102],[28801,32000,102,0]]"]
+  # reduction_layer_scheduler_params: "[[0,32000,102,0]]"
+  # reduction_layer_scheduler_params: "[[0,16000,102],[16001,32000,102,0]]"
+  reduction_layer_scheduler_params: "[[0,28800,102],[28801,32000,102,0]]"
+
+
+  n_steps: 32_000 #TODO replace with correct number of steps
+  final_lr_step: 32_000
+  lr_warmup_steps: 320
+  final_lr_fraction: 0.1
+
+
+  # precision / distributed
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  grad_clip: 1.0
+  logger_types: "neptune,wandb"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  save_weights_interval: 0
+  eval_interval: 100  
+---
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+time: "2-00:00:00"
+runner: "research.token_reduction.runner"
+n_gpus: 1
+
+params:
+  name: "base_dropping_scheduled_reduced_1126_to_1024"
+  tags: ["base", "dropping", "schedule_50"]
+  wandb_project: "token_reduction"
+
+  ^reduction_layer_type: ["dropping"]
+  ^reduced_number_of_tokens: [1024]
+  ^cutoff: [1126]
+  ^batch_size: [256]
+  ^learning_rate: [1e-3]
+  gradient_accumulation_steps: 4
+  # 100, 50, 10
+  # ^reduction_layer_scheduler_params: ["[[0,32000,102,0]]", "[[0,16000,102],[16001,32000,102,0]]", "[[0,28800,102],[28801,32000,102,0]]"]
+  # reduction_layer_scheduler_params: "[[0,32000,102,0]]"
+  reduction_layer_scheduler_params: "[[0,16000,102],[16001,32000,102,0]]"
+  # reduction_layer_scheduler_params: "[[0,28800,102],[28801,32000,102,0]]"
+
+
+  n_steps: 32_000 #TODO replace with correct number of steps
+  final_lr_step: 32_000
+  lr_warmup_steps: 320
+  final_lr_fraction: 0.1
+
+
+  # precision / distributed
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  grad_clip: 1.0
+  logger_types: "neptune,wandb"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  save_weights_interval: 0
+  eval_interval: 100  
+---
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+time: "2-00:00:00"
+runner: "research.token_reduction.runner"
+n_gpus: 1
+
+params:
+  name: "base_dropping_scheduled_reduced_1126_to_1024"
+  tags: ["base", "dropping", "schedule_100"]
+  wandb_project: "token_reduction"
+
+  ^reduction_layer_type: ["dropping"]
+  ^reduced_number_of_tokens: [1024]
+  ^cutoff: [1126]
+  ^batch_size: [256]
+  ^learning_rate: [1e-3]
+  gradient_accumulation_steps: 4
+  # 100, 50, 10
+  # ^reduction_layer_scheduler_params: ["[[0,32000,102,0]]", "[[0,16000,102],[16001,32000,102,0]]", "[[0,28800,102],[28801,32000,102,0]]"]
+  reduction_layer_scheduler_params: "[[0,32000,102,0]]"
+  # reduction_layer_scheduler_params: "[[0,16000,102],[16001,32000,102,0]]"
+  # reduction_layer_scheduler_params: "[[0,28800,102],[28801,32000,102,0]]"
+
+
+  n_steps: 32_000 #TODO replace with correct number of steps
+  final_lr_step: 32_000
+  lr_warmup_steps: 320
+  final_lr_fraction: 0.1
+
+
+  # precision / distributed
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  grad_clip: 1.0
+  logger_types: "neptune,wandb"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  save_weights_interval: 0
+  eval_interval: 100  

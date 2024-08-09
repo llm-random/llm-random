@@ -1,22 +1,23 @@
-parent: configs/baselines/gpt/dense/base.yaml
-md5_parent_hash: 763f39978a58f704200275285162594c
+parent: configs/baselines/gpt/dense/small.yaml
+md5_parent_hash: 9c33561435876b217623fcc532b8ab73
 time: "2-00:00:00"
-runner: "research.token_reduction.utils.runner"
+runner: "research.token_reduction.runner"
 n_gpus: 1
 
 params:
-  name: "base_merging_scheduled_1.2"
-  tags: ["base", "merging", "scheduled", "1.2", "token_reduction"]
+  name: "reduction_small_merging_reduced_to_512"
+  tags: ["small", "merging"]
+
   wandb_project: "token_reduction"
 
   ^reduction_layer_type: ["merging"]
-  ^cutoff: [1024]
+  ^reduced_number_of_tokens: [512]
+  ^cutoff: [563, 614, 768, 1024]
   ^batch_size: [256]
-  ^learning_rate: [1e-3]
-  gradient_accumulation_steps: 4
-  ^tr_schedule: ["90_lin_1.2-1;10_const_1"]
+  ^learning_rate: [2e-3]
 
-  n_steps: 32_000
+
+  n_steps: 32_000 #TODO replace with correct number of steps
   final_lr_step: 32_000
   lr_warmup_steps: 320
   final_lr_fraction: 0.1
@@ -33,12 +34,13 @@ params:
   init_scale: 0.1
   dataset_type: c4
   weight_decay: 0.1
-  grad_clip: 0.1
+  grad_clip: 1.0
   logger_types: "neptune,wandb"
 
   # intervals
   decoding_interval: 0
   logging_interval_heavy: 1000
-  logging_interval_light: 100
   save_weights_interval: 0
-  eval_interval: 100
+  eval_interval: 100  
+
+  gradient_accumulation_steps: 2
