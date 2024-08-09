@@ -114,6 +114,7 @@ def get_embedding_layer(
     device: torch.device,
     reduction_layer_type: str,
     scheduler_params: List[tuple[int, int, int]],
+    is_eot_id_reducible: bool = False,
 ):
     scheduler = (
         None
@@ -121,34 +122,38 @@ def get_embedding_layer(
         else TokenReductionScheduler(n_steps, reference_seq_len, scheduler_params)
     )
 
-    max_seq_len = (
-        reference_seq_len + scheduler.get_max_tokens_reduced()
+    train_seq_len = (
+        reference_seq_len
+        + scheduler.get_max_tokens_reduced()
+        + 1  # If it happen that we want to drop last token we need to have one more token to merge to
         if scheduler_params is not None
         else reference_seq_len
     )
     embedding_components = [
         llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale),
         llm.PositionalEmbedding(
-            max_seq_len, dm, init_type=init_type, init_scale=init_scale
+            train_seq_len, dm, init_type=init_type, init_scale=init_scale
         ),
     ]
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(device)
 
     if reduction_layer_type is None:
-        return embedding_layer, max_seq_len
+        return embedding_layer, train_seq_len
 
     if reduction_layer_type == "merging":
-        reduction_layer = lambda: layers.TokenMergingLayer(
-            reference_seq_len, dm, scheduler
-        )
+        reduction_layer = lambda: layers.TokenMergingLayer(dm)
     elif reduction_layer_type == "dropping":
-        reduction_layer = lambda: layers.TokenDroppingLayer(
-            reference_seq_len, scheduler
-        )
+        reduction_layer = layers.TokenDroppingLayer
 
     return (
-        layers.TokenReductionEmbedding(embedding_layer, reduction_layer()).to(device),
-        max_seq_len,
+        layers.TokenReductionEmbedding(
+            embedding_layer,
+            reduction_layer(),
+            reference_seq_len,
+            scheduler=scheduler,
+            is_eot_id_reducible=is_eot_id_reducible,
+        ).to(device),
+        train_seq_len,
     )
 
 
@@ -237,8 +242,9 @@ def get_model(
     checkpoint: dict[str, torch.Tensor] = None,
     reduction_layer_type: str = None,
     scheduler_params: List[tuple[int, int, int]] = None,
+    is_eot_id_reducible: bool = False,
 ):
-    embedding_layer, max_seq_len = get_embedding_layer(
+    embedding_layer, train_seq_len = get_embedding_layer(
         reference_seq_len,
         n_steps,
         vocab_size,
@@ -248,6 +254,7 @@ def get_model(
         device,
         reduction_layer_type,
         scheduler_params,
+        is_eot_id_reducible,
     )
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
@@ -293,4 +300,4 @@ def get_model(
             checkpoint_wrapper_fn=make_checkpoint_wrapper_function(),
         )
 
-    return model, max_seq_len
+    return model, train_seq_len
