@@ -4,25 +4,10 @@ from typing import Literal, Optional
 import torch
 from torch.utils.data import DataLoader
 
-from lizrd.text import datasets, packers, data, tokenizers
-
-
-class DataloaderWrapper:
-    def __init__(self, dataloader: DataLoader, device: torch.device):
-        self.generator = iter(dataloader)
-        self.device = device
-        self.dataloader = dataloader
-
-    def get_batch(self) -> data.LLMBatch:
-        return next(self.generator).to(self.device)
-
-
-def worker_init_fn(seed, worker_id):
-    worker_info = torch.utils.data.get_worker_info()
-    packer: packers.AbstractPacker = (
-        worker_info.dataset
-    )  # the dataset copy in this worker process
-    packer.set_rng(seed + worker_id)
+from lizrd.text import datasets, packers, tokenizers
+from research.datasets import DataloaderWrapper, worker_init_fn
+from research.tokenizex.model.tokenizer import TokenizexTokenizer
+from research.tokenizex_comp.utils.packer import CompGPTPacker, CompLLMBatch
 
 
 def get_processed_dataset(
@@ -60,10 +45,10 @@ def get_processed_dataset(
             tokenizer_maker=tokenizers.BertTokenizer,
         )
     elif model_type == "gpt":
-        packer = packers.GPTPacker(
+        packer = CompGPTPacker(
             sequence_length=sequence_length,
             dataset_maker=dataset,
-            tokenizer_maker=tokenizers.GPTTokenizer,
+            tokenizer_maker=TokenizexTokenizer,
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
@@ -72,7 +57,7 @@ def get_processed_dataset(
         packer,
         num_workers=num_workers,
         batch_size=batch_size,
-        collate_fn=data.LLMBatch,
+        collate_fn=CompLLMBatch,
         worker_init_fn=partial(worker_init_fn, seed),
         shuffle=False,
         pin_memory=True,

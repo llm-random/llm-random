@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Callable, List, Literal
+from typing import Callable, List, Literal, Optional
 
 import torch
 from torch.utils.data import DataLoader
@@ -24,16 +24,20 @@ def get_processed_dataset(
     blanks_ids: List[int] = [],
     use_only_last_blank_loss: bool = False,
     extend_sequence_by_n_blanks: bool = False,
+    dataset_path: Optional[str] = None,
 ):
     if dataset_type == "wikibook":
-        dataset = datasets.WikiBookDataset(
+        dataset = partial(
+            datasets.WikiBookDataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
         )
     elif dataset_type == "c4":
-        dataset = datasets.C4Dataset(
+        dataset = partial(
+            datasets.C4Dataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
+            dataset_path=dataset_path,
         )
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")

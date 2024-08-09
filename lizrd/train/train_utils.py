@@ -34,6 +34,7 @@ def get_model(
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
+    embedding_components: Optional[llm.EmbeddingLayer] = None
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -41,19 +42,20 @@ def get_model(
     else:
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
-
-    embedding_components = [
-        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
-    ]
-
-    if include_positional_embedding:
-        embedding_components.append(
-            llm.PositionalEmbedding(
-                max_length, dm, init_type=init_type, init_scale=init_scale
+        
+    if not embedding_components:
+        embedding_components = [
+            llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
+        ]
+        if include_positional_embedding:
+            embedding_components.append(
+                llm.PositionalEmbedding(
+                    max_length, dm, init_type=init_type, init_scale=init_scale
+                )
             )
-        )
 
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
+
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = llm.TransformerTower(
