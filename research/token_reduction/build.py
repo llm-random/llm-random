@@ -144,6 +144,10 @@ def get_embedding_layer(
         reduction_layer = lambda: layers.TokenMergingLayer(dm)
     elif reduction_layer_type == "dropping":
         reduction_layer = layers.TokenDroppingLayer
+    elif reduction_layer_type == "softmax_merging":
+        reduction_layer = lambda: layers.TokenMergingLayerWithSoftmax(dm)
+    else:
+        raise ValueError(f"Unknown reduction layer type {reduction_layer_type}")
 
     return (
         layers.TokenReductionEmbedding(

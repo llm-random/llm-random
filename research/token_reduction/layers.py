@@ -172,6 +172,32 @@ class TokenMergingLayer(nn.Module):
         return reduced_batch.view(batch_size, -1, dm)
 
 
+class TokenMergingLayerWithSoftmax(nn.Module):
+    def __init__(
+        self,
+        dm,
+        init_type="kaiming_uniform",
+        init_scale=1.0,
+    ):
+        super(TokenMergingLayerWithSoftmax, self).__init__()
+
+        self.gate = Linear(
+            dm, 1, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, token_reduction_input):
+        x, (ids_to_save, ids_to_reduce) = token_reduction_input
+        batch_size, _, dm = x.shape
+        x = x.view(-1, dm)
+
+        combined = torch.stack((x[ids_to_reduce], x[ids_to_reduce + 1]), dim=0)
+        weights = self.gate(combined).softmax(dim=0)
+        averaged = (combined * weights).sum(dim=0)
+        x[ids_to_reduce + 1] = averaged
+        reduced_batch = x[ids_to_save]
+        return reduced_batch.view(batch_size, -1, dm)
+
+
 class TokenReductionEmbedding(LoggingLayer):
     def __init__(
         self,
