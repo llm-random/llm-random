@@ -34,14 +34,17 @@ if __name__ == "__main__":
         args.skip_confirmation,
         args.skip_copy_code,
     )
-    PROCESS_CALL_FUNCTION = lambda args: subprocess.run(
-        [str(arg) for arg in args if arg is not None]
+    PROCESS_CALL_FUNCTION = lambda args, env: subprocess.run(
+        [str(arg) for arg in args if arg is not None], env=env
     )
     if not isinstance(CLUSTER, LocalBackend):
         for i, experiment in enumerate(experiments):
-            subprocess_args, job_name = experiment
+            subprocess_args, job_name, cuda_visible = experiment
             print(f"running experiment {i} from {job_name}...")
-            PROCESS_CALL_FUNCTION(subprocess_args)
+            env = os.environ.copy()
+            if cuda_visible is not None:
+                env.update({"SINGULARITYENV_CUDA_VISIBLE_DEVICES": cuda_visible})
+            PROCESS_CALL_FUNCTION(subprocess_args, env)
             sleep(5)
             if interactive_debug_session:
                 print("Ran only the first experiment in interactive mode. Aborting...")
