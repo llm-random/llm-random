@@ -164,3 +164,5 @@ full_config*.yaml
 schema.json
 
 wandb
+lm-evaluation-harness
+lizrd/lm_eval

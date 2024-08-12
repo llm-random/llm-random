@@ -1,0 +1,58 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+interactive_debug: false
+n_gpus: 2
+time: "40:00:00"
+
+params:
+    model_type: bert
+    general_ff_layer_config: "vanilla,vanilla,vanilla,vanilla,vanilla,vanilla,cont_moe,cont_moe,cont_moe,cont_moe,cont_moe,cont_moe"
+
+    #name
+    name: mot_lr_base_later_half
+    tags: [mot,lr_grid]
+
+
+    #mot
+#    ^ff_mode: [cont_moe]
+    group_size: 32
+    n_experts: 32
+    flop_matched: true
+    sparsity_dim: 0
+    temperature: 1.0
+
+
+    #tuning
+    learning_rate: 2e-4
+    init_type: truncated_normal
+    init_scale: 0.1
+    weight_decay: 0.1
+
+
+    #data
+    n_steps: 150_000
+    final_lr_step: 150_000
+    batch_size: 256
+    dataset_type: c4
+
+
+    #eval and logging
+    log_gradients_and_weights: false
+    decoding_interval: 0
+    logging_interval_heavy: 1000
+    eval_interval: 1000
+    save_weights_interval: 0
+
+
+    #fsdp
+    fsdp_enabled: true
+    fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+    fsdp_selective_precision_modules: "AttentionMechanism"
+
+
+    #throughput
+    mixed_precision: true
+    mixed_precision_dtype: bfloat16
+    flash_attention: false
+    gradient_accumulation_steps: 1
+    loss_checkpoint_chungs: 8

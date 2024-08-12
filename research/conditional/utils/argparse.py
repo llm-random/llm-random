@@ -415,4 +415,22 @@ def introduce_parser_arguments(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
 
+    parser.add_argument(
+        "--harness_tasks",
+        help="Comma-separated list of tasks to run harness on. If not specified, we will train the model, not run harness.",
+        default=None,
+    )
+    parser.add_argument(
+        "--harness_limit",
+        help="Limit the number of samples to run harness on. If not specified, all samples will be run.",
+        default=None,
+        type=str,
+    )
+    parser.add_argument(
+        "--harness_n_fewshot",
+        help="Number of fewshot examples to run harness on. If not specified, we will run 0 shot.",
+        default=0,
+        type=int,
+    )
+
     return parser

@@ -1,0 +1,49 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+interactive_debug: false
+n_gpus: 1
+time: "48:00:00" # this is for entropy
+
+params:
+    harness_tasks: lambada,hellaswag,piqa,arc_easy,arc_challenge,winogrande
+    load_weights_path: "/home/ubuntu/mot_checkpoints/dense_base_save/yeybzbcfsg.pt"
+    batch_size: 32
+
+
+    #name
+    name: vanilla_base_1gpu
+    tags: [dense, vanilla, base]
+
+    #tuning
+    ^learning_rate: [4e-4]
+    init_type: truncated_normal
+    init_scale: 0.1
+    weight_decay: 0.1
+
+
+    #data
+    n_steps: 150_000
+    final_lr_step: 150_000
+    dataset_type: c4
+
+
+    #eval and logging
+    log_gradients_and_weights: false
+    decoding_interval: 0
+    logging_interval_heavy: 1000
+    eval_interval: 1000
+    # save_weights_interval: 0
+
+
+    #fsdp
+    # fsdp_enabled: true
+    # fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+    # fsdp_selective_precision_modules: "AttentionMechanism"
+
+
+    #throughput
+    mixed_precision: true
+    mixed_precision_dtype: bfloat16
+    flash_attention: false
+    gradient_accumulation_steps: 1
+    loss_checkpoint_chungs: 8

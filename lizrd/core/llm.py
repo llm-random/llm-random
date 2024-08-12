@@ -1,15 +1,14 @@
 from collections import OrderedDict
-from typing import Literal, Callable, Optional
 from functools import partial
+from typing import Callable, Literal, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core import misc
-from lizrd.core.misc import default, Aggregate
-from lizrd.core.initialization import get_init_weight, ValidInitType
-from lizrd.core.misc import Linear, LoggingLayer
+from lizrd.core.initialization import ValidInitType, get_init_weight
+from lizrd.core.misc import Aggregate, Linear, LoggingLayer, default
 
 
 def decode_bias_string(bias):

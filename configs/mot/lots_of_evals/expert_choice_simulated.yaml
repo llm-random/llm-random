@@ -1,0 +1,65 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+interactive_debug: false
+n_gpus: 1
+time: "72:00:00" # this is for entropy
+
+params:
+
+    save_weights_path: "/home/ubuntu/mot_checkpoints/simulated_expert_choice"
+    save_weights_interval: 10000
+    general_ff_layer_config: "vanilla,vanilla,vanilla,vanilla,vanilla,vanilla,expert_choice,expert_choice,expert_choice,expert_choice,expert_choice,expert_choice"
+
+
+    #ec specific
+    simulate_group_size: 32
+#    ff_mode: expert_choice
+    softmax_over: experts
+    group_granular_moe_by_batch: true
+    use_torch_bmm: true
+    granular_moe_one_hot_impl: true
+    granularity: 1
+    expansion_rate: 32
+    effective_dff_x: 4
+    layer_norm_in_expert_choice: true
+
+
+    #name
+    name: simulated_expert_choice
+    tags: [ec,base]
+
+
+
+    #tuning
+    ^learning_rate: [2e-4]
+    init_type: truncated_normal
+    init_scale: 0.1
+    weight_decay: 0.1
+
+
+    #data
+    n_steps: 150_000
+    final_lr_step: 150_000
+    batch_size: 256
+    dataset_type: c4
+
+    #eval and logging
+    log_gradients_and_weights: false
+    decoding_interval: 0
+    logging_interval_heavy: 0
+    eval_interval: 1000
+    save_weights_interval: 0
+
+
+    #fsdp
+    fsdp_enabled: true
+    fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+    fsdp_selective_precision_modules: ["AttentionMechanism,ExpertGating"]
+
+
+    #throughput
+    mixed_precision: true
+    mixed_precision_dtype: bfloat16
+    flash_attention: false
+    gradient_accumulation_steps: 2
+    loss_checkpoint_chungs: 8

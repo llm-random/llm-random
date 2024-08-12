@@ -10,6 +10,7 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
+from lizrd.core.harness_wrapper import HarnessLM
 from lizrd.core.llm import EmbeddingLayer, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
@@ -255,6 +256,80 @@ def main(
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
     )
+
+    if args.harness_tasks is not None:
+        assert args.n_gpus <= 1, "For now, at most 1 GPU is supported for harness"
+        logger = get_logger(args, model, VOCAB_SIZE)
+
+        common_dataloaders_kwargs = {
+            "sequence_length": args.cutoff,
+            "device": DEVICE,
+            "num_workers": args.num_workers,
+            "batch_size": args.batch_size,
+            "seed": args.data_seed if data_seeds is None else data_seeds[rank],
+            "model_type": args.model_type,
+            "dataset_type": args.dataset_type,
+            "use_dummy_dataset": args.use_dummy_dataset,
+        }
+
+        if (args.ff_mode == "cont_moe") or (
+            "cont_moe" in str(args.general_ff_layer_config)
+        ):
+            train_dataloader = get_processed_dataset(
+                **common_dataloaders_kwargs,
+                dataset_split="train",
+                dataset_path=args.train_dataset_path,
+            )
+        else:
+            train_dataloader = None
+
+        harness_wrapper = HarnessLM(
+            model,
+            batch_size=args.batch_size,
+            tokenizer=tokenizers.GPTTokenizer(),
+            max_length=args.cutoff,
+            device=DEVICE,
+            dataset=train_dataloader,
+        )
+        import lm_eval
+
+        task_manager = lm_eval.tasks.TaskManager()
+        harness_limit = args.harness_limit
+        if harness_limit is not None:
+            try:
+                harness_limit = int(harness_limit)
+            except ValueError:
+                print(
+                    f"Could not parse harness_limit ({harness_limit}) as int, trying float"
+                )
+                try:
+                    harness_limit = float(harness_limit)
+                except ValueError:
+                    print(
+                        f"Could not parse harness_limit ({harness_limit}) as float, aborting"
+                    )
+
+        with torch.autocast(
+            device_type="cuda",
+            enabled=args.mixed_precision,
+            dtype=args.mixed_precision_dtype,
+        ):
+            results = lm_eval.simple_evaluate(  # call simple_evaluate
+                model=harness_wrapper,
+                tasks=args.harness_tasks.split(","),
+                num_fewshot=args.harness_n_fewshot,
+                task_manager=task_manager,
+                limit=harness_limit,
+            )
+
+        for benchmark_name in results["results"].keys():
+            for key in results["results"][benchmark_name].keys():
+                logger.report_generic_info(
+                    title=f"harness_results/{benchmark_name}/{key}",
+                    iteration=0,
+                    data=results["results"][benchmark_name][key],
+                )
+        exit(0)
 
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters

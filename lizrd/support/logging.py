@@ -185,7 +185,9 @@ class NeptuneLogger(AbstractLogger):
                     )
             else:
                 raise NotImplementedError()
-        else:
+        elif isinstance(data, str):
+            self.report_text(title=title, value=data, iteration=iteration)
+        else:  # assume it's a scalar
             self.report_scalar(title=title, value=data, iteration=iteration)
 
     def report_scalar(
