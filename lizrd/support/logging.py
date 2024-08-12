@@ -466,6 +466,14 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
     logger.report_plotly(figure=figure, title=title, series=series, iteration=iteration)
 
 
+def add_logger_active_metrics(args):
+    args.model_n_active = count_moe_non_emb_active_params(args)
+    args.tokens_per_step = count_tokens_per_step(args)
+    args.final_tokens_per_act_param = (
+            args.final_lr_step * args.tokens_per_step / args.model_n_active
+    )
+
+
 def get_logger(args, model, VOCAB_SIZE):
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
@@ -475,17 +483,14 @@ def get_logger(args, model, VOCAB_SIZE):
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
+    add_logger_active_metrics(args)
+
     for logger_type in logger_types:
         if logger_type == "neptune":
             run = neptune.init_run(
                 project=args.project_name,
                 tags=args.tags,
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-            )
-            args.model_n_active = count_moe_non_emb_active_params(args)
-            args.tokens_per_step = count_tokens_per_step(args)
-            args.final_tokens_per_act_param = (
-                args.final_lr_step * args.tokens_per_step / args.model_n_active
             )
             run["args"] = vars(args)
             run["working_directory"] = os.getcwd()
