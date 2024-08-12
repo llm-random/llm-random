@@ -39,7 +39,7 @@ class AbstractLRScheduler(ABC):
 
     def set_lr(self, optimizer: Optimizer, step: int):
         new_lr = self.get_lr(step)
-        for param_group, ratio in zip(optimizer.param_groups, self.ratios, strict=True):
+        for param_group, ratio in zip(optimizer.param_groups, self.ratios):
             param_group["lr"] = new_lr * ratio
 
 
