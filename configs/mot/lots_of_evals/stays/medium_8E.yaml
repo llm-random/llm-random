@@ -1,0 +1,79 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+interactive_debug: false
+n_gpus: 1
+time: "48:00:00" # this is for entropy
+
+params:
+    harness_tasks: lambada,hellaswag,piqa,arc_easy,arc_challenge,winogrande
+    load_weights_path: "/home/ubuntu/mot_checkpoints/mot_medium_8E/vrzwwmywbl.pt"
+    batch_size: 8
+
+    # save_weights_path: "/home/ubuntu/mot_checkpoints/mot_medium_8E"
+    # save_weights_interval: 10000
+
+    #name
+    name: mot_group_size_scaling
+    tags: [mot,medium]
+
+    ^general_ff_layer_config: [
+        "vanilla,vanilla,vanilla,vanilla,cont_moe,cont_moe,cont_moe,cont_moe",
+    ]
+
+
+#    mot specific
+    ff_mode: cont_moe
+    group_size,n_experts: [[8,8]] #[32,32] ,
+    flop_matched: true
+    sparsity_dim: 0
+    temperature: 1.0
+
+
+    #ec specific
+    simulate_group_size: 32
+#    ff_mode: expert_choice
+    softmax_over: experts
+    group_granular_moe_by_batch: true
+    use_torch_bmm: true
+    granular_moe_one_hot_impl: true
+    granularity: 1
+    expansion_rate: 32
+    effective_dff_x: 4
+    layer_norm_in_expert_choice: true
+
+
+
+    #tuning
+    learning_rate: 7e-4
+    init_type: truncated_normal
+    init_scale: 0.1
+    weight_decay: 0.1
+
+    #data
+    n_steps: 150_000
+    final_lr_step: 150_000
+    # batch_size: 256
+    dataset_type: c4
+
+
+    #eval and logging
+    log_gradients_and_weights: false
+    decoding_interval: 0
+    logging_interval_heavy: 1000
+    eval_interval: 1000
+    # save_weights_interval: 0
+
+
+    # #fsdp
+    # fsdp_enabled: true
+    # fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+    # fsdp_selective_precision_modules: "AttentionMechanism"
+    # activation_checkpointing_modules: "EmbeddingLayer,TransformerBlock,PredictionHead"
+
+
+    #throughput
+    mixed_precision: true
+    mixed_precision_dtype: bfloat16
+    flash_attention: false
+    gradient_accumulation_steps: 1
+    loss_checkpoint_chungs: 8

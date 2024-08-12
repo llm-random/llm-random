@@ -199,21 +199,28 @@ class HarnessLM(TemplateLM):
             )  # [batch, padding_len_inp]
             multi_logits = []
             call_kwargs = {}
-            for inp in batched_inps:
-                # sample `batch_size` sequences from C4
-                batch: LLMBatch = self.dataset.get_batch()
-                # print(inp.shape)
-                inp_len = inp.shape[0]
-                shortened_batch = batch.input_ids[:, :inp_len]
-                random_idx = random.randint(0, self.batch_size - 1)
-                shortened_batch[random_idx, :] = inp
-                batch_logits = self.model(shortened_batch, **call_kwargs)
-                multi_logits.append(batch_logits[random_idx])
-                # replace one with the current input
-                # run model on that
-                # snap the logits of the test sequence
-            multi_logits = torch.stack(multi_logits)
-            multi_logits = F.log_softmax(multi_logits, dim=-1)
+            if self.dataset is not None:
+                for inp in batched_inps:
+                    # sample `batch_size` sequences from C4
+                    batch: LLMBatch = self.dataset.get_batch()
+                    # print(inp.shape)
+                    inp_len = inp.shape[0]
+                    shortened_batch = batch.input_ids[:, :inp_len]
+                    random_idx = random.randint(0, self.batch_size - 1)
+                    shortened_batch[random_idx, :] = inp
+                    batch_logits = self.model(shortened_batch, **call_kwargs)
+
+                    multi_logits.append(F.log_softmax(batch_logits[random_idx], dim=-1))
+
+                    # replace one with the current input
+                    # run model on that
+                    # snap the logits of the test sequence
+                multi_logits = torch.stack(multi_logits)
+            else:
+                multi_logits = F.log_softmax(
+                    self.model(batched_inps, **call_kwargs), dim=-1
+                )  # [batch, padding_length (inp or cont), vocab]
+            # multi_logits = F.log_softmax(multi_logits, dim=-1)
             # self._model_call(batched_inps, **call_kwargs), dim=-1
             # multi_logits =
             # # create encoder attn mask and batched conts, if seq2seq

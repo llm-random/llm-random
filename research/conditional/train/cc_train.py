@@ -272,11 +272,16 @@ def main(
             "use_dummy_dataset": args.use_dummy_dataset,
         }
 
-        train_dataloader = get_processed_dataset(
-            **common_dataloaders_kwargs,
-            dataset_split="train",
-            dataset_path=args.train_dataset_path,
-        )
+        if (args.ff_mode == "cont_moe") or (
+            "cont_moe" in str(args.general_ff_layer_config)
+        ):
+            train_dataloader = get_processed_dataset(
+                **common_dataloaders_kwargs,
+                dataset_split="train",
+                dataset_path=args.train_dataset_path,
+            )
+        else:
+            train_dataloader = None
 
         harness_wrapper = HarnessLM(
             model,

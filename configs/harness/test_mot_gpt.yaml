@@ -3,13 +3,20 @@ runner: "research.conditional.train.cc_train"
 time: "5-05:00:00"
 n_gpus: 0
 cuda_visible: ""
+# singularity_image: /home/ubuntu/llm-random-group/llm-random-cemetery/baseline_test_2024-08-01_22-53-09/sparsity_2024.08.01_21.16.58.sif
 
 # train params
 params:
+  #
+  # harness_tasks: Pile LAMBADA LAMBADA HellaSwag PIQA Arc-E Arc-C WinoGrande 
+  harness_tasks: lambada,hellaswag,piqa,arc_easy,arc_challenge,winogrande
+  harness_limit: 0.1
+  harness_n_fewshot: 1
+
   # model
   batch_size: 4
-  cutoff: 16
-  project_name: "pmtest/llm-random"
+  cutoff: 2048
+  project_name: "pmtest/llm-random-tests"
   name: "baseline_test"
   mixed_precision: true
   mixed_precision_dtype: "float16"
@@ -40,3 +47,4 @@ params:
   use_dummy_dataset: true
   init_type: kaiming_uniform
   init_scale: 1.0
+ 
