@@ -1,0 +1,8 @@
+parent: configs/experiments/constrained_scaling_laws/200M/model.yaml
+md5_parent_hash: 6cd6b241d09b039d86d8c51b5f0b4a01
+# here configure GPUs & time for a given cluster for it to fit
+params:
+  tags: ["constrained_scaling_grid", "200M", "E=16"]
+  expansion_rate: 16
+  ^n_steps: [1907, 3814, 7628, 15256, 30512]
+
