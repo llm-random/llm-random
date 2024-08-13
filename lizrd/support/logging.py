@@ -470,7 +470,9 @@ def add_logger_active_metrics(args):
     args.model_n_active = count_moe_non_emb_active_params(args)
     args.tokens_per_step = count_tokens_per_step(args)
     args.final_tokens_per_act_param = (
-        args.final_lr_step * args.tokens_per_step / args.model_n_active
+        (args.final_lr_step * args.tokens_per_step / args.model_n_active)
+        if args.final_lr_step is not None
+        else None
     )
 
 

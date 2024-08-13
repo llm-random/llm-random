@@ -10,6 +10,12 @@ def get_scheduler(
 ) -> "AbstractLRScheduler":
     if ratios_in_group_order is None:
         ratios_in_group_order = [1.0]
+    if args.lr_warmup_percent is not None:
+        assert not args.lr_warmup_steps  # cannot set both
+        args.lr_warmup_steps = math.ceil(args.n_steps * args.lr_warmup_percent)
+    if args.final_lr_step == -1 or args.final_lr_step is None:
+        args.final_lr_step = args.n_steps
+
     if args.scheduler == "constant":
         return ConstantScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
@@ -17,8 +23,6 @@ def get_scheduler(
             ratios=ratios_in_group_order,
         )
     elif args.scheduler == "cosine":
-        if args.final_lr_step is None:
-            args.final_lr_step = args.n_steps
         return CosineScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
             lr=args.learning_rate,
