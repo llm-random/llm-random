@@ -6,7 +6,7 @@ interactive_debug: false
 n_gpus: 1
 
 params:
-  name: "constrained_scaling_grid"
+  name: constrained_scaling_grid_fixed
   tags: ["constrained_scaling_grid"]
   ff_mode: token_choice
   capacity_factor: 1.0
@@ -33,7 +33,7 @@ params:
   scheduler: cosine
   final_lr_fraction: 0.1
   init_scale: 0.1
-  learning_rate: 0.0005
+  learning_rate: 0.0002
   weight_decay: 0.01
 
   save_weights_interval: 0
