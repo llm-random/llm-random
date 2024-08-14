@@ -34,7 +34,7 @@ params:
   final_lr_fraction: 0.1
   init_scale: 0.1
   learning_rate: 0.0002
-  weight_decay: 0.01
+  weight_decay: 0.1
 
   save_weights_interval: 0
   mixed_precision: True
