@@ -6,5 +6,5 @@ params:
 
   dmodel: 1024
   n_blocks: 16
-  n_att_heads: 12
+  n_att_heads: 16
 
