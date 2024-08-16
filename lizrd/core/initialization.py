@@ -2,9 +2,9 @@ import torch
 from torch.nn.init import trunc_normal_
 from functools import partial
 import torch.nn as nn
-from typing import Literal, TypeAlias
+from typing import Literal
 
-ValidInitType: TypeAlias = Literal[
+ValidInitType = Literal[
     "kaiming_uniform", "truncated_normal", "truncated_normal_fixed"
 ]
 

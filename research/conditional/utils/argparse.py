@@ -364,6 +364,19 @@ def introduce_parser_arguments(
         """,
     )
     parser.add_argument(
+        "--relative_scheduler_fraction",
+        type=load_dict_in_args,
+        default=None,
+        help="""Dictionary with relative final learning rate fractions for different modules
+        Example: --relative_scheduler_fraction "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
+        Example in config yaml:
+        relative_scheduler_fraction:
+            attention: 0.1
+            feedforward: 0.1
+            moe: 0.1
+        """,
+    )
+    parser.add_argument(
         "--relative_init_scale",
         type=load_dict_in_args,
         default=None,
@@ -409,6 +422,24 @@ def introduce_parser_arguments(
         help="Exponent for values multiplier in MoE routing. "
         "0 means no multiplier, 1 is the standard, 2 is the square of the standard, etc. "
         "'trainable' means that the exponent is trainable. ",
+    )
+    parser.add_argument(
+        "--chimera_change_after_percent",
+        type=float,
+        default=0.1,
+        help="Change the training model after this percent of training schedule"
+    )
+
+    parser.add_argument(
+        "--lr_restart_on_chimera",
+        action="store_true",
+        help="Restart LR on chimera change"
+    )
+
+    parser.add_argument(
+        "--lr_restart_first_full",
+        action="store_true",
+        help="First LR schedule on chimera is on full length, and interrupted in the middle (as opposed to two full small schedules)"
     )
 
     parser.add_argument(

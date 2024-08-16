@@ -1,0 +1,67 @@
+parent: configs/baselines/gpt/expert_choice/granularity/4/base.yaml
+md5_parent_hash: 6cd6b241d09b039d86d8c51b5f0b4a01
+time: "160:00:00"
+interactive_debug_session: false
+interactive_debug: false
+n_gpus: 8
+
+params:
+  name: "base_extrapolation"
+  tags: ["large_extrapolation"]
+  ff_mode: token_choice
+  capacity_factor: 1.0
+
+  activation_type: silu
+  moe_inner_expert: ff_gated
+  expansion_rate: 8
+  granularity: 1
+  get_router_values_from: weights
+  layer_norm_in_expert_choice: False
+
+  dmodel: 1536
+  n_blocks: 24
+  n_att_heads: 12
+
+  batch_size: 1365
+  cutoff: 256
+
+  n_steps: 41_250
+  final_lr_step: 41_250
+  lr_warmup_steps: 412
+  scheduler: cosine
+
+  final_lr_fraction: 0.066666
+  init_scale: 0.333
+  learning_rate: 0.0005
+  weight_decay: 0.15
+
+  save_weights_interval: 0
+  mixed_precision: True
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+  loss_checkpoint_chungs: 8
+
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
+
+  print_parameter_names: true
+  relative_lr:
+    embedding_layer: 3.333
+    head: 0.666
+    gating: 0.666
+    expert_inner_function: 0.3
+
+  relative_init_scale:
+    embedding_layer: 0.2
+    head: 1.
+    gating: 0.2
+    expert_inner_function: 1.
+
+  relative_scheduler_fraction:
+    embedding_layer: 0.666
+    head: 0.666
+    gating: 1.
+    expert_inner_function: 1.125
+

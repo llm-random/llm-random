@@ -180,6 +180,7 @@ def main(
         reduction_layer_type=args.reduction_layer_type,
         # sequence_length_multiplier=args.sequence_length_multiplier,
         scheduler_params=args.tr_schedule,
+        rnn_type=args.rnn_type,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
