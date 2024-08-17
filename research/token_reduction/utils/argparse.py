@@ -7,6 +7,7 @@ def introduce_parser_arguments(
     # TOKEN REDUCTION
     parser.add_argument("--reduction_layer_type", type=str, default=None)
     parser.add_argument("--tr_schedule", type=str, default=None)
+    parser.add_argument("--tr_reducible_eot_token", action="store_true")
 
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument(
