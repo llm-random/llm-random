@@ -1,0 +1,36 @@
+parent: configs/baselines/gpt/dense/mini.yaml
+md5_parent_hash: f181bf20ef729beb781a926a284a7e4f
+time: 0-05:00:00
+runner: "research.token_reduction.utils.runner"
+
+params:
+
+  name: "laptop_check"
+  ^reduction_layer_type: ["rnn_merging"]
+  ^learning_rate: [1e-3]
+  gradient_accumulation_steps: 4
+  ^tr_schedule: ["100_cos_1.2-1"]
+  rnn_type: "cnn"
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  weight_decay: 0.1
+  grad_clip: 1.0
+  mixed_precision: false
+  flash_attention: false
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  logging_interval_light: 100
+  save_weights_interval: 0
+  eval_interval: 100
+
+  cutoff: 8
+  batch_size: 32
+  n_steps: 100
+  final_lr_step: 100
+  lr_warmup_steps: 2
+  dataset_type: wikibook

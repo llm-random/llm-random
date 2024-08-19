@@ -5,6 +5,35 @@ time: 0-05:00:00
 params:
   name: "laptop_check"
   ff_mode: token_choice
-  cutoff: 16
+  cutoff: 8
+  batch_size: 32
   granularity: 4
+  final_lr_step: 100
+  lr_warmup_steps: 2
   dataset_type: wikibook
+  chimera_change_after_percent: 0.1
+  ^group_granular_moe_by_batch: [False]
+  granular_moe_one_hot_impl: False
+  use_torch_bmm: False
+  mixed_precision: False
+  flash_attention: False
+  init_type: truncated_normal_fixed
+  print_parameter_names: true
+
+  relative_lr:
+    embedding_layer: 5.
+    head: 0.666
+    expert_inner_function: 0.3
+    gating: 0.666
+
+  relative_init_scale:
+    embedding_layer: 1.
+    head: 1.
+    expert_inner_function: 1.
+    gating: 1.
+
+  relative_scheduler_fraction:
+    embedding_layer: 1.
+    expert_inner_function: 1.
+    gating: 1.
+    head: 1.

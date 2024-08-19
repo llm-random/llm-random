@@ -1,0 +1,28 @@
+parent: configs/baselines/gpt/expert_choice/granularity/4/medium.yaml
+md5_parent_hash: 25eb0c53963eb1c7d96c91bb327c2a20
+time: 0-20:00:00
+
+params:
+  name: "chimera_grid_new"
+  ^ff_mode: [token_choice, expert_choice]
+  ^learning_rate: [0.002, 0.001, 0.0005, 0.0002, 0.0001]
+  chimera_change_after_percent: 0.1
+  lr_restart_on_chimera: false
+
+  activation_type: silu
+  mixed_precision: True
+  moe_detach_gate: False
+  expansion_rate: 8
+  granularity: 4
+  ^get_router_values_from: [weights, gate_weight]
+  moe_inner_expert: ff_gated
+  flash_attention: False
+
+  n_steps: 40_000
+  final_lr_step: 40_000
+  scheduler: cosine
+  lr_warmup_steps: 400
+  final_lr_fraction: 0.1
+
+  save_weights_interval: 0
+  loss_checkpoint_chungs: 8

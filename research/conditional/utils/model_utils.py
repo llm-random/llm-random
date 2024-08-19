@@ -72,6 +72,9 @@ from research.conditional.moe_layers.moe_gating import (
 from research.conditional.moe_layers.token_choice import (
     TokenChoiceFF,
 )
+from research.conditional.moe_layers.chimera import (
+    ChimeraFF,
+)
 from research.conditional.moe_layers.expert_types import (
     ExpertFF,
     ExpertGated,
@@ -421,6 +424,15 @@ def get_expert_choice_args(args):
     return args, expert_inner_function
 
 
+def get_only_token_choice_args(args):
+    return {
+        "load_balancing_loss_weight": args.load_balancing_loss_weight,
+        "routing_top_k": args.routing_top_k,
+        "capacity_factor": args.capacity_factor,
+        "zloss_weight": args.zloss_weight,
+    }
+
+
 def get_expert_choice_args_old(args):
     return {
         "dmodel": args.dmodel,
@@ -600,6 +612,16 @@ def get_ff_layer(args):
         args = determine_moe_args(args)
         ff_args = get_expert_choice_args_old(args)
         return_fn = partial(ExpertChoiceFFOld, **ff_args)
+    elif args.ff_mode == "chimera":
+        args = determine_moe_args(args)
+        ff_args, make_expert_inner_function = get_expert_choice_args(args)
+        change_after = args.chimera_change_after_percent * args.final_lr_step
+        return_fn = lambda: ChimeraFF(
+            **ff_args,
+            expert_inner_function=make_expert_inner_function(),
+            change_after=change_after,
+            **get_only_token_choice_args(args),
+        )
     elif args.ff_mode == "expert_choice":
         args = determine_moe_args(args)
         ff_args, make_expert_inner_function = get_expert_choice_args(args)
@@ -631,13 +653,10 @@ def get_ff_layer(args):
         return_fn = lambda: TokenChoiceFF(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
-            capacity_factor=args.capacity_factor,
             expert_inner_function=make_expert_inner_function(),
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
-            zloss_weight=args.zloss_weight,
-            routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
+            **get_only_token_choice_args(args),
             **get_weightless_args(args),
         )
     elif args.ff_mode == "token_choice_old":

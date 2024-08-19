@@ -298,6 +298,7 @@ class BlankTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
+                    token_scale=True,
                 )
                 stats.acc = 0.0
         if self.n_blanks > 0 and len(aux_info["blanks_losses"]) > 0:

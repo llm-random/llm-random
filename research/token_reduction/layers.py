@@ -176,6 +176,83 @@ class TokenMergingLayer(LoggingLayer):
             "reduced_tokens": self.logging_cache["reduced_tokens"],
         }
 
+class TokenRnnMergingLayer(LoggingLayer):
+    """
+    This function randomly selects a `result_seq_len` subset of tokens from the input
+    """
+
+    def __init__(
+        self,
+        result_seq_len,
+        dm,
+        scheduler=None,
+        init_type="kaiming_uniform",
+        init_scale=1.0,
+        rnn_type="lstm",
+    ):
+        super().__init__()
+        self.result_seq_len = result_seq_len
+        self.scheduler = scheduler
+        self.rnn_type = rnn_type
+        self.rnn = self.init_rnn(rnn_type, dm, init_scale, init_type)
+
+    def init_rnn(self, rnn_type, dm, init_scale, init_type):
+        if rnn_type == "manual":
+            return Linear(dm, dm, init_type=init_type, init_scale=init_scale, bias=False)
+        elif rnn_type == "rnn":
+            return nn.RNN(dm, dm, batch_first=True)
+        elif rnn_type == "lstm":
+            return nn.LSTM(dm, dm, batch_first=True)
+        elif rnn_type == "cnn":
+            return nn.Conv1d(dm, dm, kernel_size=3, padding="valid")
+
+    def set_scheduler_step(self, step):
+        if self.scheduler is not None:
+            self.scheduler.set_step(step)
+
+    def run_rnn(self, x):
+        batch_size, seq_len, dm = x.shape
+        if self.rnn_type == "manual":
+            hidden = torch.zeros_like(x)
+            state = torch.zeros_like(x[:, 0, :])
+            for i in range(seq_len):
+                hidden[:, i, :] = state = torch.tanh(self.rnn(state)) + x[:, i, :]
+            return hidden
+        elif self.rnn_type == "cnn":
+            return x + self.rnn(nn.functional.pad(x.permute(0, 2, 1), (2,0))).permute(0, 2, 1)
+        elif self.rnn_type in ["rnn", "lstm"]:
+            return self.rnn(x)[0] + x
+        else:
+            raise ValueError(f"Unknown rnn type {self.rnn_type}")
+
+    def forward(self, x):
+        batch_size, seq_len, dm = x.shape
+        assert self.result_seq_len <= seq_len
+
+        x = self.run_rnn(x)
+
+        n_tokens_to_reduce = (
+            seq_len - self.result_seq_len
+            if self.scheduler is None
+            else self.scheduler.value
+        )
+        self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
+
+        #assert n_tokens_to_reduce + self.result_seq_len == seq_len
+        indices_to_keep, _ = choose_indeces_to_reduce(
+            batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
+        )
+        self.indices_to_keep = indices_to_keep
+        selected_tokens = x.reshape(batch_size * seq_len, -1).index_select(
+            0, indices_to_keep.to(x.device)
+        )
+        return selected_tokens.view(batch_size, self.result_seq_len, -1)
+
+    def log_light(self):
+        return {
+            "reduced_tokens": self.logging_cache["reduced_tokens"],
+        }
+
 
 class TokenReductionEmbedding(nn.Module):
     def __init__(self, base_embedding_layer, reduction_layer):
