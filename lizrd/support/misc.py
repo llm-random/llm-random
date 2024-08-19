@@ -33,8 +33,8 @@ def count_moe_non_emb_active_params(dmodel, effective_dff_x, dff, n_blocks):
     )
 
 
-def count_tokens_per_step(args):
-    return args.batch_size * args.cutoff
+def count_tokens_per_step(batch_size, cutoff):
+    return batch_size * cutoff
 
 
 def generate_random_string(length: int) -> str:

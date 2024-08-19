@@ -467,8 +467,10 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
 
 
 def add_logger_active_metrics(args):
-    args.model_n_active = count_moe_non_emb_active_params(args)
-    args.tokens_per_step = count_tokens_per_step(args)
+    args.model_n_active = count_moe_non_emb_active_params(
+        args.dmodel, args.effective_dff_x, args.dff, args.n_blocks
+    )
+    args.tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
     args.final_tokens_per_act_param = (
         (args.final_lr_step * args.tokens_per_step / args.model_n_active)
         if args.final_lr_step is not None
