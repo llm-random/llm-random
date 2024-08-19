@@ -11,6 +11,7 @@ from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight, ValidInitType
 from lizrd.core.misc import Linear, LoggingLayer
 
+import matplotlib.pyplot as plt
 
 def decode_bias_string(bias):
     assert bias in ["both", "first", "second", "none"]
@@ -222,6 +223,11 @@ def attention_mechanism(
                 torch.tril(torch.ones_like(a)) == 0, float("-inf")
             )  # mask out future tokens
         a = torch.softmax(a, dim=-1)
+        b = a.squeeze(0)
+        print(b.shape)
+        for i in range(b.shape[0]):
+            plt.imshow(b[i].detach().cpu().numpy())
+            plt.show()
         output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
         output = output.transpose(1, 2)
 
@@ -467,6 +473,8 @@ class ReZero(nn.Module):
 def RezeroBlock(dmodel, layer, name):
     return Residual(ReZero(layer))
 
+def NoNormBlock(dmodel, layer, name):
+    return Residual(layer)
 
 def PostNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return nn.Sequential(
@@ -534,7 +542,8 @@ class TransformerTower(nn.Module):
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
-        inverted: bool = False,
+        universal: bool = False,
+        n_repeats: int = 1,
     ):
         super().__init__()
         if type(layer_or_block_definition) is dict:
@@ -580,8 +589,18 @@ class TransformerTower(nn.Module):
                 block,
             )
             self.blocks.append(name_and_block)
+
+        if universal:
+            self.blocks = self.blocks * n_repeats
+            old_blocks = self.blocks
+            self.blocks = []
+            for i, (name, block) in enumerate(old_blocks):
+                block = block.to(device)
+                self.blocks.append((f"block_{i}", block))
+
         self.blocks = nn.Sequential(OrderedDict(self.blocks))
-        self.inverted = inverted
+
+        self.cache = {}
 
     def forward(self, x):
         for i, block in enumerate(self.blocks):
@@ -589,13 +608,7 @@ class TransformerTower(nn.Module):
             if should_transfer:
                 x = x.to(current_device)
             x = block(x)
-
-        if self.inverted:
-            for i, block in reversed(list(enumerate(self.blocks))):
-                should_transfer, current_device = self.get_current_device(i)
-                if should_transfer:
-                    x = x.to(current_device)
-                x = block(x)
+            # cache attention patterns
 
         return x
 

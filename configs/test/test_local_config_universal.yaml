@@ -1,0 +1,60 @@
+parent: configs/baselines/gpt/dense/large.yaml
+md5_parent_hash: 66aa609ebcff1d88f0bb900b0a0966fb
+time: 0-16:00:00
+# cuda_visible: "2"
+interactive_debug: true
+runner: "research.universal.train.train"
+argparse: "research.universal.utils.argparse"
+
+# LOCAL:
+n_gpus: 1
+
+params:
+  # tokenizer: gpt
+
+  # blanx args
+  name: "universal_transformer"
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: false
+#  logger_types: ["stdout"]
+  # use_neptune: false
+  grad_clip: 1.0
+
+  tags: ["universal"]
+
+  n_steps: 10000
+  ^learning_rate: [3e-4, 1e-3, 3e-3]
+  decoding_interval: 0
+  logging_interval_heavy: 50
+  # eval_interval: 1000
+  init_type: truncated_normal
+  init_scale: 0.1
+  universal: true
+  n_blocks: 1
+  n_repeats: 8
+  final_lr_step: 10000
+  lr_warmup_steps: 300 # 1-5%
+  loss_checkpoint_chungs: 4
+  save_weights_path: "weights"
+
+
+  # use_hidden_weights_fanin: true
+  # output_weight_relative_init_scale: 0.1
+  # output_weight_multiplier: 1.0
+
+  # loss_checkpoint_chungs: 2
+
+  # mamba_mode: 'recursive'
+  # mamba_n_levels: 2
+  # block_modules: ["mamba"]
+
+  # LOCAL:
+  dataset_type: c4
+  batch_size: 256
+  # train_dataset_path: "train_dataset_path"
+  # validation_dataset_path: "aaa/ggg"
+
+  use_dummy_dataset: true
+  num_workers: 0
+  save_weights_interval: 1000

@@ -50,3 +50,6 @@ class GPTTokenizer(AbstractTokenizer):
     def text_to_ids(self, text: str) -> List[int]:
         # TODO: encode or tokenize + convert_tokens_to_ids?
         return self.tokenizer.encode(text)
+
+    def ids_to_text(self, ids: List[int]) -> str:
+        return self.tokenizer.decode(ids)

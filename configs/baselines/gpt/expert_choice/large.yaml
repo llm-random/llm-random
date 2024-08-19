@@ -7,4 +7,3 @@ params:
   dmodel: 1024
   n_blocks: 24
   n_att_heads: 16
-

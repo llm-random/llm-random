@@ -14,7 +14,7 @@ from lizrd.support.misc import generate_random_string
 def get_checkpoint_from_path(load_weights_path: str) -> str:
     assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
     print(f"Loading checkpoint from {load_weights_path}...")
-    checkpoint = torch.load(load_weights_path)
+    checkpoint = torch.load(load_weights_path, map_location="cpu")
     print(f"Checkpoint loaded")
     return checkpoint
 
