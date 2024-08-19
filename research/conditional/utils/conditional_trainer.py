@@ -365,7 +365,7 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
-                    token_scale=True,
+                    processed_token_scale=True,
                 )
                 stats.acc = 0.0
 

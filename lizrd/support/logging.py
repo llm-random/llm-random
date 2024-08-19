@@ -46,7 +46,7 @@ class AbstractLogger(ABC):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        token_scale: bool = False,
+        processed_token_scale: bool = False,
     ):
         raise NotImplementedError()
 
@@ -130,7 +130,7 @@ class AbstractLogger(ABC):
 
     def with_token_scale(self, title: str, value: float, iteration: int):
         tokens_passed = iteration * self.args.get("tokens_per_step")
-        tokens_per_active = tokens_passed / self.args.get("model_n_active")
+        tokens_per_active_params = tokens_passed / self.args.get("model_n_active")
         return {
             f"{title}_tokens": {
                 "value": value,
@@ -138,7 +138,7 @@ class AbstractLogger(ABC):
             },
             f"{title}_tokens_per_active": {
                 "value": value,
-                "iteration": tokens_per_active,
+                "iteration": tokens_per_active_params,
             },
         }
 
@@ -221,7 +221,7 @@ class NeptuneLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        token_scale: bool = False,
+        processed_token_scale: bool = False,
     ):
         path = self._make_path(title, series, iteration)
         assert (not math.isnan(value)) and (
@@ -231,7 +231,7 @@ class NeptuneLogger(AbstractLogger):
             value=value, step=iteration
         )
         auxiliary_metrics = self.get_auxiliary_metrics(
-            title, value, iteration, token_scale=token_scale
+            title, value, iteration, token_scale=processed_token_scale
         )
         for metric_name, metric in auxiliary_metrics.items():
             self.instance_logger[self._make_path(metric_name, series)].append(
@@ -304,12 +304,12 @@ class WandbLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        token_scale: bool = False,
+        processed_token_scale: bool = False,
     ):
         path = self._make_path(title, series)
         wandb.log({path: value, "train/step": iteration})
         auxiliary_metrics = self.get_auxiliary_metrics(
-            title, value, iteration, token_scale=token_scale
+            title, value, iteration, token_scale=processed_token_scale
         )
         for metric_name, metric in auxiliary_metrics.items():
             wandb.log({metric_name: metric["value"], "train/step": iteration})
@@ -377,7 +377,7 @@ class StdoutLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        token_scale: bool = False,
+        processed_token_scale: bool = False,
     ):
         self.print_out_metric(
             title=title, value=value, iteration=iteration, series=series
@@ -422,7 +422,7 @@ class JointLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        token_scale: bool = False,
+        processed_token_scale: bool = False,
     ):
         for logger in self.loggers:
             logger.report_scalar(
@@ -430,7 +430,7 @@ class JointLogger(AbstractLogger):
                 value=value,
                 iteration=iteration,
                 series=series,
-                token_scale=token_scale,
+                processed_token_scale=processed_token_scale,
             )
 
     def report_text(
