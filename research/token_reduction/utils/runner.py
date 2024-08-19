@@ -1,5 +1,4 @@
 import argparse
-from collections import defaultdict
 import os
 import random
 from typing import Callable, Optional
@@ -13,30 +12,26 @@ from lizrd.core import misc
 from lizrd.core.llm import EmbeddingLayer, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
-    get_argument_attributes,
     get_n_learnable_parameters,
     set_seed,
 )
-from lizrd.train.train_utils import (
-    get_model,
-)
 from lizrd.text import tokenizers
-from research.conditional.utils.check_args import check_args
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.argparse import introduce_parser_arguments
-from research.conditional.utils.model_utils import (
+from research.token_reduction.trainer import Trainer
+from research.token_reduction.utils.argparse import (
+    introduce_parser_arguments,
+    check_args,
+)
+from research.token_reduction.build import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
-    get_mamba_layer,
     get_mixed_precision_ignored_classes,
+    get_model,
     get_residual_layer,
     get_classes_from_module_names,
-    update_model_fit_gpu_info,
-    get_vanilla_mamba_layer,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -69,45 +64,6 @@ def log_batch(
         )
 
     print("Logged example batch.")
-
-
-def make_param_groups_and_lr_ratios(args, model):
-    lr = args.learning_rate
-    if args.relative_lr is None:
-        return [{"params": model.parameters(), "lr": lr}], [1.0]
-
-    relative_lr: dict = args.relative_lr
-
-    lr_to_params = defaultdict(list)
-    for name, param in model.named_parameters():
-        ratio = 1.0
-        for possible_name in relative_lr.keys():
-            if possible_name in name:
-                ratio = relative_lr[possible_name]
-                break
-        lr_to_params[ratio * lr].append(param)
-    param_grops = [
-        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
-    ]
-    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
-    return param_grops, ratios_in_group_order
-
-
-def rescale_params_after_init(args, model):
-    relative_scale: dict[str, float] = args.relative_init_scale
-    verbose = args.verbose_relative_init_scale
-
-    if relative_scale is None:
-        return
-    for name, param in model.named_parameters():
-        scale = 1.0
-        for possible_name in relative_scale.keys():
-            if possible_name in name:
-                if verbose:
-                    print(f"Rescaling {name} by {relative_scale[possible_name]}")
-                scale = relative_scale[possible_name]
-                break
-        param.data *= scale
 
 
 def main(
@@ -153,11 +109,6 @@ def main(
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
 
-    if args.model_parallelism_fragmentation is not None:
-        args.model_parallelism_fragmentation = [
-            int(s) for s in args.model_parallelism_fragmentation.split(",")
-        ]
-
     if args.mixed_precision_dtype == "float16":
         args.mixed_precision_dtype = torch.float16
     elif args.mixed_precision_dtype == "bfloat16":
@@ -181,46 +132,20 @@ def main(
 
     residual_fn = get_residual_layer(args)
 
-    model_fit_gpu_info_params = get_argument_attributes(
-        args, args.model_fit_gpu_info_params
-    )
-    update_model_fit_gpu_info(
-        args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
-    )
+    block_modules = {}
+    for module_name in args.block_modules:
+        if module_name == "attention":
+            block_modules[module_name] = get_attention_layer(args)
+        elif module_name == "feedforward":
+            block_modules[module_name] = get_ff_layer(args)
+        else:
+            raise ValueError(f"Unknown module name: {module_name}")
 
-    if args.general_ff_layer_config is None:
-        block_modules = {}
-        for module_name in args.block_modules:
-            if module_name == "attention":
-                block_modules[module_name] = get_attention_layer(args)
-            elif module_name == "feedforward":
-                block_modules[module_name] = get_ff_layer(args)
-            elif module_name == "mamba":
-                block_modules[module_name] = get_mamba_layer(args)
-            elif module_name == "vanilla_mamba":
-                block_modules[module_name] = get_vanilla_mamba_layer(args)
-            else:
-                raise ValueError(f"Unknown module name: {module_name}")
-
-        if args.parallel_blocks:
-            modules = block_modules.items()
-            block_modules = {
-                "parallel": lambda: Parallel(*[module() for _, module in modules])
-            }
-    else:
-        ff_layers = args.general_ff_layer_config.split(",")
-        ff_layer_funs = []
-        for layer in ff_layers:
-            args.ff_mode = layer
-            ff_layer_funs.append(get_ff_layer(args))
-        attention_fn = get_attention_layer(args)
-        block_modules = [
-            {
-                "attention": attention_fn,
-                "feedforward": ff_fun,
-            }
-            for ff_fun in ff_layer_funs
-        ]
+    if args.parallel_blocks:
+        modules = block_modules.items()
+        block_modules = {
+            "parallel": lambda: Parallel(*[module() for _, module in modules])
+        }
 
     checkpoint = (
         get_checkpoint_from_path(args.load_weights_path)
@@ -228,8 +153,9 @@ def main(
         else None
     )
 
-    model = get_model(
-        max_length=args.cutoff,
+    model, train_sequence_length = get_model(
+        reference_seq_len=args.cutoff,
+        n_steps=args.n_steps,
         vocab_size=VOCAB_SIZE,
         block_modules=block_modules,
         dm=args.dmodel,
@@ -247,13 +173,13 @@ def main(
         fsdp_min_num_params=args.fsdp_min_num_params,
         fsdp_modules_to_wrap=fsdp_modules_to_wrap,
         activation_checkpointing_modules=activation_checkpointing_modules,
-        model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
         rank=rank,
-        include_positional_embedding=(not args.no_positional_embedding)
-        and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
+        reduction_layer_type=args.reduction_layer_type,
+        # sequence_length_multiplier=args.sequence_length_multiplier,
+        scheduler_params=args.tr_schedule,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
@@ -276,31 +202,22 @@ def main(
     if args.torch_compile:
         model = torch.compile(model)
 
-    if args.print_parameter_names:
-        for name, param in model.named_parameters():
-            print(name, param.shape)
-
-    param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
-
     optimizer = torch.optim.AdamW(
-        param_grops,
+        model.parameters(),
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
     )
-
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args, ratios_in_group_order)
-    print(f"Scheduler_ratios: {scheduler.ratios}")
-    rescale_params_after_init(args, model)
+    scheduler = get_scheduler(args)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
     common_dataloaders_kwargs = {
-        "sequence_length": args.cutoff,
+        "sequence_length": train_sequence_length,
         "device": DEVICE,
         "num_workers": args.num_workers,
         "batch_size": batch_size,
@@ -315,6 +232,8 @@ def main(
         dataset_split="train",
         dataset_path=args.train_dataset_path,
     )
+
+    common_dataloaders_kwargs["sequence_length"] = args.cutoff
 
     eval_split = (
         "eval"
@@ -332,15 +251,15 @@ def main(
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=(
-                tokenizers.GPTTokenizer
-                if args.model_type == "gpt"
-                else tokenizers.BertTokenizer
-            ),
-        )
+    # if args.model_type == "gpt" and is_logging_process:
+    #     log_batch(
+    #         train_dataloader,
+    #         tokenizer_maker=(
+    #             tokenizers.GPTTokenizer
+    #             if args.model_type == "gpt"
+    #             else tokenizers.BertTokenizer
+    #         ),
+    #     )
 
     profiler_schedule = (
         torch.profiler.schedule(
@@ -354,7 +273,7 @@ def main(
         else disable_profile_schedule_fn
     )
 
-    trainer = ConditionalTrainer(
+    trainer = Trainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
@@ -388,8 +307,6 @@ def main(
         eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
         eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
-        model_fit_gpu_info_database_path=args.model_fit_gpu_info_database_path,
-        model_fit_gpu_info_params=model_fit_gpu_info_params,
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
@@ -403,11 +320,18 @@ def main(
         destroy_process_group()
 
 
+def assert_n_gpus(n_gpus):
+    if torch.cuda.is_available():
+        count = torch.cuda.device_count()
+        assert count == n_gpus, f"Expected {n_gpus} GPUs, but found {count}."
+
+
 if __name__ == "__main__":
     misc.print_available_gpus()
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
     args = parser.parse_args()
+    assert_n_gpus(args.n_gpus)
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
