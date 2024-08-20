@@ -1,0 +1,52 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+time: 0-2:00:00
+# cuda_visible: "2"
+interactive_debug: true
+
+# LOCAL:
+n_gpus: 8
+
+params:
+  # tokenizer: gpt
+
+  # blanx args
+  name: "multinode_1x8"
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: false
+#  logger_types: ["stdout"]
+  # use_neptune: false
+  # grad_clip: 1.0
+
+  tags: ["multinode 1x8"]
+
+  n_steps: 1_500_000
+  learning_rate: 1e-3
+  decoding_interval: 0
+  logging_interval_heavy: 100_000
+  init_type: truncated_normal
+  init_scale: 0.1
+  final_lr_step: 1_500_000
+  lr_warmup_steps: 60_000 # 1-5%
+  loss_checkpoint_chungs: 4
+
+
+  # use_hidden_weights_fanin: true
+  # output_weight_relative_init_scale: 0.1
+  # output_weight_multiplier: 1.0
+
+  # loss_checkpoint_chungs: 2
+
+  # mamba_mode: 'recursive'
+  # mamba_n_levels: 2
+  # block_modules: ["mamba"]
+
+  # LOCAL:
+  dataset_type: c4
+  batch_size: 256
+  # train_dataset_path: "train_dataset_path"
+  # validation_dataset_path: "aaa/ggg"
+
+  use_dummy_dataset: true
+  num_workers: 0
