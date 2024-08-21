@@ -1,21 +1,7 @@
 Bootstrap: localimage
-From: sparsity-base.sif
-
-%files
-    requirements.txt
-    requirements_mamba.txt
-    install_requirements.sh
-
-%post
-    export DEBIAN_FRONTEND=noninteractive
-
-    python3 -m venv /opt/venv
-    . /opt/venv/bin/activate
-
-    ./install_requirements.sh
-
-    ldconfig  # this fixes the problem with libcuda.so not being found when using torch.compile
+From: sparsity_2024.08.13_08.34.21.sif
 
 %runscript
+    cd /llm-random
     . /opt/venv/bin/activate
     $@

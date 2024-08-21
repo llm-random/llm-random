@@ -2,11 +2,13 @@ parent: configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 763f39978a58f704200275285162594c
 interactive_debug: false
 n_gpus: 2
-time: "40:00:00"
+time: "00:15:00"
 
 params:
-
-    general_ff_layer_config: "vanilla,vanilla,vanilla,vanilla,vanilla,vanilla,cont_moe,cont_moe,cont_moe,cont_moe,cont_moe,cont_moe"
+    use_dummy_dataset: true
+    general_ff_layer_config: "vanilla"
+    n_blocks: 1
+    num_workers: 0
 
     #name
     name: mot_lr_base_later_half
@@ -32,7 +34,7 @@ params:
     #data
     n_steps: 150_000
     final_lr_step: 150_000
-    batch_size: 256
+    batch_size: 32
     dataset_type: c4
 
 

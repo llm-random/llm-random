@@ -68,7 +68,9 @@ class MachineBackend(abc.ABC):
         return infrastructure_params_dict
 
     def get_runner_command(self, runner, runner_params):
-        return ["python3", "-m", runner, *runner_params]
+        # return ["python3", "-m", runner, *runner_params]
+        return ["research/conditional/train/cc_train.py", *runner_params]
+        # return ["python3", "-m", "pdb", "-c", "continue", "-m", runner, *runner_params]
 
 
 class AthenaBackend(MachineBackend):
@@ -274,6 +276,113 @@ class WriterBackend(MachineBackend):
         ]
 
 
+class LumiBackend(MachineBackend):
+    def get_common_directory(self) -> str:
+        return "/scratch/project_465001227/llm-random-group"
+
+    def get_cache_path(self) -> str:
+        return "/scratch/project_465001227/llm-random-group/.cache"
+
+    def get_grid_entrypoint(self) -> str:
+        return "lizrd/grid/grid_entrypoint_lumi.sh"
+        # return "lizrd/grid/grid_entrypoint.sh"
+
+    # def get_default_train_dataset_path(self, dataset_type: str):
+    #     if dataset_type == "c4":
+    #         return "/home/ubuntu/llm-random-group/datasets/c4_train"
+    #     return super().get_default_train_dataset_path(dataset_type)
+
+    # def get_default_validation_dataset_path(self, dataset_type: str):
+    #     if dataset_type == "c4":
+    #         return "/home/ubuntu/llm-random-group/datasets/c4_validation"
+    #     return super().get_default_train_dataset_path(dataset_type)
+
+    def get_cemetery_directory(self):
+        return f"{self.get_common_directory()}/llm-random-cemetery"
+
+    def get_subprocess_args(
+        self,
+        slurm_command,
+        setup_args,
+        training_args,
+        singularity_env_arguments,
+        runner_params,
+    ):
+        if setup_args["n_gpus"] % 8 == 0:
+            partition = "standard-g"
+        else:
+            partition = "small-g"
+
+        return [
+            slurm_command,
+            f"--gres=gpu:{setup_args['n_gpus']}",
+            f"--partition={partition}",
+            # f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+            # f"--cpus-per-gpu=1",
+            f"--cpus-per-task=1",
+            # f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            # f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            # f"--mem={48*setup_args['n_gpus']}G",
+            f"--mem=16G",
+            # f"--mem=100G",
+            f"--job-name={training_args['name']}",
+            f"--time={setup_args['time']}",
+            "--account=project_465001227",
+            f"{setup_args['grid_entrypoint']}",
+            # "singularity",
+            # "run",
+            # *singularity_env_arguments,
+            # make_singularity_mount_paths(setup_args, training_args),
+            # "--nv",
+            # "--rocm",
+            # setup_args["singularity_image"],
+            # setup_args["singularity_image"],
+            # "/pfs/lustrep4/scratch/project_465001227/llm-random-group/sparsity_2024.08.13_08.34.21.sif"
+            # "/scratch/project_465001227/llm-random-group/sparsity_2024.08.13_10.23.58.sif",
+            *self.get_runner_command(setup_args["runner"], runner_params),
+        ]
+
+    # def get_subprocess_args(
+    #     self,
+    #     slurm_command,
+    #     setup_args,
+    #     training_args,
+    #     singularity_env_arguments,
+    #     runner_params,
+    # ):
+    #     if setup_args['n_gpus'] % 8 == 0:
+    #         partition = 'standard-g'
+    #     else:
+    #         partition = 'small-g'
+
+    #     return [
+    #         slurm_command,
+    #         f"--gres=gpu:{setup_args['n_gpus']}",
+    #         f'--partition={partition}',
+    #         # f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+    #         f"--cpus-per-gpu=8",
+    #         # f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+    #         # f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+    #         # f"--mem={10*setup_args['n_gpus']}G",
+    #         f"--mem=100G",
+    #         f"--job-name={training_args['name']}",
+    #         f"--time={setup_args['time']}",
+    #         '--account=project_465001227',
+    #         f"{setup_args['grid_entrypoint']}",
+    #         "singularity",
+    #         "run",
+    #         *singularity_env_arguments,
+    #         make_singularity_mount_paths(setup_args, training_args),
+    #         # "--nv",
+    #         "--rocm",
+    #         # setup_args["singularity_image"],
+    #         # setup_args["singularity_image"],
+    #         # "/pfs/lustrep4/scratch/project_465001227/llm-random-group/sparsity_2024.08.13_08.34.21.sif"
+    #         "/scratch/project_465001227/llm-random-group/sparsity_2024.08.13_10.23.58.sif",
+    #         *self.get_runner_command(setup_args["runner"], runner_params),
+    #     ]
+
+
 class LocalBackend(MachineBackend):
     def get_common_directory(self) -> str:
         return os.getenv("HOME")
@@ -327,5 +436,7 @@ def get_machine_backend(node=None, connection=None) -> MachineBackend:
         == "53cb84932d7356993300456b370e2e796c68d28be3e584c17f5eeacad9d36a12"
     ):  # no need for anyone to know the hostname :)
         return WriterBackend(username)
+    elif "uan" in node:
+        return LumiBackend(username)
     else:
         return LocalBackend(username)
