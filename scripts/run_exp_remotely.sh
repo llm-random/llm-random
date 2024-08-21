@@ -32,7 +32,7 @@ run_grid_remotely() {
     script+="WANDB_API_KEY=$WANDB_API_KEY "
   fi
   script+="./run_experiment.sh' C-m"
-  #script+="; tmux attach -t $experiment_branch"
+  script+="; tmux attach -t $experiment_branch"
   script+="; echo 'done'" #black magic: without it, interactive sessions like "srun" cannot be detached from without killing the session
 
   ssh -t $host "$script"
