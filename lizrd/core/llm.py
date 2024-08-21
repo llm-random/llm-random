@@ -11,7 +11,6 @@ from lizrd.core.misc import default, Aggregate
 from lizrd.core.initialization import get_init_weight, ValidInitType
 from lizrd.core.misc import Linear, LoggingLayer
 
-import matplotlib.pyplot as plt
 
 def decode_bias_string(bias):
     assert bias in ["both", "first", "second", "none"]
@@ -223,11 +222,6 @@ def attention_mechanism(
                 torch.tril(torch.ones_like(a)) == 0, float("-inf")
             )  # mask out future tokens
         a = torch.softmax(a, dim=-1)
-        b = a.squeeze(0)
-        print(b.shape)
-        for i in range(b.shape[0]):
-            plt.imshow(b[i].detach().cpu().numpy())
-            plt.show()
         output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
         output = output.transpose(1, 2)
 
@@ -473,8 +467,10 @@ class ReZero(nn.Module):
 def RezeroBlock(dmodel, layer, name):
     return Residual(ReZero(layer))
 
+
 def NoNormBlock(dmodel, layer, name):
     return Residual(layer)
+
 
 def PostNormBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return nn.Sequential(
