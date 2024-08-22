@@ -10,6 +10,7 @@ def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
+    parser.add_argument("--cuda_visible", type=str, default=None)
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
@@ -36,6 +37,7 @@ def introduce_parser_arguments(
     parser.add_argument("--learning_rate", type=float, required=True)
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
+    parser.add_argument("--lr_warmup_percent", type=float, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
     parser.add_argument(
         "--init_type",

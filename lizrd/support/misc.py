@@ -25,6 +25,18 @@ def count_parameters(model, args, VOCAB_SIZE):
     return model_n_params
 
 
+def count_moe_non_emb_active_params(dmodel, effective_dff_x, dff, n_blocks):
+    return (
+        dmodel**2
+        * (4 + 2 * (effective_dff_x if effective_dff_x is not None else dff / dmodel))
+        * n_blocks
+    )
+
+
+def count_tokens_per_step(batch_size, cutoff):
+    return batch_size * cutoff
+
+
 def generate_random_string(length: int) -> str:
     letters = string.ascii_lowercase
     return "".join(random.choice(letters) for i in range(length))
