@@ -22,8 +22,6 @@ def get_scheduler(
             ratios_lr=relative_lrs_in_group_order,
         )
     elif args.scheduler == "cosine":
-        if args.final_lr_step is None:
-            args.final_lr_step = args.n_steps
         return CosineScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
             lr=args.learning_rate,

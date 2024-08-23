@@ -37,6 +37,7 @@ def introduce_parser_arguments(
     parser.add_argument("--learning_rate", type=float, required=True)
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
+    parser.add_argument("--lr_warmup_percent", type=float, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
     parser.add_argument(
         "--init_type",
@@ -167,8 +168,8 @@ def introduce_parser_arguments(
 
     # model versioning
 
-    parser.add_argument("--save_weights_path", type=str, default=None)
-    parser.add_argument("--save_weights_interval", type=int, default=1000)
+    parser.add_argument("--save_weights_path", type=str, default="./model_ckpt")
+    parser.add_argument("--save_weights_interval", type=int, default=-1)
     parser.add_argument("--load_weights_path", type=str, default=None)
 
     # paremeters for specific experiments
