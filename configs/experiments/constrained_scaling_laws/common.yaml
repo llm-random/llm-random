@@ -1,16 +1,15 @@
 parent: configs/baselines/gpt/expert_choice/granularity/4/base.yaml
 md5_parent_hash: 6cd6b241d09b039d86d8c51b5f0b4a01
-time: "90:00:00"
+time: "160:00:00"
 interactive_debug_session: false
 interactive_debug: false
-n_gpus: 8
+n_gpus: 1
 
 params:
-  name: "base_extrapolation"
-  tags: ["large_extrapolation"]
+  name: constrained_scaling_grid_fixed
+  tags: ["constrained_scaling_grid"]
   ff_mode: token_choice
   capacity_factor: 1.0
-
   activation_type: silu
   moe_inner_expert: ff_gated
   expansion_rate: 8
@@ -18,23 +17,24 @@ params:
   get_router_values_from: weights
   layer_norm_in_expert_choice: False
 
-  dmodel: 1536
-  n_blocks: 24
-  n_att_heads: 12
+  n_steps: 10 # mock value for tests
+  # [1907, 3814, 7628, 15256, 30512]
+  # 500M, 1B, 2B, 4B, 8B
 
-  batch_size: 384
-  cutoff: 1024
+  dmodel: 256
+  n_blocks: 4
+  n_att_heads: 4
 
-  n_steps: 50_000
-  final_lr_step: 50_000
-  lr_warmup_steps: 500
+  batch_size: 512
+  cutoff: 512
+  final_lr_step: -1
+  lr_warmup_percent: 0.01
+  lr_warmup_steps: 0
   scheduler: cosine
-
-  final_lr_fraction: 0.066666
-  init_scale: 0.333
-  learning_rate: 0.0001
-  weight_decay: 0.15
-  grad_clip: 0.1
+  final_lr_fraction: 0.1
+  init_scale: 0.1
+  learning_rate: 0.0002
+  weight_decay: 0.1
 
   save_weights_interval: 0
   mixed_precision: True
@@ -46,25 +46,4 @@ params:
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
-
-  print_parameter_names: true
-  
-  relative_lr:
-    embedding_layer: 3.333
-    head: 0.666
-    gating: 0.666
-    expert_inner_function: 0.3
-    # projection: 2.5
-
-  # relative_init_scale:
-  #   embedding_layer: 0.2
-  #   head: 1.
-  #   gating: 0.2
-  #   expert_inner_function: 1.
-
-  relative_scheduler_fraction:
-    embedding_layer: 0.666
-    head: 0.666
-    gating: 1.
-    expert_inner_function: 1.125
 

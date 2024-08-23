@@ -49,13 +49,14 @@ def load_scaler_state(
     scaler.load_state_dict(checkpoint["scaler"])
 
 
-def prepare_save_weights_path(path_to_dir: Optional[str]) -> str:
+def prepare_save_weights_path(path_to_dir: Optional[str]) -> Optional[str]:
     if path_to_dir is None:
         return None
-    weights_filename = f"{generate_random_string(10)}.pt"
-    os.makedirs(path_to_dir, exist_ok=True)
-    save_weights_path = os.path.join(path_to_dir, weights_filename)
+    # we need a random dir because we can be running a whole grid from the same directory
+    random_dirname = f"{generate_random_string(10)}"
+    save_weights_path = os.path.join(path_to_dir, random_dirname)
     save_weights_path = os.path.abspath(save_weights_path)
+    os.makedirs(save_weights_path, exist_ok=True)
     return save_weights_path
 
 
@@ -79,6 +80,7 @@ def save_checkpoint(
         optimizer_state_dict = optimizer.state_dict()
 
     if rank == 0 or rank is None:
+        full_path = os.path.join(path, f"{step}.pt")
         checkpoint = {
             "model": model_state_dict,
             "optimizer": optimizer_state_dict,
@@ -87,5 +89,5 @@ def save_checkpoint(
         if scaler is not None:
             checkpoint["scaler"] = scaler.state_dict()
 
-        torch.save(checkpoint, path)
-        print(f"Weights saved to {path} (step {step})")
+        torch.save(checkpoint, f=full_path)
+        print(f"Weights saved to {full_path} (step {step})")

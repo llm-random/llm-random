@@ -53,7 +53,7 @@ class ConditionalTrainer:
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
-    save_weights_path: str = None
+    save_weights_path: Optional[str] = None
     save_weights_interval: int = 1000
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
@@ -365,6 +365,7 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
+                    processed_token_scale=True,
                 )
                 stats.acc = 0.0
 
