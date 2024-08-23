@@ -438,7 +438,6 @@ class ConditionalTrainer:
             and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
-
             if isinstance(self.model, FSDP):
                 # for some reason, setting the model to training mode and
                 # running a forward pass is necessary to be able to save it
