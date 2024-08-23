@@ -295,9 +295,7 @@ class BlankTrainer:
             stats.acc += loss_value
             if step % stats.interval == 0 and step > 0:
                 self.logger.report_scalar(
-                    title=name,
-                    value=stats.acc / stats.interval,
-                    iteration=step,
+                    title=name, value=stats.acc / stats.interval, iteration=step
                 )
                 stats.acc = 0.0
         if self.n_blanks > 0 and len(aux_info["blanks_losses"]) > 0:

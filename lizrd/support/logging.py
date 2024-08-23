@@ -17,6 +17,8 @@ from lizrd.support.misc import (
     tags_to_name,
     count_parameters,
     generate_random_string,
+    count_moe_non_emb_active_params,
+    count_tokens_per_step,
 )
 
 _CURRENT_LOGGER = None
@@ -38,7 +40,13 @@ class AbstractLogger(ABC):
 
     @abstractmethod
     def report_scalar(
-        self, *, title: str, value: float, iteration: int, series: Optional[str] = None
+        self,
+        *,
+        title: str,
+        value: float,
+        iteration: int,
+        series: Optional[str] = None,
+        processed_token_scale: bool = False,
     ):
         raise NotImplementedError()
 
@@ -120,12 +128,30 @@ class AbstractLogger(ABC):
             * self.args["batch_size"],
         }
 
-    def get_auxiliary_metrics(self, title: str, value: float, iteration: int):
-        if not self.args.get("x_flop") and not self.args.get("log_x_scale"):
-            return {}
+    def with_token_scale(self, title: str, value: float, iteration: int):
+        tokens_passed = iteration * self.args.get("tokens_per_step")
+        tokens_per_active_params = tokens_passed / self.args.get("model_n_active")
+        return {
+            f"{title}_tokens": {
+                "value": value,
+                "iteration": tokens_passed,
+            },
+            f"{title}_tokens_per_active": {
+                "value": value,
+                "iteration": tokens_per_active_params,
+            },
+        }
 
-        metric_x_flop = None
+    def get_auxiliary_metrics(
+        self, title: str, value: float, iteration: int, token_scale: bool = False
+    ):
         auxiliary_metrics = {}
+        if token_scale:
+            auxiliary_metrics = {
+                **auxiliary_metrics,
+                **self.with_token_scale(title, value, iteration),
+            }
+        metric_x_flop = None
 
         if self.args.get("x_flop"):
             metric_x_flop = self.get_metric_with_flop_scale(value, iteration)
@@ -195,6 +221,7 @@ class NeptuneLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
+        processed_token_scale: bool = False,
     ):
         path = self._make_path(title, series, iteration)
         assert (not math.isnan(value)) and (
@@ -203,7 +230,9 @@ class NeptuneLogger(AbstractLogger):
         self.instance_logger[self._make_path(title, series)].append(
             value=value, step=iteration
         )
-        auxiliary_metrics = self.get_auxiliary_metrics(title, value, iteration)
+        auxiliary_metrics = self.get_auxiliary_metrics(
+            title, value, iteration, token_scale=processed_token_scale
+        )
         for metric_name, metric in auxiliary_metrics.items():
             self.instance_logger[self._make_path(metric_name, series)].append(
                 value=metric["value"], step=metric["iteration"]
@@ -275,10 +304,13 @@ class WandbLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
+        processed_token_scale: bool = False,
     ):
         path = self._make_path(title, series)
         wandb.log({path: value, "train/step": iteration})
-        auxiliary_metrics = self.get_auxiliary_metrics(title, value, iteration)
+        auxiliary_metrics = self.get_auxiliary_metrics(
+            title, value, iteration, token_scale=processed_token_scale
+        )
         for metric_name, metric in auxiliary_metrics.items():
             wandb.log({metric_name: metric["value"], "train/step": iteration})
 
@@ -345,6 +377,7 @@ class StdoutLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
+        processed_token_scale: bool = False,
     ):
         self.print_out_metric(
             title=title, value=value, iteration=iteration, series=series
@@ -389,10 +422,15 @@ class JointLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
+        processed_token_scale: bool = False,
     ):
         for logger in self.loggers:
             logger.report_scalar(
-                title=title, value=value, iteration=iteration, series=series
+                title=title,
+                value=value,
+                iteration=iteration,
+                series=series,
+                processed_token_scale=processed_token_scale,
             )
 
     def report_text(
@@ -428,6 +466,18 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
     logger.report_plotly(figure=figure, title=title, series=series, iteration=iteration)
 
 
+def add_logger_active_metrics(args):
+    args.model_n_active = count_moe_non_emb_active_params(
+        args.dmodel, args.effective_dff_x, args.dff, args.n_blocks
+    )
+    args.tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
+    args.final_tokens_per_act_param = (
+        (args.final_lr_step * args.tokens_per_step / args.model_n_active)
+        if args.final_lr_step is not None
+        else None
+    )
+
+
 def get_logger(args, model, VOCAB_SIZE):
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
@@ -437,6 +487,8 @@ def get_logger(args, model, VOCAB_SIZE):
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
+    add_logger_active_metrics(args)
+
     for logger_type in logger_types:
         if logger_type == "neptune":
             run = neptune.init_run(
