@@ -7,19 +7,19 @@ from torch.optim import Optimizer
 
 def get_scheduler(
     args,
-    ratios_lr_in_group_order: Optional[list[float]] = None,
-    scheduler_fractions_in_group_order: Optional[list[float]] = None,
+    relative_lrs_in_group_order: Optional[list[float]] = None,
+    final_lr_fractions_in_group_order: Optional[list[float]] = None,
 ) -> "AbstractLRScheduler":
     print(args.scheduler)
-    if ratios_lr_in_group_order is None:
-        ratios_lr_in_group_order = [1.0]
-    if scheduler_fractions_in_group_order is None:
-        scheduler_fractions_in_group_order = [1.0]
+    if relative_lrs_in_group_order is None:
+        relative_lrs_in_group_order = [1.0]
+    if final_lr_fractions_in_group_order is None:
+        final_lr_fractions_in_group_order = [1.0]
     if args.scheduler == "constant":
         return ConstantScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
             lr=args.learning_rate,
-            ratios_lr=ratios_lr_in_group_order,
+            ratios_lr=relative_lrs_in_group_order,
         )
     elif args.scheduler == "cosine":
         if args.final_lr_step is None:
@@ -29,8 +29,8 @@ def get_scheduler(
             lr=args.learning_rate,
             final_lr_step=args.final_lr_step,
             final_lr_fraction=args.final_lr_fraction,
-            ratios_lr=ratios_lr_in_group_order,
-            scheduler_fractions=scheduler_fractions_in_group_order,
+            ratios_lr=relative_lrs_in_group_order,
+            final_lr_fractions=final_lr_fractions_in_group_order,
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
@@ -70,7 +70,7 @@ class CosineScheduler(AbstractLRScheduler):
         final_lr_step: int,
         final_lr_fraction: float,
         ratios_lr: list[float],
-        scheduler_fractions: list[float],
+        final_lr_fractions: list[float],
     ):
         super().__init__(ratios_lr=ratios_lr)
         assert isinstance(lr_warmup_steps, int)
@@ -82,7 +82,7 @@ class CosineScheduler(AbstractLRScheduler):
         self.lr = lr
         self.final_lr_step = final_lr_step
         self.final_lr_fraction = final_lr_fraction
-        self.scheduler_fractions = scheduler_fractions
+        self.final_lr_fractions = final_lr_fractions
 
     def get_lr(self, step: int, start_lr=None, end_lr=None):
         start_lr = start_lr if start_lr is not None else self.lr
@@ -105,13 +105,13 @@ class CosineScheduler(AbstractLRScheduler):
 
     # had to overwrite it here, because AbstractLRScheduler doesn't know final_lr_fraction and othr params necessary for relative lr fractions
     def set_lr(self, optimizer: Optimizer, step: int):
-        if self.scheduler_fractions is None:
+        if self.final_lr_fractions is None:
             super.set_lr(optimizer, step)
         else:
             for param_group, ratio_lr, fraction in zip(
                 optimizer.param_groups,
                 self.ratios_lr,
-                self.scheduler_fractions,
+                self.final_lr_fractions,
             ):
                 start_lr = self.lr * ratio_lr
                 end_lr = self.lr * self.final_lr_fraction * fraction

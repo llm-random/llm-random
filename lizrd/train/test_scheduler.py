@@ -38,7 +38,7 @@ class TestSchedulers(GeneralTestCase):
             final_lr_step=90,
             final_lr_fraction=0.1,
             ratios_lr=[1.0],
-            scheduler_fractions=[1.0],
+            final_lr_fractions=[1.0],
         )
         model = Linear(1, 1)
         optim = AdamW(model.parameters())
