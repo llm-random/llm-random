@@ -1,0 +1,9 @@
+parent: configs/experiments/constrained_scaling_laws/49M/model.yaml
+md5_parent_hash: 5b5523900cb9395e03eeca7f56c8cb50
+time: "30:00:00"
+# here configure GPUs & time for a given cluster for it to fit
+params:
+  tags: ["constrained_scaling_grid", "49M"]
+  ^expansion_rate: [1,2,4,8,16,32]
+  n_steps: 61024
+
