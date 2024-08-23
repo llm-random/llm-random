@@ -10,7 +10,6 @@ def get_scheduler(
     relative_lrs_in_group_order: Optional[list[float]] = None,
     final_lr_fractions_in_group_order: Optional[list[float]] = None,
 ) -> "AbstractLRScheduler":
-    print(args.scheduler)
     if relative_lrs_in_group_order is None:
         relative_lrs_in_group_order = [1.0]
     if final_lr_fractions_in_group_order is None:
