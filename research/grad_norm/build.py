@@ -17,7 +17,9 @@ from lizrd.train.load_and_save_model import load_model_weights
 from research.grad_norm.modules import (
     BlockGradModifPlacement,
     GradCaptureLayer,
-    GradientSTDNormLayer,
+    GradientSTDNormLayerV1,
+    GradientSTDNormLayerV2,
+    GradientSTDNormLayerV3,
     GradModiedTransformerTower,
 )
 
@@ -45,7 +47,26 @@ def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
     if grad_modif_type == "std_norm":
         if "c" not in param_dict:
             raise ValueError("Parameter 'c' is required for grad_modif_type 'std_norm' (add it to 'grad_modif_params')")
-        return partial(GradientSTDNormLayer, c=float(param_dict["c"]))
+        if "eps" not in param_dict:
+            raise ValueError(
+                "Parameter 'eps' is required for grad_modif_type 'std_norm' (add it to 'grad_modif_params')"
+            )
+        if "layer_type" not in param_dict:
+            raise ValueError(
+                "Parameter 'layer_type' is required for grad_modif_type 'std_norm' (add it to 'grad_modif_params')"
+            )
+
+        layer_type = param_dict["layer_type"]
+        if layer_type == "v1":
+            layer = GradientSTDNormLayerV1
+        elif layer_type == "v2":
+            layer = GradientSTDNormLayerV2
+        elif layer_type == "v3":
+            layer = GradientSTDNormLayerV3
+        else:
+            raise ValueError(f"Unknown value of 'layer_type' {layer_type}")
+
+        return partial(layer, c=float(param_dict["c"]), eps=float(param_dict["eps"]))
     else:
         raise ValueError(f"Unknown grad_modif_type {grad_modif_type}")
 

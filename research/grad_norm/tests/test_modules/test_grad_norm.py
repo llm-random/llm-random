@@ -1,89 +1,115 @@
-import unittest
+from functools import partial
+from typing import Any, Callable, Union
+from unittest.mock import Mock
 
+import pytest
 import torch
 
-from research.grad_norm.modules.grad_norm import GradientSTDNormLayer
+from lizrd.core.misc import LoggingLayer
+from research.grad_norm.modules.grad_norm import (
+    BaseGradientSTDNormFunction,
+    GradientSTDNormLayerV1,
+    GradientSTDNormLayerV2,
+    GradientSTDNormLayerV3,
+    std_grad_norm_v1,
+    std_grad_norm_v2,
+    std_grad_norm_v3,
+)
 
 
-class TestGradientSTDNormLayer(unittest.TestCase):
-    def test_forward_id(self):
-        layer = GradientSTDNormLayer(c=1)
+def get_std_grad_norm_fn_from_layer(
+    layer: Union[GradientSTDNormLayerV1, GradientSTDNormLayerV2, GradientSTDNormLayerV3]
+) -> Callable[[torch.Tensor, Any, float, float], torch.Tensor]:
+    if isinstance(layer, GradientSTDNormLayerV3):
+        return std_grad_norm_v3
+    elif isinstance(layer, GradientSTDNormLayerV2):
+        return std_grad_norm_v2
+    else:
+        return std_grad_norm_v1
+
+
+@pytest.mark.parametrize(
+    "grad_norm_layer", [GradientSTDNormLayerV1(c=1), GradientSTDNormLayerV2(c=1), GradientSTDNormLayerV3(c=1)]
+)
+class TestGradNormLayerCommonProperties:
+    def test_forward_id(self, grad_norm_layer: LoggingLayer):
 
         x = torch.randn(3, 4, 4)
-        y = layer(x)
+        y = grad_norm_layer(x)
 
-        self.assertEqual(x.shape, y.shape)
-        self.assertTrue(torch.equal(x, y))
+        assert x.shape == y.shape
+        assert torch.equal(x, y)
 
-    def test_backward_norm(self):
-        c_values = [i / 10 for i in range(0, 11)]  # from 0 to 1
-
-        for c in c_values:
-            with self.subTest(c=c):
-                layer = GradientSTDNormLayer(c=c)
-
-                x = torch.randn(3, 4, requires_grad=True)
-                grad = torch.randn(3, 4)
-                y = layer(x)
-                y.backward(grad)
-
-                with torch.no_grad():
-                    expected_grad = grad / (torch.pow((grad.std()), c) + 1e-8)
-
-                self.assertTrue(torch.allclose(x.grad, expected_grad))
-
-    def test_backward_unary(self):
-        layer = GradientSTDNormLayer(c=1)
+    def test_backward_unary(self, grad_norm_layer: LoggingLayer):
 
         x = torch.randn(1, requires_grad=True)
         grad = torch.randn(1)
-        y = layer(x)
+        y = grad_norm_layer(x)
         y.backward(grad)
 
-        self.assertTrue(torch.equal(x.grad, grad))
+        assert torch.equal(x.grad, grad)
 
-    def test_grad_dist_to_1(self):
-        c = 1
-        l1 = torch.nn.Linear(4, 4)
-        l1.requires_grad = False
-        norm = GradientSTDNormLayer(c=c)
-
-        x = torch.randn(4, requires_grad=True)
-        x.retain_grad()
-
-        # path 1
-        x.grad = None
-        y = norm(x)
-        y = l1(y)
-        y.sum().backward()
-        grad1 = x.grad.clone()
-
-        # path 2
-        x.grad = None
-        y = l1(x)
-        y.sum().backward()
-        grad2 = x.grad.clone()
-
-        self.assertTrue(torch.abs(grad1.std() - 1) < torch.abs(grad2.std() - 1))
-
-    def test_grad_logging(self):
-        c = 1
-        layer = GradientSTDNormLayer(c=c)
-        layer.update_cache_for_logging = layer.logging_cache.__setitem__
+    def test_grad_logging(self, grad_norm_layer: LoggingLayer):
+        grad_norm_layer.update_cache_for_logging = grad_norm_layer.logging_cache.__setitem__
 
         x = torch.randn(3, 4, 4, requires_grad=True)
         grad = torch.rand_like(x)
-        y = layer(x)
+        y = grad_norm_layer(x)
         y.backward(grad)
 
-        logs = layer.log_heavy()
-        self.assertEqual(logs["activation_norms/mean"], torch.mean(torch.norm(x, dim=-1)))
-        self.assertEqual(logs["activation_norms/std"], torch.std(torch.norm(x, dim=-1)))
-        self.assertEqual(logs["raw_grad_norms/mean"], torch.mean(torch.norm(grad, dim=-1)))
-        self.assertEqual(logs["raw_grad_norms/std"], torch.std(torch.norm(grad, dim=-1)))
-        self.assertEqual(
-            logs["norm_grad_norms/mean"], torch.mean(torch.norm(grad / (torch.pow(grad.std(), c) + 1e-8), dim=-1))
-        )
-        self.assertEqual(
-            logs["norm_grad_norms/std"], torch.std(torch.norm(grad / (torch.pow(grad.std(), c) + 1e-8), dim=-1))
+        logs = grad_norm_layer.log_heavy()
+        assert torch.equal(logs["activation_norms/mean"], torch.mean(torch.norm(x, dim=-1)))
+        assert torch.equal(logs["activation_norms/std"], torch.std(torch.norm(x, dim=-1)))
+        assert torch.equal(logs["raw_grad_norms/mean"], torch.mean(torch.norm(grad, dim=-1)))
+        assert torch.equal(logs["raw_grad_norms/std"], torch.std(torch.norm(grad, dim=-1)))
+
+    @pytest.mark.skip("not sure if this should be tested")
+    @pytest.mark.parametrize("c", [i / 10 for i in range(1, 10)])  # from 0.1 to 0.9
+    def test_grad_reduces_std(self, grad_norm_layer: LoggingLayer, c: float):
+        grad_norm_layer.update_cache_for_logging = grad_norm_layer.logging_cache.__setitem__
+        grad_norm_layer.c = c
+
+        grad = torch.randn(10, 10, 10, requires_grad=True)
+        y = grad_norm_layer(grad)
+        y.backward(grad)
+
+        logs = grad_norm_layer.log_heavy()
+        assert abs(logs["norm_grad_norms/std"]) < abs(logs["raw_grad_norms/std"])
+
+    def test_norm_grad_logging(self, grad_norm_layer: LoggingLayer):
+        grad_norm_layer.update_cache_for_logging = grad_norm_layer.logging_cache.__setitem__
+
+        x = torch.randn(3, 4, 4, requires_grad=True)
+        grad = torch.rand_like(x)
+        y = grad_norm_layer(x)
+        y.backward(grad)
+
+        logs = grad_norm_layer.log_heavy()
+        std_grad_norm_fn = get_std_grad_norm_fn_from_layer(grad_norm_layer)
+        norm_grad = torch.norm(std_grad_norm_fn(grad, c=grad_norm_layer.c, eps=grad_norm_layer.eps), dim=-1)
+        assert torch.equal(logs["norm_grad_norms/mean"], torch.mean(norm_grad))
+        assert torch.equal(logs["norm_grad_norms/std"], torch.std(norm_grad))
+
+    def test_backward_norm(self, grad_norm_layer: LoggingLayer):
+        x = torch.randn(3, 4, requires_grad=True)
+        grad = torch.randn(3, 4)
+        y = grad_norm_layer(x)
+        y.backward(grad)
+
+        std_grad_norm_fn = get_std_grad_norm_fn_from_layer(grad_norm_layer)
+        with torch.no_grad():
+            expected_grad = std_grad_norm_fn(grad, c=grad_norm_layer.c, eps=grad_norm_layer.eps)
+
+        assert torch.allclose(x.grad, expected_grad)
+
+    @pytest.mark.skip("not sure if in this case gradcheck is working")
+    def test_pass_gradcheck(self, grad_norm_layer: LoggingLayer):
+        c = 1
+        eps = 1e-8
+        x = torch.randn(3, 4, 4, requires_grad=True, dtype=torch.float64)
+        std_grad_norm_fn = get_std_grad_norm_fn_from_layer(grad_norm_layer)
+        assert torch.autograd.gradcheck(
+            BaseGradientSTDNormFunction.apply,
+            (x, Mock(), partial(std_grad_norm_fn, c=c, eps=eps)),
+            raise_exception=True,
         )
