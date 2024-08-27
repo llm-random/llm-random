@@ -280,6 +280,7 @@ class ConditionalTrainer:
             self.should_log_update_norm
             and (self.logging_interval_heavy > 0)
             and (step % self.logging_interval_heavy == 0)
+            and isinstance(self.model, FSDP)
         )
 
     def maybe_report_update_norm(self, step: int):
