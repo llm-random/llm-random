@@ -6,8 +6,8 @@ interactive_debug: false
 n_gpus: 8
 
 params:
-  name: "base_extrapolation"
-  tags: ["large_extrapolation"]
+  name: "large_extrapolation_relative_tune"
+  tags: ["relative", "compute_opt", "large_extrapolation", "tune_relative", "seq_len_1024"]
   ff_mode: token_choice
   capacity_factor: 1.0
 
@@ -55,12 +55,6 @@ params:
     gating: 0.666
     expert_inner_function: 0.3
     # projection: 2.5
-
-  # relative_init_scale:
-  #   embedding_layer: 0.2
-  #   head: 1.
-  #   gating: 0.2
-  #   expert_inner_function: 1.
 
   relative_scheduler_fraction:
     embedding_layer: 0.666

@@ -22,18 +22,19 @@ params:
   n_blocks: 24
   n_att_heads: 12
 
-  batch_size: 1365
-  cutoff: 256
+  batch_size: 384
+  cutoff: 1024
 
-  n_steps: 41_250
-  final_lr_step: 41_250
-  lr_warmup_steps: 412
+  n_steps: 50_000
+  final_lr_step: 50_000
+  lr_warmup_steps: 500
   scheduler: cosine
 
   final_lr_fraction: 0.066666
   init_scale: 0.333
-  learning_rate: 0.0005
+  learning_rate: 0.0002
   weight_decay: 0.15
+  grad_clip: 0.1
 
   save_weights_interval: 0
   mixed_precision: True
@@ -52,7 +53,7 @@ params:
     head: 0.666
     gating: 0.666
     expert_inner_function: 0.3
-    projection: 2.5
+    projection: 1.
 
   relative_scheduler_fraction:
     embedding_layer: 0.666

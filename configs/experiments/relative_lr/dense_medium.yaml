@@ -1,0 +1,57 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+time: "05:00:00"
+interactive_debug_session: false
+interactive_debug: false
+gpus: 1
+cpus_per_gpu: 16
+
+params:
+  name: "relative_medium_dense_lr_tune"
+  tags: ["relative_lr", "dense", "final_lr_fraction_tune", "baseline"]
+  ff_mode: swi_glu
+
+  batch_size: 128
+  cutoff: 512
+
+  n_steps: 10_240
+  final_lr_step: 10_240
+  lr_warmup_steps: 102
+  scheduler: cosine
+
+  ^final_lr_fraction: [0.04, 0.0666, 0.085, 0.1, 0.15]
+  init_type: truncated_normal
+  init_scale: 0.333
+  learning_rate: 2e-3
+  weight_decay: 0.15
+
+  save_weights_interval: 0
+  mixed_precision: True
+  mixed_precision_dtype: "bfloat16"
+  loss_checkpoint_chungs: 8
+
+  print_parameter_names: true
+
+  # relative_lr:
+  #   embedding_layer: 3.333
+  #   head: 0.666
+  #   layer.feedforward: 1.125
+  #   projection: 1.2
+
+  # relative_scheduler_fraction:
+  #   embedding_layer: 0.666
+  #   head: 0.666
+  #   layer.feedforward: 1.125
+  #   projection: 1.
+
+tune_config:
+  iters: 30
+  tune_params:
+    - "relative_lr:embedding_layer"
+    - "relative_lr:head"
+    - "relative_lr:layer.feedforward"
+    - "relative_lr:projection"
+    - "relative_scheduler_fraction:embedding_layer"
+    - "relative_scheduler_fraction:head"
+    - "relative_scheduler_fraction:layer.feedforward"
+    - "relative_scheduler_fraction:projection"
