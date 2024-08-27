@@ -47,10 +47,12 @@ params:
 tune_config:
   iters: 30
   tune_params:
+    - "learning_rate"
     - "relative_lr:embedding_layer"
     - "relative_lr:head"
     - "relative_lr:layer.feedforward"
     - "relative_lr:projection"
+    - "final_lr_fraction"
     - "relative_scheduler_fraction:embedding_layer"
     - "relative_scheduler_fraction:head"
     - "relative_scheduler_fraction:layer.feedforward"
