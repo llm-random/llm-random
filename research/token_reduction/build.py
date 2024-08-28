@@ -195,6 +195,8 @@ def get_classes_from_module_names(
             classes.append(llm.PredictionHead)
         elif name == "Softmax":
             classes.append(torch.nn.Softmax)
+        elif name == "TokenReductionEmbedding":
+            classes.append(layers.TokenReductionEmbedding)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)

@@ -164,7 +164,7 @@ class TokenMergingLayer(nn.Module):
         reduced_tokens = torch.index_select(x, 0, ids_to_reduce)
         transformed_reduced_tokens = self.merge_linear_projection(
             reduced_tokens
-        ).float()
+        ).type(x.dtype)
 
         x.index_add_(0, ids_to_reduce + 1, transformed_reduced_tokens)
         reduced_batch = torch.index_select(x, 0, ids_to_save)
