@@ -138,7 +138,6 @@ class LocalSearch:
     def run_config_dict(self, config, param, val, iter):
         # set name
         uuid = get_random_UUID()
-        # name = f"{self.exp_name}_{iter}_{param.replace(':', '_')}_{uuid}"
         name = f"{self.exp_name}_{iter}_{param.replace(':', '_').replace('.', '_')}_{uuid}"
         config_path = f"{self.configs_directory}/{name}.yaml"
         self.set_param_val(config, 'name', name)
@@ -189,8 +188,6 @@ class LocalSearch:
 
     def run_param_tuning(self, param, i):
         val = self.get_param_val(param)
-        print(f'param:{param}')
-        print(f'val: {val}')
         new_vals = [val * change for change in self.param_change]
         test_configs = [(self.set_param_val(self.get_new_config(), param, new_val), new_val) for new_val in new_vals]
         pids = [self.run_config_dict(config, param, new_val, i) for config, new_val in test_configs]

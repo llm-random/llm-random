@@ -14,11 +14,8 @@ params:
   batch_size: 256
   cutoff: 256
 
-  n_steps: 200
-  final_lr_step: 200
-
-  # n_steps: 10_240
-  # final_lr_step: 10_240
+  n_steps: 10_240
+  final_lr_step: 10_240
   lr_warmup_steps: 102
   scheduler: cosine
 
