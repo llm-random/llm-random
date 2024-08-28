@@ -14,8 +14,8 @@ params:
   batch_size: 256
   cutoff: 256
 
-  n_steps: 400
-  final_lr_step: 400
+  n_steps: 200
+  final_lr_step: 200
 
   # n_steps: 10_240
   # final_lr_step: 10_240
@@ -25,7 +25,7 @@ params:
   final_lr_fraction: 0.06666
   init_type: truncated_normal
   init_scale: 0.333
-  learning_rate: 2e-3
+  learning_rate: 0.002
   weight_decay: 0.15
 
   save_weights_interval: 0
@@ -53,10 +53,10 @@ tune_config:
     - "learning_rate"
     - "relative_lr:embedding_layer"
     - "relative_lr:head"
-    # - "relative_lr:layer.feedforward"
+    - "relative_lr:layer.feedforward"
     - "relative_lr:projection"
     - "final_lr_fraction"
     - "relative_scheduler_fraction:embedding_layer"
     - "relative_scheduler_fraction:head"
-    # - "relative_scheduler_fraction:layer.feedforward"
+    - "relative_scheduler_fraction:layer.feedforward"
     - "relative_scheduler_fraction:projection"
