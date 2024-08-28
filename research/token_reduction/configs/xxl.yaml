@@ -1,0 +1,70 @@
+parent: configs/baselines/gpt/dense/common.yaml
+md5_parent_hash: 1b1451abcd3779c5960c78b2f48aecbc
+time: "0-00:15:00"
+# cuda_visible: "4,5,6,7"
+runner: "research.token_reduction.utils.runner"
+n_gpus: 8
+
+params:
+
+  dmodel: 2048
+  dff: 8192
+  n_blocks: 32
+  n_att_heads: 16
+
+  name: "large_merging"
+  tags: ["large", "merging", "scheduled", "1.4", "token_reduction"]
+  # name: "large_vanilla"
+  # tags: ["large", "vanilla", "token_reduction"]
+  wandb_project: "token_reduction"
+
+  reduction_layer_type: "merging"
+  ^cutoff: [1024,2048, 3072] 
+  ^batch_size: [256, 512, 1024]
+  ^learning_rate: [5e-4]
+  ^gradient_accumulation_steps: [1,2,4,8]
+  ^tr_schedule: 
+    # - "90_cos_1.4-1;10_const_1"
+    # - "100_cos_1.4-1"
+    # - "90_lin_1.4-1;10_const_1"
+    # - "100_lin_1.4-1"
+    # - "45_const_1.4;45_lin_1.4-1;10_const_1"
+    # - "45_const_1.4;45_cos_1.4-1;10_const_1"
+    - "100_const_1.4"
+
+
+  n_steps: 100
+  final_lr_step: 13200
+  lr_warmup_steps: 132
+  final_lr_fraction: 0.1
+
+
+  # precision / distributed
+  mixed_precision: true
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  ^grad_clip: [0.1]
+  logger_types: "neptune"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 1000
+  logging_interval_light: 100
+  save_weights_interval: 0
+  eval_interval: 100
+
+
+  #fsdp
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "TransformerBlock,TokenReductionEmbedding,PredictionHead"
+  fsdp_selective_precision_modules: "AttentionMechanism"
+
+  # fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+

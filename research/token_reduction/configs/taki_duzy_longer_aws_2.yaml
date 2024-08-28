@@ -1,25 +1,25 @@
-parent: configs/baselines/gpt/dense/base.yaml
-md5_parent_hash: 763f39978a58f704200275285162594c
-time: "3-00:00:00"
-cuda_visible: "6,7"
+parent: configs/baselines/gpt/dense/large.yaml
+md5_parent_hash: 66aa609ebcff1d88f0bb900b0a0966fb
+time: "1-00:00:00"
+cuda_visible: "0,1,2,3,4,5,6,7"
 runner: "research.token_reduction.utils.runner"
-n_gpus: 2
+n_gpus: 8
 
 params:
-  name: "base_merging_scheduled_1_1"
+  name: "large_merging_scheduled_1_1"
   tags: ["base", "merging", "scheduled", "1.1", "token_reduction"]
-  # name: "base_vanilla"
-  # tags: ["base", "vanilla", "token_reduction"]
+  # name: "large_vanilla"
+  # tags: ["large", "vanilla", "token_reduction"]
   wandb_project: "token_reduction"
 
   reduction_layer_type: "merging"
-  ^cutoff: [2048] 
-  batch_size: 256
-  learning_rate: 1e-3
-  gradient_accumulation_steps: 8
+  ^cutoff: [1024] 
+  ^batch_size: [512, 1024]
+  ^learning_rate: [1e-3]
+  ^gradient_accumulation_steps: [2, 4, 8, 16]
   ^tr_schedule: 
     - "90_cos_1.1-1;10_const_1"
-  #   - "100_cos_1.1-1"
+    # - "100_cos_1.1-1"
     # - "90_lin_1.1-1;10_const_1"
     # - "100_lin_1.1-1"
     # - "45_const_1.1;45_lin_1.1-1;10_const_1"
@@ -27,9 +27,9 @@ params:
     # - "100_const_1.1"
 
 
-  n_steps: 16_000
-  final_lr_step: 16_000
-  lr_warmup_steps: 160
+  n_steps: 13200
+  final_lr_step: 13200
+  lr_warmup_steps: 132
   final_lr_fraction: 0.1
 
 
@@ -44,18 +44,15 @@ params:
   init_scale: 0.1
   dataset_type: c4
   weight_decay: 0.1
-  grad_clip: 0.1
-  logger_types: "neptune,wandb"
+  ^grad_clip: [0.1]
+  logger_types: "neptune"
 
-  # intervals
+  # intervalds
   decoding_interval: 0
   logging_interval_heavy: 1000
   logging_interval_light: 100
   save_weights_interval: 0
   eval_interval: 100
-
-  # loss_checkpoint_chungs: 2
-
 
 
   #fsdp
@@ -63,4 +60,6 @@ params:
   fsdp_modules_to_wrap: "TransformerBlock,TokenReductionEmbedding,PredictionHead"
   fsdp_selective_precision_modules: "AttentionMechanism"
 
-# TokenReductionEmbedding
+  # fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+
+  project_name: "crewtool/mojtestproject"
