@@ -188,7 +188,9 @@ class LocalSearch:
 
     def run_param_tuning(self, param, i):
         val = self.get_param_val(param)
-        new_vals = [val*change for change in self.param_change]
+        print(f'param:{param}')
+        print(f'val: {val}')
+        new_vals = [val * change for change in self.param_change]
         test_configs = [(self.set_param_val(self.get_new_config(), param, new_val), new_val) for new_val in new_vals]
         pids = [self.run_config_dict(config, param, new_val, i) for config, new_val in test_configs]
         return pids
