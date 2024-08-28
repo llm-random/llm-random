@@ -11,8 +11,8 @@ params:
   tags: ["relative_lr", "dense", "local_search", "relative"]
   ff_mode: swi_glu
 
-  batch_size: 128
-  cutoff: 512
+  batch_size: 256
+  cutoff: 256
 
   n_steps: 400
   final_lr_step: 400
