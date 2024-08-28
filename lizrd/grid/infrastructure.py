@@ -319,6 +319,103 @@ class AWS1Backend(MachineBackend):
         ]
 
 
+class AWS2Backend(MachineBackend):
+    def get_common_directory(self) -> str:
+        return "/home/ubuntu/"
+
+    def get_cache_path(self) -> str:
+        return "/home/ubuntu/.cache"
+
+    def get_grid_entrypoint(self) -> str:
+        return "lizrd/grid/grid_entrypoint.sh"
+
+    def get_default_train_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/home/ubuntu/cache/train"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/home/ubuntu/cache/validation"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_cemetery_directory(self):
+        return "/home/ubuntu/llm-random-cemetery"
+
+    def get_singularity_image(self) -> str:
+        return "/home/ubuntu/sparsity_2024.02.06_16.14.02.sif"
+
+    def get_subprocess_args(
+        self,
+        slurm_command,
+        setup_args,
+        training_args,
+        singularity_env_arguments,
+        runner_params,
+    ):
+        return [
+            "singularity",
+            "run",
+            *singularity_env_arguments,
+            make_singularity_mount_paths(setup_args, training_args),
+            "--nv",
+            setup_args["singularity_image"],
+            *self.get_runner_command(setup_args["runner"], runner_params),
+        ]
+
+
+class AWSSlurmBackend(MachineBackend):
+    def get_common_directory(self) -> str:
+        return "/wspolne"
+
+    def get_cache_path(self) -> str:
+        return f"{self.get_common_directory()}/.cache"
+
+    def get_grid_entrypoint(self) -> str:
+        return "lizrd/grid/grid_entrypoint.sh"
+
+    def get_default_train_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return f"{self.get_common_directory()}/data/train"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return f"{self.get_common_directory()}/data/validation"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_cemetery_directory(self):
+        return f"/home/ubuntu/llm-random-cemetery"
+
+    def get_singularity_image(self) -> str:
+        return f"{self.get_common_directory()}/sparsity_2024.02.06_16.14.02.sif"
+
+    def get_subprocess_args(
+        self,
+        slurm_command,
+        setup_args,
+        training_args,
+        singularity_env_arguments,
+        runner_params,
+    ):
+        return [
+            slurm_command,
+            f"--gres=gpu:{setup_args['n_gpus']}",
+            f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--job-name={training_args['name']}",
+            f"--time={setup_args['time']}",
+            f"{setup_args['grid_entrypoint']}",
+            "singularity",
+            "run",
+            *singularity_env_arguments,
+            make_singularity_mount_paths(setup_args, training_args),
+            "--nv",
+            setup_args["singularity_image"],
+            *self.get_runner_command(setup_args["runner"], runner_params),
+        ]
+
+
 class LocalBackend(MachineBackend):
     def get_common_directory(self) -> str:
         return os.getenv("HOME")
@@ -377,5 +474,12 @@ def get_machine_backend(node=None, connection=None) -> MachineBackend:
         == "b7ac4f788a9ebbb762abd91b07030d07fe9e41b9a6b2fcb25062bbb26edc60e3"
     ):  # no need for anyone to know the hostname :)
         return AWS1Backend(username)
+    elif "node" in node:
+        return AWSSlurmBackend(username)
+    elif (
+        hashlib.sha256(node.encode()).hexdigest()
+        == "e5d9fd5cb2b4b874dd0e1e7156e27f6452fa7d18f7974dfc286c5027ce72a4d2"
+    ):  # no need for anyone to know the hostname :)
+        return AWS2Backend(username)
     else:
         return LocalBackend(username)
