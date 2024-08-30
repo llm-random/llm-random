@@ -13,14 +13,14 @@ def std_grad_norm_v1(grad: torch.Tensor, c: float, eps: float) -> torch.Tensor:
 
 def std_grad_norm_v2(grad: torch.Tensor, c: float, eps: float) -> torch.Tensor:
     # assuming grad is (batch_size, max_length, dmodel)
-    dmodel_std = grad.std(axis=-1, correction=0)  # (batch_size, max_length)
-    return grad / (torch.pow(dmodel_std.unsqueeze(-1), c) + eps)
+    dmodel_std = grad.std(axis=-1, correction=0, keepdim=True)  # (batch_size, max_length)
+    return grad / (torch.pow(dmodel_std, c) + eps)
 
 
 def std_grad_norm_v3(grad: torch.Tensor, c: float, eps: float) -> torch.Tensor:
-    dmodel_std = grad.std(axis=-1, correction=0)  # (batch_size, max_length)
+    dmodel_std = grad.std(axis=-1, correction=0, keepdim=True)  # (batch_size, max_length)
     global_std = grad.std(correction=0)  # (,)
-    return grad * global_std / (torch.pow(dmodel_std.unsqueeze(-1), c) + eps)
+    return grad * global_std / (torch.pow(dmodel_std, c) + eps)
 
 
 class GradLoggingLayer(LoggingLayer):
