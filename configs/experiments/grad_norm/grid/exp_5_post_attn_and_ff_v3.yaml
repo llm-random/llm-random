@@ -1,0 +1,18 @@
+md5_parent_hash: 04709a070794b1108adf921b25da8a8c
+params:
+  grad_modif_params:
+  - c=1.0
+  - layer_type=v3
+  grad_modif_placement:
+  - post_ff
+  - post_attn
+  grad_modif_type:
+  - std_norm
+  name: grad_norm_formulas_exp_5_post_attn_and_ff_v3.yaml
+  tags:
+  - medium
+  - grad_norm
+  - std_norm
+  - post_attn_and_ff
+  - v3
+parent: configs/baselines/gpt/grad_norm/medium.yaml
