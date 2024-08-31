@@ -1,12 +1,14 @@
 parent: configs/baselines/gpt/expert_choice/granularity/4/base.yaml
 md5_parent_hash: 6cd6b241d09b039d86d8c51b5f0b4a01
-time: "90:00:00"
+time: "48:00:00"
 interactive_debug_session: false
 interactive_debug: false
+n_gpus: 4
+cpus_per_gpu: 16
 
 params:
-  name: "base_extrapolation"
-  tags: ["base_extrapolation", "long"]
+  name: "base_extrapolation_4cpmt_opt"
+  tags: ["relative_lr", "base_extrapolation", "long", "relative", "4xcmpt_opt"]
   ff_mode: token_choice
   capacity_factor: 1.0
 
@@ -18,38 +20,43 @@ params:
   layer_norm_in_expert_choice: False
 
   batch_size: 256
-  cutoff: 256
+  cutoff: 1024
 
-  n_steps: 56_000
-  final_lr_step: 56_000
-  lr_warmup_steps: 560
+  n_steps: 35_000
+  final_lr_step: 35_000
+  lr_warmup_steps: 350
   scheduler: cosine
 
   final_lr_fraction: 0.066666
   init_scale: 0.333
-  learning_rate: 0.001
+  learning_rate: 1e-3
   weight_decay: 0.15
+  grad_clip: 0.1
 
   save_weights_interval: 0
   mixed_precision: True
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
   loss_checkpoint_chungs: 8
 
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
+
   print_parameter_names: true
+  
   relative_lr:
     embedding_layer: 3.333
     head: 0.666
     gating: 0.666
     expert_inner_function: 0.3
-
-  relative_init_scale:
-    embedding_layer: 0.2
-    head: 1.
-    gating: 0.2
-    expert_inner_function: 1.
+    projection: 1.
 
   relative_scheduler_fraction:
     embedding_layer: 0.666
     head: 0.666
     gating: 1.
     expert_inner_function: 1.125
+    projection: 1.
 

@@ -3,11 +3,11 @@ md5_parent_hash: 6cd6b241d09b039d86d8c51b5f0b4a01
 time: "90:00:00"
 interactive_debug_session: false
 interactive_debug: false
-n_gpus: 8
+n_gpus: 4
 
 params:
-  name: "large_extrapolation_relative_tune"
-  tags: ["relative", "compute_opt", "large_extrapolation", "tune_relative", "seq_len_1024"]
+  name: "midlarge_extrapolation_relative_tune"
+  tags: ["relative_lr", "baseline", "compute_opt", "midlarge_extrapolation", "tune_lr", "seq_len_1024"]
   ff_mode: token_choice
   capacity_factor: 1.0
 
@@ -18,21 +18,21 @@ params:
   get_router_values_from: weights
   layer_norm_in_expert_choice: False
 
-  dmodel: 1536
+  dmodel: 1024
   n_blocks: 24
-  n_att_heads: 12
+  n_att_heads: 16
 
-  batch_size: 384
+  batch_size: 256
   cutoff: 1024
 
-  n_steps: 50_000
-  final_lr_step: 50_000
-  lr_warmup_steps: 500
+  n_steps: 35_000
+  final_lr_step: 35_000
+  lr_warmup_steps: 350
   scheduler: cosine
 
   final_lr_fraction: 0.066666
   init_scale: 0.333
-  learning_rate: 0.0001
+  ^learning_rate: [1e-3, 2e-4]
   weight_decay: 0.15
   grad_clip: 0.1
 
@@ -49,16 +49,16 @@ params:
 
   print_parameter_names: true
   
-  relative_lr:
-    embedding_layer: 3.333
-    head: 0.666
-    gating: 0.666
-    expert_inner_function: 0.3
-    projection: 1.
+  # relative_lr:
+  #   embedding_layer: 3.333
+  #   head: 0.666
+  #   gating: 0.666
+  #   expert_inner_function: 0.3
+  #   projection: 1.
 
-  relative_scheduler_fraction:
-    embedding_layer: 0.666
-    head: 0.666
-    gating: 1.
-    expert_inner_function: 1.125
-    projection: 1.
+  # relative_scheduler_fraction:
+  #   embedding_layer: 0.666
+  #   head: 0.666
+  #   gating: 1.
+  #   expert_inner_function: 1.125
+  #   projection: 1.

@@ -7,8 +7,8 @@ gpus: 1
 cpus_per_gpu: 16
 
 params:
-  name: "relative_medium_dense_lr_tune"
-  tags: ["relative_lr", "dense", "final_lr_fraction_tune", "baseline"]
+  name: "medium_dense_lr_tune_sota_2"
+  tags: ["relative_lr", "dense", "relative", "fraction_ablation"]
   ff_mode: swi_glu
 
   batch_size: 128
@@ -19,7 +19,7 @@ params:
   lr_warmup_steps: 102
   scheduler: cosine
 
-  ^final_lr_fraction: [0.04, 0.0666, 0.085, 0.1, 0.15]
+  final_lr_fraction: 0.06666
   init_type: truncated_normal
   init_scale: 0.333
   learning_rate: 2e-3
@@ -32,26 +32,14 @@ params:
 
   print_parameter_names: true
 
-  # relative_lr:
-  #   embedding_layer: 3.333
-  #   head: 0.666
-  #   layer.feedforward: 1.125
-  #   projection: 1.2
+  relative_lr:
+    embedding_layer: 5.
+    head: 1.
+    layer.feedforward: 1.
+    projection: 1.
 
-  # relative_scheduler_fraction:
-  #   embedding_layer: 0.666
-  #   head: 0.666
-  #   layer.feedforward: 1.125
-  #   projection: 1.
-
-tune_config:
-  iters: 30
-  tune_params:
-    - "relative_lr:embedding_layer"
-    - "relative_lr:head"
-    - "relative_lr:layer.feedforward"
-    - "relative_lr:projection"
-    - "relative_scheduler_fraction:embedding_layer"
-    - "relative_scheduler_fraction:head"
-    - "relative_scheduler_fraction:layer.feedforward"
-    - "relative_scheduler_fraction:projection"
+  relative_scheduler_fraction:
+    embedding_layer: 0.6666
+    head: 0.4444  # last sota was 0.4444, but differences are almost invisible, so to not give someone bad ideas for explanations i leave it at 0.6666
+    layer.feedforward: 0.6666
+    projection: 0.2

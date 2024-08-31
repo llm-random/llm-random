@@ -1,0 +1,55 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+time: "90:00:00"
+interactive_debug_session: false
+interactive_debug: false
+n_gpus: 8
+
+params:
+  name: "dense_large"
+  tags: ["baseline", "compute_opt", "large_extrapolation", "dense", "seq_len_1024", "lr_tune"]
+  ff_mode: swi_glu
+
+  dmodel: 1536
+  n_blocks: 24
+
+  batch_size: 384
+  cutoff: 1024
+
+  n_steps: 50_000
+  final_lr_step: 50_000
+  lr_warmup_steps: 500
+  scheduler: cosine
+
+  final_lr_fraction: 0.066666
+  init_type: truncated_normal
+  init_scale: 0.333
+  learning_rate: 2e-4
+  weight_decay: 0.15
+  grad_clip: 0.1
+
+  save_weights_interval: 0
+  mixed_precision: True
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+  loss_checkpoint_chungs: 8
+
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism"
+
+  print_parameter_names: true
+  
+  # relative_lr:
+  #   embedding_layer: 5.
+  #   head: 1.
+  #   layer.feedforward: 1.
+  #   projection: 1.
+
+  # relative_scheduler_fraction:
+  #   embedding_layer: 0.6666
+  #   head: 0.6666  # last sota was 0.4444, but differences are almost invisible, so to not give someone bad ideas for explanations i leave it at 0.6666
+  #   layer.feedforward: 0.6666
+  #   projection: 0.2
+
