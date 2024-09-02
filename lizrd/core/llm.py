@@ -538,8 +538,6 @@ class TransformerTower(nn.Module):
         device: torch.device = None,
         model_fragmentation: Optional[list[int]] = None,
         residual_fn: Optional[Callable] = None,
-        universal: bool = False,
-        n_repeats: int = 1,
     ):
         super().__init__()
         if type(layer_or_block_definition) is dict:
@@ -585,14 +583,6 @@ class TransformerTower(nn.Module):
                 block,
             )
             self.blocks.append(name_and_block)
-
-        if universal:
-            self.blocks = self.blocks * n_repeats
-            old_blocks = self.blocks
-            self.blocks = []
-            for i, (name, block) in enumerate(old_blocks):
-                block = block.to(device)
-                self.blocks.append((f"block_{i}", block))
 
         self.blocks = nn.Sequential(OrderedDict(self.blocks))
 

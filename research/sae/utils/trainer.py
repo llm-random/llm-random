@@ -12,8 +12,8 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
-from research.universal.utils.layer_manager import LayerManager
-from research.universal.utils.model_utils import (
+from research.template.utils.layer_manager import LayerManager
+from research.template.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )

@@ -16,16 +16,17 @@ from lizrd.support.misc import (
     get_n_learnable_parameters,
     set_seed,
 )
-from lizrd.train.train_utils import (
-    get_model,
-)
+
+# from lizrd.train.train_utils import (
+#     get_model,
+# )
 from lizrd.text import tokenizers
-from research.universal.utils.check_args import check_args
+from research.template.utils.check_args import check_args
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.universal.utils.trainer import TemplateTrainer
-from research.universal.utils.argparse import introduce_parser_arguments
-from research.universal.utils.model_utils import (
+from research.template.utils.trainer import TemplateTrainer
+from research.template.utils.argparse import introduce_parser_arguments
+from research.template.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
@@ -101,11 +102,6 @@ def main(
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
 
-    VOCAB_SIZE = (
-        tokenizers.BertTokenizer.VOCAB_SIZE
-        if args.model_type == "bert"
-        else tokenizers.GPTTokenizer.VOCAB_SIZE
-    )
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.detect_anomaly:
@@ -167,35 +163,35 @@ def main(
         else None
     )
 
-    model = get_model(
-        max_length=args.cutoff,
-        vocab_size=VOCAB_SIZE,
-        block_modules=block_modules,
-        dm=args.dmodel,
-        n_blocks=args.n_blocks,
-        device=(
-            DEVICE if rank is None else torch.device("cpu")
-        ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
-        init_type=args.init_type,
-        init_scale=args.init_scale,
-        ddp_enabled=args.ddp_enabled,
-        fsdp_enabled=args.fsdp_enabled,
-        fsdp_param_precision=fsdp_param_precision,
-        fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
-        fsdp_offload_params=args.fsdp_offload_params,
-        fsdp_min_num_params=args.fsdp_min_num_params,
-        fsdp_modules_to_wrap=fsdp_modules_to_wrap,
-        activation_checkpointing_modules=activation_checkpointing_modules,
-        model_fragmentation=args.model_parallelism_fragmentation,
-        residual_fn=residual_fn,
-        is_logging_process=is_logging_process,
-        rank=rank,
-        include_positional_embedding=(not args.no_positional_embedding)
-        and (args.attention_mode != "rope"),
-        checkpoint=checkpoint,
-        universal=args.universal,
-        n_repeats=args.n_repeats,
-    )
+    # model = get_model(
+    #     max_length=args.cutoff,
+    #     vocab_size=VOCAB_SIZE,
+    #     block_modules=block_modules,
+    #     dm=args.dmodel,
+    #     n_blocks=args.n_blocks,
+    #     device=(
+    #         DEVICE if rank is None else torch.device("cpu")
+    #     ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
+    #     init_type=args.init_type,
+    #     init_scale=args.init_scale,
+    #     ddp_enabled=args.ddp_enabled,
+    #     fsdp_enabled=args.fsdp_enabled,
+    #     fsdp_param_precision=fsdp_param_precision,
+    #     fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
+    #     fsdp_offload_params=args.fsdp_offload_params,
+    #     fsdp_min_num_params=args.fsdp_min_num_params,
+    #     fsdp_modules_to_wrap=fsdp_modules_to_wrap,
+    #     activation_checkpointing_modules=activation_checkpointing_modules,
+    #     model_fragmentation=args.model_parallelism_fragmentation,
+    #     residual_fn=residual_fn,
+    #     is_logging_process=is_logging_process,
+    #     rank=rank,
+    #     include_positional_embedding=(not args.no_positional_embedding)
+    #     and (args.attention_mode != "rope"),
+    #     checkpoint=checkpoint,
+    # )
+
+    model = get_sae()
 
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters
@@ -260,7 +256,7 @@ def main(
     )
 
     if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE)
+        logger = get_logger(args, model)
     else:
         logger = None
 
