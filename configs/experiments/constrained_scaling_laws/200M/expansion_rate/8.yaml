@@ -6,5 +6,5 @@ n_gpus: 2
 params:
   tags: ["constrained_scaling_grid", "200M"]
   ^expansion_rate: [2, 8]
-  ^n_steps: [1907, 3814, 7628, 15256, 30512]
+  ^n_steps: [1907, 3814, 7628, 15256, 30512, 61024]
 

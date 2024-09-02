@@ -19,7 +19,7 @@ params:
 
   n_steps: 10 # mock value for tests
   # [1907, 3814, 7628, 15256, 30512]
-  # 500M, 1B, 2B, 4B, 8B
+  # 500M,  1B,   2B,   4B,    8B
 
   dmodel: 256
   n_blocks: 4
