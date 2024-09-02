@@ -238,6 +238,8 @@ def get_residual_layer(args):
         return partial(llm.PostNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "rezero":
         return partial(llm.RezeroBlock, dmodel=args.dmodel, norm_class=norm_class)
+    elif args.residual_mode == "no_norm":
+        return partial(llm.NoNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     else:
         raise NotImplementedError(f"Residual type {args.residual_mode} not implemented")
 
@@ -273,6 +275,10 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "swi_glu":
         return_fn = lambda: llm.SwiGLUFeedForward(
+            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
+    elif args.ff_mode == "sae":
+        return_fn = lambda: llm.SAEFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
     else:

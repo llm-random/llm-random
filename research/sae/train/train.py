@@ -21,6 +21,7 @@ from lizrd.support.misc import (
 #     get_model,
 # )
 from lizrd.text import tokenizers
+from lizrd.train.train_utils import get_model
 from research.template.utils.check_args import check_args
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
@@ -28,9 +29,9 @@ from research.template.utils.trainer import TemplateTrainer
 from research.template.utils.argparse import introduce_parser_arguments
 from research.template.utils.model_utils import (
     disable_profile_schedule_fn,
-    get_classes_from_module_names,
+    # get_classes_from_module_names,
     get_ff_layer,
-    get_attention_layer,
+    # get_attention_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     get_classes_from_module_names,
@@ -142,14 +143,8 @@ def main(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
     )
 
-    block_modules = {}
-    for module_name in args.block_modules:
-        if module_name == "attention":
-            block_modules[module_name] = get_attention_layer(args)
-        elif module_name == "feedforward":
-            block_modules[module_name] = get_ff_layer(args)
-        else:
-            raise ValueError(f"Unknown module name: {module_name}")
+    args.ff_mode = "sae"
+    block_modules = {get_ff_layer(args)}
 
     if args.parallel_blocks:
         modules = block_modules.items()
@@ -163,36 +158,31 @@ def main(
         else None
     )
 
-    # model = get_model(
-    #     max_length=args.cutoff,
-    #     vocab_size=VOCAB_SIZE,
-    #     block_modules=block_modules,
-    #     dm=args.dmodel,
-    #     n_blocks=args.n_blocks,
-    #     device=(
-    #         DEVICE if rank is None else torch.device("cpu")
-    #     ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
-    #     init_type=args.init_type,
-    #     init_scale=args.init_scale,
-    #     ddp_enabled=args.ddp_enabled,
-    #     fsdp_enabled=args.fsdp_enabled,
-    #     fsdp_param_precision=fsdp_param_precision,
-    #     fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
-    #     fsdp_offload_params=args.fsdp_offload_params,
-    #     fsdp_min_num_params=args.fsdp_min_num_params,
-    #     fsdp_modules_to_wrap=fsdp_modules_to_wrap,
-    #     activation_checkpointing_modules=activation_checkpointing_modules,
-    #     model_fragmentation=args.model_parallelism_fragmentation,
-    #     residual_fn=residual_fn,
-    #     is_logging_process=is_logging_process,
-    #     rank=rank,
-    #     include_positional_embedding=(not args.no_positional_embedding)
-    #     and (args.attention_mode != "rope"),
-    #     checkpoint=checkpoint,
-    # )
-
-    model = get_sae()
-
+    model = get_model(
+        max_length=args.cutoff,
+        block_modules=block_modules,
+        dm=args.dmodel,
+        n_blocks=1,
+        device=(
+            DEVICE if rank is None else torch.device("cpu")
+        ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
+        init_type=args.init_type,
+        init_scale=args.init_scale,
+        ddp_enabled=args.ddp_enabled,
+        fsdp_enabled=args.fsdp_enabled,
+        fsdp_param_precision=fsdp_param_precision,
+        fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
+        fsdp_offload_params=args.fsdp_offload_params,
+        fsdp_min_num_params=args.fsdp_min_num_params,
+        fsdp_modules_to_wrap=fsdp_modules_to_wrap,
+        activation_checkpointing_modules=activation_checkpointing_modules,
+        model_fragmentation=args.model_parallelism_fragmentation,
+        residual_fn="no_norm",
+        is_logging_process=is_logging_process,
+        rank=rank,
+        include_positional_embedding=False,
+        checkpoint=checkpoint,
+    )
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters
     print(f"Number of learnable parameters: {n_learnable_parameters:_}")

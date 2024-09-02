@@ -49,6 +49,32 @@ class SwiGLUFeedForward(LoggingLayer):
         return self.w2(activation * gate)
 
 
+class SAEFeedForward(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        init_type: ValidInitType,
+        init_scale: float,
+    ):
+        super().__init__()
+        self.pre_bias = nn.Parameter(torch.zeros(dff))
+        self.w_enc = Linear(
+            dmodel, dff, init_type=init_type, init_scale=init_scale, bias=True
+        )
+        self.w_dec = Linear(
+            dff, dmodel, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, x):
+        x -= self.pre_bias
+        x = self.w_enc(x)
+        x = F.relu(x)
+        x = self.w_dec(x)
+        x += self.pre_bias
+        return x
+
+
 def FeedForward(
     dmodel,
     dff,
