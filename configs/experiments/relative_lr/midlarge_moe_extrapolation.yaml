@@ -6,8 +6,8 @@ interactive_debug: false
 n_gpus: 4
 
 params:
-  name: "midlarge_extrapolation_relative_tune"
-  tags: ["relative_lr", "baseline", "compute_opt", "midlarge_extrapolation", "tune_lr", "seq_len_1024"]
+  name: "midlarge_extrapolation_relative"
+  tags: ["relative_lr", "relative", "compute_opt", "midlarge_extrapolation", "seq_len_1024"]
   ff_mode: token_choice
   capacity_factor: 1.0
 
@@ -32,7 +32,7 @@ params:
 
   final_lr_fraction: 0.066666
   init_scale: 0.333
-  ^learning_rate: [1e-3, 2e-4]
+  learning_rate: 5e-4
   weight_decay: 0.15
   grad_clip: 0.1
 
@@ -49,16 +49,16 @@ params:
 
   print_parameter_names: true
   
-  # relative_lr:
-  #   embedding_layer: 3.333
-  #   head: 0.666
-  #   gating: 0.666
-  #   expert_inner_function: 0.3
-  #   projection: 1.
+  relative_lr:
+    embedding_layer: 3.333
+    head: 0.666
+    gating: 0.666
+    expert_inner_function: 0.3
+    projection: 1.
 
-  # relative_scheduler_fraction:
-  #   embedding_layer: 0.666
-  #   head: 0.666
-  #   gating: 1.
-  #   expert_inner_function: 1.125
-  #   projection: 1.
+  relative_scheduler_fraction:
+    embedding_layer: 0.666
+    head: 0.666
+    gating: 1.
+    expert_inner_function: 1.125
+    projection: 1.

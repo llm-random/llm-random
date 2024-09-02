@@ -7,7 +7,7 @@ n_gpus: 8
 
 params:
   name: "dense_large"
-  tags: ["baseline", "compute_opt", "large_extrapolation", "dense", "seq_len_1024", "lr_tune"]
+  tags: ["relative", "compute_opt", "large_extrapolation", "dense", "seq_len_1024"]
   ff_mode: swi_glu
 
   dmodel: 1536
@@ -24,7 +24,7 @@ params:
   final_lr_fraction: 0.066666
   init_type: truncated_normal
   init_scale: 0.333
-  learning_rate: 2e-4
+  learning_rate: 5e-4
   weight_decay: 0.15
   grad_clip: 0.1
 
@@ -41,15 +41,15 @@ params:
 
   print_parameter_names: true
   
-  # relative_lr:
-  #   embedding_layer: 5.
-  #   head: 1.
-  #   layer.feedforward: 1.
-  #   projection: 1.
+  relative_lr:
+    embedding_layer: 5.
+    head: 1.
+    layer.feedforward: 1.
+    projection: 1.
 
-  # relative_scheduler_fraction:
-  #   embedding_layer: 0.6666
-  #   head: 0.6666  # last sota was 0.4444, but differences are almost invisible, so to not give someone bad ideas for explanations i leave it at 0.6666
-  #   layer.feedforward: 0.6666
-  #   projection: 0.2
+  relative_scheduler_fraction:
+    embedding_layer: 0.6666
+    head: 0.4444  # last sota was 0.4444, but differences are almost invisible, so to not give someone bad ideas for explanations i leave it at 0.6666
+    layer.feedforward: 0.6666
+    projection: 0.2
 
