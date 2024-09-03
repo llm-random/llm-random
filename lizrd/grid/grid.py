@@ -95,6 +95,6 @@ def create_subprocess_args(
                 singularity_env_arguments=singularity_env_arguments,
                 runner_params=runner_params,
             )
-
-            experiments.append((subprocess_args, training_args["name"]))
+            cuda_visible = setup_args.get("cuda_visible")
+            experiments.append((subprocess_args, training_args["name"], cuda_visible))
     return experiments, interactive_debug_session

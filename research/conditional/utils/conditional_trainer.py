@@ -5,6 +5,8 @@ from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from torch.profiler import profile, ProfilerActivity
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
@@ -46,6 +48,7 @@ class ConditionalTrainer:
     n_eval_batches: int
     max_sequence_length: int
     batch_size: int
+    cutoff: int
     lr_scheduler: AbstractLRScheduler
     _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
@@ -53,7 +56,7 @@ class ConditionalTrainer:
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
-    save_weights_path: str = None
+    save_weights_path: Optional[str] = None
     save_weights_interval: int = 1000
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
@@ -365,6 +368,7 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
+                    processed_token_scale=True,
                 )
                 stats.acc = 0.0
 
@@ -434,6 +438,16 @@ class ConditionalTrainer:
             and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
+            if isinstance(self.model, FSDP):
+                # for some reason, setting the model to training mode and
+                # running a forward pass is necessary to be able to save it
+                # in FSDP. God help us.
+                self.model.train()
+                with torch.no_grad():
+                    _ = self.model(
+                        torch.zeros((self.batch_size, self.cutoff), dtype=torch.int)
+                    )
+
             save_checkpoint(
                 self.model,
                 self.optimizer,

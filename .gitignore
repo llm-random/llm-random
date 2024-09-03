@@ -165,6 +165,7 @@ schema.json
 
 wandb
 
+local_search_configs
 
 # MS files
 testms_*

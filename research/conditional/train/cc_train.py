@@ -114,6 +114,7 @@ def main(
     rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
     port: str = "29500",
+    unique_save_weights_path: Optional[str] = None,
     args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
 ):
@@ -130,8 +131,6 @@ def main(
             args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
-
-    save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -188,24 +187,39 @@ def main(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
     )
 
-    block_modules = {}
-    for module_name in args.block_modules:
-        if module_name == "attention":
-            block_modules[module_name] = get_attention_layer(args)
-        elif module_name == "feedforward":
-            block_modules[module_name] = get_ff_layer(args)
-        elif module_name == "mamba":
-            block_modules[module_name] = get_mamba_layer(args)
-        elif module_name == "vanilla_mamba":
-            block_modules[module_name] = get_vanilla_mamba_layer(args)
-        else:
-            raise ValueError(f"Unknown module name: {module_name}")
+    if args.general_ff_layer_config is None:
+        block_modules = {}
+        for module_name in args.block_modules:
+            if module_name == "attention":
+                block_modules[module_name] = get_attention_layer(args)
+            elif module_name == "feedforward":
+                block_modules[module_name] = get_ff_layer(args)
+            elif module_name == "mamba":
+                block_modules[module_name] = get_mamba_layer(args)
+            elif module_name == "vanilla_mamba":
+                block_modules[module_name] = get_vanilla_mamba_layer(args)
+            else:
+                raise ValueError(f"Unknown module name: {module_name}")
 
-    if args.parallel_blocks:
-        modules = block_modules.items()
-        block_modules = {
-            "parallel": lambda: Parallel(*[module() for _, module in modules])
-        }
+        if args.parallel_blocks:
+            modules = block_modules.items()
+            block_modules = {
+                "parallel": lambda: Parallel(*[module() for _, module in modules])
+            }
+    else:
+        ff_layers = args.general_ff_layer_config.split(",")
+        ff_layer_funs = []
+        for layer in ff_layers:
+            args.ff_mode = layer
+            ff_layer_funs.append(get_ff_layer(args))
+        attention_fn = get_attention_layer(args)
+        block_modules = [
+            {
+                "attention": attention_fn,
+                "feedforward": ff_fun,
+            }
+            for ff_fun in ff_layer_funs
+        ]
 
     checkpoint = (
         get_checkpoint_from_path(args.load_weights_path)
@@ -351,6 +365,7 @@ def main(
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
+        cutoff=args.cutoff,
         lr_scheduler=scheduler,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
@@ -359,7 +374,7 @@ def main(
         eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
-        save_weights_path=save_weights_path,
+        save_weights_path=unique_save_weights_path,
         save_weights_interval=args.save_weights_interval,
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
@@ -396,6 +411,8 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
+    unique_save_weights_path = prepare_save_weights_path(args.save_weights_path)
+
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
@@ -406,8 +423,13 @@ if __name__ == "__main__":
             port = str(s.getsockname()[1])
         mp.spawn(
             main,
-            args=[data_seeds, port, args],
+            args=[
+                data_seeds,
+                port,
+                unique_save_weights_path,
+                args,
+            ],
             nprocs=args.n_gpus,
         )
     else:
-        main(None, args=args)
+        main(None, args=args, unique_save_weights_path=unique_save_weights_path)
