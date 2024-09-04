@@ -21,7 +21,6 @@ from lizrd.train.load_and_save_model import (
     load_optimizer_state,
     prepare_save_weights_path,
 )
-from lizrd.text import tokenizers
 
 from research.datasets import DataloaderWrapper
 from research.tokenizex.model.input_wise_pe import InputWisePositionalEmbedding
@@ -197,7 +196,7 @@ def main(
             )
         )
     else:
-        raise NotImplemented(
+        raise NotImplementedError(
             "Head needs to be initialized outside of get_model first - two vocab_sizes (for head and encoding)"
         )
 

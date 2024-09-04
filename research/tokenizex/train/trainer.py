@@ -25,7 +25,6 @@ from research.tokenizex.model.model_utils import (
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
-from research.tokenizex.utils.packer import AtomizationManager
 
 
 @define(slots=False)
@@ -348,17 +347,17 @@ class TokenizexTrainer:
         if self.is_logging_process:
             log_dir = "comp/perplexity/"
             self.logger.report_scalar(
-                title=log_dir + f"byttok_loss",  # dev change
+                title=log_dir + "byttok_loss",  # dev change
                 value=total_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title=log_dir + f"deftok_loss",  # dev change
+                title=log_dir + "deftok_loss",  # dev change
                 value=total_deftok_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title=log_dir + f"accuracy",
+                title=log_dir + "accuracy",
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
@@ -526,10 +525,10 @@ class TokenizexTrainer:
                 if value.requires_grad:
                     norm = torch.linalg.norm(value)
                     w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
-            g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
+            g_norms["weight_norms/grad_norm_total"] = torch.linalg.norm(
                 torch.tensor(list(g_norms.values()))
             )
-            w_norms[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
+            w_norms["weight_norms/weight_norm_total"] = torch.linalg.norm(
                 torch.tensor(list(w_norms.values()))
             )
             for name, value in {**g_norms, **w_norms}.items():

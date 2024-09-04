@@ -8,12 +8,11 @@ import torch
 from torch.profiler import profile, ProfilerActivity
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
-from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
-from research.tokenizex.model.tokenizer import ReversedGPT2Tokenizer, TokenizexTokenizer
+from research.tokenizex.model.tokenizer import ReversedGPT2Tokenizer
 from research.tokenizex_comp.utils.layer_manager import LayerManager
 from research.tokenizex_comp.utils.model_utils import (
     make_loss_and_gradient_function,
@@ -424,10 +423,10 @@ class TemplateTrainer:
                 if value.requires_grad:
                     norm = torch.linalg.norm(value)
                     w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
-            g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
+            g_norms["weight_norms/grad_norm_total"] = torch.linalg.norm(
                 torch.tensor(list(g_norms.values()))
             )
-            w_norms[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
+            w_norms["weight_norms/weight_norm_total"] = torch.linalg.norm(
                 torch.tensor(list(w_norms.values()))
             )
             for name, value in {**g_norms, **w_norms}.items():

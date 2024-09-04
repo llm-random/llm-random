@@ -1,7 +1,5 @@
 from functools import partial
 
-# import json
-# from diskcache import Cache
 from typing import Optional, Type, Union, Callable
 import torch
 from torch.nn import LayerNorm
@@ -10,7 +8,6 @@ from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
 
 from lizrd.core import llm
-from lizrd.text.data import LLMBatch
 from research.tokenizex_comp.utils.packer import CompLLMBatch
 
 
