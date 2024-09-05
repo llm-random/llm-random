@@ -47,7 +47,7 @@ params:
   print_parameter_names: true
   
   relative_lr:
-    embedding_layer: 3.333
+    ^embedding_layer: [0.83, 1.67, 2.36, 4.71, 6.67, 13.33, 1.0]
     head: 0.666
     gating: 0.666
     expert_inner_function: 0.3
