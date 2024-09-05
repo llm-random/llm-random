@@ -64,4 +64,4 @@ params:
 
   # project_name: "crewtool/mojtestproject"
 
-  should_log_update_norm: true
+  log_update_norm_interval: 10

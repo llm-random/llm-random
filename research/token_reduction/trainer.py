@@ -239,7 +239,7 @@ class Trainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
-    should_log_update_norm: bool
+    log_update_norm_interval: int
     init_cutoff: int
     eval_interval: int
     n_eval_batches: int
@@ -465,9 +465,8 @@ class Trainer:
 
     def will_report_update_norm(self, step: int):
         return (
-            self.should_log_update_norm
-            and (self.logging_interval_heavy > 0)
-            and (step % self.logging_interval_heavy == 0)
+            self.log_update_norm_interval > 0
+            and (step % self.log_update_norm_interval == 0)
             and isinstance(self.model, FSDP)
         )
 

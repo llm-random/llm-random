@@ -5,9 +5,11 @@ def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     parser.add_argument(
-        "--should_log_update_norm",
-        action="store_true",
-        help="Whether to log the norm of the update. This option is separate from normal logging intervals, because it uses up a lot of memory.",
+        "--log_update_norm_interval",
+        type=int, 
+        required=True, 
+        default=0,
+        help="How often to log norms."
     )
     # TOKEN REDUCTION
     parser.add_argument("--reduction_layer_type", type=str, default=None)

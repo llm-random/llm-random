@@ -291,7 +291,7 @@ def main(
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
-        should_log_update_norm=args.should_log_update_norm,
+        log_update_norm_interval=args.log_update_norm_interval,
         init_cutoff=train_sequence_length,
         eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,

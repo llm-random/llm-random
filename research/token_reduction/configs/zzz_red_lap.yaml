@@ -75,6 +75,5 @@ params:
   num_workers: 0
   logger_types: "neptune"
 
-
-  should_log_update_norm: true
+  log_update_norm_interval: 10
 
