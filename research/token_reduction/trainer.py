@@ -3,6 +3,8 @@ from functools import partial
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
+import torch.distributed as dist
+
 import torch
 import torch.nn.functional as F
 from torch.profiler import profile, ProfilerActivity
@@ -214,6 +216,7 @@ def calculate_llm_loss_and_gradient(
         return loss, aux_info
 
     loss, aux_info = hack_for_python_garbage_collection()
+    dist.all_reduce(loss, op=dist.ReduceOp.AVG)
     if model.training:
         loss_to_optimize = loss.clone()
         run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
@@ -295,7 +298,7 @@ class Trainer:
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
         )
-        
+
         # model checkpoint for diff inspection
         self.model_checkpoint = {}
 
@@ -374,7 +377,7 @@ class Trainer:
         embedding_layer = (
             self.model.embedding_layer
             if not isinstance(self.model, FSDP)
-            else self.model._fsdp_wrapped_module.embedding_layer
+            else self.model._fsdp_wrapped_module.embedding_layer._fsdp_wrapped_module
         )
         if isinstance(embedding_layer, TokenReductionEmbedding):
             embedding_layer.set_scheduler_step(step)
@@ -429,12 +432,17 @@ class Trainer:
         }
 
     def maybe_report_gradient_norm(self, step: int):
-        if self.logging_interval_heavy > 0 and step % self.logging_interval_heavy == 0 and isinstance(self.model, FSDP):
+        if self.will_report_update_norm(step):
             with FSDP.summon_full_params(self.model, with_grads=True):
+                total_norm = torch.tensor(0.0)
+                norm_type = 2
                 for name, value in self.model.named_parameters():
                     if value.grad is not None:
+                        if value.device != total_norm.device:
+                            total_norm = total_norm.to(value.device)
                         eps = 1e-5
                         grad_norm = torch.linalg.norm(value.grad)
+                        total_norm += grad_norm**norm_type
                         param_norm = torch.linalg.norm(self.model_checkpoint[name])
                         if self.is_logging_process:
                             self.logger.report_scalar(
@@ -447,6 +455,13 @@ class Trainer:
                                 value=grad_norm / (param_norm + eps),
                                 iteration=step,
                             )
+                if self.is_logging_process:
+                    total_norm = total_norm ** (1.0 / norm_type)
+                    self.logger.report_scalar(
+                        title="total_norm",
+                        value=total_norm,
+                        iteration=step,
+                    )
 
     def will_report_update_norm(self, step: int):
         return (
@@ -481,9 +496,12 @@ class Trainer:
         if self.scaler is None:
             self.maybe_report_gradient_norm(step)
             if self.gradient_clipping is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+                if isinstance(self.model, FSDP):
+                    self.model.clip_grad_norm_(self.gradient_clipping)
+                else:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.gradient_clipping
+                    )
             self.optimizer.step()
         else:
             if self.gradient_clipping is not None:
