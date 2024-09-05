@@ -455,6 +455,8 @@ COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
 
 
 def get_machine_backend(node=None, connection=None) -> MachineBackend:
+    if os.environ.get("RUN_LOCALLY") == "True":
+        return LocalBackend()
     if node is None:
         node = platform.uname().node
     username = os.environ.get("USER") if connection is None else connection.user
