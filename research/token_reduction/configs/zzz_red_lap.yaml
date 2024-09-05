@@ -17,7 +17,7 @@ params:
   ^cutoff: [1024] 
   batch_size: 256
   ^learning_rate: [5e-4] #,1e-3] #1e-3 #, , 2e-4, 1e-4]
-  gradient_accumulation_steps: 4
+  gradient_accumulation_steps: 1
   ^tr_schedule: 
     # - "90_cos_1.1-1;10_const_1"
     - "100_cos_1.2-1"
@@ -50,15 +50,15 @@ params:
 
   # intervals
   decoding_interval: 0
-  logging_interval_heavy: 1000
+  logging_interval_heavy: 10
   logging_interval_light: 100
   save_weights_interval: 0
   eval_interval: 10
 
-  #fsdp
-  # fsdp_enabled: true
-  # fsdp_modules_to_wrap: "TransformerBlock,TokenReductionEmbedding,PredictionHead"
-  # fsdp_selective_precision_modules: "AttentionMechanism"
+  # fsdp
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "TransformerBlock,TokenReductionEmbedding,PredictionHead"
+  fsdp_selective_precision_modules: "AttentionMechanism"
 
   # fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
 
@@ -73,6 +73,8 @@ params:
   n_att_heads: 2
   use_dummy_dataset: true
   num_workers: 0
-  logger_types: "stdout"
+  logger_types: "neptune"
 
+
+  should_log_update_norm: true
 
