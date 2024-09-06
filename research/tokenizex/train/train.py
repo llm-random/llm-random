@@ -9,30 +9,12 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
-from lizrd.core.llm import EmbeddingLayer, Parallel
+from lizrd.core import llm
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
     get_n_learnable_parameters,
     set_seed,
-)
-from lizrd.train.train_utils import (
-    get_model,
-)
-from lizrd.text import tokenizers
-from research.template.utils.check_args import check_args
-from research.datasets import DataloaderWrapper, get_processed_dataset
-from lizrd.train.scheduler import get_scheduler
-from research.template.utils.trainer import TemplateTrainer
-from research.template.utils.argparse import introduce_parser_arguments
-from research.template.utils.model_utils import (
-    disable_profile_schedule_fn,
-    get_classes_from_module_names,
-    get_ff_layer,
-    get_attention_layer,
-    get_mixed_precision_ignored_classes,
-    get_residual_layer,
-    update_model_fit_gpu_info,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -40,10 +22,35 @@ from lizrd.train.load_and_save_model import (
     prepare_save_weights_path,
 )
 
+from research.datasets import DataloaderWrapper
+from research.tokenizex.model.input_wise_pe import InputWisePositionalEmbedding
+from lizrd.train.scheduler import get_scheduler
+from research.tokenizex.train.trainer import TokenizexTrainer
+from research.tokenizex.utils.argparse import introduce_parser_arguments
+from research.tokenizex.model.model_utils import (
+    disable_profile_schedule_fn,
+    get_classes_from_module_names,
+    get_ff_layer,
+    get_mixed_precision_ignored_classes,
+    get_residual_layer,
+    update_model_fit_gpu_info,
+)
+
+
+from research.tokenizex.model.tokenizer import TokenizexTokenizer
+from research.tokenizex.utils.check_args import check_args
+from research.tokenizex.model.input_wise_attention import (
+    get_attention_layer as get_input_wise_attention_layer,
+)
+from research.tokenizex.utils.datasets import get_processed_dataset
+from lizrd.train.train_utils import (
+    get_model,
+)
+
 
 def log_batch(
     wrapper: DataloaderWrapper,
-    tokenizer_maker: Callable[[], tokenizers.AbstractTokenizer],
+    tokenizer_maker: Callable[[], TokenizexTokenizer],
 ):
     # In case of GPT, log an example sequence for a possible inspection
 
@@ -100,17 +107,13 @@ def main(
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
 
-    VOCAB_SIZE = (
-        tokenizers.BertTokenizer.VOCAB_SIZE
-        if args.model_type == "bert"
-        else tokenizers.GPTTokenizer.VOCAB_SIZE
-    )
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
 
     if args.model_parallelism_fragmentation is not None:
+        raise NotImplementedError("optim")  # dev optim
         args.model_parallelism_fragmentation = [
             int(s) for s in args.model_parallelism_fragmentation.split(",")
         ]
@@ -121,6 +124,7 @@ def main(
         args.mixed_precision_dtype = torch.bfloat16
 
     if args.fsdp_enabled:
+        raise NotImplementedError("optim")  # dev optim
         fsdp_param_precision = args.mixed_precision_dtype
         fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
         fsdp_modules_to_wrap = get_classes_from_module_names(args.fsdp_modules_to_wrap)
@@ -139,7 +143,8 @@ def main(
     residual_fn = get_residual_layer(args)
 
     model_fit_gpu_info_params = get_argument_attributes(
-        args, args.model_fit_gpu_info_params
+        args,
+        args.model_fit_gpu_info_params,
     )
     update_model_fit_gpu_info(
         args.model_fit_gpu_info_database_path, model_fit_gpu_info_params, "initialized"
@@ -148,16 +153,23 @@ def main(
     block_modules = {}
     for module_name in args.block_modules:
         if module_name == "attention":
-            block_modules[module_name] = get_attention_layer(args)
+            raise NotImplementedError(
+                "development - this train.py is only for tokenizex experiments"
+            )
         elif module_name == "feedforward":
             block_modules[module_name] = get_ff_layer(args)
+        elif (
+            module_name == "example_pe_mask_attention"
+        ):  # positions and att masks comes by example in batch within input by Managers around model call
+            block_modules[module_name] = get_input_wise_attention_layer(args)
         else:
             raise ValueError(f"Unknown module name: {module_name}")
 
     if args.parallel_blocks:
+        raise NotImplementedError("optim")  # dev optim
         modules = block_modules.items()
         block_modules = {
-            "parallel": lambda: Parallel(*[module() for _, module in modules])
+            "parallel": lambda: llm.Parallel(*[module() for _, module in modules])
         }
 
     checkpoint = (
@@ -166,9 +178,31 @@ def main(
         else None
     )
 
+    embedding_components = [
+        llm.TokenEmbedding(
+            TokenizexTokenizer.VOCAB_SIZE,
+            args.dmodel,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    ]
+    if not args.no_positional_embedding:
+        embedding_components.append(
+            InputWisePositionalEmbedding(
+                args.cutoff,
+                args.dmodel,
+                init_type=args.init_type,
+                init_scale=args.init_scale,
+            )
+        )
+    else:
+        raise NotImplementedError(
+            "Head needs to be initialized outside of get_model first - two vocab_sizes (for head and encoding)"
+        )
+
     model = get_model(
         max_length=args.cutoff,
-        vocab_size=VOCAB_SIZE,
+        vocab_size=TokenizexTokenizer.HEAD_VOCAB_SIZE,
         block_modules=block_modules,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
@@ -192,13 +226,14 @@ def main(
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
+        embedding_components=embedding_components,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters
     print(f"Number of learnable parameters: {n_learnable_parameters:_}")
 
-    embedding = [m for m in model.modules() if isinstance(m, EmbeddingLayer)][0]
+    embedding = [m for m in model.modules() if isinstance(m, llm.EmbeddingLayer)][0]
     head = model.head
 
     n_learnable_nonembedding_parameters = (
@@ -212,6 +247,7 @@ def main(
     )
 
     if args.torch_compile:
+        raise NotImplementedError("not tested")
         model = torch.compile(model)
 
     optimizer = torch.optim.AdamW(
@@ -225,6 +261,8 @@ def main(
 
     scheduler = get_scheduler(args)
 
+    if args.ddp_enabled or args.fsdp_enabled:
+        raise NotImplementedError()
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
@@ -234,7 +272,7 @@ def main(
         "num_workers": args.num_workers,
         "batch_size": batch_size,
         "seed": args.data_seed if data_seeds is None else data_seeds[rank],
-        "model_type": args.model_type,
+        "tokenizer_maker": TokenizexTokenizer,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
     }
@@ -243,6 +281,13 @@ def main(
         **common_dataloaders_kwargs,
         dataset_split="train",
         dataset_path=args.train_dataset_path,
+    )
+
+    eval_train_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs,
+        dataset_split="train",
+        dataset_path=args.train_dataset_path,
+        atomization_p=1.0,
     )
 
     eval_split = (
@@ -254,22 +299,29 @@ def main(
         **common_dataloaders_kwargs,
         dataset_split=eval_split,
         dataset_path=args.validation_dataset_path,
+        atomization_p=1.0,
     )
 
     if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE)
+        logger = get_logger(
+            args,
+            model,
+            int(
+                (TokenizexTokenizer.HEAD_VOCAB_SIZE + TokenizexTokenizer.VOCAB_SIZE) / 2
+            ),
+        )  # +- vocab size statistics for logging
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
-        log_batch(
-            train_dataloader,
-            tokenizer_maker=(
-                tokenizers.GPTTokenizer
-                if args.model_type == "gpt"
-                else tokenizers.BertTokenizer
-            ),
-        )
+    # if args.model_type == "gpt" and is_logging_process: # dev TODO
+    #     log_batch(
+    #         train_dataloader,
+    #         tokenizer_maker=(
+    #             TokenizexTokenizer
+    #             if args.model_type == "gpt"
+    #             else tokenizers.BertTokenizer
+    #         ),
+    #     )
 
     profiler_schedule = (
         torch.profiler.schedule(
@@ -283,13 +335,13 @@ def main(
         else disable_profile_schedule_fn
     )
 
-    trainer = TemplateTrainer(
+    trainer = TokenizexTrainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
+        eval_train_dataloader=eval_train_dataloader,
         eval_dataloader=eval_dataloader,
-        vocab_size=VOCAB_SIZE,
-        mask_percent=args.mask_percent,
+        # mask_percent=args.mask_percent,
         mixed_precision=False if args.fsdp_enabled else args.mixed_precision,
         mixed_precision_dtype=args.mixed_precision_dtype,
         logger=logger,
@@ -325,6 +377,8 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
+        atomization_strategy=args.atomization_strategy,
+        atomization_strategy_smoothness=args.atomization_strategy_smoothness,
     )
     trainer.train(args.n_steps)
 

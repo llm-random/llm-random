@@ -1,0 +1,47 @@
+runner: "research.tokenizex.train.train"
+n_gpus: 1
+cpus_per_gpu: 16
+interactive_debug: false
+time: "4-00:00:00"
+cuda_visible: "7"
+argparse: "research.tokenizex.utils.argparse"
+
+params:
+  name: tokenizex_medium
+  tags: ["ms", "tokenizex", "medium"]
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  save_weights_path: "tokenizex_model_ckpt"
+  save_weights_interval: 25_000
+  decoding_interval: 25000
+  eval_interval: 200
+
+  # model
+  dmodel: 768
+  dff: 3072
+  n_blocks: 12
+  n_att_heads: 12
+  cutoff: 256
+
+  # training
+  n_steps: 52_000
+  init_type: kaiming_uniform
+  init_scale: 1.0
+
+  learning_rate: 1e-3
+  final_lr_step: 50_000
+  lr_warmup_steps: 2500
+  scheduler: cosine
+  final_lr_fraction: 0.1
+  grad_clip: 1.0
+  dataset_type: wikibook
+  batch_size: 512
+  gradient_accumulation_steps: 4
+  num_workers: 16
+
+  # tokenizex
+  input_wise_positional_embedding: True  
