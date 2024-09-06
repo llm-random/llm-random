@@ -8,7 +8,7 @@ cpus_per_gpu: 16
 
 params:
   name: "base_extrapolation_local_min"
-  tags: ["relative_lr", "base_extrapolation", "local_minimum", "expert_inner_function"]
+  tags: ["relative_lr", "base_extrapolation", "local_minimum", "end", "gating"]
   ff_mode: token_choice
   capacity_factor: 1.0
 
@@ -26,7 +26,6 @@ params:
   final_lr_step: 10_000
   lr_warmup_steps: 100
   scheduler: cosine
-
 
   final_lr_fraction: 0.066666
   init_scale: 0.333
@@ -46,18 +45,17 @@ params:
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
   print_parameter_names: true
-  
+
   relative_lr:
     embedding_layer: 3.333
     head: 0.666
     gating: 0.666
-    ^expert_inner_function: [0.08, 0.15, 0.6, 1.2, 1.0]
+    expert_inner_function: 0.3
     projection: 1.
 
   relative_scheduler_fraction:
     embedding_layer: 0.666
     head: 0.666
-    gating: 1.
+    ^gating: [0.25, 0.5, 2.0, 4.0]
     expert_inner_function: 1.125
     projection: 1.
-

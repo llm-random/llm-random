@@ -1,0 +1,17 @@
+md5_parent_hash: 8646669a3f509f35de2a31165d530fee
+params:
+  name: medium_local_min
+  relative_lr:
+    ^gating:
+    - 0.17
+    - 0.33
+    - 1.33
+    - 2.66
+    - 1.0
+  tags:
+  - relative_lr
+  - medium
+  - local_minimum
+  - start
+  - gating
+parent: configs/experiments/relative_lr/medium_relative.yaml

@@ -1,0 +1,17 @@
+md5_parent_hash: 8646669a3f509f35de2a31165d530fee
+params:
+  name: medium_local_min
+  relative_lr:
+    ^expert_inner_function:
+    - 0.28
+    - 0.56
+    - 2.25
+    - 4.5
+    - 1.0
+  tags:
+  - relative_lr
+  - medium
+  - local_minimum
+  - end
+  - expert_inner_function
+parent: configs/experiments/relative_lr/medium_relative.yaml

@@ -7,8 +7,8 @@ gpus: 1
 cpus_per_gpu: 16
 
 params:
-  name: "relative_medium"
-  tags: ["relative_lr", "medium", "relative"]
+  name: "relative_medium_rel_vs_baseline_3"
+  tags: ["medium", "relative_lr", "relative_vs_baseline"]
   ff_mode: token_choice
   capacity_factor: 1.0
 
@@ -29,7 +29,7 @@ params:
 
   final_lr_fraction: 0.066666
   init_scale: 0.333
-  learning_rate: 2e-3
+  learning_rate: 3e-3
   weight_decay: 0.15
 
   save_weights_interval: 0
@@ -49,3 +49,17 @@ params:
     gating: 1.
     expert_inner_function: 1.125
     projection: 1.
+
+  # relative_lr:
+  #   embedding_layer: 1.
+  #   head: 1.
+  #   gating: 1.
+  #   expert_inner_function: 1.
+  #   projection: 1.
+
+  # relative_scheduler_fraction:
+  #   embedding_layer: 1.
+  #   head: 1.
+  #   gating: 1.
+  #   expert_inner_function: 1.
+  #   projection: 1.
