@@ -1,9 +1,14 @@
 parent: configs/experiments/constrained_scaling_laws/3M/model.yaml
 md5_parent_hash: 96d5ed8357df47ec7715e7438b24f8f5
-time: "30:00:00"
+time: "00:05:00"
+n_gpus: 1
+num_consecutive: 1
+
 # here configure GPUs & time for a given cluster for it to fit
 params:
-  tags: ["constrained_scaling_grid", "3M", "E=1"]
+  save_weights_path: "/home/ubuntu/llm-random-group/checkpoints"
+  save_weights_interval: 1
+  tags: ["save_test_3"]
   expansion_rate: 1
-  ^n_steps: [1907, 3814, 7628, 15256, 30512]
-
+  loss_checkpoint_chungs: 0
+  ^n_steps: [50, 1907]

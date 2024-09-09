@@ -104,8 +104,10 @@ class AthenaBackend(MachineBackend):
         singularity_env_arguments,
         runner_params,
     ):
+        consecutive = setup_args["num_consecutive"]
         return [
             slurm_command,
+            f"--array=0-{consecutive-1}%1",
             f"--gres=gpu:{setup_args['n_gpus']}",
             "--partition=plgrid-gpu-a100",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
@@ -157,6 +159,9 @@ class IdeasBackend(MachineBackend):
         singularity_env_arguments,
         runner_params,
     ):
+        assert (
+            setup_args["num_consecutive"] == 1
+        ), "Only one consecutive job is supported on Ideas backend"
         return [
             slurm_command,
             f"--gres=gpu:ampere:{setup_args['n_gpus']}",
@@ -207,6 +212,9 @@ class EntropyBackend(MachineBackend):
         singularity_env_arguments,
         runner_params,
     ):
+        assert (
+            setup_args["num_consecutive"] == 1
+        ), "Only one consecutive job is supported on Entropy backend"
         return [
             slurm_command,
             "--partition=a100",
@@ -257,8 +265,10 @@ class WriterBackend(MachineBackend):
         singularity_env_arguments,
         runner_params,
     ):
+        consecutive = setup_args["num_consecutive"]
         return [
             slurm_command,
+            f"--array=0-{consecutive-1}%1",
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
@@ -309,6 +319,9 @@ class AWS1Backend(MachineBackend):
         singularity_env_arguments,
         runner_params,
     ):
+        assert (
+            setup_args["num_consecutive"] == 1
+        ), "Only one consecutive job is supported on AWS backend"
         return [
             "singularity",
             "run",
@@ -350,6 +363,7 @@ COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
     "n_gpus": 1,
     "cpus_per_gpu": 8,
     "mem_per_gpu": 125,
+    "num_consecutive": 1,
     "nodelist": None,
     "hf_datasets_cache": f"~/.cache/huggingface/datasets",
     "runs_multiplier": 1,
