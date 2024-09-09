@@ -13,6 +13,8 @@ from lizrd.grid.utils import (
 )
 from lizrd.grid.utils import setup_experiments
 from lizrd.support.code_copying import copy_code
+from lizrd.support.misc import generate_random_string
+import os
 import yaml
 
 
@@ -55,7 +57,7 @@ def create_subprocess_args(
         if user_input.lower() not in ("", "y", "Y"):
             print("Aborting...")
             exit(1)
-
+    print(f"Cluster is local backend: {CLUSTER}, skip copy code: {skip_copy_code}")
     if not isinstance(CLUSTER, LocalBackend) and (not skip_copy_code):
         _, first_exp_trainings_args = grid[0]
         exp_name = first_exp_trainings_args[0]["name"]
@@ -70,6 +72,13 @@ def create_subprocess_args(
     experiments = []
     for setup_args, trainings_args in grid:
         for i, training_args in enumerate(trainings_args):
+            random_string = generate_random_string(10)
+            training_args["save_weights_path"] = os.path.join(
+                training_args["save_weights_path"], random_string
+            )
+            training_args["load_weights_path"] = os.path.join(
+                training_args["load_weights_path"], random_string
+            )
             full_config_path = f"full_config{i}.yaml"
             with open(full_config_path, "w") as f:
                 yaml.dump({**training_args, **setup_args}, f)

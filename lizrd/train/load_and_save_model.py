@@ -8,8 +8,6 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-from lizrd.support.misc import generate_random_string
-
 
 def get_checkpoint_from_path(load_weights_path: str) -> str:
     assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
@@ -53,8 +51,8 @@ def prepare_save_weights_path(path_to_dir: Optional[str]) -> Optional[str]:
     if path_to_dir is None:
         return None
     # we need a random dir because we can be running a whole grid from the same directory
-    random_dirname = f"{generate_random_string(10)}"
-    save_weights_path = os.path.join(path_to_dir, random_dirname)
+    # random_dirname = f"{generate_random_string(10)}"
+    # save_weights_path = os.path.join(path_to_dir, random_dirname)
     save_weights_path = os.path.abspath(save_weights_path)
     os.makedirs(save_weights_path, exist_ok=True)
     return save_weights_path
