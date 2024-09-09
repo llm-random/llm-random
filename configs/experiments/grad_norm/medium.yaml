@@ -1,5 +1,5 @@
 parent: configs/baselines/gpt/grad_norm/medium.yaml
-md5_parent_hash: 57459e7919aaaddd4397ed5ffb4a762d
+md5_parent_hash: 7be5349ba7c3559ebe78de1cd7ef0cda
 
 params:
   name: "grad_norm_medium"
