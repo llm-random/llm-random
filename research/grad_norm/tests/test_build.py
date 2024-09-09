@@ -3,8 +3,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from research.grad_norm.build import get_grad_modif_fn, get_grad_modif_placement
-from research.grad_norm.modules import (
-    BlockGradModifPlacement,
+from research.grad_norm.modules import BlockGradModifPlacement
+from research.grad_norm.modules.grad_norm import (
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,
     GradientSTDNormLayerV3,

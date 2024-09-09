@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from lizrd.core.misc import LoggingLayer
-from research.grad_norm.modules.grad_norm import (
+from research.grad_norm.modules.grad_norm.std_norm import (
     BaseGradientSTDNormFunction,
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,

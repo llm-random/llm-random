@@ -17,10 +17,12 @@ from lizrd.train.load_and_save_model import load_model_weights
 from research.grad_norm.modules import (
     BlockGradModifPlacement,
     GradCaptureLayer,
+    GradModiedTransformerTower,
+)
+from research.grad_norm.modules.grad_norm import (
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,
     GradientSTDNormLayerV3,
-    GradModiedTransformerTower,
 )
 
 logger = logging.getLogger(__name__)
