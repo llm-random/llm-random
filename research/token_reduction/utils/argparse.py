@@ -7,7 +7,7 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--log_update_norm_interval",
         type=int, 
-        required=True, 
+        required=False, 
         default=0,
         help="How often to log norms."
     )
