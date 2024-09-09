@@ -31,11 +31,11 @@ def test_grad_modified_build(gn_placement: LayerGradModifPlacement):
     if gn_placement.post_norm:
         assert residual.layer.post_norm_gn == grad_modif_layer
     else:
-        assert residual.layer.post_norm_log == grad_log_layer
+        assert residual.layer.post_norm_gn == grad_log_layer
     if gn_placement.post_layer:
         assert residual.layer.post_layer_gn == grad_modif_layer
     else:
-        assert residual.layer.post_layer_log == grad_log_layer
+        assert residual.layer.post_layer_gn == grad_log_layer
 
     assert len(pre_norm) == 2
     if gn_placement.post_add:
