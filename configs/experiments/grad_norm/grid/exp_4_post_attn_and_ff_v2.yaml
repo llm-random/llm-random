@@ -9,7 +9,7 @@ params:
   - post_ff
   grad_modif_type:
   - std_norm
-  name: grad_norm_formulas_exp_4_post_attn_and_ff_v2.yaml
+  name: grad_norm_formulas_exp_4_post_attn_and_ff_v2
   tags:
   - medium
   - grad_norm

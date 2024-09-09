@@ -9,7 +9,7 @@ params:
   - post_ff_norm
   grad_modif_type:
   - std_norm
-  name: grad_norm_formulas_exp_6_post_norm_v1.yaml
+  name: grad_norm_formulas_exp_6_post_norm_v1
   tags:
   - medium
   - grad_norm

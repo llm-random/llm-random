@@ -37,7 +37,7 @@ def main():
     for i, ((grad_placement, tag1), (layer_type, tag2)) in enumerate(
         itertools.product(GRAD_MODIF_PLACEMENT_COMBINATIONS, STD_NORM_MODIF_PARAMS)
     ):
-        config_fname = f"exp_{i}_{tag1}_{tag2}.yaml"
+        config_name = f"exp_{i}_{tag1}_{tag2}"
 
         config = deepcopy(baseline)
         config["parent"] = BASELINE_INPUT
@@ -46,9 +46,9 @@ def main():
         config["params"]["grad_modif_params"].extend(layer_type)
         config["params"]["tags"].append(tag1)
         config["params"]["tags"].append(tag2)
-        config["params"]["name"] = f"{NAME_PREFIX}_{config_fname}"
+        config["params"]["name"] = f"{NAME_PREFIX}_{config_name}"
 
-        output_file = Path(GRID_OUTPUT) / config_fname
+        output_file = (Path(GRID_OUTPUT) / config_name).with_suffix(".yaml")
         with open(output_file, "w") as f:
             print(f"Writing to {output_file}")
             yaml.dump(config, f)

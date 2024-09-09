@@ -13,7 +13,7 @@ params:
   - post_ff_add
   grad_modif_type:
   - std_norm
-  name: grad_norm_formulas_exp_0_all_v1.yaml
+  name: grad_norm_formulas_exp_0_all_v1
   tags:
   - medium
   - grad_norm
