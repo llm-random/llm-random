@@ -13,8 +13,8 @@ params:
   wandb_project: "token_reduction"
 
   # reduction_layer_type: "merging"
-  ^cutoff: [1024] 
-  batch_size: 512
+  ^cutoff: [2048] 
+  batch_size: 256
   ^learning_rate: [5e-4]
   gradient_accumulation_steps: 4
   # ^tr_schedule: 
@@ -28,9 +28,9 @@ params:
 
 
   # n_steps: 13200
-  n_steps: 100
-  final_lr_step: 13200
-  lr_warmup_steps: 132
+  n_steps: 26400
+  final_lr_step: 26400
+  lr_warmup_steps: 264
   final_lr_fraction: 0.1
 
 
