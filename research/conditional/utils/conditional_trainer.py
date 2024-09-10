@@ -1,5 +1,6 @@
 from collections import defaultdict
 import copy
+import os
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
@@ -27,7 +28,7 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
-
+from datetime import datetime
 
 @define(slots=False)
 class ConditionalTrainer:
@@ -81,6 +82,7 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    repeater_job_end_time: datetime
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -189,6 +191,7 @@ class ConditionalTrainer:
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
+        self._repeater_save_weight(step)
 
     def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
@@ -456,6 +459,39 @@ class ConditionalTrainer:
                 self.rank,
                 step,
             )
+
+    def _repeater_save_weight(self, step, buffer=60, repeater_save_temporary_dir=".") -> bool:
+        REPEATER_SAVE_PATH = "repeater_save.pt"
+        if ((self.repeater_job_end_time - datetime.now()).total_seconds()/60) < buffer:
+            if isinstance(self.model, FSDP):
+                # for some reason, setting the model to training mode and
+                # running a forward pass is necessary to be able to save it
+                # in FSDP. God help us. #dev
+                self.model.train()
+                with torch.no_grad():
+                    _ = self.model(
+                        torch.zeros((self.batch_size, self.cutoff), dtype=torch.int)
+                    )
+
+            save_checkpoint(
+                self.model,
+                self.optimizer,
+                self.scaler,
+                repeater_save_temporary_dir,
+                self.rank,
+                step,
+            )
+            save_path = os.path.join(repeater_save_temporary_dir, f"{step}.pt")
+            repeater_path = os.path.join(repeater_save_temporary_dir, REPEATER_SAVE_PATH)
+            os.rename(save_path, repeater_path)
+            return True
+        else:
+            return False
+        
+    
+    
+            
+        
 
     def _check_config(self):
         if self.eval_dynamic_groupsize:

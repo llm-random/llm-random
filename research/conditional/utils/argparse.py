@@ -11,6 +11,7 @@ def introduce_parser_arguments(
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--cuda_visible", type=str, default=None)
+    parser.add_argument("--do_repeat", action="store_true") # auto-set (not in yaml by user)
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )

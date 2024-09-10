@@ -353,6 +353,8 @@ def main(
         else disable_profile_schedule_fn
     )
 
+    job_end_time = get_argument_attributes(args)
+
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
@@ -396,6 +398,7 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
+        repeater_job_end_time = job_end_time
     )
     trainer.train(args.n_steps)
 

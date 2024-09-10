@@ -1,5 +1,5 @@
 parent: configs/experiments/constrained_scaling_laws/25M/model.yaml
-md5_parent_hash: a9b662ebf6564ac49b9836c0e7dbc100
+md5_parent_hash: 3067b2550c57a4b87c0c6a1287e6d902
 time: "00:05:00"
 n_gpus: 1
 # n_gpus: 4
@@ -10,7 +10,7 @@ params:
   tags: ["ms", "repeater", "test"]
   expansion_rate: 8
   n_steps: 2000
-  batch_size: 1024
+  batch_size: 100
   cutoff: 256
   # ^loss_checkpoint_chungs: [0, 0, 0]
   loss_checkpoint_chungs: 0
@@ -18,4 +18,3 @@ params:
   save_weights_interval: 100
   # load_weights_path: "/home/ubuntu/llm-random-group/llm-random-cemetery/test_checkpoint_saving_4gpu_bs1024_2024-09-07_00-03-12/test_saving/rzckmcczmb/200.pt"
   # load_weights_path: "/home/ubuntu/llm-random-group/llm-random-cemetery/test_checkpoint_saving_4gpu_bs1024_2024-09-07_00-03-12/test_saving/rzckmcczmb/200.pt"
-  repeater_mode: ""
