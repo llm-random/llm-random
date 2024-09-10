@@ -1,3 +1,5 @@
+"""Bases on https://arxiv.org/pdf/2106.09475"""
+
 import math
 from functools import partial
 from typing import Any, Callable, Literal, Union
@@ -10,7 +12,7 @@ from research.grad_norm.modules.grad_norm.common import GradLoggingLayer
 
 def scale_norm_grad(grad: torch.Tensor, k: float, eps: float) -> torch.Tensor:
     # assuming shape of grad is (batch_size, max_length, dmodel)
-    return k * (grad / (torch.linalg.vector_norm(grad, ord=2, dim=(1, 2), keepdim=True) + eps))
+    return k * (grad / (torch.linalg.vector_norm(grad, ord=2, dim=None, keepdim=True) + eps))
 
 
 class BaseGradientScaleNormFunction(torch.autograd.Function):

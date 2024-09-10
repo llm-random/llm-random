@@ -1,6 +1,6 @@
 import logging
 from functools import partial
-from typing import Callable, Optional, Type, Union
+from typing import Any, Callable, Dict, Optional, Type, Union
 
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -20,6 +20,7 @@ from research.grad_norm.modules import (
     GradModiedTransformerTower,
 )
 from research.grad_norm.modules.grad_norm import (
+    GradientScaleNormLayer,
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,
     GradientSTDNormLayerV3,
@@ -30,6 +31,14 @@ logger = logging.getLogger(__name__)
 
 def get_grad_modif_placement(args) -> BlockGradModifPlacement:
     return BlockGradModifPlacement.from_list(args.grad_modif_placement)
+
+
+def verify_mandatory_params(args: Dict[str, Any], mandatory_params: list[str], grad_modif_type: str):
+    for param in mandatory_params:
+        if param not in args:
+            raise ValueError(
+                f"Parameter {param} is required for grad_modif_type '{grad_modif_type}' (add it to 'grad_modif_params')"
+            )
 
 
 def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
@@ -47,16 +56,7 @@ def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
         param_dict[t[0]] = t[1]
 
     if grad_modif_type == "std_norm":
-        if "c" not in param_dict:
-            raise ValueError("Parameter 'c' is required for grad_modif_type 'std_norm' (add it to 'grad_modif_params')")
-        if "eps" not in param_dict:
-            raise ValueError(
-                "Parameter 'eps' is required for grad_modif_type 'std_norm' (add it to 'grad_modif_params')"
-            )
-        if "layer_type" not in param_dict:
-            raise ValueError(
-                "Parameter 'layer_type' is required for grad_modif_type 'std_norm' (add it to 'grad_modif_params')"
-            )
+        verify_mandatory_params(param_dict, ["c", "eps", "layer_type"], grad_modif_type)
 
         layer_type = param_dict["layer_type"]
         if layer_type == "v1":
@@ -69,6 +69,18 @@ def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
             raise ValueError(f"Unknown value of 'layer_type' {layer_type}")
 
         return partial(layer, c=float(param_dict["c"]), eps=float(param_dict["eps"]))
+    elif grad_modif_type == "scale_norm":
+        verify_mandatory_params(param_dict, ["k", "eps"], grad_modif_type)
+
+        k = param_dict["k"]
+        if k != "auto":
+            try:
+                k = float(k)
+            except ValueError:
+                raise ValueError(f"Invalid value of 'k'. Value must be a float or 'auto', got {k}")
+
+        return partial(GradientScaleNormLayer, k=k, eps=float(param_dict["eps"]))
+
     else:
         raise ValueError(f"Unknown grad_modif_type {grad_modif_type}")
 
