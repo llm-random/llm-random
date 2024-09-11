@@ -2,27 +2,29 @@ import torch
 
 from lizrd.core.misc import LoggingLayer
 
+LOGGED_METRICS = ["raw_grad", "norm_grad", "activations"]
+
+METRIC_RENAMES = {
+    "activations": "activation",
+}
+
 
 class GradLoggingLayer(LoggingLayer):
     def log_heavy(self):
         log_dict = super().log_heavy()
 
-        raw_grad_norms = torch.norm(self.logging_cache["raw_grad"], dim=-1)  # (batch_size, max_length)
-        norm_grad_norms = torch.norm(self.logging_cache["norm_grad"], dim=-1)  # (batch_size, max_length)
-        activation_norms = torch.norm(self.logging_cache["activations"], dim=-1)
+        for metric in LOGGED_METRICS:
+            if metric not in self.logging_cache:
+                continue
 
-        raw_grad_norms_mean = torch.mean(raw_grad_norms)  # avegare over all tokens and batches
-        raw_grad_norms_std = torch.std(raw_grad_norms)
-        norm_grad_norms_mean = torch.mean(norm_grad_norms)
-        norm_grad_norms_std = torch.std(norm_grad_norms)
-        activation_norms_mean = torch.mean(activation_norms)
-        activation_norms_std = torch.std(activation_norms)
+            metric_norm = torch.norm(self.logging_cache[metric], dim=-1)
 
-        log_dict["raw_grad_norms/mean"] = raw_grad_norms_mean
-        log_dict["raw_grad_norms/std"] = raw_grad_norms_std
-        log_dict["norm_grad_norms/mean"] = norm_grad_norms_mean
-        log_dict["norm_grad_norms/std"] = norm_grad_norms_std
-        log_dict["activation_norms/mean"] = activation_norms_mean
-        log_dict["activation_norms/std"] = activation_norms_std
+            metric_norm_mean = torch.mean(metric_norm)
+            metric_norm_std = torch.std(metric_norm)
+
+            metric_log_name = METRIC_RENAMES.get(metric, metric)
+
+            log_dict[f"{metric_log_name}_norms/mean"] = metric_norm_mean
+            log_dict[f"{metric_log_name}_norms/std"] = metric_norm_std
 
         return log_dict

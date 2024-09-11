@@ -1,11 +1,11 @@
 from research.grad_norm.modules.gn_pre_norm_block import GradMofiedPreNormBlock
 from research.grad_norm.modules.gn_transformer_block import GradModifiedTransformerBlock
 from research.grad_norm.modules.gn_transformer_tower import GradModiedTransformerTower
-from research.grad_norm.modules.grad_capture import GradCaptureLayer
 from research.grad_norm.modules.grad_modif_placement import (
     BlockGradModifPlacement,
     LayerGradModifPlacement,
 )
+from research.grad_norm.modules.grad_norm.log_grad import GradLogLayer
 
 __all__ = [
     "GradMofiedPreNormBlock",
@@ -13,5 +13,5 @@ __all__ = [
     "GradModiedTransformerTower",
     "LayerGradModifPlacement",
     "BlockGradModifPlacement",
-    "GradCaptureLayer",
+    "GradLogLayer",
 ]

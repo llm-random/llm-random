@@ -16,7 +16,7 @@ from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
 from research.grad_norm.modules import (
     BlockGradModifPlacement,
-    GradCaptureLayer,
+    GradLogLayer,
     GradModiedTransformerTower,
 )
 from research.grad_norm.modules.grad_norm import (
@@ -263,7 +263,7 @@ def get_model(
 
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
 
-    grad_log_fn = lambda: GradCaptureLayer()
+    grad_log_fn = lambda: GradLogLayer()
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     encoder_tower = GradModiedTransformerTower(

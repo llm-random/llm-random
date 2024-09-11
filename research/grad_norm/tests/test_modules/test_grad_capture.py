@@ -1,10 +1,10 @@
 import torch
 
-from research.grad_norm.modules.grad_capture import GradCaptureLayer
+from research.grad_norm.modules.grad_norm.log_grad import GradLogLayer
 
 
 def test_grad_capture_layer_forward_id():
-    layer = GradCaptureLayer()
+    layer = GradLogLayer()
 
     x = torch.randn(3, 4, 4)
     y = layer(x)
@@ -14,7 +14,7 @@ def test_grad_capture_layer_forward_id():
 
 
 def test_grad_capture_layer_backward_id():
-    layer = GradCaptureLayer()
+    layer = GradLogLayer()
 
     x = torch.randn(3, 4, requires_grad=True)
     grad = torch.randn(3, 4)
@@ -25,7 +25,7 @@ def test_grad_capture_layer_backward_id():
 
 
 def test_grad_capture_logs():
-    layer = GradCaptureLayer()
+    layer = GradLogLayer()
     layer.update_cache_for_logging = layer.logging_cache.__setitem__
 
     x = torch.randn(3, 4, requires_grad=True)
@@ -36,7 +36,7 @@ def test_grad_capture_logs():
     logs = layer.log_heavy()
     assert logs["activation_norms/mean"] == torch.mean(torch.norm(x, dim=-1))
     assert logs["activation_norms/std"] == torch.std(torch.norm(x, dim=-1))
-    assert logs["grad_norms/mean"] == torch.mean(torch.norm(grad, dim=-1))
-    assert logs["grad_norms/std"] == torch.std(torch.norm(grad, dim=-1))
+    assert logs["raw_grad_norms/mean"] == torch.mean(torch.norm(grad, dim=-1))
+    assert logs["raw_grad_norms/std"] == torch.std(torch.norm(grad, dim=-1))
     assert logs["activation_norms/mean"] == torch.mean(torch.norm(x, dim=-1))
     assert logs["activation_norms/std"] == torch.std(torch.norm(x, dim=-1))
