@@ -1,7 +1,7 @@
-md5_parent_hash: 5cdd3cabec6302be49c612aa780c1ae5
+md5_parent_hash: 99aa3f902164bdd1a715b5516c0c0ac2
 params:
   grad_modif_params:
-  - c=1.0
+  - c=0.8
   - eps=1e-8
   - layer_type=v1
   grad_modif_placement:
@@ -9,11 +9,12 @@ params:
   - post_ff_add
   grad_modif_type:
   - std_norm
-  name: grad_norm_formulas_exp_9_post_add_v1
+  name: gn_c_grid_exp_0_post_add_v1_c_0_8
   tags:
   - medium
   - grad_norm
   - std_norm
   - post_add
   - v1
-parent: configs/experiments/grad_norm/medium.yaml
+  - c_grid
+parent: configs/experiments/grad_norm/std_norm_grid/exp_9_post_add_v1.yaml
