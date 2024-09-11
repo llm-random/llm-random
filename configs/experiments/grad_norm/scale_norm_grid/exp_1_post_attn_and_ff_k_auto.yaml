@@ -1,0 +1,17 @@
+md5_parent_hash: 5cdd3cabec6302be49c612aa780c1ae5
+params:
+  grad_modif_params:
+  - k=auto
+  - eps=1e-6
+  grad_modif_placement:
+  - post_attn
+  - post_ff
+  grad_modif_type: scale_norm
+  name: grad_scale_norm_exp_1_post_attn_and_ff_k_auto
+  tags:
+  - medium
+  - grad_norm
+  - post_attn_and_ff
+  - k_auto
+  - scale_norm
+parent: configs/experiments/grad_norm/medium.yaml

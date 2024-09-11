@@ -8,7 +8,7 @@ import yaml
 
 from lizrd.grid.prepare_configs import get_yaml_md5
 
-GRID_OUTPUT = "configs/experiments/grad_norm/grid"
+GRID_OUTPUT = "configs/experiments/grad_norm/scale_norm_grid"
 BASELINE_INPUT = "configs/experiments/grad_norm/medium.yaml"
 
 
@@ -20,12 +20,10 @@ GRAD_MODIF_PLACEMENT_COMBINATIONS: List[Tuple[List[str], str]] = [
 ]
 
 STD_NORM_MODIF_PARAMS: List[Tuple[List[str], str]] = [
-    (["layer_type=v1"], "v1"),
-    (["layer_type=v2"], "v2"),
-    (["layer_type=v3"], "v3"),
+    (["k=auto", "eps=1e-6"], "k_auto"),
 ]
 
-NAME_PREFIX = "grad_norm_formulas"
+NAME_PREFIX = "grad_scale_norm"
 
 
 def main():
@@ -46,7 +44,9 @@ def main():
         config["params"]["grad_modif_params"].extend(layer_type)
         config["params"]["tags"].append(tag1)
         config["params"]["tags"].append(tag2)
+        config["params"]["tags"].append("scale_norm")
         config["params"]["name"] = f"{NAME_PREFIX}_{config_name}"
+        config["params"]["grad_modif_type"] = "scale_norm"
 
         output_file = (Path(GRID_OUTPUT) / config_name).with_suffix(".yaml")
         with open(output_file, "w") as f:

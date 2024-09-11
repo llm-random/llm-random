@@ -3,19 +3,9 @@ md5_parent_hash: 7be5349ba7c3559ebe78de1cd7ef0cda
 
 params:
   name: "grad_norm_medium"
-  grad_modif_type:
-    - "std_norm"
-  grad_modif_params:
-    - "c=1.0"
-    - "eps=1e-8"
-  grad_modif_placement:
-    - "post_attn"
-    - "post_attn_norm"
-    - "post_attn_add"
-    - "post_ff"
-    - "post_ff_norm"
-    - "post_ff_add"
+  grad_modif_type: []
+  grad_modif_params: []
+  grad_modif_placement: []
   tags:
     - "medium"
     - "grad_norm"
-    - "std_norm"

@@ -1,0 +1,32 @@
+md5_parent_hash: 5cdd3cabec6302be49c612aa780c1ae5
+params:
+  dmodel: 16
+  n_blocks: 2
+  n_att_heads: 2
+  dff: 8
+  batch_size: 4
+  num_workers: 1
+  logging_interval_loss: 1
+  logging_interval_heavy: 1
+  grad_modif_params:
+  - c=1.0
+  - eps=1e-8
+  - layer_type=v1
+  grad_modif_placement:
+  - post_attn
+  - post_attn_norm
+  - post_attn_add
+  - post_ff
+  - post_ff_norm
+  - post_ff_add
+  grad_modif_type:
+  - std_norm
+  name: grad_norm_formulas_exp_0_all_v1
+  use_dummy_dataset: true
+  tags:
+  - medium
+  - grad_norm
+  - std_norm
+  - all
+  - v1
+parent: configs/experiments/grad_norm/medium.yaml
