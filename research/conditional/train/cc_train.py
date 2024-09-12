@@ -22,7 +22,7 @@ from lizrd.train.train_utils import (
 )
 from lizrd.text import tokenizers
 from research.conditional.utils.check_args import check_args
-from research.conditional.utils.misc_tools import get_termination_time_slurm
+from research.conditional.utils.misc_tools import get_termination_timestamp_slurm
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
@@ -397,7 +397,7 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time = get_termination_time_slurm()
+        repeater_job_end_time = get_termination_timestamp_slurm() if args.repeater_mode else None
     )
     trainer.train(args.n_steps)
 
@@ -413,7 +413,7 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
-    unique_save_weights_path = prepare_save_weights_path(args.save_weights_path)
+    unique_save_weights_path = prepare_save_weights_path(args.save_weights_path, args.repeater_mode)
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)

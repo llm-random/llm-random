@@ -117,8 +117,8 @@ def create_subprocess_args(
                 runner_params=runner_params,
                 n_consecutive=n_job_repetitions
             )
-            # print("--------------------------------")
-            # print(subprocess_args)
+            print("--------------------------------") #dev
+            print(subprocess_args) #dev
             # raise Exception
         
             cuda_visible = setup_args.get("cuda_visible")

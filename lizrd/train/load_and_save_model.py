@@ -20,7 +20,7 @@ def get_checkpoint_from_path(load_weights_path: str, repeater_mode: bool) -> str
         if load_weights_path.is_dir():
             load_weights_path = load_weights_path/"repeater_save.pt" #dev highest number TODO
 
-        if load_weights_path.exists():
+        if not load_weights_path.exists():
             print(f"Repeater file ({load_weights_path}) does not exist, starting new training.")
             return None
 
@@ -69,8 +69,8 @@ def prepare_save_weights_path(path_to_dir: Optional[str], is_repeater:bool=False
     # we need a random dir because we can be running a whole grid from the same directory
     if not is_repeater:
         random_dirname = f"{generate_random_string(10)}"
-        save_weights_path = os.path.join(path_to_dir, random_dirname)
-    save_weights_path = os.path.abspath(save_weights_path)
+        path_to_dir = os.path.join(path_to_dir, random_dirname)
+    save_weights_path = os.path.abspath(path_to_dir)
     os.makedirs(save_weights_path, exist_ok=True)
     return save_weights_path
 

@@ -1,6 +1,7 @@
 from collections import defaultdict
 import copy
 import os
+from time import time
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
@@ -51,6 +52,7 @@ class ConditionalTrainer:
     batch_size: int
     cutoff: int
     lr_scheduler: AbstractLRScheduler
+    repeater_job_end_time: int = None
     _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -75,14 +77,13 @@ class ConditionalTrainer:
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
     model_fit_gpu_info_database_path: str = None
-    model_fit_gpu_info_params: [str] = None
+    model_fit_gpu_info_params: Optional[str] = None
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
-    repeater_job_end_time: datetime
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -192,7 +193,7 @@ class ConditionalTrainer:
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
-        return self._repeater_save_weight(step)
+        return self._repeater_save_weight(step, self.repeater_job_end_time) if self.repeater_job_end_time else False
 
         
 
@@ -463,9 +464,9 @@ class ConditionalTrainer:
                 step,
             )
 
-    def _repeater_save_weight(self, step, buffer=20) -> bool:
+    def _repeater_save_weight(self, step, repeater_job_end_time:int, buffer=20*60) -> bool:
         REPEATER_SAVE_FILENAME = "repeater_save.pt"
-        if ((self.repeater_job_end_time - datetime.now()).total_seconds()/60) < buffer:
+        if ((repeater_job_end_time - time())) < buffer:
             if isinstance(self.model, FSDP):
                 # for some reason, setting the model to training mode and
                 # running a forward pass is necessary to be able to save it
