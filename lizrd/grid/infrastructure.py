@@ -8,6 +8,7 @@ from lizrd.grid.setup_arguments import make_singularity_mount_paths
 
 
 class MachineBackend(abc.ABC):
+    max_exp_time = 14*24*60*60
     def __init__(self, username=None):
         self.username = username
 
@@ -72,6 +73,7 @@ class MachineBackend(abc.ABC):
 
 
 class AthenaBackend(MachineBackend):
+    max_exp_time = 2*24*60*60
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
             return "/net/tscratch/people/plgkciebiera/datasets/c4/train"
@@ -227,6 +229,8 @@ class EntropyBackend(MachineBackend):
 
 
 class WriterBackend(MachineBackend):
+    # max_exp_time = 7*24*60*60 #dev
+    max_exp_time = 2*24*60*60 #dev
     def get_common_directory(self) -> str:
         return "/home/ubuntu/llm-random-group"
 

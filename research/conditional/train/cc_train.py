@@ -22,6 +22,7 @@ from lizrd.train.train_utils import (
 )
 from lizrd.text import tokenizers
 from research.conditional.utils.check_args import check_args
+from research.conditional.utils.misc_tools import get_termination_time_slurm
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
@@ -222,7 +223,7 @@ def main(
         ]
 
     checkpoint = (
-        get_checkpoint_from_path(args.load_weights_path)
+        get_checkpoint_from_path(args.load_weights_path, args.repeater_mode)
         if args.load_weights_path is not None
         else None
     )
@@ -293,7 +294,7 @@ def main(
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
-    rescale_params_after_init(args, model)
+    rescale_params_after_init(args, model) #dev affect repeater?
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
@@ -353,8 +354,6 @@ def main(
         else disable_profile_schedule_fn
     )
 
-    job_end_time = get_argument_attributes(args)
-
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
@@ -398,7 +397,7 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time = job_end_time
+        repeater_job_end_time = get_termination_time_slurm()
     )
     trainer.train(args.n_steps)
 

@@ -150,7 +150,8 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(self.start_step, n_steps + 1):
-                self._train_step(step)
+                if self._train_step(step):
+                    break
                 if self.profiler_enabled:
                     p.step()
 
@@ -175,7 +176,7 @@ class ConditionalTrainer:
     def _train_step(
         self,
         step,
-    ):
+    ) -> bool:
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
@@ -191,7 +192,9 @@ class ConditionalTrainer:
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
-        self._repeater_save_weight(step)
+        return self._repeater_save_weight(step)
+
+        
 
     def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
@@ -460,8 +463,8 @@ class ConditionalTrainer:
                 step,
             )
 
-    def _repeater_save_weight(self, step, buffer=60, repeater_save_temporary_dir=".") -> bool:
-        REPEATER_SAVE_PATH = "repeater_save.pt"
+    def _repeater_save_weight(self, step, buffer=20) -> bool:
+        REPEATER_SAVE_FILENAME = "repeater_save.pt"
         if ((self.repeater_job_end_time - datetime.now()).total_seconds()/60) < buffer:
             if isinstance(self.model, FSDP):
                 # for some reason, setting the model to training mode and
@@ -477,22 +480,17 @@ class ConditionalTrainer:
                 self.model,
                 self.optimizer,
                 self.scaler,
-                repeater_save_temporary_dir,
+                self.save_weights_path,
                 self.rank,
                 step,
             )
-            save_path = os.path.join(repeater_save_temporary_dir, f"{step}.pt")
-            repeater_path = os.path.join(repeater_save_temporary_dir, REPEATER_SAVE_PATH)
+            save_path = os.path.join(self.save_weights_path, f"{step}.pt")
+            repeater_path = os.path.join(self.save_weights_path, REPEATER_SAVE_FILENAME)  #dev highest number TODO
             os.rename(save_path, repeater_path)
             return True
         else:
             return False
         
-    
-    
-            
-        
-
     def _check_config(self):
         if self.eval_dynamic_groupsize:
             assert self.eval_max_group_size_logfactor is not None
