@@ -79,6 +79,15 @@ def test_get_grad_modif_placement(args_mock):
             1.0,
             1.1,
         ),
+        (
+            {
+                "grad_modif_type": "std_norm",
+                "grad_modif_params": ["c=-0.1", "eps=0.0", "layer_type=v1"],
+            },
+            GradientSTDNormLayerV1,
+            -0.1,
+            0.0,
+        ),
     ],
     indirect=["args_mock"],
 )
