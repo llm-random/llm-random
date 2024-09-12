@@ -73,7 +73,7 @@ def create_subprocess_args(
         for i, training_args in enumerate(trainings_args):
             full_config_path = f"full_config{i}.yaml"
             with open(full_config_path, "w") as f:
-                if setup_args["repeater_mode"]: #dev check
+                if training_args["repeater_mode"]: #dev check
                     training_args["save_weights_path"] = str(pathlib.Path(training_args["save_weights_path"])/f"{i}")
                     training_args["load_weights_path"] = str(pathlib.Path(training_args["load_weights_path"])/f"{i}")
                 yaml.dump({**training_args, **setup_args}, f)

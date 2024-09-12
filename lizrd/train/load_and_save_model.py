@@ -63,6 +63,8 @@ def load_scaler_state(
 
 def prepare_save_weights_path(path_to_dir: Optional[str], is_repeater:bool=False) -> Optional[str]:
     if path_to_dir is None:
+        if is_repeater:
+            raise Exception("Please specify")
         return None
     # we need a random dir because we can be running a whole grid from the same directory
     if not is_repeater:

@@ -44,8 +44,30 @@ if __name__ == "__main__":
             env = os.environ.copy()
             if cuda_visible is not None:
                 env.update({"SINGULARITYENV_CUDA_VISIBLE_DEVICES": cuda_visible})
+
+            if '--repeater_mode' in subprocess_args:
+                arg_time_to_replace = None
+                arg_time_to_replace_with = None
+                total_exp_time = None
+                for arg in subprocess_args:
+                    if "--time=" in arg:
+                        max_exp_time = arg.replace("--time=", "")
+                        hours, minutes, seconds = map(int, max_exp_time.split(':'))
+                        total_exp_time = hours*60*60 + minutes*60 + seconds
+                        arg_time_to_replace = arg
+                        break
+               
+                if CLUSTER.max_exp_time < total_exp_time:
+                    n_job_repetitions = int(total_exp_time/CLUSTER.max_exp_time)
+
+                    arg_time_to_replace_with = f"--time={int(CLUSTER.max_exp_time/(60*60))}:{int((CLUSTER.max_exp_time%(60*60))/60)}:{int(CLUSTER.max_exp_time%60)}"
+                    subprocess_args.remove(arg_time_to_replace)
+                    subprocess_args.append(arg_time_to_replace_with)
+                    subprocess_args.append(f"--array=0-{n_job_repetitions-1}%1")                
+
             PROCESS_CALL_FUNCTION(subprocess_args, env)
             sleep(5)
+            
             if interactive_debug_session:
                 print("Ran only the first experiment in interactive mode. Aborting...")
                 break
