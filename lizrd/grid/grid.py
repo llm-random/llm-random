@@ -1,4 +1,5 @@
 import datetime
+from math import ceil
 import pathlib
 from lizrd.grid.infrastructure import LocalBackend
 from lizrd.grid.prepare_configs import prepare_configs
@@ -91,6 +92,22 @@ def create_subprocess_args(
                 return [
                     (runner_main_function, runner_params)
                 ], interactive_debug_session
+            
+            # print("--------------------------------")
+            # print(training_args)
+            # print(setup_args)
+            # raise #dev
+
+            if training_args["repeater_mode"]:
+                total_exp_time = None
+                hours, minutes, seconds = map(int, setup_args["time"].split(':'))
+                total_exp_time = hours*60*60 + minutes*60 + seconds
+
+                if CLUSTER.max_exp_time < total_exp_time:
+                    n_job_repetitions = ceil(total_exp_time/CLUSTER.max_exp_time)
+
+                    arg_time_to_replace_with = f"{int(CLUSTER.max_exp_time/(60*60))}:{int((CLUSTER.max_exp_time%(60*60))/60)}:{int(CLUSTER.max_exp_time%60)}"
+                    setup_args["time"] = arg_time_to_replace_with
 
             subprocess_args = CLUSTER.get_subprocess_args(
                 slurm_command=slurm_command,
@@ -98,7 +115,12 @@ def create_subprocess_args(
                 training_args=training_args,
                 singularity_env_arguments=singularity_env_arguments,
                 runner_params=runner_params,
+                n_consecutive=n_job_repetitions
             )
+            # print("--------------------------------")
+            # print(subprocess_args)
+            # raise Exception
+        
             cuda_visible = setup_args.get("cuda_visible")
             experiments.append((subprocess_args, training_args["name"], cuda_visible))
     return experiments, interactive_debug_session
