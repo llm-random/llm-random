@@ -51,8 +51,6 @@ class BaseGradientSTDNormFunction(torch.autograd.Function):
 class GradientSTDNormLayerV1(GradLoggingLayer):
     def __init__(self, c: float = 1, eps: float = 1e-8):
         super().__init__()
-        if not 0 <= c <= 1:
-            raise ValueError("c must be in [0, 1]")
         self.c = c
         self.eps = eps
 
