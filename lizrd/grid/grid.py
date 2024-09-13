@@ -93,7 +93,7 @@ def create_subprocess_args(
                     (runner_main_function, runner_params)
                 ], interactive_debug_session
             
-
+            n_job_repetitions = 1
             if training_args["repeater_mode"]:
                 total_exp_time = None
                 hours, minutes, seconds = map(int, setup_args["time"].split(':'))

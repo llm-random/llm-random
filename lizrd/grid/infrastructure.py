@@ -33,7 +33,7 @@ class MachineBackend(abc.ABC):
         training_args,
         singularity_env_arguments,
         runner_params,
-        n_consecutive:Optional[int]=None
+        n_consecutive:int = 1
     ):
         pass
 
@@ -107,10 +107,12 @@ class AthenaBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive:int = 1
     ):
         return [
             slurm_command,
             f"--gres=gpu:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-a100",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
@@ -160,10 +162,12 @@ class IdeasBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive:int = 1
     ):
         return [
             slurm_command,
             f"--gres=gpu:ampere:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
@@ -210,11 +214,13 @@ class EntropyBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive:int = 1
     ):
         return [
             slurm_command,
             "--partition=a100",
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
             f"--job-name={training_args['name']}",
@@ -262,7 +268,7 @@ class WriterBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
-        n_consecutive:Optional[int]=0
+        n_consecutive:int = 1
     ):
         return [
             slurm_command,
@@ -316,7 +322,10 @@ class AWS1Backend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive:int = 1
     ):
+        if n_consecutive != 1:
+            raise Exception("You are trying to on the repeater mode on a cluster that do not not support that option.")
         return [
             "singularity",
             "run",
@@ -348,6 +357,7 @@ class LocalBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive:int = 1
     ):
         raise Exception("Local machine should use main function")
 

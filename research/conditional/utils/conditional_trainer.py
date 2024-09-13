@@ -465,7 +465,7 @@ class ConditionalTrainer:
                 self.logger
             )
 
-    def _repeater_save_weight(self, step, repeater_job_end_time:int, buffer=1*60) -> bool:
+    def _repeater_save_weight(self, step, repeater_job_end_time:int, buffer=15*60) -> bool:
         if ((repeater_job_end_time - time())) < buffer:
             if isinstance(self.model, FSDP):
                 # for some reason, setting the model to training mode and

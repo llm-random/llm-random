@@ -12,7 +12,7 @@ def introduce_parser_arguments(
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--cuda_visible", type=str, default=None)
     parser.add_argument("--repeater_mode", action="store_true", help="Used when experiment will last longer than cluster max job time. It repeats jobs for expertiment longer continuation. Combines with periodic model saves.")
-    # parser.add_argument("--repeater_buffer", type=int, help="In minutes, time before cluster force-clousure that jobs saves and ends itself for next job to continue. Maximu time that model and trainig data needs to be saved, plus MAX time of one step (plus TIME OF VALIDATION that can interfeer!).") #dev TODO, currently fixed 10 min time
+    # parser.add_argument("--repeater_buffer", type=int, help="In minutes, time before cluster force-clousure that jobs saves and ends itself for next job to continue. Maximu time that model and trainig data needs to be saved, plus MAX time of one step (plus TIME OF VALIDATION that can interfeer!).") #dev TODO, currently fixed 15 min buffer time
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
