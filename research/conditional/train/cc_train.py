@@ -328,9 +328,10 @@ def main(
     )
 
     try:
-        lrunid = checkpoint["logger"]["run_id"]
+        lrunid = checkpoint["logger"]["run_id"] if checkpoint else None
     except KeyError:
         lrunid = None
+    print(f"Continued run id: {lrunid}!")
     if is_logging_process:
         logger = get_logger(args, model, VOCAB_SIZE, lrunid)
     else:
