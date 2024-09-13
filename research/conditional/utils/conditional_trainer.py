@@ -466,12 +466,11 @@ class ConditionalTrainer:
             )
 
     def _repeater_save_weight(self, step, repeater_job_end_time:int, buffer=1*60) -> bool:
-        # print(repeater_job_end_time, time(), repeater_job_end_time - time(), buffer, (repeater_job_end_time - time()) < buffer) #dev
         if ((repeater_job_end_time - time())) < buffer:
             if isinstance(self.model, FSDP):
                 # for some reason, setting the model to training mode and
                 # running a forward pass is necessary to be able to save it
-                # in FSDP. God help us. #dev
+                # in FSDP. God help us. #dev can i delete this, or is it a TODO tag?
                 self.model.train()
                 with torch.no_grad():
                     _ = self.model(
@@ -487,9 +486,7 @@ class ConditionalTrainer:
                 step,
                 self.logger,
             )
-            # save_path = os.path.join(self.save_weights_path, f"{step}.pt") #dev 
-            # repeater_path = os.path.join(self.save_weights_path, REPEATER_SAVE_FILENAME)   #dev 
-            # os.rename(save_path, repeater_path) #dev 
+
             return True
         else:
             return False

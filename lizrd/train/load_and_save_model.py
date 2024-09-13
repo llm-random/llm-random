@@ -117,7 +117,6 @@ def save_checkpoint(
     except Exception as e:
         print(f"No Neptune logger, no saving, e: {str(e)}")
         logger_metadata = None
-    print(f"Saving logger metadata: {logger_metadata}") #dev
 
     if rank == 0 or rank is None:
         full_path = os.path.join(path, f"{step}.pt")

@@ -294,7 +294,9 @@ def main(
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
-    rescale_params_after_init(args, model) #dev affect repeater?
+    
+    if not args.repeater_mode: 
+        rescale_params_after_init(args, model) #dev TODO affect loading continuation? add to argparse validation
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
