@@ -31,6 +31,7 @@ from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 from datetime import datetime
 
+
 @define(slots=False)
 class ConditionalTrainer:
     model: torch.nn.Module
@@ -193,9 +194,11 @@ class ConditionalTrainer:
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
-        return self._repeater_save_weight(step, self.repeater_job_end_time) if self.repeater_job_end_time else False
-
-        
+        return (
+            self._repeater_save_weight(step, self.repeater_job_end_time)
+            if self.repeater_job_end_time
+            else False
+        )
 
     def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
@@ -462,10 +465,12 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
-                self.logger
+                self.logger,
             )
 
-    def _repeater_save_weight(self, step, repeater_job_end_time:int, buffer=15*60) -> bool:
+    def _repeater_save_weight(
+        self, step, repeater_job_end_time: int, buffer=15 * 60
+    ) -> bool:
         if ((repeater_job_end_time - time())) < buffer:
             if isinstance(self.model, FSDP):
                 # for some reason, setting the model to training mode and
@@ -490,7 +495,7 @@ class ConditionalTrainer:
             return True
         else:
             return False
-        
+
     def _check_config(self):
         if self.eval_dynamic_groupsize:
             assert self.eval_max_group_size_logfactor is not None

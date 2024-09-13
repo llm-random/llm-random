@@ -294,8 +294,10 @@ def main(
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
-    if not args.repeater_mode: 
-        rescale_params_after_init(args, model) #dev TODO affect loading continuation? add to argparse validation
+    if not args.repeater_mode:
+        rescale_params_after_init(
+            args, model
+        )  # dev TODO affect loading continuation? add to argparse validation
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
@@ -403,7 +405,9 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time = get_termination_timestamp_slurm() if args.repeater_mode else None
+        repeater_job_end_time=get_termination_timestamp_slurm()
+        if args.repeater_mode
+        else None,
     )
     trainer.train(args.n_steps)
 
@@ -419,7 +423,9 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
-    save_weights_path = prepare_save_weights_path(args.save_weights_path, args.repeater_mode)
+    save_weights_path = prepare_save_weights_path(
+        args.save_weights_path, args.repeater_mode
+    )
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)

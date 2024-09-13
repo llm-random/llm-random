@@ -14,17 +14,19 @@ from torch.distributed.fsdp import (
 from lizrd.support.logging import JointLogger, NeptuneLogger
 from lizrd.support.misc import generate_random_string
 
+
 def get_latest_model(dir_path) -> pathlib.Path:
     dir_path = pathlib.Path(dir_path)
     all_models_paths = dir_path.glob(r"[0-9]*.pt")
     latest_model = None
     latest_step = 0
     for mp in all_models_paths:
-        c_step = int(re.findall(r'\d+', mp.name)[0])
+        c_step = int(re.findall(r"\d+", mp.name)[0])
         if c_step >= latest_step:
             latest_model = mp
             latest_step = c_step
     return latest_model
+
 
 def get_checkpoint_from_path(load_weights_path: str, repeater_mode: bool) -> str:
     assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
@@ -34,10 +36,12 @@ def get_checkpoint_from_path(load_weights_path: str, repeater_mode: bool) -> str
         if load_weights_path.is_dir():
             latest_model = get_latest_model(load_weights_path)
             if not latest_model:
-                print(f"No model yet saved in ({load_weights_path}), starting new training.")
+                print(
+                    f"No model yet saved in ({load_weights_path}), starting new training."
+                )
                 return None
-            load_weights_path = load_weights_path/latest_model.name
-        
+            load_weights_path = load_weights_path / latest_model.name
+
     print(f"Loading checkpoint from {load_weights_path}...")
     checkpoint = torch.load(str(load_weights_path))
     print(f"Checkpoint loaded")
@@ -75,7 +79,9 @@ def load_scaler_state(
     scaler.load_state_dict(checkpoint["scaler"])
 
 
-def prepare_save_weights_path(path_to_dir: Optional[str], is_repeater:bool=False) -> Optional[str]:
+def prepare_save_weights_path(
+    path_to_dir: Optional[str], is_repeater: bool = False
+) -> Optional[str]:
     if path_to_dir is None:
         if is_repeater:
             raise Exception("Please specify")
@@ -96,7 +102,7 @@ def save_checkpoint(
     path: str,
     rank: int,
     step: int,
-    joint_loggers: Optional[JointLogger] = None
+    joint_loggers: Optional[JointLogger] = None,
 ):
     if rank == 0 or rank is None:
         print(f"Saving weights...")
@@ -110,9 +116,11 @@ def save_checkpoint(
         optimizer_state_dict = optimizer.state_dict()
 
     try:
-        neptune_logger:Run = [l for l in joint_loggers.loggers if isinstance(l, NeptuneLogger)][0].instance_logger
+        neptune_logger: Run = [
+            l for l in joint_loggers.loggers if isinstance(l, NeptuneLogger)
+        ][0].instance_logger
         logger_metadata = {
-            "run_id" : neptune_logger._sys_id #dev TODO do it generally for loggers
+            "run_id": neptune_logger._sys_id  # dev TODO do it generally for loggers
         }
     except Exception as e:
         print(f"No Neptune logger, no saving, e: {str(e)}")
@@ -124,7 +132,7 @@ def save_checkpoint(
             "model": model_state_dict,
             "optimizer": optimizer_state_dict,
             "step": step,
-            "logger": logger_metadata
+            "logger": logger_metadata,
         }
         if scaler is not None:
             checkpoint["scaler"] = scaler.state_dict()

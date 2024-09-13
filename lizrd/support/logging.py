@@ -478,7 +478,7 @@ def add_logger_active_metrics(args):
     )
 
 
-def get_logger(args, model, VOCAB_SIZE, run_id=None): #dev TODO generalize run_id
+def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run_id
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
     if args.logger_types == "":
@@ -495,7 +495,7 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None): #dev TODO generalize run_i
                 project=args.project_name,
                 tags=args.tags,
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-                with_id=run_id
+                with_id=run_id,
             )
             run["args"] = vars(args)
             run["working_directory"] = os.getcwd()

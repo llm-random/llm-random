@@ -75,8 +75,12 @@ def create_subprocess_args(
             full_config_path = f"full_config{i}.yaml"
             with open(full_config_path, "w") as f:
                 if training_args["repeater_mode"]:
-                    training_args["save_weights_path"] = str(pathlib.Path(training_args["save_weights_path"])/f"{i}")
-                    training_args["load_weights_path"] = str(pathlib.Path(training_args["load_weights_path"])/f"{i}")
+                    training_args["save_weights_path"] = str(
+                        pathlib.Path(training_args["save_weights_path"]) / f"{i}"
+                    )
+                    training_args["load_weights_path"] = str(
+                        pathlib.Path(training_args["load_weights_path"]) / f"{i}"
+                    )
                 yaml.dump({**training_args, **setup_args}, f)
             training_args["all_config_paths"] += f",{full_config_path}"
 
@@ -92,15 +96,15 @@ def create_subprocess_args(
                 return [
                     (runner_main_function, runner_params)
                 ], interactive_debug_session
-            
+
             n_job_repetitions = 1
             if training_args["repeater_mode"]:
                 total_exp_time = None
-                hours, minutes, seconds = map(int, setup_args["time"].split(':'))
-                total_exp_time = hours*60*60 + minutes*60 + seconds
+                hours, minutes, seconds = map(int, setup_args["time"].split(":"))
+                total_exp_time = hours * 60 * 60 + minutes * 60 + seconds
 
                 if CLUSTER.max_exp_time < total_exp_time:
-                    n_job_repetitions = ceil(total_exp_time/CLUSTER.max_exp_time)
+                    n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)
 
                     arg_time_to_replace_with = f"{int(CLUSTER.max_exp_time/(60*60))}:{int((CLUSTER.max_exp_time%(60*60))/60)}:{int(CLUSTER.max_exp_time%60)}"
                     setup_args["time"] = arg_time_to_replace_with
@@ -111,9 +115,9 @@ def create_subprocess_args(
                 training_args=training_args,
                 singularity_env_arguments=singularity_env_arguments,
                 runner_params=runner_params,
-                n_consecutive=n_job_repetitions
+                n_consecutive=n_job_repetitions,
             )
-        
+
             cuda_visible = setup_args.get("cuda_visible")
             experiments.append((subprocess_args, training_args["name"], cuda_visible))
     return experiments, interactive_debug_session
