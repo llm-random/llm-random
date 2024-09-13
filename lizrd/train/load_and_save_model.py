@@ -15,17 +15,17 @@ from lizrd.support.logging import JointLogger, NeptuneLogger
 from lizrd.support.misc import generate_random_string
 
 
-def get_latest_model(dir_path) -> pathlib.Path:
+def get_latest_checkpoint(dir_path) -> pathlib.Path:
     dir_path = pathlib.Path(dir_path)
-    all_models_paths = dir_path.glob(r"[0-9]*.pt")
-    latest_model = None
-    latest_step = 0
-    for mp in all_models_paths:
-        c_step = int(re.findall(r"\d+", mp.name)[0])
-        if c_step >= latest_step:
-            latest_model = mp
-            latest_step = c_step
-    return latest_model
+    all_checkpoints_paths = dir_path.glob(r"[0-9]*.pt")
+    latest_checkpoint = None
+    latest_checkpoint_step = 0
+    for checkpoint_path in all_checkpoints_paths:
+        c_step = int(re.findall(r"\d+", checkpoint_path.name)[0])
+        if c_step >= latest_checkpoint_step:
+            latest_checkpoint = checkpoint_path
+            latest_checkpoint_step = c_step
+    return latest_checkpoint
 
 
 def get_checkpoint_from_path(load_weights_path: str, repeater_mode: bool) -> str:
@@ -34,7 +34,7 @@ def get_checkpoint_from_path(load_weights_path: str, repeater_mode: bool) -> str
         load_weights_path = pathlib.Path(load_weights_path)
 
         if load_weights_path.is_dir():
-            latest_model = get_latest_model(load_weights_path)
+            latest_model = get_latest_checkpoint(load_weights_path)
             if not latest_model:
                 print(
                     f"No model yet saved in ({load_weights_path}), starting new training."
@@ -84,7 +84,7 @@ def prepare_save_weights_path(
 ) -> Optional[str]:
     if path_to_dir is None:
         if is_repeater:
-            raise Exception("Please specify")
+            raise Exception("Please specify checkpoint directory when using repeater mode")
         return None
     # we need a random dir because we can be running a whole grid from the same directory
     if not is_repeater:
