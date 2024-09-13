@@ -193,7 +193,7 @@ class ConditionalTrainer:
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
         return (
-            self._repeater_save_weight(step, self.repeater_job_end_time)
+            self._repeater_rerun(step, self.repeater_job_end_time)
             if self.repeater_job_end_time
             else False
         )
@@ -455,7 +455,6 @@ class ConditionalTrainer:
                     _ = self.model(
                         torch.zeros((self.batch_size, self.cutoff), dtype=torch.int)
                     )
-            metadata = {"neptune_run_id": self.logger}
             save_checkpoint(
                 self.model,
                 self.optimizer,
@@ -466,7 +465,7 @@ class ConditionalTrainer:
                 self.logger,
             )
 
-    def _repeater_save_weight(
+    def _repeater_rerun(
         self, step, repeater_job_end_time: int, buffer=15 * 60
     ) -> bool:
         if ((repeater_job_end_time - time())) < buffer:

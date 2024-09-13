@@ -43,7 +43,7 @@ def get_checkpoint_from_path(load_weights_path: str, repeater_mode: bool) -> str
             load_weights_path = load_weights_path / latest_model.name
 
     print(f"Loading checkpoint from {load_weights_path}...")
-    checkpoint = torch.load(str(load_weights_path))
+    checkpoint = torch.load(load_weights_path)
     print(f"Checkpoint loaded")
     return checkpoint
 
@@ -115,15 +115,16 @@ def save_checkpoint(
         model_state_dict = model.state_dict()
         optimizer_state_dict = optimizer.state_dict()
 
-    try:
-        neptune_logger: Run = [
-            l for l in joint_loggers.loggers if isinstance(l, NeptuneLogger)
-        ][0].instance_logger
+    neptune_logger: Run = [
+        l for l in joint_loggers.loggers if isinstance(l, NeptuneLogger)   # dev TODO do it for other loggers
+    ]
+    if len(neptune_logger) == 1: 
+        neptune_logger = neptune_logger[0].instance_logger
         logger_metadata = {
-            "run_id": neptune_logger._sys_id  # dev TODO do it generally for loggers
+            "run_id": neptune_logger._sys_id
         }
-    except Exception as e:
-        print(f"No Neptune logger, no saving, e: {str(e)}")
+    else:
+        print(f"No Neptune logger, no saving.")
         logger_metadata = None
 
     if rank == 0 or rank is None:

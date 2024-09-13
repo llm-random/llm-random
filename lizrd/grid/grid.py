@@ -9,6 +9,7 @@ from lizrd.grid.setup_arguments import (
 
 from lizrd.grid.utils import (
     get_train_main_function,
+    seconds_to_timestr,
     timestr_to_minutes,
     translate_to_argparse,
     check_for_argparse_correctness,
@@ -99,15 +100,10 @@ def create_subprocess_args(
 
             n_job_repetitions = 1
             if training_args["repeater_mode"]:
-                total_exp_time = None
-                hours, minutes, seconds = map(int, setup_args["time"].split(":"))
-                total_exp_time = hours * 60 * 60 + minutes * 60 + seconds
-
+                total_exp_time = timestr_to_minutes(setup_args["time"])*60
                 if CLUSTER.max_exp_time < total_exp_time:
                     n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)
-
-                    arg_time_to_replace_with = f"{int(CLUSTER.max_exp_time/(60*60))}:{int((CLUSTER.max_exp_time%(60*60))/60)}:{int(CLUSTER.max_exp_time%60)}"
-                    setup_args["time"] = arg_time_to_replace_with
+                    setup_args["time"] = seconds_to_timestr(CLUSTER.max_exp_time)
 
             subprocess_args = CLUSTER.get_subprocess_args(
                 slurm_command=slurm_command,

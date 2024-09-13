@@ -122,6 +122,10 @@ def timestr_to_minutes(time: str) -> int:
 
     return days * 24 * 60 + hours * 60 + minutes + round(seconds / 60)
 
+def seconds_to_timestr(seconds: int) -> str:
+    """return format hh:mm:ss
+    """    
+    return f"{int(seconds/(60*60))}:{int((seconds%(60*60))/60)}:{int(seconds%60)}"
 
 def create_grid(params: dict) -> List[dict]:
     grids, functions, normals = split_params(params)

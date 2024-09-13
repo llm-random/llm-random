@@ -330,13 +330,13 @@ def main(
         dataset_path=args.validation_dataset_path,
     )
 
-    try:
-        lrunid = checkpoint["logger"]["run_id"] if checkpoint else None
-    except KeyError:
-        lrunid = None
-    print(f"Continued run id: {lrunid}!")
+    if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
+        logger_run_id = checkpoint["logger"]["run_id"]
+    else:
+        logger_run_id = None
+
     if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE, lrunid)
+        logger = get_logger(args, model, VOCAB_SIZE, logger_run_id)
     else:
         logger = None
 
