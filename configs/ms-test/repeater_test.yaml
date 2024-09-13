@@ -18,5 +18,3 @@ params:
   load_weights_path: "./test_saving"
   repeater_mode: True
   save_weights_interval: 100
-  # load_weights_path: "/home/ubuntu/llm-random-group/llm-random-cemetery/test_checkpoint_saving_4gpu_bs1024_2024-09-07_00-03-12/test_saving/rzckmcczmb/200.pt"
-  # load_weights_path: "/home/ubuntu/llm-random-group/llm-random-cemetery/test_checkpoint_saving_4gpu_bs1024_2024-09-07_00-03-12/test_saving/rzckmcczmb/200.pt"
