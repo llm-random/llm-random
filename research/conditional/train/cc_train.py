@@ -294,7 +294,6 @@ def main(
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
-    
     if not args.repeater_mode: 
         rescale_params_after_init(args, model) #dev TODO affect loading continuation? add to argparse validation
 
