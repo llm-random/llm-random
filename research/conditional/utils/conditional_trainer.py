@@ -1,6 +1,5 @@
 from collections import defaultdict
 import copy
-import os
 from time import time
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
@@ -29,7 +28,6 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
-from datetime import datetime
 
 
 @define(slots=False)
