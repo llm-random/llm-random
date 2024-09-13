@@ -93,10 +93,6 @@ def create_subprocess_args(
                     (runner_main_function, runner_params)
                 ], interactive_debug_session
             
-            # print("--------------------------------")
-            # print(training_args)
-            # print(setup_args)
-            # raise #dev
 
             if training_args["repeater_mode"]:
                 total_exp_time = None
@@ -117,9 +113,6 @@ def create_subprocess_args(
                 runner_params=runner_params,
                 n_consecutive=n_job_repetitions
             )
-            print("--------------------------------") #dev
-            print(subprocess_args) #dev
-            # raise Exception
         
             cuda_visible = setup_args.get("cuda_visible")
             experiments.append((subprocess_args, training_args["name"], cuda_visible))

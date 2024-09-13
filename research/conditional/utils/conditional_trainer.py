@@ -454,7 +454,7 @@ class ConditionalTrainer:
                     _ = self.model(
                         torch.zeros((self.batch_size, self.cutoff), dtype=torch.int)
                     )
-
+            metadata = {"neptune_run_id": self.logger}
             save_checkpoint(
                 self.model,
                 self.optimizer,
@@ -462,10 +462,11 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
+                self.logger
             )
 
-    def _repeater_save_weight(self, step, repeater_job_end_time:int, buffer=20*60) -> bool:
-        REPEATER_SAVE_FILENAME = "repeater_save.pt"
+    def _repeater_save_weight(self, step, repeater_job_end_time:int, buffer=1*60) -> bool:
+        # print(repeater_job_end_time, time(), repeater_job_end_time - time(), buffer, (repeater_job_end_time - time()) < buffer) #dev
         if ((repeater_job_end_time - time())) < buffer:
             if isinstance(self.model, FSDP):
                 # for some reason, setting the model to training mode and
@@ -484,10 +485,11 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
+                self.logger,
             )
-            save_path = os.path.join(self.save_weights_path, f"{step}.pt")
-            repeater_path = os.path.join(self.save_weights_path, REPEATER_SAVE_FILENAME)  #dev highest number TODO
-            os.rename(save_path, repeater_path)
+            # save_path = os.path.join(self.save_weights_path, f"{step}.pt") #dev 
+            # repeater_path = os.path.join(self.save_weights_path, REPEATER_SAVE_FILENAME)   #dev 
+            # os.rename(save_path, repeater_path) #dev 
             return True
         else:
             return False

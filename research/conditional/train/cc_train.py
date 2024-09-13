@@ -327,8 +327,12 @@ def main(
         dataset_path=args.validation_dataset_path,
     )
 
+    try:
+        lrunid = checkpoint["logger"]["run_id"]
+    except KeyError:
+        lrunid = None
     if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE)
+        logger = get_logger(args, model, VOCAB_SIZE, lrunid)
     else:
         logger = None
 
@@ -413,7 +417,7 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
-    unique_save_weights_path = prepare_save_weights_path(args.save_weights_path, args.repeater_mode)
+    save_weights_path = prepare_save_weights_path(args.save_weights_path, args.repeater_mode)
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
@@ -428,10 +432,10 @@ if __name__ == "__main__":
             args=[
                 data_seeds,
                 port,
-                unique_save_weights_path,
+                save_weights_path,
                 args,
             ],
             nprocs=args.n_gpus,
         )
     else:
-        main(None, args=args, unique_save_weights_path=unique_save_weights_path)
+        main(None, args=args, unique_save_weights_path=save_weights_path)
