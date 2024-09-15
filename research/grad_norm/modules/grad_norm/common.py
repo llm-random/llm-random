@@ -1,12 +1,25 @@
+from dataclasses import dataclass
+from typing import Any, Callable, List, Optional, Tuple
+
 import torch
 
 from lizrd.core.misc import LoggingLayer
 
-LOGGED_METRICS = ["raw_grad", "norm_grad", "activations"]
 
-METRIC_RENAMES = {
-    "activations": "activation",
-}
+@dataclass
+class LoggedMetric:
+    name: str
+    statistics: List[Tuple[str, Callable[[Any], float]]]
+    rename: Optional[str]
+    take_norm: bool
+
+
+LOGGED_METRICS = [
+    LoggedMetric("raw_grad", [("mean", torch.mean), ("std", torch.std)], None, True),
+    LoggedMetric("norm_grad", [("mean", torch.mean), ("std", torch.std)], None, True),
+    LoggedMetric("activations", [("mean", torch.mean), ("std", torch.std)], "activation", True),
+    LoggedMetric("k", [("value", lambda x: x)], None, False),
+]
 
 
 class GradLoggingLayer(LoggingLayer):
@@ -14,17 +27,15 @@ class GradLoggingLayer(LoggingLayer):
         log_dict = super().log_heavy()
 
         for metric in LOGGED_METRICS:
-            if metric not in self.logging_cache:
+            if metric.name not in self.logging_cache:
                 continue
 
-            metric_norm = torch.norm(self.logging_cache[metric], dim=-1)
+            value = self.logging_cache[metric.name]
+            if metric.take_norm:
+                value = torch.norm(value, dim=-1)
 
-            metric_norm_mean = torch.mean(metric_norm)
-            metric_norm_std = torch.std(metric_norm)
-
-            metric_log_name = METRIC_RENAMES.get(metric, metric)
-
-            log_dict[f"{metric_log_name}_norms/mean"] = metric_norm_mean
-            log_dict[f"{metric_log_name}_norms/std"] = metric_norm_std
+            for stat_name, stat_fn in metric.statistics:
+                key = f"{metric.rename or metric.name}{'_norms' if metric.take_norm else ''}/{stat_name}"
+                log_dict[key] = stat_fn(value)
 
         return log_dict
