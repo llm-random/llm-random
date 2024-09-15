@@ -5,6 +5,7 @@ import pytest
 from research.grad_norm.build import get_grad_modif_fn, get_grad_modif_placement
 from research.grad_norm.modules import BlockGradModifPlacement
 from research.grad_norm.modules.grad_norm import (
+    GradientActivationNormLayer,
     GradientScaleNormLayer,
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,
@@ -125,6 +126,14 @@ def test_get_grad_modif_fn_std_norm(args_mock, expected_layer_type, expected_c, 
             "grad_modif_type": "scale_norm",
             "grad_modif_params": ["eps=1e-8"],
         },
+        {
+            "grad_modif_type": "activation_norm",
+            "grad_modif_params": ["eps=1e-8", "norm_dims=()"],
+        },
+        {
+            "grad_modif_type": "activation_norm",
+            "grad_modif_params": ["eps=1e-8", "norm_dims=(0, 1, 3)"],
+        },
     ],
     indirect=True,
 )
@@ -140,9 +149,6 @@ def test_get_grad_modif_fn_error_handling(args_mock):
 )
 def test_get_grad_modif_fn_returns_none(args_mock):
     assert get_grad_modif_fn(args_mock) is None
-
-
-###
 
 
 @pytest.mark.parametrize(
@@ -183,3 +189,43 @@ def test_get_grad_modif_fn_scale_norm(args_mock, expected_layer_type, expected_k
     assert isinstance(scale_norm_layer, expected_layer_type)
     assert scale_norm_layer.k == expected_k
     assert scale_norm_layer.eps == expected_eps
+
+
+@pytest.mark.parametrize(
+    ("args_mock", "expected_layer_type", "expected_norm_dims", "expected_eps"),
+    [
+        (
+            {
+                "grad_modif_type": "activation_norm",
+                "grad_modif_params": ["eps=1e-8", "norm_dims=(0, 1, 2)"],
+            },
+            GradientActivationNormLayer,
+            (0, 1, 2),
+            1e-8,
+        ),
+        (
+            {
+                "grad_modif_type": "activation_norm",
+                "grad_modif_params": ["eps=1e-5", "norm_dims=[0, 1]"],
+            },
+            GradientActivationNormLayer,
+            (0, 1),
+            1e-5,
+        ),
+        (
+            {
+                "grad_modif_type": "activation_norm",
+                "grad_modif_params": ["norm_dims=(2,)", "eps=0"],
+            },
+            GradientActivationNormLayer,
+            (2,),
+            0,
+        ),
+    ],
+    indirect=["args_mock"],
+)
+def test_get_grad_modif_fn_activation_norm(args_mock, expected_layer_type, expected_norm_dims, expected_eps):
+    scale_norm_layer = get_grad_modif_fn(args_mock)()
+    assert isinstance(scale_norm_layer, expected_layer_type)
+    assert scale_norm_layer.eps == expected_eps
+    assert scale_norm_layer.norm_dims == expected_norm_dims

@@ -1,4 +1,5 @@
 import logging
+from ast import literal_eval as make_tuple
 from functools import partial
 from typing import Any, Callable, Dict, Optional, Type, Union
 
@@ -20,6 +21,7 @@ from research.grad_norm.modules import (
     GradModiedTransformerTower,
 )
 from research.grad_norm.modules.grad_norm import (
+    GradientActivationNormLayer,
     GradientScaleNormLayer,
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,
@@ -81,6 +83,15 @@ def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
 
         return partial(GradientScaleNormLayer, k=k, eps=float(param_dict["eps"]))
 
+    elif grad_modif_type == "activation_norm":
+        verify_mandatory_params(param_dict, ["norm_dims", "eps"], grad_modif_type)
+
+        norm_dims = tuple(make_tuple(param_dict["norm_dims"]))
+        if len(norm_dims) < 1 or len(norm_dims) > 3 or any(d not in range(3) for d in norm_dims):
+            raise ValueError("norm_dims must be a non-empty list of integers from range [0, 2]")
+        eps = float(param_dict["eps"])
+
+        return partial(GradientActivationNormLayer, norm_dims=norm_dims, eps=eps)
     else:
         raise ValueError(f"Unknown grad_modif_type {grad_modif_type}")
 
