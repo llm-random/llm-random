@@ -1,0 +1,13 @@
+parent: configs/baselines/gpt/grad_norm/medium.yaml
+md5_parent_hash: 7be5349ba7c3559ebe78de1cd7ef0cda
+cpus_per_gpu: 16
+params:
+  name: "grad_norm_medium_reduced_bs"
+  grad_modif_type: []
+  grad_modif_params: []
+  grad_modif_placement: []
+  tags:
+    - "medium"
+    - "grad_norm"
+    - "reduce_bs"
+  batch_size: 128

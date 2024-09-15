@@ -1,4 +1,4 @@
-md5_parent_hash: 5cdd3cabec6302be49c612aa780c1ae5
+md5_parent_hash: 8556a2a83ef57f62cc46ac98fdde0763
 params:
   grad_modif_params:
   - k=auto
@@ -18,4 +18,4 @@ params:
   - all
   - k_auto
   - scale_norm
-parent: configs/experiments/grad_norm/medium.yaml
+parent: configs/experiments/grad_norm/medium_reduced_bs.yaml
