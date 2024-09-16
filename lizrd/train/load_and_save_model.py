@@ -36,7 +36,8 @@ def load_optimizer_state(
         full_osd = None
         if rank == 0:
             full_osd = checkpoint["optimizer"]
-        FSDP.scatter_full_optim_state_dict(full_osd, model)
+        sharded_osd = FSDP.scatter_full_optim_state_dict(full_osd, model)
+        optimizer.load_state_dict(sharded_osd)
     else:
         optimizer.load_state_dict(checkpoint["optimizer"])
     print(f"Loaded optimizer state")
