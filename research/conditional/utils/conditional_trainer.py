@@ -151,11 +151,7 @@ class ConditionalTrainer:
         ) as p:
             for step in range(self.start_step, n_steps + 1):
                 self._train_step(step)
-                if (
-                    self._repeater_rerun(step, self.repeater_job_end_time)
-                    if self.repeater_job_end_time
-                    else False
-                ):
+                if self._repeater_rerun(step, self.repeater_job_end_time):
                     break
                 if self.profiler_enabled:
                     p.step()
@@ -470,8 +466,8 @@ class ConditionalTrainer:
                 self.logger,
             )
 
-    def _repeater_rerun(self, step, repeater_job_end_time: int, buffer=15 * 60) -> bool:
-        if ((repeater_job_end_time - time())) < buffer:
+    def _repeater_rerun(self, step, repeater_job_end_time: Optional[int], buffer=15 * 60) -> bool:
+        if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
             if isinstance(self.model, FSDP):
                 # for some reason, setting the model to training mode and
                 # running a forward pass is necessary to be able to save it
