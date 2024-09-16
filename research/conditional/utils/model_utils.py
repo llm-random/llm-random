@@ -2,6 +2,7 @@ from functools import partial
 
 # import json
 # from diskcache import Cache
+import random
 from typing import Optional, Type, Union, Callable
 import torch
 import torch.nn as nn
@@ -231,14 +232,22 @@ def calculate_llm_loss_and_gradient(
         loss = mask_loss.mean() / num_checkpoint_accumulation_steps
 
         correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+        correct_indices = correct_tokens.reshape(-1).nonzero().detach().cpu().tolist()
+        random.shuffle(correct_indices)
+        correct_combinations = []
+        for correct_idx in correct_indices[:10]:
+            correct_combinations.append((input_tokens.reshape(-1)[correct_idx].detach().cpu().item(), gt_tokens.reshape(-1)[correct_idx].detach().cpu().item()))
+
         correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
         correct_tokens = correct_tokens.sum()
         total_masked_tokens = mask.sum()
+
 
         aux_info = {
             "correct_tokens": correct_tokens,
             "total_masked_tokens": total_masked_tokens,
             "losses": retrieve_additional_losses(model),
+            "correct_token_combinations": correct_combinations
         }
         return loss, aux_info
 

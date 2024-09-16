@@ -149,7 +149,7 @@ class AbstractLogger(ABC):
         if token_scale:
             auxiliary_metrics = {
                 **auxiliary_metrics,
-                **self.with_token_scale(title, value, iteration),
+                # **self.with_token_scale(title, value, iteration),
             }
         metric_x_flop = None
 
@@ -487,7 +487,7 @@ def get_logger(args, model, VOCAB_SIZE):
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
-    add_logger_active_metrics(args)
+    # add_logger_active_metrics(args)
 
     for logger_type in logger_types:
         if logger_type == "neptune":

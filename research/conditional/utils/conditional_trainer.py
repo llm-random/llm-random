@@ -188,6 +188,7 @@ class ConditionalTrainer:
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
+            self._log_correct_combinations(aux_info["correct_token_combinations"], step)
         self._save_weights(step)
 
     def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
@@ -227,6 +228,7 @@ class ConditionalTrainer:
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
+            "correct_token_combinations": aux_info["correct_token_combinations"]
         }
 
     def _apply_gradient(self):
@@ -416,6 +418,14 @@ class ConditionalTrainer:
             )
             self.correct_tokens_accumulator = 0.0
             self.total_tokens_accumulator = 0.0
+    
+    def _log_correct_combinations(self, combinations, step):
+        self.logger.report_text(
+            title="correct_combinations",
+            value=str(combinations),
+            iteration=step,
+        )
+
 
     def _log_auxiliary_losses(self, losses, step):
         for name, loss in losses.items():
