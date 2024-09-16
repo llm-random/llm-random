@@ -5,8 +5,11 @@ time: 0-05:00:00
 params:
   name: "laptop_check"
   ff_mode: token_choice
-  cutoff: 16
+  cutoff: 8
+  batch_size: 32
   granularity: 4
+  final_lr_step: 100
+  lr_warmup_steps: 2
   dataset_type: wikibook
   final_lr_step: -1
   lr_warmup_percent: 0.01
