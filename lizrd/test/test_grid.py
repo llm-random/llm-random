@@ -90,6 +90,7 @@ class TestGrid(unittest.TestCase):
             [
                 "sbatch",
                 "--gres=gpu:ampere:0",
+                "--array=0-0%1",
                 "--cpus-per-gpu=8",
                 "--job-name=baseline_test",
                 "--time=5-05:00:00",
