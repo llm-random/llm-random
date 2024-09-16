@@ -16,6 +16,7 @@ from lizrd.support.misc import generate_random_string
 
 
 def get_latest_checkpoint(dir_path) -> pathlib.Path:
+    """Returns the latest checkpoint by the heighest number in its name that depicts training step number"""
     dir_path = pathlib.Path(dir_path)
     all_checkpoints_paths = dir_path.glob(r"[0-9]*.pt")
     latest_checkpoint = None

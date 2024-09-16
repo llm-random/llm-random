@@ -193,11 +193,6 @@ class ConditionalTrainer:
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
-        # return (
-        #     self._repeater_rerun(step, self.repeater_job_end_time)
-        #     if self.repeater_job_end_time
-        #     else False
-        # ) #dev
 
     def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
