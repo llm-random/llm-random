@@ -442,15 +442,6 @@ class ConditionalTrainer:
             and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
-            if isinstance(self.model, FSDP):
-                # for some reason, setting the model to training mode and
-                # running a forward pass is necessary to be able to save it
-                # in FSDP. God help us.
-                self.model.train()
-                with torch.no_grad():
-                    _ = self.model(
-                        torch.zeros((self.batch_size, self.cutoff), dtype=torch.int)
-                    )
             save_checkpoint(
                 self.model,
                 self.optimizer,
@@ -458,21 +449,13 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
+                self.batch_size,
+                self.cutoff,
                 self.logger,
             )
 
     def _repeater_rerun(self, step, repeater_job_end_time: Optional[int], buffer=15 * 60) -> bool:
         if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
-            if isinstance(self.model, FSDP):
-                # for some reason, setting the model to training mode and
-                # running a forward pass is necessary to be able to save it
-                # in FSDP. God help us. #dev can i delete this, or is it a TODO tag?
-                self.model.train()
-                with torch.no_grad():
-                    _ = self.model(
-                        torch.zeros((self.batch_size, self.cutoff), dtype=torch.int)
-                    )
-
             save_checkpoint(
                 self.model,
                 self.optimizer,
@@ -480,6 +463,8 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
+                self.batch_size,
+                self.cutoff,
                 self.logger,
             )
 
