@@ -99,7 +99,7 @@ def create_subprocess_args(
                 ], interactive_debug_session
 
             n_job_repetitions = 1
-            if training_args["repeater_mode"]:
+            if "repeater_mode" in training_args and training_args["repeater_mode"]:
                 total_exp_time = timestr_to_minutes(setup_args["time"]) * 60
                 if CLUSTER.max_exp_time < total_exp_time:
                     n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)
