@@ -150,7 +150,12 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(self.start_step, n_steps + 1):
-                if self._train_step(step):
+                self._train_step(step)
+                if (
+                    self._repeater_rerun(step, self.repeater_job_end_time)
+                    if self.repeater_job_end_time
+                    else False
+                ):
                     break
                 if self.profiler_enabled:
                     p.step()
@@ -176,7 +181,7 @@ class ConditionalTrainer:
     def _train_step(
         self,
         step,
-    ) -> bool:
+    ):
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
@@ -192,11 +197,11 @@ class ConditionalTrainer:
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
-        return (
-            self._repeater_rerun(step, self.repeater_job_end_time)
-            if self.repeater_job_end_time
-            else False
-        )
+        # return (
+        #     self._repeater_rerun(step, self.repeater_job_end_time)
+        #     if self.repeater_job_end_time
+        #     else False
+        # ) #dev
 
     def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
