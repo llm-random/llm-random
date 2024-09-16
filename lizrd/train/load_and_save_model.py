@@ -84,7 +84,9 @@ def prepare_save_weights_path(
 ) -> Optional[str]:
     if path_to_dir is None:
         if is_repeater:
-            raise Exception("Please specify checkpoint directory when using repeater mode")
+            raise Exception(
+                "Please specify checkpoint directory when using repeater mode"
+            )
         return None
     # we need a random dir because we can be running a whole grid from the same directory
     if not is_repeater:
@@ -116,13 +118,13 @@ def save_checkpoint(
         optimizer_state_dict = optimizer.state_dict()
 
     neptune_logger: Run = [
-        l for l in joint_loggers.loggers if isinstance(l, NeptuneLogger)   # dev TODO do it for other loggers
+        l
+        for l in joint_loggers.loggers
+        if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
     ]
-    if len(neptune_logger) == 1: 
+    if len(neptune_logger) == 1:
         neptune_logger = neptune_logger[0].instance_logger
-        logger_metadata = {
-            "run_id": neptune_logger._sys_id
-        }
+        logger_metadata = {"run_id": neptune_logger._sys_id}
     else:
         print(f"No Neptune logger, no saving.")
         logger_metadata = None
