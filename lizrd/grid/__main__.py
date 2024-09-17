@@ -44,8 +44,10 @@ if __name__ == "__main__":
             env = os.environ.copy()
             if cuda_visible is not None:
                 env.update({"SINGULARITYENV_CUDA_VISIBLE_DEVICES": cuda_visible})
+
             PROCESS_CALL_FUNCTION(subprocess_args, env)
             sleep(5)
+
             if interactive_debug_session:
                 print("Ran only the first experiment in interactive mode. Aborting...")
                 break
