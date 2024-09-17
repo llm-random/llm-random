@@ -1,0 +1,13 @@
+parent: configs/experiments/constrained_scaling_laws/520M/model.yaml
+md5_parent_hash: 35bcfd5b0dc49c588a62481de4644171
+# here configure GPUs & time for a given cluster for it to fit
+time: "4-00:00:00"
+n_gpus: 4
+params:
+  expansion_rate: 4
+  ^n_steps: [62_000]
+
+  # dev
+  dmodel: 768
+  n_blocks: 13
+  n_att_heads: 12

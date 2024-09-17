@@ -1,0 +1,10 @@
+parent: configs/experiments/constrained_scaling_laws/common.yaml
+md5_parent_hash: 8c91e8312955bb9250a33222d55cc4ee
+cpus_per_gpu: 16
+params:
+  tags: ["constrained_scaling_grid_final", "810M"]
+
+  dmodel: 1024
+  n_blocks: 14
+  n_att_heads: 14
+
