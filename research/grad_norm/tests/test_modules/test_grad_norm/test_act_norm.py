@@ -3,6 +3,7 @@ import torch
 
 from research.grad_norm.modules.grad_norm.act_norm import (
     GradientActivationNormLayer,
+    _norm,
     activation_norm_grad,
 )
 
@@ -10,6 +11,11 @@ from research.grad_norm.modules.grad_norm.act_norm import (
 @pytest.fixture
 def gn_layer(request) -> GradientActivationNormLayer:
     return GradientActivationNormLayer(norm_dims=request.param)
+
+
+def raw_activation_norm_grad(grad, activation, norm_dims, eps):
+    norm_act = _norm(activation, norm_dims)
+    return activation_norm_grad(grad, norm_act, norm_dims, eps)
 
 
 @pytest.mark.parametrize("gn_layer", [(0, 1, 2), (1, 2), (2,)], indirect=True)
@@ -45,7 +51,9 @@ class TestGradNormLayerCommonProperties:
         y.backward(grad)
 
         logs = gn_layer.log_heavy()
-        norm_grad = torch.norm(activation_norm_grad(grad, x, norm_dims=gn_layer.norm_dims, eps=gn_layer.eps), dim=-1)
+        norm_grad = torch.norm(
+            raw_activation_norm_grad(grad, x, norm_dims=gn_layer.norm_dims, eps=gn_layer.eps), dim=-1
+        )
         assert torch.equal(logs["norm_grad_norms/mean"], torch.mean(norm_grad))
         assert torch.equal(logs["norm_grad_norms/std"], torch.std(norm_grad))
 
@@ -55,6 +63,6 @@ class TestGradNormLayerCommonProperties:
         y = gn_layer(x)
         y.backward(grad)
 
-        expected_grad = activation_norm_grad(grad, x, norm_dims=gn_layer.norm_dims, eps=gn_layer.eps)
+        expected_grad = raw_activation_norm_grad(grad, x, norm_dims=gn_layer.norm_dims, eps=gn_layer.eps)
 
         assert torch.allclose(x.grad, expected_grad)

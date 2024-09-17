@@ -16,19 +16,23 @@ def _norm(x: torch.Tensor, dim: Optional[Tuple[int, ...]]) -> torch.Tensor:
 
 
 def activation_norm_grad(
-    grad: torch.Tensor, activation: torch.Tensor, norm_dims: Tuple[int, ...], eps: float
+    grad: torch.Tensor, activation_norm: torch.Tensor, norm_dims: Tuple[int, ...], eps: float
 ) -> torch.Tensor:
     # assuming shape of grad is (batch_size, max_length, dmodel)
-    ratio = _norm(activation, norm_dims) / (_norm(grad, norm_dims) + eps)
+    ratio = activation_norm / (_norm(grad, norm_dims) + eps)
     return grad * ratio
 
 
 class BaseGradientActivationNormFunction(torch.autograd.Function):
     @staticmethod
     def forward(
-        ctx, x: torch.Tensor, log_fn: Callable[[str, Any], None], grad_norm_fn: Callable[[torch.Tensor], torch.Tensor]
+        ctx,
+        x: torch.Tensor,
+        log_fn: Callable[[str, Any], None],
+        grad_norm_fn: Callable[[torch.Tensor], torch.Tensor],
+        norm_dims: Tuple[int, ...],
     ) -> torch.Tensor:
-        ctx.save_for_backward(x)
+        ctx.save_for_backward(_norm(x, norm_dims))
         ctx._log_fn = log_fn
         ctx._grad_norm_fn = grad_norm_fn
         return x
@@ -40,7 +44,7 @@ class BaseGradientActivationNormFunction(torch.autograd.Function):
         ctx._log_fn("raw_grad", grad_out)
         normalized_grad = ctx._grad_norm_fn(grad_out, activation_norm)
         ctx._log_fn("norm_grad", normalized_grad)
-        return normalized_grad, None, None
+        return normalized_grad, None, None, None
 
 
 class GradientActivationNormLayer(GradLoggingLayer):
@@ -54,5 +58,8 @@ class GradientActivationNormLayer(GradLoggingLayer):
         self.update_cache_for_logging("activations", x)
         # GradientSTDNormFunction should log the pre and post gradients
         return BaseGradientActivationNormFunction.apply(
-            x, self.update_cache_for_logging, partial(activation_norm_grad, norm_dims=self.norm_dims, eps=self.eps)
+            x,
+            self.update_cache_for_logging,
+            partial(activation_norm_grad, norm_dims=self.norm_dims, eps=self.eps),
+            self.norm_dims,
         )
