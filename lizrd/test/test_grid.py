@@ -406,8 +406,8 @@ class TestGrid(unittest.TestCase):
             [
                 "sbatch",
                 "--gres=gpu:2",
-                "--partition=plgrid-gpu-a100",
                 "--array=0-0%1",
+                "--partition=plgrid-gpu-a100",
                 "--cpus-per-gpu=8",
                 "--mem=250G",
                 "--account=plgllmefficont-gpu-a100",
@@ -471,8 +471,8 @@ class TestGrid(unittest.TestCase):
             [
                 "sbatch",
                 "--gres=gpu:2",
-                "--partition=plgrid-gpu-a100",
                 "--array=0-0%1",
+                "--partition=plgrid-gpu-a100",
                 "--cpus-per-gpu=8",
                 "--mem=250G",
                 "--account=plgllmefficont-gpu-a100",
