@@ -6,7 +6,6 @@ from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from torch.profiler import profile, ProfilerActivity
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
@@ -454,7 +453,9 @@ class ConditionalTrainer:
                 self.logger,
             )
 
-    def _repeater_rerun(self, step, repeater_job_end_time: Optional[int], buffer=15 * 60) -> bool:
+    def _repeater_rerun(
+        self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
+    ) -> bool:
         if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
             save_checkpoint(
                 self.model,

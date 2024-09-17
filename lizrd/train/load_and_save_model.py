@@ -108,17 +108,14 @@ def save_checkpoint(
     batch_size,
     cutoff,
     joint_loggers: Optional[JointLogger] = None,
-    
 ):
     if isinstance(model, FSDP):
-                # for some reason, setting the model to training mode and
-                # running a forward pass is necessary to be able to save it
-                # in FSDP. God help us.
-                model.train()
-                with torch.no_grad():
-                    _ = model(
-                        torch.zeros((batch_size, cutoff), dtype=torch.int)
-                    )
+        # for some reason, setting the model to training mode and
+        # running a forward pass is necessary to be able to save it
+        # in FSDP. God help us.
+        model.train()
+        with torch.no_grad():
+            _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
     if rank == 0 or rank is None:
         print(f"Saving weights...")
     if isinstance(model, FSDP):

@@ -35,6 +35,6 @@ def check_args(args):
     assert (
         args.save_weights_path == args.load_weights_path if args.repeater_mode else True
     ), f"Save/load paths have to be the same for repeater mode ({args.save_weights_path}, {args.load_weights_path})"
-    
+
     if args.repeater_mode:
         assert args.relative_init_scale == None
