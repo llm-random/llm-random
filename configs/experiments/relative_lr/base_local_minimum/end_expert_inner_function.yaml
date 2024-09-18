@@ -15,7 +15,7 @@ params:
   activation_type: silu
   moe_inner_expert: ff_gated
   expansion_rate: 8
-  granularity: [1, 1, 1]
+  ^granularity: [1, 1, 1]
   get_router_values_from: weights
   layer_norm_in_expert_choice: False
 
