@@ -1,0 +1,20 @@
+cpus_per_gpu: 16
+md5_parent_hash: 8556a2a83ef57f62cc46ac98fdde0763
+params:
+  batch_size: 128
+  grad_modif_params:
+  - norm_dims=(0,1,2)
+  - eps=1e-8
+  grad_modif_placement:
+  - post_attn_norm
+  - post_ff_norm
+  grad_modif_type: activation_norm
+  name: grad_act_norm_exp_6_post_norm_norm_dims_1_2_3
+  tags:
+  - medium
+  - grad_norm
+  - reduce_bs
+  - post_norm
+  - norm_dims_1_2_3
+  - activation_norm
+parent: configs/experiments/grad_norm/medium_reduced_bs.yaml
