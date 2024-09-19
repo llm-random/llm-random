@@ -31,6 +31,7 @@ class MoeGating(LoggingLayer):
         softmax_over: Literal["tokens", "experts"] = "tokens",
         use_torch_bmm: bool = False,
         zloss_weight: float = 0.0,
+        e2_fix: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -42,6 +43,7 @@ class MoeGating(LoggingLayer):
         self.use_torch_bmm = use_torch_bmm
         self.detach_gate = detach_gate
         self.zloss_weight = zloss_weight
+        self.e2_fix = e2_fix
         self.gate, self.get_gate = self.init_gate(
             expert_inner_function,
             get_router_values_from,
@@ -79,7 +81,11 @@ class MoeGating(LoggingLayer):
             gate_logits = gate_logits.reshape(self.n_experts, batch_size * seq_len)
         # perform softmax either over tokens for each expert or over experts for each token
         with measure_time(self, "softmax"):
-            if self.softmax_over == "tokens":
+            if False:
+                gate_out = F.sigmoid(gate_logits[0])
+                gate_out = torch.stack([gate_out, 1 - gate_out], dim=0)
+                assert gate_out.shape == gate_logits.shape
+            elif self.softmax_over == "tokens":
                 gate_out = torch.softmax(gate_logits, dim=1)
             elif self.softmax_over == "experts":
                 gate_out = torch.softmax(gate_logits, dim=0)
@@ -142,10 +148,16 @@ class MoeGating(LoggingLayer):
         init_type,
     ):
         if get_router_values_from == "weights":
-            init = get_init_fun(init_type=init_type, init_scale=init_scale)
-            gate = init((self.dmodel, self.n_experts), self.dmodel)
-            gate = gate.requires_grad_(False) if self.detach_gate else gate
-            return gate, lambda: self.gate
+            if self.e2_fix:
+                init = get_init_fun(init_type=init_type, init_scale=init_scale)
+                gate = init((self.dmodel, 1), self.dmodel)
+                gate = gate.requires_grad_(False) if self.detach_gate else gate
+                return gate, lambda: torch.cat([self.gate, -self.gate], dim=1)
+            else:
+                init = get_init_fun(init_type=init_type, init_scale=init_scale)
+                gate = init((self.dmodel, self.n_experts), self.dmodel)
+                gate = gate.requires_grad_(False) if self.detach_gate else gate
+                return gate, lambda: self.gate
         elif get_router_values_from in ["gate_weight", "lin1_weight"] and hasattr(
             expert_inner_function, get_router_values_from
         ):

@@ -69,6 +69,8 @@ def introduce_parser_arguments(
     # other data hyperparameters
     parser.add_argument("--num_workers", type=int, default=8)
 
+    parser.add_argument("--e2_fix", action="store_true")
+
     # as of 8.02.2024 below only works for C4 dataset, as wikibook is technically two separate datasets, but wikibook is small enough to use hf datasets_cashe
     # as of 8.02.2024 it is set automatically on DGX, on other machines use manually
     parser.add_argument("--train_dataset_path", type=str, default=None)

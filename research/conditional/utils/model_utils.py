@@ -638,6 +638,7 @@ def get_ff_layer(args):
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
+            e2_fix=args.e2_fix,
             **get_weightless_args(args),
         )
     elif args.ff_mode == "token_choice_old":
