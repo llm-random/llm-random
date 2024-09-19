@@ -8,7 +8,7 @@ cpus_per_gpu: 16
 
 params:
   name: "base_extrapolation_local_min"
-  tags: ["relative_lr", "base_extrapolation", "local_minimum", "gating", "ms"]
+  tags: ["relative_lr", "base_extrapolation", "local_minimum", "gating", "start", "ms"]
   ff_mode: token_choice
   capacity_factor: 1.0
 
