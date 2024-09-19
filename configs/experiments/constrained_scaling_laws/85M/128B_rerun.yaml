@@ -1,0 +1,13 @@
+parent: configs/experiments/constrained_scaling_laws/85M/model.yaml
+md5_parent_hash: fb07496bc86d6d18adac6a8135237ff0
+time: "8-00:00:00"
+n_gpus: 4
+cpus_per_gpu: 16
+# here configure GPUs & time for a given cluster for it to fit
+params:
+  tags: ["constrained_scaling_grid_fixed", "constrained_scaling_grid_final", "85M", "rerun"]
+  ^expansion_rate: [16]
+  n_steps: 488300
+  logging_interval_heavy: 50000
+  logging_interval_loss: 4000
+
