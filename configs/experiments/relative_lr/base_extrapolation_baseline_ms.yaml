@@ -4,7 +4,7 @@ time: "48:00:00"
 interactive_debug_session: false
 interactive_debug: false
 n_gpus: 2
-cpus_per_gpu: 8
+cpus_per_gpu: 16
 
 params:
   name: "base_extrapolation_local_min"
