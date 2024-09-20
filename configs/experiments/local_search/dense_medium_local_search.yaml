@@ -1,0 +1,59 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+time: "05:00:00"
+interactive_debug_session: false
+interactive_debug: false
+gpus: 1
+cpus_per_gpu: 16
+
+params:
+  name: "local_search_relative_medium_dense"
+  tags: ["relative_lr", "dense", "local_search", "relative"]
+  ff_mode: swi_glu
+
+  batch_size: 256
+  cutoff: 256
+
+  n_steps: 10_240
+  final_lr_step: 10_240
+  lr_warmup_steps: 102
+  scheduler: cosine
+
+  final_lr_fraction: 0.06666
+  init_type: truncated_normal
+  init_scale: 0.333
+  learning_rate: 0.002
+  weight_decay: 0.15
+
+  save_weights_interval: 0
+  mixed_precision: True
+  mixed_precision_dtype: "bfloat16"
+  loss_checkpoint_chungs: 8
+
+  print_parameter_names: true
+
+  relative_lr:
+    embedding_layer: 1.
+    head: 1.
+    layer.feedforward: 1.
+    projection: 1.
+
+  relative_scheduler_fraction:
+    embedding_layer: 1.
+    head: 1.
+    layer.feedforward: 1.
+    projection: 1.
+
+tune_config:
+  iters: 30
+  tune_params:
+    - "learning_rate"
+    - "relative_lr:embedding_layer"
+    - "relative_lr:head"
+    - "relative_lr:layer.feedforward"
+    - "relative_lr:projection"
+    - "final_lr_fraction"
+    - "relative_scheduler_fraction:embedding_layer"
+    - "relative_scheduler_fraction:head"
+    - "relative_scheduler_fraction:layer.feedforward"
+    - "relative_scheduler_fraction:projection"
