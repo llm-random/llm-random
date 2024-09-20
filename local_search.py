@@ -62,7 +62,6 @@ class TrainRun:
         return self.process.poll() is not None
 
     def is_queued(self):
-        print(f"ssh -qt {self.server} 'squeue --start -o \"%.50j\"' | grep {self.pid} 2>/dev/null")
         out = run_command(f"ssh -qt {self.server} 'squeue --start -o \"%.50j\"' | grep {self.pid} 2>/dev/null")
         return len(out) > 1 or self.is_running()
 
