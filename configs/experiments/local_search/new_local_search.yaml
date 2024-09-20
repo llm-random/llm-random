@@ -6,7 +6,7 @@ interactive_debug: false
 
 params:
   name: "local_search_relative_medium"
-  tags: ["relative", "compute_opt", "local_search_medium_new"]
+  tags: ["relative", "compute_opt", "local_search_medium_new", "rel_tuning"]
   ff_mode: token_choice
   capacity_factor: 1.0
   data_seed: 42
