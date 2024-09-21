@@ -60,7 +60,6 @@ tune_config:
     - "init_scale"
     - "final_lr_fraction"
     - "weight_decay"
-    - "load_balancing_loss_weight"
     - "relative_lr:embedding_layer"
     - "relative_lr:head"
     - "relative_lr:expert_inner_function"
