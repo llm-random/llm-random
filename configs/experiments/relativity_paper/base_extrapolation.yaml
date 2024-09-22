@@ -1,0 +1,28 @@
+parent: configs/experiments/relativity_paper/local_search_relative.yaml
+md5_parent_hash: 680f5ac6c2c528dadc6438fc48f46dc5
+time: "40:00:00"
+interactive_debug_session: false
+interactive_debug: false
+n_gpus: 4
+
+params:
+  name: "base_extrapolation"
+  tags: ["base_extrapolation", "relativity_paper", "relative"]
+
+  batch_size: 256
+  cutoff: 512
+
+  n_steps: 12_000
+  final_lr_step: 12_000
+  lr_warmup_steps: 120
+
+  learning_rate: 0.001
+
+  mixed_precision: True
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
