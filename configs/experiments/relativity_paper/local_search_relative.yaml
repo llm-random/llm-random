@@ -23,7 +23,7 @@ params:
 
   relative_scheduler_fraction:
     embedding_layer: 0.666
-    head: 0.666
+    head: 0.444
     gating: 1.
     expert_inner_function: 1.125
     projection: 1.

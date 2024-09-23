@@ -20,7 +20,7 @@ params:
   final_lr_step: 50_000
   lr_warmup_steps: 500
 
-  ^learning_rate: [0.0001, 0.0005]
+  ^learning_rate: [0.0002]
 
   save_weights_interval: 0
   mixed_precision: True
