@@ -1,26 +1,32 @@
 parent: configs/experiments/relativity_paper/local_search_baseline.yaml
 md5_parent_hash: 21fef24e75f9b55697958d4ef88c8c8b
-time: "40:00:00"
+time: "160:00:00"
 interactive_debug_session: false
 interactive_debug: false
-n_gpus: 4
+n_gpus: 8
 
 params:
-  name: "base_extrapolation_baseline"
-  tags: ["base_extrapolation", "relativity_paper", "baseline"]
+  name: "large_extrapolation"
+  tags: ["large_extrapolation", "relativity_paper", "baseline"]
 
-  batch_size: 256
-  cutoff: 512
+  dmodel: 1536
+  n_blocks: 24
+  n_att_heads: 12
 
-  n_steps: 12_000
-  final_lr_step: 12_000
-  lr_warmup_steps: 120
+  batch_size: 384
+  cutoff: 1024
 
-  ^learning_rate: [0.001]
+  n_steps: 50_000
+  final_lr_step: 50_000
+  lr_warmup_steps: 500
 
+  ^learning_rate: [0.0001, 0.0005]
+
+  save_weights_interval: 0
   mixed_precision: True
   mixed_precision_dtype: bfloat16
   flash_attention: true
+  loss_checkpoint_chungs: 8
 
   fsdp_enabled: true
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"

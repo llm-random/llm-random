@@ -3,6 +3,7 @@ md5_parent_hash: 25eb0c53963eb1c7d96c91bb327c2a20
 time: 0-10:00:00
 interactive_debug_session: false
 interactive_debug: false
+cpus_per_gpu: 16
 
 params:
   name: "local_search_relative_medium"
