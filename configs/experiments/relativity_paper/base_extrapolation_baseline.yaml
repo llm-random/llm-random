@@ -3,7 +3,7 @@ md5_parent_hash: 21fef24e75f9b55697958d4ef88c8c8b
 time: "40:00:00"
 interactive_debug_session: false
 interactive_debug: false
-n_gpus: 4
+n_gpus: 2
 cpus_per_gpu: 16
 
 params:
