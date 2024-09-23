@@ -4,6 +4,7 @@ time: "40:00:00"
 interactive_debug_session: false
 interactive_debug: false
 n_gpus: 4
+cpus_per_gpu: 16
 
 params:
   name: "base_extrapolation_baseline"

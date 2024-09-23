@@ -4,6 +4,7 @@ time: "40:00:00"
 interactive_debug_session: false
 interactive_debug: false
 n_gpus: 4
+cpus_per_gpu: 16
 
 params:
   name: "base_extrapolation"
@@ -16,7 +17,7 @@ params:
   final_lr_step: 12_000
   lr_warmup_steps: 120
 
-  ^learning_rate: [0.001]
+  ^learning_rate: [0.001, 0.002, 0.0005]
 
   mixed_precision: True
   mixed_precision_dtype: bfloat16
