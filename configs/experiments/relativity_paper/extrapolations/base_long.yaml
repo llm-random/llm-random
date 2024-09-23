@@ -1,5 +1,5 @@
-parent: configs/experiments/relativity_paper/base_extrapolation.yaml
-md5_parent_hash: 74ea55dcbe70180c2d68292ae9c93cbf
+parent: configs/experiments/relativity_paper/extrapolations/base.yaml
+md5_parent_hash: db21e3325a07e2f4ac7dc823f6b3b021
 time: "40:00:00"
 interactive_debug_session: false
 interactive_debug: false

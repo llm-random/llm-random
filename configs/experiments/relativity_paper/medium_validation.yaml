@@ -1,5 +1,5 @@
-parent: configs/experiments/relativity_paper/local_search_relative.yaml
-md5_parent_hash: 0d600a93e4e3fc379979971df6d20114
+parent: configs/experiments/relativity_paper/local_search/relative.yaml
+md5_parent_hash: 4e6e7640f8b6f5645b5ff8138be6405d
 time: 0-10:00:00
 interactive_debug_session: false
 interactive_debug: false
