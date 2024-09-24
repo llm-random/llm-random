@@ -1,0 +1,10 @@
+parent: configs/experiments/relativity_paper/extrapolations/{TODO - base model + its relative lrs}.yaml
+md5_parent_hash: TODO
+
+params:
+  name: "base_uplot_embedding_end"
+  tags: ["base_model", "uplot", "relativity_paper", "embedding_layer", "end"]
+
+  relative_scheduler_fraction:
+    ^embedding_layer: TODO
+    
