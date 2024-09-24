@@ -13,6 +13,10 @@ params:
   batch_size: 256
   cutoff: 512
 
+  dmodel: 768
+  n_blocks: 12
+  n_att_heads: 12
+
   n_steps: 12_000
   final_lr_step: 12_000
   lr_warmup_steps: 120
