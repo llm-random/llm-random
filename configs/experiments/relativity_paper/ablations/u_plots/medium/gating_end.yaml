@@ -1,4 +1,4 @@
-parent: configs/experiments/relativity_paper/ablations/u_plots/base_model_uplots.yaml
+parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml
 md5_parent_hash: TODO
 
 params:
