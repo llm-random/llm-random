@@ -166,3 +166,6 @@ schema.json
 wandb
 
 local_search_configs
+jupyter_files
+configs/jm
+test.txt
