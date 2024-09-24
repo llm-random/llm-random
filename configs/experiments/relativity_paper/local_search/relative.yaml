@@ -1,17 +1,9 @@
 parent: configs/experiments/relativity_paper/local_search/baseline.yaml
-md5_parent_hash: 27d04ff39d3865c5ff9622afb3496823
-time: 0-10:00:00
-interactive_debug_session: false
-interactive_debug: false
+md5_parent_hash: 42dae6a1cff21ed7cd7a38c1a5119d2e
 
 params:
-  name: "local_search_relative_medium_tuning"
-  tags: ["relative", "compute_opt", "local_search_medium_new", "rel_tuning"]
-
-  final_lr_fraction: 0.044444
-  init_scale: 0.15
-  learning_rate: 0.003
-  weight_decay: 0.1
+  name: "relativity_relative"
+  tags: ["relativity_paper"]
 
   print_parameter_names: true
   relative_lr:
@@ -29,20 +21,20 @@ params:
     projection: 1.
 
 
-tune_config:
-  iters: 20
-  tune_params:
-    - "learning_rate"
-    - "init_scale"
-    - "final_lr_fraction"
-    - "weight_decay"
-    - "relative_lr:embedding_layer"
-    - "relative_lr:head"
-    - "relative_lr:expert_inner_function"
-    - "relative_lr:gating"
-    - "relative_lr:projection"
-    - "relative_scheduler_fraction:embedding_layer"
-    - "relative_scheduler_fraction:head"
-    - "relative_scheduler_fraction:expert_inner_function"
-    - "relative_scheduler_fraction:gating"
-    - "relative_scheduler_fraction:projection"
+# tune_config: # TODO move down
+#   iters: 20
+#   tune_params:
+#     - "learning_rate"
+#     - "init_scale"
+#     - "final_lr_fraction"
+#     - "weight_decay"
+#     - "relative_lr:embedding_layer"
+#     - "relative_lr:head"
+#     - "relative_lr:expert_inner_function"
+#     - "relative_lr:gating"
+#     - "relative_lr:projection"
+#     - "relative_scheduler_fraction:embedding_layer"
+#     - "relative_scheduler_fraction:head"
+#     - "relative_scheduler_fraction:expert_inner_function"
+#     - "relative_scheduler_fraction:gating"
+#     - "relative_scheduler_fraction:projection"

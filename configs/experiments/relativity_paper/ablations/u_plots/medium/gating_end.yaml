@@ -1,9 +1,18 @@
-parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml
-md5_parent_hash: TODO
-
+md5_parent_hash: cf716cd94ed53b2b0f0dfb3676862472
 params:
-  name: "base_uplot_gating_end"
-  tags: ["base_model", "uplot", "relativity_paper", "gating", "end"]
-
+  name: base_uplot_gating_end
   relative_scheduler_fraction:
-    ^gating: TODO
+    ^gating:
+    - 0.1667
+    - 0.25
+    - 0.5
+    - 2.0
+    - 4.0
+    - 6.0
+  tags:
+  - base_model
+  - uplot
+  - relativity_paper
+  - gating
+  - end
+parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml

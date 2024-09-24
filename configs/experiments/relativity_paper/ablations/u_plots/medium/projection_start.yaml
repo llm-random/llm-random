@@ -1,9 +1,18 @@
-parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml
-md5_parent_hash: TODO
-
+md5_parent_hash: cf716cd94ed53b2b0f0dfb3676862472
 params:
-  name: "base_uplot_projection_start"
-  tags: ["base_model", "uplot", "relativity_paper", "projection", "start"]
-
+  name: base_uplot_projection_start
   relative_lr:
-    ^projection: TODO
+    ^projection:
+    - 0.1667
+    - 0.25
+    - 0.5
+    - 2
+    - 4
+    - 6
+  tags:
+  - base_model
+  - uplot
+  - relativity_paper
+  - projection
+  - start
+parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml

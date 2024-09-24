@@ -1,9 +1,18 @@
-parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml
-md5_parent_hash: TODO
-
+md5_parent_hash: cf716cd94ed53b2b0f0dfb3676862472
 params:
-  name: "base_uplot_head_start"
-  tags: ["base_model", "uplot", "relativity_paper", "head", "start"]
-
+  name: base_uplot_head_start
   relative_lr:
-    ^head: TODO
+    ^head:
+    - 0.111
+    - 0.1665
+    - 0.333
+    - 1.332
+    - 2.664
+    - 3.996
+  tags:
+  - base_model
+  - uplot
+  - relativity_paper
+  - head
+  - start
+parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml
