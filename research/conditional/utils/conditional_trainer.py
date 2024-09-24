@@ -257,31 +257,10 @@ class ConditionalTrainer:
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
         }
-
-    def maybe_report_gradient_norm(self, step: int):
-        if self.logging_interval_heavy > 0 and step % self.logging_interval_heavy == 0:
-            with FSDP.summon_full_params(
-                self.model, with_grads=True, rank0_only=True, writeback=False
-            ):
-                if self.is_logging_process:
-                    for name, value in self.model.named_parameters():
-                        if value.grad is not None:
-                            eps = 1e-5
-                            grad_norm = torch.linalg.norm(value.grad)
-                            param_norm = torch.linalg.norm(self.model_checkpoint[name])
-                            # if self.is_logging_process:
-                            self.logger.report_scalar(
-                                title=f"gradient_norm/{name.replace('.', '/')}",
-                                value=grad_norm,
-                                iteration=step,
-                            )
-                            self.logger.report_scalar(
-                                title=f"scaled_gradient_norm/{name.replace('.', '/')}",
-                                value=grad_norm / (param_norm + eps),
-                                iteration=step,
-                            )
-
+    
     def will_report_update_norm(self, step: int):
+        # update != gradient
+        # update is the gradient after being processed by the optimizer
         return (
             self.should_log_update_norm
             and (self.logging_interval_heavy > 0)
@@ -289,28 +268,63 @@ class ConditionalTrainer:
             and isinstance(self.model, FSDP)
         )
 
-    def maybe_report_update_norm(self, step: int):
-        if self.will_report_update_norm(step):
-            with FSDP.summon_full_params(
-                self.model, with_grads=False, rank0_only=True, writeback=False
-            ):
-                if self.is_logging_process:
-                    for name, value in self.model.named_parameters():
+    def will_report_gradient_norm(self, step: int):
+        return (
+            (self.logging_interval_heavy > 0)
+            and (step % self.logging_interval_heavy == 0)
+            and isinstance(self.model, FSDP)
+        )
+
+
+    def maybe_report_gradient_norm(self, step: int):
+        if not self.will_report_gradient_norm(step):
+            return
+        
+        with FSDP.summon_full_params(
+            self.model, with_grads=True, rank0_only=True, writeback=False
+        ):
+            if self.is_logging_process:
+                for name, value in self.model.named_parameters():
+                    if value.grad is not None:
                         eps = 1e-5
-                        update_norm = torch.linalg.norm(
-                            value.detach() - self.model_checkpoint[name]
-                        )
+                        grad_norm = torch.linalg.norm(value.grad)
                         param_norm = torch.linalg.norm(self.model_checkpoint[name])
+                        # if self.is_logging_process:
                         self.logger.report_scalar(
-                            title=f"update_norm/{name.replace('.', '/')}",
-                            value=update_norm,
+                            title=f"gradient_norm/{name.replace('.', '/')}",
+                            value=grad_norm,
                             iteration=step,
                         )
                         self.logger.report_scalar(
-                            title=f"scaled_update_norm/{name.replace('.', '/')}",
-                            value=update_norm / (param_norm + eps),
+                            title=f"scaled_gradient_norm/{name.replace('.', '/')}",
+                            value=grad_norm / (param_norm + eps),
                             iteration=step,
                         )
+
+    def maybe_report_update_norm(self, step: int):
+        if not self.will_report_update_norm(step):
+            return
+
+        with FSDP.summon_full_params(
+            self.model, with_grads=False, rank0_only=True, writeback=False
+        ):
+            if self.is_logging_process:
+                for name, value in self.model.named_parameters():
+                    eps = 1e-5
+                    update_norm = torch.linalg.norm(
+                        value.detach() - self.model_checkpoint[name]
+                    )
+                    param_norm = torch.linalg.norm(self.model_checkpoint[name])
+                    self.logger.report_scalar(
+                        title=f"update_norm/{name.replace('.', '/')}",
+                        value=update_norm,
+                        iteration=step,
+                    )
+                    self.logger.report_scalar(
+                        title=f"scaled_update_norm/{name.replace('.', '/')}",
+                        value=update_norm / (param_norm + eps),
+                        iteration=step,
+                    )
 
     def _apply_gradient(self, step: int):
         if self.scaler is None:
