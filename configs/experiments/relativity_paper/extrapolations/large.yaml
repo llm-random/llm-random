@@ -1,5 +1,5 @@
 parent: configs/experiments/relativity_paper/local_search/relative.yaml
-md5_parent_hash: 7afa1f4a7a9c538a922e649c57fd0b44
+md5_parent_hash: fe4d097f946efc92326162defb894820
 time: "160:00:00"
 interactive_debug_session: false
 interactive_debug: false
@@ -19,5 +19,7 @@ params:
   n_steps: 50_000
   final_lr_step: 50_000
   lr_warmup_steps: 500
+
+  loss_checkpoint_chungs: 8
 
 
