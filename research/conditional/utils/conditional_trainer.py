@@ -257,7 +257,7 @@ class ConditionalTrainer:
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
         }
-    
+
     def will_report_update_norm(self, step: int):
         # update != gradient
         # update is the gradient after being processed by the optimizer
@@ -275,11 +275,10 @@ class ConditionalTrainer:
             and isinstance(self.model, FSDP)
         )
 
-
     def maybe_report_gradient_norm(self, step: int):
         if not self.will_report_gradient_norm(step):
             return
-        
+
         with FSDP.summon_full_params(
             self.model, with_grads=True, rank0_only=True, writeback=False
         ):
