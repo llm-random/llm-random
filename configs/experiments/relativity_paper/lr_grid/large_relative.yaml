@@ -3,7 +3,7 @@ md5_parent_hash: 984c09c918d4327ac93a527dd0a11968
 
 params:
   name: "large_lr_grid"
-  tags: ["relativity_paper", "base", "lr_grid"]
+  tags: ["relativity_paper", "large_model", "lr_grid"]
   ^learning_rate: []
 
 # puścić na writerze 0.0002 dla relativity

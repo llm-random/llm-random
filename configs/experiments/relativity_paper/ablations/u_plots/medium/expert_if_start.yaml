@@ -1,6 +1,6 @@
-md5_parent_hash: cf716cd94ed53b2b0f0dfb3676862472
+md5_parent_hash: 7a44496da19a8dbe5212d794c998e772
 params:
-  name: base_uplot_expertif_start
+  name: medium_uplot_expertif_start
   relative_lr:
     ^expert_inner_function:
     - 0.05
@@ -10,7 +10,7 @@ params:
     - 1.2
     - 1.8
   tags:
-  - base_model
+  - medium_model
   - uplot
   - relativity_paper
   - expert_inner_function

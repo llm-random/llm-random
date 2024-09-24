@@ -3,5 +3,5 @@ md5_parent_hash: 772e5f8d9b8e4d4464f711e913500dda
 
 params:
   name: "base_lr_grid"
-  tags: ["relativity_paper", "base", "lr_grid"]
+  tags: ["relativity_paper", "baseline", "base_model", "lr_grid"]
   ^learning_rate: [0.0005, 0.001, 0.002, 0.005]
