@@ -436,6 +436,10 @@ def get_logger(args, model, VOCAB_SIZE):
     else:
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
+    for arg in ["grad_modif_params", "grad_modif_placement"]:
+        val = getattr(args, arg)
+        if val is not None and isinstance(val, list):
+            setattr(args, arg, ",".join(val))
     initialized_loggers = []
     for logger_type in logger_types:
         if logger_type == "neptune":
