@@ -1,11 +1,11 @@
 from collections import defaultdict
 import copy
+from time import time
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from torch.profiler import profile, ProfilerActivity
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
@@ -51,6 +51,7 @@ class ConditionalTrainer:
     batch_size: int
     cutoff: int
     lr_scheduler: AbstractLRScheduler
+    repeater_job_end_time: int = None
     _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -75,7 +76,7 @@ class ConditionalTrainer:
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
     model_fit_gpu_info_database_path: str = None
-    model_fit_gpu_info_params: [str] = None
+    model_fit_gpu_info_params: Optional[str] = None
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
@@ -153,6 +154,8 @@ class ConditionalTrainer:
         ) as p:
             for step in range(self.start_step, n_steps + 1):
                 self._train_step(step)
+                if self._repeater_rerun(step, self.repeater_job_end_time):
+                    break
                 if self.profiler_enabled:
                     p.step()
 
@@ -545,7 +548,30 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
+                self.batch_size,
+                self.cutoff,
+                self.logger,
             )
+
+    def _repeater_rerun(
+        self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
+    ) -> bool:
+        if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
+            save_checkpoint(
+                self.model,
+                self.optimizer,
+                self.scaler,
+                self.save_weights_path,
+                self.rank,
+                step,
+                self.batch_size,
+                self.cutoff,
+                self.logger,
+            )
+
+            return True
+        else:
+            return False
 
     def _check_config(self):
         if self.eval_dynamic_groupsize:

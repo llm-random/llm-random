@@ -31,3 +31,10 @@ def check_args(args):
         assert (
             "." not in filename
         ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
+
+    assert (
+        args.save_weights_path == args.load_weights_path if args.repeater_mode else True
+    ), f"Save/load paths have to be the same for repeater mode ({args.save_weights_path}, {args.load_weights_path})"
+
+    if args.repeater_mode:
+        assert args.relative_init_scale == None

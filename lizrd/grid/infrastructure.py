@@ -8,6 +8,8 @@ from lizrd.grid.setup_arguments import make_singularity_mount_paths
 
 
 class MachineBackend(abc.ABC):
+    max_exp_time = 14 * 24 * 60 * 60
+
     def __init__(self, username=None):
         self.username = username
 
@@ -31,6 +33,7 @@ class MachineBackend(abc.ABC):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive: int = 1,
     ):
         pass
 
@@ -72,6 +75,8 @@ class MachineBackend(abc.ABC):
 
 
 class AthenaBackend(MachineBackend):
+    max_exp_time = 2 * 24 * 60 * 60
+
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
             return "/net/tscratch/people/plgkciebiera/datasets/c4/train"
@@ -103,10 +108,12 @@ class AthenaBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive: int = 1,
     ):
         return [
             slurm_command,
             f"--gres=gpu:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-a100",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
@@ -126,6 +133,8 @@ class AthenaBackend(MachineBackend):
 
 
 class IdeasBackend(MachineBackend):
+    max_exp_time = 7 * 24 * 60 * 60
+
     def get_common_directory(self) -> str:
         return "/raid/NFS_SHARE/llm-random"
 
@@ -156,10 +165,12 @@ class IdeasBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive: int = 1,
     ):
         return [
             slurm_command,
             f"--gres=gpu:ampere:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
@@ -177,6 +188,8 @@ class IdeasBackend(MachineBackend):
 
 
 class EntropyBackend(MachineBackend):
+    max_exp_time = 14 * 24 * 60 * 60
+
     def get_common_directory(self) -> str:
         return "/home/jkrajewski_a100"
 
@@ -206,11 +219,13 @@ class EntropyBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive: int = 1,
     ):
         return [
             slurm_command,
             "--partition=a100",
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
             f"--job-name={training_args['name']}",
@@ -227,6 +242,8 @@ class EntropyBackend(MachineBackend):
 
 
 class WriterBackend(MachineBackend):
+    max_exp_time = 7 * 24 * 60 * 60
+
     def get_common_directory(self) -> str:
         return "/home/ubuntu/llm-random-group"
 
@@ -256,10 +273,12 @@ class WriterBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive: int = 1,
     ):
         return [
             slurm_command,
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
             f"--job-name={training_args['name']}",
@@ -308,7 +327,12 @@ class AWS1Backend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive: int = 1,
     ):
+        if n_consecutive != 1:
+            raise Exception(
+                "You are trying to on the repeater mode on a cluster that do not not support that option."
+            )
         return [
             "singularity",
             "run",
@@ -340,6 +364,7 @@ class LocalBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive: int = 1,
     ):
         raise Exception("Local machine should use main function")
 

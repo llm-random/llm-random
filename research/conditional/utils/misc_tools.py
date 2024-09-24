@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import os
 
 import torch
 
@@ -60,3 +61,13 @@ def temp_modify_attr(
     yield
     for layer, original_attribute_value in zip(layers, original_attribute_values):
         setattr(layer, attribute_name, original_attribute_value)
+
+
+def get_termination_timestamp_slurm() -> int:
+    env = os.environ.copy()
+    return int(env["SLURM_JOB_END_TIME"])
+
+
+def get_logger_run_id_neptune():
+    env = os.environ.copy()
+    return int(env["SLURM_JOB_END_TIME"])
