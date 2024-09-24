@@ -151,6 +151,11 @@ def introduce_parser_arguments(
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
+    parser.add_argument(
+        "--should_log_update_norm",
+        action="store_true",
+        help="Whether to log the norm of the update. This option is separate from normal logging intervals, because it uses up a lot of memory.",
+    )
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
     parser.add_argument("--eval_interval", type=int, default=1000)
     parser.add_argument("--n_eval_batches", type=int, default=10)
