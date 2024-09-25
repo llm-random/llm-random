@@ -7,7 +7,6 @@ params:
     ^expert_inner_function: 1
   tags:
   - medium_model
-  - uplot
   - relativity_paper
   - expert_inner_function
   - removal
