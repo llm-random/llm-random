@@ -1,0 +1,15 @@
+md5_parent_hash: d651647a22913bcb5079346a1628a2ae
+params:
+  name: medium_contribution_gating
+  relative_scheduler_fraction:
+    ^gating:
+    - 1.0
+  relative_lr:
+    ^gating:
+    - 0.666
+  tags:
+  - medium_model
+  - contribution
+  - relativity_paper
+  - gating
+parent: configs/experiments/relativity_paper/ablations/contribute/medium_model_contribution.yaml
