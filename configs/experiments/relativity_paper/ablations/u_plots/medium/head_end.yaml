@@ -2,13 +2,7 @@ md5_parent_hash: 7a44496da19a8dbe5212d794c998e772
 params:
   name: medium_uplot_head_end
   relative_scheduler_fraction:
-    ^head:
-    - 0.074
-    - 0.111
-    - 0.222
-    - 0.888
-    - 1.776
-    - 2.664
+    ^head: 1
   tags:
   - medium_model
   - uplot

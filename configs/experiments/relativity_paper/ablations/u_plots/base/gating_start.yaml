@@ -2,13 +2,7 @@ md5_parent_hash: 079f9b3c3427d9f131e601d61fca9d61
 params:
   name: base_uplot_gating_start
   relative_lr:
-    ^gating:
-    - 0.111
-    - 0.1665
-    - 0.333
-    - 1.332
-    - 2.664
-    - 3.996
+    ^gating: 1
   tags:
   - base_model
   - uplot

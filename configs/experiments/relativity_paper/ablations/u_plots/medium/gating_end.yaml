@@ -2,13 +2,7 @@ md5_parent_hash: 7a44496da19a8dbe5212d794c998e772
 params:
   name: medium_uplot_gating_end
   relative_scheduler_fraction:
-    ^gating:
-    - 0.1667
-    - 0.25
-    - 0.5
-    - 2.0
-    - 4.0
-    - 6.0
+    ^gating: 1
   tags:
   - medium_model
   - uplot
