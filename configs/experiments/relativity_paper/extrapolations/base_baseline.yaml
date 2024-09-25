@@ -17,6 +17,6 @@ params:
   n_blocks: 12
   n_att_heads: 12
 
-  n_steps: 12_000
-  final_lr_step: 12_000
-  lr_warmup_steps: 120
+  n_steps: 19_000
+  final_lr_step: 19_000
+  lr_warmup_steps: 190
