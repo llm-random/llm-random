@@ -1,16 +1,13 @@
 md5_parent_hash: 079f9b3c3427d9f131e601d61fca9d61
 params:
-  name: base_uplot_gating_end
+  name: base_removal_head
   relative_scheduler_fraction:
-    ^gating:
-    - 0.25
-    - 0.5
-    - 2.0
-    - 4.0
+    ^head: 1
+  relative_lr:
+    ^head: 1
   tags:
   - base_model
-  - uplot
   - relativity_paper
-  - gating
-  - end
+  - head
+  - removal
 parent: configs/experiments/relativity_paper/ablations/u_plots/base_model_uplots.yaml

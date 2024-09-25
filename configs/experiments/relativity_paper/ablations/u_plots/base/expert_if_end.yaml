@@ -2,7 +2,11 @@ md5_parent_hash: 079f9b3c3427d9f131e601d61fca9d61
 params:
   name: base_uplot_expertif_end
   relative_scheduler_fraction:
-    ^expert_inner_function: 1
+    ^expert_inner_function:
+    - 0.2812
+    - 0.5625
+    - 2.25
+    - 4.5
   tags:
   - base_model
   - uplot

@@ -1,20 +1,14 @@
 md5_parent_hash: 7a44496da19a8dbe5212d794c998e772
 params:
-  name: medium_uplot_embedding_start
+  name: medium_removal_expertif
+  relative_scheduler_fraction:
+    ^expert_inner_function: 1
   relative_lr:
-    ^embedding_layer:
-    - 0.625
-    - 0.8333
-    - 1.25
-    - 2.5
-    - 10.0
-    - 20.0
-    - 30.0
-    - 40.0
+    ^expert_inner_function: 1
   tags:
   - medium_model
   - uplot
   - relativity_paper
-  - embedding_layer
-  - start
+  - expert_inner_function
+  - removal
 parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml

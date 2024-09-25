@@ -2,7 +2,15 @@ md5_parent_hash: 7a44496da19a8dbe5212d794c998e772
 params:
   name: medium_uplot_expertif_start
   relative_lr:
-    ^expert_inner_function: 1
+    ^expert_inner_function:
+    - 0.0375
+    - 0.05
+    - 0.075
+    - 0.15
+    - 0.6
+    - 1.2
+    - 1.8
+    - 2.4
   tags:
   - medium_model
   - uplot

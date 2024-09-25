@@ -2,7 +2,11 @@ md5_parent_hash: 079f9b3c3427d9f131e601d61fca9d61
 params:
   name: base_uplot_head_end
   relative_scheduler_fraction:
-    ^head: 1
+    ^head:
+    - 0.111
+    - 0.222
+    - 0.888
+    - 1.776
   tags:
   - base_model
   - uplot

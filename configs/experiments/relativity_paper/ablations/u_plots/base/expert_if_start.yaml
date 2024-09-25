@@ -2,7 +2,11 @@ md5_parent_hash: 079f9b3c3427d9f131e601d61fca9d61
 params:
   name: base_uplot_expertif_start
   relative_lr:
-    ^expert_inner_function: 1
+    ^expert_inner_function:
+    - 0.075
+    - 0.15
+    - 0.6
+    - 1.2
   tags:
   - base_model
   - uplot
