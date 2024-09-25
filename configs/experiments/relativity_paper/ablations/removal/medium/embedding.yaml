@@ -2,9 +2,9 @@ md5_parent_hash: d651647a22913bcb5079346a1628a2ae
 params:
   name: medium_removal_embedding
   relative_scheduler_fraction:
-    ^embedding_layer: 1
+    ^embedding_layer: [1.0]
   relative_lr:
-    ^embedding_layer: 1
+    ^embedding_layer: [1.0]
   tags:
   - medium_model
   - relativity_paper
