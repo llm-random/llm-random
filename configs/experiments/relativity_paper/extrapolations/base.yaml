@@ -21,3 +21,4 @@ params:
   final_lr_step: 19_000
   lr_warmup_steps: 190
 
+  learning_rate: 0.001 #dev
