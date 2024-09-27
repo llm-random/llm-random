@@ -1,4 +1,4 @@
-md5_parent_hash: 806f70ceb708b6d5ee194247d2a5e072
+md5_parent_hash: e05d6d389968934df1d76ddba3060dcb
 params:
   name: base_contribution_expertif
   relative_scheduler_fraction:
@@ -13,4 +13,4 @@ params:
   - relativity_paper
   - expert_inner_function
   - contribution
-parent: configs/experiments/relativity_paper/ablations/u_plots/base_model_uplots.yaml
+parent: configs/experiments/relativity_paper/ablations/contribute/base_model_contribution.yaml
