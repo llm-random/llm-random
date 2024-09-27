@@ -82,6 +82,7 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    end_eval_dataloader: Optional[DataloaderWrapper] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -172,6 +173,11 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
+
+                if self.end_eval_dataloader and step >= n_steps:
+                    self.eval_dataloader = self.end_eval_dataloader
+                    self._eval_step(step)
+                    
 
     def _train_step(
         self,
@@ -296,7 +302,7 @@ class ConditionalTrainer:
                     step=step,
                     variant_name="discrete MoT routing",
                 )
-
+                
     def _eval_single_variant(
         self, batches: Iterable[LLMBatch], step: int, variant_name: str
     ):
