@@ -85,6 +85,7 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    end_eval_dataloader: Optional[DataloaderWrapper] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
