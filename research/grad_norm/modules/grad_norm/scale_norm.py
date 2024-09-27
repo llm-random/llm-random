@@ -2,7 +2,7 @@
 
 import math
 from functools import partial
-from typing import Any, Callable, Literal, Union
+from typing import Any, Callable, Literal, Tuple, Union
 
 import torch
 from torch.autograd.function import once_differentiable
@@ -10,9 +10,9 @@ from torch.autograd.function import once_differentiable
 from research.grad_norm.modules.grad_norm.common import GradLoggingLayer
 
 
-def scale_norm_grad(grad: torch.Tensor, k: float, eps: float) -> torch.Tensor:
+def scale_norm_grad(grad: torch.Tensor, k: float, eps: float, c: float, norm_dims: Tuple[int, ...]) -> torch.Tensor:
     # assuming shape of grad is (batch_size, max_length, dmodel)
-    return k * (grad / (torch.linalg.vector_norm(grad, ord=2, dim=None, keepdim=True) + eps))
+    return k * (grad / (torch.linalg.vector_norm(grad, ord=2, dim=norm_dims, keepdim=True) ** c + eps))
 
 
 class BaseGradientScaleNormFunction(torch.autograd.Function):
@@ -37,11 +37,19 @@ class BaseGradientScaleNormFunction(torch.autograd.Function):
 
 
 class GradientScaleNormLayer(GradLoggingLayer):
-    def __init__(self, k: Union[float, Literal["auto"]] = "auto", eps: float = 1e-6):
+    def __init__(
+        self,
+        k: Union[float, Literal["auto"]] = "auto",
+        eps: float = 1e-6,
+        c: float = 1.0,
+        norm_dims: Tuple[int, ...] = (2, 1, 0),
+    ):
         super().__init__()
         self.k = k
         self.prev_shape = None
         self.eps = eps
+        self.c = c
+        self.norm_dims = norm_dims
 
     def _compute_k(self, x: torch.Tensor) -> float:
         # assuming shape of x is (batch_size, max_length, dmodel)
@@ -63,5 +71,7 @@ class GradientScaleNormLayer(GradLoggingLayer):
         self.update_cache_for_logging("k", self.k)
         # GradientSTDNormFunction should log the pre and post gradients
         return BaseGradientScaleNormFunction.apply(
-            x, self.update_cache_for_logging, partial(scale_norm_grad, k=self.k, eps=self.eps)
+            x,
+            self.update_cache_for_logging,
+            partial(scale_norm_grad, k=self.k, eps=self.eps, c=self.c, norm_dims=self.norm_dims),
         )

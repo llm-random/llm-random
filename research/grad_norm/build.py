@@ -72,7 +72,11 @@ def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
 
         return partial(layer, c=float(param_dict["c"]), eps=float(param_dict["eps"]))
     elif grad_modif_type == "scale_norm":
-        verify_mandatory_params(param_dict, ["k", "eps"], grad_modif_type)
+        verify_mandatory_params(param_dict, ["k", "eps", "norm_dims", "c"], grad_modif_type)
+
+        norm_dims = tuple(make_tuple(param_dict["norm_dims"]))
+        if len(norm_dims) < 1 or len(norm_dims) > 3 or any(d not in range(3) for d in norm_dims):
+            raise ValueError("norm_dims must be a non-empty list of integers from range [0, 2]")
 
         k = param_dict["k"]
         if k != "auto":
@@ -81,7 +85,9 @@ def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
             except ValueError:
                 raise ValueError(f"Invalid value of 'k'. Value must be a float or 'auto', got {k}")
 
-        return partial(GradientScaleNormLayer, k=k, eps=float(param_dict["eps"]))
+        return partial(
+            GradientScaleNormLayer, k=k, eps=float(param_dict["eps"]), c=float(param_dict["c"]), norm_dims=norm_dims
+        )
 
     elif grad_modif_type == "activation_norm":
         verify_mandatory_params(param_dict, ["norm_dims", "eps"], grad_modif_type)
