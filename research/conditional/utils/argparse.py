@@ -429,7 +429,9 @@ def introduce_parser_arguments(
     )
 
     parser.add_argument(
-        "--end_evaluation", action="store_true", help="After all training trainer performs evaluation"
+        "--end_evaluation",
+        action="store_true",
+        help="After all training trainer performs evaluation",
     )
 
     return parser

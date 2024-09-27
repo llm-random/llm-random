@@ -183,7 +183,6 @@ class ConditionalTrainer:
                 if self.end_eval_dataloader and step >= n_steps:
                     self.eval_dataloader = self.end_eval_dataloader
                     self._eval_step(step)
-                    
 
     def _initialize_fsdp_model(self):
         if isinstance(self.model, FSDP):
