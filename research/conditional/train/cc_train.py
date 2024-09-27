@@ -327,6 +327,15 @@ def main(
         dataset_split=eval_split,
         dataset_path=args.validation_dataset_path,
     )
+    end_eval_dataloader = (
+        get_processed_dataset(
+            **common_dataloaders_kwargs,
+            dataset_split=eval_split,
+            dataset_path=args.validation_dataset_path,
+        )
+        if args.end_evaluation
+        else None
+    )
 
     if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
         logger_run_id = checkpoint["logger"]["run_id"]
@@ -404,9 +413,10 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=(
-            get_termination_timestamp_slurm() if args.repeater_mode else None
-        ),
+        repeater_job_end_time=get_termination_timestamp_slurm()
+        if args.repeater_mode
+        else None,
+        end_eval_dataloader=end_eval_dataloader,
     )
     trainer.train(args.n_steps)
 
