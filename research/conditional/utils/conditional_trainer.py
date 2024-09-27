@@ -179,6 +179,11 @@ class ConditionalTrainer:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
 
+                if self.end_eval_dataloader and step >= n_steps:
+                    self.eval_dataloader = self.end_eval_dataloader
+                    self._eval_step(step)
+                    
+
     def _initialize_fsdp_model(self):
         if isinstance(self.model, FSDP):
             # for some reason, setting the model to training mode and
