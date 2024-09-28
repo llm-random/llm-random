@@ -327,6 +327,15 @@ def main(
         dataset_split=eval_split,
         dataset_path=args.validation_dataset_path,
     )
+    end_eval_dataloader = (
+        get_processed_dataset(
+            **common_dataloaders_kwargs,
+            dataset_split=eval_split,
+            dataset_path=args.validation_dataset_path,
+        )
+        if args.end_evaluation
+        else None
+    )
 
     if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
         logger_run_id = checkpoint["logger"]["run_id"]
@@ -378,6 +387,7 @@ def main(
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
+        should_log_update_norm=args.should_log_update_norm,
         eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
@@ -406,6 +416,7 @@ def main(
         repeater_job_end_time=get_termination_timestamp_slurm()
         if args.repeater_mode
         else None,
+        end_eval_dataloader=end_eval_dataloader,
     )
     trainer.train(args.n_steps)
 
