@@ -86,6 +86,7 @@ class ConditionalTrainer:
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
     end_eval_dataloader: Optional[DataloaderWrapper] = None
+    end_evaluation_batches: int = 1000
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -182,6 +183,7 @@ class ConditionalTrainer:
 
                 if self.end_eval_dataloader and step >= n_steps:
                     self.eval_dataloader = self.end_eval_dataloader
+                    self.n_eval_batches = self.end_evaluation_batches
                     self._eval_step(step)
 
     def _initialize_fsdp_model(self):
@@ -279,6 +281,7 @@ class ConditionalTrainer:
         )
 
     def will_report_gradient_norm(self, step: int):
+        return False
         return (
             (self.logging_interval_heavy > 0)
             and (step % self.logging_interval_heavy == 0)

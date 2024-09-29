@@ -434,4 +434,11 @@ def introduce_parser_arguments(
         help="After all training trainer performs evaluation",
     )
 
+    parser.add_argument(
+        "--end_evaluation_batches",
+        type=int,
+        help="How many batches to evaluate after training is finished",
+        default=1000,
+    )
+
     return parser
