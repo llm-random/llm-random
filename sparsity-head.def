@@ -1,5 +1,5 @@
 Bootstrap: localimage
-From: sparsity_2024.08.13_08.34.21.sif
+From: sparsity-base.sif
 
 %runscript
     cd /llm-random
