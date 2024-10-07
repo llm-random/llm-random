@@ -82,6 +82,8 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    end_eval_dataloader: Optional[DataloaderWrapper] = None
+    end_evaluation_batches: int = 1000
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -159,8 +161,15 @@ class ConditionalTrainer:
                     step > 0
                     and self.eval_interval > 0
                     and step % self.eval_interval == 0
+                    and step < n_steps
                 ):
                     self._eval_step(step)
+
+                if self.end_eval_dataloader and step >= n_steps:
+                    self.eval_dataloader = self.end_eval_dataloader
+                    self.n_eval_batches = self.end_evaluation_batches
+                    self._eval_step(step)
+
                 if (
                     self.model_type == "gpt"
                     and self.decoding_interval > 0
@@ -274,9 +283,7 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
+                current_group_size = int(2**log_group_size_factor * original_group_size)
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps

@@ -1,0 +1,11 @@
+parent: configs/experiments/constrained_scaling_laws/common.yaml
+md5_parent_hash: 8c91e8312955bb9250a33222d55cc4ee
+time: "35:00:00"
+cpus_per_gpu: 16
+n_gpus: 4
+params:
+  tags: ["2e19_grid"]
+  end_evaluation_batches: 1000
+  end_evaluation: true
+  logging_interval_heavy: 20000
+  data_seed: 34567

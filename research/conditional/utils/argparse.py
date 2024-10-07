@@ -422,5 +422,17 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
+    parser.add_argument(
+        "--end_evaluation",
+        action="store_true",
+        help="After all training trainer performs evaluation",
+    )
+
+    parser.add_argument(
+        "--end_evaluation_batches",
+        type=int,
+        help="How many batches to evaluate after training is finished",
+        default=1000,
+    )
 
     return parser
