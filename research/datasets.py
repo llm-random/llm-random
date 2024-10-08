@@ -74,7 +74,7 @@ def get_processed_dataset(
         collate_fn=data.LLMBatch,
         worker_init_fn=partial(worker_init_fn, seed),
         shuffle=False,
-        pin_memory=False,
+        pin_memory=True,
     )
 
     return DataloaderWrapper(dataloader, device)
