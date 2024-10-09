@@ -127,19 +127,19 @@ def save_checkpoint(
         model_state_dict = model.state_dict()
         optimizer_state_dict = optimizer.state_dict()
 
-    if rank == 0 or rank is None:
-        neptune_logger: Run = [
-            l
-            for l in joint_loggers.loggers
-            if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
-        ]
-        if len(neptune_logger) == 1:
-            neptune_logger = neptune_logger[0].instance_logger
-            logger_metadata = {"run_id": neptune_logger._sys_id}
-        else:
-            print(f"No Neptune logger, no saving.")
-            logger_metadata = None
+    neptune_logger: Run = [
+        l
+        for l in joint_loggers.loggers
+        if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
+    ]
+    if len(neptune_logger) == 1:
+        neptune_logger = neptune_logger[0].instance_logger
+        logger_metadata = {"run_id": neptune_logger._sys_id}
+    else:
+        print(f"No Neptune logger, no saving.")
+        logger_metadata = None
 
+    if rank == 0 or rank is None:
         full_path = os.path.join(path, f"{step}.pt")
         checkpoint = {
             "model": model_state_dict,
