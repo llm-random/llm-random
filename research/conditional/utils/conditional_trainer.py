@@ -110,6 +110,7 @@ class ConditionalTrainer:
         self._check_config()
 
     def _before_train_operations(self):
+        self.logger.start_job_metadata(self.start_step)
         propagate_forward_pass_cache(self.model)
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
@@ -123,6 +124,7 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "success",
         )
+        self.logger.exit_job_metadata(self.current_step)
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
@@ -149,6 +151,7 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(self.start_step, n_steps + 1):
+                self.current_step = step
                 self._train_step(step)
                 if self._repeater_rerun(step, self.repeater_job_end_time):
                     break
@@ -172,6 +175,7 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
+        self._after_train_operations()
 
     def _train_step(
         self,
