@@ -1,5 +1,5 @@
 parent: configs/experiments/relativity_paper/local_search/relative.yaml
-md5_parent_hash: fe4d097f946efc92326162defb894820
+md5_parent_hash: 72bfb5fc96ea35b3818e843e82255a83
 time: 0-04:00:00
 interactive_debug_session: false
 interactive_debug: false
@@ -9,4 +9,4 @@ cpus_per_gpu: 16
 params:
   name: "medium_uplot"
   tags: ["medium_model", "uplot", "relativity_paper"]
-  ^data_seed: [44,45,46]  # vary this in reruns
+  # ^data_seed: [44,45,46]  # vary this in reruns

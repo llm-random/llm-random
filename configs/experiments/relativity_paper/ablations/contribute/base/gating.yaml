@@ -1,4 +1,4 @@
-md5_parent_hash: e05d6d389968934df1d76ddba3060dcb
+md5_parent_hash: 465222bc7db297f0019f2ee17161ba52
 params:
   name: base_contribution_gating
   relative_scheduler_fraction:

@@ -1,6 +1,6 @@
 parent: configs/experiments/relativity_paper/extrapolations/base_baseline.yaml
-md5_parent_hash: 315951e6b1dbcd974d09fa7a9343e124
-time: 0-10:00:00
+md5_parent_hash: a23e0776323db11148a940bf208789fa
+time: 0-08:00:00
 interactive_debug_session: false
 interactive_debug: false
 n_gpus: 2
@@ -9,4 +9,4 @@ cpus_per_gpu: 16
 params:
   name: "base_contribution"
   tags: ["base_model", "contribution", "relativity_paper"]
-  ^data_seed: [44,45,46]  # vary this in reruns
+  # ^data_seed: [44,45,46]  # vary this in reruns
