@@ -378,7 +378,6 @@ def main(
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
-        should_log_update_norm=args.should_log_update_norm,
         eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
@@ -404,9 +403,9 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=(
-            get_termination_timestamp_slurm() if args.repeater_mode else None
-        ),
+        repeater_job_end_time=get_termination_timestamp_slurm()
+        if args.repeater_mode
+        else None,
     )
     trainer.train(args.n_steps)
 
