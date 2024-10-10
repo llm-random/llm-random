@@ -338,15 +338,16 @@ def determine_moe_args(args):
             "or n_experts, expert_size, and routing_top_k."
         )
     # 4 is the standard dff_x, we assume it's defined relative to that
-    dff_x = 4
-    dff = args.dmodel * dff_x
+    dff = args.dmodel * 4
 
     if set_arguments_option4:
         args.total_experts_width = args.n_experts * args.expert_size
         args.expansion_rate = args.total_experts_width / dff
         args.effective_dff = args.expert_size * args.routing_top_k
     if set_arguments_option3:
-        args.total_experts_width = args.dmodel * dff_x * args.expansion_rate
+        args.total_experts_width = (
+            args.dmodel * args.effective_dff_x * args.expansion_rate
+        )
         args.n_experts = args.expansion_rate * args.granularity
         args.effective_dff = args.effective_dff_x * args.dmodel
 
