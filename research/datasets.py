@@ -6,6 +6,8 @@ from torch.utils.data import DataLoader
 
 from lizrd.text import datasets, packers, data, tokenizers
 
+# from datasets.distributed import split_dataset_by_node
+
 
 class DataloaderWrapper:
     def __init__(self, dataloader: DataLoader, device: torch.device):
@@ -28,15 +30,20 @@ def get_processed_dataset(
     batch_size: int,
     sequence_length: int,
     device: torch.device,
+    rank: int,
+    world_size: int,
     num_workers: int,
     seed: int,
     model_type: Literal["bert", "gpt"] = "bert",
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
+    use_legacy_datasets: bool = False,
     dataset_split: str = "train",
     dataset_path: Optional[str] = None,
 ):
     if dataset_type == "wikibook":
+        if not use_legacy_datasets:
+            raise ValueError("wikibook dataset only supports legacy datasets")
         dataset = partial(
             datasets.WikiBookDataset,
             use_dummy_dataset=use_dummy_dataset,
@@ -48,33 +55,59 @@ def get_processed_dataset(
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
             dataset_path=dataset_path,
+            rank=rank,
+            world_size=world_size,
         )
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
     if model_type == "bert":
+        if not use_legacy_datasets:
+            raise ValueError("BERT packer only supports legacy datasets")
         packer = packers.BERTPacker(
             sequence_length=sequence_length,
             dataset=dataset,
             tokenizer_maker=tokenizers.BertTokenizer,
         )
     elif model_type == "gpt":
-        packer = packers.GPTPacker(
-            sequence_length=sequence_length,
-            dataset_maker=dataset,
-            tokenizer_maker=tokenizers.GPTTokenizer,
-        )
+        if use_legacy_datasets:
+            packer = packers.LegacyGPTPacker(
+                sequence_length=sequence_length,
+                dataset_maker=dataset,
+                tokenizer_maker=tokenizers.GPTTokenizer,
+            )
+        else:
+            packer = packers.GPTPacker(
+                sequence_length=sequence_length,
+                dataset_maker=dataset,
+                tokenizer_maker=tokenizers.GPTTokenizer,
+            )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
-    dataloader = DataLoader(
-        packer,
-        num_workers=num_workers,
-        batch_size=batch_size,
-        collate_fn=data.LLMBatch,
-        worker_init_fn=partial(worker_init_fn, seed),
-        shuffle=False,
-        pin_memory=True,
-    )
+    if use_legacy_datasets:
+        dataloader = DataLoader(
+            packer,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            collate_fn=data.LLMBatch,
+            worker_init_fn=partial(worker_init_fn, seed),
+            shuffle=False,
+            pin_memory=True,
+        )
+    else:
+        if num_workers != 0:
+            print(
+                "Warning: using num_workers != 0 with legacy datasets. This has no effect."
+            )
+        dataloader = DataLoader(
+            packer,
+            num_workers=0,
+            batch_size=batch_size,
+            collate_fn=data.LLMBatch,
+            worker_init_fn=partial(worker_init_fn, seed),
+            shuffle=False,
+            pin_memory=True,
+        )
 
     return DataloaderWrapper(dataloader, device)
