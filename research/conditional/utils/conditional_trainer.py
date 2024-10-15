@@ -6,6 +6,7 @@ from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from torch.profiler import profile, ProfilerActivity
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
@@ -237,18 +238,22 @@ class ConditionalTrainer:
         }
 
     def _apply_gradient(self):
-        if self.scaler is None:
-            if self.gradient_clipping is not None:
+        def clip_grad_norm_():
+            if isinstance(self.model, FSDP):
+                self.model.clip_grad_norm_(self.gradient_clipping)
+            else:
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), self.gradient_clipping
                 )
+
+        if self.scaler is None:
+            if self.gradient_clipping is not None:
+                clip_grad_norm_()
             self.optimizer.step()
         else:
             if self.gradient_clipping is not None:
                 self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+                clip_grad_norm_()
             self.scaler.step(self.optimizer)
             self.scaler.update()
         self.optimizer.zero_grad()
@@ -278,9 +283,7 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
+                current_group_size = int(2**log_group_size_factor * original_group_size)
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps
