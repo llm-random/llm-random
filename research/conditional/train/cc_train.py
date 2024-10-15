@@ -304,11 +304,14 @@ def main(
         "sequence_length": args.cutoff,
         "device": DEVICE,
         "num_workers": args.num_workers,
+        "rank": rank,
+        "world_size": args.n_gpus,
         "batch_size": batch_size,
         "seed": args.data_seed if data_seeds is None else data_seeds[rank],
         "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
+        "use_legacy_datasets": args.use_legacy_datasets,
     }
 
     train_dataloader = get_processed_dataset(

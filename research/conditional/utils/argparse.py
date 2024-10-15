@@ -423,4 +423,10 @@ def introduce_parser_arguments(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
 
+    parser.add_argument(
+        "--use_legacy_datasets",
+        action="store_true",
+        help="Use legacy sampling and packing. It is in principle better, but puts too much strain on the filesystem.",
+    )
+
     return parser
