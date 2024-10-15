@@ -292,6 +292,16 @@ class LumiBackend(MachineBackend):
     def get_grid_entrypoint(self) -> str:
         return "lizrd/grid/grid_entrypoint_lumi.sh"
 
+    def get_default_train_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/flash/project_465001227/llm-random-group/datasets/c4/train/"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/flash/project_465001227/llm-random-group/datasets/c4/validation/"
+        return super().get_default_train_dataset_path(dataset_type)
+
     def get_cemetery_directory(self):
         return f"{self.get_common_directory()}/llm-random-cemetery"
 
