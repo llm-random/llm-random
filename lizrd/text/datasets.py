@@ -134,9 +134,15 @@ class C4Dataset(AbstractDataset):
         )
         self.dataset_iterator = None
 
+    def make_iterator(self):
+        self.dataset_iterator = self.dataset.iter(1)
+
     def get_document(self) -> str:
+        if self.dataset_iterator is None:
+            self.make_iterator()
+
         try:
             return next(self.dataset_iterator)["text"][0]
         except StopIteration:
-            self.dataset_iterator = self.dataset.iter(1)
+            self.make_iterator()
             return next(self.dataset_iterator)["text"][0]
