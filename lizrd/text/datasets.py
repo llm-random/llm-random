@@ -132,7 +132,7 @@ class C4Dataset(AbstractDataset):
         self.dataset = split_dataset_by_node(
             self.dataset, rank=rank, world_size=world_size
         )
-        self.dataset_iterator = self.dataset.iter(1)
+        self.dataset_iterator = None
 
     def get_document(self) -> str:
         try:
