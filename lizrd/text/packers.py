@@ -221,7 +221,6 @@ class LegacyGPTPacker(
 class GPTPacker(
     AbstractPacker,
 ):
-
     def __init__(
         self,
         sequence_length: int,
