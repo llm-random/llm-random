@@ -112,7 +112,8 @@ class ConditionalTrainer:
         self._check_config()
 
     def _before_train_operations(self):
-        self.logger.start_job_metadata(self.start_step)
+        if self.is_logging_process:
+            self.logger.start_job_metadata(self.start_step)
         propagate_forward_pass_cache(self.model)
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
@@ -126,7 +127,8 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "success",
         )
-        self.logger.exit_job_metadata(self.current_step)
+        if self.is_logging_process:
+            self.logger.exit_job_metadata(self.current_step)
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
@@ -284,7 +286,9 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(2**log_group_size_factor * original_group_size)
+                current_group_size = int(
+                    2**log_group_size_factor * original_group_size
+                )
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps
