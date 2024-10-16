@@ -21,7 +21,7 @@ from lizrd.support.misc import (
     count_tokens_per_step,
 )
 
-_CURRENT_LOGGER = None
+_CURRENT_LOGGER: Optional["AbstractLogger"] = None
 
 
 def set_current_logger(logger: "AbstractLogger"):
@@ -34,6 +34,10 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
+    TITLE_JOB_STATE = "job_state"
+    STATE_JOB_RUNNING = "RUNNING"
+    STATE_JOB_FINISHED = "FINISHED"
+
     def __init__(self, logger, args: Namespace):
         self.instance_logger = logger
         self.args = vars(args)
@@ -170,6 +174,37 @@ class AbstractLogger(ABC):
             auxiliary_metrics[f"{title}_(x_logarithmic)"] = metric_logarithmic
 
         return auxiliary_metrics
+
+    def start_job_metadata(self, trining_step: int):
+        self.report_text(
+            title=f"job/{self.TITLE_JOB_STATE}",
+            value=self.STATE_JOB_RUNNING,
+            iteration=trining_step,
+        )
+
+        text_logs = {}
+        ENV_METADATA = [
+            "SLURM_ARRAY_JOB_ID",
+            "SLURM_JOBID",
+            "HOSTNAME",
+            "SLURM_CLUSTER_NAME",
+            "LOGNAME",
+        ]
+        envs = os.environ.copy()
+        for ek in ENV_METADATA:
+            text_logs[ek] = envs.get(ek, None)
+
+        for to_log in text_logs.items():
+            self.report_text(
+                title=f"job/{to_log[0]}", value=to_log[1], iteration=trining_step
+            )
+
+    def exit_job_metadata(self, trining_step: int):
+        self.report_text(
+            title=f"job/{self.TITLE_JOB_STATE}",
+            value=self.STATE_JOB_FINISHED,
+            iteration=trining_step,
+        )
 
 
 class ClearMLLogger(AbstractLogger):
@@ -478,7 +513,7 @@ def add_logger_active_metrics(args):
     )
 
 
-def get_logger(args, model, VOCAB_SIZE):
+def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run_id
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
     if args.logger_types == "":
@@ -495,6 +530,7 @@ def get_logger(args, model, VOCAB_SIZE):
                 project=args.project_name,
                 tags=args.tags,
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+                with_id=run_id,
             )
             run["args"] = vars(args)
             run["working_directory"] = os.getcwd()

@@ -1,5 +1,6 @@
 from collections import defaultdict
 import copy
+from time import time
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
@@ -51,6 +52,7 @@ class ConditionalTrainer:
     batch_size: int
     cutoff: int
     lr_scheduler: AbstractLRScheduler
+    repeater_job_end_time: int = None
     _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
@@ -75,7 +77,7 @@ class ConditionalTrainer:
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
     model_fit_gpu_info_database_path: str = None
-    model_fit_gpu_info_params: [str] = None
+    model_fit_gpu_info_params: Optional[str] = None
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
@@ -110,6 +112,7 @@ class ConditionalTrainer:
         self._check_config()
 
     def _before_train_operations(self):
+        self.logger.start_job_metadata(self.start_step)
         propagate_forward_pass_cache(self.model)
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
@@ -123,6 +126,7 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "success",
         )
+        self.logger.exit_job_metadata(self.current_step)
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
@@ -149,7 +153,10 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(self.start_step, n_steps + 1):
+                self.current_step = step
                 self._train_step(step)
+                if self._repeater_rerun(step, self.repeater_job_end_time):
+                    break
                 if self.profiler_enabled:
                     p.step()
 
@@ -170,6 +177,7 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
+        self._after_train_operations()
 
     def _train_step(
         self,
@@ -441,16 +449,6 @@ class ConditionalTrainer:
             and self.save_weights_interval > 0
             and step % self.save_weights_interval == 0
         ):
-            if isinstance(self.model, FSDP):
-                # for some reason, setting the model to training mode and
-                # running a forward pass is necessary to be able to save it
-                # in FSDP. God help us.
-                self.model.train()
-                with torch.no_grad():
-                    _ = self.model(
-                        torch.zeros((self.batch_size, self.cutoff), dtype=torch.int)
-                    )
-
             save_checkpoint(
                 self.model,
                 self.optimizer,
@@ -458,7 +456,30 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
+                self.batch_size,
+                self.cutoff,
+                self.logger,
             )
+
+    def _repeater_rerun(
+        self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
+    ) -> bool:
+        if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
+            save_checkpoint(
+                self.model,
+                self.optimizer,
+                self.scaler,
+                self.save_weights_path,
+                self.rank,
+                step,
+                self.batch_size,
+                self.cutoff,
+                self.logger,
+            )
+
+            return True
+        else:
+            return False
 
     def _check_config(self):
         if self.eval_dynamic_groupsize:
