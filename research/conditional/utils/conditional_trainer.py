@@ -192,7 +192,8 @@ class ConditionalTrainer:
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
-        dist.all_reduce(torch.tensor(loss), op=dist.ReduceOp.AVG)
+        if self.rank is not None:
+            dist.all_reduce(torch.tensor(loss), op=dist.ReduceOp.AVG)
         self._apply_gradient()
         if self.is_logging_process:
             self._log_train_stats(loss, step)
