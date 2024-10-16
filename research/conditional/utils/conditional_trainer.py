@@ -283,6 +283,8 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
+                # Turn black off and on
+                # This line works differently in different Python versions smh
                 # fmt: off
                 current_group_size = int(
                     2**log_group_size_factor * original_group_size
