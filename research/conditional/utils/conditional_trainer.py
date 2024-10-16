@@ -283,7 +283,11 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(2**log_group_size_factor * original_group_size)
+                # fmt: off
+                current_group_size = int(
+                    2**log_group_size_factor * original_group_size
+                )
+                # fmt: on
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps
