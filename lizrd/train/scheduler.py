@@ -38,6 +38,7 @@ def get_scheduler(
             lr=args.learning_rate,
             final_lr_step=args.final_lr_step,
             ratios=ratios_in_group_order,
+            lr_slide_steps=args.lr_slide_steps,
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
@@ -110,10 +111,11 @@ class CosineScheduler(AbstractLRScheduler):
 
 class TrapezoidalScheduler(AbstractLRScheduler):
     def __init__(
-        self, lr_warmup_steps: int, lr: float, final_lr_step: int, ratios: list[float]
+        self, lr_warmup_steps: int, lr: float, final_lr_step: int, ratios: list[float], lr_slide_steps: int = None
     ):
         super().__init__(ratios=ratios)
         self.lr_warmup_steps = lr_warmup_steps
+        self.lr_slide_steps = lr_slide_steps if lr_slide_steps else lr_warmup_steps
         self.final_lr_step = final_lr_step
         self.lr = lr
 
@@ -121,8 +123,9 @@ class TrapezoidalScheduler(AbstractLRScheduler):
         if step < self.lr_warmup_steps:
             return self.lr * (step + 1) / self.lr_warmup_steps
         elif step >= self.lr_warmup_steps and step < (
-            self.final_lr_step - self.lr_warmup_steps
+            self.final_lr_step - self.lr_slide_steps
         ):
             return self.lr
         else:
-            return self.lr * (self.final_lr_step - step) / self.lr_warmup_steps
+            return self.lr * (self.final_lr_step - step) / (self.lr_slide_steps)
+        
