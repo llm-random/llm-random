@@ -500,22 +500,21 @@ class JointLogger(AbstractLogger):
 
 def log_and_print_model_param_count(args, model):
     n_learnable_parameters = get_n_learnable_parameters(model)
-    args.n_learnable_parameters = n_learnable_parameters
-    print(f"Number of learnable parameters: {n_learnable_parameters:_}")
+    args.model_n_params_with_embedding = n_learnable_parameters
 
     n_learnable_nonembedding_parameters = get_total_nonembedding_parameters(model)
-    args.n_learnable_nonembedding_parameters = n_learnable_nonembedding_parameters
-    print(
-        f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
-    )
+    args.model_n_params = n_learnable_nonembedding_parameters
 
     n_active_learnable_nonembedding_parameters = get_active_nonembedding_parameters(
         args, model
     )
     args.model_n_active = n_active_learnable_nonembedding_parameters
-    print(
-        f"Number of active nonembedding parameters: {n_active_learnable_nonembedding_parameters:_}"
+
+    embedding_params = n_learnable_parameters - n_learnable_nonembedding_parameters
+    args.model_n_active_with_embedding = (
+        n_active_learnable_nonembedding_parameters + embedding_params
     )
+    args.model_embedding_params = embedding_params
 
     tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
     args.tokens_per_step = tokens_per_step
@@ -525,7 +524,13 @@ def log_and_print_model_param_count(args, model):
         n_active=n_active_learnable_nonembedding_parameters,
         args=args,
     )
-    args.final_tokens_per_act_param = token_to_active_ratio
+    args.token_to_active_ratio = token_to_active_ratio
+
+    print(f"Model total parameters: {n_learnable_parameters:_}")
+    print(f"Model nonembedding parameters: {n_learnable_nonembedding_parameters:_}")
+    print(
+        f"Model active nonembedding parameters: {n_active_learnable_nonembedding_parameters:_}"
+    )
     print(f"#tokens / #active: {token_to_active_ratio:.2f}")
 
 
