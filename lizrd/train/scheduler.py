@@ -16,7 +16,7 @@ def get_scheduler(
         ), "You cannot set both lr_warmap_percent and lr_warmap_steps"
         args.lr_warmup_steps = math.ceil(args.n_steps * args.lr_warmup_percent)
     if args.final_lr_step == -1 or args.final_lr_step is None:
-        args.final_lr_step = args.n_steps
+        args.final_lr_step = args.n_steps # dev - 1 seems proper, may cause problems, idk
 
     if args.scheduler == "constant":
         return ConstantScheduler(
@@ -35,10 +35,10 @@ def get_scheduler(
     elif args.scheduler == "trapezoidal":
         return TrapezoidalScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
+            lr_decay_steps=math.ceil(args.n_steps * args.lr_trapezoidal_decay_percent),
+            n_steps=args.n_steps,
             lr=args.learning_rate,
-            final_lr_step=args.final_lr_step,
             ratios=ratios_in_group_order,
-            lr_slide_steps=args.lr_slide_steps,
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
@@ -111,21 +111,19 @@ class CosineScheduler(AbstractLRScheduler):
 
 class TrapezoidalScheduler(AbstractLRScheduler):
     def __init__(
-        self, lr_warmup_steps: int, lr: float, final_lr_step: int, ratios: list[float], lr_slide_steps: int = None
+        self, lr_warmup_steps: int, lr_decay_steps: int, n_steps: int, lr: float, ratios: list[float]
     ):
         super().__init__(ratios=ratios)
         self.lr_warmup_steps = lr_warmup_steps
-        self.lr_slide_steps = lr_slide_steps if lr_slide_steps else lr_warmup_steps
-        self.final_lr_step = final_lr_step
+        self.lr_decay_steps = lr_decay_steps
+        self.final_lr_step = n_steps
         self.lr = lr
 
     def get_lr(self, step: int):
         if step < self.lr_warmup_steps:
-            return self.lr * (step + 1) / self.lr_warmup_steps
-        elif step >= self.lr_warmup_steps and step < (
-            self.final_lr_step - self.lr_slide_steps
-        ):
+            return step / self.lr_warmup_steps * self.lr
+        elif self.lr_warmup_steps <= step and step < (self.final_lr_step - self.lr_decay_steps):
             return self.lr
         else:
-            return self.lr * (self.final_lr_step - step) / (self.lr_slide_steps)
+            return max((self.final_lr_step - (step+1)) / self.lr_decay_steps * self.lr, 0)
         

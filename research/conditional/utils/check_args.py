@@ -38,3 +38,6 @@ def check_args(args):
 
     if args.repeater_mode:
         assert args.relative_init_scale == None
+        
+    assert args.lr_trapezoidal_decay_percent + args.lr_warmup_percent <= 1
+    assert args.lr_trapezoidal_decay_percent + (args.lr_warmup_steps / args.final_lr_step) <= 1
