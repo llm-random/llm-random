@@ -15,10 +15,13 @@ import wandb
 from lizrd.support.misc import (
     make_concise_datetime,
     tags_to_name,
-    count_parameters,
     generate_random_string,
-    count_moe_non_emb_active_params,
+    get_total_nonembedding_parameters,
+    get_n_learnable_parameters,
+    get_total_nonembedding_parameters,
+    get_active_nonembedding_parameters,
     count_tokens_per_step,
+    count_token_to_active_ratio,
 )
 
 _CURRENT_LOGGER: Optional["AbstractLogger"] = None
@@ -495,22 +498,41 @@ class JointLogger(AbstractLogger):
             )
 
 
+def log_and_print_model_param_count(args, model):
+    n_learnable_parameters = get_n_learnable_parameters(model)
+    args.n_learnable_parameters = n_learnable_parameters
+    print(f"Number of learnable parameters: {n_learnable_parameters:_}")
+
+    n_learnable_nonembedding_parameters = get_total_nonembedding_parameters(model)
+    args.n_learnable_nonembedding_parameters = n_learnable_nonembedding_parameters
+    print(
+        f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
+    )
+
+    n_active_learnable_nonembedding_parameters = get_active_nonembedding_parameters(
+        args, model
+    )
+    args.model_n_active = n_active_learnable_nonembedding_parameters
+    print(
+        f"Number of active nonembedding parameters: {n_active_learnable_nonembedding_parameters:_}"
+    )
+
+    tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
+    args.tokens_per_step = tokens_per_step
+
+    token_to_active_ratio = count_token_to_active_ratio(
+        tokens_per_step=tokens_per_step,
+        n_active=n_active_learnable_nonembedding_parameters,
+        args=args,
+    )
+    args.final_tokens_per_act_param = token_to_active_ratio
+    print(f"#tokens / #active: {token_to_active_ratio:.2f}")
+
+
 def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteration: int):
     logger = get_current_logger()
     assert logger is not None
     logger.report_plotly(figure=figure, title=title, series=series, iteration=iteration)
-
-
-def add_logger_active_metrics(args):
-    args.model_n_active = count_moe_non_emb_active_params(
-        args.dmodel, args.effective_dff_x, args.dff, args.n_blocks
-    )
-    args.tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
-    args.final_tokens_per_act_param = (
-        (args.final_lr_step * args.tokens_per_step / args.model_n_active)
-        if args.final_lr_step is not None
-        else None
-    )
 
 
 def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run_id
@@ -522,7 +544,6 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
-    add_logger_active_metrics(args)
 
     for logger_type in logger_types:
         if logger_type == "neptune":
@@ -538,7 +559,6 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
             all_config_paths = args.all_config_paths.split(",")
             run["all_configs"].upload_files(all_config_paths)
 
-            args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
             initialized_loggers.append(NeptuneLogger(run, args))
         elif logger_type == "wandb":
             wandb.init(
