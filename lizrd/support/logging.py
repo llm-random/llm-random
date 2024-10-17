@@ -22,6 +22,7 @@ from lizrd.support.misc import (
     get_active_nonembedding_parameters,
     count_tokens_per_step,
     count_token_to_active_ratio,
+    calculate_from_args_model_parameter_counts,
 )
 
 _CURRENT_LOGGER: Optional["AbstractLogger"] = None
@@ -498,32 +499,39 @@ class JointLogger(AbstractLogger):
             )
 
 
-def log_and_print_model_param_count(args, model):
-    n_learnable_parameters = get_n_learnable_parameters(model)
-    args.model_n_params_with_embedding = n_learnable_parameters
+def log_and_print_model_param_count(args, model, vocab_size):
+    if not args.fsdp_enabled:
+        n_learnable_parameters = get_n_learnable_parameters(model)
 
-    n_learnable_nonembedding_parameters = get_total_nonembedding_parameters(model)
-    args.model_n_params = n_learnable_nonembedding_parameters
+        n_learnable_nonembedding_parameters = get_total_nonembedding_parameters(model)
 
-    n_active_learnable_nonembedding_parameters = get_active_nonembedding_parameters(
-        args, model
-    )
-    args.model_n_active = n_active_learnable_nonembedding_parameters
+        n_active_learnable_nonembedding_parameters = get_active_nonembedding_parameters(
+            args, model
+        )
 
-    embedding_params = n_learnable_parameters - n_learnable_nonembedding_parameters
-    args.model_n_active_with_embedding = (
-        n_active_learnable_nonembedding_parameters + embedding_params
-    )
-    args.model_embedding_params = embedding_params
+        embedding_params = n_learnable_parameters - n_learnable_nonembedding_parameters
+        model_n_active_with_embedding = (
+            n_active_learnable_nonembedding_parameters + embedding_params
+        )
+
+    else:
+        embedding_params, all_layer_norm_params, all_attention_params, all_ff_total_params, all_ff_active_params, all_router_params, head_params = calculate_from_args_model_parameter_counts(args, vocab_size)
+
+
+    args.model_n_params_with_embedding = embedding_params + all_layer_norm_params + all_attention_params + all_ff_total_params + all_router_params + head_params
+    args.model_n_params = all_layer_norm_params + all_attention_params + all_ff_total_params + all_router_params
+    args.model_n_active = all_attention_params + all_ff_active_params
+    args.model_n_active_with_embedding = all_layer_norm_params + all_attention_params + all_ff_active_params + all_router_params + head_params
+    args.model_embedding_params = embedding_params + head_params
 
     tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
-    args.tokens_per_step = tokens_per_step
 
     token_to_active_ratio = count_token_to_active_ratio(
-        tokens_per_step=tokens_per_step,
-        n_active=n_active_learnable_nonembedding_parameters,
-        args=args,
+        tokens=tokens_per_step * args.n_step,
+        active=args.model_n_active,
     )
+
+    args.tokens_per_step = tokens_per_step
     args.token_to_active_ratio = token_to_active_ratio
 
     print(f"Model total parameters: {n_learnable_parameters:_}")

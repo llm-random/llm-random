@@ -259,7 +259,7 @@ def main(
         checkpoint=checkpoint,
     )
 
-    log_and_print_model_param_count(args, model)
+    log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
     if args.torch_compile:
         model = torch.compile(model)

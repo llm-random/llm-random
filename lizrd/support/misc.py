@@ -57,6 +57,111 @@ def get_active_nonembedding_parameters(args, model):
     return active_nonembedding_parameters
 
 
+def get_model_configuration_for_active_param_calculation(args):
+    dmodel = args.dmodel
+    isgated = False
+    dff = None
+    active_ratio = None
+    ismoe = False
+
+    if args.ff_mode in ["vanilla", "vanilla_timed"]:
+        isgated = False
+        active_ratio = 1
+        dff = args.dff
+
+    elif args.ff_mode in ["swi_glu"]:
+        isgated = True
+        active_ratio = 1
+        dff = args.dff
+
+    elif args.ff_mode in ["token_choice", "expert_choice"]:
+        active_ratio = args.topk_fraction
+        dff = args.total_experts_width
+        ismoe = True
+
+        if args.moe_inner_expert in ["relu", "ff"]:
+            isgated = False
+        elif args.moe_inner_expert in ["swi_glu", "ff_gated", "geglu"]:
+            isgated = True
+        elif args.moe_inner_expert in ["linear"]:
+            return None
+        else:
+            raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
+
+    elif args.ff_mode in [
+        "expert_choice_with_parallel_ff",
+        "token_choice_old",
+        "double_choice",
+        "expert_choice_old",
+        "cont_moe",
+        "cont_moe_quick",
+        "cont_moe_merge_diff_simple",
+        "cont_moe_merge_diff_comm_base",
+        "cont_moe_rawmerge",
+        "cont_moe_topmerge",
+        "cont_moe_nosoft",
+        "cont_moe_adatemp",
+        "cont_moe_adatemp_positive",
+        "cont_moe_ln",
+        "cont_moe_final",
+        "cont_moe_random_groups",
+        "cont_moe_common_weighted_parameters" "cont_moe_separate_weighted_parameters",
+        "cont_moe_legacy",
+        "kernelized_fc",
+    ]:
+        return None
+    else:
+        raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
+
+    return dmodel, isgated, dff, active_ratio, ismoe
+
+
+def calculate_from_args_model_parameter_counts(args, vocab_size):
+    model_configuration = get_model_configuration_for_active_param_calculation(args)
+    if model_configuration is None:
+        return 1  # something that won't kill experiments, but is obviously not true
+
+    else:
+        embedding_parameters = vocab_size * args.dmodel + args.cutoff * args.dmodel
+        head_parameters = vocab_size * args.dmodel
+        (
+            dmodel,
+            isgated,
+            dff,
+            active_ratio,
+            ismoe,
+        ) = model_configuration
+
+        layer_norm_params = 2 * dmodel
+
+        attention_params = (dmodel**2) * 4   # Q, K, V and O projections
+
+        if isgated:
+            ff_total_params = 3 * dmodel * dff
+        else:
+            ff_total_params = 2 * dmodel * dff
+
+        ff_active_params = (
+            ff_total_params * active_ratio
+        )  # active_ratio = 1 for not MoE
+
+        print(f"experts active/total: {ff_active_params}/{ff_total_params}")
+
+        router_params = 0
+        if ismoe:
+            router_params = dmodel * args.n_experts
+            print(f"router: {router_params}")
+
+        n_blocks = args.n_blocks
+        all_layer_norm_params = n_blocks * layer_norm_params * 2    # 2 because LN in attention and LN in FF
+        all_attention_params = n_blocks * attention_params
+        all_ff_total_params = n_blocks * ff_total_params
+        all_ff_active_params = n_blocks * ff_active_params
+        all_router_params = n_blocks * router_params
+
+    return embedding_parameters, all_layer_norm_params, all_attention_params, all_ff_total_params, all_ff_active_params, all_router_params, head_parameters
+
+
 def count_tokens_per_step(batch_size, cutoff):
     return batch_size * cutoff
 
