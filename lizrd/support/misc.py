@@ -134,7 +134,7 @@ def calculate_from_args_model_parameter_counts(args, vocab_size):
 
         layer_norm_params = 2 * dmodel
 
-        attention_params = (dmodel**2) * 4   # Q, K, V and O projections
+        attention_params = (dmodel**2) * 4  # Q, K, V and O projections
 
         if isgated:
             ff_total_params = 3 * dmodel * dff
@@ -153,13 +153,23 @@ def calculate_from_args_model_parameter_counts(args, vocab_size):
             print(f"router: {router_params}")
 
         n_blocks = args.n_blocks
-        all_layer_norm_params = n_blocks * layer_norm_params * 2    # 2 because LN in attention and LN in FF
+        all_layer_norm_params = (
+            n_blocks * layer_norm_params * 2
+        )  # 2 because LN in attention and LN in FF
         all_attention_params = n_blocks * attention_params
         all_ff_total_params = n_blocks * ff_total_params
         all_ff_active_params = n_blocks * ff_active_params
         all_router_params = n_blocks * router_params
 
-    return embedding_parameters, all_layer_norm_params, all_attention_params, all_ff_total_params, all_ff_active_params, all_router_params, head_parameters
+    return (
+        embedding_parameters,
+        all_layer_norm_params,
+        all_attention_params,
+        all_ff_total_params,
+        all_ff_active_params,
+        all_router_params,
+        head_parameters,
+    )
 
 
 def count_tokens_per_step(batch_size, cutoff):

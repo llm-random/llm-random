@@ -515,13 +515,38 @@ def log_and_print_model_param_count(args, model, vocab_size):
         )
 
     else:
-        embedding_params, all_layer_norm_params, all_attention_params, all_ff_total_params, all_ff_active_params, all_router_params, head_params = calculate_from_args_model_parameter_counts(args, vocab_size)
+        (
+            embedding_params,
+            all_layer_norm_params,
+            all_attention_params,
+            all_ff_total_params,
+            all_ff_active_params,
+            all_router_params,
+            head_params,
+        ) = calculate_from_args_model_parameter_counts(args, vocab_size)
 
-
-    args.model_n_params_with_embedding = embedding_params + all_layer_norm_params + all_attention_params + all_ff_total_params + all_router_params + head_params
-    args.model_n_params = all_layer_norm_params + all_attention_params + all_ff_total_params + all_router_params
+    args.model_n_params_with_embedding = (
+        embedding_params
+        + all_layer_norm_params
+        + all_attention_params
+        + all_ff_total_params
+        + all_router_params
+        + head_params
+    )
+    args.model_n_params = (
+        all_layer_norm_params
+        + all_attention_params
+        + all_ff_total_params
+        + all_router_params
+    )
     args.model_n_active = all_attention_params + all_ff_active_params
-    args.model_n_active_with_embedding = all_layer_norm_params + all_attention_params + all_ff_active_params + all_router_params + head_params
+    args.model_n_active_with_embedding = (
+        all_layer_norm_params
+        + all_attention_params
+        + all_ff_active_params
+        + all_router_params
+        + head_params
+    )
     args.model_embedding_params = embedding_params + head_params
 
     tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
