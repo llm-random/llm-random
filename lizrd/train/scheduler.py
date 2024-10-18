@@ -16,7 +16,9 @@ def get_scheduler(
         ), "You cannot set both lr_warmap_percent and lr_warmap_steps"
         args.lr_warmup_steps = math.ceil(args.n_steps * args.lr_warmup_percent)
     if args.final_lr_step == -1 or args.final_lr_step is None:
-        args.final_lr_step = args.n_steps # dev - 1 seems proper, may cause problems, idk
+        args.final_lr_step = (
+            args.n_steps
+        )  # dev - 1 seems proper, may cause problems, idk
 
     if args.scheduler == "constant":
         return ConstantScheduler(
@@ -111,7 +113,12 @@ class CosineScheduler(AbstractLRScheduler):
 
 class TrapezoidalScheduler(AbstractLRScheduler):
     def __init__(
-        self, lr_warmup_steps: int, lr_decay_steps: int, n_steps: int, lr: float, ratios: list[float]
+        self,
+        lr_warmup_steps: int,
+        lr_decay_steps: int,
+        n_steps: int,
+        lr: float,
+        ratios: list[float],
     ):
         super().__init__(ratios=ratios)
         self.lr_warmup_steps = lr_warmup_steps
@@ -122,8 +129,11 @@ class TrapezoidalScheduler(AbstractLRScheduler):
     def get_lr(self, step: int):
         if step < self.lr_warmup_steps:
             return step / self.lr_warmup_steps * self.lr
-        elif self.lr_warmup_steps <= step and step < (self.final_lr_step - self.lr_decay_steps):
+        elif self.lr_warmup_steps <= step and step < (
+            self.final_lr_step - self.lr_decay_steps
+        ):
             return self.lr
         else:
-            return max((self.final_lr_step - (step+1)) / self.lr_decay_steps * self.lr, 0)
-        
+            return max(
+                (self.final_lr_step - (step + 1)) / self.lr_decay_steps * self.lr, 0
+            )

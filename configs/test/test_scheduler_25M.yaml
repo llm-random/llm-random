@@ -15,7 +15,7 @@ params:
   fsdp_enabled: false
 
   # name: scheduler_trapezoidal
-  # tags: ["mstest", "25M", "trapezoidal_scheduler", "test2"]
+  # tags: ["mstest", "25M", "trapezoidal_scheduler", "test"]
   # expansion_rate: 8
   # n_steps: 10
   # lr_warmup_percent: 0.1

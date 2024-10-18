@@ -13,8 +13,4 @@ params:
   lr_trapezoidal_decay_percent: 0.2
   data_seed: 44
 
-  # expansion_rate: 1
-  # n_steps: 2600
-  # scheduler: cosine
-
 
