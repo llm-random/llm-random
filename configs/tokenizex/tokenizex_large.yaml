@@ -1,14 +1,15 @@
+# TODO - not configured for full training eg. steps, total time, lr
 runner: "research.tokenizex.train.train"
 n_gpus: 1
-cpus_per_gpu: 16
+cpus_per_gpu: 10
 interactive_debug: false
-time: "2-00:00:00"
+time: "0-02:00:00"
 cuda_visible: "7"
 argparse: "research.tokenizex.utils.argparse"
 
 params:
-  name: tokenizex_medium
-  tags: ["ms", "tokenizex", "medium"]
+  name: tokenizex_large
+  tags: ["ms", "tokenizex", "large"]
 
   # logging etc.
   logger_types: "neptune"
@@ -21,27 +22,29 @@ params:
   eval_interval: 200
 
   # model
-  dmodel: 768
-  dff: 3072
-  n_blocks: 12
-  n_att_heads: 12
+  dmodel: 1024
+  dff: 2048
+  n_blocks: 24
+  n_att_heads: 16
   cutoff: 256
 
   # training
-  n_steps: 52_000
+  n_steps: 100_000
   init_type: kaiming_uniform
   init_scale: 1.0
 
-  learning_rate: 1e-3
-  final_lr_step: 50_000
+  learning_rate: 1e-4
+  final_lr_step: 100_000
   lr_warmup_steps: 2500
   scheduler: cosine
   final_lr_fraction: 0.1
-  grad_clip: 1.0
+  grad_clip: 0.5
   dataset_type: wikibook
-  batch_size: 512
-  gradient_accumulation_steps: 4
-  num_workers: 16
+  batch_size: 64
+
+
 
   # tokenizex
   input_wise_positional_embedding: True  
+  atomization_strategy: "[(0,0.0),(0.3,0.5),(0.6,1)]"
+  atomization_strategy_period: 5_000 

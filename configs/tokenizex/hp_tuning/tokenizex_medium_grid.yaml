@@ -2,13 +2,13 @@ runner: "research.tokenizex.train.train"
 n_gpus: 1
 cpus_per_gpu: 16
 interactive_debug: false
-time: "2-00:00:00"
+time: "1-00:00:00"
 cuda_visible: "7"
 argparse: "research.tokenizex.utils.argparse"
 
 params:
   name: tokenizex_medium
-  tags: ["ms", "tokenizex", "medium"]
+  tags: ["ms", "tokenizex", "medium", "lr_tuning"]
 
   # logging etc.
   logger_types: "neptune"
@@ -32,7 +32,7 @@ params:
   init_type: kaiming_uniform
   init_scale: 1.0
 
-  learning_rate: 1e-3
+  learning_rate: [2e-5, 4e-5, 6e-5, 8e-5, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4]
   final_lr_step: 50_000
   lr_warmup_steps: 2500
   scheduler: cosine

@@ -1,0 +1,41 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+
+runner: "research.tokenizex_comp.train.train"
+n_gpus: 1
+cpus_per_gpu: 16
+interactive_debug: false
+time: "1-00:00:00"
+cuda_visible: "7"
+
+
+params:
+  name: "tokenizex_baseline_medium"
+  tags: ["ms", "tokenizex", "baseline", "medium", "test"]
+
+  model_type: gpt
+  
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  logging_interval_light: 1000
+  save_weights_path: "default_model_ckpt"
+  save_weights_interval: 25_000
+  decoding_interval: 10_000
+  
+  # training
+  n_steps: 20_000
+
+  learning_rate: 1e-4
+  final_lr_step: 20_000
+  scheduler: cosine
+  final_lr_fraction: 0.05
+  grad_clip: 1.0
+  dataset_type: wikibook
+  loss_checkpoint_chungs: 2
+  num_workers: 16
+
+  init_type: kaiming_uniform
+  init_scale: 1.0
