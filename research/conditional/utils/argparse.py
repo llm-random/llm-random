@@ -55,6 +55,7 @@ def introduce_parser_arguments(
 
     # other training hyperparameters
 
+    parser.add_argument("--learning_rate_log2", type=str, required=False, default=0)
     parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--adam_beta1", type=float, default=0.9)
     parser.add_argument("--adam_beta2", type=float, default=0.999)

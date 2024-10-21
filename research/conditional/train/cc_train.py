@@ -38,6 +38,7 @@ from research.conditional.utils.model_utils import (
     get_classes_from_module_names,
     update_model_fit_gpu_info,
     get_vanilla_mamba_layer,
+    calculate_lr,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -272,6 +273,8 @@ def main(
     print(
         f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
     )
+
+    args.learning_rate = calculate_lr(args)
 
     if args.torch_compile:
         model = torch.compile(model)

@@ -940,3 +940,10 @@ def disable_profile_schedule_fn(_: int) -> ProfilerAction:
     Passing this function to the profiler as a scheduler disables profiling
     """
     return ProfilerAction.NONE
+
+
+def calculate_lr(args):
+    if args.learning_rate == 0 and args.learning_rate_log2 != 0:
+        return 2**args.learning_rate_log2
+    else:
+        return args.learning_rate
