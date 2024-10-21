@@ -175,11 +175,11 @@ class AbstractLogger(ABC):
 
         return auxiliary_metrics
 
-    def start_job_metadata(self, trining_step: int):
+    def start_job_metadata(self, training_step: int):
         self.report_text(
             title=f"job/{self.TITLE_JOB_STATE}",
             value=self.STATE_JOB_RUNNING,
-            iteration=trining_step,
+            iteration=training_step,
         )
 
         text_logs = {}
@@ -196,14 +196,14 @@ class AbstractLogger(ABC):
 
         for to_log in text_logs.items():
             self.report_text(
-                title=f"job/{to_log[0]}", value=to_log[1], iteration=trining_step
+                title=f"job/{to_log[0]}", value=to_log[1], iteration=training_step
             )
 
-    def exit_job_metadata(self, trining_step: int):
+    def exit_job_metadata(self, training_step: int):
         self.report_text(
             title=f"job/{self.TITLE_JOB_STATE}",
             value=self.STATE_JOB_FINISHED,
-            iteration=trining_step,
+            iteration=training_step,
         )
 
 
