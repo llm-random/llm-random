@@ -102,7 +102,7 @@ def get_processed_dataset(
             )
         dataloader = DataLoader(
             packer,
-            num_workers=0,
+            num_workers=num_workers,
             batch_size=batch_size,
             collate_fn=data.LLMBatch,
             worker_init_fn=partial(worker_init_fn, seed),
