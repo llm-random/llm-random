@@ -98,7 +98,7 @@ class LegacyC4Dataset(AbstractDataset):
                 )
             self.dataset = load_dataset("stas/c4-en-10k", split=split)
         else:
-            self.dataset = load_dataset("c4", "en", split=split)
+            self.dataset = load_dataset("c4", "en", split=split).to_iterable_dataset()
 
     def get_document(self) -> str:
         return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]

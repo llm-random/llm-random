@@ -329,7 +329,7 @@ def main(
         **common_dataloaders_kwargs,
         dataset_split=eval_split,
         dataset_path=args.validation_dataset_path,
-        use_legacy_datasets=False,
+        use_legacy_datasets=True,
     )
 
     if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:

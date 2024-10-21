@@ -332,6 +332,7 @@ class LumiBackend(MachineBackend):
         training_args,
         singularity_env_arguments,
         runner_params,
+        n_consecutive: int = 1,
     ):
         if setup_args["n_gpus"] % 8 == 0:
             partition = "standard-g"
@@ -347,6 +348,7 @@ class LumiBackend(MachineBackend):
             slurm_command,
             f"--gres=gpu:{setup_args['n_gpus']}",
             f"--partition={partition}",
+            f"--array=0-{n_consecutive-1}%1",
             "--account=project_465001227",
             *mem_and_cpu_reqs,
             f"--job-name={training_args['name']}",
