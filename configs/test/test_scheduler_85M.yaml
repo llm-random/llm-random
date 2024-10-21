@@ -1,5 +1,5 @@
 parent: configs/experiments/constrained_scaling_laws/85M/model.yaml
-md5_parent_hash: 52d0f6016467edd4cdf9c2813489c88e
+md5_parent_hash: 01fb340f8c5eb1273bbaa9eec4542f8e
 time: "48:00:00"
 n_gpus: 1
 params:

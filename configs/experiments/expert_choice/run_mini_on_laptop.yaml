@@ -17,11 +17,13 @@ params:
   n_steps: 200
   mixed_precision_dtype: "float16"
 
-  #effective_dff_x: 3
+  effective_dff_x: 3
   learning_rate_log2: -10
   grad_clip: 0.1
   attention_mode: "rope"
   no_positional_embedding: false
+  lr_trapezoidal_decay_percent: 0.2
+  scheduler: trapezoidal
 
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"

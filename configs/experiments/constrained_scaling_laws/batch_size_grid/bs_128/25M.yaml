@@ -1,5 +1,5 @@
 parent: configs/experiments/constrained_scaling_laws/25M/model.yaml
-md5_parent_hash: ed8df7363ef5b571ff57c87cc3568478
+md5_parent_hash: c3c48d014c48b90d625d88554231358c
 # here configure GPUs & time for a given cluster for it to fit
 time: "40:00:00"
 
@@ -7,8 +7,7 @@ params:
   name: "constrained_lr_grid"
   tags: ["25M", "E=1"]
   expansion_rate: 1
-  ^n_steps: [3814, 15256]
+  ^n_steps: [7628, 15256, 30512]
   #^n_steps: [ 1907, 3814, 7628, 15256, 30512 ]
-  batch_size: 256
-  ^learning_rate: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005]
-
+  batch_size: 128
+  ^learning_rate_log2: [-6,-7,-8,-9,-10,-11,-12]

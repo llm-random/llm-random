@@ -30,7 +30,6 @@ params:
   final_lr_step: -1
   lr_warmup_percent: 0.01
   lr_warmup_steps: 0
-  scheduler: cosine
   final_lr_fraction: 0.1
   init_scale: 0.1
   learning_rate: 0.0002
@@ -44,6 +43,13 @@ params:
   mixed_precision_dtype: bfloat16
   flash_attention: true
   loss_checkpoint_chungs: 8
+
+  effective_dff_x: 3
+  grad_clip: 0.1
+  attention_mode: "rope"
+  no_positional_embedding: false
+  lr_trapezoidal_decay_percent: 0.2
+  scheduler: trapezoidal
 
   fsdp_enabled: true
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
