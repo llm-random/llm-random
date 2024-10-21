@@ -8,3 +8,8 @@ params:
   cutoff: 16
   granularity: 4
   dataset_type: wikibook
+  final_lr_step: -1
+  lr_warmup_percent: 0.01
+  lr_warmup_steps: 0
+  n_steps: 200
+  mixed_precision_dtype: "float16"

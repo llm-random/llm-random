@@ -171,7 +171,7 @@ class BERTPacker(
         )
 
 
-class GPTPacker(
+class LegacyGPTPacker(
     AbstractPacker,
 ):
     def __init__(
@@ -216,3 +216,76 @@ class GPTPacker(
         calculate_loss = [1] * len(target_ids)
 
         return LLMExample(input_ids, target_ids, calculate_loss)
+
+
+class GPTPacker(
+    AbstractPacker,
+):
+    def __init__(
+        self,
+        sequence_length: int,
+        dataset_maker: AbstractDataset,
+        tokenizer_maker: Callable[[], AbstractTokenizer],
+        seed: Optional[int] = None,
+        document_buffer_size: int = 10,
+        samples_buffer_size: int = 100,
+    ):
+        super().__init__(
+            sequence_length,
+            dataset_maker,
+            tokenizer_maker,
+            seed=seed,
+        )
+        self.inputs = None
+        self.targets = None
+        self.documents_buffer_size = 10
+        self.samples_buffer_size = 10000
+        self.documents_buffer = []
+        self.samples_buffer = []
+
+    def _get_buffered(self, buffer, buffer_size, get_buffer_element):
+        modified = False
+        while len(buffer) < buffer_size:
+            buffer.append(get_buffer_element())
+            modified = True
+        if modified:
+            self.py_rng.shuffle(buffer)
+
+        return buffer.pop()
+
+    def _get_sample(self) -> LLMExample:
+        """
+        Sample examples from the dataset until we reach the desired sequence length.
+        """
+        eot_id = self.tokenizer.eot_id
+        assert eot_id is not None
+
+        if self.inputs is None:
+            self.inputs = [eot_id]
+            self.targets = []
+
+        while len(self.targets) < self.sequence_length:
+            document = self._get_buffered(
+                self.documents_buffer,
+                self.documents_buffer_size,
+                self.dataset.get_document,
+            )
+            tokens = self.tokenizer.text_to_ids(document)
+            self.inputs.extend(tokens)
+            self.targets.extend(tokens)
+
+        res_inputs = self.inputs[: self.sequence_length]
+        res_targets = self.targets[: self.sequence_length]
+        self.inputs = self.inputs[self.sequence_length :]
+        self.targets = self.targets[self.sequence_length :]
+
+        return LLMExample(
+            input_ids=res_inputs,
+            target_ids=res_targets,
+            should_calculate_loss=[1] * len(res_inputs),
+        )
+
+    def get_sample(self) -> LLMExample:
+        return self._get_buffered(
+            self.samples_buffer, self.samples_buffer_size, self._get_sample
+        )

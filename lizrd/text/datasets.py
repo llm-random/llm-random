@@ -4,6 +4,7 @@ from typing import Optional
 
 from datasets import load_dataset, load_from_disk
 import numpy as np
+from datasets.distributed import split_dataset_by_node
 
 
 class AbstractDataset:
@@ -76,7 +77,7 @@ class WikiBookDataset(AbstractDataset):
         return document["text"]
 
 
-class C4Dataset(AbstractDataset):
+class LegacyC4Dataset(AbstractDataset):
     total_gpt2_tokens = 173_648_052_806  # number of tokens in the C4 dataset when using GPT2TokenizerFast
 
     def __init__(
@@ -101,3 +102,47 @@ class C4Dataset(AbstractDataset):
 
     def get_document(self) -> str:
         return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]
+
+
+class C4Dataset(AbstractDataset):
+    total_gpt2_tokens = 173_648_052_806  # number of tokens in the C4 dataset when using GPT2TokenizerFast
+
+    def __init__(
+        self,
+        rank: int,
+        world_size: int,
+        seed: Optional[int] = None,
+        split: str = "train",
+        use_dummy_dataset: bool = False,
+        dataset_path: Optional[str] = None,
+    ):
+        super().__init__(seed=seed)
+        assert split in ["train", "validation"]
+        if dataset_path is not None:
+            self.dataset = load_from_disk(dataset_path)
+        elif use_dummy_dataset:
+            if split != "train":
+                raise NameError(
+                    "Dummy dataset only supports train split for C4 dataset"
+                )
+            self.dataset = load_dataset("stas/c4-en-10k", split=split)
+        else:
+            self.dataset = load_dataset("c4", "en", split=split)
+
+        self.dataset = split_dataset_by_node(
+            self.dataset, rank=rank, world_size=world_size
+        )
+        self.dataset_iterator = None
+
+    def make_iterator(self):
+        self.dataset_iterator = self.dataset.iter(1)
+
+    def get_document(self) -> str:
+        if self.dataset_iterator is None:
+            self.make_iterator()
+
+        try:
+            return next(self.dataset_iterator)["text"][0]
+        except StopIteration:
+            self.make_iterator()
+            return next(self.dataset_iterator)["text"][0]

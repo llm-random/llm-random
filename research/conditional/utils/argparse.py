@@ -10,6 +10,13 @@ def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
+    parser.add_argument("--cuda_visible", type=str, default=None)
+    parser.add_argument(
+        "--repeater_mode",
+        action="store_true",
+        help="Used when experiment will last longer than cluster max job time. It repeats jobs for expertiment longer continuation. Combines with periodic model saves.",
+    )
+    # parser.add_argument("--repeater_buffer", type=int, help="In minutes, time before cluster force-clousure that jobs saves and ends itself for next job to continue. Maximu time that model and trainig data needs to be saved, plus MAX time of one step (plus TIME OF VALIDATION that can interfeer!).") #dev TODO, currently fixed 15 min buffer time
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
@@ -36,6 +43,7 @@ def introduce_parser_arguments(
     parser.add_argument("--learning_rate", type=float, required=True)
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
+    parser.add_argument("--lr_warmup_percent", type=float, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
     parser.add_argument(
         "--init_type",
@@ -166,8 +174,8 @@ def introduce_parser_arguments(
 
     # model versioning
 
-    parser.add_argument("--save_weights_path", type=str, default=None)
-    parser.add_argument("--save_weights_interval", type=int, default=1000)
+    parser.add_argument("--save_weights_path", type=str, default="./model_ckpt")
+    parser.add_argument("--save_weights_interval", type=int, default=-1)
     parser.add_argument("--load_weights_path", type=str, default=None)
 
     # paremeters for specific experiments
@@ -413,6 +421,12 @@ def introduce_parser_arguments(
 
     parser.add_argument(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
+    )
+
+    parser.add_argument(
+        "--use_legacy_datasets",
+        action="store_true",
+        help="Use legacy sampling and packing. It is in principle better, but puts too much strain on the filesystem.",
     )
 
     return parser

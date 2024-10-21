@@ -22,6 +22,7 @@ from lizrd.train.train_utils import (
 )
 from lizrd.text import tokenizers
 from research.conditional.utils.check_args import check_args
+from research.conditional.utils.misc_tools import get_termination_timestamp_slurm
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
@@ -114,6 +115,7 @@ def main(
     rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
     port: str = "29500",
+    unique_save_weights_path: Optional[str] = None,
     args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
 ):
@@ -130,8 +132,6 @@ def main(
             args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
-
-    save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -223,7 +223,7 @@ def main(
         ]
 
     checkpoint = (
-        get_checkpoint_from_path(args.load_weights_path)
+        get_checkpoint_from_path(args.load_weights_path, args.repeater_mode)
         if args.load_weights_path is not None
         else None
     )
@@ -294,7 +294,8 @@ def main(
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
-    rescale_params_after_init(args, model)
+    if not args.repeater_mode:
+        rescale_params_after_init(args, model)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
@@ -303,6 +304,8 @@ def main(
         "sequence_length": args.cutoff,
         "device": DEVICE,
         "num_workers": args.num_workers,
+        "rank": rank,
+        "world_size": args.n_gpus,
         "batch_size": batch_size,
         "seed": args.data_seed if data_seeds is None else data_seeds[rank],
         "model_type": args.model_type,
@@ -314,6 +317,7 @@ def main(
         **common_dataloaders_kwargs,
         dataset_split="train",
         dataset_path=args.train_dataset_path,
+        use_legacy_datasets=args.use_legacy_datasets,
     )
 
     eval_split = (
@@ -325,10 +329,16 @@ def main(
         **common_dataloaders_kwargs,
         dataset_split=eval_split,
         dataset_path=args.validation_dataset_path,
+        use_legacy_datasets=False,
     )
 
+    if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
+        logger_run_id = checkpoint["logger"]["run_id"]
+    else:
+        logger_run_id = None
+
     if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE)
+        logger = get_logger(args, model, VOCAB_SIZE, logger_run_id)
     else:
         logger = None
 
@@ -366,6 +376,7 @@ def main(
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
+        cutoff=args.cutoff,
         lr_scheduler=scheduler,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
@@ -374,7 +385,7 @@ def main(
         eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,
-        save_weights_path=save_weights_path,
+        save_weights_path=unique_save_weights_path,
         save_weights_interval=args.save_weights_interval,
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
@@ -396,6 +407,9 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
+        repeater_job_end_time=get_termination_timestamp_slurm()
+        if args.repeater_mode
+        else None,
     )
     trainer.train(args.n_steps)
 
@@ -411,6 +425,10 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
+    save_weights_path = prepare_save_weights_path(
+        args.save_weights_path, args.repeater_mode
+    )
+
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
@@ -421,8 +439,13 @@ if __name__ == "__main__":
             port = str(s.getsockname()[1])
         mp.spawn(
             main,
-            args=[data_seeds, port, args],
+            args=[
+                data_seeds,
+                port,
+                save_weights_path,
+                args,
+            ],
             nprocs=args.n_gpus,
         )
     else:
-        main(None, args=args)
+        main(None, args=args, unique_save_weights_path=save_weights_path)

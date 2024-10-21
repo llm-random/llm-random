@@ -1,4 +1,6 @@
 import datetime
+from math import ceil
+import pathlib
 from lizrd.grid.infrastructure import LocalBackend
 from lizrd.grid.prepare_configs import prepare_configs
 from lizrd.grid.setup_arguments import (
@@ -7,6 +9,7 @@ from lizrd.grid.setup_arguments import (
 
 from lizrd.grid.utils import (
     get_train_main_function,
+    seconds_to_timestr,
     timestr_to_minutes,
     translate_to_argparse,
     check_for_argparse_correctness,
@@ -72,6 +75,13 @@ def create_subprocess_args(
         for i, training_args in enumerate(trainings_args):
             full_config_path = f"full_config{i}.yaml"
             with open(full_config_path, "w") as f:
+                if "repeater_mode" in training_args and training_args["repeater_mode"]:
+                    training_args["save_weights_path"] = str(
+                        pathlib.Path(training_args["save_weights_path"]) / f"{i}"
+                    )
+                    training_args["load_weights_path"] = str(
+                        pathlib.Path(training_args["load_weights_path"]) / f"{i}"
+                    )
                 yaml.dump({**training_args, **setup_args}, f)
             training_args["all_config_paths"] += f",{full_config_path}"
 
@@ -88,13 +98,22 @@ def create_subprocess_args(
                     (runner_main_function, runner_params)
                 ], interactive_debug_session
 
+            n_job_repetitions = 1
+            if "repeater_mode" in training_args and training_args["repeater_mode"]:
+                total_exp_time = timestr_to_minutes(setup_args["time"]) * 60
+                if CLUSTER.max_exp_time < total_exp_time:
+                    n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)
+                    setup_args["time"] = seconds_to_timestr(CLUSTER.max_exp_time)
+
             subprocess_args = CLUSTER.get_subprocess_args(
                 slurm_command=slurm_command,
                 setup_args=setup_args,
                 training_args=training_args,
                 singularity_env_arguments=singularity_env_arguments,
                 runner_params=runner_params,
+                n_consecutive=n_job_repetitions,
             )
 
-            experiments.append((subprocess_args, training_args["name"]))
+            cuda_visible = setup_args.get("cuda_visible")
+            experiments.append((subprocess_args, training_args["name"], cuda_visible))
     return experiments, interactive_debug_session

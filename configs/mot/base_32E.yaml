@@ -2,7 +2,8 @@ parent: configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 763f39978a58f704200275285162594c
 interactive_debug: false
 n_gpus: 2
-time: "00:15:00"
+cuda_visible: "0,7"
+time: "40:00:00"
 
 params:
     use_dummy_dataset: true

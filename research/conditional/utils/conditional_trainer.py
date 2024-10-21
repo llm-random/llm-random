@@ -1,10 +1,14 @@
 from collections import defaultdict
 import copy
+from time import time
 from types import SimpleNamespace as SN
 from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from torch.profiler import profile, ProfilerActivity
+import torch.distributed as dist
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
@@ -46,14 +50,16 @@ class ConditionalTrainer:
     n_eval_batches: int
     max_sequence_length: int
     batch_size: int
+    cutoff: int
     lr_scheduler: AbstractLRScheduler
+    repeater_job_end_time: int = None
     _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
     scaler: Optional[torch.cuda.amp.GradScaler] = None
     layer_manager: Optional[LayerManager] = None
     loss_accumulator: Optional[float] = None
     n_gpus: int = 1
-    save_weights_path: str = None
+    save_weights_path: Optional[str] = None
     save_weights_interval: int = 1000
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
@@ -71,7 +77,7 @@ class ConditionalTrainer:
     eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
     model_fit_gpu_info_database_path: str = None
-    model_fit_gpu_info_params: [str] = None
+    model_fit_gpu_info_params: Optional[str] = None
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
@@ -106,6 +112,8 @@ class ConditionalTrainer:
         self._check_config()
 
     def _before_train_operations(self):
+        if self.is_logging_process:
+            self.logger.start_job_metadata(self.start_step)
         propagate_forward_pass_cache(self.model)
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
@@ -119,6 +127,8 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "success",
         )
+        if self.is_logging_process:
+            self.logger.exit_job_metadata(self.current_step)
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
@@ -145,7 +155,10 @@ class ConditionalTrainer:
             with_modules=True,
         ) as p:
             for step in range(self.start_step, n_steps + 1):
+                self.current_step = step
                 self._train_step(step)
+                if self._repeater_rerun(step, self.repeater_job_end_time):
+                    break
                 if self.profiler_enabled:
                     p.step()
 
@@ -166,6 +179,7 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
+        self._after_train_operations()
 
     def _train_step(
         self,
@@ -178,6 +192,8 @@ class ConditionalTrainer:
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+        if self.rank is not None:
+            dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
         if self.is_logging_process:
             self._log_train_stats(loss, step)
@@ -229,9 +245,12 @@ class ConditionalTrainer:
     def _apply_gradient(self):
         if self.scaler is None:
             if self.gradient_clipping is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+                if isinstance(self.model, FSDP):
+                    self.model.clip_grad_norm_(self.gradient_clipping)
+                else:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.gradient_clipping
+                    )
             self.optimizer.step()
         else:
             if self.gradient_clipping is not None:
@@ -268,7 +287,9 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(2**log_group_size_factor * original_group_size)
+                current_group_size = int(
+                    2**log_group_size_factor * original_group_size
+                )
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps
@@ -363,6 +384,7 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
+                    processed_token_scale=True,
                 )
                 stats.acc = 0.0
 
@@ -439,7 +461,30 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
+                self.batch_size,
+                self.cutoff,
+                self.logger,
             )
+
+    def _repeater_rerun(
+        self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
+    ) -> bool:
+        if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
+            save_checkpoint(
+                self.model,
+                self.optimizer,
+                self.scaler,
+                self.save_weights_path,
+                self.rank,
+                step,
+                self.batch_size,
+                self.cutoff,
+                self.logger,
+            )
+
+            return True
+        else:
+            return False
 
     def _check_config(self):
         if self.eval_dynamic_groupsize:
