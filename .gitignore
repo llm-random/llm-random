@@ -169,3 +169,4 @@ local_search_configs
 
 # MS files
 testms_*
+*mstest*
