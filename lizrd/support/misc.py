@@ -143,7 +143,7 @@ def calculate_from_args_model_parameter_counts(args, vocab_size):
 
         ff_active_params = (
             ff_total_params * active_ratio
-        )  # active_ratio = 1 for not MoE
+        )  # when not MoE, active_ratio = 1
 
         print(f"experts active/total: {ff_active_params}/{ff_total_params}")
 
@@ -176,13 +176,8 @@ def count_tokens_per_step(batch_size, cutoff):
     return batch_size * cutoff
 
 
-def count_token_to_active_ratio(tokens_per_step, n_active, args):
-    tokens_per_active_ratio = (
-        (args.n_steps * tokens_per_step / n_active)
-        if args.n_steps is not None
-        else None
-    )
-    return tokens_per_active_ratio
+def count_token_to_active_ratio(tokens, active):
+    return tokens / active
 
 
 def generate_random_string(length: int) -> str:

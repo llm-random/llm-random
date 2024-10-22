@@ -16,10 +16,6 @@ from lizrd.support.misc import (
     make_concise_datetime,
     tags_to_name,
     generate_random_string,
-    get_total_nonembedding_parameters,
-    get_n_learnable_parameters,
-    get_total_nonembedding_parameters,
-    get_active_nonembedding_parameters,
     count_tokens_per_step,
     count_token_to_active_ratio,
     calculate_from_args_model_parameter_counts,
@@ -500,71 +496,58 @@ class JointLogger(AbstractLogger):
 
 
 def log_and_print_model_param_count(args, model, vocab_size):
-    if not args.fsdp_enabled:
-        n_learnable_parameters = get_n_learnable_parameters(model)
+    (
+        embedding_params,
+        all_layer_norm_params,
+        all_attention_params,
+        all_ff_total_params,
+        all_ff_active_params,
+        all_router_params,
+        head_params,
+    ) = calculate_from_args_model_parameter_counts(args, vocab_size)
 
-        n_learnable_nonembedding_parameters = get_total_nonembedding_parameters(model)
-
-        n_active_learnable_nonembedding_parameters = get_active_nonembedding_parameters(
-            args, model
-        )
-
-        embedding_params = n_learnable_parameters - n_learnable_nonembedding_parameters
-        model_n_active_with_embedding = (
-            n_active_learnable_nonembedding_parameters + embedding_params
-        )
-
-    else:
-        (
-            embedding_params,
-            all_layer_norm_params,
-            all_attention_params,
-            all_ff_total_params,
-            all_ff_active_params,
-            all_router_params,
-            head_params,
-        ) = calculate_from_args_model_parameter_counts(args, vocab_size)
-
-    args.model_n_params_with_embedding = (
-        embedding_params
-        + all_layer_norm_params
-        + all_attention_params
-        + all_ff_total_params
-        + all_router_params
-        + head_params
-    )
-    args.model_n_params = (
+    nonembedding_all_params = (
         all_layer_norm_params
         + all_attention_params
         + all_ff_total_params
         + all_router_params
     )
-    args.model_n_active = all_attention_params + all_ff_active_params
-    args.model_n_active_with_embedding = (
+    nonembedding_active_params = (
         all_layer_norm_params
         + all_attention_params
         + all_ff_active_params
         + all_router_params
-        + head_params
+    )
+    active_params_for_scaling_laws = all_attention_params + all_ff_active_params
+
+    args.model_n_nonembedding_params = nonembedding_all_params
+    args.model_n_params = embedding_params + nonembedding_all_params + head_params
+    args.model_n_active_nonembedding_params = nonembedding_active_params
+    args.model_n_active_params = (
+        embedding_params + nonembedding_active_params + head_params
+    )
+    args.active_params_scaling_laws_no_head = active_params_for_scaling_laws
+    args.active_params_scaling_laws_with_head = (
+        active_params_for_scaling_laws + head_params
     )
     args.model_embedding_params = embedding_params + head_params
 
     tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
 
     token_to_active_ratio = count_token_to_active_ratio(
-        tokens=tokens_per_step * args.n_step,
-        active=args.model_n_active,
+        tokens=tokens_per_step * args.n_steps,
+        active=args.active_params_scaling_laws_no_head,
     )
 
     args.tokens_per_step = tokens_per_step
     args.token_to_active_ratio = token_to_active_ratio
 
-    print(f"Model total parameters: {n_learnable_parameters:_}")
-    print(f"Model nonembedding parameters: {n_learnable_nonembedding_parameters:_}")
+    print(f"Model total parameters: {args.model_n_params:_}")
+    print(f"Model nonembedding parameters: {args.model_n_nonembedding_params:_}")
     print(
-        f"Model active nonembedding parameters: {n_active_learnable_nonembedding_parameters:_}"
+        f"Model active nonembedding parameters: {args.active_params_scaling_laws_no_head:_}"
     )
-    print(f"#tokens / #active: {token_to_active_ratio:.2f}")
+    print(f"#tokens / #active: {args.token_to_active_ratio:.2f}")
 
 
 def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteration: int):
