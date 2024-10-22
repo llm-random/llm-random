@@ -134,7 +134,9 @@ class AbstractLogger(ABC):
 
     def with_token_scale(self, title: str, value: float, iteration: int):
         tokens_passed = iteration * self.args.get("tokens_per_step")
-        tokens_per_active_params = tokens_passed / self.args.get("model_n_active")
+        tokens_per_active_params = tokens_passed / self.args.get(
+            "active_params_for_scaling_laws_no_head"
+        )
         return {
             f"{title}_tokens": {
                 "value": value,
@@ -526,8 +528,8 @@ def log_and_print_model_param_count(args, model, vocab_size):
     args.model_n_active_params = (
         embedding_params + nonembedding_active_params + head_params
     )
-    args.active_params_scaling_laws_no_head = active_params_for_scaling_laws
-    args.active_params_scaling_laws_with_head = (
+    args.active_params_for_scaling_laws_no_head = active_params_for_scaling_laws
+    args.active_params_for_scaling_laws_with_head = (
         active_params_for_scaling_laws + head_params
     )
     args.model_embedding_params = embedding_params + head_params
