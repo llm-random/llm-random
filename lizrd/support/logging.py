@@ -500,6 +500,7 @@ class JointLogger(AbstractLogger):
 
 def log_and_print_model_param_count(args, model, vocab_size):
     all_model_params_calculated_directly_from_torch = get_n_learnable_parameters(model)
+    args.model_n_params_from_torch = all_model_params_calculated_directly_from_torch
 
     (
         embedding_params,
