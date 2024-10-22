@@ -19,6 +19,7 @@ from lizrd.support.misc import (
     count_tokens_per_step,
     count_token_to_active_ratio,
     calculate_from_args_model_parameter_counts,
+    get_n_learnable_parameters,
 )
 
 _CURRENT_LOGGER: Optional["AbstractLogger"] = None
@@ -498,6 +499,8 @@ class JointLogger(AbstractLogger):
 
 
 def log_and_print_model_param_count(args, model, vocab_size):
+    all_model_params_calculated_directly_from_torch = get_n_learnable_parameters(model)
+
     (
         embedding_params,
         all_layer_norm_params,
@@ -538,18 +541,29 @@ def log_and_print_model_param_count(args, model, vocab_size):
 
     token_to_active_ratio = count_token_to_active_ratio(
         tokens=tokens_per_step * args.n_steps,
-        active=args.active_params_scaling_laws_no_head,
+        active=args.active_params_for_scaling_laws_no_head,
     )
 
     args.tokens_per_step = tokens_per_step
     args.token_to_active_ratio = token_to_active_ratio
 
-    print(f"Model total parameters: {args.model_n_params:_}")
-    print(f"Model nonembedding parameters: {args.model_n_nonembedding_params:_}")
     print(
-        f"Model active nonembedding parameters: {args.active_params_scaling_laws_no_head:_}"
+        f"Model total parameters from torch:\t{all_model_params_calculated_directly_from_torch:_}"
     )
-    print(f"#tokens / #active: {args.token_to_active_ratio:.2f}")
+    print(f"Model total parameters from equation:\t{args.model_n_params:_}")
+    print(f"Model nonembedding parameters:\t\t{args.model_n_nonembedding_params:_}")
+    # print(f"debug difference:\t{all_model_params_calculated_directly_from_torch - args.model_n_params}")
+    # print(f"embedding_params: {embedding_params}")
+    # print(f"all_layer_norm_params: {all_layer_norm_params}")
+    # print(f"all_attention_params: {all_attention_params}")
+    # print(f"all_ff_total_params: {all_ff_total_params}")
+    # print(f"all_ff_active_params: {all_ff_active_params}")
+    # print(f"all_router_params: {all_router_params}")
+    # print(f"head_params: {head_params}")
+    print(
+        f"Model active nonembedding parameters:\t{args.active_params_for_scaling_laws_no_head:_}"
+    )
+    print(f"#tokens / #active:\t\t\t{args.token_to_active_ratio:.2f}")
 
 
 def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteration: int):
