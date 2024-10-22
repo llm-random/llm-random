@@ -562,7 +562,7 @@ def log_and_print_model_param_count(args, model, vocab_size):
     # print(f"all_router_params: {all_router_params}")
     # print(f"head_params: {head_params}")
     print(
-        f"Model active nonembedding parameters:\t{args.active_params_for_scaling_laws_no_head:_}"
+        f"Model attention + FF active parameters:\t{args.active_params_for_scaling_laws_no_head:_}"
     )
     print(f"#tokens / #active:\t\t\t{args.token_to_active_ratio:.2f}")
 

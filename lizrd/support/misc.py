@@ -119,7 +119,15 @@ def get_model_configuration_for_active_param_calculation(args):
 def calculate_from_args_model_parameter_counts(args, vocab_size):
     model_configuration = get_model_configuration_for_active_param_calculation(args)
     if model_configuration is None:
-        return 1  # something that won't kill experiments, but is obviously not true
+        return (
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+        )  # something that won't kill experiments, but is obviously not true
 
     else:
         embedding_parameters = vocab_size * args.dmodel + args.cutoff * args.dmodel
