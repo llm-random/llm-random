@@ -946,5 +946,9 @@ def disable_profile_schedule_fn(_: int) -> ProfilerAction:
 def calculate_lr(args):
     if args.learning_rate == 0 and args.learning_rate_log2 != 0:
         return 2**args.learning_rate_log2
-    else:
+    elif args.learning_rate != 0 and args.learning_rate_log2 == 0:
         return args.learning_rate
+    else:
+        raise ValueError(
+            "Exactly one of learning_rate and learning_rate_log2 must be set"
+        )
