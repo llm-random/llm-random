@@ -1,0 +1,13 @@
+parent: configs/experiments/constrained_scaling_laws/49M/model.yaml
+md5_parent_hash: d1aa84ff7af92dd415e31f22294739be
+# here configure GPUs & time for a given cluster for it to fit
+time: "40:00:00"
+n_gpus: 2
+
+params:
+  name: "constrained_lr_grid"
+  tags: ["130M", "lr_scaling"]
+  expansion_rate: 1
+  ^n_steps: [9900]
+  gradient_accumulation_steps: 2
+  ^learning_rate_log2: [-9,-10,-11,-12, -13, -14]
