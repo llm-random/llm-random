@@ -331,7 +331,7 @@ class AWS1Backend(MachineBackend):
     ):
         if n_consecutive != 1:
             raise Exception(
-                "You are trying to on the repeater mode on a cluster that do not not support that option."
+                "You are trying to on the repeater mode (aka. checkpoint manager) on a cluster that do not not support that option."
             )
         return [
             "singularity",

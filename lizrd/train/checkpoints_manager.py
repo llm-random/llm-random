@@ -118,7 +118,7 @@ def __overwrite_manager(new_content, f):
 def __get_manager_timestamp():
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
     
-def start_job_manager_assesment(job_id):
+def start_job_manager_assesment(job_id:str):
     """Options:
     - returns None to start a new training
     - returns filepath to continue training

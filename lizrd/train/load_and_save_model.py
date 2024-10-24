@@ -29,19 +29,8 @@ def get_latest_checkpoint(dir_path) -> pathlib.Path:
     return latest_checkpoint
 
 
-def get_checkpoint_from_path(load_weights_path: str, repeater_mode: bool) -> str:
+def get_checkpoint_from_path(load_weights_path: str) -> str:
     assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
-    if repeater_mode:
-        load_weights_path = pathlib.Path(load_weights_path)
-
-        if load_weights_path.is_dir():
-            latest_model = get_latest_checkpoint(load_weights_path)
-            if not latest_model:
-                print(
-                    f"No model yet saved in ({load_weights_path}), starting new training."
-                )
-                return None
-            load_weights_path = load_weights_path / latest_model.name
 
     print(f"Loading checkpoint from {load_weights_path}...")
     checkpoint = torch.load(load_weights_path)
@@ -81,18 +70,11 @@ def load_scaler_state(
 
 
 def prepare_save_weights_path(
-    path_to_dir: Optional[str], is_repeater: bool = False
+    path_to_dir: Optional[str]
 ) -> Optional[str]:
-    if path_to_dir is None:
-        if is_repeater:
-            raise Exception(
-                "Please specify checkpoint directory when using repeater mode"
-            )
-        return None
     # we need a random dir because we can be running a whole grid from the same directory
-    if not is_repeater:
-        random_dirname = f"{generate_random_string(10)}"
-        path_to_dir = os.path.join(path_to_dir, random_dirname)
+    random_dirname = f"{generate_random_string(10)}"
+    path_to_dir = os.path.join(path_to_dir, random_dirname)
     save_weights_path = os.path.abspath(path_to_dir)
     os.makedirs(save_weights_path, exist_ok=True)
     return save_weights_path
@@ -152,4 +134,4 @@ def save_checkpoint(
 
         torch.save(checkpoint, f=full_path)
         print(f"Weights saved to {full_path} (step {step})")
-        return full_path
+        return os.path.abspath(full_path)

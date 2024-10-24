@@ -17,12 +17,13 @@ from lizrd.support.misc import (
     get_n_learnable_parameters,
     set_seed,
 )
+from lizrd.train.checkpoints_manager import start_job_manager_assesment
 from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
 from research.conditional.utils.check_args import check_args
-from research.conditional.utils.misc_tools import get_termination_timestamp_slurm
+from research.conditional.utils.misc_tools import get_slurm_job_id, get_termination_timestamp_slurm
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
@@ -222,11 +223,14 @@ def main(
             for ff_fun in ff_layer_funs
         ]
 
-    checkpoint = (
-        get_checkpoint_from_path(args.load_weights_path, args.repeater_mode)
-        if args.load_weights_path is not None
-        else None
-    )
+    if not args.checkpoint_manager:
+        checkpoint = (
+            get_checkpoint_from_path(args.load_weights_path)
+            if args.load_weights_path is not None
+            else None
+        )
+    else:
+        checkpoint = start_job_manager_assesment(get_slurm_job_id())
 
     model = get_model(
         max_length=args.cutoff,
@@ -294,7 +298,7 @@ def main(
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
-    if not args.repeater_mode:
+    if not args.checkpoint_manager:
         rescale_params_after_init(args, model)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
@@ -404,7 +408,7 @@ def main(
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
         repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.repeater_mode
+        if args.checkpoint_manager
         else None,
     )
     trainer.train(args.n_steps)
@@ -422,7 +426,7 @@ if __name__ == "__main__":
         args.data_seed = random.randint(0, 10000000)
 
     save_weights_path = prepare_save_weights_path(
-        args.save_weights_path, args.repeater_mode
+        args.save_weights_path
     )
 
     if args.ddp_enabled or args.fsdp_enabled:

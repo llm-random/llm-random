@@ -15,12 +15,13 @@ from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
+from lizrd.train.checkpoints_manager import job_out_of_time_checkpoint
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.misc_tools import temp_modify_attr
+from research.conditional.utils.misc_tools import get_slurm_job_id, temp_modify_attr
 from research.conditional.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
@@ -470,7 +471,9 @@ class ConditionalTrainer:
         self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
     ) -> bool:
         if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
-            save_checkpoint(
+            job_id = get_slurm_job_id()
+            job_out_of_time_checkpoint(
+                job_id,
                 self.model,
                 self.optimizer,
                 self.scaler,
@@ -481,6 +484,18 @@ class ConditionalTrainer:
                 self.cutoff,
                 self.logger,
             )
+
+            # save_checkpoint( #dev
+            #     self.model,
+            #     self.optimizer,
+            #     self.scaler,
+            #     self.save_weights_path,
+            #     self.rank,
+            #     step,
+            #     self.batch_size,
+            #     self.cutoff,
+            #     self.logger,
+            # )
 
             return True
         else:

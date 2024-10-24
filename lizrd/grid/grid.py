@@ -75,13 +75,13 @@ def create_subprocess_args(
         for i, training_args in enumerate(trainings_args):
             full_config_path = f"full_config{i}.yaml"
             with open(full_config_path, "w") as f:
-                if "repeater_mode" in training_args and training_args["repeater_mode"]:
-                    training_args["save_weights_path"] = str(
-                        pathlib.Path(training_args["save_weights_path"]) / f"{i}"
-                    )
-                    training_args["load_weights_path"] = str(
-                        pathlib.Path(training_args["load_weights_path"]) / f"{i}"
-                    )
+                # if "repeater_mode" in training_args and training_args["repeater_mode"]: #dev
+                #     training_args["save_weights_path"] = str(
+                #         pathlib.Path(training_args["save_weights_path"]) / f"{i}"
+                #     )
+                #     training_args["load_weights_path"] = str(
+                #         pathlib.Path(training_args["load_weights_path"]) / f"{i}"
+                #     )
                 yaml.dump({**training_args, **setup_args}, f)
             training_args["all_config_paths"] += f",{full_config_path}"
 
@@ -99,7 +99,7 @@ def create_subprocess_args(
                 ], interactive_debug_session
 
             n_job_repetitions = 1
-            if "repeater_mode" in training_args and training_args["repeater_mode"]:
+            if "checkpoint_manager" in training_args and training_args["checkpoint_manager"]:
                 total_exp_time = timestr_to_minutes(setup_args["time"]) * 60
                 if CLUSTER.max_exp_time < total_exp_time:
                     n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)

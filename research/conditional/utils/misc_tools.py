@@ -66,3 +66,8 @@ def temp_modify_attr(
 def get_termination_timestamp_slurm() -> int:
     env = os.environ.copy()
     return int(env["SLURM_JOB_END_TIME"])
+
+
+def get_slurm_job_id() -> str:
+    env = os.environ.copy()
+    return env["SLURM_JOBID"]
