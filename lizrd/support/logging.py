@@ -553,14 +553,6 @@ def log_and_print_model_param_count(args, model, vocab_size):
     )
     print(f"Model total parameters from equation:\t{args.model_n_params:_}")
     print(f"Model nonembedding parameters:\t\t{args.model_n_nonembedding_params:_}")
-    # print(f"debug difference:\t{all_model_params_calculated_directly_from_torch - args.model_n_params}")
-    # print(f"embedding_params: {embedding_params}")
-    # print(f"all_layer_norm_params: {all_layer_norm_params}")
-    # print(f"all_attention_params: {all_attention_params}")
-    # print(f"all_ff_total_params: {all_ff_total_params}")
-    # print(f"all_ff_active_params: {all_ff_active_params}")
-    # print(f"all_router_params: {all_router_params}")
-    # print(f"head_params: {head_params}")
     print(
         f"Model attention + FF active parameters:\t{args.active_params_for_scaling_laws_no_head:_}"
     )

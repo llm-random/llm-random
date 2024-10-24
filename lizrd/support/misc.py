@@ -119,6 +119,13 @@ def get_model_configuration_for_active_param_calculation(args):
 def calculate_from_args_model_parameter_counts(args, vocab_size):
     model_configuration = get_model_configuration_for_active_param_calculation(args)
     if model_configuration is None:
+        # when counting parameters for your model type isn't implemented, this function returns 1 for all param-counts.
+        # This is a safe value that:
+        #   1. won't kill the experiment. We don't want that, because counting parameters is mainly for nice neptune loss plots, not a necessary feature.
+        #   2. Values are obviously wrong, so someone should notice that they don't have their parameter logic implemented.
+        print(
+            "Parameter counting not implemented for this model. Consider adding it to lizrd/support/misc.py calculate_from_args_model_parameter_counts function"
+        )
         return (
             1,
             1,
@@ -127,7 +134,7 @@ def calculate_from_args_model_parameter_counts(args, vocab_size):
             1,
             1,
             1,
-        )  # something that won't kill experiments, but is obviously not true
+        )
 
     else:
         embedding_parameters = vocab_size * args.dmodel + args.cutoff * args.dmodel
