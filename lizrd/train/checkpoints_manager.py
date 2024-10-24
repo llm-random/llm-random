@@ -11,7 +11,7 @@ from torch.distributed.fsdp import (
 
 from lizrd.support.logging import JointLogger
 
-EXPERIMENT_CHECKPOINT_MANAGER = "test.json"
+EXPERIMENT_CHECKPOINT_MANAGER = "checkpoint_manager.json"
 
 CHECKPOINTS_TAG = "checkpoints"
 START_NEW_TAG = "START"
