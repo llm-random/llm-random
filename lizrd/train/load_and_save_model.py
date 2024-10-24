@@ -152,3 +152,4 @@ def save_checkpoint(
 
         torch.save(checkpoint, f=full_path)
         print(f"Weights saved to {full_path} (step {step})")
+        return full_path
