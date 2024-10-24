@@ -21,7 +21,7 @@ from lizrd.support.misc import (
     count_tokens_per_step,
 )
 
-_CURRENT_LOGGER = None
+_CURRENT_LOGGER: Optional["AbstractLogger"] = None
 
 
 def set_current_logger(logger: "AbstractLogger"):
@@ -34,6 +34,10 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
+    TITLE_JOB_STATE = "job_state"
+    STATE_JOB_RUNNING = "RUNNING"
+    STATE_JOB_FINISHED = "FINISHED"
+
     def __init__(self, logger, args: Namespace):
         self.instance_logger = logger
         self.args = vars(args)
@@ -170,6 +174,37 @@ class AbstractLogger(ABC):
             auxiliary_metrics[f"{title}_(x_logarithmic)"] = metric_logarithmic
 
         return auxiliary_metrics
+
+    def start_job_metadata(self, training_step: int):
+        self.report_text(
+            title=f"job/{self.TITLE_JOB_STATE}",
+            value=self.STATE_JOB_RUNNING,
+            iteration=training_step,
+        )
+
+        text_logs = {}
+        ENV_METADATA = [
+            "SLURM_ARRAY_JOB_ID",
+            "SLURM_JOBID",
+            "HOSTNAME",
+            "SLURM_CLUSTER_NAME",
+            "LOGNAME",
+        ]
+        envs = os.environ.copy()
+        for ek in ENV_METADATA:
+            text_logs[ek] = envs.get(ek, None)
+
+        for to_log in text_logs.items():
+            self.report_text(
+                title=f"job/{to_log[0]}", value=to_log[1], iteration=training_step
+            )
+
+    def exit_job_metadata(self, training_step: int):
+        self.report_text(
+            title=f"job/{self.TITLE_JOB_STATE}",
+            value=self.STATE_JOB_FINISHED,
+            iteration=training_step,
+        )
 
 
 class ClearMLLogger(AbstractLogger):
