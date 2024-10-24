@@ -66,3 +66,10 @@ def get_ith_chunk(tensor, chunks, i):
 
     list_of_chunks = torch.chunk(tensor, chunks, dim=0)
     return list_of_chunks[i]
+
+
+def calculate_current_bs_from_rampup(processed_tokens, bs_rampup_dict):
+    processed_tokens_in_billions = processed_tokens / 1e9
+    for token_count in enumerate(bs_rampup_dict):
+        if processed_tokens_in_billions < token_count:
+            return bs_rampup_dict[token_count]
