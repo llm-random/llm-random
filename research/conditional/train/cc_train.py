@@ -328,6 +328,14 @@ def main(
         dataset_path=args.validation_dataset_path,
     )
 
+    common_dataloaders_kwargs["seed"] = args.final_eval_seed
+    common_dataloaders_kwargs["batch_size"] = args.final_eval_dataloader_batch_size
+    final_eval_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs,
+        dataset_split=eval_split,
+        dataset_path=args.validation_dataset_path,
+    )
+
     if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
         logger_run_id = checkpoint["logger"]["run_id"]
     else:
@@ -403,9 +411,12 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.repeater_mode
-        else None,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.repeater_mode else None
+        ),
+        final_eval_dataloader=final_eval_dataloader,
+        final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
+        n_sequences_final_eval=args.n_sequences_final_eval,
     )
     trainer.train(args.n_steps)
 

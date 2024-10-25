@@ -38,3 +38,8 @@ def check_args(args):
 
     if args.repeater_mode:
         assert args.relative_init_scale == None
+
+    assert (
+        args.n_sequences_final_eval % args.final_eval_dataloader_batch_size == 0
+        and args.n_sequences_final_eval > 0
+    ), "n_sequences_final_eval must be a multiple of final_eval_dataloader_batch_size"

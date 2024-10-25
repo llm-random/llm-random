@@ -84,6 +84,9 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    final_eval_dataloader: Optional[DataloaderWrapper] = None
+    final_eval_dataloader_batch_size: Optional[int] = None
+    n_sequences_final_eval: int = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -134,6 +137,25 @@ class ConditionalTrainer:
         self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
 
+    def _final_eval(
+        self,
+        n_steps: int,
+    ):
+        if self.current_step == n_steps:
+            batches = [
+                self.final_eval_dataloader.get_batch()
+                for _ in range(
+                    self.n_sequences_final_eval // self.final_eval_dataloader_batch_size
+                )
+            ]
+
+            self._eval_single_variant(
+                batches=batches,
+                step=self.current_step,
+                variant_name="end",
+                stage="final_eval",
+            )
+
     def train(self, n_steps: int):
         """
         Train the model for n_steps steps.
@@ -179,6 +201,7 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
+        self._final_eval(n_steps)
         self._after_train_operations()
 
     def _train_step(
@@ -287,9 +310,7 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
+                current_group_size = int(2**log_group_size_factor * original_group_size)
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps
@@ -311,7 +332,11 @@ class ConditionalTrainer:
                 )
 
     def _eval_single_variant(
-        self, batches: Iterable[LLMBatch], step: int, variant_name: str
+        self,
+        batches: Iterable[LLMBatch],
+        step: int,
+        variant_name: str,
+        stage: str = "eval",
     ):
         self.model.eval()
         total_loss = 0.0
@@ -328,18 +353,18 @@ class ConditionalTrainer:
                 extra_losses[name] += loss_value
         if self.is_logging_process:
             self.logger.report_scalar(
-                title=f"eval/total_loss/{variant_name}",
+                title=f"{stage}/total_loss/{variant_name}",
                 value=total_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title=f"eval/accuracy/{variant_name}",
+                title=f"{stage}/accuracy/{variant_name}",
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
             for name, loss_value in extra_losses.items():
                 self.logger.report_scalar(
-                    title=f"eval/{name}/{variant_name}",
+                    title=f"{stage}/{name}/{variant_name}",
                     value=loss_value / self.n_eval_batches,
                     iteration=step,
                 )
