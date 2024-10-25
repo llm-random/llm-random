@@ -9,7 +9,7 @@ params:
   name: "ms_repeater"
   tags: ["ms", "test", "repeater_refactor", "checkpoint_manager"]
   expansion_rate: 4
-  n_steps: 2600
+  n_steps: 4000
   batch_size: 100
   cutoff: 256
   loss_checkpoint_chungs: 0
