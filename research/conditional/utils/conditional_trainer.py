@@ -204,7 +204,9 @@ class ConditionalTrainer:
                 tensor.data = get_ith_chunk(tensor.data, num_bs_chunks_from_rampup, i)
 
             self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
-            loss, aux_info = self.calculate_loss_and_gradient(batch_copy, num_bs_chunks_from_rampup)
+            loss, aux_info = self.calculate_loss_and_gradient(
+                batch_copy, num_bs_chunks_from_rampup
+            )
             if self.rank is not None:
                 dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
             self._apply_gradient()
@@ -227,7 +229,9 @@ class ConditionalTrainer:
         total_masked_tokens_value = 0
         losses = {}
 
-        num_batch_chunks = max(self.gradient_accumulation_steps // num_bs_chunks_from_rampup, 1)
+        num_batch_chunks = max(
+            self.gradient_accumulation_steps // num_bs_chunks_from_rampup, 1
+        )
         for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
