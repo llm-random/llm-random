@@ -70,6 +70,8 @@ def get_ith_chunk(tensor, chunks, i):
 
 def calculate_current_bs_from_rampup(processed_tokens, bs_rampup_dict):
     processed_tokens_in_billions = processed_tokens / 1e9
-    for token_count in enumerate(bs_rampup_dict):
+    for token_count in bs_rampup_dict.keys():
+        # print(f"processed toks: {processed_tokens_in_billions}")
+        # print(f"count: {token_count}")
         if processed_tokens_in_billions < token_count:
             return bs_rampup_dict[token_count]

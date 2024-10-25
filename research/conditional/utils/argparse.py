@@ -63,19 +63,8 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_decay", type=float, default=None)
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
-    parser.add_argument(
-        "--batch_size_rampup",
-        type=load_dict_in_args,
-        default=None,
-        help="""Dictionary with relative batch sizes and steps (in billions of tokens) for batch size rampup
-        Example: --batch_size_rampup "{0.5: 256, 1.0: 512, 2.0: 1024}"
-        Example in config yaml:
-        batch_size_rampup:
-            0.5: 256
-            1.0: 512
-        This will set batch size to 256 until reaching 0.5B training tokens. Then, it will be 512 until 1.0B tokens. After 1.0B tokens, batch size will be changed to the target value, set in batch_size argument.
-        """,
-    )
+    parser.add_argument("--batch_size_rampup_steps", nargs="*", default=None)
+    parser.add_argument("--batch_size_rampup_sizes", nargs="*", default=None)
 
     # CORE data hyperparameters, almost always specified in baseline configs
 

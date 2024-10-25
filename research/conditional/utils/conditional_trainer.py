@@ -83,7 +83,7 @@ class ConditionalTrainer:
     profiler_schedule: None = None
     rank: Optional[int] = None
     start_step: int = 0
-    batch_size_rampup_dict: Optional[dict[float, int]]
+    batch_size_rampup_dict: Optional[dict[float, int]] = None
     checkpoint: Optional[dict[str, torch.Tensor]] = None
 
     def __attrs_post_init__(self):
@@ -195,7 +195,7 @@ class ConditionalTrainer:
         current_bs = calculate_current_bs_from_rampup(
             num_processed_tokens, self.batch_size_rampup_dict
         )
-        num_bs_chunks_from_rampup = self.batch_size / current_bs
+        num_bs_chunks_from_rampup = self.batch_size // current_bs
 
         for i in range(num_bs_chunks_from_rampup):
             # TODO: make a way to avoid copying the whole batch just to get a slice
@@ -204,7 +204,7 @@ class ConditionalTrainer:
                 tensor.data = get_ith_chunk(tensor.data, num_bs_chunks_from_rampup, i)
 
             self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
-            loss, aux_info = self.calculate_loss_and_gradient(batch_copy)
+            loss, aux_info = self.calculate_loss_and_gradient(batch_copy, num_bs_chunks_from_rampup)
             if self.rank is not None:
                 dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
             self._apply_gradient()
@@ -227,13 +227,14 @@ class ConditionalTrainer:
         total_masked_tokens_value = 0
         losses = {}
 
-        for i in range(self.gradient_accumulation_steps / num_bs_chunks_from_rampup):
+        num_batch_chunks = max(self.gradient_accumulation_steps // num_bs_chunks_from_rampup, 1)
+        for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
             for _, tensor in batch_copy:
                 tensor.data = get_ith_chunk(
                     tensor.data,
-                    self.gradient_accumulation_steps / num_bs_chunks_from_rampup,
+                    num_batch_chunks,
                     i,
                 )
 
@@ -242,8 +243,7 @@ class ConditionalTrainer:
                 model=self.model,
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
-                num_checkpoint_accumulation_steps=self.gradient_accumulation_steps
-                / num_bs_chunks_from_rampup,
+                num_checkpoint_accumulation_steps=num_batch_chunks,
                 scaler=self.scaler,
             )
 

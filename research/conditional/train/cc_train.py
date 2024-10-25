@@ -360,6 +360,11 @@ def main(
         else disable_profile_schedule_fn
     )
 
+    if args.batch_size_rampup_steps is not None:
+        args.batch_size_rampup_dict = {}
+        for i, s in enumerate(args.batch_size_rampup_steps):
+            args.batch_size_rampup_dict[float(s)] = int(args.batch_size_rampup_sizes[i])
+
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
@@ -402,7 +407,7 @@ def main(
         profiler_schedule=profiler_schedule,
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
-        batch_size_rampup_dict=args.batch_size_rampup,
+        batch_size_rampup_dict=args.batch_size_rampup_dict,
         checkpoint=checkpoint,
         repeater_job_end_time=get_termination_timestamp_slurm()
         if args.repeater_mode
