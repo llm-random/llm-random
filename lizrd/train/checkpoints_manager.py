@@ -139,13 +139,14 @@ def start_job_manager_assesment(job_id:str, is_logging_process):
             for i, element in enumerate(manager[CHECKPOINTS_TAG]):
                 if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
                     result = element[MODEL_CHECKPOINT]
+                    metadata = element[CHECKPOINT_METADATA_TAG]
                     manager[CHECKPOINTS_TAG][i] = run_manager_checkpoint(job_id, timestamp_now, manager[CHECKPOINTS_TAG][i])
                     __overwrite_manager(manager, f)
                     break
         if result == -1:
             raise Exception("No available trainig to do")
         else:
-            return result
+            return result, metadata
 
 def job_out_of_time_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger] = None): #TODO params
     """saves the checkpoint"""

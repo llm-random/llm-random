@@ -17,7 +17,7 @@ from lizrd.support.misc import (
     get_n_learnable_parameters,
     set_seed,
 )
-from lizrd.train.checkpoints_manager import start_job_manager_assesment
+from lizrd.train.checkpoints_manager import SLIDE_METADATA, start_job_manager_assesment
 from lizrd.train.train_utils import (
     get_model,
 )
@@ -223,6 +223,7 @@ def main(
             for ff_fun in ff_layer_funs
         ]
 
+    checkpoint_metadata = None
     if not args.checkpoint_manager:
         checkpoint = (
             get_checkpoint_from_path(args.load_weights_path)
@@ -230,7 +231,9 @@ def main(
             else None
         )
     else:
-        checkpoint_path = start_job_manager_assesment(get_slurm_job_id(), is_logging_process)
+        checkpoint_path, checkpoint_metadata = start_job_manager_assesment(get_slurm_job_id(), is_logging_process)
+        if checkpoint_metadata == SLIDE_METADATA:
+            args.scheduler_trapezoidal_slides = None
         checkpoint = get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
 
     model = get_model(
