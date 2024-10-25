@@ -15,7 +15,7 @@ from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
-from lizrd.train.checkpoints_manager import job_out_of_time_checkpoint
+from lizrd.train.checkpoints_manager import end_training_checkpoint, job_out_of_time_checkpoint
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
@@ -122,7 +122,7 @@ class ConditionalTrainer:
             "failure",
         )
 
-    def _after_train_operations(self):
+    def _after_train_operations(self, n_steps:int):
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
@@ -130,6 +130,23 @@ class ConditionalTrainer:
         )
         if self.is_logging_process:
             self.logger.exit_job_metadata(self.current_step)
+
+        # Above - end of job training operations area (not model trainig (one config (even diverted from a grid config) can results in multiple models with trapezoidal lr checpotin manager))
+        if self.current_step >= n_steps:
+            # Below - end of model training operations area
+            job_id = get_slurm_job_id()
+            end_training_checkpoint(
+                job_id,
+                self.model,
+                self.optimizer,
+                self.scaler,
+                self.save_weights_path,
+                self.rank,
+                self.current_step,
+                self.batch_size,
+                self.cutoff,
+                self.logger,
+            )
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
@@ -180,7 +197,7 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
-        self._after_train_operations()
+        self._after_train_operations(n_steps)
 
     def _train_step(
         self,

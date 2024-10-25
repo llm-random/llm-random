@@ -157,7 +157,7 @@ def job_out_of_time_checkpoint(job_id, model: Union[torch.nn.Module, FSDP], opti
         __overwrite_manager(manager, f)
 
 def end_training_checkpoint(job_id, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, joint_loggers: Optional[JointLogger] = None):
-    """creates last checkpoint and end experiment"""
+    """creates last checkpoint and end experiment ending whole experiment"""
     model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, joint_loggers)
     timestamp_now = __get_manager_timestamp()
     with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:

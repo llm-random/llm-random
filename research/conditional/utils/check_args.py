@@ -34,4 +34,5 @@ def check_args(args):
 
     if args.checkpoint_manager:
         assert args.load_weights_path == None, "Loads model according to checkpoint manager"
-        assert args.relative_init_scale == None
+        assert args.relative_init_scale == None, "Seems wrong to apply init scale on loaded and already trained weights"
+        assert args.logger_types == None, "Checkpoint manager is implemented only for neptune loggers and creates/continues neptune runs on its own." #dev

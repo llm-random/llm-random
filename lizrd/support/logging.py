@@ -513,19 +513,26 @@ def add_logger_active_metrics(args):
     )
 
 
-def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run_id
+def get_logger(args, model, VOCAB_SIZE, run_ids:list[int]=None):  # dev TODO generalize run_id
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
-    if args.logger_types == "":
-        logger_types = []
+    logger_types = []
+    if args.checkpoint_manager:
+        assert args.logger_types == None
+        n_neptune_loggers = len(run_ids) if run_ids else 1
+        for _ in range(n_neptune_loggers):
+            logger_types.append("neptune")
     else:
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
     add_logger_active_metrics(args)
-
-    for logger_type in logger_types:
-        if logger_type == "neptune":
+    if not run_ids:
+        run_ids = []
+        for _ in logger_types:
+            run_ids.append(None)
+    for logger_type, run_id in zip(logger_types, run_ids):
+        if logger_type == "neptune":    
             run = neptune.init_run(
                 project=args.project_name,
                 tags=args.tags,
@@ -560,7 +567,6 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
                 f"Logger of type '{logger_type}' is not implemented."
             )
     return JointLogger(initialized_loggers)
-
 
 def prepare_tensor_for_logging(
     x: torch.Tensor, sample_size=2500, with_replacement=False

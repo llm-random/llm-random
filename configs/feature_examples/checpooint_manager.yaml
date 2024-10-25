@@ -9,10 +9,11 @@ params:
   name: "ms_repeater"
   tags: ["ms", "test", "repeater_refactor", "checkpoint_manager"]
   expansion_rate: 4
-  n_steps: 4000
+  n_steps: 2600
   batch_size: 100
   cutoff: 256
   loss_checkpoint_chungs: 0
   save_weights_path: "./test_saving"
   checkpoint_manager: True
+  logger_types: Null
   # save_weights_interval: 100

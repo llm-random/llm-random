@@ -115,9 +115,12 @@ def save_checkpoint(
             for l in joint_loggers.loggers
             if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
         ]
-        if len(neptune_logger) == 1:
-            neptune_logger = neptune_logger[0].instance_logger
-            logger_metadata = {"run_id": neptune_logger._sys_id}
+        if len(neptune_logger) >= 1: #dev
+            ids = []
+            for e in neptune_logger:
+                neptune_logger = e.instance_logger
+                ids.append(neptune_logger._sys_id)
+            logger_metadata = {"run_id": ids}
         else:
             print(f"No Neptune logger, no saving.")
             logger_metadata = None
@@ -129,6 +132,7 @@ def save_checkpoint(
             "step": step,
             "logger": logger_metadata,
         }
+
         if scaler is not None:
             checkpoint["scaler"] = scaler.state_dict()
 
