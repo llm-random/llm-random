@@ -134,7 +134,7 @@ def start_job_manager_assesment(job_id:str, is_logging_process):
             if manager == {}:
                 manager[CHECKPOINTS_TAG] = [manager_start_checkpoint(job_id, timestamp_now)]
                 __overwrite_manager(manager, f)
-                return None
+                return None, None
             result = -1
             for i, element in enumerate(manager[CHECKPOINTS_TAG]):
                 if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
