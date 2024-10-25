@@ -9,7 +9,7 @@ from torch.distributed.fsdp import (
     FullyShardedDataParallel as FSDP
 )
 
-from lizrd.support.logging import JointLogger
+from lizrd.support.logging import AbstractLogger, JointLogger
 
 EXPERIMENT_CHECKPOINT_MANAGER = "checkpoint_manager.json"
 
@@ -118,7 +118,7 @@ def __overwrite_manager(new_content, f):
 def __get_manager_timestamp():
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
     
-def start_job_manager_assesment(job_id:str):
+def start_job_manager_assesment(job_id:str, is_logging_process):
     """Options:
     - returns None to start a new training
     - returns filepath to continue training
@@ -128,51 +128,55 @@ def start_job_manager_assesment(job_id:str):
     Currently do not take deadlocks into account!!!
     """
     timestamp_now = __get_manager_timestamp()
-    with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
-        manager = json.load(f)
-        if manager == {}:
-            manager[CHECKPOINTS_TAG] = [manager_start_checkpoint(job_id, timestamp_now)]
-            __overwrite_manager(manager, f)
-            return None
-        result = -1
-        for i, element in enumerate(manager[CHECKPOINTS_TAG]):
-            if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
-                result = element[MODEL_CHECKPOINT]
-                manager[CHECKPOINTS_TAG][i] = run_manager_checkpoint(job_id, timestamp_now, manager[CHECKPOINTS_TAG][i])
+    if is_logging_process:
+        with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
+            manager = json.load(f)
+            if manager == {}:
+                manager[CHECKPOINTS_TAG] = [manager_start_checkpoint(job_id, timestamp_now)]
                 __overwrite_manager(manager, f)
-                break
-    if result == -1:
-        raise Exception("No available trainig to do")
-    else:
-        return result
+                return None
+            result = -1
+            for i, element in enumerate(manager[CHECKPOINTS_TAG]):
+                if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
+                    result = element[MODEL_CHECKPOINT]
+                    manager[CHECKPOINTS_TAG][i] = run_manager_checkpoint(job_id, timestamp_now, manager[CHECKPOINTS_TAG][i])
+                    __overwrite_manager(manager, f)
+                    break
+        if result == -1:
+            raise Exception("No available trainig to do")
+        else:
+            return result
 
-def job_out_of_time_checkpoint(job_id, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, joint_loggers: Optional[JointLogger] = None): #TODO params
+def job_out_of_time_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger] = None): #TODO params
     """saves the checkpoint"""
-    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, joint_loggers)
+    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers)
     timestamp_now = __get_manager_timestamp()
-    with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
-        manager = json.load(f)
-        manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now)
-        manager[CHECKPOINTS_TAG].append(crate_manager_checkpoint(model_path, job_id, timestamp_now))
-        __overwrite_manager(manager, f)
+    if is_logging_process:
+        with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
+            manager = json.load(f)
+            manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now)
+            manager[CHECKPOINTS_TAG].append(crate_manager_checkpoint(model_path, job_id, timestamp_now))
+            __overwrite_manager(manager, f)
 
-def end_training_checkpoint(job_id, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, joint_loggers: Optional[JointLogger] = None):
+def end_training_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger] = None):
     """creates last checkpoint and end experiment ending whole experiment"""
-    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, joint_loggers)
+    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers)
     timestamp_now = __get_manager_timestamp()
-    with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
-        manager = json.load(f)
-        manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now)
-        __overwrite_manager(manager, f)
+    if is_logging_process:
+        with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
+            manager = json.load(f)
+            manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now)
+            __overwrite_manager(manager, f)
 
-def create_slide_checkpoint(job_id, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, joint_loggers: Optional[JointLogger] = None):
+def create_slide_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger] = None):
     """saves checkpoint and creates a manager checkpoint continuation"""
-    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, joint_loggers, lr_scheduler_metadata="trapezoidal_slide")
+    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers)
     timestamp_now = __get_manager_timestamp()
-    with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
-        manager = json.load(f)
-        manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now)
-        manager[CHECKPOINTS_TAG].append(crate_manager_checkpoint(model_path, job_id, timestamp_now, SLIDE_METADATA))
-        __overwrite_manager(manager, f)
- 
+    if is_logging_process:
+        with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
+            manager = json.load(f)
+            manager[CHECKPOINTS_TAG].append(crate_manager_checkpoint(model_path, job_id, timestamp_now, SLIDE_METADATA))
+            # manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now) #dev TODO - to be considered
+            __overwrite_manager(manager, f)
+    
 

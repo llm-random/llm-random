@@ -11,7 +11,7 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-from lizrd.support.logging import JointLogger, NeptuneLogger
+from lizrd.support.logging import AbstractLogger, JointLogger, NeptuneLogger
 from lizrd.support.misc import generate_random_string
 
 
@@ -89,7 +89,7 @@ def save_checkpoint(
     step: int,
     batch_size,
     cutoff,
-    joint_loggers: Optional[JointLogger] = None,
+    loggers: list[AbstractLogger] = None,
 ):
     if isinstance(model, FSDP):
         # for some reason, setting the model to training mode and
@@ -112,7 +112,7 @@ def save_checkpoint(
     if rank == 0 or rank is None:
         neptune_logger: Run = [
             l
-            for l in joint_loggers.loggers
+            for l in loggers
             if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
         ]
         if len(neptune_logger) >= 1: #dev

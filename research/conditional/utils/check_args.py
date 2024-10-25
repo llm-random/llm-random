@@ -1,3 +1,6 @@
+from ast import literal_eval
+
+
 def check_args(args):
     if args.granularity_expert_config:
         print(
@@ -36,3 +39,6 @@ def check_args(args):
         assert args.load_weights_path == None, "Loads model according to checkpoint manager"
         assert args.relative_init_scale == None, "Seems wrong to apply init scale on loaded and already trained weights"
         assert args.logger_types == None, "Checkpoint manager is implemented only for neptune loggers and creates/continues neptune runs on its own." #dev
+
+    if args.scheduler_trapezoidal_slides:
+        args.scheduler_trapezoidal_slides = literal_eval(args.scheduler_trapezoidal_slides)

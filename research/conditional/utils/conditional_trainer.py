@@ -15,7 +15,7 @@ from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
-from lizrd.train.checkpoints_manager import end_training_checkpoint, job_out_of_time_checkpoint
+from lizrd.train.checkpoints_manager import create_slide_checkpoint, end_training_checkpoint, job_out_of_time_checkpoint
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
@@ -85,6 +85,7 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    scheduler_trapezoidal_slides:dict = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -137,6 +138,7 @@ class ConditionalTrainer:
             job_id = get_slurm_job_id()
             end_training_checkpoint(
                 job_id,
+                self.is_logging_process,
                 self.model,
                 self.optimizer,
                 self.scaler,
@@ -145,7 +147,7 @@ class ConditionalTrainer:
                 self.current_step,
                 self.batch_size,
                 self.cutoff,
-                self.logger,
+                self.logger.loggers if self.is_logging_process else None,
             )
 
     def _after_step_operations(self, step):
@@ -175,8 +177,7 @@ class ConditionalTrainer:
             for step in range(self.start_step, n_steps + 1):
                 self.current_step = step
                 self._train_step(step)
-                if self._repeater_rerun(step, self.repeater_job_end_time):
-                    break
+
                 if self.profiler_enabled:
                     p.step()
 
@@ -197,6 +198,30 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
+                if self.scheduler_trapezoidal_slides:
+                    for e in self.scheduler_trapezoidal_slides:
+                        if step == e["step"]:
+                            #dev delete splited, one of neptune loggers
+                            #dev save model and add to checkpoint
+                            splitted_loggers = None
+                            if self.is_logging_process:
+                                splitted_loggers = [self.logger.loggers[0]]
+                                del self.logger.loggers[0]
+                            create_slide_checkpoint(
+                                get_slurm_job_id(),
+                                self.is_logging_process,
+                                self.model,
+                                self.optimizer,
+                                self.scaler,
+                                self.save_weights_path,
+                                self.rank,
+                                step,
+                                self.batch_size,
+                                self.cutoff,
+                                splitted_loggers
+                            )
+                if self._repeater_rerun(step, self.repeater_job_end_time):
+                    break
         self._after_train_operations(n_steps)
 
     def _train_step(
@@ -481,7 +506,7 @@ class ConditionalTrainer:
                 step,
                 self.batch_size,
                 self.cutoff,
-                self.logger,
+                self.logger.loggers,
             )
 
     def _repeater_rerun(
@@ -491,6 +516,7 @@ class ConditionalTrainer:
             job_id = get_slurm_job_id()
             job_out_of_time_checkpoint(
                 job_id,
+                self.is_logging_process,
                 self.model,
                 self.optimizer,
                 self.scaler,
@@ -499,7 +525,7 @@ class ConditionalTrainer:
                 step,
                 self.batch_size,
                 self.cutoff,
-                self.logger,
+                self.logger.loggers if self.is_logging_process else None,
             )
 
             # save_checkpoint( #dev

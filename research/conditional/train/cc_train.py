@@ -230,7 +230,7 @@ def main(
             else None
         )
     else:
-        checkpoint_path = start_job_manager_assesment(get_slurm_job_id())
+        checkpoint_path = start_job_manager_assesment(get_slurm_job_id(), is_logging_process)
         checkpoint = get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
 
     model = get_model(
@@ -336,7 +336,12 @@ def main(
     if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
         logger_runs_ids = checkpoint["logger"]["run_id"]
     else:
-        logger_runs_ids = None
+        if args.scheduler_trapezoidal_slides:
+            logger_runs_ids = []
+            for _ in range(len(args.scheduler_trapezoidal_slides)):
+                logger_runs_ids.append(None)
+        else:
+            logger_runs_ids = None
 
     if is_logging_process:
         logger = get_logger(args, model, VOCAB_SIZE, logger_runs_ids)
@@ -411,6 +416,7 @@ def main(
         repeater_job_end_time=get_termination_timestamp_slurm()
         if args.checkpoint_manager
         else None,
+        scheduler_trapezoidal_slides = args.scheduler_trapezoidal_slides
     )
     trainer.train(args.n_steps)
 
