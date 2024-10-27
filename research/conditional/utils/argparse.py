@@ -63,8 +63,10 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_decay", type=float, default=None)
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
-    parser.add_argument("--batch_size_rampup_steps", nargs="*", default=None)
-    parser.add_argument("--batch_size_rampup_sizes", nargs="*", default=None)
+    parser.add_argument(
+        "--batch_size_transition_points", type=float, nargs="*", default=None
+    )
+    parser.add_argument("--batch_size_rampup_sizes", type=int, nargs="*", default=None)
 
     # CORE data hyperparameters, almost always specified in baseline configs
 

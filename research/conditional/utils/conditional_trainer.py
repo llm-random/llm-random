@@ -83,7 +83,8 @@ class ConditionalTrainer:
     profiler_schedule: None = None
     rank: Optional[int] = None
     start_step: int = 0
-    batch_size_rampup_dict: Optional[dict[float, int]] = None
+    batch_size_rampup_transition_points: Optional[list[float]] = None
+    batch_size_rampup_sizes: Optional[list[int]] = None
     checkpoint: Optional[dict[str, torch.Tensor]] = None
 
     def __attrs_post_init__(self):
@@ -191,10 +192,16 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
         processed_batch = self.train_dataloader.get_batch()
 
-        num_processed_tokens = step * self.batch_size * self.max_sequence_length
-        current_bs = calculate_current_bs_from_rampup(
-            num_processed_tokens, self.batch_size_rampup_dict
-        )
+        if self.batch_size_rampup_sizes is None:
+            current_bs = self.batch_size
+        else:
+            num_processed_tokens = step * self.batch_size * self.max_sequence_length
+            current_bs = calculate_current_bs_from_rampup(
+                num_processed_tokens,
+                self.batch_size_rampup_transition_points,
+                self.batch_size_rampup_sizes,
+                self.batch_size,
+            )
         num_bs_chunks_from_rampup = self.batch_size // current_bs
 
         for i in range(num_bs_chunks_from_rampup):

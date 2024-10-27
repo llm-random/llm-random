@@ -68,10 +68,21 @@ def get_ith_chunk(tensor, chunks, i):
     return list_of_chunks[i]
 
 
-def calculate_current_bs_from_rampup(processed_tokens, bs_rampup_dict):
-    processed_tokens_in_billions = processed_tokens / 1e9
-    for token_count in bs_rampup_dict.keys():
-        # print(f"processed toks: {processed_tokens_in_billions}")
-        # print(f"count: {token_count}")
-        if processed_tokens_in_billions < token_count:
-            return bs_rampup_dict[token_count]
+def calculate_current_bs_from_rampup(
+    processed_tokens,
+    batch_size_rampup_transition_points,
+    batch_size_rampup_sizes,
+    target_batch_size,
+):
+    transition_points_in_tokens = [
+        point * 1e9 for point in batch_size_rampup_transition_points
+    ]
+
+    if processed_tokens >= transition_points_in_tokens[-1]:
+        return target_batch_size
+
+    for i in reversed(range(len(transition_points_in_tokens))):
+        if processed_tokens >= transition_points_in_tokens[i]:
+            return batch_size_rampup_sizes[i]
+
+    return batch_size_rampup_sizes[0]
