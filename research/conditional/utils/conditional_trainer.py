@@ -218,7 +218,7 @@ class ConditionalTrainer:
                 dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
             self._apply_gradient()
         if self.is_logging_process:
-            self._log_train_stats(loss, step)
+            self._log_train_stats(loss, step, current_bs)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -399,11 +399,12 @@ class ConditionalTrainer:
                 iteration=step,
             )
 
-    def _log_train_stats(self, loss_value, step):
+    def _log_train_stats(self, loss_value, step, current_bs):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
         )
+        self.logger.report_scalar(title="batch_size", value=current_bs, iteration=step)
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():

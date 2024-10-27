@@ -9,6 +9,7 @@ params:
     batch_size_rampup_transition_points: [1.0, 2.0]
     batch_size_rampup_sizes: [64, 128]
     batch_size: 512
+    cutoff: 512
     fsdp_enabled: true
     mixed_precision: true
     mixed_precision_dtype: bfloat16
