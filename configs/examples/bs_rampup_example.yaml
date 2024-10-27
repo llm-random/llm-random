@@ -1,0 +1,30 @@
+parent: configs/baselines/gpt/dense/base.yaml
+md5_parent_hash: 763f39978a58f704200275285162594c
+interactive_debug: true
+cuda_visible: "0,1"
+n_gpus: 1
+time: "0-00:10:00"
+skip_copy_code: true
+params:
+    batch_size_rampup_transition_points: [1.0, 2.0]
+    batch_size_rampup_sizes: [64, 128]
+    batch_size: 512
+    fsdp_enabled: true
+    mixed_precision: true
+    mixed_precision_dtype: bfloat16
+    flash_attention: true
+    fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+    activation_checkpointing_modules: "TransformerBlock,EmbeddingLayer,PredictionHead"
+    gradient_accumulation_steps: 2
+    ff_mode: vanilla
+    dataset_type: c4
+    n_steps: 100_000
+    learning_rate: 5e-4
+    name: fsdp_complete_example
+    tags: [example]
+    decoding_interval: 0
+    save_weights_interval: 0
+    logging_interval_heavy: 1000
+    eval_interval: 1000
+    init_type: truncated_normal
+    init_scale: 1.0
