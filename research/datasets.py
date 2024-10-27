@@ -50,14 +50,22 @@ def get_processed_dataset(
             split=dataset_split,
         )
     elif dataset_type == "c4":
-        dataset = partial(
-            datasets.C4Dataset,
-            use_dummy_dataset=use_dummy_dataset,
-            split=dataset_split,
-            dataset_path=dataset_path,
-            rank=rank,
-            world_size=world_size,
-        )
+        if use_legacy_datasets:
+            dataset = partial(
+                datasets.LegacyC4Dataset,
+                use_dummy_dataset=use_dummy_dataset,
+                split=dataset_split,
+                dataset_path=dataset_path,
+            )
+        else:
+            dataset = partial(
+                datasets.C4Dataset,
+                use_dummy_dataset=use_dummy_dataset,
+                split=dataset_split,
+                dataset_path=dataset_path,
+                rank=rank,
+                world_size=world_size,
+            )
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 

@@ -3,14 +3,16 @@ from typing import List, Optional
 
 
 def make_singularity_mount_paths(setup_args: dict, training_args: dict) -> str:
-    singularity_mount_paths = f"-B={os.getcwd()}:/llm-random"
+    singularity_mount_paths = f"-B={os.getcwd()}:/llm-random,{os.getcwd()}".replace(
+        "/pfs/lustrep4", ""
+    )
     is_hf_datasets_cache_needed = (
         training_args["train_dataset_path"] is None
         or training_args["validation_dataset_path"] is None
     )
     singularity_mount_paths += (
         f",{setup_args['hf_datasets_cache']}:{setup_args['hf_datasets_cache']}"
-        if is_hf_datasets_cache_needed
+        if True
         else ""
     )
     singularity_mount_paths += (

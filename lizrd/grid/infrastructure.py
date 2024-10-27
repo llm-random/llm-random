@@ -299,14 +299,14 @@ class LumiBackend(MachineBackend):
         return "/scratch/project_465001227/llm-random-group"
 
     def get_cache_path(self) -> str:
-        return "/scratch/project_465001227/llm-random-group/.cache"
+        return "/scratch/project_465001227/llm-random-group/.cache2"
 
     def get_cluster_default_params(self, dataset_type) -> dict:
         return {
             **super().get_cluster_default_params(dataset_type),
             "mem_per_gpu": 64,
             "cpus_per_gpu": 7,  # https://docs.lumi-supercomputer.eu/runjobs/scheduled-jobs/lumig-job/
-            "singularity_image": "/scratch/project_465001227/llm-random-group/images/sparsity_2024.10.08_13.00.45.sif",
+            "singularity_image": "/scratch/project_465001227/llm-random-group/images/sparsity_2024.10.24_17.15.35.sif",
         }
 
     def get_grid_entrypoint(self) -> str:
@@ -314,12 +314,14 @@ class LumiBackend(MachineBackend):
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
-            return "/flash/project_465001227/llm-random-group/datasets/c4/train/"
+            # return "/scratch/project_465001227/llm-random-group/datasets/c4/train/"
+            return "/scratch/project_465001227/llm-random-group/datasets/c4_parquet/train.parquet"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_default_validation_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
-            return "/flash/project_465001227/llm-random-group/datasets/c4/validation/"
+            # return "/scratch/project_465001227/llm-random-group/datasets/c4/validation/"
+            return "/scratch/project_465001227/llm-random-group/datasets/c4_parquet/validation"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_cemetery_directory(self):
@@ -338,12 +340,13 @@ class LumiBackend(MachineBackend):
             partition = "standard-g"
             mem_and_cpu_reqs = []
         else:
-            partition = "small-g"
+            partition = "dev-g"
             mem_and_cpu_reqs = [
                 f"--mem={setup_args['mem_per_gpu']*setup_args['n_gpus']}G",
                 f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             ]
 
+        print(mem_and_cpu_reqs)
         return [
             slurm_command,
             f"--gres=gpu:{setup_args['n_gpus']}",

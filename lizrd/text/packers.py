@@ -257,6 +257,12 @@ class GPTPacker(
         """
         Sample examples from the dataset until we reach the desired sequence length.
         """
+        # return LLMExample(
+        #     input_ids=[0] * self.sequence_length,
+        #     target_ids=[0] * self.sequence_length,
+        #     should_calculate_loss=[1] * self.sequence_length,
+        # )
+
         eot_id = self.tokenizer.eot_id
         assert eot_id is not None
 

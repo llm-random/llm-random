@@ -119,15 +119,26 @@ class C4Dataset(AbstractDataset):
         super().__init__(seed=seed)
         assert split in ["train", "validation"]
         if dataset_path is not None:
-            self.dataset = load_from_disk(dataset_path)
+            if "parquet" in dataset_path:
+                # self.dataset = load_dataset(
+                #     "parquet", data_files=dataset_path, streaming=True
+                # )["train"]
+                self.dataset = load_dataset("parquet", data_files=dataset_path)
+                self.dataset = self.dataset.to_iterable_dataset()["train"]
+            else:
+                self.dataset = load_from_disk(dataset_path)
         elif use_dummy_dataset:
             if split != "train":
                 raise NameError(
                     "Dummy dataset only supports train split for C4 dataset"
                 )
-            self.dataset = load_dataset("stas/c4-en-10k", split=split)
+            self.dataset = load_dataset("stas/c4-en-10k", split=split, streaming=True)
         else:
             self.dataset = load_dataset("c4", "en", split=split)
+
+        if rank is None:
+            rank = 0
+            world_size = 1
 
         self.dataset = split_dataset_by_node(
             self.dataset, rank=rank, world_size=world_size
@@ -138,6 +149,7 @@ class C4Dataset(AbstractDataset):
         self.dataset_iterator = self.dataset.iter(1)
 
     def get_document(self) -> str:
+        # return "abc" * 1000
         if self.dataset_iterator is None:
             self.make_iterator()
 
