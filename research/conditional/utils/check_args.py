@@ -39,17 +39,17 @@ def check_args(args):
     if args.repeater_mode:
         assert args.relative_init_scale == None
 
-    if args.batch_size_transition_points is not None:
+    if args.batch_size_rampup_transition_points is not None:
         assert (
             args.batch_size_rampup_sizes is not None
         ), "Both parameters for rampup batch size need to be set"
 
     if args.batch_size_rampup_sizes is not None:
         assert (
-            args.batch_size_transition_points is not None
+            args.batch_size_rampup_transition_points is not None
         ), "Both parameters for rampup batch size need to be set"
         assert len(args.batch_size_rampup_sizes) == len(
-            args.batch_size_transition_points
+            args.batch_size_rampup_transition_points
         )
         for size in args.batch_size_rampup_sizes:
             assert (

@@ -64,7 +64,7 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
     parser.add_argument(
-        "--batch_size_rampup_steps", type=float, nargs="*", default=None
+        "--batch_size_rampup_transition_points", type=float, nargs="*", default=None
     )
     parser.add_argument("--batch_size_rampup_sizes", type=int, nargs="*", default=None)
 
