@@ -34,12 +34,14 @@ class WikiBookDataset(AbstractDataset):
         self.split = split
 
         self.dataset_wiki = load_dataset(
-            "wikipedia", f"20220301.{'simple' if use_dummy_dataset else 'en'}"
+            "wikipedia",
+            f"20220301.{'simple' if use_dummy_dataset else 'en'}",
+            trust_remote_code=True,
         )["train"]
         self.dataset_book = (
-            load_dataset("bookcorpus")["train"]
+            load_dataset("bookcorpus", trust_remote_code=True)["train"]
             if not use_dummy_dataset
-            else self.dataset_wiki
+            else self.dataset_wiki,
         )
 
         self.bookcorpus_chance = len(self.dataset_book) / len(self.dataset_wiki)
@@ -101,3 +103,20 @@ class C4Dataset(AbstractDataset):
 
     def get_document(self) -> str:
         return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]
+
+
+class DummyDataset(AbstractDataset):
+    total_gpt2_tokens = 173_648_052_806  # number of tokens in the C4 dataset when using GPT2TokenizerFast
+
+    def __init__(
+        self,
+        seed: Optional[int] = None,
+        split: str = "train",
+        use_dummy_dataset: bool = False,
+        dataset_path: Optional[str] = None,
+    ):
+        super().__init__(seed=seed)
+        assert split in ["train", "validation"]
+
+    def get_document(self) -> str:
+        return "abc" * 1000
