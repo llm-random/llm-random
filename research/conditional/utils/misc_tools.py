@@ -66,3 +66,11 @@ def temp_modify_attr(
 def get_termination_timestamp_slurm() -> int:
     env = os.environ.copy()
     return int(env["SLURM_JOB_END_TIME"])
+
+
+def get_n_steps_from_n_training_tokens(
+    n_training_tokens_in_billions, batch_size, seq_len
+):
+    n_training_tokens = n_training_tokens_in_billions * 1e09
+    n_steps = n_training_tokens // (batch_size * seq_len)
+    return n_steps
