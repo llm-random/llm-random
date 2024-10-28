@@ -67,7 +67,7 @@ def introduce_parser_arguments(
     # CORE data hyperparameters, almost always specified in baseline configs
 
     parser.add_argument(
-        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
+        "--dataset_type", type=str, choices=["wikibook", "c4", "fw"], required=True
     )
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--cutoff", type=int, required=True)

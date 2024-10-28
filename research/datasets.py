@@ -49,6 +49,13 @@ def get_processed_dataset(
             split=dataset_split,
             dataset_path=dataset_path,
         )
+    elif dataset_type == "fw":
+        dataset = partial(
+            datasets.FinewebEduDataset,
+            use_dummy_dataset=use_dummy_dataset,
+            split=dataset_split,
+            dataset_path=dataset_path,
+        )
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
