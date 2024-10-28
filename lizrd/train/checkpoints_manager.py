@@ -1,6 +1,7 @@
 import json
 from copy import deepcopy
 import fcntl
+from time import sleep
 from lizrd.train.load_and_save_model import save_checkpoint
 import torch
 from datetime import datetime
@@ -146,6 +147,25 @@ def start_job_manager_assesment(job_id:str, is_logging_process):
             raise Exception("No available trainig to do")
         else:
             return result, metadata
+    else:
+        for _ in range(100):
+            sleep(3)
+            try:
+                with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
+                    manager = json.load(f)
+                    result = -1
+                    for i, element in enumerate(manager[CHECKPOINTS_TAG]):
+                        if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_RUNNING and element[CHECKPOINT_RUNNING_JOB_ID] == job_id:
+                            result = element[MODEL_CHECKPOINT]
+                            metadata = element[CHECKPOINT_METADATA_TAG]
+                            break
+                if result == -1:
+                    raise Exception("No available trainig to do")
+                else:
+                    return result, metadata
+            except Exception as e:
+                ...
+
 
 def job_out_of_time_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger], args_overload:Optional[dict] = None): #TODO params
     """saves the checkpoint"""

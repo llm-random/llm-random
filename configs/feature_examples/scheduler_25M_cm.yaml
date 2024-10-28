@@ -4,18 +4,21 @@ time: "48:00:00"
 n_gpus: 2
 params:
   name: scheduler_trapezoidal
-  tags: ["mstest", "25M", "trapezoidal_scheduler", "grid"]
+  tags: ["mstest", "25M", "trapezoidal_scheduler", "checkpoint_manager", "grid"]
   expansion_rate: 8
   learning_rate: 0.001
-  ^n_steps: [2600, 5200, 13000]
+  n_steps: 13000
   scheduler: trapezoidal
   lr_warmup_percent: 0.01
   lr_trapezoidal_decay_fraction: 0.2
   data_seed: 44
+  checkpoint_manager: True
+  scheduler_trapezoidal_slides: "[{'n_steps':2600},{'n_steps':5200}]"
+  scheduler: trapezoidal
   fsdp_enabled: True
+  logger_types: Null
   loss_checkpoint_chungs: 0
   gradient_accumulation_steps: 4
-  
 
   # name: scheduler_trapezoidal
   # tags: ["mstest", "25M", "trapezoidal_scheduler", "test"]

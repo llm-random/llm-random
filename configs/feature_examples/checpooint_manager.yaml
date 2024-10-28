@@ -1,19 +1,23 @@
 parent: configs/experiments/constrained_scaling_laws/25M/model.yaml
 md5_parent_hash: 3067b2550c57a4b87c0c6a1287e6d902
 time: "01:12:00"
-n_gpus: 1
-# n_gpus: 4
-cpus_per_gpu: 8
+# n_gpus: 1
+n_gpus: 2
+cpus_per_gpu: 16
 # here configure GPUs & time for a given cluster for it to fit
 params:
   name: "ms_repeater"
-  tags: ["ms", "test", "repeater_refactor", "checkpoint_manager"]
+  tags: ["ms", "checkpoint_manager", "test", "test_dev", "final_test_2"]
   expansion_rate: 4
   n_steps: 2600
   batch_size: 100
   cutoff: 256
   loss_checkpoint_chungs: 0
-  save_weights_path: "./test_saving"
+  save_weights_path: "./model_saves"
   checkpoint_manager: True
   logger_types: Null
+  scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':2000}]"
+  scheduler: trapezoidal
+  fsdp_enabled: True
   # save_weights_interval: 100
+

@@ -104,16 +104,16 @@ def create_subprocess_args(
                 total_exp_time = timestr_to_minutes(setup_args["time"]) * 60
                 if CLUSTER.max_exp_time < total_exp_time:
                     n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)
-                    if "scheduler_trapezoidal_slides" in training_args and training_args["scheduler_trapezoidal_slides"]:
-                        scheduler_trapezoidal_slides = literal_eval(training_args["scheduler_trapezoidal_slides"])
-                        n_slide_jobs = 0
-                        for e in scheduler_trapezoidal_slides:
-                            if "n_jobs" in e:
-                                n_slide_jobs += e["n_jobs"]
-                            else:
-                                n_slide_jobs += 1
-                        n_job_repetitions = n_job_repetitions + n_slide_jobs
-                    setup_args["time"] = seconds_to_timestr(CLUSTER.max_exp_time)
+                if "scheduler_trapezoidal_slides" in training_args and training_args["scheduler_trapezoidal_slides"]:
+                    scheduler_trapezoidal_slides = literal_eval(training_args["scheduler_trapezoidal_slides"])
+                    n_slide_jobs = 0
+                    for e in scheduler_trapezoidal_slides:
+                        if "n_jobs" in e:
+                            n_slide_jobs += e["n_jobs"]
+                        else:
+                            n_slide_jobs += 1
+                    n_job_repetitions = n_job_repetitions + n_slide_jobs
+                setup_args["time"] = seconds_to_timestr(CLUSTER.max_exp_time)
 
             subprocess_args = CLUSTER.get_subprocess_args(
                 slurm_command=slurm_command,
