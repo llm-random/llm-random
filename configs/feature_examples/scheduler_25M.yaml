@@ -10,7 +10,7 @@ params:
   ^n_steps: [2600, 5200, 13000]
   ^scheduler: [trapezoidal, cosine]
   lr_warmup_percent: 0.01
-  lr_trapezoidal_decay_percent: 0.2
+  lr_trapezoidal_decay_fraction: 0.2
   data_seed: 44
   fsdp_enabled: false
 
@@ -19,8 +19,8 @@ params:
   # expansion_rate: 8
   # n_steps: 10
   # lr_warmup_percent: 0.1
-  # ^lr_trapezoidal_decay_percent: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-  # # lr_trapezoidal_decay_percent: 0.1
+  # ^lr_trapezoidal_decay_fraction: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+  # # lr_trapezoidal_decay_fraction: 0.1
   # scheduler: trapezoidal
   # fsdp_enabled: false
 
