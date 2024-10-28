@@ -42,3 +42,8 @@ def check_args(args):
 
     if args.scheduler_trapezoidal_slides:
         args.scheduler_trapezoidal_slides = literal_eval(args.scheduler_trapezoidal_slides)
+        new_scheduler_trapezoidal_slides = []
+        for e in args.scheduler_trapezoidal_slides: #dev 
+            e["split_step"] = int(e["n_steps"] * (1-args.lr_trapezoidal_decay_fraction)) - 1
+            new_scheduler_trapezoidal_slides.append(e)
+        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides

@@ -14,7 +14,6 @@ from lizrd.support.logging import AbstractLogger, JointLogger
 EXPERIMENT_CHECKPOINT_MANAGER = "checkpoint_manager.json"
 
 CHECKPOINTS_TAG = "checkpoints"
-START_NEW_TAG = "START"
 
 CHECKPOINT_STATUS = "status"
 CHECKPOINT_STATUS_RUNNING = "RUNNING"
@@ -148,9 +147,9 @@ def start_job_manager_assesment(job_id:str, is_logging_process):
         else:
             return result, metadata
 
-def job_out_of_time_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger] = None): #TODO params
+def job_out_of_time_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger], args_overload:Optional[dict] = None): #TODO params
     """saves the checkpoint"""
-    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers)
+    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers, args_overload)
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
@@ -159,9 +158,9 @@ def job_out_of_time_checkpoint(job_id, is_logging_process, model: Union[torch.nn
             manager[CHECKPOINTS_TAG].append(crate_manager_checkpoint(model_path, job_id, timestamp_now))
             __overwrite_manager(manager, f)
 
-def end_training_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger] = None):
+def end_training_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger], args_overload:Optional[dict] = None):
     """creates last checkpoint and end experiment ending whole experiment"""
-    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers)
+    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers, args_overload)
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
@@ -169,9 +168,9 @@ def end_training_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Mo
             manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now)
             __overwrite_manager(manager, f)
 
-def create_slide_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger] = None):
+def create_slide_checkpoint(job_id, is_logging_process, model: Union[torch.nn.Module, FSDP], optimizer, scaler, path: str, rank: int, step: int, batch_size: int, cutoff, loggers: list[AbstractLogger], args_overload:Optional[dict] = None):
     """saves checkpoint and creates a manager checkpoint continuation"""
-    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers)
+    model_path = save_checkpoint(model, optimizer, scaler, path, rank, step, batch_size, cutoff, loggers, args_overload)
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:

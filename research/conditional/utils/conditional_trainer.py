@@ -85,7 +85,8 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
-    scheduler_trapezoidal_slides:dict = None
+    scheduler_trapezoidal_slides:dict = None,
+    args_overload: Optional[dict] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -148,6 +149,7 @@ class ConditionalTrainer:
                 self.batch_size,
                 self.cutoff,
                 self.logger.loggers if self.is_logging_process else None,
+                self.args_overload
             )
 
     def _after_step_operations(self, step):
@@ -200,7 +202,7 @@ class ConditionalTrainer:
                 self._after_step_operations(step)
                 if self.scheduler_trapezoidal_slides:
                     for e in self.scheduler_trapezoidal_slides:
-                        if step == e["step"]:
+                        if step == e["split_step"]:
                             #dev delete splited, one of neptune loggers
                             #dev save model and add to checkpoint
                             splitted_loggers = None
@@ -218,7 +220,8 @@ class ConditionalTrainer:
                                 step,
                                 self.batch_size,
                                 self.cutoff,
-                                splitted_loggers
+                                splitted_loggers,
+                                args_overload = {"n_steps": e["n_steps"], "scheduler_trapezoidal_slides":None}
                             )
                 if self._repeater_rerun(step, self.repeater_job_end_time):
                     break
@@ -526,19 +529,9 @@ class ConditionalTrainer:
                 self.batch_size,
                 self.cutoff,
                 self.logger.loggers if self.is_logging_process else None,
+                self.args_overload
             )
 
-            # save_checkpoint( #dev
-            #     self.model,
-            #     self.optimizer,
-            #     self.scaler,
-            #     self.save_weights_path,
-            #     self.rank,
-            #     step,
-            #     self.batch_size,
-            #     self.cutoff,
-            #     self.logger,
-            # )
 
             return True
         else:
