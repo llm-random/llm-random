@@ -27,7 +27,7 @@ from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
-from research.conditional.utils import get_n_steps_from_n_training_tokens
+from research.conditional.utils.misc_tools import get_n_steps_from_n_training_tokens
 from research.conditional.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
