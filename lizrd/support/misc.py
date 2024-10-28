@@ -81,8 +81,8 @@ def calculate_current_bs_from_rampup(
     if processed_tokens >= transition_points_in_tokens[-1]:
         return target_batch_size
 
-    for i in reversed(range(len(transition_points_in_tokens))):
+    for i in reversed(range(len(transition_points_in_tokens)-1)):
         if processed_tokens >= transition_points_in_tokens[i]:
-            return batch_size_rampup_sizes[i]
+            return batch_size_rampup_sizes[i+1]
 
     return batch_size_rampup_sizes[0]
