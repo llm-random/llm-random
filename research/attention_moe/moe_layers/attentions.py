@@ -3,8 +3,6 @@ from torch import nn
 import torch.nn.functional as F
 import math
 
-from lizrd.core.misc import LoggingLayer
-
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, n_embd, n_head, block_size, bias=False):
@@ -192,7 +190,7 @@ class MoMQA(nn.Module):
 
         q, k, v = self.c_attn(x).split(self.n_embd, dim=2)
         k = k.view(B, T, self.n_head, C // self.n_head)
-        k = (k * gating_top1.unsqueeze(-1)).sum(dim=-2, keepdim=True).transpose(-2, -3)
+        k = (k * indicator.unsqueeze(-1)).sum(dim=-2, keepdim=True).transpose(-2, -3)
         v = v.view(B, T, self.n_head, C // self.n_head)
         v = (v * gating_top1.unsqueeze(-1)).sum(dim=-2, keepdim=True).transpose(-2, -3)
 
