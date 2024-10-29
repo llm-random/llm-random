@@ -37,6 +37,8 @@ params:
   zloss_weight: 0.001
   load_balancing_loss_weight: 0.01
   data_seed: 42
+  batch_size_rampup_transition_points: [ 0.5, 1.0 ]
+  batch_size_rampup_sizes: [ 128, 256 ]
 
   save_weights_interval: 0
   mixed_precision: True

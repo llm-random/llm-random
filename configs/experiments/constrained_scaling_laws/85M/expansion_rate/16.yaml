@@ -1,5 +1,5 @@
 parent: configs/experiments/constrained_scaling_laws/85M/model.yaml
-md5_parent_hash: f7e7ab39b7905045c3341069e0117f62
+md5_parent_hash: 23d6e18acee9e4b41a87460f885a1bfb
 # here configure GPUs & time for a given cluster for it to fit
 time: "40:00:00"
 n_gpus: 2
