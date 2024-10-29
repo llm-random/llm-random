@@ -137,12 +137,12 @@ class HeliosBackend(MachineBackend):
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
-            return "/net/storage/pr3/plgrid/plggllmeffi/datasets/c4/train"
+            return "/net/scratch/hscra/plgrid/plgmaciejpioro/c4/train"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_default_validation_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
-            return "/net/storage/pr3/plgrid/plggllmeffi/datasets/c4/validation"
+            return "/net/scratch/hscra/plgrid/plgmaciejpioro/c4/validation"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_common_directory(self) -> str:
