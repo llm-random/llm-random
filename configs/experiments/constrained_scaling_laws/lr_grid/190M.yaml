@@ -6,7 +6,7 @@ n_gpus: 2
 
 params:
   name: "constrained_lr_grid"
-  tags: ["190M", "lr_scaling"]
+  tags: ["190M", "lr_scaling_rampup"]
   expansion_rate: 1
   ^n_steps: [14500]
   gradient_accumulation_steps: 2

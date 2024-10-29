@@ -7,7 +7,7 @@ params:
   ff_mode: token_choice
   cutoff: 16
   granularity: 4
-  batch_size: 4
+  batch_size: 8
   gradient_accumulation_steps: 4
   dataset_type: wikibook
   learning_rate: 0
@@ -24,6 +24,10 @@ params:
   no_positional_embedding: false
   #lr_trapezoidal_decay_fraction: 0.2
   scheduler: trapezoidal
+
+
+  batch_size_rampup_transition_points: [ 0.5, 1.0 ]
+  batch_size_rampup_sizes: [ 2, 4 ]
 
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
