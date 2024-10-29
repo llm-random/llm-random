@@ -19,6 +19,7 @@ from lizrd.support.misc import (
     generate_random_string,
     count_moe_non_emb_active_params,
     count_tokens_per_step,
+    list_to_str,
 )
 
 _CURRENT_LOGGER: Optional["AbstractLogger"] = None
@@ -524,6 +525,11 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
     initialized_loggers = []
     add_logger_active_metrics(args)
 
+    args_dict = vars(args).copy()
+    for k in args_dict.keys():
+        if isinstance(args_dict[k], list):
+            args_dict[k] = list_to_str(args_dict[k])
+
     for logger_type in logger_types:
         if logger_type == "neptune":
             run = neptune.init_run(
@@ -532,7 +538,10 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
                 with_id=run_id,
             )
-            run["args"] = vars(args)
+            print("------------- args dict --------------------")
+            print(args_dict)
+            print("--------------------------------------------")
+            run["args"] = args_dict
             run["working_directory"] = os.getcwd()
             run["config"].upload(args.path_to_entry_config)
             all_config_paths = args.all_config_paths.split(",")
@@ -546,7 +555,7 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
                 project=args.wandb_project,
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
                 tags=args.tags,
-                config=vars(args),
+                config=args_dict,
             )
             # define our custom x axis metric
             wandb.define_metric("train/step")
