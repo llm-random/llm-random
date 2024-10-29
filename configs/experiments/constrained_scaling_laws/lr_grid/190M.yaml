@@ -1,5 +1,5 @@
 parent: configs/experiments/constrained_scaling_laws/85M/model.yaml
-md5_parent_hash: d1aa84ff7af92dd415e31f22294739be
+md5_parent_hash: f7e7ab39b7905045c3341069e0117f62
 # here configure GPUs & time for a given cluster for it to fit
 time: "40:00:00"
 n_gpus: 2
@@ -10,4 +10,4 @@ params:
   expansion_rate: 1
   ^n_steps: [14500]
   gradient_accumulation_steps: 2
-  ^learning_rate_log2: [-10,-11,-12, -13, -14]
+  ^learning_rate_log2: [-8, -8.5, -9, -9.5, -10, -10.5, -11]

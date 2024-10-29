@@ -9,5 +9,5 @@ params:
   expansion_rate: 1
   ^n_steps: [2300]
   gradient_accumulation_steps: 4
-  ^learning_rate_log2: [-7, -8,-9,-10]
+  ^learning_rate_log2: [-7, -7.5, -8, -8.5, -9, -9.5, -10]
 
