@@ -44,3 +44,19 @@ def check_args(args):
         args.lr_trapezoidal_decay_percent + (args.lr_warmup_steps / args.final_lr_step)
         <= 1
     )
+    if args.batch_size_rampup_transition_points is not None:
+        assert (
+            args.batch_size_rampup_sizes is not None
+        ), "Both parameters for rampup batch size need to be set"
+
+    if args.batch_size_rampup_sizes is not None:
+        assert (
+            args.batch_size_rampup_transition_points is not None
+        ), "Both parameters for rampup batch size need to be set"
+        assert len(args.batch_size_rampup_sizes) == len(
+            args.batch_size_rampup_transition_points
+        )
+        for size in args.batch_size_rampup_sizes:
+            assert (
+                args.batch_size % size == 0
+            ), "Currently, target batch size needs to be divisible by the rampup batch sizes"

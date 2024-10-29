@@ -393,6 +393,8 @@ def main(
         profiler_schedule=profiler_schedule,
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
+        batch_size_rampup_transition_points=args.batch_size_rampup_transition_points,
+        batch_size_rampup_sizes=args.batch_size_rampup_sizes,
         checkpoint=checkpoint,
         repeater_job_end_time=get_termination_timestamp_slurm()
         if args.repeater_mode
