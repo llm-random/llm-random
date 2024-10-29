@@ -538,9 +538,6 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
                 with_id=run_id,
             )
-            print("------------- args dict --------------------")
-            print(args_dict)
-            print("--------------------------------------------")
             run["args"] = args_dict
             run["working_directory"] = os.getcwd()
             run["config"].upload(args.path_to_entry_config)
