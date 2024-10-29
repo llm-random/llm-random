@@ -39,8 +39,8 @@ def introduce_parser_arguments(
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
-    parser.add_argument("--n_steps", type=int, required=True)
-    parser.add_argument("--n_training_tokens_in_billions", type=int, default=None)
+    parser.add_argument("--n_steps", type=int, default=None)
+    parser.add_argument("--n_training_tokens_in_billions", type=float, default=None)
     parser.add_argument("--learning_rate", type=float, required=True)
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
