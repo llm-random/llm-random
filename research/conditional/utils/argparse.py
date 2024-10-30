@@ -6,6 +6,10 @@ def load_dict_in_args(s: str):
     return json.loads(s.replace("'", '"'))
 
 
+def math_eval(value):
+    return float(eval(value))  # fallback for other notations like float or exponential
+
+
 def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
@@ -40,7 +44,6 @@ def introduce_parser_arguments(
     # CORE training hyperparameters, almost always specified in baseline configs
 
     parser.add_argument("--n_steps", type=int, required=True)
-    parser.add_argument("--learning_rate", type=float, required=True)
     parser.add_argument(
         "--scheduler",
         type=str,
@@ -54,6 +57,7 @@ def introduce_parser_arguments(
         required=False,
         help="""List of dicts having step on whoch slide needed to be created eg. scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':3000,'n_jobs':2}]"; !no white symbols!; n_jobs indicates how many jobs completion on this specific slide may take maximally.""",
     )
+    parser.add_argument("--learning_rate", type=math_eval, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--lr_warmup_percent", type=float, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
