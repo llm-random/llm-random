@@ -15,7 +15,11 @@ from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
-from lizrd.train.checkpoints_manager import create_slide_checkpoint, end_training_checkpoint, job_out_of_time_checkpoint
+from lizrd.train.checkpoints_manager import (
+    create_slide_checkpoint,
+    end_training_checkpoint,
+    job_out_of_time_checkpoint,
+)
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
@@ -85,7 +89,7 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
-    scheduler_trapezoidal_slides:dict = None,
+    scheduler_trapezoidal_slides: dict = (None,)
     args_overload: Optional[dict] = None
 
     def __attrs_post_init__(self):
@@ -124,7 +128,7 @@ class ConditionalTrainer:
             "failure",
         )
 
-    def _after_train_operations(self, n_steps:int):
+    def _after_train_operations(self, n_steps: int):
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
@@ -149,7 +153,7 @@ class ConditionalTrainer:
                 self.batch_size,
                 self.cutoff,
                 self.logger.loggers if self.is_logging_process else None,
-                self.args_overload
+                self.args_overload,
             )
 
     def _after_step_operations(self, step):
@@ -203,8 +207,8 @@ class ConditionalTrainer:
                 if self.scheduler_trapezoidal_slides:
                     for e in self.scheduler_trapezoidal_slides:
                         if step == e["split_step"]:
-                            #dev delete splited, one of neptune loggers
-                            #dev save model and add to checkpoint
+                            # dev delete splited, one of neptune loggers
+                            # dev save model and add to checkpoint
                             splitted_loggers = None
                             if self.is_logging_process:
                                 splitted_loggers = [self.logger.loggers[0]]
@@ -221,7 +225,10 @@ class ConditionalTrainer:
                                 self.batch_size,
                                 self.cutoff,
                                 splitted_loggers,
-                                args_overload = {"n_steps": e["n_steps"], "scheduler_trapezoidal_slides":None}
+                                args_overload={
+                                    "n_steps": e["n_steps"],
+                                    "scheduler_trapezoidal_slides": None,
+                                },
                             )
                 if self._repeater_rerun(step, self.repeater_job_end_time):
                     break
@@ -529,9 +536,8 @@ class ConditionalTrainer:
                 self.batch_size,
                 self.cutoff,
                 self.logger.loggers if self.is_logging_process else None,
-                self.args_overload
+                self.args_overload,
             )
-
 
             return True
         else:

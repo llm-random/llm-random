@@ -514,7 +514,9 @@ def add_logger_active_metrics(args):
     )
 
 
-def get_logger(args, model, VOCAB_SIZE, run_ids:list[int]=None):  # dev TODO generalize run_id
+def get_logger(
+    args, model, VOCAB_SIZE, run_ids: list[int] = None
+):  # dev TODO generalize run_id
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
     logger_types = []
@@ -533,7 +535,7 @@ def get_logger(args, model, VOCAB_SIZE, run_ids:list[int]=None):  # dev TODO gen
         for _ in logger_types:
             run_ids.append(None)
     for logger_type, run_id in zip(logger_types, run_ids):
-        if logger_type == "neptune":    
+        if logger_type == "neptune":
             run = neptune.init_run(
                 project=args.project_name,
                 tags=args.tags,
@@ -545,9 +547,9 @@ def get_logger(args, model, VOCAB_SIZE, run_ids:list[int]=None):  # dev TODO gen
             run["config"].upload(args.path_to_entry_config)
             all_config_paths = args.all_config_paths.split(",")
             run["all_configs"].upload_files(all_config_paths)
-            
-            #dev TODO move out of get_logger function
-            args.model_n_params = count_parameters(model, args, VOCAB_SIZE) 
+
+            # dev TODO move out of get_logger function
+            args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
             initialized_loggers.append(NeptuneLogger(run, args))
         elif logger_type == "wandb":
             wandb.init(
@@ -569,6 +571,7 @@ def get_logger(args, model, VOCAB_SIZE, run_ids:list[int]=None):  # dev TODO gen
                 f"Logger of type '{logger_type}' is not implemented."
             )
     return JointLogger(initialized_loggers)
+
 
 def prepare_tensor_for_logging(
     x: torch.Tensor, sample_size=2500, with_replacement=False

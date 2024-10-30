@@ -41,8 +41,19 @@ def introduce_parser_arguments(
 
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument("--learning_rate", type=float, required=True)
-    parser.add_argument("--scheduler", type=str, required=True, help="Options: constant, cosine, trapezoidal")
-    parser.add_argument("--scheduler_trapezoidal_slides", type=str, default=None, required=False, help='''List of dicts having step on whoch slide needed to be created eg. scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':3000,'n_jobs':2}]"; !no white symbols!; n_jobs indicates how many jobs completion on this specific slide may take maximally.''')
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        required=True,
+        help="Options: constant, cosine, trapezoidal",
+    )
+    parser.add_argument(
+        "--scheduler_trapezoidal_slides",
+        type=str,
+        default=None,
+        required=False,
+        help="""List of dicts having step on whoch slide needed to be created eg. scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':3000,'n_jobs':2}]"; !no white symbols!; n_jobs indicates how many jobs completion on this specific slide may take maximally.""",
+    )
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--lr_warmup_percent", type=float, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)

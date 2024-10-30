@@ -1,7 +1,6 @@
 from ast import literal_eval
 import datetime
 from math import ceil
-import pathlib
 from lizrd.grid.infrastructure import LocalBackend
 from lizrd.grid.prepare_configs import prepare_configs
 from lizrd.grid.setup_arguments import (
@@ -100,12 +99,20 @@ def create_subprocess_args(
                 ], interactive_debug_session
 
             n_job_repetitions = 1
-            if "checkpoint_manager" in training_args and training_args["checkpoint_manager"]:
+            if (
+                "checkpoint_manager" in training_args
+                and training_args["checkpoint_manager"]
+            ):
                 total_exp_time = timestr_to_minutes(setup_args["time"]) * 60
                 if CLUSTER.max_exp_time < total_exp_time:
                     n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)
-                if "scheduler_trapezoidal_slides" in training_args and training_args["scheduler_trapezoidal_slides"]:
-                    scheduler_trapezoidal_slides = literal_eval(training_args["scheduler_trapezoidal_slides"])
+                if (
+                    "scheduler_trapezoidal_slides" in training_args
+                    and training_args["scheduler_trapezoidal_slides"]
+                ):
+                    scheduler_trapezoidal_slides = literal_eval(
+                        training_args["scheduler_trapezoidal_slides"]
+                    )
                     n_slide_jobs = 0
                     for e in scheduler_trapezoidal_slides:
                         if "n_jobs" in e:

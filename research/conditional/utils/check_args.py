@@ -36,14 +36,24 @@ def check_args(args):
         ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
 
     if args.checkpoint_manager:
-        assert args.load_weights_path == None, "Loads model according to checkpoint manager"
-        assert args.relative_init_scale == None, "Seems wrong to apply init scale on loaded and already trained weights"
-        assert args.logger_types == None, "Checkpoint manager is implemented only for neptune loggers and creates/continues neptune runs on its own." #dev
+        assert (
+            args.load_weights_path == None
+        ), "Loads model according to checkpoint manager"
+        assert (
+            args.relative_init_scale == None
+        ), "Seems wrong to apply init scale on loaded and already trained weights"
+        assert (
+            args.logger_types == None
+        ), "Checkpoint manager is implemented only for neptune loggers and creates/continues neptune runs on its own."  # dev
 
     if args.scheduler_trapezoidal_slides:
-        args.scheduler_trapezoidal_slides = literal_eval(args.scheduler_trapezoidal_slides)
+        args.scheduler_trapezoidal_slides = literal_eval(
+            args.scheduler_trapezoidal_slides
+        )
         new_scheduler_trapezoidal_slides = []
-        for e in args.scheduler_trapezoidal_slides: #dev 
-            e["split_step"] = int(e["n_steps"] * (1-args.lr_trapezoidal_decay_fraction)) - 1
+        for e in args.scheduler_trapezoidal_slides:  # dev
+            e["split_step"] = (
+                int(e["n_steps"] * (1 - args.lr_trapezoidal_decay_fraction)) - 1
+            )
             new_scheduler_trapezoidal_slides.append(e)
         args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides

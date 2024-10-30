@@ -69,9 +69,7 @@ def load_scaler_state(
     scaler.load_state_dict(checkpoint["scaler"])
 
 
-def prepare_save_weights_path(
-    path_to_dir: Optional[str]
-) -> Optional[str]:
+def prepare_save_weights_path(path_to_dir: Optional[str]) -> Optional[str]:
     # we need a random dir because we can be running a whole grid from the same directory
     random_dirname = f"{generate_random_string(10)}"
     path_to_dir = os.path.join(path_to_dir, random_dirname)
@@ -116,7 +114,7 @@ def save_checkpoint(
             for l in loggers
             if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
         ]
-        if len(neptune_logger) >= 1: #dev
+        if len(neptune_logger) >= 1:  # dev
             ids = []
             for e in neptune_logger:
                 neptune_logger = e.instance_logger
@@ -132,7 +130,7 @@ def save_checkpoint(
             "optimizer": optimizer_state_dict,
             "step": step,
             "logger": logger_metadata,
-            "args_overload": args_overload
+            "args_overload": args_overload,
         }
 
         if scaler is not None:

@@ -16,9 +16,7 @@ def get_scheduler(
         ), "You cannot set both lr_warmap_percent and lr_warmap_steps"
         args.lr_warmup_steps = math.ceil(args.n_steps * args.lr_warmup_percent)
     if args.final_lr_step == -1 or args.final_lr_step is None:
-        args.final_lr_step = (
-            args.n_steps
-        ) 
+        args.final_lr_step = args.n_steps
 
     if args.scheduler == "constant":
         return ConstantScheduler(

@@ -23,7 +23,10 @@ from lizrd.train.train_utils import (
 )
 from lizrd.text import tokenizers
 from research.conditional.utils.check_args import check_args
-from research.conditional.utils.misc_tools import get_slurm_job_id, get_termination_timestamp_slurm
+from research.conditional.utils.misc_tools import (
+    get_slurm_job_id,
+    get_termination_timestamp_slurm,
+)
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
@@ -230,8 +233,12 @@ def main(
             else None
         )
     else:
-        checkpoint_path, checkpoint_metadata = start_job_manager_assesment(get_slurm_job_id(), is_logging_process)
-        checkpoint = get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
+        checkpoint_path, checkpoint_metadata = start_job_manager_assesment(
+            get_slurm_job_id(), is_logging_process
+        )
+        checkpoint = (
+            get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
+        )
 
     model = get_model(
         max_length=args.cutoff,
@@ -283,11 +290,10 @@ def main(
                 setattr(args, key, value)
         if is_logging_process:
             logger.report_text(
-                title=f"args/args_overload", #dev atomize logging to per arg update log in args/{name of arg}
+                title=f"args/args_overload",  # dev atomize logging to per arg update log in args/{name of arg}
                 value=str(args.args_overload),
                 iteration=checkpoint["step"],
             )
-
 
     n_learnable_parameters = get_n_learnable_parameters(model)
     args.n_learnable_parameters = n_learnable_parameters
@@ -429,8 +435,8 @@ def main(
         repeater_job_end_time=get_termination_timestamp_slurm()
         if args.checkpoint_manager
         else None,
-        scheduler_trapezoidal_slides = args.scheduler_trapezoidal_slides,
-        args_overload = args.args_overload
+        scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
+        args_overload=args.args_overload,
     )
     trainer.train(args.n_steps)
 
@@ -446,9 +452,7 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
-    save_weights_path = prepare_save_weights_path(
-        args.save_weights_path
-    )
+    save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
