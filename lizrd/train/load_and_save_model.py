@@ -114,7 +114,7 @@ def save_checkpoint(
             for l in loggers
             if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
         ]
-        if len(neptune_logger) >= 1:  # dev
+        if len(neptune_logger) >= 1:
             ids = []
             for e in neptune_logger:
                 neptune_logger = e.instance_logger

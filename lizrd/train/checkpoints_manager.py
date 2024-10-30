@@ -307,5 +307,5 @@ def create_slide_checkpoint(
                     model_path, job_id, timestamp_now, SLIDE_METADATA
                 )
             )
-            # manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now) #dev TODO - to be considered
+            # manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now) #dev TODO - feature to be considered in the future
             __overwrite_manager(manager, f)

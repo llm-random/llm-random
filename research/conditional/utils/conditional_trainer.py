@@ -207,8 +207,6 @@ class ConditionalTrainer:
                 if self.scheduler_trapezoidal_slides:
                     for e in self.scheduler_trapezoidal_slides:
                         if step == e["split_step"]:
-                            # dev delete splited, one of neptune loggers
-                            # dev save model and add to checkpoint
                             splitted_loggers = None
                             if self.is_logging_process:
                                 splitted_loggers = [self.logger.loggers[0]]
