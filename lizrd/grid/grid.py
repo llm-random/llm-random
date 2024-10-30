@@ -76,7 +76,7 @@ def create_subprocess_args(
         for i, training_args in enumerate(trainings_args):
             full_config_path = f"full_config{i}.yaml"
             with open(full_config_path, "w") as f:
-                # if "repeater_mode" in training_args and training_args["repeater_mode"]: #dev
+                # if "repeater_mode" in training_args and training_args["repeater_mode"]: #dev TODO add grid support to checkpoint manager
                 #     training_args["save_weights_path"] = str(
                 #         pathlib.Path(training_args["save_weights_path"]) / f"{i}"
                 #     )

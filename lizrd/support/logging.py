@@ -185,6 +185,7 @@ class AbstractLogger(ABC):
         text_logs = {}
         ENV_METADATA = [
             "SLURM_ARRAY_JOB_ID",
+            "SLURM_ARRAY_TASK_ID",
             "SLURM_JOBID",
             "HOSTNAME",
             "SLURM_CLUSTER_NAME",
