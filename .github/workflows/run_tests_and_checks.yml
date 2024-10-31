@@ -61,3 +61,6 @@ jobs:
       
       - name: Heheh
         run: touch heheh.txt
+
+      - name: pwd
+        run: pwd
