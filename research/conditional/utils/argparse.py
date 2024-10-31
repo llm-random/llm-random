@@ -55,7 +55,7 @@ def introduce_parser_arguments(
         type=str,
         default=None,
         required=False,
-        help="""List of dicts having step on whoch slide needed to be created eg. scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':3000,'n_jobs':2}]"; !no white symbols!; n_jobs indicates how many jobs completion on this specific slide may take maximally.""",
+        help="""List of dicts having n_steps of total training steps for a periticular split eg. scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':3000,'n_jobs':2}]"; !no white symbols!; n_jobs indicates how many slurm jobs may be needed to complete slide part of training.""",
     )
     parser.add_argument("--learning_rate", type=math_eval, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
