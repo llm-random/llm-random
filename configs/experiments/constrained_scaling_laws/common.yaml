@@ -50,7 +50,7 @@ params:
   grad_clip: 0.1
   attention_mode: "rope"
   no_positional_embedding: false
-  lr_trapezoidal_decay_percent: 0.2
+  lr_trapezoidal_decay_fraction: 0.2
   scheduler: trapezoidal
 
   fsdp_enabled: true
