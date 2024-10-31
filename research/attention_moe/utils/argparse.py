@@ -423,4 +423,7 @@ def introduce_parser_arguments(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
 
+    # attention moe
+    parser.add_argument("--multiply_by_n_head", action="store_true")
+
     return parser
