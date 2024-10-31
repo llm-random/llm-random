@@ -9,6 +9,7 @@ from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
+import numpy as np
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
@@ -943,12 +944,27 @@ def disable_profile_schedule_fn(_: int) -> ProfilerAction:
     return ProfilerAction.NONE
 
 
+def calculate_auto_lr(args):
+    params = args.active_params_for_scaling_laws_no_head + args.model_embedding_params
+    log_lr = (
+        args.lr_scaling_constant_factor
+        + args.lr_scaling_params_factor * np.log(params)
+        + args.lr_scaling_exp_rate_factor * np.log(args.expansion_rate)
+    )
+    return np.exp(log_lr)
+
+
 def calculate_lr(args):
-    if args.learning_rate == 0 and args.learning_rate_log2 != 0:
+    if args.use_lr_scaling:
+        assert (
+            not args.learning_rate and not args.learning_rate_log2
+        ), "only one of these should be set"
+        return calculate_auto_lr(args)
+    if not args.learning_rate and args.learning_rate_log2:
         return 2**args.learning_rate_log2
-    elif args.learning_rate != 0 and args.learning_rate_log2 == 0:
+    elif args.learning_rate and not args.learning_rate_log2:
         return args.learning_rate
     else:
         raise ValueError(
-            "Exactly one of learning_rate and learning_rate_log2 must be set"
+            "Exactly one of learning_rate and learning_rate_log2 or use_lr_scaling must be set"
         )

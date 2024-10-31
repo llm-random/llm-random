@@ -18,10 +18,11 @@ params:
   mixed_precision_dtype: "float16"
 
   effective_dff_x: 3
-  learning_rate_log2: -10
+  learning_rate_log2: 0
   grad_clip: 0.1
   attention_mode: "rope"
   no_positional_embedding: false
+  use_lr_scaling: True
   #lr_trapezoidal_decay_fraction: 0.2
   scheduler: trapezoidal
 
