@@ -168,6 +168,10 @@ class HeliosBackend(MachineBackend):
         runner_params,
         n_consecutive: int = 1,
     ):
+        assert (
+            setup_args["n_gpus"] == 4
+        ), "Helios only supports using whole nodes (cf. https://docs.cyfronet.pl/display/~plgpawlik/Helios)"
+
         return [
             slurm_command,
             f"--gres=gpu:{setup_args['n_gpus']}",
