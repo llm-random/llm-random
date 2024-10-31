@@ -10,7 +10,7 @@ params:
   ^n_steps: [8700, 17400, 43500]
   ^scheduler: [trapezoidal, cosine]
   lr_warmup_percent: 0.01
-  lr_trapezoidal_decay_percent: 0.2
+  lr_trapezoidal_decay_fraction : 0.2
   data_seed: 44
 
 
