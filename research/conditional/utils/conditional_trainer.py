@@ -190,12 +190,12 @@ class ConditionalTrainer:
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
-        processed_batch = self.train_dataloader.get_batch()
+        num_processed_tokens_so_far = step * self.batch_size * self.max_sequence_length
+        processed_batch = self.train_dataloader.get_batch(num_processed_tokens_so_far)
 
         if self.batch_size_rampup_sizes is None:
             current_bs = self.batch_size
         else:
-            num_processed_tokens = step * self.batch_size * self.max_sequence_length
             current_bs = calculate_current_bs_from_rampup(
                 num_processed_tokens,
                 self.batch_size_rampup_transition_points,

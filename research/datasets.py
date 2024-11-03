@@ -1,5 +1,6 @@
 from functools import partial
 from typing import Literal, Optional
+from dataclasses import dataclass
 
 import torch
 from torch.utils.data import DataLoader
@@ -7,14 +8,32 @@ from torch.utils.data import DataLoader
 from lizrd.text import datasets, packers, data, tokenizers
 
 
+@dataclass
+class BatchSizeRampupConfig:
+    batch_size_rampup_transition_points: Optional[list[float]]
+    batch_size_rampup_sizes: Optional[list[float]]
+
+    def __post_init__(self):
+        self.enabled = self.batch_size_rampup_sizes is not None
+
 class DataloaderWrapper:
-    def __init__(self, dataloader: DataLoader, device: torch.device):
+    def __init__(self, dataloader: DataLoader, batch_size_rampup_config: BatchSizeRampupConfig, total_n_gpus, device: torch.device):
         self.generator = iter(dataloader)
+        self.batch_size_rampup_config = batch_size_rampup_config
         self.device = device
+        self.num_of_last_batch_chunk = None
+        self.total_n_gpus = total_n_gpus
 
-    def get_batch(self) -> data.LLMBatch:
-        return next(self.generator).to(self.device)
-
+    def get_batch(self, num_processed_tokens_so_far: int) -> data.LLMBatch:
+        # sample new batch if there are no remaining examples to sample
+        if self.num_of_last_batch_chunk is None:
+            self.current_batch = next(self.generator).to(self.device)
+        
+        if self.batch_size_rampup_config.enabled:
+            pass
+        else:
+            return self.current_batch
+    
 
 def worker_init_fn(seed, worker_id):
     worker_info = torch.utils.data.get_worker_info()
@@ -30,6 +49,8 @@ def get_processed_dataset(
     device: torch.device,
     num_workers: int,
     seed: int,
+    total_n_gpus: int,
+    batch_size_rampup_config: Optional[BatchSizeRampupConfig] = None,
     model_type: Literal["bert", "gpt"] = "bert",
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
@@ -77,4 +98,4 @@ def get_processed_dataset(
         pin_memory=True,
     )
 
-    return DataloaderWrapper(dataloader, device)
+    return DataloaderWrapper(dataloader, batch_size_rampup_config, total_n_gpus, device)
