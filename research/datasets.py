@@ -74,7 +74,6 @@ def get_processed_dataset(
     device: torch.device,
     num_workers: int,
     seed: int,
-    total_n_gpus: int,
     model_type: Literal["bert", "gpt"] = "bert",
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,

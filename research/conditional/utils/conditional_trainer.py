@@ -194,11 +194,14 @@ class ConditionalTrainer:
         if self.batch_size_rampup_config is None:
             current_batch_size = self.batch_size
         else:
-            current_batch_size = calculate_current_bsz_from_rampup(
-                processed_tokens=self.num_processed_tokens,
-                transition_points=self.batch_size_rampup_config.transition_points,
-                batch_sizes=self.batch_size_rampup_config.batch_sizes,
-                target_batch_size=self.batch_size,
+            current_batch_size = (
+                calculate_current_bsz_from_rampup(
+                    processed_tokens=self.num_processed_tokens,
+                    transition_points=self.batch_size_rampup_config.transition_points,
+                    batch_sizes=self.batch_size_rampup_config.batch_sizes,
+                    target_batch_size=self.batch_size * self.n_gpus,
+                )
+                // self.n_gpus
             )
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size=current_batch_size,
@@ -214,7 +217,7 @@ class ConditionalTrainer:
         self._apply_gradient()
         self.num_processed_tokens += self.n_gpus * current_batch_size * self.cutoff
         if self.is_logging_process:
-            self._log_train_stats(loss, step, current_batch_size)
+            self._log_train_stats(loss, step, current_batch_size * self.n_gpus)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
