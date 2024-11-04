@@ -99,10 +99,7 @@ def create_subprocess_args(
                 ], interactive_debug_session
 
             n_job_repetitions = 1
-            if (
-                "checkpoint_manager" in training_args
-                and training_args["checkpoint_manager"]
-            ):
+            if training_args.get("checkpoint_manager"):
                 total_exp_time = timestr_to_minutes(setup_args["time"]) * 60
                 if CLUSTER.max_exp_time < total_exp_time:
                     n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)
@@ -114,9 +111,9 @@ def create_subprocess_args(
                         training_args["scheduler_trapezoidal_slides"]
                     )
                     n_slide_jobs = 0
-                    for e in scheduler_trapezoidal_slides:
-                        if "n_jobs" in e:
-                            n_slide_jobs += e["n_jobs"]
+                    for slide in scheduler_trapezoidal_slides:
+                        if "n_jobs" in slide:
+                            n_slide_jobs += slide["n_jobs"]
                         else:
                             n_slide_jobs += 1
                     n_job_repetitions = n_job_repetitions + n_slide_jobs

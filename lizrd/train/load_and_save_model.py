@@ -88,7 +88,7 @@ def save_checkpoint(
     batch_size,
     cutoff,
     loggers: list[AbstractLogger],
-    args_overload: Optional[dict] = None,
+    args_override: Optional[dict] = None,
 ):
     if isinstance(model, FSDP):
         # for some reason, setting the model to training mode and
@@ -130,7 +130,7 @@ def save_checkpoint(
             "optimizer": optimizer_state_dict,
             "step": step,
             "logger": logger_metadata,
-            "args_overload": args_overload,
+            "args_override": args_override,
         }  # dev TODO add accumulated training variables for proper logging, f.e. loss_interval/100 - loss accumulated over 100 training steps
 
         if scaler is not None:

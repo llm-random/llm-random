@@ -89,8 +89,8 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
-    scheduler_trapezoidal_slides: dict = (None,)
-    args_overload: Optional[dict] = None
+    scheduler_trapezoidal_slides: Optional[list[dict]] = None
+    args_override: Optional[dict] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -128,7 +128,9 @@ class ConditionalTrainer:
             "failure",
         )
 
-    def _after_train_operations(self, n_steps: int):
+    def _after_train_operations(
+        self, n_steps: int
+    ):  # TODO move n_steps form train method args to training class properties
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
@@ -137,9 +139,7 @@ class ConditionalTrainer:
         if self.is_logging_process:
             self.logger.exit_job_metadata(self.current_step)
 
-        # Above - end of job training operations area (not model trainig (one config (even diverted from a grid config) can results in multiple models with trapezoidal lr checpotin manager))
-        if self.current_step >= n_steps:
-            # Below - end of model training operations area
+        if self.current_step >= n_steps:  # - end of model training operations
             job_id = get_slurm_job_id()
             end_training_checkpoint(
                 job_id,
@@ -153,7 +153,7 @@ class ConditionalTrainer:
                 self.batch_size,
                 self.cutoff,
                 self.logger.loggers if self.is_logging_process else None,
-                self.args_overload,
+                self.args_override,
             )
 
     def _after_step_operations(self, step):
@@ -205,11 +205,11 @@ class ConditionalTrainer:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
                 if self.scheduler_trapezoidal_slides:
-                    for e in self.scheduler_trapezoidal_slides:
-                        if step == e["split_step"]:
-                            splitted_loggers = None
+                    for slide in self.scheduler_trapezoidal_slides:
+                        if step == slide["split_step"]:
+                            split_loggers = None
                             if self.is_logging_process:
-                                splitted_loggers = [self.logger.loggers[0]]
+                                split_loggers = [self.logger.loggers[0]]
                                 del self.logger.loggers[0]
                             create_slide_checkpoint(
                                 get_slurm_job_id(),
@@ -222,9 +222,9 @@ class ConditionalTrainer:
                                 step,
                                 self.batch_size,
                                 self.cutoff,
-                                splitted_loggers,
-                                args_overload={
-                                    "n_steps": e["n_steps"],
+                                split_loggers,
+                                args_override={
+                                    "n_steps": slide["n_steps"],
                                     "scheduler_trapezoidal_slides": None,
                                 },
                             )
@@ -534,7 +534,7 @@ class ConditionalTrainer:
                 self.batch_size,
                 self.cutoff,
                 self.logger.loggers if self.is_logging_process else None,
-                self.args_overload,
+                self.args_override,
             )
 
             return True

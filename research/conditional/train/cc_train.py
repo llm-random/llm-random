@@ -20,7 +20,7 @@ from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
 )
-from lizrd.train.checkpoints_manager import start_job_manager_assesment
+from lizrd.train.checkpoints_manager import start_job_manager_assessment
 from lizrd.train.train_utils import (
     get_model,
 )
@@ -236,7 +236,7 @@ def main(
             else None
         )
     else:
-        checkpoint_path, checkpoint_metadata = start_job_manager_assesment(
+        checkpoint_path, checkpoint_metadata = start_job_manager_assessment(
             get_slurm_job_id(), is_logging_process
         )
         checkpoint = (
@@ -285,16 +285,16 @@ def main(
     else:
         logger = None
 
-    args.args_overload = None
-    if checkpoint and "args_overload" in checkpoint and checkpoint["args_overload"]:
-        args.args_overload = checkpoint["args_overload"]
-        for key, value in args.args_overload.items():
+    args.args_override = None
+    if checkpoint and "args_override" in checkpoint and checkpoint["args_override"]:
+        args.args_override = checkpoint["args_override"]
+        for key, value in args.args_override.items():
             if hasattr(args, key):
                 setattr(args, key, value)
         if is_logging_process:
             logger.report_text(
-                title=f"args/args_overload",  # dev atomize logging to per arg update log in args/{name of arg}
-                value=str(args.args_overload),
+                title=f"args/args_override",  # dev atomize logging to per arg update log in args/{name of arg}
+                value=str(args.args_override),
                 iteration=checkpoint["step"],
             )
 
@@ -424,7 +424,7 @@ def main(
         if args.checkpoint_manager
         else None,
         scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
-        args_overload=args.args_overload,
+        args_override=args.args_override,
     )
     trainer.train(args.n_steps)
 

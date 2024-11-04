@@ -138,10 +138,12 @@ def __get_manager_timestamp():
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
 
-def start_job_manager_assesment(job_id: str, is_logging_process):
+def start_job_manager_assessment(
+    job_id: str, is_logging_process
+) -> tuple[Optional[str], Optional[str | dict]]:
     """Options:
-    - returns None to start a new training
-    - returns filepath to continue training
+    - returns `None`, `None` to start a new training
+    - returns `filepath`, `metadata` to continue training
     - raises Exception to stop a job in case of no available checkpoint to continue training,
         before that job checks if all running checkpoints are under a running jobs to resolve deadlocks
 
@@ -168,11 +170,11 @@ def start_job_manager_assesment(job_id: str, is_logging_process):
                     __overwrite_manager(manager, f)
                     break
         if result == -1:
-            raise Exception("No available trainig to do")
+            raise Exception("No available training to do")
         else:
             return result, metadata
     else:
-        for _ in range(100):
+        for i in range(100):
             sleep(3)
             try:
                 with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
@@ -191,7 +193,8 @@ def start_job_manager_assesment(job_id: str, is_logging_process):
                 else:
                     return result, metadata
             except Exception as e:
-                ...
+                if i >= 99:
+                    raise e
 
 
 def job_out_of_time_checkpoint(
@@ -206,7 +209,7 @@ def job_out_of_time_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
-    args_overload: Optional[dict] = None,
+    args_override: Optional[dict] = None,
 ):  # TODO params
     """saves the checkpoint"""
     model_path = save_checkpoint(
@@ -219,7 +222,7 @@ def job_out_of_time_checkpoint(
         batch_size,
         cutoff,
         loggers,
-        args_overload,
+        args_override,
     )
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
@@ -246,7 +249,7 @@ def end_training_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
-    args_overload: Optional[dict] = None,
+    args_override: Optional[dict] = None,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
     model_path = save_checkpoint(
@@ -259,7 +262,7 @@ def end_training_checkpoint(
         batch_size,
         cutoff,
         loggers,
-        args_overload,
+        args_override,
     )
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
@@ -283,7 +286,7 @@ def create_slide_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
-    args_overload: Optional[dict] = None,
+    args_override: Optional[dict] = None,
 ):
     """saves checkpoint and creates a manager checkpoint continuation"""
     model_path = save_checkpoint(
@@ -296,7 +299,7 @@ def create_slide_checkpoint(
         batch_size,
         cutoff,
         loggers,
-        args_overload,
+        args_override,
     )
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
