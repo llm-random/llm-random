@@ -573,7 +573,7 @@ def get_logger(
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
     logger_types = []
     if args.checkpoint_manager:
-        assert args.logger_types == None
+        assert args.logger_types == "neptune"
         n_neptune_loggers = len(run_ids) if run_ids else 1
         for _ in range(n_neptune_loggers):
             logger_types.append("neptune")

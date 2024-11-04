@@ -11,7 +11,7 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-from lizrd.support.logging import AbstractLogger, JointLogger, NeptuneLogger
+from lizrd.support.logging import AbstractLogger, NeptuneLogger
 from lizrd.support.misc import generate_random_string
 
 
@@ -131,7 +131,7 @@ def save_checkpoint(
             "step": step,
             "logger": logger_metadata,
             "args_overload": args_overload,
-        } # dev TODO add accumulated training variables for proper logging, f.e. loss_interval/100 - loss accumulated over 100 training steps
+        }  # dev TODO add accumulated training variables for proper logging, f.e. loss_interval/100 - loss accumulated over 100 training steps
 
         if scaler is not None:
             checkpoint["scaler"] = scaler.state_dict()

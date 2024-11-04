@@ -20,7 +20,7 @@ from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
 )
-from lizrd.train.checkpoints_manager import SLIDE_METADATA, start_job_manager_assesment
+from lizrd.train.checkpoints_manager import start_job_manager_assesment
 from lizrd.train.train_utils import (
     get_model,
 )

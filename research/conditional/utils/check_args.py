@@ -43,8 +43,8 @@ def check_args(args):
             args.relative_init_scale == None
         ), "Seems wrong to apply init scale on loaded and already trained weights"
         assert (
-            args.logger_types == None
-        ), "Checkpoint manager is implemented only for neptune loggers and creates/continues neptune runs on its own."
+            args.logger_types == "neptune"
+        ), "Checkpoint manager is implemented only for neptune logger"
 
     if args.scheduler_trapezoidal_slides:
         args.scheduler_trapezoidal_slides = literal_eval(
