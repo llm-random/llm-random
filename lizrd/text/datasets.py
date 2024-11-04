@@ -36,10 +36,9 @@ class WikiBookDataset(AbstractDataset):
         self.dataset_wiki = load_dataset(
             "wikipedia",
             f"20220301.{'simple' if use_dummy_dataset else 'en'}",
-            trust_remote_code=True,
         )["train"]
         self.dataset_book = (
-            load_dataset("bookcorpus", trust_remote_code=True)["train"]
+            load_dataset("bookcorpus")["train"]
             if not use_dummy_dataset
             else self.dataset_wiki,
         )
