@@ -69,4 +69,4 @@ def get_termination_timestamp_slurm() -> int:
 
 
 def get_slurm_job_id() -> str:
-    return os.environ["SLURM_JOBID"]
+    return os.environ.get("SLURM_JOBID")
