@@ -13,7 +13,7 @@ from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.misc import get_ith_chunk, calculate_current_bs_from_rampup
+from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
@@ -190,35 +190,18 @@ class ConditionalTrainer:
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
-        num_processed_tokens_so_far = step * self.batch_size * self.max_sequence_length
+        num_processed_tokens_so_far = (
+            step * self.n_gpus * self.batch_size * self.max_sequence_length
+        )
         processed_batch = self.train_dataloader.get_batch(num_processed_tokens_so_far)
 
-        if self.batch_size_rampup_sizes is None:
-            current_bs = self.batch_size
-        else:
-            current_bs = calculate_current_bs_from_rampup(
-                num_processed_tokens,
-                self.batch_size_rampup_transition_points,
-                self.batch_size_rampup_sizes,
-                self.batch_size,
-            )
-        num_bs_chunks_from_rampup = self.batch_size // current_bs
-
-        for i in range(num_bs_chunks_from_rampup):
-            # TODO: make a way to avoid copying the whole batch just to get a slice
-            batch_copy = copy.deepcopy(processed_batch)
-            for _, tensor in batch_copy:
-                tensor.data = get_ith_chunk(tensor.data, num_bs_chunks_from_rampup, i)
-
-            self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
-            loss, aux_info = self.calculate_loss_and_gradient(
-                batch_copy, num_bs_chunks_from_rampup
-            )
-            if self.rank is not None:
-                dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
-            self._apply_gradient()
+        self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
+        loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+        if self.rank is not None:
+            dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
+        self._apply_gradient()
         if self.is_logging_process:
-            self._log_train_stats(loss, step, current_bs)
+            self._log_train_stats(loss, step, current_bsz)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)

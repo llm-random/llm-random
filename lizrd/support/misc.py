@@ -73,7 +73,7 @@ def get_ith_chunk(tensor, chunks, i):
     return list_of_chunks[i]
 
 
-def calculate_current_bs_from_rampup(
+def calculate_current_bsz_from_rampup(
     processed_tokens,
     batch_size_rampup_transition_points,
     batch_size_rampup_sizes,

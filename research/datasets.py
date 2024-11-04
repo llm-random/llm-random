@@ -1,11 +1,13 @@
 from functools import partial
 from typing import Literal, Optional
 from dataclasses import dataclass
+import copy
 
 import torch
 from torch.utils.data import DataLoader
 
 from lizrd.text import datasets, packers, data, tokenizers
+from lizrd.support.misc import calculate_current_bsz_from_rampup, get_ith_chunk
 
 
 @dataclass
@@ -16,24 +18,47 @@ class BatchSizeRampupConfig:
     def __post_init__(self):
         self.enabled = self.batch_size_rampup_sizes is not None
 
+
 class DataloaderWrapper:
-    def __init__(self, dataloader: DataLoader, batch_size_rampup_config: BatchSizeRampupConfig, total_n_gpus, device: torch.device):
+    def __init__(
+        self,
+        dataloader: DataLoader,
+        batch_size_rampup_config: BatchSizeRampupConfig,
+        total_n_gpus: int,
+        device: torch.device,
+    ):
         self.generator = iter(dataloader)
+        self.target_batch_size = dataloader.batch_size
         self.batch_size_rampup_config = batch_size_rampup_config
         self.device = device
         self.num_of_last_batch_chunk = None
         self.total_n_gpus = total_n_gpus
 
     def get_batch(self, num_processed_tokens_so_far: int) -> data.LLMBatch:
-        # sample new batch if there are no remaining examples to sample
-        if self.num_of_last_batch_chunk is None:
-            self.current_batch = next(self.generator).to(self.device)
-        
-        if self.batch_size_rampup_config.enabled:
-            pass
+        if self.batch_size_rampup_config.batch_size_rampup_sizes is None:
+            return next(self.generator).to(self.device)
         else:
-            return self.current_batch
-    
+            current_batch_size = calculate_current_bsz_from_rampup(
+                num_processed_tokens_so_far,
+                self.batch_size_rampup_config.batch_size_rampup_transition_points,
+                self.batch_size_rampup_config.batch_size_rampup_sizes,
+            )
+            current_num_chunks = self.batch_size // current_batch_size
+            current_chunk = (
+                num_processed_tokens_so_far // current_batch_size
+            ) % current_num_chunks
+
+            if current_chunk == 0:
+                self.current_batch = next(self.generator).to(self.device)
+
+            batch = copy.deepcopy(self.current_batch)
+            for _, tensor in batch:
+                tensor.data = get_ith_chunk(
+                    tensor.data, current_num_chunks, current_chunk
+                )
+
+            return batch
+
 
 def worker_init_fn(seed, worker_id):
     worker_info = torch.utils.data.get_worker_info()
