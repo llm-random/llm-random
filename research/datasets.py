@@ -7,43 +7,43 @@ import torch
 from torch.utils.data import DataLoader
 
 from lizrd.text import datasets, packers, data, tokenizers
-from lizrd.support.misc import calculate_current_bsz_from_rampup, get_ith_chunk
+from lizrd.support.misc import get_ith_chunk
 
 
 @dataclass
 class BatchSizeRampupConfig:
-    batch_size_rampup_transition_points: Optional[list[float]]
-    batch_size_rampup_sizes: Optional[list[float]]
-
-    def __post_init__(self):
-        self.enabled = self.batch_size_rampup_sizes is not None
+    transition_points: list[float]
+    batch_sizes: list[float]
 
 
 class DataloaderWrapper:
     def __init__(
         self,
         dataloader: DataLoader,
-        batch_size_rampup_config: BatchSizeRampupConfig,
-        total_n_gpus: int,
         device: torch.device,
     ):
         self.generator = iter(dataloader)
         self.target_batch_size = dataloader.batch_size
-        self.batch_size_rampup_config = batch_size_rampup_config
         self.device = device
-        self.num_of_last_batch_chunk = None
-        self.total_n_gpus = total_n_gpus
 
-    def get_batch(self, num_processed_tokens_so_far: int) -> data.LLMBatch:
-        if self.batch_size_rampup_config.batch_size_rampup_sizes is None:
+    def get_batch(
+        self, current_batch_size=-1, num_processed_tokens_so_far=-1
+    ) -> data.LLMBatch:
+        """
+        Returns the next batch of data, handling batch size ramp-up if specified.
+
+        If `current_batch_size` is less than `self.target_batch_size`, the batch is split into
+        smaller chunks, and the appropriate chunk is returned based on `num_processed_tokens_so_far`.
+
+        Args:
+            current_batch_size (int, optional): The current batch size.
+            Defaults to -1, which uses the target batch size.
+            num_processed_tokens_so_far (int, optional): Total number of tokens processed so far; used to determine the current chunk when batch size ramp-up is in effect. Defaults to -1.
+        """
+        if current_batch_size == -1 or current_batch_size == self.target_batch_size:
             return next(self.generator).to(self.device)
         else:
-            current_batch_size = calculate_current_bsz_from_rampup(
-                num_processed_tokens_so_far,
-                self.batch_size_rampup_config.batch_size_rampup_transition_points,
-                self.batch_size_rampup_config.batch_size_rampup_sizes,
-            )
-            current_num_chunks = self.batch_size // current_batch_size
+            current_num_chunks = self.target_batch_size // current_batch_size
             current_chunk = (
                 num_processed_tokens_so_far // current_batch_size
             ) % current_num_chunks
@@ -75,7 +75,6 @@ def get_processed_dataset(
     num_workers: int,
     seed: int,
     total_n_gpus: int,
-    batch_size_rampup_config: Optional[BatchSizeRampupConfig] = None,
     model_type: Literal["bert", "gpt"] = "bert",
     dataset_type: Literal["wikibook", "c4"] = "wikibook",
     use_dummy_dataset: bool = False,
@@ -123,4 +122,4 @@ def get_processed_dataset(
         pin_memory=True,
     )
 
-    return DataloaderWrapper(dataloader, batch_size_rampup_config, total_n_gpus, device)
+    return DataloaderWrapper(dataloader, device)

@@ -304,9 +304,13 @@ def main(
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
-    batch_size_rampup_config = BatchSizeRampupConfig(
-        batch_size_rampup_transition_points=args.batch_size_rampup_transition_points,
-        batch_size_rampup_sizes=args.batch_size_rampup_sizes,
+    batch_size_rampup_config = (
+        BatchSizeRampupConfig(
+            transition_points=args.batch_size_rampup_transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+        )
+        if args.batch_size_rampup_transition_points is not None
+        else None
     )
 
     common_dataloaders_kwargs = {
@@ -322,7 +326,6 @@ def main(
 
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
-        batch_size_rampup_config=batch_size_rampup_config,
         dataset_split="train",
         dataset_path=args.train_dataset_path,
     )
@@ -416,6 +419,7 @@ def main(
         repeater_job_end_time=get_termination_timestamp_slurm()
         if args.repeater_mode
         else None,
+        batch_size_rampup_config=batch_size_rampup_config,
     )
     trainer.train(args.n_steps)
 
