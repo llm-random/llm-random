@@ -2,7 +2,7 @@ from lizrd.support.misc import calculate_current_batch_size_from_rampup
 from lizrd.support.test_utils import GeneralTestCase
 
 
-class CalculateCurrentBszTest(GeneralTestCase):
+class CalculateCurrentBatchSizeTest(GeneralTestCase):
     def test_single_transition(self):
         # Test with a single transition point
         transition_points = [1]  # in billions
