@@ -28,11 +28,11 @@ params:
   batch_size: 512
   cutoff: 512
   final_lr_step: -1
-  lr_warmup_percent: 0.01
-  lr_warmup_steps: 0
+  lr_warmup_steps: 500
   final_lr_fraction: 0.1
   init_scale: 0.1
   learning_rate: 0
+  use_lr_scaling: true
   weight_decay: 0.1
   zloss_weight: 0.001
   load_balancing_loss_weight: 0.01

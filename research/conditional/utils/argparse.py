@@ -64,13 +64,22 @@ def introduce_parser_arguments(
     # set use_lr_scaling to True and all other lr scaling parameters to 0
     parser.add_argument("--use_lr_scaling", action="store_true")
     parser.add_argument(
-        "--lr_scaling_constant_factor", type=float, required=False, default=11.19261269
+        "--lr_scaling_constant_factor",
+        type=float,
+        required=False,
+        default=8.391640956234012,
     )
     parser.add_argument(
-        "--lr_scaling_params_factor", type=float, required=False, default=-0.957812
+        "--lr_scaling_params_factor",
+        type=float,
+        required=False,
+        default=-0.8121798244457074,
     )
     parser.add_argument(
-        "--lr_scaling_exp_rate_factor", type=float, required=False, default=0.0
+        "--lr_scaling_exp_rate_factor",
+        type=float,
+        required=False,
+        default=-0.25000000000000533,
     )
 
     parser.add_argument("--deterministic_experiment", action="store_true")
