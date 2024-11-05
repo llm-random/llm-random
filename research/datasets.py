@@ -27,25 +27,28 @@ class DataloaderWrapper:
         self.device = device
 
     def get_batch(
-        self, current_batch_size=-1, num_processed_tokens_so_far=-1
+        self, current_batch_size_per_gpu=-1, num_processed_tokens_so_far=-1
     ) -> data.LLMBatch:
         """
         Returns the next batch of data, handling batch size ramp-up if specified.
 
-        If `current_batch_size` is less than `self.target_batch_size`, the batch is split into
+        If `current_batch_size_per_gpu` is less than `self.target_batch_size`, the batch is split into
         smaller chunks, and the appropriate chunk is returned based on `num_processed_tokens_so_far`.
 
         Args:
-            current_batch_size (int, optional): The current batch size.
+            current_batch_size_per_gpu (int, optional): The current batch size.
             Defaults to -1, which uses the target batch size.
             num_processed_tokens_so_far (int, optional): Total number of tokens processed so far; used to determine the current chunk when batch size ramp-up is in effect. Defaults to -1.
         """
-        if current_batch_size == -1 or current_batch_size == self.target_batch_size:
+        if (
+            current_batch_size_per_gpu == -1
+            or current_batch_size_per_gpu == self.target_batch_size
+        ):
             return next(self.generator).to(self.device)
         else:
-            current_num_chunks = self.target_batch_size // current_batch_size
+            current_num_chunks = self.target_batch_size // current_batch_size_per_gpu
             current_chunk = (
-                num_processed_tokens_so_far // current_batch_size
+                num_processed_tokens_so_far // current_batch_size_per_gpu
             ) % current_num_chunks
 
             if current_chunk == 0:

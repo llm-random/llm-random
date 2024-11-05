@@ -192,9 +192,9 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
 
         if self.batch_size_rampup_config is None:
-            current_batch_size = self.batch_size
+            current_batch_size_per_gpu = self.batch_size
         else:
-            current_batch_size = (
+            current_batch_size_per_gpu = (
                 calculate_current_bsz_from_rampup(
                     processed_tokens=self.num_processed_tokens,
                     transition_points=self.batch_size_rampup_config.transition_points,
@@ -204,20 +204,22 @@ class ConditionalTrainer:
                 // self.n_gpus
             )
         processed_batch = self.train_dataloader.get_batch(
-            current_batch_size=current_batch_size,
+            current_batch_size_per_gpu=current_batch_size_per_gpu,
             num_processed_tokens_so_far=self.num_processed_tokens,
         )
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(
-            processed_batch, current_batch_size
+            processed_batch, current_batch_size_per_gpu
         )
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
-        self.num_processed_tokens += self.n_gpus * current_batch_size * self.cutoff
+        self.num_processed_tokens += (
+            self.n_gpus * current_batch_size_per_gpu * self.cutoff
+        )
         if self.is_logging_process:
-            self._log_train_stats(loss, step, current_batch_size * self.n_gpus)
+            self._log_train_stats(loss, step, current_batch_size_per_gpu * self.n_gpus)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -225,7 +227,7 @@ class ConditionalTrainer:
         self._save_weights(step)
 
     def calculate_loss_and_gradient(
-        self, processed_batch: LLMBatch, current_batch_size: int
+        self, processed_batch: LLMBatch, current_batch_size_per_gpu: int
     ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
         NOTE: this function will not set the gradients for the model if model is in eval mode
@@ -236,7 +238,8 @@ class ConditionalTrainer:
         losses = {}
 
         num_batch_chunks = max(
-            self.gradient_accumulation_steps // (self.batch_size // current_batch_size),
+            self.gradient_accumulation_steps
+            // (self.batch_size // current_batch_size_per_gpu),
             1,
         )
         for i in range(num_batch_chunks):
