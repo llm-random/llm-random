@@ -13,7 +13,7 @@ from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.misc import get_ith_chunk, calculate_current_bsz_from_rampup
+from lizrd.support.misc import get_ith_chunk, calculate_current_batch_size_from_rampup
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
@@ -195,7 +195,7 @@ class ConditionalTrainer:
             current_batch_size_per_gpu = self.batch_size
         else:
             current_batch_size_per_gpu = (
-                calculate_current_bsz_from_rampup(
+                calculate_current_batch_size_from_rampup(
                     processed_tokens=self.num_processed_tokens,
                     transition_points=self.batch_size_rampup_config.transition_points,
                     batch_sizes=self.batch_size_rampup_config.batch_sizes,

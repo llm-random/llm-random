@@ -1,4 +1,4 @@
-from lizrd.support.misc import calculate_current_bsz_from_rampup
+from lizrd.support.misc import calculate_current_batch_size_from_rampup
 from lizrd.support.test_utils import GeneralTestCase
 
 
@@ -18,7 +18,7 @@ class CalculateCurrentBszTest(GeneralTestCase):
         ]
 
         for processed_tokens, expected_batch_size in test_cases:
-            actual_batch_size = calculate_current_bsz_from_rampup(
+            actual_batch_size = calculate_current_batch_size_from_rampup(
                 processed_tokens,
                 transition_points,
                 batch_sizes,
@@ -44,7 +44,7 @@ class CalculateCurrentBszTest(GeneralTestCase):
         ]
 
         for processed_tokens, expected_batch_size in test_cases:
-            actual_batch_size = calculate_current_bsz_from_rampup(
+            actual_batch_size = calculate_current_batch_size_from_rampup(
                 processed_tokens,
                 transition_points,
                 batch_sizes,
