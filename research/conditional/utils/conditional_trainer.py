@@ -402,12 +402,12 @@ class ConditionalTrainer:
                 iteration=step,
             )
 
-    def _log_train_stats(self, loss_value, step, current_bs):
+    def _log_train_stats(self, loss_value, step, current_bsz):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
         )
-        self.logger.report_scalar(title="batch_size", value=current_bs, iteration=step)
+        self.logger.report_scalar(title="batch_size", value=current_bsz, iteration=step)
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
@@ -417,7 +417,7 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
-                    processed_token_scale=True,
+                    processed_tokens_so_far=self.num_processed_tokens,
                 )
                 stats.acc = 0.0
 
