@@ -231,21 +231,19 @@ def get_ith_chunk(tensor, chunks, i):
     return list_of_chunks[i]
 
 
-def calculate_current_bs_from_rampup(
+def calculate_current_batch_size_from_rampup(
     processed_tokens,
-    batch_size_rampup_transition_points,
-    batch_size_rampup_sizes,
+    transition_points,
+    batch_sizes,
     target_batch_size,
 ):
-    transition_points_in_tokens = [
-        point * 1e9 for point in batch_size_rampup_transition_points
-    ]
+    transition_points_in_tokens = [point * 1e9 for point in transition_points]
 
     if processed_tokens >= transition_points_in_tokens[-1]:
         return target_batch_size
 
     for i in reversed(range(len(transition_points_in_tokens) - 1)):
         if processed_tokens >= transition_points_in_tokens[i]:
-            return batch_size_rampup_sizes[i + 1]
+            return batch_sizes[i + 1]
 
-    return batch_size_rampup_sizes[0]
+    return batch_sizes[0]

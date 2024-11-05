@@ -52,7 +52,7 @@ class AbstractLogger(ABC):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         raise NotImplementedError()
 
@@ -134,15 +134,14 @@ class AbstractLogger(ABC):
             * self.args["batch_size"],
         }
 
-    def with_token_scale(self, title: str, value: float, iteration: int):
-        tokens_passed = iteration * self.args.get("tokens_per_step")
-        tokens_per_active_params = tokens_passed / self.args.get(
+    def with_token_scale(self, title: str, value: float, processed_tokens_so_far: int):
+        tokens_per_active_params = processed_tokens_so_far / self.args.get(
             "active_params_for_scaling_laws_no_head"
         )
         return {
             f"{title}_tokens": {
                 "value": value,
-                "iteration": tokens_passed,
+                "iteration": processed_tokens_so_far,
             },
             f"{title}_tokens_per_active": {
                 "value": value,
@@ -151,13 +150,17 @@ class AbstractLogger(ABC):
         }
 
     def get_auxiliary_metrics(
-        self, title: str, value: float, iteration: int, token_scale: bool = False
+        self,
+        title: str,
+        value: float,
+        iteration: int,
+        processed_tokens_so_far: Optional[int],
     ):
         auxiliary_metrics = {}
-        if token_scale:
+        if processed_tokens_so_far is not None:
             auxiliary_metrics = {
                 **auxiliary_metrics,
-                **self.with_token_scale(title, value, iteration),
+                **self.with_token_scale(title, value, processed_tokens_so_far),
             }
         metric_x_flop = None
 
@@ -260,7 +263,7 @@ class NeptuneLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         path = self._make_path(title, series, iteration)
         assert (not math.isnan(value)) and (
@@ -270,7 +273,7 @@ class NeptuneLogger(AbstractLogger):
             value=value, step=iteration
         )
         auxiliary_metrics = self.get_auxiliary_metrics(
-            title, value, iteration, token_scale=processed_token_scale
+            title, value, iteration, processed_tokens_so_far=processed_tokens_so_far
         )
         for metric_name, metric in auxiliary_metrics.items():
             self.instance_logger[self._make_path(metric_name, series)].append(
@@ -343,12 +346,15 @@ class WandbLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         path = self._make_path(title, series)
         wandb.log({path: value, "train/step": iteration})
         auxiliary_metrics = self.get_auxiliary_metrics(
-            title, value, iteration, token_scale=processed_token_scale
+            title,
+            value,
+            iteration,
+            processed_tokens_so_far=processed_tokens_so_far,
         )
         for metric_name, metric in auxiliary_metrics.items():
             wandb.log({metric_name: metric["value"], "train/step": iteration})
@@ -416,7 +422,7 @@ class StdoutLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         self.print_out_metric(
             title=title, value=value, iteration=iteration, series=series
@@ -461,7 +467,7 @@ class JointLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         for logger in self.loggers:
             logger.report_scalar(
@@ -469,7 +475,7 @@ class JointLogger(AbstractLogger):
                 value=value,
                 iteration=iteration,
                 series=series,
-                processed_token_scale=processed_token_scale,
+                processed_tokens_so_far=processed_tokens_so_far,
             )
 
     def report_text(
@@ -575,6 +581,11 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
+
+    args_dict = vars(args).copy()
+    for k in args_dict.keys():
+        if isinstance(args_dict[k], list):
+            args_dict[k] = list_to_str(args_dict[k])
 
     args_dict = vars(args).copy()
     for k in args_dict.keys():
