@@ -104,9 +104,7 @@ class C4Dataset(AbstractDataset):
         return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]
 
 
-class DummyDataset(AbstractDataset):
-    total_gpt2_tokens = 173_648_052_806  # number of tokens in the C4 dataset when using GPT2TokenizerFast
-
+class FinewebEduDataset(AbstractDataset):
     def __init__(
         self,
         seed: Optional[int] = None,
@@ -116,6 +114,28 @@ class DummyDataset(AbstractDataset):
     ):
         super().__init__(seed=seed)
         assert split in ["train", "validation"]
+        self.split = split
+        assert dataset_path is not None or use_dummy_dataset
+        if dataset_path is not None:
+            self.dataset = load_from_disk(dataset_path)
+        elif use_dummy_dataset:
+            # anything really
+            self.dataset = load_dataset("stas/c4-en-10k", split="train")
+        else:
+            raise ValueError("dataset_path or use_dummy_dataset must be specified")
+
+    def _belongs_to_split(self, document_id: int) -> bool:
+        eval_percentage = 1
+
+        if self.split == "train":
+            return hash(document_id) % 100 >= eval_percentage
+        elif self.split == "validation":
+            return hash(document_id) % 100 < eval_percentage
+        else:
+            raise ValueError("split must be either 'train' or 'validation'")
 
     def get_document(self) -> str:
-        return "abc" * 1000
+        random_doc_id = None
+        while random_doc_id is None or not self._belongs_to_split(random_doc_id):
+            random_doc_id = self.py_rng.randint(0, len(self.dataset) - 1)
+        return self.dataset[random_doc_id]["text"]
