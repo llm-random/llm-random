@@ -352,7 +352,9 @@ class ConditionalTrainer:
         extra_losses = defaultdict(float)
         for processed_batch in batches:
             with torch.no_grad():
-                loss, aux_info = self.calculate_loss_and_gradient(processed_batch, 1)
+                loss, aux_info = self.calculate_loss_and_gradient(
+                    processed_batch, self.batch_size
+                )
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
             total_masked_tokens += aux_info["total_masked_tokens"]
