@@ -147,14 +147,14 @@ class HeliosBackend(MachineBackend):
         if dataset_type == "c4":
             return "/net/scratch/hscra/plgrid/plgmaciejpioro/c4/train"
         elif dataset_type == "fineweb-edu":
-            return "/net/scratch/hscra/plgrid/plgmaciejpioro/fineweb-edu/train"
+            return "/net/scratch/hscra/plgrid/plgmaciejpioro/fineweb-edu/train/train"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_default_validation_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
             return "/net/scratch/hscra/plgrid/plgmaciejpioro/c4/validation"
         elif dataset_type == "fineweb-edu":
-            return "/net/scratch/hscra/plgrid/plgmaciejpioro/fineweb-edu/train"
+            return "/net/scratch/hscra/plgrid/plgmaciejpioro/fineweb-edu/train/train"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_common_directory(self) -> str:
