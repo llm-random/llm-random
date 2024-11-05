@@ -345,12 +345,15 @@ class WandbLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         path = self._make_path(title, series)
         wandb.log({path: value, "train/step": iteration})
         auxiliary_metrics = self.get_auxiliary_metrics(
-            title, value, iteration, token_scale=processed_token_scale
+            title,
+            value,
+            iteration,
+            processed_tokens_so_far=processed_tokens_so_far,
         )
         for metric_name, metric in auxiliary_metrics.items():
             wandb.log({metric_name: metric["value"], "train/step": iteration})
@@ -418,7 +421,7 @@ class StdoutLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         self.print_out_metric(
             title=title, value=value, iteration=iteration, series=series
@@ -463,7 +466,7 @@ class JointLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         for logger in self.loggers:
             logger.report_scalar(
@@ -471,7 +474,7 @@ class JointLogger(AbstractLogger):
                 value=value,
                 iteration=iteration,
                 series=series,
-                processed_token_scale=processed_token_scale,
+                processed_tokens_so_far=processed_tokens_so_far,
             )
 
     def report_text(
