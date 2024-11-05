@@ -6,6 +6,10 @@ def load_dict_in_args(s: str):
     return json.loads(s.replace("'", '"'))
 
 
+def math_eval(value):
+    return float(eval(value))  # fallback for other notations like float or exponential
+
+
 def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
@@ -40,7 +44,7 @@ def introduce_parser_arguments(
     # CORE training hyperparameters, almost always specified in baseline configs
 
     parser.add_argument("--n_steps", type=int, required=True)
-    parser.add_argument("--learning_rate", type=float, required=True)
+    parser.add_argument("--learning_rate", type=math_eval, required=True)
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--lr_warmup_percent", type=float, required=False)
@@ -76,7 +80,10 @@ def introduce_parser_arguments(
     # CORE data hyperparameters, almost always specified in baseline configs
 
     parser.add_argument(
-        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
+        "--dataset_type",
+        type=str,
+        choices=["wikibook", "c4", "fineweb-edu"],
+        required=True,
     )
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--cutoff", type=int, required=True)

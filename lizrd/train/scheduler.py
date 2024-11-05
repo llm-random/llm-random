@@ -37,7 +37,7 @@ def get_scheduler(
     elif args.scheduler == "trapezoidal":
         return TrapezoidalScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
-            lr_decay_steps=math.ceil(args.n_steps * args.lr_trapezoidal_decay_percent),
+            lr_decay_steps=math.ceil(args.n_steps * args.lr_trapezoidal_decay_fraction),
             n_steps=args.n_steps,
             lr=args.learning_rate,
             ratios=ratios_in_group_order,
