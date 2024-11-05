@@ -1,9 +1,0 @@
-parent: configs/experiments/constrained_scaling_laws/7M/model.yaml
-md5_parent_hash: d689752b9b571bb8a908bc38f82f6676
-time: "30:00:00"
-# here configure GPUs & time for a given cluster for it to fit
-params:
-  tags: ["constrained_scaling_grid", "7M"]
-  ^expansion_rate: [2, 8]
-  ^n_steps: [30512]
-

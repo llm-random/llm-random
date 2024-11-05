@@ -1,9 +1,9 @@
 parent: configs/experiments/constrained_scaling_laws/85M/model.yaml
 md5_parent_hash: 34696cbcdbc6e63951e646108e5cc391
-n_gpus: 2 # TODO not tested for athena
+n_gpus: 2 # works for athena
 
 params:
-  tags: ["constrained_scaling_grid", "85M", "E=32"]
-  expansion_rate: 32
+  tags: ["constrained_scaling_grid", "85M"]
+  expansion_rate: 8
   gradient_accumulation_steps: 2
 
