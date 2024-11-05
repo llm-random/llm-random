@@ -1,5 +1,5 @@
 parent: configs/experiments/constrained_scaling_laws/370M/model.yaml
-md5_parent_hash: 2d2add7b4ebdc5f89670ee7b2454c0ef
+md5_parent_hash: 6d1d8180660e68823f8db53198729fc2
 # here configure GPUs & time for a given cluster for it to fit
 time: "40:00:00"
 n_gpus: 4
@@ -7,7 +7,10 @@ n_gpus: 4
 params:
   name: "constrained_lr_grid"
   tags: ["370M", "lr_scaling_rampup_final"]
-  ^expansion_rate: [1, 4, 8]
+  ^expansion_rate: [1, 4, 8, 32]
   ^n_steps: [28300]
-  gradient_accumulation_steps: 1
+  gradient_accumulation_steps: 2
   ^learning_rate_log2: [-8, -8.5, -9, -9.5, -10, -10.5, -11, -11.5, -12]
+  use_lr_scaling: false
+  lr_warmup_percent: 0.01
+  lr_warmup_steps: 0
