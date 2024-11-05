@@ -114,16 +114,14 @@ class FinewebEduDataset(AbstractDataset):
         super().__init__(seed=seed)
         assert split in ["train", "validation"]
         self.split = split
+        assert dataset_path is not None or use_dummy_dataset
         if dataset_path is not None:
             self.dataset = load_from_disk(dataset_path)
         elif use_dummy_dataset:
-            if split != "train":
-                raise NameError(
-                    "Dummy dataset only supports train split for C4 dataset"
-                )
-            self.dataset = load_dataset("stas/c4-en-10k", split=split)
+            # anything really
+            self.dataset = load_dataset("stas/c4-en-10k", split="train")
         else:
-            self.dataset = load_dataset("c4", "en", split=split)
+            raise ValueError("dataset_path or use_dummy_dataset must be specified")
 
     def _belongs_to_split(self, document_id: int) -> bool:
         eval_percentage = 1
@@ -136,4 +134,7 @@ class FinewebEduDataset(AbstractDataset):
             raise ValueError("split must be either 'train' or 'validation'")
 
     def get_document(self) -> str:
-        return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]
+        random_doc_id = None
+        while random_doc_id is None or not self._belongs_to_split(random_doc_id):
+            random_doc_id = self.py_rng.randint(0, len(self.dataset) - 1)
+        return self.dataset[random_doc_id]["text"]
