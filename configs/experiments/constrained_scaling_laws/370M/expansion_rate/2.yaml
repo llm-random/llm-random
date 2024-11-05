@@ -3,5 +3,5 @@ md5_parent_hash: 2d2add7b4ebdc5f89670ee7b2454c0ef
 n_gpus: 4 # works for athena
 
 params:
-  tags: ["constrained_scaling_grid", "370M"]
+  tags: ["constrained_scaling_grid", "370M", "E=2"]
   expansion_rate: 2
