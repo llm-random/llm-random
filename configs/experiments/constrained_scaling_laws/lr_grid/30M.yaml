@@ -5,8 +5,8 @@ time: "40:00:00"
 
 params:
   name: "constrained_lr_grid"
-  tags: ["30M", "lr_scaling_rampup"]
-  expansion_rate: 1
+  tags: ["30M", "lr_scaling_rampup_final"]
+  ^expansion_rate: [1, 4, 8]
   ^n_steps: [2300]
   gradient_accumulation_steps: 4
   ^learning_rate_log2: [-7, -7.5, -8, -8.5, -9, -9.5, -10]

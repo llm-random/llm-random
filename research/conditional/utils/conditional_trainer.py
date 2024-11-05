@@ -195,7 +195,9 @@ class ConditionalTrainer:
         if self.batch_size_rampup_sizes is None:
             current_bs = self.batch_size
         else:
-            num_processed_tokens = step * self.batch_size * self.max_sequence_length
+            num_processed_tokens = (
+                step * self.batch_size * self.max_sequence_length * self.n_gpus
+            )
             current_bs = calculate_current_bs_from_rampup(
                 num_processed_tokens,
                 self.batch_size_rampup_transition_points,

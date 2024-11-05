@@ -6,8 +6,8 @@ n_gpus: 2
 
 params:
   name: "constrained_lr_grid"
-  tags: ["85M", "lr_scaling_rampup"]
-  expansion_rate: 1
+  tags: ["85M", "lr_scaling_rampup_final"]
+  ^expansion_rate: [1, 4, 8]
   ^n_steps: [6500]
   gradient_accumulation_steps: 2
-  ^learning_rate_log2: [-7, -7.5, -8, -8.5, -9, -9.5, -10]
+  ^learning_rate_log2: [-7, -7.5, -8, -8.5, -9, -9.5, -10, -10.5, -11]
