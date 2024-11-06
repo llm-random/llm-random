@@ -86,7 +86,7 @@ class ConditionalTrainer:
     checkpoint: Optional[dict[str, torch.Tensor]] = None
     final_eval_dataloader: Optional[DataloaderWrapper] = None
     final_eval_dataloader_batch_size: Optional[int] = None
-    n_sequences_final_eval: int = None
+    n_final_eval_batches: int = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -142,18 +142,19 @@ class ConditionalTrainer:
         n_steps: int,
     ):
         if self.current_step == n_steps:
-            batches = [
-                self.final_eval_dataloader.get_batch()
-                for _ in range(
-                    self.n_sequences_final_eval // self.final_eval_dataloader_batch_size
-                )
-            ]
+            self.model.eval()
+            self.gradient_accumulation_steps = 1
+            total_loss = 0.0
+            for _ in range(self.n_final_eval_batches):
+                batch = self.final_eval_dataloader.get_batch()
+                with torch.no_grad():
+                    loss, _ = self.calculate_loss_and_gradient(batch)
+                total_loss += loss
 
-            self._eval_single_variant(
-                batches=batches,
-                step=self.current_step,
-                variant_name="end",
-                stage="final_eval",
+            self.logger.report_scalar(
+                title=f"final_eval",
+                value=total_loss / self.n_final_eval_batches,
+                iteration=n_steps,
             )
 
     def train(self, n_steps: int):
@@ -310,9 +311,7 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
+                current_group_size = int(2**log_group_size_factor * original_group_size)
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps
@@ -334,11 +333,7 @@ class ConditionalTrainer:
                 )
 
     def _eval_single_variant(
-        self,
-        batches: Iterable[LLMBatch],
-        step: int,
-        variant_name: str,
-        stage: str = "eval",
+        self, batches: Iterable[LLMBatch], step: int, variant_name: str
     ):
         self.model.eval()
         total_loss = 0.0
@@ -355,18 +350,18 @@ class ConditionalTrainer:
                 extra_losses[name] += loss_value
         if self.is_logging_process:
             self.logger.report_scalar(
-                title=f"{stage}/total_loss/{variant_name}",
+                title=f"eval/total_loss/{variant_name}",
                 value=total_loss / self.n_eval_batches,
                 iteration=step,
             )
             self.logger.report_scalar(
-                title=f"{stage}/accuracy/{variant_name}",
+                title=f"eval/accuracy/{variant_name}",
                 value=total_correct_tokens / total_masked_tokens,
                 iteration=step,
             )
             for name, loss_value in extra_losses.items():
                 self.logger.report_scalar(
-                    title=f"{stage}/{name}/{variant_name}",
+                    title=f"eval/{name}/{variant_name}",
                     value=loss_value / self.n_eval_batches,
                     iteration=step,
                 )

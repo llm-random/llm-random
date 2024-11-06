@@ -85,13 +85,13 @@ def introduce_parser_arguments(
         "--final_eval_dataloader_batch_size",
         type=int,
         default=64,
-        help="Batch size for final evaluation dataloader. It cannot be larger than the batch_size per GPU for the biggest model.",
+        help="Batch size for final evaluation dataloader. It should fit batch_size per GPU for the biggest model not to split batch into chunks. Should be the same for all runs to compare them.",
     )
     parser.add_argument(
-        "--n_sequences_final_eval",
+        "--n_final_eval_batches",
         type=str,
-        default=8 * 512,
-        help="Total number of sequences to generate for final evaluation. It must be a multiple of final_eval_dataloader_batch_size.",
+        default=8,
+        help="Total number of batches to generate for final evaluation. Should be the same for all runs to compare them.",
     )
 
     # training tricks for memory and speed
