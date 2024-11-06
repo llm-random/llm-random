@@ -80,11 +80,22 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_trapezoidal_decay_fraction", type=float, default=0.20)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
+    parser.add_argument(
+        "--batch_size_rampup_transition_points",
+        type=float,
+        nargs="*",
+        default=None,
+        help="list of points (in billions of tokens) when batch size will be ramped up to the next value",
+    )
+    parser.add_argument("--batch_size_rampup_sizes", type=int, nargs="*", default=None)
 
     # CORE data hyperparameters, almost always specified in baseline configs
 
     parser.add_argument(
-        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
+        "--dataset_type",
+        type=str,
+        choices=["wikibook", "c4", "fineweb-edu"],
+        required=True,
     )
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--cutoff", type=int, required=True)
