@@ -234,6 +234,7 @@ def main(
             for ff_fun in ff_layer_funs
         ]
 
+    checkpoint_path = args.load_weights_path
     if not args.checkpoint_manager:
         checkpoint = (
             get_checkpoint_from_path(args.load_weights_path)
