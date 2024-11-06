@@ -155,7 +155,7 @@ class ConditionalTrainer:
                         batch, self.batch_size // self.gradient_accumulation_steps
                     )
                     losses.append(loss)
-        
+
             final_loss = np.array(losses, dtype=np.float64).mean()
 
             if self.is_logging_process:
