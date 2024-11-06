@@ -58,7 +58,7 @@ def check_args(args):
                 int(slide["n_steps"] * (1 - args.lr_trapezoidal_decay_fraction)) - 1
             )
             new_scheduler_trapezoidal_slides.append(slide)
-        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides        
+        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
     if args.batch_size_rampup_transition_points is not None:
         assert (
