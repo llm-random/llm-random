@@ -26,7 +26,11 @@ from lizrd.train.train_utils import (
 from lizrd.text import tokenizers
 from research.conditional.utils.check_args import check_args
 from research.conditional.utils.misc_tools import get_termination_timestamp_slurm
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from research.datasets import (
+    BatchSizeRampupConfig,
+    DataloaderWrapper,
+    get_processed_dataset,
+)
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
@@ -288,6 +292,15 @@ def main(
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
+    batch_size_rampup_config = (
+        BatchSizeRampupConfig(
+            transition_points=args.batch_size_rampup_transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+        )
+        if args.batch_size_rampup_transition_points is not None
+        else None
+    )
+
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
         "device": DEVICE,
@@ -391,9 +404,10 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.repeater_mode
-        else None,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.repeater_mode else None
+        ),
+        batch_size_rampup_config=batch_size_rampup_config,
     )
     trainer.train(args.n_steps)
 
