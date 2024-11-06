@@ -15,6 +15,7 @@ from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import (
     get_ith_chunk,
+    calculate_n_processed_tokens,
     calculate_current_batch_size_from_rampup,
 )
 from lizrd.text.data import LLMBatch
@@ -125,7 +126,6 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "failure",
         )
-        self.num_processed_tokens = 0
 
     def _after_train_operations(self):
         update_model_fit_gpu_info(
@@ -195,12 +195,16 @@ class ConditionalTrainer:
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
 
+        num_processed_tokens = calculate_n_processed_tokens(
+            step, self.cutoff, self.batch_size, self.batch_size_rampup_config
+        )
+
         if self.batch_size_rampup_config is None:
             current_batch_size_per_gpu = self.batch_size
         else:
             current_batch_size_per_gpu = (
                 calculate_current_batch_size_from_rampup(
-                    processed_tokens=self.num_processed_tokens,
+                    processed_tokens=num_processed_tokens,
                     transition_points=self.batch_size_rampup_config.transition_points,
                     batch_sizes=self.batch_size_rampup_config.batch_sizes,
                     target_batch_size=self.batch_size * self.n_gpus,
@@ -209,7 +213,7 @@ class ConditionalTrainer:
             )
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
-            num_processed_tokens_so_far=self.num_processed_tokens,
+            num_processed_tokens_so_far=num_processed_tokens,
         )
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
@@ -219,11 +223,13 @@ class ConditionalTrainer:
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
-        self.num_processed_tokens += (
-            self.n_gpus * current_batch_size_per_gpu * self.cutoff
-        )
         if self.is_logging_process:
-            self._log_train_stats(loss, step, current_batch_size_per_gpu * self.n_gpus)
+            self._log_train_stats(
+                loss,
+                step,
+                current_batch_size_per_gpu * self.n_gpus,
+                num_processed_tokens,
+            )
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -408,7 +414,9 @@ class ConditionalTrainer:
                 iteration=step,
             )
 
-    def _log_train_stats(self, loss_value, step, current_batch_size):
+    def _log_train_stats(
+        self, loss_value, step, current_batch_size, num_processed_tokens
+    ):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
@@ -425,7 +433,7 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
-                    processed_tokens_so_far=self.num_processed_tokens,
+                    processed_tokens_so_far=num_processed_tokens,
                 )
                 stats.acc = 0.0
 

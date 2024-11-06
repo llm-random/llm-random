@@ -1,4 +1,7 @@
-from lizrd.support.misc import calculate_current_batch_size_from_rampup
+from lizrd.support.misc import (
+    calculate_current_batch_size_from_rampup,
+    calculate_n_processed_tokens,
+)
 from lizrd.support.test_utils import GeneralTestCase
 
 
@@ -51,3 +54,24 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
                 target_batch_size,
             )
             self.assertEqual(actual_batch_size, expected_batch_size)
+
+
+class CalculateNProcessedTokensTest(GeneralTestCase):
+    def basic_test(self):
+        step = 10
+        seq_len = 512
+        target_batch_size_per_gpu = 64
+        n_gpus = 8
+        rampup_config = None
+
+        expected_tokens = step * n_gpus * target_batch_size_per_gpu * seq_len
+
+        actual_tokens = calculate_n_processed_tokens(
+            step,
+            seq_len,
+            target_batch_size_per_gpu,
+            n_gpus,
+            rampup_config,
+        )
+
+        self.assertEqual(actual_tokens, expected_tokens)
