@@ -1,4 +1,5 @@
-import json
+# import json
+import yaml
 import fcntl
 import torch
 from copy import deepcopy
@@ -11,7 +12,7 @@ from lizrd.train.load_and_save_model import save_checkpoint
 
 from lizrd.support.logging import AbstractLogger
 
-EXPERIMENT_CHECKPOINT_MANAGER = "checkpoint_manager.json"
+EXPERIMENT_CHECKPOINT_MANAGER = "checkpoint_manager.yaml"
 
 CHECKPOINTS_TAG = "checkpoints"
 
@@ -144,7 +145,7 @@ def release_checkpoint_manager(
 def __overwrite_manager(new_content, f):
     f.seek(0)
     f.truncate()
-    json.dump(new_content, f, indent=4)
+    yaml.dump(new_content, f, indent=4)
 
 
 def __get_manager_timestamp():
@@ -165,14 +166,18 @@ def start_job_manager_assessment(
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
-            manager = json.load(f)
-            if manager == {}:
+            manager = yaml.load(f, Loader=yaml.SafeLoader)
+            if not manager:
+                manager = {}
                 manager[CHECKPOINTS_TAG] = [
                     manager_start_checkpoint(job_id, timestamp_now)
                 ]
                 __overwrite_manager(manager, f)
                 return None, None
             result = -1
+            print("manager ------------------------------------------------------------")
+            print(manager)
+            print("manager ------------------------------------------------------------")
             for i, element in enumerate(manager[CHECKPOINTS_TAG]):
                 if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
                     result = element[MODEL_CHECKPOINT]
@@ -191,7 +196,7 @@ def start_job_manager_assessment(
             sleep(3)
             try:
                 with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
-                    manager = json.load(f)
+                    manager = yaml.load(f, Loader=yaml.SafeLoader)
                     result = -1
                     for i, element in enumerate(manager[CHECKPOINTS_TAG]):
                         if (
@@ -240,7 +245,7 @@ def job_out_of_time_checkpoint(
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
-            manager = json.load(f)
+            manager = yaml.load(f, Loader=yaml.SafeLoader)
             manager = release_checkpoint_manager(
                 manager, job_id, model_path, timestamp_now
             )
@@ -281,7 +286,7 @@ def end_training_checkpoint(
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
-            manager = json.load(f)
+            manager = yaml.load(f, Loader=yaml.SafeLoader)
             manager = release_checkpoint_manager(
                 manager, job_id, model_path, timestamp_now
             )
@@ -319,7 +324,7 @@ def create_slide_checkpoint(
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
-            manager = json.load(f)
+            manager = yaml.load(f, Loader=yaml.SafeLoader)
             manager[CHECKPOINTS_TAG].append(
                 crate_manager_checkpoint(
                     model_path, job_id, timestamp_now, SLIDE_METADATA
