@@ -23,6 +23,9 @@ Use the baseline configuration as a template, which is in `configs/test/test_bas
 ### Running Remotely
 `bash scripts/run_exp_remotely.sh <remote_cluster_name> scripts/run_configs/<your_config>`
 
+#### Running on the Helios cluster
+Since Helios uses an older Python version, you need to install a conda environment with newer Python. To do so, copy `setup_helios.sh` to your home directory and run it.
+
 ### Initializing New Project
 
 ```bash
