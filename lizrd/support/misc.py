@@ -3,6 +3,7 @@ import random
 import string
 from typing import Any, Dict, Optional, List
 from lizrd.core.llm import EmbeddingLayer
+from lizrd.research.datasets import BatchSizeRampupConfig
 
 
 def tags_to_name(tags: Optional[List[str]]) -> str:
@@ -229,6 +230,20 @@ def get_ith_chunk(tensor, chunks, i):
 
     list_of_chunks = torch.chunk(tensor, chunks, dim=0)
     return list_of_chunks[i]
+
+
+def calculate_n_processed_tokens(
+    step: int,
+    seq_len: int,
+    target_batch_size_per_gpu: int,
+    n_gpus: int,
+    rampup_config: Optional[BatchSizeRampupConfig],
+):
+    if rampup_config is None:
+        return step * n_gpus * target_batch_size_per_gpu * seq_len
+    else:
+        batch_sizes = rampup_config.batch_sizes + [target_batch_size_per_gpu]
+        transtion_points = rampup_config.transition_points
 
 
 def calculate_current_batch_size_from_rampup(
