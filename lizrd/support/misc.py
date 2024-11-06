@@ -245,28 +245,22 @@ def calculate_n_processed_tokens(
         transition_points = [p * 1e9 for p in rampup_config.transition_points]
         steps_in_previous_intervals = 0
         tokens_in_previous_intervals = 0
-        for point, batch_size_per_gpu in zip(
-            transition_points, rampup_config.batch_sizes
-        ):
+        for point, batch_size in zip(transition_points, rampup_config.batch_sizes):
             total_steps_after_this_interval = (
                 steps_in_previous_intervals
-                + (point - tokens_in_previous_intervals) // batch_size_per_gpu
+                + (point - tokens_in_previous_intervals) // batch_size
             )
             if step < total_steps_after_this_interval:
                 # The current step is within this ramp-up interval
                 return (
                     tokens_in_previous_intervals
-                    + (step - steps_in_previous_intervals)
-                    * n_gpus
-                    * batch_size_per_gpu
-                    * seq_len
+                    + (step - steps_in_previous_intervals) * batch_size * seq_len
                 )
             else:
                 tokens_in_previous_intervals = (
                     tokens_in_previous_intervals
                     + (total_steps_after_this_interval - steps_in_previous_intervals)
-                    * n_gpus
-                    * batch_size_per_gpu
+                    * batch_size
                     * seq_len
                 )
                 steps_in_previous_intervals = total_steps_after_this_interval

@@ -196,7 +196,11 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
 
         num_processed_tokens = calculate_n_processed_tokens(
-            step, self.cutoff, self.batch_size, self.batch_size_rampup_config
+            step,
+            self.cutoff,
+            self.batch_size,
+            self.n_gpus,
+            self.batch_size_rampup_config,
         )
 
         if self.batch_size_rampup_config is None:
