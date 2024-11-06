@@ -34,13 +34,12 @@ class WikiBookDataset(AbstractDataset):
         self.split = split
 
         self.dataset_wiki = load_dataset(
-            "wikipedia",
-            f"20220301.{'simple' if use_dummy_dataset else 'en'}",
+            "wikipedia", f"20220301.{'simple' if use_dummy_dataset else 'en'}"
         )["train"]
         self.dataset_book = (
             load_dataset("bookcorpus")["train"]
             if not use_dummy_dataset
-            else self.dataset_wiki,
+            else self.dataset_wiki
         )
 
         self.bookcorpus_chance = len(self.dataset_book) / len(self.dataset_wiki)
