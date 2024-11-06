@@ -29,6 +29,7 @@ from research.datasets import DataloaderWrapper, BatchSizeRampupConfig
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+import numpy as np
 
 
 @define(slots=False)
@@ -146,17 +147,21 @@ class ConditionalTrainer:
         if self.current_step == n_steps:
             self.model.eval()
             self.gradient_accumulation_steps = 1
-            total_loss = 0.0
+            losses = []
             for _ in range(self.n_final_eval_batches):
                 batch = self.final_eval_dataloader.get_batch()
                 with torch.no_grad():
-                    loss, _ = self.calculate_loss_and_gradient(batch)
-                total_loss += loss
+                    loss, _ = self.calculate_loss_and_gradient(
+                        batch, self.batch_size // self.gradient_accumulation_steps
+                    )
+                    losses.append(loss)
+        
+            final_loss = np.array(losses, dtype=np.float64).mean()
 
             if self.is_logging_process:
                 self.logger.report_scalar(
                     title=f"final_eval",
-                    value=total_loss / self.n_final_eval_batches,
+                    value=final_loss,
                     iteration=n_steps,
                 )
 
