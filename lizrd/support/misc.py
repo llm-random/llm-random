@@ -3,7 +3,7 @@ import random
 import string
 from typing import Any, Dict, Optional, List
 from lizrd.core.llm import EmbeddingLayer
-from lizrd.research.datasets import BatchSizeRampupConfig
+from research.batch_size_rampup_config import BatchSizeRampupConfig
 
 
 def tags_to_name(tags: Optional[List[str]]) -> str:
@@ -242,8 +242,43 @@ def calculate_n_processed_tokens(
     if rampup_config is None:
         return step * n_gpus * target_batch_size_per_gpu * seq_len
     else:
-        batch_sizes = rampup_config.batch_sizes + [target_batch_size_per_gpu]
-        transtion_points = rampup_config.transition_points
+        transition_points = [p * 1e9 for p in rampup_config.transition_points]
+        steps_in_previous_intervals = 0
+        tokens_in_previous_intervals = 0
+        for point, batch_size_per_gpu in zip(
+            transition_points, rampup_config.batch_sizes
+        ):
+            total_steps_after_this_interval = (
+                steps_in_previous_intervals
+                + (point - tokens_in_previous_intervals) // batch_size_per_gpu
+            )
+            if step < total_steps_after_this_interval:
+                # The current step is within this ramp-up interval
+                return (
+                    tokens_in_previous_intervals
+                    + (step - steps_in_previous_intervals)
+                    * n_gpus
+                    * batch_size_per_gpu
+                    * seq_len
+                )
+            else:
+                tokens_in_previous_intervals = (
+                    tokens_in_previous_intervals
+                    + (total_steps_after_this_interval - steps_in_previous_intervals)
+                    * n_gpus
+                    * batch_size_per_gpu
+                    * seq_len
+                )
+                steps_in_previous_intervals = total_steps_after_this_interval
+
+            # we have reached the target interval
+            return (
+                tokens_in_previous_intervals
+                + (step - steps_in_previous_intervals)
+                * n_gpus
+                * target_batch_size_per_gpu
+                * seq_len
+            )
 
 
 def calculate_current_batch_size_from_rampup(

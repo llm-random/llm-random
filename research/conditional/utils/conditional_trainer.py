@@ -13,9 +13,13 @@ from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.misc import get_ith_chunk, calculate_current_batch_size_from_rampup
+from lizrd.support.misc import (
+    get_ith_chunk,
+    calculate_current_batch_size_from_rampup,
+)
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
+from research.batch_size_rampup_config import BatchSizeRampupConfig
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
@@ -25,7 +29,7 @@ from research.conditional.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
-from research.datasets import DataloaderWrapper, BatchSizeRampupConfig
+from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
