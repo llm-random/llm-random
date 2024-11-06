@@ -1,0 +1,9 @@
+parent: configs/experiments/constrained_scaling_laws/190M/model.yaml
+md5_parent_hash: c58962f97d6b1312259b5168e97f1622
+n_gpus: 2 # works for athena
+
+params:
+  tags: ["constrained_scaling_grid", "190M", "E=4"]
+  expansion_rate: 4
+  gradient_accumulation_steps: 2
+

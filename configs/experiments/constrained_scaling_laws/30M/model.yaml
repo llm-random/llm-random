@@ -2,9 +2,9 @@ parent: configs/experiments/constrained_scaling_laws/common.yaml
 md5_parent_hash: 5d05be672425f1a5c3bea99b04370bf1
 
 params:
-  tags: ["constrained_scaling_grid", "85M"]
+  tags: ["constrained_scaling_grid", "30M"]
 
-  dmodel: 512
-  n_blocks: 8
-  n_att_heads: 8
+  dmodel: 256
+  n_blocks: 4
+  n_att_heads: 4
 

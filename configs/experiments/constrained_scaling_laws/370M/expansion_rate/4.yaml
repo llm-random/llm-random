@@ -1,0 +1,8 @@
+parent: configs/experiments/constrained_scaling_laws/370M/model.yaml
+md5_parent_hash: 10b0d63c20ce7156ee4f32b1ee625ffb
+n_gpus: 4 # works for athena
+
+params:
+  tags: ["constrained_scaling_grid", "370M", "E=4"]
+  expansion_rate: 4
+
