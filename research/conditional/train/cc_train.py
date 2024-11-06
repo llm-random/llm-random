@@ -407,9 +407,9 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.repeater_mode
-        else None,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.repeater_mode else None
+        ),
         batch_size_rampup_config=batch_size_rampup_config,
     )
     trainer.train(args.n_steps)
