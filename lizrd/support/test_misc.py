@@ -2,6 +2,7 @@ from lizrd.support.misc import (
     calculate_current_batch_size_from_rampup,
     calculate_n_processed_tokens,
 )
+from research.batch_size_rampup_config import BatchSizeRampupConfig
 from lizrd.support.test_utils import GeneralTestCase
 
 
@@ -75,3 +76,22 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
         )
 
         self.assertEqual(actual_tokens, expected_tokens)
+
+    def test_with_rampup(self):
+        seq_len = 512
+        target_batch_size_per_gpu = 256
+        target_batch_size_per_gpu = 64
+        n_gpus = 2
+        # config = BatchSizeRampupConfig([0.065536000, 0.327680000], [128, 256])
+
+        steps = [1000, 1500, 2000, 3000]
+        expected_token_counts = [65536000, 196608000, 327680000, 589824000]
+
+        for step, expected in zip(steps, expected_token_counts):
+            actual_tokens = calculate_n_processed_tokens(
+                step, seq_len, target_batch_size_per_gpu, n_gpus, config
+            )
+
+            print(f"actual: {actual_tokens}, expected: {expected}")
+
+            self.assertEqual(actual_tokens, expected)
