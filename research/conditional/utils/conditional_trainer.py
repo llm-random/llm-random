@@ -142,21 +142,22 @@ class ConditionalTrainer:
             self.logger.exit_job_metadata(self.current_step)
 
         if self.current_step >= n_steps:  # - end of model training operations
-            job_id = get_slurm_job_id()
-            end_training_checkpoint(
-                job_id,
-                self.is_logging_process,
-                self.model,
-                self.optimizer,
-                self.scaler,
-                self.save_weights_path,
-                self.rank,
-                self.current_step,
-                self.batch_size,
-                self.cutoff,
-                self.logger.loggers if self.is_logging_process else None,
-                self.args_override,
-            )
+            if self.save_weights_path:
+                job_id = get_slurm_job_id()
+                end_training_checkpoint(
+                    job_id,
+                    self.is_logging_process,
+                    self.model,
+                    self.optimizer,
+                    self.scaler,
+                    self.save_weights_path,
+                    self.rank,
+                    self.current_step,
+                    self.batch_size,
+                    self.cutoff,
+                    self.logger.loggers if self.is_logging_process else None,
+                    self.args_override,
+                )
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
