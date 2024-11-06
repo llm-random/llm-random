@@ -114,7 +114,7 @@ def save_checkpoint(
         optimizer_state_dict = optimizer.state_dict()
 
     if rank == 0 or rank is None:
-        print("path -----------------------------------------------")
+        print("path -----------------------------------------------") #dev
         print(path)
         print("path -----------------------------------------------")
         full_path = os.path.join(path, f"{step}.pt")

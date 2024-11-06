@@ -175,9 +175,6 @@ def start_job_manager_assessment(
                 __overwrite_manager(manager, f)
                 return None, None
             result = -1
-            print("manager ------------------------------------------------------------")
-            print(manager)
-            print("manager ------------------------------------------------------------")
             for i, element in enumerate(manager[CHECKPOINTS_TAG]):
                 if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
                     result = element[MODEL_CHECKPOINT]
