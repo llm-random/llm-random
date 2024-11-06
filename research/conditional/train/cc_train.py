@@ -282,6 +282,12 @@ def main(
             else:
                 logger_runs_ids = None
         logger = get_logger(args, model, VOCAB_SIZE, logger_runs_ids)
+        if checkpoint_path:
+            logger.report_text(
+                title=f"job/loaded_checkpoint",
+                value=checkpoint_path,
+                iteration=checkpoint["step"],
+            )
     else:
         logger = None
 

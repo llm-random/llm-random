@@ -48,6 +48,7 @@ def check_args(args):
 
     if args.scheduler_trapezoidal_slides:
         assert args.scheduler == "trapezoidal"
+        assert args.checkpoint_manager
         args.scheduler_trapezoidal_slides = literal_eval(
             args.scheduler_trapezoidal_slides
         )

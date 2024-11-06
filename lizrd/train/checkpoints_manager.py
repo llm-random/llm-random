@@ -29,6 +29,19 @@ FINAL_MODEL_CHECKPOINT = "final_model_checkpoint"
 CHECKPOINT_METADATA_TAG = "metadata"
 SLIDE_METADATA = "trapezoidal_slide"
 
+LOG_TAG_CHECKPOINT_MANAGER = "checkpoint_manager"
+
+
+def log_checkpoint_manager(loggers, manager, step):
+    for logger in loggers:
+        for i, manager_checkpoint in enumerate(manager[CHECKPOINTS_TAG]):
+            for k, v in manager_checkpoint.items():
+                logger.report_text(
+                    title=f"{LOG_TAG_CHECKPOINT_MANAGER}/{i}/{k}",
+                    value=str(v),
+                    iteration=step,
+                )
+
 
 class Locker:
     def __init__(self, filename, mode):
@@ -235,6 +248,7 @@ def job_out_of_time_checkpoint(
                 crate_manager_checkpoint(model_path, job_id, timestamp_now)
             )
             __overwrite_manager(manager, f)
+        log_checkpoint_manager(loggers, manager, step)
 
 
 def end_training_checkpoint(
@@ -272,6 +286,7 @@ def end_training_checkpoint(
                 manager, job_id, model_path, timestamp_now
             )
             __overwrite_manager(manager, f)
+        log_checkpoint_manager(loggers, manager, step)
 
 
 def create_slide_checkpoint(
@@ -312,3 +327,6 @@ def create_slide_checkpoint(
             )
             # manager = release_checkpoint_manager(manager, job_id, model_path, timestamp_now) #dev TODO - feature to be considered in the future
             __overwrite_manager(manager, f)
+        log_checkpoint_manager(loggers, manager, step)
+        for logger in loggers:
+            logger.stop_connection()

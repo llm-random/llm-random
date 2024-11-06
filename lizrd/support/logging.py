@@ -210,6 +210,10 @@ class AbstractLogger(ABC):
             iteration=training_step,
         )
 
+    def stop_connection(self):
+        if isinstance(self.instance_logger, neptune.Run):
+            self.instance_logger.stop()
+
 
 class ClearMLLogger(AbstractLogger):
     pass
