@@ -121,8 +121,7 @@ def save_checkpoint(
                 ids.append(neptune_logger._sys_id)
             logger_metadata = {"run_id": ids}
         else:
-            print(f"No Neptune logger, no saving.")
-            logger_metadata = None
+            logger_metadata = {"run_id": None}
 
         full_path = os.path.join(path, f"{step}.pt")
         checkpoint = {
