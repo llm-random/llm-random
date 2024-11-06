@@ -151,11 +151,12 @@ class ConditionalTrainer:
                     loss, _ = self.calculate_loss_and_gradient(batch)
                 total_loss += loss
 
-            self.logger.report_scalar(
-                title=f"final_eval",
-                value=total_loss / self.n_final_eval_batches,
-                iteration=n_steps,
-            )
+            if self.is_logging_process:
+                self.logger.report_scalar(
+                    title=f"final_eval",
+                    value=total_loss / self.n_final_eval_batches,
+                    iteration=n_steps,
+                )
 
     def train(self, n_steps: int):
         """
