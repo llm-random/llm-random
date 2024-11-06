@@ -42,3 +42,20 @@ def check_args(args):
     assert (
         args.n_final_eval_batches > 0
     ), "n_final_eval_batches should be greater than 0"
+
+    if args.batch_size_rampup_transition_points is not None:
+        assert (
+            args.batch_size_rampup_sizes is not None
+        ), "Both parameters for rampup batch size need to be set"
+
+    if args.batch_size_rampup_sizes is not None:
+        assert (
+            args.batch_size_rampup_transition_points is not None
+        ), "Both parameters for rampup batch size need to be set"
+        assert len(args.batch_size_rampup_sizes) == len(
+            args.batch_size_rampup_transition_points
+        )
+        for size in args.batch_size_rampup_sizes:
+            assert (
+                args.batch_size % size == 0
+            ), "Currently, target batch size needs to be divisible by the rampup batch sizes"

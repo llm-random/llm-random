@@ -10,11 +10,14 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
-from lizrd.core.llm import EmbeddingLayer, Parallel
-from lizrd.support.logging import get_current_logger, get_logger
+from lizrd.core.llm import Parallel
+from lizrd.support.logging import (
+    get_current_logger,
+    get_logger,
+    log_and_print_model_param_count,
+)
 from lizrd.support.misc import (
     get_argument_attributes,
-    get_n_learnable_parameters,
     set_seed,
 )
 from lizrd.train.train_utils import (
@@ -23,7 +26,11 @@ from lizrd.train.train_utils import (
 from lizrd.text import tokenizers
 from research.conditional.utils.check_args import check_args
 from research.conditional.utils.misc_tools import get_termination_timestamp_slurm
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from research.datasets import (
+    BatchSizeRampupConfig,
+    DataloaderWrapper,
+    get_processed_dataset,
+)
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
@@ -38,6 +45,7 @@ from research.conditional.utils.model_utils import (
     get_classes_from_module_names,
     update_model_fit_gpu_info,
     get_vanilla_mamba_layer,
+    calculate_lr,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -256,22 +264,9 @@ def main(
         checkpoint=checkpoint,
     )
 
-    n_learnable_parameters = get_n_learnable_parameters(model)
-    args.n_learnable_parameters = n_learnable_parameters
-    print(f"Number of learnable parameters: {n_learnable_parameters:_}")
+    log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
-    embedding = [m for m in model.modules() if isinstance(m, EmbeddingLayer)][0]
-    head = model.head
-
-    n_learnable_nonembedding_parameters = (
-        n_learnable_parameters
-        - get_n_learnable_parameters(embedding)
-        - get_n_learnable_parameters(head)
-    )
-    args.n_learnable_nonembedding_parameters = n_learnable_nonembedding_parameters
-    print(
-        f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
-    )
+    args.learning_rate = calculate_lr(args)
 
     if args.torch_compile:
         model = torch.compile(model)
@@ -299,6 +294,15 @@ def main(
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
+
+    batch_size_rampup_config = (
+        BatchSizeRampupConfig(
+            transition_points=args.batch_size_rampup_transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+        )
+        if args.batch_size_rampup_transition_points is not None
+        else None
+    )
 
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
@@ -414,6 +418,7 @@ def main(
         repeater_job_end_time=(
             get_termination_timestamp_slurm() if args.repeater_mode else None
         ),
+        batch_size_rampup_config=batch_size_rampup_config,
         final_eval_dataloader=final_eval_dataloader,
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,

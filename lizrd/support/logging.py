@@ -15,10 +15,12 @@ import wandb
 from lizrd.support.misc import (
     make_concise_datetime,
     tags_to_name,
-    count_parameters,
     generate_random_string,
-    count_moe_non_emb_active_params,
     count_tokens_per_step,
+    count_token_to_active_ratio,
+    calculate_from_args_model_parameter_counts,
+    get_n_learnable_parameters,
+    list_to_str,
 )
 
 _CURRENT_LOGGER: Optional["AbstractLogger"] = None
@@ -50,7 +52,7 @@ class AbstractLogger(ABC):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         raise NotImplementedError()
 
@@ -132,13 +134,14 @@ class AbstractLogger(ABC):
             * self.args["batch_size"],
         }
 
-    def with_token_scale(self, title: str, value: float, iteration: int):
-        tokens_passed = iteration * self.args.get("tokens_per_step")
-        tokens_per_active_params = tokens_passed / self.args.get("model_n_active")
+    def with_token_scale(self, title: str, value: float, processed_tokens_so_far: int):
+        tokens_per_active_params = processed_tokens_so_far / self.args.get(
+            "active_params_for_scaling_laws_no_head"
+        )
         return {
             f"{title}_tokens": {
                 "value": value,
-                "iteration": tokens_passed,
+                "iteration": processed_tokens_so_far,
             },
             f"{title}_tokens_per_active": {
                 "value": value,
@@ -147,13 +150,17 @@ class AbstractLogger(ABC):
         }
 
     def get_auxiliary_metrics(
-        self, title: str, value: float, iteration: int, token_scale: bool = False
+        self,
+        title: str,
+        value: float,
+        iteration: int,
+        processed_tokens_so_far: Optional[int],
     ):
         auxiliary_metrics = {}
-        if token_scale:
+        if processed_tokens_so_far is not None:
             auxiliary_metrics = {
                 **auxiliary_metrics,
-                **self.with_token_scale(title, value, iteration),
+                **self.with_token_scale(title, value, processed_tokens_so_far),
             }
         metric_x_flop = None
 
@@ -256,7 +263,7 @@ class NeptuneLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         path = self._make_path(title, series, iteration)
         assert (not math.isnan(value)) and (
@@ -266,7 +273,7 @@ class NeptuneLogger(AbstractLogger):
             value=value, step=iteration
         )
         auxiliary_metrics = self.get_auxiliary_metrics(
-            title, value, iteration, token_scale=processed_token_scale
+            title, value, iteration, processed_tokens_so_far=processed_tokens_so_far
         )
         for metric_name, metric in auxiliary_metrics.items():
             self.instance_logger[self._make_path(metric_name, series)].append(
@@ -339,12 +346,15 @@ class WandbLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         path = self._make_path(title, series)
         wandb.log({path: value, "train/step": iteration})
         auxiliary_metrics = self.get_auxiliary_metrics(
-            title, value, iteration, token_scale=processed_token_scale
+            title,
+            value,
+            iteration,
+            processed_tokens_so_far=processed_tokens_so_far,
         )
         for metric_name, metric in auxiliary_metrics.items():
             wandb.log({metric_name: metric["value"], "train/step": iteration})
@@ -412,7 +422,7 @@ class StdoutLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         self.print_out_metric(
             title=title, value=value, iteration=iteration, series=series
@@ -457,7 +467,7 @@ class JointLogger(AbstractLogger):
         value: float,
         iteration: int,
         series: Optional[str] = None,
-        processed_token_scale: bool = False,
+        processed_tokens_so_far: Optional[int] = None,
     ):
         for logger in self.loggers:
             logger.report_scalar(
@@ -465,7 +475,7 @@ class JointLogger(AbstractLogger):
                 value=value,
                 iteration=iteration,
                 series=series,
-                processed_token_scale=processed_token_scale,
+                processed_tokens_so_far=processed_tokens_so_far,
             )
 
     def report_text(
@@ -495,22 +505,71 @@ class JointLogger(AbstractLogger):
             )
 
 
+def log_and_print_model_param_count(args, model, vocab_size):
+    all_model_params_calculated_directly_from_torch = get_n_learnable_parameters(model)
+    args.model_n_params_from_torch = all_model_params_calculated_directly_from_torch
+
+    (
+        embedding_params,
+        all_layer_norm_params,
+        all_attention_params,
+        all_ff_total_params,
+        all_ff_active_params,
+        all_router_params,
+        head_params,
+    ) = calculate_from_args_model_parameter_counts(args, vocab_size)
+
+    nonembedding_all_params = (
+        all_layer_norm_params
+        + all_attention_params
+        + all_ff_total_params
+        + all_router_params
+    )
+    nonembedding_active_params = (
+        all_layer_norm_params
+        + all_attention_params
+        + all_ff_active_params
+        + all_router_params
+    )
+    active_params_for_scaling_laws = all_attention_params + all_ff_active_params
+
+    args.model_n_nonembedding_params = nonembedding_all_params
+    args.model_n_params = embedding_params + nonembedding_all_params + head_params
+    args.model_n_active_nonembedding_params = nonembedding_active_params
+    args.model_n_active_params = (
+        embedding_params + nonembedding_active_params + head_params
+    )
+    args.active_params_for_scaling_laws_no_head = active_params_for_scaling_laws
+    args.active_params_for_scaling_laws_with_head = (
+        active_params_for_scaling_laws + head_params
+    )
+    args.model_embedding_params = embedding_params + head_params
+
+    tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
+
+    token_to_active_ratio = count_token_to_active_ratio(
+        tokens=tokens_per_step * args.n_steps,
+        active=args.active_params_for_scaling_laws_no_head,
+    )
+
+    args.tokens_per_step = tokens_per_step
+    args.token_to_active_ratio = token_to_active_ratio
+
+    print(
+        f"Model total parameters from torch:\t{all_model_params_calculated_directly_from_torch:_}"
+    )
+    print(f"Model total parameters from equation:\t{args.model_n_params:_}")
+    print(f"Model nonembedding parameters:\t\t{args.model_n_nonembedding_params:_}")
+    print(
+        f"Model attention + FF active parameters:\t{args.active_params_for_scaling_laws_no_head:_}"
+    )
+    print(f"#tokens / #active:\t\t\t{args.token_to_active_ratio:.2f}")
+
+
 def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteration: int):
     logger = get_current_logger()
     assert logger is not None
     logger.report_plotly(figure=figure, title=title, series=series, iteration=iteration)
-
-
-def add_logger_active_metrics(args):
-    args.model_n_active = count_moe_non_emb_active_params(
-        args.dmodel, args.effective_dff_x, args.dff, args.n_blocks
-    )
-    args.tokens_per_step = count_tokens_per_step(args.batch_size, args.cutoff)
-    args.final_tokens_per_act_param = (
-        (args.final_lr_step * args.tokens_per_step / args.model_n_active)
-        if args.final_lr_step is not None
-        else None
-    )
 
 
 def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run_id
@@ -522,7 +581,16 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
-    add_logger_active_metrics(args)
+
+    args_dict = vars(args).copy()
+    for k in args_dict.keys():
+        if isinstance(args_dict[k], list):
+            args_dict[k] = list_to_str(args_dict[k])
+
+    args_dict = vars(args).copy()
+    for k in args_dict.keys():
+        if isinstance(args_dict[k], list):
+            args_dict[k] = list_to_str(args_dict[k])
 
     for logger_type in logger_types:
         if logger_type == "neptune":
@@ -532,13 +600,12 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
                 with_id=run_id,
             )
-            run["args"] = vars(args)
+            run["args"] = args_dict
             run["working_directory"] = os.getcwd()
             run["config"].upload(args.path_to_entry_config)
             all_config_paths = args.all_config_paths.split(",")
             run["all_configs"].upload_files(all_config_paths)
 
-            args.model_n_params = count_parameters(model, args, VOCAB_SIZE)
             initialized_loggers.append(NeptuneLogger(run, args))
         elif logger_type == "wandb":
             wandb.init(
@@ -546,7 +613,7 @@ def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run
                 project=args.wandb_project,
                 name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
                 tags=args.tags,
-                config=vars(args),
+                config=args_dict,
             )
             # define our custom x axis metric
             wandb.define_metric("train/step")

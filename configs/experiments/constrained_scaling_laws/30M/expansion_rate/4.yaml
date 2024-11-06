@@ -1,0 +1,9 @@
+parent: configs/experiments/constrained_scaling_laws/30M/model.yaml
+md5_parent_hash: f561415b71eaca175252470778d9cf71
+n_gpus: 1 # works for athena
+
+params:
+  tags: ["constrained_scaling_grid", "30M", "E=4"]
+  expansion_rate: 4
+  gradient_accumulation_steps: 4
+

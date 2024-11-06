@@ -6,6 +6,10 @@ def load_dict_in_args(s: str):
     return json.loads(s.replace("'", '"'))
 
 
+def math_eval(value):
+    return float(eval(value))  # fallback for other notations like float or exponential
+
+
 def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
@@ -40,7 +44,7 @@ def introduce_parser_arguments(
     # CORE training hyperparameters, almost always specified in baseline configs
 
     parser.add_argument("--n_steps", type=int, required=True)
-    parser.add_argument("--learning_rate", type=float, required=True)
+    parser.add_argument("--learning_rate", type=math_eval, required=True)
     parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--lr_warmup_percent", type=float, required=False)
@@ -55,6 +59,29 @@ def introduce_parser_arguments(
 
     # other training hyperparameters
 
+    parser.add_argument("--learning_rate_log2", type=float, required=False, default=0.0)
+    # these default values are fitted using the scaling rule, to use them,
+    # set use_lr_scaling to True and all other lr scaling parameters to 0
+    parser.add_argument("--use_lr_scaling", action="store_true")
+    parser.add_argument(
+        "--lr_scaling_constant_factor",
+        type=float,
+        required=False,
+        default=8.391640956234012,
+    )
+    parser.add_argument(
+        "--lr_scaling_params_factor",
+        type=float,
+        required=False,
+        default=-0.8121798244457074,
+    )
+    parser.add_argument(
+        "--lr_scaling_exp_rate_factor",
+        type=float,
+        required=False,
+        default=-0.25000000000000533,
+    )
+
     parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--adam_beta1", type=float, default=0.9)
     parser.add_argument("--adam_beta2", type=float, default=0.999)
@@ -62,12 +89,24 @@ def introduce_parser_arguments(
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--lr_decay", type=float, default=None)
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
+    parser.add_argument("--lr_trapezoidal_decay_fraction", type=float, default=0.20)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
+    parser.add_argument(
+        "--batch_size_rampup_transition_points",
+        type=float,
+        nargs="*",
+        default=None,
+        help="list of points (in billions of tokens) when batch size will be ramped up to the next value",
+    )
+    parser.add_argument("--batch_size_rampup_sizes", type=int, nargs="*", default=None)
 
     # CORE data hyperparameters, almost always specified in baseline configs
 
     parser.add_argument(
-        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
+        "--dataset_type",
+        type=str,
+        choices=["wikibook", "c4", "fineweb-edu"],
+        required=True,
     )
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--cutoff", type=int, required=True)

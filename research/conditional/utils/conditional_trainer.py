@@ -13,7 +13,7 @@ from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.misc import get_ith_chunk
+from lizrd.support.misc import get_ith_chunk, calculate_current_batch_size_from_rampup
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
@@ -25,7 +25,7 @@ from research.conditional.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
-from research.datasets import DataloaderWrapper
+from research.datasets import DataloaderWrapper, BatchSizeRampupConfig
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
@@ -83,6 +83,7 @@ class ConditionalTrainer:
     profiler_schedule: None = None
     rank: Optional[int] = None
     start_step: int = 0
+    batch_size_rampup_config: Optional[BatchSizeRampupConfig] = None
     checkpoint: Optional[dict[str, torch.Tensor]] = None
     final_eval_dataloader: Optional[DataloaderWrapper] = None
     final_eval_dataloader_batch_size: Optional[int] = None
@@ -123,6 +124,7 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "failure",
         )
+        self.num_processed_tokens = 0
 
     def _after_train_operations(self):
         update_model_fit_gpu_info(
@@ -213,22 +215,45 @@ class ConditionalTrainer:
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
-        processed_batch = self.train_dataloader.get_batch()
+
+        if self.batch_size_rampup_config is None:
+            current_batch_size_per_gpu = self.batch_size
+        else:
+            current_batch_size_per_gpu = (
+                calculate_current_batch_size_from_rampup(
+                    processed_tokens=self.num_processed_tokens,
+                    transition_points=self.batch_size_rampup_config.transition_points,
+                    batch_sizes=self.batch_size_rampup_config.batch_sizes,
+                    target_batch_size=self.batch_size * self.n_gpus,
+                )
+                // self.n_gpus
+            )
+        processed_batch = self.train_dataloader.get_batch(
+            current_batch_size_per_gpu=current_batch_size_per_gpu,
+            num_processed_tokens_so_far=self.num_processed_tokens,
+        )
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
-        loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+        loss, aux_info = self.calculate_loss_and_gradient(
+            processed_batch, current_batch_size_per_gpu
+        )
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
+        self.num_processed_tokens += (
+            self.n_gpus * current_batch_size_per_gpu * self.cutoff
+        )
         if self.is_logging_process:
-            self._log_train_stats(loss, step)
+            self._log_train_stats(loss, step, current_batch_size_per_gpu * self.n_gpus)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
-    def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
+    def calculate_loss_and_gradient(
+        self, processed_batch: LLMBatch, current_batch_size_per_gpu: int
+    ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
         NOTE: this function will not set the gradients for the model if model is in eval mode
         """
@@ -237,12 +262,19 @@ class ConditionalTrainer:
         total_masked_tokens_value = 0
         losses = {}
 
-        for i in range(self.gradient_accumulation_steps):
+        num_batch_chunks = max(
+            self.gradient_accumulation_steps
+            // (self.batch_size // current_batch_size_per_gpu),
+            1,
+        )
+        for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
             for _, tensor in batch_copy:
                 tensor.data = get_ith_chunk(
-                    tensor.data, self.gradient_accumulation_steps, i
+                    tensor.data,
+                    num_batch_chunks,
+                    i,
                 )
 
             cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
@@ -250,7 +282,7 @@ class ConditionalTrainer:
                 model=self.model,
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
-                num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
+                num_checkpoint_accumulation_steps=num_batch_chunks,
                 scaler=self.scaler,
             )
 
@@ -345,7 +377,9 @@ class ConditionalTrainer:
         extra_losses = defaultdict(float)
         for processed_batch in batches:
             with torch.no_grad():
-                loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+                loss, aux_info = self.calculate_loss_and_gradient(
+                    processed_batch, self.batch_size
+                )
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
             total_masked_tokens += aux_info["total_masked_tokens"]
@@ -395,10 +429,13 @@ class ConditionalTrainer:
                 iteration=step,
             )
 
-    def _log_train_stats(self, loss_value, step):
+    def _log_train_stats(self, loss_value, step, current_batch_size):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
+        )
+        self.logger.report_scalar(
+            title="batch_size", value=current_batch_size, iteration=step
         )
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
@@ -409,7 +446,7 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
-                    processed_token_scale=True,
+                    processed_tokens_so_far=self.num_processed_tokens,
                 )
                 stats.acc = 0.0
 
