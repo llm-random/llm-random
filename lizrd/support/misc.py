@@ -240,7 +240,7 @@ def calculate_n_processed_tokens(
     rampup_config: Optional[BatchSizeRampupConfig],
 ):
     if rampup_config is None:
-        return step * n_gpus * target_batch_size_per_gpu * seq_len
+        return int(step * n_gpus * target_batch_size_per_gpu * seq_len)
 
     transition_points = [p * 1e9 for p in rampup_config.transition_points]
     batch_sizes = rampup_config.batch_sizes
@@ -252,13 +252,13 @@ def calculate_n_processed_tokens(
         steps_current = steps_prev + steps_needed
 
         if step < steps_current:
-            return tokens_prev + (step - steps_prev) * batch_size * seq_len
+            return int(tokens_prev + (step - steps_prev) * batch_size * seq_len)
 
         tokens_prev += steps_needed * batch_size * seq_len
         steps_prev = steps_current
 
     # After all ramp-up intervals
-    return (
+    return int(
         tokens_prev + (step - steps_prev) * n_gpus * target_batch_size_per_gpu * seq_len
     )
 
