@@ -31,3 +31,27 @@ def check_args(args):
         assert (
             "." not in filename
         ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
+
+    assert (
+        args.save_weights_path == args.load_weights_path if args.repeater_mode else True
+    ), f"Save/load paths have to be the same for repeater mode ({args.save_weights_path}, {args.load_weights_path})"
+
+    if args.repeater_mode:
+        assert args.relative_init_scale == None
+
+    if args.batch_size_rampup_transition_points is not None:
+        assert (
+            args.batch_size_rampup_sizes is not None
+        ), "Both parameters for rampup batch size need to be set"
+
+    if args.batch_size_rampup_sizes is not None:
+        assert (
+            args.batch_size_rampup_transition_points is not None
+        ), "Both parameters for rampup batch size need to be set"
+        assert len(args.batch_size_rampup_sizes) == len(
+            args.batch_size_rampup_transition_points
+        )
+        for size in args.batch_size_rampup_sizes:
+            assert (
+                args.batch_size % size == 0
+            ), "Currently, target batch size needs to be divisible by the rampup batch sizes"

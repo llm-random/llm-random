@@ -8,11 +8,29 @@ params:
   cutoff: 8
   batch_size: 32
   granularity: 4
-  final_lr_step: 100
-  lr_warmup_steps: 2
+  batch_size: 8
+  gradient_accumulation_steps: 4
   dataset_type: wikibook
+  learning_rate: 0
   final_lr_step: -1
   lr_warmup_percent: 0.01
   lr_warmup_steps: 0
   n_steps: 200
   mixed_precision_dtype: "float16"
+
+  effective_dff_x: 3
+  learning_rate_log2: 0
+  grad_clip: 0.1
+  attention_mode: "rope"
+  no_positional_embedding: false
+  use_lr_scaling: True
+  #lr_trapezoidal_decay_fraction: 0.2
+  scheduler: trapezoidal
+
+
+  batch_size_rampup_transition_points: [ 0.5, 1.0 ]
+  batch_size_rampup_sizes: [ 2, 4 ]
+
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,ExpertGating,RoPE,TokenChoiceRouter"

@@ -1,0 +1,20 @@
+parent: configs/experiments/constrained_scaling_laws/85M/model.yaml
+md5_parent_hash: 901c724a94130d2f6e4a84252b67ee78
+time: "00:20:00"
+n_gpus: 1
+# n_gpus: 4
+cpus_per_gpu: 8
+# here configure GPUs & time for a given cluster for it to fit
+params:
+  name: "ms_repeater"
+  tags: ["ms", "repeater", "test2"]
+  expansion_rate: 8
+  n_steps: 2600
+  batch_size: 100
+  cutoff: 256
+  # ^loss_checkpoint_chungs: [0, 0, 0]
+  loss_checkpoint_chungs: 0
+  save_weights_path: "./test_saving"
+  load_weights_path: "./test_saving"
+  repeater_mode: True
+  save_weights_interval: 100

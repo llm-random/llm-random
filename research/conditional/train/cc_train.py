@@ -10,11 +10,14 @@ import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 
 from lizrd.core import misc
-from lizrd.core.llm import EmbeddingLayer, Parallel
-from lizrd.support.logging import get_current_logger, get_logger
+from lizrd.core.llm import Parallel
+from lizrd.support.logging import (
+    get_current_logger,
+    get_logger,
+    log_and_print_model_param_count,
+)
 from lizrd.support.misc import (
     get_argument_attributes,
-    get_n_learnable_parameters,
     set_seed,
 )
 from lizrd.train.train_utils import (
@@ -22,7 +25,12 @@ from lizrd.train.train_utils import (
 )
 from lizrd.text import tokenizers
 from research.conditional.utils.check_args import check_args
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from research.conditional.utils.misc_tools import get_termination_timestamp_slurm
+from research.datasets import (
+    BatchSizeRampupConfig,
+    DataloaderWrapper,
+    get_processed_dataset,
+)
 from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
@@ -37,6 +45,7 @@ from research.conditional.utils.model_utils import (
     get_classes_from_module_names,
     update_model_fit_gpu_info,
     get_vanilla_mamba_layer,
+    calculate_lr,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -268,7 +277,7 @@ def main(
         ]
 
     checkpoint = (
-        get_checkpoint_from_path(args.load_weights_path)
+        get_checkpoint_from_path(args.load_weights_path, args.repeater_mode)
         if args.load_weights_path is not None
         else None
     )
@@ -301,22 +310,9 @@ def main(
         checkpoint=checkpoint,
     )
 
-    n_learnable_parameters = get_n_learnable_parameters(model)
-    args.n_learnable_parameters = n_learnable_parameters
-    print(f"Number of learnable parameters: {n_learnable_parameters:_}")
+    log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
-    embedding = [m for m in model.modules() if isinstance(m, EmbeddingLayer)][0]
-    head = model.head
-
-    n_learnable_nonembedding_parameters = (
-        n_learnable_parameters
-        - get_n_learnable_parameters(embedding)
-        - get_n_learnable_parameters(head)
-    )
-    args.n_learnable_nonembedding_parameters = n_learnable_nonembedding_parameters
-    print(
-        f"Number of learnable nonembedding parameters: {n_learnable_nonembedding_parameters:_}"
-    )
+    args.learning_rate = calculate_lr(args)
 
     if args.torch_compile:
         model = torch.compile(model)
@@ -357,10 +353,20 @@ def main(
         relative_lrs_in_group_order=relative_lrs_in_group_order,
         final_lr_fractions_in_group_order=relative_final_lr_fractions_in_group_order,
     )
-    rescale_params_after_init(args, model)
+    if not args.repeater_mode:
+        rescale_params_after_init(args, model)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
+
+    batch_size_rampup_config = (
+        BatchSizeRampupConfig(
+            transition_points=args.batch_size_rampup_transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+        )
+        if args.batch_size_rampup_transition_points is not None
+        else None
+    )
 
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
@@ -390,8 +396,13 @@ def main(
         dataset_path=args.validation_dataset_path,
     )
 
+    if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
+        logger_run_id = checkpoint["logger"]["run_id"]
+    else:
+        logger_run_id = None
+
     if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE)
+        logger = get_logger(args, model, VOCAB_SIZE, logger_run_id)
     else:
         logger = None
 
@@ -429,6 +440,7 @@ def main(
         logger=logger,
         dataset_type=args.dataset_type,
         batch_size=args.batch_size,
+        cutoff=args.cutoff,
         lr_scheduler=scheduler,
         model_type=args.model_type,
         logging_interval_loss=args.logging_interval_loss,
@@ -459,6 +471,10 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.repeater_mode else None
+        ),
+        batch_size_rampup_config=batch_size_rampup_config,
     )
     trainer.train(args.n_steps)
 
@@ -474,7 +490,9 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
-    unique_save_weights_path = prepare_save_weights_path(args.save_weights_path)
+    save_weights_path = prepare_save_weights_path(
+        args.save_weights_path, args.repeater_mode
+    )
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
@@ -489,10 +507,10 @@ if __name__ == "__main__":
             args=[
                 data_seeds,
                 port,
-                unique_save_weights_path,
+                save_weights_path,
                 args,
             ],
             nprocs=args.n_gpus,
         )
     else:
-        main(None, args=args, unique_save_weights_path=unique_save_weights_path)
+        main(None, args=args, unique_save_weights_path=save_weights_path)

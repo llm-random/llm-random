@@ -1,0 +1,16 @@
+parent: configs/experiments/constrained_scaling_laws/190M/model.yaml
+md5_parent_hash: c58962f97d6b1312259b5168e97f1622
+time: "48:00:00"
+n_gpus: 1
+params:
+  name: scheduler_trapezoidal
+  tags: ["mstest", "190M", "trapezoidal_scheduler", "grid"]
+  expansion_rate: 8
+  ^learning_rate: [0.0005, 0.001, 0.002, 0.004, 0.008]
+  ^n_steps: [8700, 17400, 43500]
+  ^scheduler: [trapezoidal, cosine]
+  lr_warmup_percent: 0.01
+  lr_trapezoidal_decay_fraction: 0.2
+  data_seed: 44
+
+

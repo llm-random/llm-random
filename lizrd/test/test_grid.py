@@ -90,6 +90,7 @@ class TestGrid(unittest.TestCase):
             [
                 "sbatch",
                 "--gres=gpu:ampere:0",
+                "--array=0-0%1",
                 "--cpus-per-gpu=8",
                 "--job-name=baseline_test",
                 "--time=5-05:00:00",
@@ -187,6 +188,7 @@ class TestGrid(unittest.TestCase):
                 "sbatch",
                 "--partition=a100",
                 "--gres=gpu:a100:1",
+                "--array=0-0%1",
                 "--cpus-per-gpu=8",
                 "--mem=125G",
                 "--job-name=granular_4_mini",
@@ -284,6 +286,7 @@ class TestGrid(unittest.TestCase):
                 "sbatch",
                 "--partition=a100",
                 "--gres=gpu:a100:1",
+                "--array=0-0%1",
                 "--cpus-per-gpu=8",
                 "--mem=125G",
                 "--job-name=granular_4_mini",
@@ -403,6 +406,7 @@ class TestGrid(unittest.TestCase):
             [
                 "sbatch",
                 "--gres=gpu:2",
+                "--array=0-0%1",
                 "--partition=plgrid-gpu-a100",
                 "--cpus-per-gpu=8",
                 "--mem=250G",
@@ -467,6 +471,7 @@ class TestGrid(unittest.TestCase):
             [
                 "sbatch",
                 "--gres=gpu:2",
+                "--array=0-0%1",
                 "--partition=plgrid-gpu-a100",
                 "--cpus-per-gpu=8",
                 "--mem=250G",
