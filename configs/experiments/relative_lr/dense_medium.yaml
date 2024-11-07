@@ -1,0 +1,56 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+time: "05:00:00"
+interactive_debug_session: false
+interactive_debug: false
+gpus: 1
+cpus_per_gpu: 16
+
+params:
+  name: "medium_dense_std"
+  tags: ["relative_lr", "dense", "baseline", "std"]
+  ff_mode: swi_glu
+
+  ^batch_size: [128, 128, 128]
+  cutoff: 512
+
+  n_steps: 11_000
+  final_lr_step: 11_000
+  lr_warmup_steps: 110
+
+  final_lr_fraction: 0.06666
+  init_type: truncated_normal
+  init_scale: 0.333
+  learning_rate: 2e-3
+  weight_decay: 0.15
+
+  save_weights_interval: 0
+  mixed_precision: True
+  mixed_precision_dtype: "bfloat16"
+  loss_checkpoint_chungs: 8
+
+  print_parameter_names: true
+
+  # relative_lr:
+  #   embedding_layer: 5.
+  #   head: 1.
+  #   layer.feedforward: 1.
+  #   projection: 1.
+
+  # relative_scheduler_fraction:
+  #   embedding_layer: 0.6666
+  #   head: 0.4444  # last sota was 0.4444, but differences are almost invisible, so to not give someone bad ideas for explanations i leave it at 0.6666
+  #   layer.feedforward: 0.6666
+  #   projection: 0.2
+
+  relative_lr:
+    embedding_layer: 1.
+    head: 1.
+    layer.feedforward: 1.
+    projection: 1.
+
+  relative_scheduler_fraction:
+    embedding_layer: 1.
+    head: 1.  # last sota was 0.4444, but differences are almost invisible, so to not give someone bad ideas for explanations i leave it at 0.6666
+    layer.feedforward: 1.
+    projection: 1.

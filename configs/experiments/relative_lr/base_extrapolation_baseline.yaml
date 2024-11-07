@@ -1,0 +1,38 @@
+parent: configs/baselines/gpt/expert_choice/granularity/4/base.yaml
+md5_parent_hash: 6cd6b241d09b039d86d8c51b5f0b4a01
+time: "90:00:00"
+interactive_debug_session: false
+interactive_debug: false
+
+params:
+  name: "base_extrapolation_baseline"
+  tags: ["base_extrapolation", "long"]
+  ff_mode: token_choice
+  capacity_factor: 1.0
+
+  activation_type: silu
+  moe_inner_expert: ff_gated
+  expansion_rate: 8
+  granularity: 1
+  get_router_values_from: weights
+  layer_norm_in_expert_choice: False
+
+  batch_size: 256
+  cutoff: 256
+
+  n_steps: 56_000
+  final_lr_step: 56_000
+  lr_warmup_steps: 560
+  scheduler: cosine
+
+  final_lr_fraction: 0.066666
+  init_scale: 0.333
+  learning_rate: 0.001
+  weight_decay: 0.15
+
+  save_weights_interval: 0
+  mixed_precision: True
+  loss_checkpoint_chungs: 8
+
+  print_parameter_names: true
+

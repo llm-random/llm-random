@@ -1,0 +1,32 @@
+parent: configs/baselines/gpt/expert_choice/granularity/4/small.yaml
+md5_parent_hash: 75a39fbb8e8e4807d835dcc0c8b0cf34
+time: 0-5:00:00
+
+params:
+  name: "check_mp_fsdp_chunking"
+  ^ff_mode: [expert_choice]
+  ^learning_rate: [0.002, 0.0001]
+  chimera_change_after_percent: 0.1
+  lr_restart_on_chimera: False
+  capacity_factor: 1.0
+
+  activation_type: silu
+  expansion_rate: 8
+  granularity: 1
+  get_router_values_from: weights
+  moe_inner_expert: ff_gated
+  flash_attention: False
+  layer_norm_in_expert_choice: False
+  lr_restart_first_full: True
+
+  n_steps: 5_000
+  final_lr_step: 5_000
+  scheduler: cosine
+  lr_warmup_steps: 50
+  final_lr_fraction: 0.1
+
+  save_weights_interval: 0
+  ^fsdp_enabled: [True, False]
+  ^mixed_precision: [True, False]
+  ^loss_checkpoint_chungs: [0,4,16]
+  ^activation_checkpointing_modules: ["TransformerBlock,EmbeddingLayer,PredictionHead", ""]
