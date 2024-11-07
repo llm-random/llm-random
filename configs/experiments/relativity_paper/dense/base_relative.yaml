@@ -1,0 +1,18 @@
+parent: configs/experiments/relativity_paper/dense/base_baseline.yaml
+md5_parent_hash: 7300999e2ae0bb61404c75cf377824b4
+
+params:
+  name: "base_dense_relative"
+  tags: ["relativity_paper", "base_model", "dense", "relative", "std"]
+
+  relative_lr:
+    embedding_layer: 5.0
+    head: 1.0
+    layer.feedforward: 1.0
+    projection: 1.0
+
+  relative_scheduler_fraction:
+    embedding_layer: 0.6666
+    head: 0.4444
+    layer.feedforward: 0.6666
+    projection: 0.2

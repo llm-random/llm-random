@@ -1,0 +1,15 @@
+parent: configs/experiments/constrained_scaling_laws/49M/model.yaml
+md5_parent_hash: 5b5523900cb9395e03eeca7f56c8cb50
+time: "40:00:00"
+
+n_gpus: 2
+cpus_per_gpu: 16
+
+params:
+  name: "check_lb_E"
+  tags: ["csl_checks", "load_balancing_fix", "E_helps", "49M", "8B"]
+  ^expansion_rate: [1, 2, 4, 8, 16, 32]
+  n_steps: 30512
+  ^data_seed: [77]
+  zloss_weight: 0.001
+  ^load_balancing_loss_weight: [0.001, 0.003, 0.01, 0.03, 0.1]

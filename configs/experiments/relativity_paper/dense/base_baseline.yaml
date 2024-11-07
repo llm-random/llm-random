@@ -1,0 +1,32 @@
+parent: configs/experiments/relativity_paper/dense/large_baseline.yaml
+md5_parent_hash: 1b1ffcdc3fd41e11469538e6857b13ee
+time: "2-00:00:00"
+
+n_gpus: 2
+cpus_per_gpu: 16
+
+params:
+  name: "base_dense_baseline"
+  tags: ["relativity_paper", "base_model", "dense", "baseline", "std"]
+
+  # grid
+  ^data_seed: [44, 45, 46]
+
+  # training
+  n_steps: 19000
+  final_lr_step: 19000
+  lr_warmup_steps: 190
+  batch_size: 256
+  cutoff: 512
+
+  # model
+  model_type: gpt
+  dmodel: 768
+  dff: 3072
+  n_att_heads: 12
+  n_blocks: 12
+  ff_mode: swi_glu
+
+  # learning
+  scheduler: cosine
+  learning_rate: 1e-3
