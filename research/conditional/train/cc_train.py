@@ -328,7 +328,7 @@ def main(
         relative_final_lr_fractions_in_group_order,
     ) = make_relative_param_groups(
         model,
-        lr=args.lr,
+        lr=args.learning_rate,
         final_lr_fraction=args.final_lr_fraction,
         relative_lrs_dict=args.relative_lr,
         relative_final_lr_fractions_dict=args.relative_scheduler_fraction,
