@@ -39,6 +39,9 @@ class DataloaderWrapper:
         ):
             return next(self.generator).to(self.device)
         else:
+            print(
+                f"target bs: {self.target_batch_size}, current bs: {current_batch_size_per_gpu}, num toks so far: {num_processed_tokens_so_far}"
+            )
             current_num_chunks = self.target_batch_size // current_batch_size_per_gpu
             current_chunk = (
                 num_processed_tokens_so_far // current_batch_size_per_gpu

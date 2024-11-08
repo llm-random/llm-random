@@ -235,12 +235,11 @@ def get_ith_chunk(tensor, chunks, i):
 def calculate_n_processed_tokens(
     step: int,
     seq_len: int,
-    target_batch_size_per_gpu: int,
-    n_gpus: int,
+    target_batch_size: int,
     rampup_config: Optional[BatchSizeRampupConfig],
 ):
     if rampup_config is None:
-        return int(step * n_gpus * target_batch_size_per_gpu * seq_len)
+        return int(step * target_batch_size * seq_len)
 
     transition_points = [p * 1e9 for p in rampup_config.transition_points]
     batch_sizes = rampup_config.batch_sizes
@@ -258,9 +257,7 @@ def calculate_n_processed_tokens(
         steps_prev = steps_current
 
     # After all ramp-up intervals
-    return int(
-        tokens_prev + (step - steps_prev) * n_gpus * target_batch_size_per_gpu * seq_len
-    )
+    return int(tokens_prev + (step - steps_prev) * target_batch_size * seq_len)
 
 
 def calculate_current_batch_size_from_rampup(
@@ -269,9 +266,14 @@ def calculate_current_batch_size_from_rampup(
     batch_sizes,
     target_batch_size,
 ):
+    print(
+        f"proc toks: {processed_tokens}, tansion points: {transition_points}, bsz: {batch_sizes}, target bsz: {target_batch_size}"
+    )
     for transition_point, batch_size in zip(transition_points, batch_sizes):
         if (
             processed_tokens < transition_point * 1e9
         ):  # transition points are given in billions of tokens
+            print(f"Will return {batch_size}")
             return batch_size
+    print(f"Will return {target_batch_size}")
     return target_batch_size

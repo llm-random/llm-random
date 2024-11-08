@@ -61,17 +61,16 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
     def basic_test(self):
         step = 10
         seq_len = 512
-        target_batch_size_per_gpu = 64
+        target_batch_size = 512
         n_gpus = 8
         rampup_config = None
 
-        expected_tokens = step * n_gpus * target_batch_size_per_gpu * seq_len
+        expected_tokens = step * n_gpus * target_batch_size * seq_len
 
         actual_tokens = calculate_n_processed_tokens(
             step,
             seq_len,
-            target_batch_size_per_gpu,
-            n_gpus,
+            target_batch_size,
             rampup_config,
         )
 
@@ -79,7 +78,7 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
 
     def test_with_rampup(self):
         seq_len = 512
-        target_batch_size_per_gpu = 256
+        target_batch_size = 512
         n_gpus = 2
         config = BatchSizeRampupConfig([0.065536000, 0.327680000], [128, 256])
 
@@ -88,7 +87,7 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
 
         for step, expected in zip(steps, expected_token_counts):
             actual_tokens = calculate_n_processed_tokens(
-                step, seq_len, target_batch_size_per_gpu, n_gpus, config
+                step, seq_len, target_batch_size, config
             )
 
             print(f"actual: {actual_tokens}, expected: {expected}")

@@ -196,22 +196,21 @@ class ConditionalTrainer:
             self.layer_manager.prepare_for_logging(step)
 
         num_processed_tokens = calculate_n_processed_tokens(
-            step,
-            self.cutoff,
-            self.batch_size,
-            self.n_gpus,
-            self.batch_size_rampup_config,
+            step=step,
+            seq_len=self.cutoff,
+            target_batch_size=self.batch_size,
+            rampup_config=self.batch_size_rampup_config,
         )
 
         if self.batch_size_rampup_config is None:
-            current_batch_size_per_gpu = self.batch_size
+            current_batch_size_per_gpu = self.batch_size // self.n_gpus
         else:
             current_batch_size_per_gpu = (
                 calculate_current_batch_size_from_rampup(
                     processed_tokens=num_processed_tokens,
                     transition_points=self.batch_size_rampup_config.transition_points,
                     batch_sizes=self.batch_size_rampup_config.batch_sizes,
-                    target_batch_size=self.batch_size * self.n_gpus,
+                    target_batch_size=self.batch_size,
                 )
                 // self.n_gpus
             )
@@ -253,7 +252,7 @@ class ConditionalTrainer:
 
         num_batch_chunks = max(
             self.gradient_accumulation_steps
-            // (self.batch_size // current_batch_size_per_gpu),
+            // (self.batch_size // (current_batch_size_per_gpu * self.n_gpus)),
             1,
         )
         for i in range(num_batch_chunks):
@@ -367,7 +366,8 @@ class ConditionalTrainer:
         for processed_batch in batches:
             with torch.no_grad():
                 loss, aux_info = self.calculate_loss_and_gradient(
-                    processed_batch, self.batch_size
+                    processed_batch=processed_batch,
+                    current_batch_size_per_gpu=self.batch_size // self.n_gpus,
                 )
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
