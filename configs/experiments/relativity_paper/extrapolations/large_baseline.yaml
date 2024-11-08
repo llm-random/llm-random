@@ -1,0 +1,26 @@
+parent: configs/experiments/relativity_paper/local_search/baseline.yaml
+md5_parent_hash: 4b7ddb5b3fcfe3c8af524e3fb12040d5
+time: "160:00:00"
+interactive_debug_session: false
+interactive_debug: false
+n_gpus: 8
+
+params:
+  name: "large_extrapolation"
+  tags: ["large_extrapolation", "relativity_paper", "baseline"]
+
+  dmodel: 1536
+  n_blocks: 24
+  n_att_heads: 12
+
+  batch_size: 384
+  cutoff: 1024
+
+  n_steps: 50_000
+  final_lr_step: 50_000
+  lr_warmup_steps: 500
+
+  loss_checkpoint_chungs: 8
+
+  ^learning_rate: [0.0002]
+

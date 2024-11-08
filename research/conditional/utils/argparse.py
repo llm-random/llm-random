@@ -411,6 +411,19 @@ def introduce_parser_arguments(
         """,
     )
     parser.add_argument(
+        "--relative_scheduler_fraction",
+        type=load_dict_in_args,
+        default=None,
+        help="""Dictionary with relative final learning rate fractions for different modules
+        Example: --relative_scheduler_fraction "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
+        Example in config yaml:
+        relative_scheduler_fraction:
+            attention: 0.1
+            feedforward: 0.1
+            moe: 0.1
+        """,
+    )
+    parser.add_argument(
         "--relative_init_scale",
         type=load_dict_in_args,
         default=None,

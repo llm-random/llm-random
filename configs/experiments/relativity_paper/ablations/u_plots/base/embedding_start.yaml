@@ -1,0 +1,16 @@
+md5_parent_hash: 231ec4dabd36c05e6587bff5584d6e28
+params:
+  name: base_uplot_embedding_start
+  relative_lr:
+    ^embedding_layer:
+    - 1.25
+    - 2.5
+    - 10.0
+    - 20.0
+  tags:
+  - base_model
+  - uplot
+  - relativity_paper
+  - embedding_layer
+  - start
+parent: configs/experiments/relativity_paper/ablations/u_plots/base_model_uplots.yaml

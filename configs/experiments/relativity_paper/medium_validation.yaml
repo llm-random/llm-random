@@ -1,0 +1,10 @@
+parent: configs/experiments/relativity_paper/local_search/relative.yaml
+md5_parent_hash: 1c96a328f25b43f478379f426785e52a
+time: 0-10:00:00
+interactive_debug_session: false
+interactive_debug: false
+
+params:
+  name: "medium_validation"
+  tags: ["medium_validation", "relativity_paper", "relative"]
+  data_seed: 43

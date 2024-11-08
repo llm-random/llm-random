@@ -1,0 +1,15 @@
+md5_parent_hash: 37b01e6c46384aca066a56079921e906
+params:
+  name: medium_contribution_expertif
+  relative_scheduler_fraction:
+    ^expert_inner_function:
+    - 1.125
+  relative_lr:
+    ^expert_inner_function:
+    - 0.3
+  tags:
+  - medium_model
+  - contribution
+  - relativity_paper
+  - expert_inner_function
+parent: configs/experiments/relativity_paper/ablations/contribute/medium_model_contribution.yaml

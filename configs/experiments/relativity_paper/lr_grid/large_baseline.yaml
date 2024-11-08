@@ -1,0 +1,9 @@
+parent: configs/experiments/relativity_paper/extrapolations/large_baseline.yaml
+md5_parent_hash: 8af20b118db372282e9c1322064066f8
+
+params:
+  name: "large_lr_grid"
+  tags: ["relativity_paper", "baseline", "large_model", "lr_grid"]
+  ^learning_rate: [] # [0.0002, 0.0001, 0.0005]
+
+# puścić na writerze 0.0002 dla relativity

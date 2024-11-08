@@ -1,0 +1,16 @@
+md5_parent_hash: ec588d8c86144c26337d97d431b90d79
+params:
+  name: base_contribution_embedding
+  relative_scheduler_fraction:
+    ^embedding_layer:
+    - 0.666
+  relative_lr:
+    ^embedding_layer:
+    - 5.0
+  tags:
+  - base_model
+  - uplot
+  - relativity_paper
+  - embedding_layer
+  - contribution
+parent: configs/experiments/relativity_paper/ablations/contribute/base_model_contribution.yaml
