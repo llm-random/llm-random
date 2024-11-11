@@ -21,9 +21,7 @@ class DataloaderWrapper:
         self.previous_batch_size_per_gpu = -1
         self.chunks_iterator = 0
 
-    def get_batch(
-        self, current_batch_size_per_gpu=-1
-    ) -> data.LLMBatch:
+    def get_batch(self, current_batch_size_per_gpu=-1) -> data.LLMBatch:
         """
         Returns the next batch of data, handling batch size ramp-up if specified.
 
@@ -39,7 +37,9 @@ class DataloaderWrapper:
         ):
             return next(self.generator).to(self.device)
         else:
-            current_num_chunks = self.target_batch_size_per_gpu // current_batch_size_per_gpu
+            current_num_chunks = (
+                self.target_batch_size_per_gpu // current_batch_size_per_gpu
+            )
             if current_batch_size_per_gpu != self.previous_batch_size_per_gpu:
                 self.chunks_iterator = 0
                 self.previous_batch_size_per_gpu = current_batch_size_per_gpu
