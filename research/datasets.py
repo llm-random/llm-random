@@ -16,42 +16,45 @@ class DataloaderWrapper:
         device: torch.device,
     ):
         self.generator = iter(dataloader)
-        self.target_batch_size = dataloader.batch_size
+        self.target_batch_size_per_gpu = dataloader.batch_size
         self.device = device
+        self.previous_batch_size_per_gpu = -1
+        self.chunks_iterator = 0
 
     def get_batch(
-        self, current_batch_size_per_gpu=-1, num_processed_tokens_so_far=-1
+        self, current_batch_size_per_gpu=-1
     ) -> data.LLMBatch:
         """
         Returns the next batch of data, handling batch size ramp-up if specified.
 
-        If `current_batch_size_per_gpu` is less than `self.target_batch_size`, the batch is split into
-        smaller chunks, and the appropriate chunk is returned based on `num_processed_tokens_so_far`.
+        If `current_batch_size_per_gpu` is less than `self.target_batch_size`, the batch is split into smaller chunks, and the appropriate chunk is returned.
 
         Args:
             current_batch_size_per_gpu (int, optional): The current batch size.
             Defaults to -1, which uses the target batch size.
-            num_processed_tokens_so_far (int, optional): Total number of tokens processed so far; used to determine the current chunk when batch size ramp-up is in effect. Defaults to -1.
         """
         if (
             current_batch_size_per_gpu == -1
-            or current_batch_size_per_gpu == self.target_batch_size
+            or current_batch_size_per_gpu == self.target_batch_size_per_gpu
         ):
             return next(self.generator).to(self.device)
         else:
-            current_num_chunks = self.target_batch_size // current_batch_size_per_gpu
-            current_chunk = (
-                num_processed_tokens_so_far // current_batch_size_per_gpu
-            ) % current_num_chunks
+            current_num_chunks = self.target_batch_size_per_gpu // current_batch_size_per_gpu
+            if current_batch_size_per_gpu != self.previous_batch_size_per_gpu:
+                self.chunks_iterator = 0
+                self.previous_batch_size_per_gpu = current_batch_size_per_gpu
+            current_chunk_index = self.chunks_iterator % current_num_chunks
 
-            if current_chunk == 0:
+            if current_chunk_index == 0:
                 self.current_batch = next(self.generator).to(self.device)
 
             batch = copy.deepcopy(self.current_batch)
             for _, tensor in batch:
                 tensor.data = get_ith_chunk(
-                    tensor.data, current_num_chunks, current_chunk
+                    tensor.data, current_num_chunks, current_chunk_index
                 )
+
+            self.chunks_iterator += 1
 
             return batch
 

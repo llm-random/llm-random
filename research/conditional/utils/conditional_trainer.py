@@ -216,7 +216,6 @@ class ConditionalTrainer:
             )
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
-            num_processed_tokens_so_far=num_processed_tokens,
         )
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
