@@ -1,0 +1,70 @@
+runner: "research.conditional.train.cc_train"
+time: 2-00:00:00
+n_gpus: 1
+interactive_debug: false
+
+# train params
+params:
+  name: "baseline"
+
+  # base bass
+  mixed_precision: false
+  flash_attention: false
+
+  # logging etc.
+  logger_types: "stdout"
+  logging_interval_heavy: -1
+  logging_interval_loss: -1
+  save_weights_path: "model_ckpt"
+  save_weights_interval: -1
+
+  # shallower bass
+  cutoff: 16
+  batch_size: 10
+  n_steps: 100
+  final_lr_step: 100
+  scheduler: cosine
+  lr_warmup_steps: 10
+  final_lr_fraction: 0.1
+
+
+  learning_rate: 1e-4 
+
+  # grad_clip: 10000
+
+  loss_checkpoint_chungs: 0
+
+
+  dmodel: 16
+  dff: 64
+
+  init_type: truncated_normal_fixed
+  init_scale: 1
+
+  dhead: 8
+  n_att_heads: 8
+
+
+  use_dummy_dataset: true
+
+  residual_mode: "pre_norm"
+  norm_class: "layer_norm"
+
+  model_type: gpt
+
+  n_blocks: 2
+
+  init_scale: 1
+
+  num_workers: 4
+
+  gradient_accumulation_steps: 2
+
+  dataset_type: c4
+  deterministic_experiment: true
+
+  data_seed: 44
+  torch_seed: 44
+  
+
+  weight_decay: 0.1

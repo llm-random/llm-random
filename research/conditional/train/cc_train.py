@@ -8,6 +8,7 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
+import torch.nn as nn
 
 from lizrd.core import misc
 from lizrd.core.llm import Parallel
@@ -35,6 +36,7 @@ from lizrd.train.scheduler import get_scheduler
 from research.conditional.utils.conditional_trainer import ConditionalTrainer
 from research.conditional.utils.argparse import introduce_parser_arguments
 from research.conditional.utils.model_utils import (
+    compare_models,
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
@@ -53,6 +55,11 @@ from lizrd.train.load_and_save_model import (
     prepare_save_weights_path,
 )
 
+
+from onefiler.other import get_scheduler as get_hydra_scheduler
+from hydra import compose, initialize
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
 
 def log_batch(
     wrapper: DataloaderWrapper,
@@ -264,6 +271,24 @@ def main(
         checkpoint=checkpoint,
     )
 
+
+
+    with initialize(version_base=None, config_path="../../..", job_name="test_app"):
+        cfg = compose(config_name="compare_models", overrides=[])
+        print(OmegaConf.to_yaml(cfg))
+        torch.manual_seed(cfg.training.seed)
+        model2 = instantiate(cfg.model, _convert_="all")
+
+        hydra_optimizer = torch.optim.AdamW(
+            model2.parameters(),
+            lr=cfg.training.learning_rate,
+            weight_decay=cfg.training.weight_decay,
+        )
+
+        hydra_scheduler = get_hydra_scheduler(hydra_optimizer, cfg.training)
+
+        diffs = compare_models(model, model2)
+
     log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
     args.learning_rate = calculate_lr(args)
@@ -342,7 +367,8 @@ def main(
     else:
         logger = None
 
-    if args.model_type == "gpt" and is_logging_process:
+    log_batch=False
+    if args.model_type == "gpt" and is_logging_process and log_batch:
         log_batch(
             train_dataloader,
             tokenizer_maker=(
@@ -411,6 +437,9 @@ def main(
             get_termination_timestamp_slurm() if args.repeater_mode else None
         ),
         batch_size_rampup_config=batch_size_rampup_config,
+        model_hydra=model2,
+        hydra_optimizer=hydra_optimizer,
+        hydra_scheduler=hydra_scheduler,
     )
     trainer.train(args.n_steps)
 

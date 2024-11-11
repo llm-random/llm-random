@@ -968,3 +968,65 @@ def calculate_lr(args):
         raise ValueError(
             "Exactly one of learning_rate and learning_rate_log2 or use_lr_scaling must be set"
         )
+
+
+def compare_models(model1: nn.Module, model2: nn.Module):
+    differences = {
+        "dtype": [],
+        "layer_names": [],
+        "layer_order": [],
+        "weights": [],
+        "gradients": [],
+    }
+
+    # Extract named modules (layers) for both models
+    modules1 = list(model1.named_modules())
+    modules2 = list(model2.named_modules())
+
+    # Compare layer order and names
+    if len(modules1) != len(modules2):
+        differences["layer_order"].append("Different number of layers")
+    for (name1, mod1), (name2, mod2) in zip(modules1, modules2):
+        if name1 != name2:
+            differences["layer_names"].append(
+                f"Different layer names: {name1} vs {name2}"
+            )
+        if type(mod1).__name__ != type(mod2).__name__:
+            differences["layer_order"].append(
+                f"Different layer type at {name1}: {type(mod1)} vs {type(mod2)}"
+            )
+
+    # Helper function to compare tensors
+    def tensors_are_equal(tensor1, tensor2):
+        return torch.equal(tensor1, tensor2)
+
+    # Compare parameters (weights and biases)
+    params1 = dict(model1.named_parameters())
+    params2 = dict(model2.named_parameters())
+    for name, param1 in params1.items():
+        if name not in params2:
+            differences["weights"].append(f"Layer missing in model2: {name}")
+        else:
+            param2 = params2[name]
+            if param1.dtype != param2.dtype:
+                differences["dtype"].append(
+                    f"Different dtype at {name}: {param1.dtype} vs {param2.dtype}"
+                )
+            if not tensors_are_equal(param1, param2):
+                differences["weights"].append(f"Different weights at {name}")
+
+            # Compare gradients if they exist
+            if param1.grad is not None and param2.grad is not None:
+                if not tensors_are_equal(param1.grad, param2.grad):
+                    differences["gradients"].append(f"Different gradients at {name}")
+
+    for name in params2:
+        if name not in params1:
+            differences["weights"].append(f"Layer missing in model1: {name}")
+
+    for diff in differences.values():
+        if len(diff) != 0:
+            print(differences)
+            return False
+
+    return True

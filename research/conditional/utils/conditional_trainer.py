@@ -22,6 +22,7 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import temp_modify_attr
 from research.conditional.utils.model_utils import (
+    compare_models,
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
@@ -29,6 +30,7 @@ from research.datasets import DataloaderWrapper, BatchSizeRampupConfig
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
+import numpy as np
 
 
 @define(slots=False)
@@ -85,6 +87,9 @@ class ConditionalTrainer:
     start_step: int = 0
     batch_size_rampup_config: Optional[BatchSizeRampupConfig] = None
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    model_hydra: Optional[dict] = None
+    hydra_scheduler: Optional[dict] = None
+    hydra_optimizer: Optional[dict] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -188,6 +193,7 @@ class ConditionalTrainer:
         step,
     ):
         self.model.train()
+        self.model_hydra.train() # Hydra / onefiler testing
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
 
@@ -208,13 +214,23 @@ class ConditionalTrainer:
             num_processed_tokens_so_far=self.num_processed_tokens,
         )
 
-        self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(
             processed_batch, current_batch_size_per_gpu
         )
+        assert loss == aux_info["hydra_loss"], "Losses are not equal" # Hydra / onefiler testing
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
+        self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
+
+        ### Hydra / onefiler testing STARTS here ###
+        self.hydra_optimizer.step()
+        self.hydra_optimizer.zero_grad()
+        self.hydra_scheduler.step()
+        ### Hydra / onefiler testing ENDS here ###
+
         self._apply_gradient()
+        assert compare_models(self.model, self.model_hydra), "Models are not equal" # Hydra / onefiler testing
+
         self.num_processed_tokens += (
             self.n_gpus * current_batch_size_per_gpu * self.cutoff
         )
@@ -242,6 +258,8 @@ class ConditionalTrainer:
             // (self.batch_size // current_batch_size_per_gpu),
             1,
         )
+
+        hydra_losses = [] #Only for hydra onefiler teting
         for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
@@ -251,6 +269,26 @@ class ConditionalTrainer:
                     num_batch_chunks,
                     i,
                 )
+
+            #### Hydra / onefiler testing STARTS here #####
+            # We need to have a way yo use batch elements outside of this for loop
+            hydra_model_output = self.model_hydra(batch_copy.input_ids)
+
+            # Tensors should be on the same device for loss calculation
+            hydra_gt_tokens = batch_copy.target_ids.to(hydra_model_output.device)
+            hydra_mask = batch_copy.should_calculate_loss.to(hydra_model_output.device)
+            import torch.nn.functional as F
+
+            hydra_mask_loss = F.cross_entropy(
+                hydra_model_output.flatten(0, -2),
+                hydra_gt_tokens.reshape(-1).long(),
+                reduction="none",
+            )
+            hydra_mask_loss = hydra_mask_loss[hydra_mask.reshape(-1) == 1]
+            hydra_loss = hydra_mask_loss.mean() / self.gradient_accumulation_steps
+            hydra_loss.backward()
+            hydra_losses.append(hydra_loss.item())
+            #### Hydra / onefiler testing ENDS here #####
 
             cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
                 batch=batch_copy,
@@ -272,6 +310,7 @@ class ConditionalTrainer:
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
+            "hydra_loss": np.sum(hydra_losses),
         }
 
     def _apply_gradient(self):

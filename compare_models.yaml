@@ -1,0 +1,56 @@
+defaults:
+#   - override hydra/launcher: cluster
+  - _self_
+
+model:
+    _target_: onefiler.other.LLM    
+
+    tower_config:  
+        _target_: onefiler.other.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 2
+
+        block_config: 
+            _target_: onefiler.other.BlockConfig
+            attention:
+                _target_: onefiler.other.AttentionConfig
+                mode: "vanilla"
+                dhead: 8
+                n_heads: 8
+                flash: false
+
+
+            feedforward:
+                _target_: onefiler.other.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
+
+    common: 
+        _target_: onefiler.other.Common
+        model_type: "gpt"
+        sequence_length: 16
+        dmodel: 16
+        dff: 64
+        init_type: truncated_normal_fixed
+        init_scale: 1
+
+training:
+    learning_rate: 1e-4
+    weight_decay: 0.1
+    scheduler: "cosine"
+    gradient_accumulation_steps: 2
+    start_step: 0
+    n_steps: 100
+    warmup_steps: 9
+    seed: 44
+    dataloader:
+        num_workers: 4
+        dataset: "c4"
+        split: "train"
+        use_dummy_dataset: true
+        batch_size: 10
+
+
