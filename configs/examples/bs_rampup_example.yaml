@@ -17,7 +17,7 @@ params:
     gradient_accumulation_steps: 8
     ff_mode: vanilla
     dataset_type: c4
-    n_steps: 7500
+    n_steps: 100
     learning_rate: 5e-4
     name: bs_rampup
     tags: [bs_rampup_test]
