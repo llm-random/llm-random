@@ -90,6 +90,4 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
                 step, seq_len, target_batch_size, config
             )
 
-            print(f"actual: {actual_tokens}, expected: {expected}")
-
             self.assertEqual(actual_tokens, expected)

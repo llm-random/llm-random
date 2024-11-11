@@ -266,14 +266,9 @@ def calculate_current_batch_size_from_rampup(
     batch_sizes,
     target_batch_size,
 ):
-    print(
-        f"proc toks: {processed_tokens}, tansion points: {transition_points}, bsz: {batch_sizes}, target bsz: {target_batch_size}"
-    )
     for transition_point, batch_size in zip(transition_points, batch_sizes):
         if (
             processed_tokens < transition_point * 1e9
         ):  # transition points are given in billions of tokens
-            print(f"Will return {batch_size}")
             return batch_size
-    print(f"Will return {target_batch_size}")
     return target_batch_size
