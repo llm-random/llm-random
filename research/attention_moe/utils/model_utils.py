@@ -16,6 +16,7 @@ from lizrd.core.llm import Parallel
 from research.attention_moe.moe_layers.attentions import (
     CausalMQA,
     CausalSelfAttention,
+    DroppingMoMQA,
     MoMQA,
 )
 
@@ -281,6 +282,14 @@ def get_attention_layer(args):
         )
     elif args.attention_mode == "momqa":
         attention_layer_fun = lambda: MoMQA(
+            n_embd=args.dmodel,
+            n_head=args.n_att_heads,
+            block_size=args.cutoff,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            multiply_by_n_head=args.multiply_by_n_head,
+        )
+    elif args.attention_mode == "dropping_momqa":
+        attention_layer_fun = lambda: DroppingMoMQA(
             n_embd=args.dmodel,
             n_head=args.n_att_heads,
             block_size=args.cutoff,
