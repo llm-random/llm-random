@@ -40,7 +40,7 @@ class DataloaderWrapper:
             current_num_chunks = (
                 self.target_batch_size_per_gpu // current_batch_size_per_gpu
             )
-            if current_batch_size_per_gpu != self.previous_batch_size_per_gpu:
+            if self.batch_size_changed(current_batch_size_per_gpu):
                 self.chunks_iterator = 0
                 self.previous_batch_size_per_gpu = current_batch_size_per_gpu
             current_chunk_index = self.chunks_iterator % current_num_chunks
@@ -48,15 +48,20 @@ class DataloaderWrapper:
             if current_chunk_index == 0:
                 self.current_batch = next(self.generator).to(self.device)
 
-            batch = copy.deepcopy(self.current_batch)
-            for _, tensor in batch:
-                tensor.data = get_ith_chunk(
-                    tensor.data, current_num_chunks, current_chunk_index
-                )
-
             self.chunks_iterator += 1
 
-            return batch
+            return self.get_batch_chunk(
+                self.current_batch, current_num_chunks, current_chunk_index
+            )
+
+    def batch_size_changed(self, current_batch_size_per_gpu):
+        return current_batch_size_per_gpu != self.previous_batch_size_per_gpu
+
+    def get_batch_chunk(self, batch, num_chunks, chunk_index):
+        batch_chunk = copy.deepcopy(batch)
+        for _, tensor in batch_chunk:
+            tensor.data = get_ith_chunk(tensor.data, num_chunks, chunk_index)
+        return batch_chunk
 
 
 def worker_init_fn(seed, worker_id):
