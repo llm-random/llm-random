@@ -431,9 +431,6 @@ class ConditionalTrainer:
         self.logger.report_scalar(
             title="batch_size", value=current_batch_size, iteration=step
         )
-        self.logger.report_scalar(
-            title="batch_size", value=current_batch_size, iteration=step
-        )
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
