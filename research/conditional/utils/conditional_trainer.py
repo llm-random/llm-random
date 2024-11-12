@@ -113,7 +113,9 @@ class ConditionalTrainer:
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
         )
-        self.n_devices = self.n_gpus if self.n_gpus != 0 else 1
+        self.n_devices = (
+            self.n_gpus if self.n_gpus != 0 else 1
+        )  # self.n_gpus is 0 when the model is run on cpu
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
         self._check_config()
