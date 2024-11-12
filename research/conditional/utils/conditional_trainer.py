@@ -113,6 +113,7 @@ class ConditionalTrainer:
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
         )
+        self.n_devices = self.n_gpus if self.n_gpus != 0 else 1
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
         self._check_config()
@@ -204,7 +205,7 @@ class ConditionalTrainer:
         )
 
         if self.batch_size_rampup_config is None:
-            current_batch_size_per_gpu = self.batch_size // self.n_gpus
+            current_batch_size_per_gpu = self.batch_size // self.n_devices
         else:
             current_batch_size_per_gpu = (
                 calculate_current_batch_size_from_rampup(
@@ -213,7 +214,7 @@ class ConditionalTrainer:
                     batch_sizes=self.batch_size_rampup_config.batch_sizes,
                     target_batch_size=self.batch_size,
                 )
-                // self.n_gpus
+                // self.n_devices
             )
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
@@ -227,13 +228,13 @@ class ConditionalTrainer:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
         self.num_processed_tokens += (
-            self.n_gpus * current_batch_size_per_gpu * self.cutoff
+            self.n_devices * current_batch_size_per_gpu * self.cutoff
         )
         if self.is_logging_process:
             self._log_train_stats(
                 loss,
                 step,
-                current_batch_size_per_gpu * self.n_gpus,
+                current_batch_size_per_gpu * self.n_devices,
                 num_processed_tokens,
             )
             self._log_accuracy(aux_info, step)
@@ -255,7 +256,7 @@ class ConditionalTrainer:
 
         num_batch_chunks = max(
             self.gradient_accumulation_steps
-            // (self.batch_size // (current_batch_size_per_gpu * self.n_gpus)),
+            // (self.batch_size // (current_batch_size_per_gpu * self.n_devices)),
             1,
         )
         for i in range(num_batch_chunks):
