@@ -59,6 +59,29 @@ def introduce_parser_arguments(
 
     # other training hyperparameters
 
+    parser.add_argument("--learning_rate_log2", type=float, required=False, default=0.0)
+    # these default values are fitted using the scaling rule, to use them,
+    # set use_lr_scaling to True and all other lr scaling parameters to 0
+    parser.add_argument("--use_lr_scaling", action="store_true")
+    parser.add_argument(
+        "--lr_scaling_constant_factor",
+        type=float,
+        required=False,
+        default=8.391640956234012,
+    )
+    parser.add_argument(
+        "--lr_scaling_params_factor",
+        type=float,
+        required=False,
+        default=-0.8121798244457074,
+    )
+    parser.add_argument(
+        "--lr_scaling_exp_rate_factor",
+        type=float,
+        required=False,
+        default=-0.25000000000000533,
+    )
+
     parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--adam_beta1", type=float, default=0.9)
     parser.add_argument("--adam_beta2", type=float, default=0.999)
@@ -68,6 +91,14 @@ def introduce_parser_arguments(
     parser.add_argument("--lr_warmup_steps", type=int, default=0)
     parser.add_argument("--lr_trapezoidal_decay_fraction", type=float, default=0.20)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
+    parser.add_argument(
+        "--batch_size_rampup_transition_points",
+        type=float,
+        nargs="*",
+        default=None,
+        help="list of points (in billions of tokens) when batch size will be ramped up to the next value",
+    )
+    parser.add_argument("--batch_size_rampup_sizes", type=int, nargs="*", default=None)
 
     # CORE data hyperparameters, almost always specified in baseline configs
 

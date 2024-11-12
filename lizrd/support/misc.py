@@ -9,6 +9,11 @@ def tags_to_name(tags: Optional[List[str]]) -> str:
     return "_".join(tags) if tags else ""
 
 
+def list_to_str(args_list: list):
+    args_list = [str(elem) for elem in args_list]
+    return ", ".join(args_list)
+
+
 def make_concise_datetime() -> str:
     now = datetime.datetime.now()
     return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
@@ -224,3 +229,17 @@ def get_ith_chunk(tensor, chunks, i):
 
     list_of_chunks = torch.chunk(tensor, chunks, dim=0)
     return list_of_chunks[i]
+
+
+def calculate_current_batch_size_from_rampup(
+    processed_tokens,
+    transition_points,
+    batch_sizes,
+    target_batch_size,
+):
+    for transition_point, batch_size in zip(transition_points, batch_sizes):
+        if (
+            processed_tokens < transition_point * 1e9
+        ):  # transition points are given in billions of tokens
+            return batch_size
+    return target_batch_size
