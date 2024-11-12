@@ -30,7 +30,7 @@ from research.conditional.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
-from research.datasets import DataloaderWrapper
+from research.datasets import DataloaderWrapper, BatchSizeRampupConfig
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
@@ -126,6 +126,7 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "failure",
         )
+        self.num_processed_tokens = 0
 
     def _after_train_operations(self):
         update_model_fit_gpu_info(
@@ -225,6 +226,9 @@ class ConditionalTrainer:
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
+        self.num_processed_tokens += (
+            self.n_gpus * current_batch_size_per_gpu * self.cutoff
+        )
         if self.is_logging_process:
             self._log_train_stats(
                 loss,
@@ -423,6 +427,9 @@ class ConditionalTrainer:
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
+        )
+        self.logger.report_scalar(
+            title="batch_size", value=current_batch_size, iteration=step
         )
         self.logger.report_scalar(
             title="batch_size", value=current_batch_size, iteration=step

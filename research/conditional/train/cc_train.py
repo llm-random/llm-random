@@ -45,6 +45,7 @@ from research.conditional.utils.model_utils import (
     get_classes_from_module_names,
     update_model_fit_gpu_info,
     get_vanilla_mamba_layer,
+    calculate_lr,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -264,6 +265,8 @@ def main(
     )
 
     log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
+
+    args.learning_rate = calculate_lr(args)
 
     if args.torch_compile:
         model = torch.compile(model)

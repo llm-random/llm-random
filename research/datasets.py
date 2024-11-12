@@ -15,6 +15,11 @@ class DataloaderWrapper:
         dataloader: DataLoader,
         device: torch.device,
     ):
+    def __init__(
+        self,
+        dataloader: DataLoader,
+        device: torch.device,
+    ):
         self.generator = iter(dataloader)
         self.target_batch_size_per_gpu = dataloader.batch_size
         self.device = device

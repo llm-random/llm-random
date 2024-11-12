@@ -15,6 +15,11 @@ def list_to_str(args_list: list):
     return ", ".join(args_list)
 
 
+def list_to_str(args_list: list):
+    args_list = [str(elem) for elem in args_list]
+    return ", ".join(args_list)
+
+
 def make_concise_datetime() -> str:
     now = datetime.datetime.now()
     return str(now.year)[-2:] + "_" + now.strftime("%m-%d_%H:%M:%S")
