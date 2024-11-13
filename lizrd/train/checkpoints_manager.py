@@ -1,4 +1,3 @@
-# import json
 import yaml
 import fcntl
 import torch
