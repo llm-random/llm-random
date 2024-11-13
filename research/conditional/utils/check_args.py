@@ -80,3 +80,7 @@ def check_args(args):
             assert (
                 args.batch_size % size == 0
             ), "Currently, target batch size needs to be divisible by the rampup batch sizes"
+
+    assert (
+        args.batch_size % (args.gradient_accumulation_steps * args.n_devices) == 0
+    ), "Batch size needs to be divisible by gradient accumulation steps and number of devices"

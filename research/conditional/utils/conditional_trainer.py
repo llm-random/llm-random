@@ -181,16 +181,10 @@ class ConditionalTrainer:
     ):
         if self.current_step == n_steps:
             self.model.eval()
-            # The assignments below serve as a workaround for calculating the proper batch_size given
-            # the way num_batch_chunks is determined in calculate_loss_and_gradient.
-            self.gradient_accumulation_steps = 1
-            current_batch_size_per_gpu = (
-                self.final_eval_dataloader_batch_size // self.n_devices
-            )
-            self.batch_size = self.final_eval_dataloader_batch_size
-
+            current_batch_size_per_gpu = self.batch_size // (
+                self.gradient_accumulation_steps * self.n_devices
+            )  # This value assures that the num_batch_chunks is 1
             losses = []
-
             for _ in range(self.n_final_eval_batches):
                 batch = self.final_eval_dataloader.get_batch()
                 with torch.no_grad():
