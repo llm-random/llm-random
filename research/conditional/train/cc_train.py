@@ -24,10 +24,10 @@ from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
+from research.batch_size_rampup_config import BatchSizeRampupConfig
 from research.conditional.utils.check_args import check_args
 from research.conditional.utils.misc_tools import get_termination_timestamp_slurm
 from research.datasets import (
-    BatchSizeRampupConfig,
     DataloaderWrapper,
     get_processed_dataset,
 )
