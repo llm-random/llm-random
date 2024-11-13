@@ -181,13 +181,21 @@ class ConditionalTrainer:
     ):
         if self.current_step == n_steps:
             self.model.eval()
+            # The assignments below serve as a workaround for calculating the proper batch_size given
+            # the way num_batch_chunks is determined in calculate_loss_and_gradient.
             self.gradient_accumulation_steps = 1
+            current_batch_size_per_gpu = (
+                self.final_eval_dataloader_batch_size // self.n_devices
+            )
+            self.batch_size = self.final_eval_dataloader_batch_size
+
             losses = []
+
             for _ in range(self.n_final_eval_batches):
                 batch = self.final_eval_dataloader.get_batch()
                 with torch.no_grad():
                     loss, _ = self.calculate_loss_and_gradient(
-                        batch, self.batch_size // self.gradient_accumulation_steps
+                        batch, current_batch_size_per_gpu
                     )
                     losses.append(loss)
 
@@ -420,9 +428,7 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
+                current_group_size = int(2**log_group_size_factor * original_group_size)
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps
