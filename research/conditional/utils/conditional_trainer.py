@@ -186,6 +186,8 @@ class ConditionalTrainer:
             for step in range(self.start_step, n_steps + 1):
                 self.current_step = step
                 self._train_step(step)
+                if self._repeater_rerun(step, self.repeater_job_end_time):
+                    break
 
                 if self.profiler_enabled:
                     p.step()
@@ -231,8 +233,6 @@ class ConditionalTrainer:
                                     "scheduler_trapezoidal_slides": None,
                                 },
                             )
-                if self._repeater_rerun(step, self.repeater_job_end_time):
-                    break
         self._after_train_operations(n_steps)
 
     def _train_step(
