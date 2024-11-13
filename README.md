@@ -23,6 +23,9 @@ Use the baseline configuration as a template, which is in `configs/test/test_bas
 ### Running Remotely
 `bash scripts/run_exp_remotely.sh <remote_cluster_name> scripts/run_configs/<your_config>`
 
+#### Running on the Helios cluster
+Since Helios uses an older Python version, you need to install a conda environment with newer Python. To do so, copy `setup_helios.sh` to your home directory and run it.
+
 ### Initializing New Project
 
 ```bash
@@ -33,6 +36,21 @@ find . -type f -exec sed -i 's/research\.template/research\.new_project/g' {} +
 ```
 To use the runner of your new project, add `runner: <path to your train.py>` to your yaml config.
 If you move train.py or argparse.py, also add `argparse: <path to your argparse>` to your yaml config.
+
+### Troubleshooting
+
+#### `TypeError: 'type' object is not subscriptable`
+This means you are probably running an older Python version. You can easily upgrade the Python version by installing conda.
+
+#### Host key verification failed when running remotely
+```
+Host key verification failed.
+fatal: Could not read from remote repository.
+```
+This might point to an issue with github authentication when setting up a new cluster
+Fix by:
+1. Adding `ForwardAgent yes` to the host's config in ~/.ssh/config
+2. Running `ssh -T git@github.com` on the remote host
 
 # License
 

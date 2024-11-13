@@ -13,19 +13,29 @@ from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
-from lizrd.support.misc import get_ith_chunk, calculate_current_batch_size_from_rampup
+from lizrd.support.misc import (
+    get_ith_chunk,
+    calculate_n_processed_tokens,
+    calculate_current_batch_size_from_rampup,
+)
 from lizrd.text.data import LLMBatch
+from lizrd.train.checkpoints_manager import (
+    create_slide_checkpoint,
+    end_training_checkpoint,
+    job_out_of_time_checkpoint,
+)
 from lizrd.train.scheduler import AbstractLRScheduler
+from research.batch_size_rampup_config import BatchSizeRampupConfig
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.misc_tools import temp_modify_attr
+from research.conditional.utils.misc_tools import get_slurm_job_id, temp_modify_attr
 from research.conditional.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
-from research.datasets import DataloaderWrapper, BatchSizeRampupConfig
+from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
@@ -86,6 +96,8 @@ class ConditionalTrainer:
     start_step: int = 0
     batch_size_rampup_config: Optional[BatchSizeRampupConfig] = None
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    scheduler_trapezoidal_slides: Optional[list[dict]] = None
+    args_override: Optional[dict] = None
     final_eval_dataloader: Optional[DataloaderWrapper] = None
     final_eval_dataloader_batch_size: Optional[int] = None
     n_final_eval_batches: int = None
@@ -112,6 +124,9 @@ class ConditionalTrainer:
             self.logging_interval_heavy,
             self.steps_until_start_temperature_learn,
         )
+        self.n_devices = (
+            self.n_gpus if self.n_gpus != 0 else 1
+        )  # self.n_gpus is 0 when the model is run on cpu
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
         self._check_config()
@@ -127,7 +142,9 @@ class ConditionalTrainer:
         )
         self.num_processed_tokens = 0
 
-    def _after_train_operations(self):
+    def _after_train_operations(
+        self, n_steps: int
+    ):  # TODO move n_steps form train method args to training class properties
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
@@ -135,6 +152,24 @@ class ConditionalTrainer:
         )
         if self.is_logging_process:
             self.logger.exit_job_metadata(self.current_step)
+
+        if self.current_step >= n_steps:  # - end of model training operations
+            if self.save_weights_path:
+                job_id = get_slurm_job_id()
+                end_training_checkpoint(
+                    job_id,
+                    self.is_logging_process,
+                    self.model,
+                    self.optimizer,
+                    self.scaler,
+                    self.save_weights_path,
+                    self.rank,
+                    self.current_step,
+                    self.batch_size,
+                    self.cutoff,
+                    self.logger.loggers if self.is_logging_process else None,
+                    self.args_override,
+                )
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
@@ -190,6 +225,7 @@ class ConditionalTrainer:
                 self._train_step(step)
                 if self._repeater_rerun(step, self.repeater_job_end_time):
                     break
+
                 if self.profiler_enabled:
                     p.step()
 
@@ -209,9 +245,33 @@ class ConditionalTrainer:
                         self._decode_samples(step)
                     except:
                         print("Decoding failed, skipping...")
+                if self.scheduler_trapezoidal_slides:
+                    for slide in self.scheduler_trapezoidal_slides:
+                        if step == slide["split_step"]:
+                            split_loggers = None
+                            if self.is_logging_process:
+                                split_loggers = [self.logger.loggers[0]]
+                                del self.logger.loggers[0]
+                            create_slide_checkpoint(
+                                get_slurm_job_id(),
+                                self.is_logging_process,
+                                self.model,
+                                self.optimizer,
+                                self.scaler,
+                                self.save_weights_path,
+                                self.rank,
+                                step,
+                                self.batch_size,
+                                self.cutoff,
+                                split_loggers,
+                                args_override={
+                                    "n_steps": slide["n_steps"],
+                                    "scheduler_trapezoidal_slides": None,
+                                },
+                            )
+                self._final_eval(n_steps)
                 self._after_step_operations(step)
-        self._final_eval(n_steps)
-        self._after_train_operations()
+        self._after_train_operations(n_steps)
 
     def _train_step(
         self,
@@ -221,21 +281,27 @@ class ConditionalTrainer:
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
 
+        num_processed_tokens = calculate_n_processed_tokens(
+            step=step,
+            seq_len=self.cutoff,
+            target_batch_size=self.batch_size,
+            rampup_config=self.batch_size_rampup_config,
+        )
+
         if self.batch_size_rampup_config is None:
-            current_batch_size_per_gpu = self.batch_size
+            current_batch_size_per_gpu = self.batch_size // self.n_devices
         else:
             current_batch_size_per_gpu = (
                 calculate_current_batch_size_from_rampup(
-                    processed_tokens=self.num_processed_tokens,
+                    processed_tokens=num_processed_tokens,
                     transition_points=self.batch_size_rampup_config.transition_points,
                     batch_sizes=self.batch_size_rampup_config.batch_sizes,
-                    target_batch_size=self.batch_size * self.n_gpus,
+                    target_batch_size=self.batch_size,
                 )
-                // self.n_gpus
+                // self.n_devices
             )
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
-            num_processed_tokens_so_far=self.num_processed_tokens,
         )
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
@@ -246,10 +312,15 @@ class ConditionalTrainer:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
         self.num_processed_tokens += (
-            self.n_gpus * current_batch_size_per_gpu * self.cutoff
+            self.n_devices * current_batch_size_per_gpu * self.cutoff
         )
         if self.is_logging_process:
-            self._log_train_stats(loss, step, current_batch_size_per_gpu * self.n_gpus)
+            self._log_train_stats(
+                loss,
+                step,
+                current_batch_size_per_gpu * self.n_devices,
+                num_processed_tokens,
+            )
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
@@ -269,7 +340,7 @@ class ConditionalTrainer:
 
         num_batch_chunks = max(
             self.gradient_accumulation_steps
-            // (self.batch_size // current_batch_size_per_gpu),
+            // (self.batch_size // (current_batch_size_per_gpu * self.n_devices)),
             1,
         )
         for i in range(num_batch_chunks):
@@ -383,7 +454,8 @@ class ConditionalTrainer:
         for processed_batch in batches:
             with torch.no_grad():
                 loss, aux_info = self.calculate_loss_and_gradient(
-                    processed_batch, self.batch_size
+                    processed_batch=processed_batch,
+                    current_batch_size_per_gpu=self.batch_size // self.n_gpus,
                 )
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
@@ -434,7 +506,9 @@ class ConditionalTrainer:
                 iteration=step,
             )
 
-    def _log_train_stats(self, loss_value, step, current_batch_size):
+    def _log_train_stats(
+        self, loss_value, step, current_batch_size, num_processed_tokens
+    ):
         self.logger.report_scalar(title="step", value=step, iteration=step)
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
@@ -451,7 +525,7 @@ class ConditionalTrainer:
                     title=name,
                     value=stats.acc / stats.interval,
                     iteration=step,
-                    processed_tokens_so_far=self.num_processed_tokens,
+                    processed_tokens_so_far=num_processed_tokens,
                 )
                 stats.acc = 0.0
 
@@ -530,14 +604,17 @@ class ConditionalTrainer:
                 step,
                 self.batch_size,
                 self.cutoff,
-                self.logger,
+                self.logger.loggers,
             )
 
     def _repeater_rerun(
         self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
     ) -> bool:
         if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
-            save_checkpoint(
+            job_id = get_slurm_job_id()
+            job_out_of_time_checkpoint(
+                job_id,
+                self.is_logging_process,
                 self.model,
                 self.optimizer,
                 self.scaler,
@@ -546,7 +623,8 @@ class ConditionalTrainer:
                 step,
                 self.batch_size,
                 self.cutoff,
-                self.logger,
+                self.logger.loggers if self.is_logging_process else None,
+                self.args_override,
             )
 
             return True
