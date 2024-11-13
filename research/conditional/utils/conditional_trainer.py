@@ -19,13 +19,18 @@ from lizrd.support.misc import (
     calculate_current_batch_size_from_rampup,
 )
 from lizrd.text.data import LLMBatch
+from lizrd.train.checkpoints_manager import (
+    create_slide_checkpoint,
+    end_training_checkpoint,
+    job_out_of_time_checkpoint,
+)
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.batch_size_rampup_config import BatchSizeRampupConfig
 from research.conditional.moe_layers.continuous_moe import ContinuousMoE
 from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
 from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.misc_tools import temp_modify_attr
+from research.conditional.utils.misc_tools import get_slurm_job_id, temp_modify_attr
 from research.conditional.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
@@ -90,6 +95,8 @@ class ConditionalTrainer:
     start_step: int = 0
     batch_size_rampup_config: Optional[BatchSizeRampupConfig] = None
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    scheduler_trapezoidal_slides: Optional[list[dict]] = None
+    args_override: Optional[dict] = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -131,7 +138,9 @@ class ConditionalTrainer:
         )
         self.num_processed_tokens = 0
 
-    def _after_train_operations(self):
+    def _after_train_operations(
+        self, n_steps: int
+    ):  # TODO move n_steps form train method args to training class properties
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
@@ -139,6 +148,24 @@ class ConditionalTrainer:
         )
         if self.is_logging_process:
             self.logger.exit_job_metadata(self.current_step)
+
+        if self.current_step >= n_steps:  # - end of model training operations
+            if self.save_weights_path:
+                job_id = get_slurm_job_id()
+                end_training_checkpoint(
+                    job_id,
+                    self.is_logging_process,
+                    self.model,
+                    self.optimizer,
+                    self.scaler,
+                    self.save_weights_path,
+                    self.rank,
+                    self.current_step,
+                    self.batch_size,
+                    self.cutoff,
+                    self.logger.loggers if self.is_logging_process else None,
+                    self.args_override,
+                )
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
@@ -169,6 +196,7 @@ class ConditionalTrainer:
                 self._train_step(step)
                 if self._repeater_rerun(step, self.repeater_job_end_time):
                     break
+
                 if self.profiler_enabled:
                     p.step()
 
@@ -189,7 +217,31 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
-        self._after_train_operations()
+                if self.scheduler_trapezoidal_slides:
+                    for slide in self.scheduler_trapezoidal_slides:
+                        if step == slide["split_step"]:
+                            split_loggers = None
+                            if self.is_logging_process:
+                                split_loggers = [self.logger.loggers[0]]
+                                del self.logger.loggers[0]
+                            create_slide_checkpoint(
+                                get_slurm_job_id(),
+                                self.is_logging_process,
+                                self.model,
+                                self.optimizer,
+                                self.scaler,
+                                self.save_weights_path,
+                                self.rank,
+                                step,
+                                self.batch_size,
+                                self.cutoff,
+                                split_loggers,
+                                args_override={
+                                    "n_steps": slide["n_steps"],
+                                    "scheduler_trapezoidal_slides": None,
+                                },
+                            )
+        self._after_train_operations(n_steps)
 
     def _train_step(
         self,
@@ -522,14 +574,17 @@ class ConditionalTrainer:
                 step,
                 self.batch_size,
                 self.cutoff,
-                self.logger,
+                self.logger.loggers,
             )
 
     def _repeater_rerun(
         self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
     ) -> bool:
         if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
-            save_checkpoint(
+            job_id = get_slurm_job_id()
+            job_out_of_time_checkpoint(
+                job_id,
+                self.is_logging_process,
                 self.model,
                 self.optimizer,
                 self.scaler,
@@ -538,7 +593,8 @@ class ConditionalTrainer:
                 step,
                 self.batch_size,
                 self.cutoff,
-                self.logger,
+                self.logger.loggers if self.is_logging_process else None,
+                self.args_override,
             )
 
             return True

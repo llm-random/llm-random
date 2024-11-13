@@ -20,13 +20,18 @@ from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
 )
+from lizrd.train.checkpoints_manager import start_job_manager_assessment
 from lizrd.train.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
 from research.batch_size_rampup_config import BatchSizeRampupConfig
 from research.conditional.utils.check_args import check_args
-from research.conditional.utils.misc_tools import get_termination_timestamp_slurm
+from research.conditional.utils.misc_tools import (
+    get_slurm_job_id,
+    get_termination_timestamp_slurm,
+)
+from research.datasets import DataloaderWrapper, get_processed_dataset
 from research.datasets import (
     DataloaderWrapper,
     get_processed_dataset,
@@ -230,11 +235,20 @@ def main(
             for ff_fun in ff_layer_funs
         ]
 
-    checkpoint = (
-        get_checkpoint_from_path(args.load_weights_path, args.repeater_mode)
-        if args.load_weights_path is not None
-        else None
-    )
+    checkpoint_path = args.load_weights_path
+    if not args.checkpoint_manager:
+        checkpoint = (
+            get_checkpoint_from_path(args.load_weights_path)
+            if args.load_weights_path is not None
+            else None
+        )
+    else:
+        checkpoint_path, checkpoint_metadata = start_job_manager_assessment(
+            get_slurm_job_id(), is_logging_process
+        )
+        checkpoint = (
+            get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
+        )
 
     model = get_model(
         max_length=args.cutoff,
@@ -264,6 +278,39 @@ def main(
         checkpoint=checkpoint,
     )
 
+    if is_logging_process:
+        if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
+            logger_runs_ids = checkpoint["logger"]["run_id"]
+        else:
+            if args.scheduler_trapezoidal_slides:
+                logger_runs_ids = []
+                for _ in range(len(args.scheduler_trapezoidal_slides) + 1):
+                    logger_runs_ids.append(None)
+            else:
+                logger_runs_ids = None
+        logger = get_logger(args, model, VOCAB_SIZE, logger_runs_ids)
+        if checkpoint_path:
+            logger.report_text(
+                title=f"job/loaded_checkpoint",
+                value=checkpoint_path,
+                iteration=checkpoint["step"],
+            )
+    else:
+        logger = None
+
+    args.args_override = None
+    if checkpoint and "args_override" in checkpoint and checkpoint["args_override"]:
+        args.args_override = checkpoint["args_override"]
+        for key, value in args.args_override.items():
+            if hasattr(args, key):
+                setattr(args, key, value)
+        if is_logging_process:
+            logger.report_text(
+                title=f"args/args_override",  # dev atomize logging to per arg update log in args/{name of arg}
+                value=str(args.args_override),
+                iteration=checkpoint["step"],
+            )
+
     log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
     args.learning_rate = calculate_lr(args)
@@ -289,7 +336,7 @@ def main(
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
-    if not args.repeater_mode:
+    if not args.checkpoint_manager:
         rescale_params_after_init(args, model)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
@@ -331,16 +378,6 @@ def main(
         dataset_split=eval_split,
         dataset_path=args.validation_dataset_path,
     )
-
-    if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
-        logger_run_id = checkpoint["logger"]["run_id"]
-    else:
-        logger_run_id = None
-
-    if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE, logger_run_id)
-    else:
-        logger = None
 
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
@@ -407,9 +444,11 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=(
-            get_termination_timestamp_slurm() if args.repeater_mode else None
-        ),
+        repeater_job_end_time=get_termination_timestamp_slurm()
+        if args.checkpoint_manager
+        else None,
+        scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
+        args_override=args.args_override,
         batch_size_rampup_config=batch_size_rampup_config,
     )
     trainer.train(args.n_steps)
@@ -426,9 +465,7 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
-    save_weights_path = prepare_save_weights_path(
-        args.save_weights_path, args.repeater_mode
-    )
+    save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)

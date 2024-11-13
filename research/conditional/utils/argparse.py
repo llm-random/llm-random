@@ -16,9 +16,9 @@ def introduce_parser_arguments(
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--cuda_visible", type=str, default=None)
     parser.add_argument(
-        "--repeater_mode",
+        "--checkpoint_manager",
         action="store_true",
-        help="Used when experiment will last longer than cluster max job time. It repeats jobs for expertiment longer continuation. Combines with periodic model saves.",
+        help="Used when experiment will last longer than cluster max job time. It repeats jobs for expertiment longer continuation. Combines with periodic model saves. Additionally operates using a manager JSON file which combines with trapezoidal slides creation and execution schedule.",
     )
     # parser.add_argument("--repeater_buffer", type=int, help="In minutes, time before cluster force-clousure that jobs saves and ends itself for next job to continue. Maximu time that model and trainig data needs to be saved, plus MAX time of one step (plus TIME OF VALIDATION that can interfeer!).") #dev TODO, currently fixed 15 min buffer time
     parser.add_argument(
@@ -44,8 +44,20 @@ def introduce_parser_arguments(
     # CORE training hyperparameters, almost always specified in baseline configs
 
     parser.add_argument("--n_steps", type=int, required=True)
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        required=True,
+        help="Options: constant, cosine, trapezoidal",
+    )
+    parser.add_argument(
+        "--scheduler_trapezoidal_slides",
+        type=str,
+        default=None,
+        required=False,
+        help="""List of dicts having n_steps of total training steps for a periticular split eg. scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':3000,'n_jobs':2}]"; !no white symbols!; n_jobs indicates how many slurm jobs may be needed to complete slide part of training.""",
+    )
     parser.add_argument("--learning_rate", type=math_eval, required=True)
-    parser.add_argument("--scheduler", type=str, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--lr_warmup_percent", type=float, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)

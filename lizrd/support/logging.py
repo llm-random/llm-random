@@ -192,6 +192,7 @@ class AbstractLogger(ABC):
         text_logs = {}
         ENV_METADATA = [
             "SLURM_ARRAY_JOB_ID",
+            "SLURM_ARRAY_TASK_ID",
             "SLURM_JOBID",
             "HOSTNAME",
             "SLURM_CLUSTER_NAME",
@@ -212,6 +213,10 @@ class AbstractLogger(ABC):
             value=self.STATE_JOB_FINISHED,
             iteration=training_step,
         )
+
+    def stop_connection(self):
+        if isinstance(self.instance_logger, neptune.Run):
+            self.instance_logger.stop()
 
 
 class ClearMLLogger(AbstractLogger):
@@ -572,27 +577,32 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
     logger.report_plotly(figure=figure, title=title, series=series, iteration=iteration)
 
 
-def get_logger(args, model, VOCAB_SIZE, run_id=None):  # dev TODO generalize run_id
+def get_logger(
+    args, model, VOCAB_SIZE, run_ids: list[int] = None
+):  # dev TODO generalize run_id
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
-    if args.logger_types == "":
-        logger_types = []
+    logger_types = []
+    if args.checkpoint_manager:
+        assert args.logger_types == "neptune"
+        n_neptune_loggers = len(run_ids) if run_ids else 1
+        for _ in range(n_neptune_loggers):
+            logger_types.append("neptune")
     else:
         logger_types = args.logger_types.split(",")
         assert len(logger_types) == len(set(logger_types)), "Duplicate logger types."
     initialized_loggers = []
+    if not run_ids:
+        run_ids = []
+        for _ in logger_types:
+            run_ids.append(None)
 
     args_dict = vars(args).copy()
     for k in args_dict.keys():
         if isinstance(args_dict[k], list):
             args_dict[k] = list_to_str(args_dict[k])
 
-    args_dict = vars(args).copy()
-    for k in args_dict.keys():
-        if isinstance(args_dict[k], list):
-            args_dict[k] = list_to_str(args_dict[k])
-
-    for logger_type in logger_types:
+    for logger_type, run_id in zip(logger_types, run_ids):
         if logger_type == "neptune":
             run = neptune.init_run(
                 project=args.project_name,
