@@ -384,7 +384,9 @@ class DroppingMoMQA(LoggingLayer):
             1 - token_is_dropped
         )
         # experts_input = x.reshape(B * T, -1)
-        experts_input = torch.zeros(self.n_head, capacity + 1, C)
+        experts_input = torch.zeros(
+            self.n_head, capacity + 1, C, device=x.device, dtype=x.dtype
+        )
         experts_input.scatter_(
             dim=1,
             index=truncated_token_idx_within_expert.T.unsqueeze(-1).expand(
@@ -398,7 +400,7 @@ class DroppingMoMQA(LoggingLayer):
             (
                 (
                     truncated_token_idx_within_expert
-                    + torch.arange(0, self.n_head) * (capacity + 1)
+                    + torch.arange(0, self.n_head, device=x.device) * (capacity + 1)
                 )
                 * (truncated_token_idx_within_expert != 0)
             ).sum(-1)
@@ -409,7 +411,7 @@ class DroppingMoMQA(LoggingLayer):
             (
                 (
                     truncated_token_idx_within_expert
-                    + torch.arange(0, self.n_head) * (capacity + 1)
+                    + torch.arange(0, self.n_head, device=x.device) * (capacity + 1)
                 )
                 * (truncated_token_idx_within_expert != 0)
             ).sum(-1)

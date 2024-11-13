@@ -79,3 +79,23 @@ k_gathered
 # )
 # print(gating)
 # %%
+import os
+import sys
+
+
+def add_to_path(path):
+    if path not in sys.path:
+        sys.path.append(path)
+
+
+add_to_path("/Users/maciej/Documents/llm-random")
+# print(os.getcwd())
+
+#
+from research.attention_moe.moe_layers_cc.moe_gating import TokenGating
+
+# import lizrd
+# %%
+from einops import einsum
+
+einsum
