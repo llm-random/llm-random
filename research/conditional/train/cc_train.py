@@ -387,16 +387,6 @@ def main(
         dataset_path=args.validation_dataset_path,
     )
 
-    if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
-        logger_run_id = checkpoint["logger"]["run_id"]
-    else:
-        logger_run_id = None
-
-    if is_logging_process:
-        logger = get_logger(args, model, VOCAB_SIZE, logger_run_id)
-    else:
-        logger = None
-
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
             train_dataloader,
