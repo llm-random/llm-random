@@ -75,8 +75,7 @@ class MachineBackend(abc.ABC):
 
 
 class AthenaBackend(MachineBackend):
-    # max_exp_time = 2 * 24 * 60 * 60
-    max_exp_time = 20 * 60
+    max_exp_time = 2 * 24 * 60 * 60
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
@@ -197,8 +196,7 @@ class IdeasBackend(MachineBackend):
 
 
 class EntropyBackend(MachineBackend):
-    # max_exp_time = 14 * 24 * 60 * 60
-    max_exp_time = 20 * 60
+    max_exp_time = 14 * 24 * 60 * 60
 
     def get_common_directory(self) -> str:
         return "/home/jkrajewski_a100"
