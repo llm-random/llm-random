@@ -39,7 +39,6 @@ from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
-import numpy as np
 
 
 @define(slots=False)
@@ -193,12 +192,12 @@ class ConditionalTrainer:
                     )
                     losses.append(loss)
 
-            final_loss = np.array(losses, dtype=np.float64).mean()
+            losses_average = torch.tensor(losses, dtype=torch.float64).mean()
 
             if self.is_logging_process:
                 self.logger.report_scalar(
                     title=f"final_eval",
-                    value=final_loss,
+                    value=losses_average.item(),
                     iteration=n_steps,
                 )
 
