@@ -3,10 +3,16 @@ import random
 import string
 from typing import Any, Dict, Optional, List
 from lizrd.core.llm import EmbeddingLayer
+from research.batch_size_rampup_config import BatchSizeRampupConfig
 
 
 def tags_to_name(tags: Optional[List[str]]) -> str:
     return "_".join(tags) if tags else ""
+
+
+def list_to_str(args_list: list):
+    args_list = [str(elem) for elem in args_list]
+    return ", ".join(args_list)
 
 
 def list_to_str(args_list: list):
@@ -229,6 +235,34 @@ def get_ith_chunk(tensor, chunks, i):
 
     list_of_chunks = torch.chunk(tensor, chunks, dim=0)
     return list_of_chunks[i]
+
+
+def calculate_n_processed_tokens(
+    step: int,
+    seq_len: int,
+    target_batch_size: int,
+    rampup_config: Optional[BatchSizeRampupConfig],
+):
+    if rampup_config is None:
+        return int(step * target_batch_size * seq_len)
+
+    transition_points = [p * 1e9 for p in rampup_config.transition_points]
+    batch_sizes = rampup_config.batch_sizes
+    steps_prev = tokens_prev = 0
+
+    for point, batch_size in zip(transition_points, batch_sizes):
+        tokens_needed = point - tokens_prev
+        steps_needed = tokens_needed // (batch_size * seq_len)
+        steps_current = steps_prev + steps_needed
+
+        if step < steps_current:
+            return int(tokens_prev + (step - steps_prev) * batch_size * seq_len)
+
+        tokens_prev += steps_needed * batch_size * seq_len
+        steps_prev = steps_current
+
+    # After all ramp-up intervals
+    return int(tokens_prev + (step - steps_prev) * target_batch_size * seq_len)
 
 
 def calculate_current_batch_size_from_rampup(

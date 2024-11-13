@@ -1,9 +1,9 @@
 parent: configs/experiments/constrained_scaling_laws/85M/model.yaml
-md5_parent_hash: 52d0f6016467edd4cdf9c2813489c88e
-# here configure GPUs & time for a given cluster for it to fit
-time: "100:00:00"
+md5_parent_hash: 901c724a94130d2f6e4a84252b67ee78
+n_gpus: 2 # works for athena
+
 params:
   tags: ["constrained_scaling_grid", "85M", "E=4"]
   expansion_rate: 4
-  ^n_steps: [1907, 3814, 7628, 15256, 30512]
+  gradient_accumulation_steps: 2
 

@@ -140,6 +140,65 @@ class AthenaBackend(MachineBackend):
         ]
 
 
+class HeliosBackend(MachineBackend):
+    max_exp_time = 2 * 24 * 60 * 60
+
+    def get_default_train_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/net/scratch/hscra/plgrid/plgmaciejpioro/c4/train"
+        elif dataset_type == "fineweb-edu":
+            return "/net/scratch/hscra/plgrid/plgmaciejpioro/fineweb-edu/train/train"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/net/scratch/hscra/plgrid/plgmaciejpioro/c4/validation"
+        elif dataset_type == "fineweb-edu":
+            return "/net/scratch/hscra/plgrid/plgmaciejpioro/fineweb-edu/train/train"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_common_directory(self) -> str:
+        return "/net/storage/pr3/plgrid/plggllmeffi"
+
+    def get_cache_path(self) -> str:
+        return f"/net/scratch/hscra/plgrid/plgmaciejpioro/{self.username}/.cache"
+
+    def get_grid_entrypoint(self) -> str:
+        return "lizrd/grid/grid_entrypoint_helios.sh"
+
+    def get_cemetery_directory(self):
+        return (
+            f"/net/storage/pr3/plgrid/plggllmeffi/{self.username}/llm_random_cemetery"
+        )
+
+    def get_subprocess_args(
+        self,
+        slurm_command,
+        setup_args,
+        training_args,
+        singularity_env_arguments,
+        runner_params,
+        n_consecutive: int = 1,
+    ):
+        assert (
+            setup_args["n_gpus"] == 4
+        ), "Helios only supports using whole nodes (cf. https://docs.cyfronet.pl/display/~plgpawlik/Helios)"
+
+        return [
+            slurm_command,
+            f"--gres=gpu:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
+            "--partition=plgrid-gpu-gh200",
+            "--cpus-per-gpu=72",
+            "--mem-per-gpu=100G",
+            "--account=plgllmefficont-gpu-gh200",
+            f"--job-name={training_args['name']}",
+            f"--time={setup_args['time']}",
+            f"{setup_args['grid_entrypoint']}",
+            *self.get_runner_command(setup_args["runner"], runner_params),
+        ]
+
+
 class IdeasBackend(MachineBackend):
     max_exp_time = 7 * 24 * 60 * 60
 
@@ -411,5 +470,7 @@ def get_machine_backend(node=None, connection=None) -> MachineBackend:
         == "b7ac4f788a9ebbb762abd91b07030d07fe9e41b9a6b2fcb25062bbb26edc60e3"
     ):  # no need for anyone to know the hostname :)
         return AWS1Backend(username)
+    elif "helios" in node:
+        return HeliosBackend(username)
     else:
         return LocalBackend(username)
