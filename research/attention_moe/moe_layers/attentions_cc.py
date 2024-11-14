@@ -7,7 +7,6 @@ from lizrd.core.misc import (
     time_measured,
 )
 from research.attention_moe.moe_layers_cc.moe_gating import TokenGating
-from einops import einsum
 
 
 class TokenChoiceMoMQA(LoggingLayer):
@@ -19,9 +18,6 @@ class TokenChoiceMoMQA(LoggingLayer):
         load_balancing_loss_weight: float,
         init_type: str,
         init_scale: float,
-        expert_inner_function: LoggingLayer,
-        init_type,
-        init_scale,
         zloss_weight: float = 0,
         routing_top_k: int = 1,
         use_einsum: bool = False,
@@ -45,8 +41,6 @@ class TokenChoiceMoMQA(LoggingLayer):
         self.n_heads = n_heads
         assert self.dmodel % self.n_heads == 0
         self.head_dim = self.dmodel // self.n_heads
-        # self.expert_inner_function = expert_inner_function
-        # self.doutput = self.expert_inner_function.doutput
         self.gating = TokenGating(
             dmodel=dmodel,
             n_experts=n_heads,
@@ -58,7 +52,6 @@ class TokenChoiceMoMQA(LoggingLayer):
             use_einsum=use_einsum,
             get_router_values_from=get_router_values_from,
             detach_gate=detach_gate,
-            # expert_inner_function=self.expert_inner_function,
             moe_values_exp=moe_values_exp,
             zloss_weight=zloss_weight,
         )
@@ -66,22 +59,41 @@ class TokenChoiceMoMQA(LoggingLayer):
             self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
         )
         experts = []
-        for _ in self.n_experts:
+        for _ in range(self.n_heads):
             expert = Linear(
-                self.dmodel, self.head_dim, init_type=init_type, init_scale=init_scale
+                self.dmodel,
+                2 * self.head_dim,
+                init_type=init_type,
+                init_scale=init_scale,
             )
             experts.append(expert)
-        expert_matrix = torch.nn.Parameter(
-            torch.stack([e.weight for e in experts], dim=0)
+        self.expert_weights = torch.nn.Parameter(
+            torch.stack([e.weight.T for e in experts], dim=0)
         )
-        assert expert_matrix.shape == (self.n_experts, self.dmodel, self.head_dim)
+        self.dropped_k = torch.nn.Parameter(
+            torch.randn(self.head_dim, dtype=torch.float32) * init_scale
+        )
+        self.dropped_v = torch.nn.Parameter(
+            torch.randn(self.head_dim, dtype=torch.float32) * init_scale
+        )
+        self.q_proj = Linear(
+            self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        self.o_proj = Linear(
+            self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        assert self.expert_weights.shape == (
+            self.n_heads,
+            self.dmodel,
+            2 * self.head_dim,
+        )
 
     @time_measured("assign_tokens_to_input")
     def extract(self, x, token_indicies):
         capacity = token_indicies.shape[0]
-        token_indicies = token_indicies.T.reshape(self.n_experts * capacity)
+        token_indicies = token_indicies.T.reshape(self.n_heads * capacity)
         experts_input = x[token_indicies, :]
-        experts_input = experts_input.reshape(self.n_experts, capacity, self.dmodel)
+        experts_input = experts_input.reshape(self.n_heads, capacity, self.dmodel)
         return experts_input
 
     @time_measured("assign_tokens_to_output")
@@ -96,39 +108,205 @@ class TokenChoiceMoMQA(LoggingLayer):
     ):
         output = torch.zeros(
             batch_size * seq_len,
-            self.doutput,
+            self.head_dim,
             dtype=x.dtype,
             layout=x.layout,
             device=x.device,
         )
-        experts_output *= token_expert_values.T.unsqueeze(-1)
+        experts_output = experts_output * token_expert_values.T.unsqueeze(-1)
         output.index_add_(
             dim=0,
             index=token_expert_indices.T.flatten(),
             source=experts_output.reshape(
-                self.n_experts * experts_output.shape[1], self.doutput
+                self.n_heads * experts_output.shape[1], self.head_dim
             ),
         )
-        output = output.reshape(batch_size, seq_len, self.doutput)
+        output = output.reshape(batch_size, seq_len, self.head_dim)
         return output
 
     def forward(self, x: torch.Tensor):
         batch_size, seq_len, _ = x.shape
 
         token_expert_indices, token_expert_values = self.gating(x)
+        q = self.q_proj(x).view(batch_size, seq_len, self.n_heads, self.head_dim)
 
         x = x.flatten(start_dim=0, end_dim=1)
         experts_input = self.extract(x, token_expert_indices)
-        out1 = torch.einsum("nab,n...b->n...a", exps, inp)
-        # experts_output = einsum
-        # experts_output = self.expert_inner_function(experts_input).to(x.dtype)
+        kv = torch.einsum("nab,n...a->n...b", self.expert_weights, experts_input)
+        k, v = kv.split(self.head_dim, dim=-1)
+        is_token_dropped = torch.zeros(
+            batch_size * seq_len,
+            dtype=x.dtype,
+            layout=x.layout,
+            device=x.device,
+        )
+        assert token_expert_indices.shape == token_expert_values.shape
+        is_token_dropped.index_add_(
+            dim=0,
+            index=token_expert_indices.flatten(),
+            source=token_expert_values.flatten(),
+        )
+        is_token_dropped = (is_token_dropped == 0.0).reshape(batch_size, seq_len)
+        k = self.merge(
+            k,
+            1 - (token_expert_values == 0.0).to(k.dtype),
+            token_expert_indices,
+            batch_size,
+            seq_len,
+            x,
+        )
+        k[is_token_dropped] = self.dropped_k
+        v = self.merge(
+            v,
+            token_expert_values,
+            token_expert_indices,
+            batch_size,
+            seq_len,
+            x,
+        )
+        v[is_token_dropped] = self.dropped_v
 
-        # output = self.merge(
-        #     experts_output,
-        #     token_expert_values,
-        #     token_expert_indices,
-        #     batch_size,
-        #     seq_len,
-        #     x,
-        # )
-        return experts_output
+        k = k.unsqueeze(-3)
+        v = v.unsqueeze(-3)
+
+        y = torch.nn.functional.scaled_dot_product_attention(
+            q.transpose(1, 2),
+            k,
+            v,
+            attn_mask=None,
+            dropout_p=0.0,
+            is_causal=True,
+            enable_gqa=True,
+        ).transpose(1, 2)
+        y = y.flatten(-2, -1)
+        y = self.o_proj(y)
+        return y
+
+
+class MQA(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_heads: int,
+        init_type: str,
+        init_scale: float,
+    ):
+        """
+        Args:
+            dmodel: dimension of the input
+            doutput: dimension of the output (default: dmodel)
+            n_experts: number of experts
+            expert_size: size of each expert
+            capacity_factor: scalar that determines how many tokens can be assigned to each expert
+            load_balancing_loss_weight: weight of the auxillary loss
+            expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
+        """
+        super().__init__()
+        self.dmodel = dmodel
+        self.n_heads = n_heads
+        assert self.dmodel % self.n_heads == 0
+        self.head_dim = self.dmodel // self.n_heads
+        self.q_proj = Linear(
+            self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        self.o_proj = Linear(
+            self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        kv_proj = Linear(
+            self.dmodel, 2 * self.head_dim, init_type=init_type, init_scale=init_scale
+        )
+        self.expert_weights = torch.nn.Parameter(kv_proj.weight.T)
+        assert self.expert_weights.shape == (
+            self.dmodel,
+            2 * self.head_dim,
+        )
+
+    def forward(self, x: torch.Tensor):
+        batch_size, seq_len, _ = x.shape
+
+        q = self.q_proj(x).view(batch_size, seq_len, self.n_heads, self.head_dim)
+
+        kv = torch.einsum("ab,...a->...b", self.expert_weights, x)
+        k, v = kv.split(self.head_dim, dim=-1)
+        # with sdpa_kernel(backends=[SDPBackend.MATH]):
+        k = k.unsqueeze(-3)
+        v = v.unsqueeze(-3)
+        # print("k", k.shape)
+        # print("q", q.shape)
+        # print("v", v.shape)
+        y = torch.nn.functional.scaled_dot_product_attention(
+            q.transpose(1, 2),
+            k,
+            v,
+            attn_mask=None,
+            dropout_p=0.0,
+            is_causal=True,
+            enable_gqa=True,
+        ).transpose(1, 2)
+        y = y.flatten(-2, -1)
+        y = self.o_proj(y)
+        return y
+
+
+class VanillaAttention(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_heads: int,
+        init_type: str,
+        init_scale: float,
+    ):
+        """
+        Args:
+            dmodel: dimension of the input
+            doutput: dimension of the output (default: dmodel)
+            n_experts: number of experts
+            expert_size: size of each expert
+            capacity_factor: scalar that determines how many tokens can be assigned to each expert
+            load_balancing_loss_weight: weight of the auxillary loss
+            expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
+        """
+        super().__init__()
+        self.dmodel = dmodel
+        self.n_heads = n_heads
+        assert self.dmodel % self.n_heads == 0
+        self.head_dim = self.dmodel // self.n_heads
+        self.q_proj = Linear(
+            self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        self.o_proj = Linear(
+            self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        kv_proj = Linear(
+            self.dmodel, 2 * self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        self.expert_weights = torch.nn.Parameter(kv_proj.weight.T)
+        assert self.expert_weights.shape == (
+            self.dmodel,
+            2 * self.dmodel,
+        )
+
+    def forward(self, x: torch.Tensor):
+        batch_size, seq_len, _ = x.shape
+
+        q = self.q_proj(x).view(batch_size, seq_len, self.n_heads, self.head_dim)
+
+        kv = torch.einsum("ab,...a->...b", self.expert_weights, x)
+        k, v = kv.view(batch_size, seq_len, self.n_heads, 2 * self.head_dim).split(
+            self.head_dim, dim=-1
+        )
+        # print("k", k.shape)
+        # print("q", q.shape)
+        # print("v", v.shape)
+        y = torch.nn.functional.scaled_dot_product_attention(
+            q.transpose(1, 2),
+            k.transpose(1, 2),
+            v.transpose(1, 2),
+            attn_mask=None,
+            dropout_p=0.0,
+            is_causal=True,
+            enable_gqa=True,
+        ).transpose(1, 2)
+        y = y.flatten(-2, -1)
+        y = self.o_proj(y)
+        return y

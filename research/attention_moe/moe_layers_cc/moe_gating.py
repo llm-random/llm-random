@@ -307,15 +307,22 @@ class TokenGating(MoeGating):
         with measure_time(self, "calculate aux loss"):
             tokens_per_expert = expert_mask.sum(dim=0, dtype=gate_out.dtype)
             load_balancing_loss = calculate_load_balancing_loss(
-                self.load_balancing_loss_weight,
+                1.0,
                 gate_out,
                 tokens_per_expert,
                 use_einsum=self.use_einsum,
             )
+        weighed_load_balancing_loss = (
+            self.load_balancing_loss_weight * load_balancing_loss
+        )
         if "load_balancing_losses" not in self.forward_pass_cache:
-            self.forward_pass_cache["load_balancing_losses"] = [load_balancing_loss]
+            self.forward_pass_cache["load_balancing_losses"] = [
+                weighed_load_balancing_loss
+            ]
         else:
-            self.forward_pass_cache["load_balancing_losses"].append(load_balancing_loss)
+            self.forward_pass_cache["load_balancing_losses"].append(
+                weighed_load_balancing_loss
+            )
         self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
         self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
 

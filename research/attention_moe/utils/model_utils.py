@@ -19,6 +19,7 @@ from research.attention_moe.moe_layers.attentions import (
     DroppingMoMQA,
     MoMQA,
 )
+from research.attention_moe.moe_layers.attentions_cc import VanillaAttention
 
 # from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
 #     ContinuousMoECommonWeightedParameters,
@@ -266,36 +267,59 @@ def get_attention_layer(args):
     causal = args.model_type == "gpt"
     assert causal
 
-    from research.attention_moe.moe_layers.attentions import (
-        CausalSelfAttention,
-        CausalMQA,
-        MoMQA,
-    )
+    # from research.attention_moe.moe_layers.attentions import (
+    #     CausalSelfAttention,
+    #     CausalMQA,
+    #     MoMQA,
+    # )
+
+    from research.attention_moe.moe_layers.attentions_cc import MQA, TokenChoiceMoMQA
 
     if args.attention_mode == "vanilla":
-        attention_layer_fun = lambda: CausalSelfAttention(
-            n_embd=args.dmodel, n_head=args.n_att_heads, block_size=args.cutoff
+        # attention_layer_fun = lambda: CausalSelfAttention(
+        #     n_embd=args.dmodel, n_head=args.n_att_heads, block_size=args.cutoff
+        # )
+
+        attention_layer_fun = lambda: VanillaAttention(
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
         )
     elif args.attention_mode == "mqa":
-        attention_layer_fun = lambda: CausalMQA(
-            n_embd=args.dmodel, n_head=args.n_att_heads, block_size=args.cutoff
+        # attention_layer_fun = lambda: CausalMQA(
+        #     n_embd=args.dmodel, n_head=args.n_att_heads, block_size=args.cutoff
+        # )
+        attention_layer_fun = lambda: MQA(
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
         )
     elif args.attention_mode == "momqa":
-        attention_layer_fun = lambda: MoMQA(
-            n_embd=args.dmodel,
-            n_head=args.n_att_heads,
-            block_size=args.cutoff,
+        # attention_layer_fun = lambda: MoMQA(
+        #     n_embd=args.dmodel,
+        #     n_head=args.n_att_heads,
+        #     block_size=args.cutoff,
+        #     load_balancing_loss_weight=args.load_balancing_loss_weight,
+        #     multiply_by_n_head=args.multiply_by_n_head,
+        # )
+        attention_layer_fun = lambda: TokenChoiceMoMQA(
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
+            capacity_factor=args.capacity_factor,
             load_balancing_loss_weight=args.load_balancing_loss_weight,
-            multiply_by_n_head=args.multiply_by_n_head,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
         )
-    elif args.attention_mode == "dropping_momqa":
-        attention_layer_fun = lambda: DroppingMoMQA(
-            n_embd=args.dmodel,
-            n_head=args.n_att_heads,
-            block_size=args.cutoff,
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
-            multiply_by_n_head=args.multiply_by_n_head,
-        )
+    # elif args.attention_mode == "dropping_momqa":
+    #     attention_layer_fun = lambda: DroppingMoMQA(
+    #         n_embd=args.dmodel,
+    #         n_head=args.n_att_heads,
+    #         block_size=args.cutoff,
+    #         load_balancing_loss_weight=args.load_balancing_loss_weight,
+    #         multiply_by_n_head=args.multiply_by_n_head,
+    #     )
     else:
         raise NotImplementedError(
             f"Attention type {args.attention_mode} not implemented"

@@ -55,12 +55,7 @@ class CausalSelfAttention(nn.Module):
         if self.flash:
             # efficient attention using Flash Attention CUDA kernels
             y = torch.nn.functional.scaled_dot_product_attention(
-                q,
-                k,
-                v,
-                attn_mask=None,
-                dropout_p=0.0,
-                is_causal=True,
+                q, k, v, attn_mask=None, dropout_p=0.0, is_causal=True, enable_gqa=True
             )
         else:
             # manual implementation of attention

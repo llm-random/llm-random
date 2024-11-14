@@ -284,12 +284,12 @@ class WriterBackend(MachineBackend):
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
-            "singularity",
-            "run",
-            *singularity_env_arguments,
-            make_singularity_mount_paths(setup_args, training_args),
-            "--nv",
-            setup_args["singularity_image"],
+            # "singularity",
+            # "run",
+            # *singularity_env_arguments,
+            # make_singularity_mount_paths(setup_args, training_args),
+            # "--nv",
+            # setup_args["singularity_image"],
             *self.get_runner_command(setup_args["runner"], runner_params),
         ]
 
