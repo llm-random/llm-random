@@ -3,17 +3,17 @@ defaults:
   - _self_
 
 model:
-    _target_: onefiler.other.LLM    
+    _target_: model.LLM    
 
     tower_config:  
-        _target_: onefiler.other.TowerConfig
+        _target_: model.TowerConfig
         mode: "same" # is every block in tower the same
         n_blocks: 2
 
         block_config: 
-            _target_: onefiler.other.BlockConfig
+            _target_: model.BlockConfig
             attention:
-                _target_: onefiler.other.AttentionConfig
+                _target_: model.AttentionConfig
                 mode: "vanilla"
                 dhead: 8
                 n_heads: 8
@@ -21,7 +21,7 @@ model:
 
 
             feedforward:
-                _target_: onefiler.other.FeedForwardConfig
+                _target_: model.FeedForwardConfig
                 mode: vanilla
 
             residual_mode: "pre_norm"
@@ -29,7 +29,7 @@ model:
 
 
     common: 
-        _target_: onefiler.other.Common
+        _target_: model.Common
         model_type: "gpt"
         sequence_length: 16
         dmodel: 16

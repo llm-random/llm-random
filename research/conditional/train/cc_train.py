@@ -56,7 +56,7 @@ from lizrd.train.load_and_save_model import (
 )
 
 
-from onefiler.other import get_scheduler as get_hydra_scheduler
+from model import get_scheduler as get_hydra_scheduler
 from hydra import compose, initialize
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
