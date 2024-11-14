@@ -347,7 +347,7 @@ def main(
             transition_points=args.batch_size_rampup_transition_points,
             batch_sizes=args.batch_size_rampup_sizes,
             transition_points_in=args.batch_size_rampup_units,
-            seq_len=args.cutoff
+            seq_len=args.cutoff,
         )
         if args.batch_size_rampup_transition_points is not None
         else None
