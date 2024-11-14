@@ -97,6 +97,9 @@ class ConditionalTrainer:
     checkpoint: Optional[dict[str, torch.Tensor]] = None
     scheduler_trapezoidal_slides: Optional[list[dict]] = None
     args_override: Optional[dict] = None
+    final_eval_dataloader: Optional[DataloaderWrapper] = None
+    final_eval_dataloader_batch_size: Optional[int] = None
+    n_final_eval_batches: int = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -171,6 +174,33 @@ class ConditionalTrainer:
         self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
 
+    def _final_eval(
+        self,
+        n_steps: int,
+    ):
+        if self.current_step == n_steps and self.n_final_eval_batches > 0:
+            self.model.eval()
+            current_batch_size_per_gpu = self.batch_size // (
+                self.gradient_accumulation_steps * self.n_devices
+            )  # This value assures that the num_batch_chunks is 1
+            losses = []
+            for _ in range(self.n_final_eval_batches):
+                batch = self.final_eval_dataloader.get_batch()
+                with torch.no_grad():
+                    loss, _ = self.calculate_loss_and_gradient(
+                        batch, current_batch_size_per_gpu
+                    )
+                    losses.append(loss)
+
+            losses_average = torch.tensor(losses, dtype=torch.float64).mean()
+
+            if self.is_logging_process:
+                self.logger.report_scalar(
+                    title=f"final_eval",
+                    value=losses_average.item(),
+                    iteration=n_steps,
+                )
+
     def train(self, n_steps: int):
         """
         Train the model for n_steps steps.
@@ -216,7 +246,6 @@ class ConditionalTrainer:
                         self._decode_samples(step)
                     except:
                         print("Decoding failed, skipping...")
-                self._after_step_operations(step)
                 if self.scheduler_trapezoidal_slides:
                     for slide in self.scheduler_trapezoidal_slides:
                         if step == slide["split_step"]:
@@ -241,6 +270,8 @@ class ConditionalTrainer:
                                     "scheduler_trapezoidal_slides": None,
                                 },
                             )
+                self._final_eval(n_steps)
+                self._after_step_operations(step)
         self._after_train_operations(n_steps)
 
     def _train_step(

@@ -131,6 +131,20 @@ def introduce_parser_arguments(
     parser.add_argument("--train_dataset_path", type=str, default=None)
     parser.add_argument("--validation_dataset_path", type=str, default=None)
 
+    parser.add_argument("--final_eval_seed", type=int, default=1912)
+    parser.add_argument(
+        "--final_eval_dataloader_batch_size",
+        type=int,
+        default=64,
+        help="Batch size for final evaluation dataloader. It should be the same for all runs you are comparing. Its advised to set it to the value of the biggest batch_size per GPU to avoid out of memory error.",
+    )
+    parser.add_argument(
+        "--n_final_eval_batches",
+        type=str,
+        default=8,
+        help="Total number of batches to generate for final evaluation. Should be the same for all runs to compare them.",
+    )
+
     # training tricks for memory and speed
     parser.add_argument(
         "--activation_checkpointing_modules",

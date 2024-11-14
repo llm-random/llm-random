@@ -379,6 +379,14 @@ def main(
         dataset_path=args.validation_dataset_path,
     )
 
+    common_dataloaders_kwargs["seed"] = args.final_eval_seed
+    common_dataloaders_kwargs["batch_size"] = args.final_eval_dataloader_batch_size
+    final_eval_dataloader = get_processed_dataset(
+        **common_dataloaders_kwargs,
+        dataset_split=eval_split,
+        dataset_path=args.validation_dataset_path,
+    )
+
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
             train_dataloader,
@@ -450,6 +458,9 @@ def main(
         scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
         args_override=args.args_override,
         batch_size_rampup_config=batch_size_rampup_config,
+        final_eval_dataloader=final_eval_dataloader,
+        final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
+        n_final_eval_batches=args.n_final_eval_batches,
     )
     trainer.train(args.n_steps)
 
