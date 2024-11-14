@@ -340,7 +340,6 @@ class ConditionalTrainer:
         losses = {}
 
         batch_copy = copy.deepcopy(processed_batch)
-        list_of_batch_chunks = torch.chunk(batch_copy.data, num_batch_chunks, dim=0)
 
         for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
