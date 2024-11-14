@@ -638,8 +638,6 @@ class ConditionalTrainer:
 def calculate_num_batch_chunks(
     gradient_accumulation_steps, target_batch_size=None, current_batch_size=None
 ):
-    if gradient_accumulation_steps is None:
-        gradient_accumulation_steps = 1
     if target_batch_size is None:
         return gradient_accumulation_steps
     else:

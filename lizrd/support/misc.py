@@ -258,7 +258,7 @@ def calculate_n_processed_tokens(
         if step < steps_current:
             return int(tokens_prev + (step - steps_prev) * batch_size * seq_len)
 
-        tokens_prev += steps_needed * batch_size * seq_len
+        tokens_prev = point
         steps_prev = steps_current
 
     # After all ramp-up intervals
