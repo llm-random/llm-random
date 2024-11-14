@@ -20,6 +20,7 @@ params:
   model_type: "gpt"
 
   # hyperparameters
+  init_type: "truncated_normal"
   init_scale: 0.1
   weight_decay: 0.1
   zloss_weight: 0.001
@@ -41,6 +42,7 @@ params:
   batch_size_rampup_sizes: [128, 256]
 
   # eval
+  final_eval_seed: 420
   final_eval_dataloader_batch_size: 64
   n_final_eval_batches: 2048
 
