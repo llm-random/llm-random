@@ -108,8 +108,5 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
                 expected, seq_len, target_batch_size, config
             )
 
-            print(f"actual_step: {actual_step}\tactual_tokens: {actual_tokens}")
-            print(f"config: {config.transition_points}\tconfig: {config.batch_sizes}")
-
             self.assertEqual(actual_tokens, expected)
             self.assertEqual(actual_step, step)
