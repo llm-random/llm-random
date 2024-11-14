@@ -147,6 +147,26 @@ def main(
 
     check_args(args)
 
+    batch_size_rampup_config = (
+        BatchSizeRampupConfig(
+            transition_points=args.batch_size_rampup_transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+            target_batch_size=args.batch_size,
+            units=args.batch_size_rampup_units,
+            seq_len=args.cutoff,
+        )
+        if args.batch_size_rampup_transition_points is not None
+        else None
+    )
+
+    if args.n_steps is None:
+        args.n_steps = convert_tokens_to_steps(
+            tokens=args.n_tokens * 1e9,
+            seq_len=args.cutoff,
+            target_batch_size=args.batch_size,
+            rampup_config=batch_size_rampup_config,
+        )
+
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
@@ -311,25 +331,6 @@ def main(
                 value=str(args.args_override),
                 iteration=checkpoint["step"],
             )
-
-    batch_size_rampup_config = (
-        BatchSizeRampupConfig(
-            transition_points=args.batch_size_rampup_transition_points,
-            batch_sizes=args.batch_size_rampup_sizes,
-            target_batch_size=args.batch_size,
-            units=args.batch_size_rampup_units,
-            seq_len=args.cutoff,
-        )
-        if args.batch_size_rampup_transition_points is not None
-        else None
-    )
-
-    args.n_steps = convert_tokens_to_steps(
-        tokens=args.n_tokens,
-        seq_len=args.cutoff,
-        target_batch_size=args.batch_size,
-        rampup_config=batch_size_rampup_config,
-    )
 
     log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
