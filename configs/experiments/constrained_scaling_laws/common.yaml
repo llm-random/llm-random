@@ -17,6 +17,7 @@ params:
   effective_dff_x: 3
   attention_mode: "rope"
   no_positional_embedding: true
+  model_type: "gpt"
 
   # hyperparameters
   init_scale: 0.1
