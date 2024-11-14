@@ -14,7 +14,7 @@ from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import (
-    calculate_n_processed_tokens,
+    convert_steps_to_tokens,
     calculate_current_batch_size_from_rampup,
 )
 from lizrd.text.data import LLMBatch
@@ -278,7 +278,7 @@ class ConditionalTrainer:
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
 
-        num_processed_tokens = calculate_n_processed_tokens(
+        num_processed_tokens = convert_steps_to_tokens(
             step=step,
             seq_len=self.cutoff,
             target_batch_size=self.batch_size,
@@ -313,9 +313,7 @@ class ConditionalTrainer:
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
-        self.num_processed_tokens += (
-            self.n_devices * current_batch_size_per_gpu * self.cutoff
-        )
+        self.num_processed_tokens = num_processed_tokens
         if self.is_logging_process:
             self._log_train_stats(
                 loss,

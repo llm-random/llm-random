@@ -237,34 +237,6 @@ def get_ith_chunk(tensor, chunks, i):
     return list_of_chunks[i]
 
 
-def calculate_n_processed_tokens(
-    step: int,
-    seq_len: int,
-    target_batch_size: int,
-    rampup_config: Optional[BatchSizeRampupConfig],
-):
-    if rampup_config is None:
-        return int(step * target_batch_size * seq_len)
-
-    transition_points = [p * 1e9 for p in rampup_config.transition_points]
-    batch_sizes = rampup_config.batch_sizes
-    steps_prev = tokens_prev = 0
-
-    for point, batch_size in zip(transition_points, batch_sizes):
-        tokens_needed = point - tokens_prev
-        steps_needed = tokens_needed // (batch_size * seq_len)
-        steps_current = steps_prev + steps_needed
-
-        if step < steps_current:
-            return int(tokens_prev + (step - steps_prev) * batch_size * seq_len)
-
-        tokens_prev = point
-        steps_prev = steps_current
-
-    # After all ramp-up intervals
-    return int(tokens_prev + (step - steps_prev) * target_batch_size * seq_len)
-
-
 def calculate_current_batch_size_from_rampup(
     processed_tokens,
     transition_points,
@@ -277,3 +249,64 @@ def calculate_current_batch_size_from_rampup(
         ):  # transition points are given in billions of tokens
             return batch_size
     return target_batch_size
+
+
+# def calculate_n_processed_tokens(
+def convert_steps_to_tokens(
+    step: int,
+    seq_len: int,
+    target_batch_size: int,
+    rampup_config: Optional[BatchSizeRampupConfig],
+):
+    if rampup_config is None:
+        return int(step * target_batch_size * seq_len)
+
+    tokens_per_step_list = [
+        batch_size * seq_len for batch_size in rampup_config.batch_sizes
+    ]
+    transition_points = rampup_config.transition_points
+    steps_prev = tokens_prev = 0
+
+    for point, tokens_per_step in zip(transition_points, tokens_per_step_list):
+        steps_to_transition = point - steps_prev
+        point_in_steps = point
+
+        if step < point_in_steps:
+            return int(tokens_prev + (step - steps_prev) * tokens_per_step)
+
+        tokens_to_transition = steps_to_transition * tokens_per_step
+        tokens_prev += tokens_to_transition
+        steps_prev = point_in_steps
+
+    # After all ramp-up intervals
+    return int(tokens_prev + (step - steps_prev) * target_batch_size * seq_len)
+
+
+def convert_tokens_to_steps(
+    n_tokens: int,  # in bilions
+    seq_len: int,
+    target_batch_size: int,
+    rampup_config: Optional[BatchSizeRampupConfig],
+):
+    if rampup_config is None:
+        return int((n_tokens * 1e9) // (target_batch_size * seq_len))
+
+    tokens_per_step_list = [
+        batch_size * seq_len for batch_size in rampup_config.batch_sizes
+    ]
+    transition_points = rampup_config.transition_points
+    steps_prev = tokens_prev = 0
+
+    for point, tokens_per_step in zip(transition_points, tokens_per_step_list):
+        steps_to_transition = point - steps_prev
+        tokens_to_trasition = steps_to_transition * tokens_per_step
+        tokens_current = tokens_prev + tokens_to_trasition
+
+        if n_tokens < tokens_current:
+            return int(steps_prev + (n_tokens - tokens_prev) / tokens_per_step)
+
+        tokens_prev = tokens_current
+        steps_prev = point
+
+    # After all ramp-up intervals
+    return int(steps_prev + (n_tokens - tokens_prev) / tokens_per_step)

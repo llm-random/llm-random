@@ -23,7 +23,7 @@ class TestBatchSizeRampupConfig(GeneralTestCase):
         bs_config_steps = BatchSizeRampupConfig(
             transition_points=tps,
             batch_sizes=bszs,
-            transition_points_in="steps",
+            units="steps",
             seq_len=10000000,
         )
         check_configs_equality(target_config, bs_config_steps)
@@ -35,7 +35,7 @@ class TestBatchSizeRampupConfig(GeneralTestCase):
         bs_config_steps = BatchSizeRampupConfig(
             transition_points=tps,
             batch_sizes=bszs,
-            transition_points_in="steps",
+            units="steps",
             seq_len=10000000,
         )
         check_configs_equality(target_config, bs_config_steps)
@@ -47,7 +47,7 @@ class TestBatchSizeRampupConfig(GeneralTestCase):
         bs_config_steps = BatchSizeRampupConfig(
             transition_points=tps,
             batch_sizes=bszs,
-            transition_points_in="steps",
+            units="steps",
             seq_len=10000000,
         )
         check_configs_equality(target_config, bs_config_steps)

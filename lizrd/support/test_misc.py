@@ -1,6 +1,7 @@
 from lizrd.support.misc import (
     calculate_current_batch_size_from_rampup,
-    calculate_n_processed_tokens,
+    convert_steps_to_tokens,
+    convert_tokens_to_steps,
 )
 from research.batch_size_rampup_config import BatchSizeRampupConfig
 from lizrd.support.test_utils import GeneralTestCase
@@ -67,27 +68,48 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
 
         expected_tokens = step * n_gpus * target_batch_size * seq_len
 
-        actual_tokens = calculate_n_processed_tokens(
+        actual_tokens = convert_steps_to_tokens(
             step,
             seq_len,
             target_batch_size,
             rampup_config,
         )
 
+        actual_step = convert_tokens_to_steps(
+            expected_tokens,
+            seq_len,
+            target_batch_size,
+            rampup_config,
+        )
+
         self.assertEqual(actual_tokens, expected_tokens)
+        self.assertEqual(actual_step, step)
 
     def test_with_rampup(self):
         seq_len = 512
         target_batch_size = 512
         n_gpus = 2
-        config = BatchSizeRampupConfig([0.065536000, 0.327680000], [128, 256])
+        config = BatchSizeRampupConfig(
+            [0.065536000, 0.327680000],
+            [128, 256],
+            units="tokens",
+            seq_len=seq_len,
+        )
 
         steps = [1000, 1500, 2000, 3000]
         expected_token_counts = [65536000, 131072000, 196608000, 327680000]
 
         for step, expected in zip(steps, expected_token_counts):
-            actual_tokens = calculate_n_processed_tokens(
+            actual_tokens = convert_steps_to_tokens(
                 step, seq_len, target_batch_size, config
             )
 
+            actual_step = convert_tokens_to_steps(
+                expected, seq_len, target_batch_size, config
+            )
+
+            print(f"actual_step: {actual_step}\tactual_tokens: {actual_tokens}")
+            print(f"config: {config.transition_points}\tconfig: {config.batch_sizes}")
+
             self.assertEqual(actual_tokens, expected)
+            self.assertEqual(actual_step, step)
