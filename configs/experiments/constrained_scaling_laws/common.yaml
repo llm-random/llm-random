@@ -1,60 +1,69 @@
-parent: configs/baselines/gpt/expert_choice/granularity/4/base.yaml
-md5_parent_hash: 6cd6b241d09b039d86d8c51b5f0b4a01
-time: "160:00:00"
+runner: "research.conditional.train.cc_train"
+time: "21-00:00:00"
 interactive_debug_session: false
 interactive_debug: false
-n_gpus: 1
+cpus_per_gpu: 16
 
 params:
-  name: constrained_scaling_grid_fixed
+  name: constrained_scaling_grid_new_run
   tags: ["constrained_scaling_grid"]
+
+  # architecture
   ff_mode: token_choice
   capacity_factor: 1.0
   activation_type: silu
   moe_inner_expert: ff_gated
-  expansion_rate: 8
   granularity: 1
-  get_router_values_from: weights
-  layer_norm_in_expert_choice: False
+  effective_dff_x: 3
+  attention_mode: "rope"
+  no_positional_embedding: true
 
-  n_steps: 10 # mock value for tests
-  # [1907, 3814, 7628, 15256, 30512]
-  # 500M, 1B, 2B, 4B, 8B
-
-  dmodel: 256
-  n_blocks: 4
-  n_att_heads: 4
-
-  batch_size: 512
-  cutoff: 512
-  final_lr_step: -1
-  lr_warmup_steps: 2000
-  final_lr_fraction: 0.1
+  # hyperparameters
   init_scale: 0.1
-  learning_rate: 0
-  use_lr_scaling: true
   weight_decay: 0.1
   zloss_weight: 0.001
   load_balancing_loss_weight: 0.01
-  #data_seed: 42
-  batch_size_rampup_transition_points: [ 0.5, 1.0 ]
-  batch_size_rampup_sizes: [ 128, 256 ]
-
-  save_weights_interval: 0
-  mixed_precision: True
-  mixed_precision_dtype: bfloat16
-  flash_attention: true
-  loss_checkpoint_chungs: 0
-
-  effective_dff_x: 3
   grad_clip: 0.1
-  attention_mode: "rope"
-  no_positional_embedding: false
+  dataset_type: "fineweb-edu"
+
+  # learning rate
+  learning_rate: 0
+  use_lr_scaling: true
+  lr_warmup_steps: 2000 # 130M
   lr_trapezoidal_decay_fraction: 0.2
   scheduler: trapezoidal
 
-  fsdp_enabled: true
+  # batch size
+  batch_size: 512
+  cutoff: 512
+  batch_size_rampup_transition_points: [0.5, 1.0]
+  batch_size_rampup_sizes: [128, 256]
+
+  # eval
+  final_eval_dataloader_batch_size: 64
+  n_final_eval_batches: 2048
+
+  # repeater
+  # 500M, 1B, 2B, 4B, 8B, 16B, 32B, 48B, 64B, 80B, 96B, 112B, 128B
+  # do tego trzeba dodac rampup
+  # [1923, 3830, 7645, 15274, 30533, 61051, 122086, 183121, 244156, 305191, 366226, 427262, 488297]
+  save_weights_interval: 0
+  n_steps: 488297
+  save_weights_path: "./constrained_scaling_laws_grid"
+  checkpoint_manager: True
+  scheduler_trapezoidal_slides: "[{'n_steps':1923},{'n_steps':3830},{'n_steps':7645},{'n_steps':15274},{'n_steps':30533},{'n_steps':61051},{'n_steps':122086},{'n_steps':183121},{'n_steps':244156},{'n_steps':305191},{'n_steps':366226},{'n_steps':427262}]"
+
+  # precision and distributed
+  mixed_precision: True
+  mixed_precision_dtype: bfloat16
+  flash_attention: True
+  loss_checkpoint_chungs: 0
+
+  fsdp_enabled: True
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 50000
