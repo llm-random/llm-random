@@ -114,8 +114,8 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--batch_size_rampup_units",
         type=str,
-        default="B",
-        help="options:\n'B' - bilions of tokens\n'M' - milions of tokens\n'steps' - gradient steps",
+        default="tokens",
+        help="options:\n'tokens' - bilions of tokens\n'steps' - gradient steps",
     )
 
     # CORE data hyperparameters, almost always specified in baseline configs
