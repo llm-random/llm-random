@@ -19,6 +19,7 @@ from lizrd.support.logging import (
 from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
+    convert_tokens_to_steps,
 )
 from lizrd.train.checkpoints_manager import start_job_manager_assessment
 from lizrd.train.train_utils import (
@@ -311,6 +312,25 @@ def main(
                 iteration=checkpoint["step"],
             )
 
+    batch_size_rampup_config = (
+        BatchSizeRampupConfig(
+            transition_points=args.batch_size_rampup_transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+            target_batch_size=args.batch_size,
+            units=args.batch_size_rampup_units,
+            seq_len=args.cutoff,
+        )
+        if args.batch_size_rampup_transition_points is not None
+        else None
+    )
+
+    args.n_steps = convert_tokens_to_steps(
+        tokens=args.n_tokens,
+        seq_len=args.cutoff,
+        target_batch_size=args.batch_size,
+        rampup_config=batch_size_rampup_config,
+    )
+
     log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
     args.learning_rate = calculate_lr(args)
@@ -341,18 +361,6 @@ def main(
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
-
-    batch_size_rampup_config = (
-        BatchSizeRampupConfig(
-            transition_points=args.batch_size_rampup_transition_points,
-            batch_sizes=args.batch_size_rampup_sizes,
-            target_batch_size=args.batch_size,
-            units=args.batch_size_rampup_units,
-            seq_len=args.cutoff,
-        )
-        if args.batch_size_rampup_transition_points is not None
-        else None
-    )
 
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,

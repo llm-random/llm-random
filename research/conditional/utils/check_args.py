@@ -76,3 +76,8 @@ def check_args(args):
             assert (
                 args.batch_size % size == 0
             ), "Currently, target batch size needs to be divisible by the rampup batch sizes"
+
+    if args.n_steps is None:
+        assert args.n_tokens is not None
+    else:
+        assert args.n_tokens is None

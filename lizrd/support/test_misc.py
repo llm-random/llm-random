@@ -32,7 +32,7 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
 
         for processed_tokens, expected_batch_size in test_cases:
             step = convert_tokens_to_steps(
-                n_tokens=processed_tokens,
+                tokens=processed_tokens,
                 seq_len=seq_len,
                 rampup_config=config,
                 target_batch_size=config.target_batch_size,
@@ -68,7 +68,7 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
 
         for processed_tokens, expected_batch_size in test_cases:
             step = convert_tokens_to_steps(
-                n_tokens=processed_tokens,
+                tokens=processed_tokens,
                 seq_len=seq_len,
                 rampup_config=config,
                 target_batch_size=config.target_batch_size,

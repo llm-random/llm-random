@@ -43,7 +43,19 @@ def introduce_parser_arguments(
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
-    parser.add_argument("--n_steps", type=int, required=True)
+    parser.add_argument(
+        "--n_steps",
+        type=int,
+        required=False,
+        help="Number of gradient steps during training. n_steps, or n_tokens must be None",
+    )
+    parser.add_argument(
+        "--n_tokens",
+        type=float,
+        default=None,
+        required=False,
+        help="Number of total training tokens in bilions. n_steps, or n_tokens must be None",
+    )
     parser.add_argument(
         "--scheduler",
         type=str,
