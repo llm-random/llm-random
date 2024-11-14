@@ -23,6 +23,7 @@ class TestBatchSizeRampupConfig(GeneralTestCase):
         bs_config_steps = BatchSizeRampupConfig(
             transition_points=tps,
             batch_sizes=bszs,
+            target_batch_size=101,
             units="steps",
             seq_len=10000000,
         )
@@ -35,6 +36,7 @@ class TestBatchSizeRampupConfig(GeneralTestCase):
         bs_config_steps = BatchSizeRampupConfig(
             transition_points=tps,
             batch_sizes=bszs,
+            target_batch_size=101,
             units="steps",
             seq_len=10000000,
         )
@@ -47,6 +49,7 @@ class TestBatchSizeRampupConfig(GeneralTestCase):
         bs_config_steps = BatchSizeRampupConfig(
             transition_points=tps,
             batch_sizes=bszs,
+            target_batch_size=101,
             units="steps",
             seq_len=10000000,
         )

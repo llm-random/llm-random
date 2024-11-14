@@ -346,6 +346,7 @@ def main(
         BatchSizeRampupConfig(
             transition_points=args.batch_size_rampup_transition_points,
             batch_sizes=args.batch_size_rampup_sizes,
+            target_batch_size=args.batch_size,
             units=args.batch_size_rampup_units,
             seq_len=args.cutoff,
         )
