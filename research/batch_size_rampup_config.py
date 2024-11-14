@@ -7,21 +7,22 @@ class BatchSizeRampupConfig:
     Configuration for ramping up the batch size during training.
 
     Attributes:
-        transition_points (list[float]): A list of token counts (in billions) where the batch size
+        transition_points (list[int]): A list of steps, where the batch size
             transitions to the next value.
-        batch_sizes (list[float]): A list of batch sizes corresponding to each transition point.
+        batch_sizes (list[int]): A list of batch sizes corresponding to each transition point.
 
     Example:
-        Given `transition_points = [0.5, 1.0]` and `batch_sizes = [128, 256]`:
-            - The batch size will be 128 until 0.5 billion tokens are processed.
-            - Then it will change to 256 until 1.0 billion tokens are processed.
-            - After 1.0 billion tokens, the batch size reaches its target value.
+        Given `transition_points = [100, 300]` and `batch_sizes = [128, 256]`:
+            - The batch size will be 128 until 100th step.
+            - Then it will change to 256 until 300th step.
+            - After 300 steps, the batch size reaches its target value.
     """
 
     def __init__(
         self,
         transition_points,
         batch_sizes,
+        target_batch_size,
         units="tokens",
         seq_len=None,
     ):
@@ -33,9 +34,16 @@ class BatchSizeRampupConfig:
         )
         self.transition_points: list[int] = transition_points
         self.batch_sizes: list[int] = batch_sizes
+        self.target_batch_size = target_batch_size
 
     def __post_init__(self):
         assert len(self.transition_points) == len(self.batch_sizes)
+
+    def get_batch_size(self, step):
+        for point, batch_size in zip(self.transition_points, self.batch_sizes):
+            if step < point:
+                return batch_size
+        return self.target_batch_size
 
     def convert_transition_points_to_steps(
         self, transition_points, units, batch_sizes, seq_len

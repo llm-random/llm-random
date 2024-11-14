@@ -1,5 +1,4 @@
 from lizrd.support.misc import (
-    calculate_current_batch_size_from_rampup,
     convert_steps_to_tokens,
     convert_tokens_to_steps,
 )
@@ -11,24 +10,34 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
     def test_single_transition(self):
         # Test with a single transition point
         transition_points = [1]  # in billions
-        batch_sizes = [16]
-        target_batch_size = 64
+        batch_sizes = [100]
+        target_batch_size = 1000
+        seq_len = 100
+
+        config = BatchSizeRampupConfig(
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
+            target_batch_size=target_batch_size,
+            units="tokens",
+            seq_len=seq_len,
+        )
 
         test_cases = [
-            (0, 16),
-            (0.5e9, 16),
-            (1.01e9, 64),
-            (1.5e9, 64),
-            (2e9, 64),
+            (0, 100),
+            (0.5e9, 100),
+            (1.01e9, 1000),
+            (1.5e9, 1000),
+            (2e9, 1000),
         ]
 
         for processed_tokens, expected_batch_size in test_cases:
-            actual_batch_size = calculate_current_batch_size_from_rampup(
-                processed_tokens,
-                transition_points,
-                batch_sizes,
-                target_batch_size,
+            step = convert_tokens_to_steps(
+                n_tokens=processed_tokens,
+                seq_len=seq_len,
+                rampup_config=config,
+                target_batch_size=config.target_batch_size,
             )
+            actual_batch_size = config.get_batch_size(step)
             self.assertEqual(actual_batch_size, expected_batch_size)
 
     def test_multiple_transitions(self):
@@ -36,6 +45,15 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
         transition_points = [0.5, 1, 2]  # in billions
         batch_sizes = [16, 64, 128]
         target_batch_size = 512
+        seq_len = 512
+
+        config = BatchSizeRampupConfig(
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
+            target_batch_size=target_batch_size,
+            units="tokens",
+            seq_len=seq_len,
+        )
 
         test_cases = [
             (0, 16),
@@ -49,12 +67,13 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
         ]
 
         for processed_tokens, expected_batch_size in test_cases:
-            actual_batch_size = calculate_current_batch_size_from_rampup(
-                processed_tokens,
-                transition_points,
-                batch_sizes,
-                target_batch_size,
+            step = convert_tokens_to_steps(
+                n_tokens=processed_tokens,
+                seq_len=seq_len,
+                rampup_config=config,
+                target_batch_size=config.target_batch_size,
             )
+            actual_batch_size = config.get_batch_size(step)
             self.assertEqual(actual_batch_size, expected_batch_size)
 
 
@@ -92,6 +111,7 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
         config = BatchSizeRampupConfig(
             [0.065536000, 0.327680000],
             [128, 256],
+            target_batch_size=target_batch_size,
             units="tokens",
             seq_len=seq_len,
         )

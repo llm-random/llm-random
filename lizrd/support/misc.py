@@ -237,20 +237,6 @@ def get_ith_chunk(tensor, chunks, i):
     return list_of_chunks[i]
 
 
-def calculate_current_batch_size_from_rampup(
-    processed_tokens,
-    transition_points,
-    batch_sizes,
-    target_batch_size,
-):
-    for transition_point, batch_size in zip(transition_points, batch_sizes):
-        if (
-            processed_tokens < transition_point * 1e9
-        ):  # transition points are given in billions of tokens
-            return batch_size
-    return target_batch_size
-
-
 # def calculate_n_processed_tokens(
 def convert_steps_to_tokens(
     step: int,

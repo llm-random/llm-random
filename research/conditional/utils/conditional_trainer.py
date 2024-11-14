@@ -15,7 +15,6 @@ from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import (
     convert_steps_to_tokens,
-    calculate_current_batch_size_from_rampup,
     get_ith_chunk,
 )
 from lizrd.text.data import LLMBatch
@@ -279,24 +278,11 @@ class ConditionalTrainer:
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
 
-        num_processed_tokens = convert_steps_to_tokens(
-            step=step,
-            seq_len=self.cutoff,
-            target_batch_size=self.batch_size,
-            rampup_config=self.batch_size_rampup_config,
-        )
-
         if self.batch_size_rampup_config is None:
             current_batch_size_per_gpu = self.batch_size // self.n_devices
         else:
             current_batch_size_per_gpu = (
-                calculate_current_batch_size_from_rampup(
-                    processed_tokens=num_processed_tokens,
-                    transition_points=self.batch_size_rampup_config.transition_points,
-                    batch_sizes=self.batch_size_rampup_config.batch_sizes,
-                    target_batch_size=self.batch_size,
-                )
-                // self.n_devices
+                self.batch_size_rampup_config.get_batch_size(step) // self.n_devices
             )
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
@@ -314,6 +300,13 @@ class ConditionalTrainer:
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
+
+        num_processed_tokens = convert_steps_to_tokens(
+            step=step,
+            seq_len=self.cutoff,
+            target_batch_size=self.batch_size,
+            rampup_config=self.batch_size_rampup_config,
+        )
         self.num_processed_tokens = num_processed_tokens
         if self.is_logging_process:
             self._log_train_stats(

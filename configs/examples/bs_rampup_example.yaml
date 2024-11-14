@@ -4,7 +4,10 @@ n_gpus: 2
 time: "0-00:20:00"
 skip_copy_code: true
 params:
-    batch_size_rampup_transition_points: [0.0000655, 0.0002455]
+    # batch_size_rampup_transition_points: [0.0000655, 0.0002455]
+    # batch_size_rampup_units: tokens
+    batch_size_rampup_transition_points: [40, 20]
+    batch_size_rampup_units: steps
     batch_size_rampup_sizes: [128, 256]
     batch_size: 512
     cutoff: 512
