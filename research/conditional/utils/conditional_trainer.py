@@ -339,8 +339,6 @@ class ConditionalTrainer:
         total_masked_tokens_value = 0
         losses = {}
 
-        batch_copy = copy.deepcopy(processed_batch)
-
         for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
