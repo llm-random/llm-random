@@ -16,6 +16,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import (
     convert_steps_to_tokens,
     calculate_current_batch_size_from_rampup,
+    get_ith_chunk,
 )
 from lizrd.text.data import LLMBatch
 from lizrd.train.checkpoints_manager import (
@@ -339,13 +340,20 @@ class ConditionalTrainer:
         losses = {}
 
         batch_copy = copy.deepcopy(processed_batch)
-        list_of_batch_chunks = torch.chunk(batch_copy, num_batch_chunks, dim=0)
+        list_of_batch_chunks = torch.chunk(batch_copy.data, num_batch_chunks, dim=0)
 
         for i in range(num_batch_chunks):
-            batch_chunk = list_of_batch_chunks[i]
+            # TODO: make a way to avoid copying the whole batch just to get a slice
+            batch_copy = copy.deepcopy(processed_batch)
+            for _, tensor in batch_copy:
+                tensor.data = get_ith_chunk(
+                    tensor.data,
+                    num_batch_chunks,
+                    i,
+                )
 
             cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
-                batch=batch_chunk,
+                batch=batch_copy,
                 model=self.model,
                 mixed_precision=self.mixed_precision,
                 mixed_precision_dtype=self.mixed_precision_dtype,
