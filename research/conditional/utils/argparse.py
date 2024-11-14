@@ -108,9 +108,15 @@ def introduce_parser_arguments(
         type=float,
         nargs="*",
         default=None,
-        help="list of points (in billions of tokens) when batch size will be ramped up to the next value",
+        help="list of points when batch size will be ramped up to the next value. Points in of bilions of tokens, if argument batch_size_rampup_units isn't specified",
     )
     parser.add_argument("--batch_size_rampup_sizes", type=int, nargs="*", default=None)
+    parser.add_argument(
+        "--batch_size_rampup_units",
+        type=str,
+        default="B",
+        help="options:\n'B' - bilions of tokens\n'M' - milions of tokens\n'steps' - gradient steps",
+    )
 
     # CORE data hyperparameters, almost always specified in baseline configs
 
