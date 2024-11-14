@@ -60,10 +60,6 @@ def check_args(args):
             new_scheduler_trapezoidal_slides.append(slide)
         args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
-    assert (
-        args.n_final_eval_batches > 0
-    ), "n_final_eval_batches should be greater than 0"
-
     if args.batch_size_rampup_transition_points is not None:
         assert (
             args.batch_size_rampup_sizes is not None

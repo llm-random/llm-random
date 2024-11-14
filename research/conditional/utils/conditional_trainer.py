@@ -178,7 +178,7 @@ class ConditionalTrainer:
         self,
         n_steps: int,
     ):
-        if self.current_step == n_steps:
+        if self.current_step == n_steps and self.n_final_eval_batches > 0:
             self.model.eval()
             current_batch_size_per_gpu = self.batch_size // (
                 self.gradient_accumulation_steps * self.n_devices

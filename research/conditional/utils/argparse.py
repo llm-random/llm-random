@@ -136,7 +136,7 @@ def introduce_parser_arguments(
         "--final_eval_dataloader_batch_size",
         type=int,
         default=64,
-        help="Batch size for final evaluation dataloader. It should fit batch_size per GPU for the biggest model not to split batch into chunks. Should be the same for all runs to compare them.",
+        help="Batch size for final evaluation dataloader. It should be the same for all runs you are comparing. Its advised to set it to the value of the biggest batch_size per GPU to avoid out of memory error.",
     )
     parser.add_argument(
         "--n_final_eval_batches",
