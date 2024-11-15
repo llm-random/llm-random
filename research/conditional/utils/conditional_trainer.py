@@ -97,7 +97,7 @@ class ConditionalTrainer:
     checkpoint: Optional[dict[str, torch.Tensor]] = None
     scheduler_trapezoidal_slides: Optional[list[dict]] = None
     args_override: Optional[dict] = None
-    final_eval_dataloader: Optional[DataloaderWrapper] = None
+    get_final_eval_dataloader: Optional[Callable[..., DataloaderWrapper]] = None
     final_eval_dataloader_batch_size: Optional[int] = None
     n_final_eval_batches: int = None
 
@@ -179,13 +179,16 @@ class ConditionalTrainer:
         n_steps: int,
     ):
         if self.current_step == n_steps and self.n_final_eval_batches > 0:
+            del self.train_dataloader
+            del self.eval_dataloader
+            final_eval_dataloader = self.get_final_eval_dataloader()
             self.model.eval()
             current_batch_size_per_gpu = self.batch_size // (
                 self.gradient_accumulation_steps * self.n_devices
             )  # This value assures that the num_batch_chunks is 1
             losses = []
             for _ in range(self.n_final_eval_batches):
-                batch = self.final_eval_dataloader.get_batch()
+                batch = final_eval_dataloader.get_batch()
                 with torch.no_grad():
                     loss, _ = self.calculate_loss_and_gradient(
                         batch, current_batch_size_per_gpu
