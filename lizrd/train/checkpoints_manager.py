@@ -153,7 +153,7 @@ def __get_manager_timestamp():
 
 def start_job_manager_assessment(
     job_id: str, is_logging_process
-) -> tuple[Optional[str], Optional[str | dict]]:
+) -> tuple[Optional[str], Optional[Union[str, dict]]]:
     """Options:
     - returns `None`, `None` to start a new training
     - returns `filepath`, `metadata` to continue training
