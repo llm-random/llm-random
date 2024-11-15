@@ -70,3 +70,4 @@ params:
   logger_types: "neptune"
   project_name: "pmtest/llm-random"
   logging_interval_heavy: 50000
+  num_workers: 4
