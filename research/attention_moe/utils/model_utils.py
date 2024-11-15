@@ -19,7 +19,9 @@ from research.attention_moe.moe_layers.attentions import (
     DroppingMoMQA,
     MoMQA,
 )
-from research.attention_moe.moe_layers.attentions_cc import VanillaAttention
+from research.attention_moe.moe_layers.baseline_attentions_cc import VanillaAttention
+from research.attention_moe.moe_layers.baseline_attentions_cc import MQA
+from research.attention_moe.moe_layers_cc.moe_gating import TokenGating
 
 # from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
 #     ContinuousMoECommonWeightedParameters,
@@ -273,7 +275,7 @@ def get_attention_layer(args):
     #     MoMQA,
     # )
 
-    from research.attention_moe.moe_layers.attentions_cc import MQA, TokenChoiceMoMQA
+    from research.attention_moe.moe_layers.attentions_cc import TokenChoiceMoMQA
 
     if args.attention_mode == "vanilla":
         # attention_layer_fun = lambda: CausalSelfAttention(
@@ -945,7 +947,8 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         _BatchNorm,
         CausalSelfAttention,
         CausalMQA,
-        MoMQA
+        MoMQA,
+        TokenGating
         # TokenChoiceRouterOld,
         # TokenGating,
     ]
