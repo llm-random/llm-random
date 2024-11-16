@@ -273,7 +273,7 @@ def convert_tokens_to_steps(
     batch_sizes: list[int] = None,
 ):
     if transition_points is None:
-        return int((tokens * 1e9) // (target_batch_size * seq_len))
+        return int((tokens * 1e9) / (target_batch_size * seq_len))
 
     tokens_per_step_list = [batch_size * seq_len for batch_size in batch_sizes]
     steps_prev = tokens_prev = 0

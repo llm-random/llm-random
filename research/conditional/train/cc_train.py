@@ -165,10 +165,14 @@ def main(
     else:
         batch_size_rampup_config = None
 
+    print("before")
+    print(f"n_tokens: {args.n_tokens}")
+    print(f"n_steps: {args.n_steps}")
+
     if args.n_steps is None:
         if batch_size_rampup_config is not None:
             args.n_steps = convert_tokens_to_steps(
-                tokens=args.n_tokens * 1e9,
+                tokens=args.n_tokens,
                 seq_len=args.cutoff,
                 target_batch_size=args.batch_size,
                 transition_points=batch_size_rampup_config.transition_points,
@@ -176,10 +180,14 @@ def main(
             )
         else:
             args.n_steps = convert_tokens_to_steps(
-                tokens=args.n_tokens * 1e9,
+                tokens=args.n_tokens,
                 seq_len=args.cutoff,
                 target_batch_size=args.batch_size,
             )
+
+    print("\nafter")
+    print(f"n_tokens: {args.n_tokens}")
+    print(f"n_steps: {args.n_steps}")
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
