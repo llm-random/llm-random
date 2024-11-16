@@ -176,7 +176,7 @@ def main(
                 seq_len=args.cutoff,
                 target_batch_size=args.batch_size,
                 transition_points=batch_size_rampup_config.transition_points,
-                batch_sizes=args.batch_size_rampup_config.batch_sizes,
+                batch_sizes=batch_size_rampup_config.batch_sizes,
             )
         else:
             args.n_steps = convert_tokens_to_steps(
