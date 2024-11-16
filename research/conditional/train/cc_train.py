@@ -148,31 +148,38 @@ def main(
 
     check_args(args)
 
-    transition_points = args.batch_size_rampup_transition_points
-    if args.batch_size_rampup_units == "tokens":
-        transition_points = convert_transition_points_in_tokens_to_steps(
-            transition_points_in_tokens=args.batch_size_rampup_transition_points,
-            batch_sizes=args.batch_size_rampup_sizes,
-            seq_len=args.cutoff,
-        )
+    if args.batch_size_rampup_transition_points is not None:
+        # convert transition points to steps
+        transition_points = args.batch_size_rampup_transition_points
+        if args.batch_size_rampup_units == "tokens":
+            transition_points = convert_transition_points_in_tokens_to_steps(
+                transition_points_in_tokens=args.batch_size_rampup_transition_points,
+                batch_sizes=args.batch_size_rampup_sizes,
+                seq_len=args.cutoff,
+            )
 
-    batch_size_rampup_config = (
-        BatchSizeRampupConfig(
+        batch_size_rampup_config = BatchSizeRampupConfig(
             transition_points=transition_points,
             batch_sizes=args.batch_size_rampup_sizes,
         )
-        if args.batch_size_rampup_transition_points is not None
-        else None
-    )
+    else:
+        batch_size_rampup_config = None
 
     if args.n_steps is None:
-        args.n_steps = convert_tokens_to_steps(
-            tokens=args.n_tokens * 1e9,
-            seq_len=args.cutoff,
-            target_batch_size=args.batch_size,
-            transition_points=batch_size_rampup_config.transition_points,
-            batch_sizes=args.batch_size_rampup_config.batch_sizes,
-        )
+        if batch_size_rampup_config is not None:
+            args.n_steps = convert_tokens_to_steps(
+                tokens=args.n_tokens * 1e9,
+                seq_len=args.cutoff,
+                target_batch_size=args.batch_size,
+                transition_points=batch_size_rampup_config.transition_points,
+                batch_sizes=args.batch_size_rampup_config.batch_sizes,
+            )
+        else:
+            args.n_steps = convert_tokens_to_steps(
+                tokens=args.n_tokens * 1e9,
+                seq_len=args.cutoff,
+                target_batch_size=args.batch_size,
+            )
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
