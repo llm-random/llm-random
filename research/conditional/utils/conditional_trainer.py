@@ -281,6 +281,11 @@ class ConditionalTrainer:
 
         if self.batch_size_rampup_config is None:
             current_batch_size_per_gpu = self.batch_size // self.n_devices
+            num_processed_tokens = convert_steps_to_tokens(
+                step=step,
+                seq_len=self.cutoff,
+                target_batch_size=self.batch_size,
+            )
         else:
             current_batch_size_per_gpu = (
                 get_batch_size(
@@ -291,6 +296,14 @@ class ConditionalTrainer:
                 )
                 // self.n_devices
             )
+            num_processed_tokens = convert_steps_to_tokens(
+                step=step,
+                seq_len=self.cutoff,
+                target_batch_size=self.batch_size,
+                transition_points=self.batch_size_rampup_config.transition_points,
+                batch_sizes=self.batch_size_rampup_config.batch_sizes,
+            )
+        self.num_processed_tokens = num_processed_tokens
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
         )
@@ -308,14 +321,6 @@ class ConditionalTrainer:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
 
-        num_processed_tokens = convert_steps_to_tokens(
-            step=step,
-            seq_len=self.cutoff,
-            target_batch_size=self.batch_size,
-            transition_points=self.batch_size_rampup_config.transition_points,
-            batch_sizes=self.batch_size_rampup_config.batch_sizes,
-        )
-        self.num_processed_tokens = num_processed_tokens
         if self.is_logging_process:
             self._log_train_stats(
                 loss,
