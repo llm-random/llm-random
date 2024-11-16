@@ -1,6 +1,8 @@
 from lizrd.support.misc import (
     convert_steps_to_tokens,
     convert_tokens_to_steps,
+    convert_transition_points_in_tokens_to_steps,
+    get_batch_size,
 )
 from research.batch_size_rampup_config import BatchSizeRampupConfig
 from lizrd.support.test_utils import GeneralTestCase
@@ -14,12 +16,15 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
         target_batch_size = 1000
         seq_len = 100
 
+        transition_points = convert_transition_points_in_tokens_to_steps(
+            transition_points_in_tokens=transition_points,
+            batch_sizes=batch_sizes,
+            seq_len=seq_len,
+        )
+
         config = BatchSizeRampupConfig(
             transition_points=transition_points,
             batch_sizes=batch_sizes,
-            target_batch_size=target_batch_size,
-            units="tokens",
-            seq_len=seq_len,
         )
 
         test_cases = [
@@ -34,10 +39,16 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
             step = convert_tokens_to_steps(
                 tokens=processed_tokens,
                 seq_len=seq_len,
-                rampup_config=config,
-                target_batch_size=config.target_batch_size,
+                target_batch_size=target_batch_size,
+                transition_points=transition_points,
+                batch_sizes=batch_sizes,
             )
-            actual_batch_size = config.get_batch_size(step)
+            actual_batch_size = get_batch_size(
+                step=step,
+                target_batch_size=target_batch_size,
+                transition_points=config.transition_points,
+                batch_sizes=config.batch_sizes,
+            )
             self.assertEqual(actual_batch_size, expected_batch_size)
 
     def test_multiple_transitions(self):
@@ -47,12 +58,15 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
         target_batch_size = 512
         seq_len = 512
 
+        transition_points = convert_transition_points_in_tokens_to_steps(
+            transition_points_in_tokens=transition_points,
+            batch_sizes=batch_sizes,
+            seq_len=seq_len,
+        )
+
         config = BatchSizeRampupConfig(
             transition_points=transition_points,
             batch_sizes=batch_sizes,
-            target_batch_size=target_batch_size,
-            units="tokens",
-            seq_len=seq_len,
         )
 
         test_cases = [
@@ -70,10 +84,16 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
             step = convert_tokens_to_steps(
                 tokens=processed_tokens,
                 seq_len=seq_len,
-                rampup_config=config,
-                target_batch_size=config.target_batch_size,
+                target_batch_size=target_batch_size,
+                transition_points=transition_points,
+                batch_sizes=batch_sizes,
             )
-            actual_batch_size = config.get_batch_size(step)
+            actual_batch_size = get_batch_size(
+                step=step,
+                target_batch_size=target_batch_size,
+                transition_points=config.transition_points,
+                batch_sizes=config.batch_sizes,
+            )
             self.assertEqual(actual_batch_size, expected_batch_size)
 
 
@@ -83,7 +103,6 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
         seq_len = 512
         target_batch_size = 512
         n_gpus = 8
-        rampup_config = None
 
         expected_tokens = step * n_gpus * target_batch_size * seq_len
 
@@ -91,14 +110,12 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
             step,
             seq_len,
             target_batch_size,
-            rampup_config,
         )
 
         actual_step = convert_tokens_to_steps(
             expected_tokens,
             seq_len,
             target_batch_size,
-            rampup_config,
         )
 
         self.assertEqual(actual_tokens, expected_tokens)
@@ -107,13 +124,18 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
     def test_with_rampup(self):
         seq_len = 512
         target_batch_size = 512
-        n_gpus = 2
-        config = BatchSizeRampupConfig(
-            [0.065536000, 0.327680000],
-            [128, 256],
-            target_batch_size=target_batch_size,
-            units="tokens",
+        transition_points_in_tokens = [0.065536000, 0.327680000]
+        batch_sizes = [128, 256]
+
+        transition_points = convert_transition_points_in_tokens_to_steps(
+            transition_points_in_tokens=transition_points_in_tokens,
+            batch_sizes=batch_sizes,
             seq_len=seq_len,
+        )
+
+        config = BatchSizeRampupConfig(
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
         )
 
         steps = [1000, 1500, 2000, 3000]
@@ -121,11 +143,19 @@ class CalculateNProcessedTokensTest(GeneralTestCase):
 
         for step, expected in zip(steps, expected_token_counts):
             actual_tokens = convert_steps_to_tokens(
-                step, seq_len, target_batch_size, config
+                step,
+                seq_len,
+                target_batch_size,
+                config.transition_points,
+                config.batch_sizes,
             )
 
             actual_step = convert_tokens_to_steps(
-                expected, seq_len, target_batch_size, config
+                expected,
+                seq_len,
+                target_batch_size,
+                config.transition_points,
+                config.batch_sizes,
             )
 
             self.assertEqual(actual_tokens, expected)

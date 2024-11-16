@@ -3,7 +3,6 @@ import random
 import string
 from typing import Any, Dict, Optional, List
 from lizrd.core.llm import EmbeddingLayer
-from research.batch_size_rampup_config import BatchSizeRampupConfig
 
 
 def tags_to_name(tags: Optional[List[str]]) -> str:
@@ -242,15 +241,13 @@ def convert_steps_to_tokens(
     step: int,
     seq_len: int,
     target_batch_size: int,
-    rampup_config: Optional[BatchSizeRampupConfig],
+    transition_points: list[int] = None,
+    batch_sizes: list[int] = None,
 ):
-    if rampup_config is None:
+    if transition_points is None:
         return int(step * target_batch_size * seq_len)
 
-    tokens_per_step_list = [
-        batch_size * seq_len for batch_size in rampup_config.batch_sizes
-    ]
-    transition_points = rampup_config.transition_points
+    tokens_per_step_list = [batch_size * seq_len for batch_size in batch_sizes]
     steps_prev = tokens_prev = 0
 
     for point, tokens_per_step in zip(transition_points, tokens_per_step_list):
@@ -272,15 +269,13 @@ def convert_tokens_to_steps(
     tokens: int,  # in bilions
     seq_len: int,
     target_batch_size: int,
-    rampup_config: Optional[BatchSizeRampupConfig],
+    transition_points: list[int] = None,
+    batch_sizes: list[int] = None,
 ):
-    if rampup_config is None:
+    if transition_points is None:
         return int((tokens * 1e9) // (target_batch_size * seq_len))
 
-    tokens_per_step_list = [
-        batch_size * seq_len for batch_size in rampup_config.batch_sizes
-    ]
-    transition_points = rampup_config.transition_points
+    tokens_per_step_list = [batch_size * seq_len for batch_size in batch_sizes]
     steps_prev = tokens_prev = 0
 
     for point, tokens_per_step in zip(transition_points, tokens_per_step_list):
@@ -296,3 +291,39 @@ def convert_tokens_to_steps(
 
     # After all ramp-up intervals
     return int(steps_prev + (tokens - tokens_prev) / tokens_per_step)
+
+
+# this function is needed, because both convert tokens to steps and steps to tokens use transition points in steps
+def convert_transition_points_in_tokens_to_steps(
+    transition_points_in_tokens: list[float], batch_sizes: list[int], seq_len: int
+):
+    transition_points_in_steps = []
+    transition_points_in_tokens = [p * 1e9 for p in transition_points_in_tokens]
+    tokens_per_step_list = [batch_size * seq_len for batch_size in batch_sizes]
+    steps_prev = tokens_prev = 0
+
+    for point, tokens_per_step in zip(
+        transition_points_in_tokens, tokens_per_step_list
+    ):
+        tokens_to_transition = point - tokens_prev
+        steps_to_transition = tokens_to_transition // tokens_per_step
+        point_in_steps = steps_prev + steps_to_transition
+
+        transition_points_in_steps.append(int(point_in_steps))
+
+        tokens_prev = point
+        steps_prev = point_in_steps
+    return transition_points_in_steps
+
+
+def get_batch_size(
+    step,
+    target_batch_size: int,
+    transition_points: list[int] = None,
+    batch_sizes: list[int] = None,
+):
+    if transition_points is not None:
+        for point, batch_size in zip(transition_points, batch_sizes):
+            if step < point:
+                return batch_size
+    return target_batch_size

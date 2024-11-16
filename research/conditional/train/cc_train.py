@@ -20,6 +20,7 @@ from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
     convert_tokens_to_steps,
+    convert_transition_points_in_tokens_to_steps,
 )
 from lizrd.train.checkpoints_manager import start_job_manager_assessment
 from lizrd.train.train_utils import (
@@ -147,13 +148,18 @@ def main(
 
     check_args(args)
 
+    transition_points = args.batch_size_rampup_transition_points
+    if args.batch_size_rampup_units == "tokens":
+        transition_points = convert_transition_points_in_tokens_to_steps(
+            transition_points_in_tokens=args.batch_size_rampup_transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+            seq_len=args.cutoff,
+        )
+
     batch_size_rampup_config = (
         BatchSizeRampupConfig(
-            transition_points=args.batch_size_rampup_transition_points,
+            transition_points=transition_points,
             batch_sizes=args.batch_size_rampup_sizes,
-            target_batch_size=args.batch_size,
-            units=args.batch_size_rampup_units,
-            seq_len=args.cutoff,
         )
         if args.batch_size_rampup_transition_points is not None
         else None
@@ -164,7 +170,8 @@ def main(
             tokens=args.n_tokens * 1e9,
             seq_len=args.cutoff,
             target_batch_size=args.batch_size,
-            rampup_config=batch_size_rampup_config,
+            transition_points=batch_size_rampup_config.transition_points,
+            batch_sizes=args.batch_size_rampup_config.batch_sizes,
         )
 
     if rank is not None:

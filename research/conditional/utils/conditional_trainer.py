@@ -16,6 +16,7 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import (
     convert_steps_to_tokens,
     get_ith_chunk,
+    get_batch_size,
 )
 from lizrd.text.data import LLMBatch
 from lizrd.train.checkpoints_manager import (
@@ -282,7 +283,13 @@ class ConditionalTrainer:
             current_batch_size_per_gpu = self.batch_size // self.n_devices
         else:
             current_batch_size_per_gpu = (
-                self.batch_size_rampup_config.get_batch_size(step) // self.n_devices
+                get_batch_size(
+                    step,
+                    target_batch_size=self.batch_size,
+                    transition_points=self.batch_size_rampup_config.transition_points,
+                    batch_sizes=self.batch_size_rampup_config.batch_sizes,
+                )
+                // self.n_devices
             )
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
@@ -305,7 +312,8 @@ class ConditionalTrainer:
             step=step,
             seq_len=self.cutoff,
             target_batch_size=self.batch_size,
-            rampup_config=self.batch_size_rampup_config,
+            transition_points=self.batch_size_rampup_config.transition_points,
+            batch_sizes=self.batch_size_rampup_config.batch_sizes,
         )
         self.num_processed_tokens = num_processed_tokens
         if self.is_logging_process:
