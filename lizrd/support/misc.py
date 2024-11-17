@@ -273,7 +273,9 @@ def convert_tokens_to_steps(
     batch_sizes: list[int] = None,
 ):
     if transition_points is None:
-        return int((tokens * 1e9) / (target_batch_size * seq_len))
+        return int((tokens) / (target_batch_size * seq_len))
+
+    tokens
 
     tokens_per_step_list = [batch_size * seq_len for batch_size in batch_sizes]
     steps_prev = tokens_prev = 0
@@ -283,6 +285,8 @@ def convert_tokens_to_steps(
         tokens_to_trasition = steps_to_transition * tokens_per_step
         tokens_current = tokens_prev + tokens_to_trasition
 
+        print(f"tokens_current: {tokens_current}")
+
         if tokens < tokens_current:
             return int(steps_prev + (tokens - tokens_prev) / tokens_per_step)
 
@@ -290,7 +294,7 @@ def convert_tokens_to_steps(
         steps_prev = point
 
     # After all ramp-up intervals
-    return int(steps_prev + (tokens - tokens_prev) / tokens_per_step)
+    return int(steps_prev + (tokens - tokens_prev) / (target_batch_size * seq_len))
 
 
 # this function is needed, because both convert tokens to steps and steps to tokens use transition points in steps
@@ -306,7 +310,7 @@ def convert_transition_points_in_tokens_to_steps(
         transition_points_in_tokens, tokens_per_step_list
     ):
         tokens_to_transition = point - tokens_prev
-        steps_to_transition = tokens_to_transition // tokens_per_step
+        steps_to_transition = tokens_to_transition / tokens_per_step
         point_in_steps = steps_prev + steps_to_transition
 
         transition_points_in_steps.append(int(point_in_steps))

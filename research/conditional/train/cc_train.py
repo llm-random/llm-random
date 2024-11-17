@@ -157,6 +157,7 @@ def main(
                 batch_sizes=args.batch_size_rampup_sizes,
                 seq_len=args.cutoff,
             )
+            print(f"transition_points: {transition_points}")
 
         batch_size_rampup_config = BatchSizeRampupConfig(
             transition_points=transition_points,
@@ -168,11 +169,14 @@ def main(
     print("before")
     print(f"n_tokens: {args.n_tokens}")
     print(f"n_steps: {args.n_steps}")
+    print(f"batch_size: {args.batch_size}")
+    print(f"seq_len: {args.cutoff}")
+    print(f"batch_size_rampup_config: {batch_size_rampup_config.batch_sizes}")
 
     if args.n_steps is None:
         if batch_size_rampup_config is not None:
             args.n_steps = convert_tokens_to_steps(
-                tokens=args.n_tokens,
+                tokens=args.n_tokens * 1e9,
                 seq_len=args.cutoff,
                 target_batch_size=args.batch_size,
                 transition_points=batch_size_rampup_config.transition_points,
@@ -180,7 +184,7 @@ def main(
             )
         else:
             args.n_steps = convert_tokens_to_steps(
-                tokens=args.n_tokens,
+                tokens=args.n_tokens * 1e9,
                 seq_len=args.cutoff,
                 target_batch_size=args.batch_size,
             )
