@@ -9,12 +9,12 @@ from lizrd.train.checkpointing import (
     second_forward_manager,
 )
 
-from research.conditional.moe_layers._token_choice_old import (
+from research.mole.moe_layers._token_choice_old import (
     TokenChoiceFFOld,
     ExpertReluOld,
 )
-from research.conditional.moe_layers.token_choice import TokenChoiceFF
-from research.conditional.moe_layers.expert_types import ExpertGated, ExpertFF
+from research.mole.moe_layers.token_choice import TokenChoiceFF
+from research.mole.moe_layers.expert_types import ExpertGated, ExpertFF
 from lizrd.support.test_utils import GeneralTestCase
 
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (

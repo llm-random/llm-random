@@ -1,23 +1,21 @@
 parent: configs/baselines/gpt/expert_choice/granularity/4/medium.yaml
-runner: research.mole.train.cc_train
-argparse: "research.mole.utils.argparse"
+
 
 md5_parent_hash: 25eb0c53963eb1c7d96c91bb327c2a20
 time: 0-10:00:00
 interactive_debug_session: false
 interactive_debug: false
-n_gpus: 2
+n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "MoLE"
-  tags: ["mole", "ms", "implementation", "dev", "default"]
+  tags: ["mole", "ms", "conditional", "default"]
   ff_mode: token_choice
   capacity_factor: 1.0
   data_seed: 27
 
   activation_type: silu
-  ff_mode: token_choice_biased
   moe_inner_expert: ff_gated
   expansion_rate: 8 
   granularity: 1
@@ -34,7 +32,6 @@ params:
   scheduler: cosine
   zloss_weight: 0.001
   load_balancing_loss_weight: 0.01
-  biased_balancing_loss_weight: 0.01
 
   final_lr_fraction: 0.001
   init_scale: 0.15

@@ -1,8 +1,8 @@
 import torch
 
 from lizrd.core import misc
-from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
-from research.conditional.utils.misc_tools import stable_softmax_temperature
+from research.mole.moe_layers.continuous_moe import ContinuousMoeBaseClass
+from research.mole.utils.misc_tools import stable_softmax_temperature
 
 
 class ContinuousMoERawmerge(ContinuousMoeBaseClass):

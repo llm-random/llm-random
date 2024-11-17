@@ -6,7 +6,7 @@ from fancy_einsum import einsum
 from torch.nn import LayerNorm
 
 from lizrd.core.misc import LoggingLayer, measure_time, time_measured
-from research.conditional.moe_layers.moe_gating import ExpertGating
+from research.mole.moe_layers.moe_gating import ExpertGating
 
 
 class ExpertChoiceFF(LoggingLayer):

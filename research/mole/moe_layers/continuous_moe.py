@@ -8,7 +8,7 @@ import torch
 from lizrd.core import misc
 import torch.nn as nn
 import lizrd.core.initialization
-from research.conditional.utils.misc_tools import stable_softmax_temperature, entropy
+from research.mole.utils.misc_tools import stable_softmax_temperature, entropy
 from lizrd.core.misc import LoggingLayer
 
 

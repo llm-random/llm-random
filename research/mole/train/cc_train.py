@@ -26,8 +26,8 @@ from lizrd.train.train_utils import (
 )
 from lizrd.text import tokenizers
 from research.batch_size_rampup_config import BatchSizeRampupConfig
-from research.conditional.utils.check_args import check_args
-from research.conditional.utils.misc_tools import (
+from research.mole.utils.check_args import check_args
+from research.mole.utils.misc_tools import (
     get_slurm_job_id,
     get_termination_timestamp_slurm,
 )
@@ -37,9 +37,9 @@ from research.datasets import (
     get_processed_dataset,
 )
 from lizrd.train.scheduler import get_scheduler
-from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.argparse import introduce_parser_arguments
-from research.conditional.utils.model_utils import (
+from research.mole.utils.conditional_trainer import ConditionalTrainer
+from research.mole.utils.argparse import introduce_parser_arguments
+from research.mole.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,

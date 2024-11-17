@@ -103,6 +103,7 @@ def get_model_configuration_for_active_param_calculation(args):
         "expert_choice_with_parallel_ff",
         "token_choice_old",
         "double_choice",
+        "token_choice_biased",
         "expert_choice_old",
         "cont_moe",
         "cont_moe_quick",

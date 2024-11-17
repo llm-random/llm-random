@@ -1,15 +1,15 @@
 import torch
-import research.conditional.moe_layers.cont_moe_designs.add_layernorms
-import research.conditional.moe_layers.cont_moe_designs.learn_temp_and_common_base
-import research.conditional.moe_layers.cont_moe_designs.merge_without_weights
-import research.conditional.moe_layers.cont_moe_designs.no_softmax_on_weights
-import research.conditional.moe_layers.cont_moe_designs.random_grouping
-import research.conditional.moe_layers.cont_moe_designs.send_result_only_to_top1_token
-import research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights
-import research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base
-import research.conditional.moe_layers.continuous_moe
-import research.conditional.moe_layers.ffs
-import research.conditional.moe_layers.cont_moe_designs.learnable_temperature
+import research.mole.moe_layers.cont_moe_designs.add_layernorms
+import research.mole.moe_layers.cont_moe_designs.learn_temp_and_common_base
+import research.mole.moe_layers.cont_moe_designs.merge_without_weights
+import research.mole.moe_layers.cont_moe_designs.no_softmax_on_weights
+import research.mole.moe_layers.cont_moe_designs.random_grouping
+import research.mole.moe_layers.cont_moe_designs.send_result_only_to_top1_token
+import research.mole.moe_layers.cont_moe_designs.separate_merge_emit_weights
+import research.mole.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base
+import research.mole.moe_layers.continuous_moe
+import research.mole.moe_layers.ffs
+import research.mole.moe_layers.cont_moe_designs.learnable_temperature
 from lizrd.support.test_utils import GeneralTestCase
 
 (
@@ -50,7 +50,7 @@ def shape_and_parameters(layer):
 
 class TestContinuousMoE(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
+        layer = research.mole.moe_layers.continuous_moe.ContinuousMoE(
             **common_arguments
         )
         shape_and_parameters(layer)
@@ -58,7 +58,7 @@ class TestContinuousMoE(GeneralTestCase):
 
 class TestContinuousMoEQuick(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
+        layer = research.mole.moe_layers.continuous_moe.ContinuousMoE(
             **common_arguments
         )
         shape_and_parameters(layer)
@@ -67,7 +67,7 @@ class TestContinuousMoEQuick(GeneralTestCase):
 # FIX ME: This test is failing because contmoe interface has changed
 # class TestContinuousMoEQuickMergeDifferentlySimple(GeneralTestCase):
 #     def test_basic(self):
-#         layer = research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights.ContinuousMoEMergeDifferentlySimple(
+#         layer = research.mole.moe_layers.cont_moe_designs.separate_merge_emit_weights.ContinuousMoEMergeDifferentlySimple(
 #             **common_arguments
 #         )
 #         shape_and_parameters(layer)
@@ -75,7 +75,7 @@ class TestContinuousMoEQuick(GeneralTestCase):
 # FIX ME: This test is failing because contmoe interface has changed
 # class ContinuousMoEQuickMergeDifferentlyCommonBase(GeneralTestCase):
 #     def test_basic(self):
-#         layer = research.conditional.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base.ContinuousMoEMergeDifferentlyCommonBase(
+#         layer = research.mole.moe_layers.cont_moe_designs.separate_merge_emit_weights_common_base.ContinuousMoEMergeDifferentlyCommonBase(
 #             **common_arguments
 #         )
 #         shape_and_parameters(layer)
@@ -83,7 +83,7 @@ class TestContinuousMoEQuick(GeneralTestCase):
 
 class ContinuousMoEQuickRawmerge(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.merge_without_weights.ContinuousMoERawmerge(
+        layer = research.mole.moe_layers.cont_moe_designs.merge_without_weights.ContinuousMoERawmerge(
             **common_arguments
         )
         shape_and_parameters(layer)
@@ -91,7 +91,7 @@ class ContinuousMoEQuickRawmerge(GeneralTestCase):
 
 class ContinuousMoEQuickTopmerge(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.send_result_only_to_top1_token.ContinuousMoETopmerge(
+        layer = research.mole.moe_layers.cont_moe_designs.send_result_only_to_top1_token.ContinuousMoETopmerge(
             **common_arguments
         )
         shape_and_parameters(layer)
@@ -99,7 +99,7 @@ class ContinuousMoEQuickTopmerge(GeneralTestCase):
 
 class ContinuousMoEQuickNosoftmax(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.no_softmax_on_weights.ContinuousMoENosoftmax(
+        layer = research.mole.moe_layers.cont_moe_designs.no_softmax_on_weights.ContinuousMoENosoftmax(
             **common_arguments
         )
         shape_and_parameters(layer)
@@ -107,7 +107,7 @@ class ContinuousMoEQuickNosoftmax(GeneralTestCase):
 
 class ContinuousMoEQuickAdaTemp(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+        layer = research.mole.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
             **common_arguments,
             share_by_experts=True,
             share_by_emit_merge=True,
@@ -115,7 +115,7 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
         shape_and_parameters(layer)
 
     def test_single_temp(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+        layer = research.mole.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
             **common_arguments,
             share_by_experts=False,
             share_by_emit_merge=False,
@@ -125,7 +125,7 @@ class ContinuousMoEQuickAdaTemp(GeneralTestCase):
 
 class ContinuousMoELayernorm(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.add_layernorms.ContinuousMoELayernorm(
+        layer = research.mole.moe_layers.cont_moe_designs.add_layernorms.ContinuousMoELayernorm(
             **common_arguments
         )
         shape_and_parameters(layer)
@@ -133,7 +133,7 @@ class ContinuousMoELayernorm(GeneralTestCase):
     # FIX ME: This test is failing because contmoe interface has changed
     # class ContinuousMoEFinal(GeneralTestCase):
     #     def test_basic(self):
-    #         layer = research.conditional.moe_layers.cont_moe_designs.learn_temp_and_common_base.ContinuousMoEFinal(
+    #         layer = research.mole.moe_layers.cont_moe_designs.learn_temp_and_common_base.ContinuousMoEFinal(
     #             **common_arguments,
     #             share_by_experts=True,
     #             share_by_emit_merge=True,
@@ -141,7 +141,7 @@ class ContinuousMoELayernorm(GeneralTestCase):
     #         shape_and_parameters(layer)
 
     def test_single_temp(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
+        layer = research.mole.moe_layers.cont_moe_designs.learnable_temperature.ContinuousMoEAdaTemp(
             **common_arguments,
             share_by_experts=False,
             share_by_emit_merge=False,
@@ -151,7 +151,7 @@ class ContinuousMoELayernorm(GeneralTestCase):
 
 class ContinuousMoERandomGroups(GeneralTestCase):
     def test_basic(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.random_grouping.ContinuousMoERandomGroups(
+        layer = research.mole.moe_layers.cont_moe_designs.random_grouping.ContinuousMoERandomGroups(
             **common_arguments,
             batch_size=16,
             seqlen=16,
@@ -160,7 +160,7 @@ class ContinuousMoERandomGroups(GeneralTestCase):
         shape_and_parameters(layer)
 
     def whole_batch(self):
-        layer = research.conditional.moe_layers.cont_moe_designs.random_grouping.ContinuousMoERandomGroups(
+        layer = research.mole.moe_layers.cont_moe_designs.random_grouping.ContinuousMoERandomGroups(
             **common_arguments,
             batch_size=16,
             seqlen=16,
@@ -186,10 +186,10 @@ class OptimizedVersusLegacy(GeneralTestCase):
                 "init_type": "kaiming_uniform",
                 "init_scale": 1.0,
             }
-            legacy = research.conditional.moe_layers.continuous_moe.LegacyContinuousMoE(
+            legacy = research.mole.moe_layers.continuous_moe.LegacyContinuousMoE(
                 **arguments
             )
-            bmm = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
+            bmm = research.mole.moe_layers.continuous_moe.ContinuousMoE(
                 **arguments
             )
             input = torch.normal(0.0, 1.0, (batch, seq_len, dm))
@@ -217,10 +217,10 @@ class OptimizedVersusLegacy(GeneralTestCase):
                 "init_type": "kaiming_uniform",
                 "init_scale": 1.0,
             }
-            legacy = research.conditional.moe_layers.continuous_moe.LegacyContinuousMoE(
+            legacy = research.mole.moe_layers.continuous_moe.LegacyContinuousMoE(
                 **arguments
             )
-            bmm = research.conditional.moe_layers.continuous_moe.ContinuousMoE(
+            bmm = research.mole.moe_layers.continuous_moe.ContinuousMoE(
                 **arguments
             )
             input = torch.normal(0.0, 1.0, (batch, seq_len, dm))

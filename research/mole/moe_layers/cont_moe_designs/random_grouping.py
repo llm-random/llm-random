@@ -1,9 +1,9 @@
 import dataclasses
 
 import einops
-from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
+from research.mole.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
-from research.conditional.utils.misc_tools import generate_shuffler_unshuffler
+from research.mole.utils.misc_tools import generate_shuffler_unshuffler
 
 
 @dataclasses.dataclass(eq=False, repr=False)

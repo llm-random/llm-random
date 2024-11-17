@@ -3,7 +3,7 @@ import dataclasses
 import torch
 
 import torch.nn as nn
-from research.conditional.moe_layers.continuous_moe import ContinuousMoeBaseClass
+from research.mole.moe_layers.continuous_moe import ContinuousMoeBaseClass
 
 
 @dataclasses.dataclass(eq=False, repr=False)

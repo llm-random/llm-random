@@ -35,3 +35,29 @@ def calculate_z_loss(zloss_weight: float = 0, gate_logits: torch.Tensor = None):
     zloss = zloss_weight * zloss
 
     return zloss
+
+
+def calculate_biased_balancing_loss(
+    softmax_per_token: torch.Tensor,
+    router_target_bias,
+    loss_fn,
+    alpha
+):
+    """
+    Calculates the load balancing loss for the token choice layer.
+
+    :param str alpha: aux loss weigth parameter
+    :param torch.Tensor softmax_per_token: tensor of shape (tokens, n_experts)
+    :param torch.Tensor tokens_in_each_expert: tensor of shape (n_experts)
+    """
+
+    n_tokens, n_experts = softmax_per_token.shape
+    router_target_bias = router_target_bias.reshape(n_tokens, n_experts)
+    # print(f"target_ids: {softmax_per_token[:2]}") #dev
+    # print(f"calculate_loss: {router_target_bias[:2]}")
+    # print(f"softmax_per_token.shape: {softmax_per_token.shape}")
+    # print(f"router_target_bias.shape: {router_target_bias.shape}")
+    assert n_experts == router_target_bias.shape[1]
+    # raise Exception("GOOD!---------------------------------------------------------")  
+
+    return loss_fn(softmax_per_token, router_target_bias)*alpha

@@ -1,50 +1,10 @@
-parent: configs/baselines/gpt/expert_choice/granularity/4/medium.yaml
-md5_parent_hash: 25eb0c53963eb1c7d96c91bb327c2a20
-time: 0-00:10:00
-interactive_debug_session: false
-interactive_debug: false
+parent: configs/mole/common.yaml
+time: 0-00:20:00
 n_gpus: 1
-cpus_per_gpu: 4
+cpus_per_gpu: 16
+md5_parent_hash: f46521584cb698bb67ed75c907d2eb38
 
 params:
   name: "MoLE"
   tags: ["mole", "ms", "implementation", "dev_quick", "default"]
-  ff_mode: token_choice
-  capacity_factor: 1.0
-  data_seed: 27
-
-  activation_type: silu
-  moe_inner_expert: ff_gated
-  expansion_rate: 8 
-  granularity: 1
-  get_router_values_from: weights
-  layer_norm_in_expert_choice: False
-
-  batch_size: 256
-  cutoff: 256
- 
-  n_steps: 12_800
-  final_lr_step: 12_800
-  lr_warmup_steps: 0
-  lr_warmup_percent: 0.01
-  scheduler: cosine
-  zloss_weight: 0.001
-  load_balancing_loss_weight: 0.01
-
-  final_lr_fraction: 0.001
-  init_scale: 0.15
-  learning_rate: 0.003
-  weight_decay: 0.1
-
-  save_weights_interval: 0
-  mixed_precision: True
-  mixed_precision_dtype: bfloat16
-  flash_attention: true
-  loss_checkpoint_chungs: 0
-
-  fsdp_enabled: true
-  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
-  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
-  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
-
-  print_parameter_names: true
+  

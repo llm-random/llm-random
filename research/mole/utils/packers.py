@@ -4,6 +4,7 @@ import random
 from typing import Callable, Iterator, List, Optional, Tuple
 from attr import define
 import regex as re
+import spacy
 
 import numpy as np
 import torch
@@ -38,7 +39,7 @@ pos_grouped = {
  'SCONJ': 7,
 }
 
-def encode_with_meta(sentence, tokenizer, spacy_nlp) -> list[int], list[str]:
+def encode_with_meta(sentence, tokenizer, spacy_nlp) -> Tuple[list[int], list[str]]:
     spacy_tokens = spacy_nlp(sentence)
 
     pretokenized = []
@@ -76,6 +77,8 @@ class GPTMetaPacker(
             tokenizer_maker,
             seed=seed,
         )
+        self.spacy_nlp = spacy.load("en_core_web_sm")
+
 
 
     def get_sample(self) -> LLMMetaExample:
@@ -93,11 +96,11 @@ class GPTMetaPacker(
         while True:
             document = self.dataset.get_document()
             # tokens = self.tokenizer.text_to_ids(document)
-            tokens, t_metadata = encode_with_meta(document, self.tokenizer.tokenizer, )
+            tokens, t_metadata = encode_with_meta(document, self.tokenizer.tokenizer, self.spacy_nlp)
             # cast pos to their expertise group
-            t_metadata = [pos_grouped[t_m] for t_m in t_metadata]
+            t_metadata = [int(pos_grouped[t_m]) for t_m in t_metadata]
             buffer.extend(tokens + [eot_id])
-            token_metadata_buffer.extend(t_metadata + pos_grouped[EOT_TAG])
+            token_metadata_buffer.extend(t_metadata + [int(pos_grouped[EOT_TAG])])
 
             document_lengths.append(len(tokens) + 1)
             if (sum(document_lengths) - max(document_lengths)) > self.sequence_length:
@@ -107,11 +110,10 @@ class GPTMetaPacker(
         sample_end = sample_start + self.sequence_length
 
         input_ids = list(take_circular(buffer, sample_start, sample_end))
-        ids_exp_groups = take_circular(token_metadata_buffer, sample_start, sample_end)
-        ids_exp_groups = torch.tensor(take_circular(token_metadata_buffer, sample_start, sample_end))
-        one_hot_exp_groups = torch.nn.functional.one_hot(ids_exp_groups, num_classes=N_GROUPS)
+        ids_exp_groups = torch.tensor(list(take_circular(token_metadata_buffer, sample_start, sample_end)))
+        one_hot_exp_groups = torch.nn.functional.one_hot(ids_exp_groups, num_classes=N_GROUPS).type(torch.float32)
 
         target_ids = list(take_circular(buffer, sample_start + 1, sample_end + 1))
         calculate_loss = [1] * len(target_ids)
-
+   
         return LLMMetaExample(input_ids, one_hot_exp_groups, target_ids, calculate_loss)

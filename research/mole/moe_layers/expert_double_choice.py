@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from research.conditional.utils.layer_manager import LoggingLayer
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from research.conditional.moe_layers.token_choice import TokenChoiceFF
-from research.conditional.moe_layers.expert_types import ExpertLinear
+from research.mole.utils.layer_manager import LoggingLayer
+from research.mole.moe_layers.expert_choice import ExpertChoiceFF
+from research.mole.moe_layers.token_choice import TokenChoiceFF
+from research.mole.moe_layers.expert_types import ExpertLinear
 from functools import partial
 from lizrd.core.misc import resolve_activation_name
 

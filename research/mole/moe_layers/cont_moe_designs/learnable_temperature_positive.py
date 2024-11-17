@@ -2,7 +2,7 @@ import dataclasses
 
 import torch
 
-from research.conditional.moe_layers.cont_moe_designs.learnable_temperature import (
+from research.mole.moe_layers.cont_moe_designs.learnable_temperature import (
     ContinuousMoEAdaTemp,
 )
 

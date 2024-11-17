@@ -10,9 +10,9 @@ from lizrd.train.checkpointing import (
     second_forward_manager,
 )
 
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
-from research.conditional.moe_layers.expert_types import ExpertFF
+from research.mole.moe_layers.expert_choice import ExpertChoiceFF
+from research.mole.moe_layers._expert_choice_old import ExpertChoiceFFOld
+from research.mole.moe_layers.expert_types import ExpertFF
 from lizrd.support.test_utils import GeneralTestCase
 from lizrd.core.misc import Linear
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (

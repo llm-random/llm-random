@@ -4,9 +4,10 @@ import copy
 
 import torch
 from torch.utils.data import DataLoader
-
-from lizrd.text import datasets, packers, data, tokenizers
+from lizrd.text import datasets, data, tokenizers, packers
 from lizrd.support.misc import get_ith_chunk
+from research.mole.utils.data import LLMMetaBatch
+from research.mole.utils.packers import GPTMetaPacker
 
 
 class DataloaderWrapper:
@@ -83,6 +84,7 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
     dataset_path: Optional[str] = None,
+    biased: Optional[str] = True
 ):
     if dataset_type == "wikibook":
         dataset = partial(
@@ -106,6 +108,8 @@ def get_processed_dataset(
         )
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
+    
+    collate_fn = data.LLMBatch
 
     if model_type == "bert":
         packer = packers.BERTPacker(
@@ -113,6 +117,13 @@ def get_processed_dataset(
             dataset=dataset,
             tokenizer_maker=tokenizers.BertTokenizer,
         )
+    elif model_type == "gpt" and biased:
+        packer = GPTMetaPacker(
+            sequence_length=sequence_length,
+            dataset_maker=dataset,
+            tokenizer_maker=tokenizers.GPTTokenizer,
+        )
+        collate_fn = LLMMetaBatch
     elif model_type == "gpt":
         packer = packers.GPTPacker(
             sequence_length=sequence_length,
@@ -121,12 +132,13 @@ def get_processed_dataset(
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
+    
 
     dataloader = DataLoader(
         packer,
         num_workers=num_workers,
         batch_size=batch_size,
-        collate_fn=data.LLMBatch,
+        collate_fn=collate_fn,
         worker_init_fn=partial(worker_init_fn, seed),
         shuffle=False,
         pin_memory=True,
