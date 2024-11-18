@@ -509,6 +509,12 @@ def retrieve_additional_losses(model: torch.nn.Module):
         z_loss = torch.sum(z_losses)
         losses["z_loss"] = z_loss
 
+    if "biased_balancing_loss" in model.forward_pass_cache:
+        biased_balancing_losses = model.forward_pass_cache.get("biased_balancing_loss", [])
+        biased_balancing_losses = torch.stack(biased_balancing_losses)
+        biased_balancing_loss = torch.sum(biased_balancing_losses)
+        losses["biased_balancing_loss"] = biased_balancing_loss
+
     return losses
 
 
