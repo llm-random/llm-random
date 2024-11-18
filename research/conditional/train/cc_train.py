@@ -393,6 +393,8 @@ def main(
             dataset_split=eval_split,
             dataset_path=args.validation_dataset_path,
         )
+    else:
+        get_final_eval_dataloader = None
 
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
