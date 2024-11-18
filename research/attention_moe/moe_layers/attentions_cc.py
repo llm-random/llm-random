@@ -24,6 +24,7 @@ class TokenChoiceMoMQA(LoggingLayer):
         get_router_values_from: str = "weights",
         moe_values_exp: Optional[int] = 1,
         detach_gate: bool = False,
+        use_dropped_tokens_head: bool = False,
         **_,
     ):
         """
@@ -76,13 +77,14 @@ class TokenChoiceMoMQA(LoggingLayer):
         self.dropped_v = torch.nn.Parameter(
             torch.randn(self.head_dim, dtype=torch.float32) * init_scale
         )
-        # if self.use_dropped_token_head:
-        #     self.dropped_kv_head = Linear(
-        #         self.dmodel,
-        #         2 * self.head_dim,
-        #         init_type=init_type,
-        #         init_scale=init_scale,
-        #     )
+        self.use_dropped_tokens_head = use_dropped_tokens_head
+        if self.use_dropped_tokens_head:
+            self.dropped_kv_head = Linear(
+                self.dmodel,
+                2 * self.head_dim,
+                init_type=init_type,
+                init_scale=init_scale,
+            )
         self.q_proj = Linear(
             self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
         )
@@ -137,6 +139,7 @@ class TokenChoiceMoMQA(LoggingLayer):
         token_expert_indices, token_expert_values = self.gating(x)
         q = self.q_proj(x).view(batch_size, seq_len, self.n_heads, self.head_dim)
 
+        # print(token_expert_indices.shape)
         x = x.flatten(start_dim=0, end_dim=1)
         experts_input = self.extract(x, token_expert_indices)
         kv = torch.einsum("nab,n...a->n...b", self.expert_weights, experts_input)
@@ -162,15 +165,6 @@ class TokenChoiceMoMQA(LoggingLayer):
             seq_len,
             x,
         )
-        # if self.use_dropped_tokens_head:
-        #     dropped_kv = self.dropped_kv_head(x)
-        #     dropped_k, dropped_v = dropped_kv.split(
-        #         self.head_dim,
-        #         dim=-1,
-        #     )
-        #     k = is_token_dropped * dropped_k + (1 - is_token_dropped) * k
-        # else:
-        k[is_token_dropped] = self.dropped_k
 
         v = self.merge(
             v,
@@ -180,15 +174,35 @@ class TokenChoiceMoMQA(LoggingLayer):
             seq_len,
             x,
         )
-        v[is_token_dropped] = self.dropped_v
+
+        if self.use_dropped_tokens_head:
+            dropped_kv = self.dropped_kv_head(x)
+            dropped_k, dropped_v = dropped_kv.split(
+                self.head_dim,
+                dim=-1,
+            )
+            # print(is_token_dropped.shape, dropped_k.shape, k.shape)
+            # is_token_dropped = is_token_dropped.reshape(batch_size, seq_len)
+            is_token_dropped = is_token_dropped.unsqueeze(-1)
+            k = (
+                is_token_dropped * dropped_k.reshape(batch_size, seq_len, self.head_dim)
+                + ~is_token_dropped * k
+            )
+            v = (
+                is_token_dropped * dropped_v.reshape(batch_size, seq_len, self.head_dim)
+                + ~is_token_dropped * v
+            )
+        else:
+            k[is_token_dropped] = self.dropped_k
+            v[is_token_dropped] = self.dropped_v
 
         k = k.unsqueeze(-3)
         v = v.unsqueeze(-3)
 
         y = torch.nn.functional.scaled_dot_product_attention(
-            q.transpose(1, 2),
-            k,
-            v,
+            q.transpose(1, 2).contiguous(),
+            k.contiguous(),
+            v.contiguous(),
             attn_mask=None,
             dropout_p=0.0,
             is_causal=True,

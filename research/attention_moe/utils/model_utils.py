@@ -313,6 +313,7 @@ def get_attention_layer(args):
             load_balancing_loss_weight=args.load_balancing_loss_weight,
             init_type=args.init_type,
             init_scale=args.init_scale,
+            use_dropped_tokens_head=args.momqa_use_dropped_tokens_head,
         )
     # elif args.attention_mode == "dropping_momqa":
     #     attention_layer_fun = lambda: DroppingMoMQA(
