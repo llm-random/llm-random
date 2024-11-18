@@ -44,7 +44,9 @@ params:
   # eval
   final_eval_seed: 420
   final_eval_dataloader_batch_size: 64
-  n_final_eval_batches: 2048
+  # n_final_eval_batches: 2048
+  n_final_eval_batches: 0
+  eval_interval: -1
 
   # repeater
   # 500M, 1B, 2B, 4B, 8B, 16B, 32B, 48B, 64B, 80B, 96B, 112B, 128B

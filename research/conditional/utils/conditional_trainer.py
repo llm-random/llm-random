@@ -46,7 +46,7 @@ class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
-    eval_dataloader: DataloaderWrapper
+    eval_dataloader: Optional[DataloaderWrapper]
     vocab_size: int
     mixed_precision: bool
     mixed_precision_dtype: torch.dtype
