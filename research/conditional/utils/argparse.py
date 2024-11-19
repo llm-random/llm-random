@@ -126,7 +126,8 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--batch_size_rampup_units",
         type=str,
-        default="tokens",
+        choices=["tokens", "steps"],
+        default="tokens",  # ensures backward compatibility
         help="options:\n'tokens' - bilions of tokens\n'steps' - gradient steps",
     )
 

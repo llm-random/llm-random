@@ -236,7 +236,6 @@ def get_ith_chunk(tensor, chunks, i):
     return list_of_chunks[i]
 
 
-# def calculate_n_processed_tokens(
 def convert_steps_to_tokens(
     step: int,
     seq_len: int,
