@@ -3,6 +3,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from lizrd.core.misc import Linear
+
 from .kernel.rotary import apply_rotary_emb
 from flash_attn import flash_attn_func
 
@@ -34,13 +36,7 @@ def lambda_init_fn(depth):
 
 
 class MultiheadDiffAttn(nn.Module):
-    def __init__(
-        self,
-        args,
-        embed_dim,
-        depth,
-        num_heads,
-    ):
+    def __init__(self, args, embed_dim, depth, num_heads, init_type, init_scale):
         super().__init__()
         self.args = args
         self.embed_dim = embed_dim
@@ -56,10 +52,20 @@ class MultiheadDiffAttn(nn.Module):
         self.head_dim = embed_dim // num_heads // 2
         self.scaling = self.head_dim**-0.5
 
-        self.q_proj = nn.Linear(embed_dim, embed_dim, bias=False)
-        self.k_proj = nn.Linear(embed_dim, embed_dim // self.n_rep, bias=False)
-        self.v_proj = nn.Linear(embed_dim, embed_dim // self.n_rep, bias=False)
-        self.out_proj = nn.Linear(embed_dim, embed_dim, bias=False)
+        # self.q_proj = nn.Linear(embed_dim, embed_dim, bias=False)
+        # self.k_proj = nn.Linear(embed_dim, embed_dim // self.n_rep, bias=False)
+        # self.v_proj = nn.Linear(embed_dim, embed_dim // self.n_rep, bias=False)
+        # self.out_proj = nn.Linear(embed_dim, embed_dim, bias=False)
+
+        self.q_proj = Linear(
+            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+        )
+        self.k_proj = Linear(
+            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+        )
+        self.v_proj = Linear(
+            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+        )
 
         self.lambda_init = lambda_init_fn(depth)
         self.lambda_q1 = nn.Parameter(
