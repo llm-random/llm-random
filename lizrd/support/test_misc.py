@@ -96,7 +96,8 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
             )
             self.assertEqual(actual_batch_size, expected_batch_size)
 
-class ConvertTransitionPointsInTokensToStepsTest
+
+class ConvertTransitionPointsInTokensToStepsTest:
     def test_single_transition(self):
         # Test with a single transition point
         transition_points = [0.001, 0.01, 0.1, 1.0]  # in billions
