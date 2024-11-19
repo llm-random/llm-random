@@ -96,6 +96,22 @@ class CalculateCurrentBatchSizeTest(GeneralTestCase):
             )
             self.assertEqual(actual_batch_size, expected_batch_size)
 
+    def test_single_transition(self):
+        # Test with a single transition point
+        transition_points = [0.001, 0.01, 0.1, 1.0]  # in billions
+        batch_sizes = [1e2, 1e3, 1e4, 1e5]
+        seq_len = 1e3
+
+        actual_transition_points = convert_transition_points_in_tokens_to_steps(
+            transition_points_in_tokens=transition_points,
+            batch_sizes=batch_sizes,
+            seq_len=seq_len,
+        )
+
+        # for example we need 10 steps with bs 1e4 and seq_len 1e3 to get 1e8 tokens, but one 10th of the tokens was completed before we switched batch size
+        expected_transition_points = [10, 19, 28, 37]
+        self.assertEqual(actual_transition_points, expected_transition_points)
+
 
 class CalculateNProcessedTokensTest(GeneralTestCase):
     def basic_test(self):
