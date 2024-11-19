@@ -112,7 +112,10 @@ def introduce_parser_arguments(
     parser.add_argument("--grad_clip", type=float, default=None)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--lr_decay", type=float, default=None)
-    parser.add_argument("--lr_warmup_steps", type=int, default=0)
+    parser.add_argument("--lr_warmup_steps", type=int, default=None)
+    parser.add_argument(
+        "--lr_warmup_tokens", type=float, default=None, help="in bilions of tokens"
+    )
     parser.add_argument("--lr_trapezoidal_decay_fraction", type=float, default=0.20)
     parser.add_argument("--lr_decay_interval", type=int, default=0)
     parser.add_argument(

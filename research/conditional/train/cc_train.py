@@ -181,6 +181,15 @@ def convert_parameters(args):
             new_scheduler_trapezoidal_slides.append(slide)
         args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
+    if args.lr_warmup_steps is None:
+        args.lr_warmup_steps = convert_tokens_to_steps(
+            tokens=args.lr_warmup_tokens * 1e9,
+            seq_len=args.cutoff,
+            target_batch_size=args.batch_size,
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
+        )
+
     return batch_size_rampup_config
 
 

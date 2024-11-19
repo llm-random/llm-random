@@ -64,3 +64,8 @@ def check_args(args):
         assert args.n_tokens is not None
     else:
         assert args.n_tokens is None
+
+    if args.lr_warmup_steps is None:
+        assert args.lr_warmup_tokens is not None
+    else:
+        assert args.lr_warmup_tokens is None
