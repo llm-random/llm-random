@@ -182,7 +182,6 @@ def convert_parameters(args):
         args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
     return batch_size_rampup_config
-    
 
 
 def main(
