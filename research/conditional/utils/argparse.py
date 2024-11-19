@@ -158,7 +158,7 @@ def introduce_parser_arguments(
     )
     parser.add_argument(
         "--n_final_eval_batches",
-        type=str,
+        type=int,
         default=8,
         help="Total number of batches to generate for final evaluation. Should be the same for all runs to compare them.",
     )
