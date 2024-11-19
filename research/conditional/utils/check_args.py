@@ -1,6 +1,3 @@
-from ast import literal_eval
-
-
 def check_args(args):
     if args.granularity_expert_config:
         print(
@@ -45,20 +42,6 @@ def check_args(args):
         assert (
             args.logger_types == "neptune"
         ), "Checkpoint manager is implemented only for neptune logger"
-
-    if args.scheduler_trapezoidal_slides:
-        assert args.scheduler == "trapezoidal"
-        assert args.checkpoint_manager
-        args.scheduler_trapezoidal_slides = literal_eval(
-            args.scheduler_trapezoidal_slides
-        )
-        new_scheduler_trapezoidal_slides = []
-        for slide in args.scheduler_trapezoidal_slides:
-            slide["split_step"] = (
-                int(slide["n_steps"] * (1 - args.lr_trapezoidal_decay_fraction)) - 1
-            )
-            new_scheduler_trapezoidal_slides.append(slide)
-        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
     if args.batch_size_rampup_transition_points is not None:
         assert (
