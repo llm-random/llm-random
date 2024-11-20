@@ -159,6 +159,23 @@ def convert_parameters(args):
             batch_sizes=batch_sizes,
         )
 
+    if args.scheduler == "trapezoidal":
+        if args.lr_trapezoidal_decay_fraction_unit == "tokens":
+            args.lr_trapezoidal_decay_steps = int(
+                args.lr_trapezoidal_decay_fraction
+                * convert_tokens_to_steps(
+                    tokens=args.lr_trapezoidal_decay_fraction * 1e9,
+                    seq_len=args.cutoff,
+                    target_batch_size=args.batch_size,
+                    transition_points=transition_points,
+                    batch_sizes=batch_sizes,
+                )
+            )
+        elif args.lr_trapezoidal_decay_fraction_unit == "steps":
+            args.lr_trapezoidal_decay_steps = int(
+                args.lr_trapezoidal_decay_fraction * args.n_steps
+            )
+
     if args.scheduler_trapezoidal_slides:
         assert args.scheduler == "trapezoidal"
         assert args.checkpoint_manager
@@ -175,9 +192,7 @@ def convert_parameters(args):
                     transition_points=transition_points,
                     batch_sizes=batch_sizes,
                 )
-            slide["split_step"] = (
-                int(slide["n_steps"] * (1 - args.lr_trapezoidal_decay_fraction)) - 1
-            )
+            slide["split_step"] = args.n_steps - args.trapezoidal_decay_steps - 1
             new_scheduler_trapezoidal_slides.append(slide)
         args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
