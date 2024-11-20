@@ -21,6 +21,7 @@ from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
     convert_tokens_to_steps,
+    convert_steps_to_tokens,
     convert_transition_points_in_tokens_to_steps,
 )
 from lizrd.train.checkpoints_manager import start_job_manager_assessment
@@ -161,15 +162,22 @@ def convert_parameters(args):
 
     if args.scheduler == "trapezoidal":
         if args.lr_trapezoidal_decay_fraction_unit == "tokens":
-            args.lr_trapezoidal_decay_steps = int(
+            trapezoidal_decay_tokens = int(
                 args.lr_trapezoidal_decay_fraction
-                * convert_tokens_to_steps(
-                    tokens=args.lr_trapezoidal_decay_fraction * 1e9,
+                * convert_steps_to_tokens(
+                    steps=args.n_steps,
                     seq_len=args.cutoff,
                     target_batch_size=args.batch_size,
                     transition_points=transition_points,
                     batch_sizes=batch_sizes,
                 )
+            )
+            args.lr_trapezoidal_decay_steps = convert_tokens_to_steps(
+                tokens=trapezoidal_decay_tokens,
+                seq_len=args.cutoff,
+                target_batch_size=args.batch_size,
+                transition_points=transition_points,
+                batch_sizes=batch_sizes,
             )
         elif args.lr_trapezoidal_decay_fraction_unit == "steps":
             args.lr_trapezoidal_decay_steps = int(
