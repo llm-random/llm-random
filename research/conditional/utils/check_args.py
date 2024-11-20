@@ -1,6 +1,3 @@
-from ast import literal_eval
-
-
 def check_args(args):
     if args.granularity_expert_config:
         print(
@@ -46,20 +43,6 @@ def check_args(args):
             args.logger_types == "neptune"
         ), "Checkpoint manager is implemented only for neptune logger"
 
-    if args.scheduler_trapezoidal_slides:
-        assert args.scheduler == "trapezoidal"
-        assert args.checkpoint_manager
-        args.scheduler_trapezoidal_slides = literal_eval(
-            args.scheduler_trapezoidal_slides
-        )
-        new_scheduler_trapezoidal_slides = []
-        for slide in args.scheduler_trapezoidal_slides:
-            slide["split_step"] = (
-                int(slide["n_steps"] * (1 - args.lr_trapezoidal_decay_fraction)) - 1
-            )
-            new_scheduler_trapezoidal_slides.append(slide)
-        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
-
     if args.batch_size_rampup_transition_points is not None:
         assert (
             args.batch_size_rampup_sizes is not None
@@ -76,3 +59,13 @@ def check_args(args):
             assert (
                 args.batch_size % size == 0
             ), "Currently, target batch size needs to be divisible by the rampup batch sizes"
+
+    if args.n_steps is None:
+        assert args.n_tokens is not None
+    else:
+        assert args.n_tokens is None
+
+    if args.lr_warmup_steps is None:
+        assert args.lr_warmup_tokens is not None
+    else:
+        assert args.lr_warmup_tokens is None

@@ -14,9 +14,9 @@ from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
 from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import (
+    convert_steps_to_tokens,
     get_ith_chunk,
-    calculate_n_processed_tokens,
-    calculate_current_batch_size_from_rampup,
+    get_batch_size,
 )
 from lizrd.text.data import LLMBatch
 from lizrd.train.checkpoints_manager import (
@@ -183,15 +183,12 @@ class ConditionalTrainer:
             del self.eval_dataloader
             final_eval_dataloader = self.get_final_eval_dataloader()
             self.model.eval()
-            current_batch_size_per_gpu = self.batch_size // (
-                self.gradient_accumulation_steps * self.n_devices
-            )  # This value assures that the num_batch_chunks is 1
             losses = []
             for _ in range(self.n_final_eval_batches):
                 batch = final_eval_dataloader.get_batch()
                 with torch.no_grad():
                     loss, _ = self.calculate_loss_and_gradient(
-                        batch, current_batch_size_per_gpu
+                        batch, num_batch_chunks=1
                     )
                     losses.append(loss)
 
@@ -285,39 +282,48 @@ class ConditionalTrainer:
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
 
-        num_processed_tokens = calculate_n_processed_tokens(
-            step=step,
-            seq_len=self.cutoff,
-            target_batch_size=self.batch_size,
-            rampup_config=self.batch_size_rampup_config,
-        )
-
         if self.batch_size_rampup_config is None:
             current_batch_size_per_gpu = self.batch_size // self.n_devices
+            num_processed_tokens = convert_steps_to_tokens(
+                step=step,
+                seq_len=self.cutoff,
+                target_batch_size=self.batch_size,
+            )
         else:
             current_batch_size_per_gpu = (
-                calculate_current_batch_size_from_rampup(
-                    processed_tokens=num_processed_tokens,
+                get_batch_size(
+                    step,
+                    target_batch_size=self.batch_size,
                     transition_points=self.batch_size_rampup_config.transition_points,
                     batch_sizes=self.batch_size_rampup_config.batch_sizes,
-                    target_batch_size=self.batch_size,
                 )
                 // self.n_devices
             )
+            num_processed_tokens = convert_steps_to_tokens(
+                step=step,
+                seq_len=self.cutoff,
+                target_batch_size=self.batch_size,
+                transition_points=self.batch_size_rampup_config.transition_points,
+                batch_sizes=self.batch_size_rampup_config.batch_sizes,
+            )
+        self.num_processed_tokens = num_processed_tokens
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
         )
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
+        num_batch_chunks = calculate_num_batch_chunks(
+            gradient_accumulation_steps=self.gradient_accumulation_steps,
+            target_batch_size=self.batch_size,
+            current_batch_size=current_batch_size_per_gpu * self.n_devices,
+        )
         loss, aux_info = self.calculate_loss_and_gradient(
-            processed_batch, current_batch_size_per_gpu
+            processed_batch, num_batch_chunks=num_batch_chunks
         )
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
-        self.num_processed_tokens += (
-            self.n_devices * current_batch_size_per_gpu * self.cutoff
-        )
+
         if self.is_logging_process:
             self._log_train_stats(
                 loss,
@@ -332,7 +338,7 @@ class ConditionalTrainer:
         self._save_weights(step)
 
     def calculate_loss_and_gradient(
-        self, processed_batch: LLMBatch, current_batch_size_per_gpu: int
+        self, processed_batch: LLMBatch, num_batch_chunks: int
     ):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them
         NOTE: this function will not set the gradients for the model if model is in eval mode
@@ -342,11 +348,6 @@ class ConditionalTrainer:
         total_masked_tokens_value = 0
         losses = {}
 
-        num_batch_chunks = max(
-            self.gradient_accumulation_steps
-            // (self.batch_size // (current_batch_size_per_gpu * self.n_devices)),
-            1,
-        )
         for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
             batch_copy = copy.deepcopy(processed_batch)
@@ -455,11 +456,13 @@ class ConditionalTrainer:
         total_correct_tokens = 0
         total_masked_tokens = 0
         extra_losses = defaultdict(float)
+        num_batch_chuks = calculate_num_batch_chunks(
+            gradient_accumulation_steps=self.gradient_accumulation_steps
+        )
         for processed_batch in batches:
             with torch.no_grad():
                 loss, aux_info = self.calculate_loss_and_gradient(
-                    processed_batch=processed_batch,
-                    current_batch_size_per_gpu=self.batch_size // self.n_gpus,
+                    processed_batch=processed_batch, num_batch_chunks=num_batch_chuks
                 )
             total_loss += loss
             total_correct_tokens += aux_info["correct_tokens"]
@@ -642,3 +645,17 @@ class ConditionalTrainer:
             assert (
                 self.eval_min_group_size_logfactor <= self.eval_max_group_size_logfactor
             )
+
+
+def calculate_num_batch_chunks(
+    gradient_accumulation_steps, target_batch_size=None, current_batch_size=None
+):
+    if target_batch_size is None:
+        return gradient_accumulation_steps
+    else:
+        if current_batch_size is None:
+            rampup_factor = 1
+        else:
+            rampup_factor = target_batch_size // current_batch_size
+        num_batch_chunks = max(gradient_accumulation_steps // rampup_factor, 1)
+        return num_batch_chunks
