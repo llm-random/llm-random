@@ -169,3 +169,7 @@ local_search_configs
 
 # MS
 *mstest*
+
+# JM
+jm/
+jupyter*
