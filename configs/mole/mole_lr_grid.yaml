@@ -1,14 +1,17 @@
 parent: configs/mole/common.yaml
 time: 0-05:00:00
-n_gpus: 1
+n_gpus: 2
 cpus_per_gpu: 16
 md5_parent_hash: 88b42d6df8736803531efbdaa0bb401e
 
 params:
   name: "MoLE"
-  tags: ["mole"]
+  tags: ["mole", "medium", "lr_grid"]
   ^biased_balancing_loss_weight: [0.01, 0.00]
   ^load_balancing_loss_weight: [0.01]
   num_workers: 16
   logging_interval_loss: 100
-  
+
+  scheduler: trapezoidal
+  lr_trapezoidal_decay_fraction: 0.2
+  ^learning_rate: [0.00025, 0.0005, 0.001, 0.002, 0.004, 0.008, 0.016]

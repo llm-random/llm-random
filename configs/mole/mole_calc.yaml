@@ -1,11 +1,10 @@
 parent: configs/mole/common.yaml
-time: 0-01:00:00
+time: 0-10:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 md5_parent_hash: 88b42d6df8736803531efbdaa0bb401e
 
 params:
-  name: "MoLE"
-  tags: ["mole", "ms", "dev", "num_workers: 8"]
-  num_workers: 8
+  name: "MoLE_calc"
+  tags: ["mole", "calc", "tokens_distribution"]
   

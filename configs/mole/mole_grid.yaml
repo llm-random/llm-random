@@ -1,0 +1,16 @@
+parent: configs/mole/common.yaml
+time: 0-03:00:00
+n_gpus: 2
+cpus_per_gpu: 16
+md5_parent_hash: 88b42d6df8736803531efbdaa0bb401e
+
+params:
+  name: "MoLE_grid_1"
+  tags: ["mole", "grid_1", "sparse_grid"]
+  ^biased_balancing_loss_weight: [0, 0.000125, 0.00025, 0.0005, 0.001, 0.002, 0.0039, 0.0078, 0.0156, 0.0312, 0.0625, 0.125, 0.25, 0.5, 1.0]
+  ^load_balancing_loss_weight: [0, 0.00025, 0.001, 0.0039, 0.0156, 0.0625]
+  # ^load_balancing_loss_weight: [0.000125, 0.0005, 0.002, 0.0078, 0.0312, 0.125]
+  # ^load_balancing_loss_weight: [0, 0.000125, 0.00025, 0.0005, 0.001, 0.002, 0.0039, 0.0078, 0.0156, 0.0312, 0.0625, 0.125]
+
+  num_workers: 16
+  
