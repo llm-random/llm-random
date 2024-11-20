@@ -172,4 +172,4 @@ local_search_configs
 
 # JM
 jm/
-jupyter*
+jupyter_files*
