@@ -1,0 +1,55 @@
+# grid args
+runner: "research.template.train.train"
+time: "05:00:00"
+n_gpus: 0
+cuda_visible: ""
+
+# train params
+params:
+  name: "template_test"
+  tags: ["template_test", "test"]
+
+  # training
+  n_steps: 10
+  final_lr_step: 100
+  lr_warmup_steps: 10
+  batch_size: 4
+  cutoff: 16
+
+  # model
+  model_type: gpt
+  dmodel: 64
+  dff: 256
+  n_att_heads: 4
+  n_blocks: 2
+  ff_mode: vanilla
+  use_torch_bmm: true
+
+  # learning
+  scheduler: cosine
+  learning_rate: 1e-3
+  final_lr_fraction: 0.1
+  grad_clip: 0.5
+  weight_decay: 0.01
+  init_scale: 0.1
+  init_type: truncated_normal
+  capacity_factor: 1.0
+
+  # aux losses
+  load_balancing_loss_weight: 0.01
+
+  # other
+  dataset_type: wikibook
+  mixed_precision: true
+  flash_attention: true
+  mixed_precision_dtype: bfloat16
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random-tests"
+  logging_interval_heavy: 2
+  logging_interval_loss: 1
+  # save_weights_interval: null
+
+  # debug
+  use_dummy_dataset: true
