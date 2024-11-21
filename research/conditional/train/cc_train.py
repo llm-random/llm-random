@@ -166,7 +166,7 @@ def convert_parameters(args):
             trapezoidal_decay_tokens = int(
                 args.lr_trapezoidal_decay_fraction
                 * convert_steps_to_tokens(
-                    steps=args.n_steps,
+                    step=args.n_steps,
                     seq_len=args.cutoff,
                     target_batch_size=args.batch_size,
                     transition_points=transition_points,
