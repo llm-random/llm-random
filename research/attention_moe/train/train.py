@@ -262,7 +262,8 @@ def main(
         is_logging_process=is_logging_process,
         rank=rank,
         include_positional_embedding=(not args.no_positional_embedding)
-        and (args.attention_mode != "rope"),
+        and (args.attention_mode != "rope")
+        and (not args.use_rope),
         checkpoint=checkpoint,
     )
 

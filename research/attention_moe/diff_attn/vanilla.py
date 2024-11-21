@@ -6,7 +6,6 @@ from torch import nn
 from lizrd.core.misc import Linear
 
 from .kernel.rotary import apply_rotary_emb
-from flash_attn import flash_attn_func
 
 try:
     from apex.normalization import FusedRMSNorm as RMSNorm
@@ -41,12 +40,8 @@ class MultiheadDiffAttn(nn.Module):
         self.args = args
         self.embed_dim = embed_dim
         # num_heads set to half of Transformer's #heads
-        self.num_heads = num_heads // args.model_parallel_size
-        self.num_kv_heads = (
-            args.decoder_kv_attention_heads // args.model_parallel_size
-            if args.decoder_kv_attention_heads is not None
-            else num_heads // args.model_parallel_size
-        )
+        self.num_heads = num_heads // 2
+        self.num_kv_heads = num_heads // 2
         self.n_rep = self.num_heads // self.num_kv_heads
 
         self.head_dim = embed_dim // num_heads // 2
@@ -64,6 +59,9 @@ class MultiheadDiffAttn(nn.Module):
             embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
         )
         self.v_proj = Linear(
+            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+        )
+        self.out_proj = Linear(
             embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
         )
 

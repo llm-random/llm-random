@@ -13,6 +13,8 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
+from research.attention_moe.diff_attn.fast import MultiheadFlashDiff1, VanillaFlashDiff1
+from research.attention_moe.diff_attn.vanilla import MultiheadDiffAttn
 from research.attention_moe.moe_layers.attentions import (
     CausalMQA,
     CausalSelfAttention,
@@ -306,14 +308,16 @@ def get_attention_layer(args):
         #     load_balancing_loss_weight=args.load_balancing_loss_weight,
         #     multiply_by_n_head=args.multiply_by_n_head,
         # )
-        attention_layer_fun = lambda: TokenChoiceMoMQA(
-            dmodel=args.dmodel,
-            n_heads=args.n_att_heads,
-            capacity_factor=args.capacity_factor,
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-            use_dropped_tokens_head=args.momqa_use_dropped_tokens_head,
+        attention_layer_fun = lambda: MultiheadDiffAttn(
+            embed_dim=args.dmodel,
+            num_heads=args.n_att_heads,
+            # dmodel=args.dmodel,
+            # n_heads=args.n_att_heads,
+            # capacity_factor=args.capacity_factor,
+            # load_balancing_loss_weight=args.load_balancing_loss_weight,
+            # init_type=args.init_type,
+            # init_scale=args.init_scale,
+            # use_dropped_tokens_head=args.momqa_use_dropped_tokens_head,
         )
     # elif args.attention_mode == "dropping_momqa":
     #     attention_layer_fun = lambda: DroppingMoMQA(
@@ -323,6 +327,26 @@ def get_attention_layer(args):
     #         load_balancing_loss_weight=args.load_balancing_loss_weight,
     #         multiply_by_n_head=args.multiply_by_n_head,
     #     )
+    elif args.attention_mode == "diff_vanilla_fast1":
+        attention_layer_fun = lambda: VanillaFlashDiff1(
+            embed_dim=args.dmodel,
+            num_heads=args.n_att_heads,
+            use_rope=args.use_rope,
+            seq_len=args.cutoff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.attention_mode == "diff_theirs_fast1":
+        attention_layer_fun = lambda: MultiheadFlashDiff1(
+            embed_dim=args.dmodel,
+            num_heads=args.n_att_heads,
+            use_rope=args.use_rope,
+            seq_len=args.cutoff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            lowrank_inner_dim=args.diff_transformer_lowrank_dim,
+            flip_negative_heads=args.diff_transformer_flip_negative_heads,
+        )
     else:
         raise NotImplementedError(
             f"Attention type {args.attention_mode} not implemented"

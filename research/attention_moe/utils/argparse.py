@@ -426,5 +426,8 @@ def introduce_parser_arguments(
     # attention moe
     parser.add_argument("--multiply_by_n_head", action="store_true")
     parser.add_argument("--momqa_use_dropped_tokens_head", action="store_true")
+    parser.add_argument("--use_rope", action="store_true")
+    parser.add_argument("--diff_transformer_lowrank_dim", type=int, default=0)
+    parser.add_argument("--diff_transformer_flip_negative_heads", action="store_true")
 
     return parser
