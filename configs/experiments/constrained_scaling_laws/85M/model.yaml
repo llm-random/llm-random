@@ -1,5 +1,5 @@
 parent: configs/experiments/constrained_scaling_laws/common.yaml
-md5_parent_hash: 5d05be672425f1a5c3bea99b04370bf1
+md5_parent_hash: 5a1f5a6debaf69d493a02e524d01617f
 
 params:
   tags: ["constrained_scaling_grid", "85M"]
