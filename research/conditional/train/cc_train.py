@@ -1,5 +1,6 @@
 import argparse
 from collections import defaultdict
+from functools import partial
 import os
 import random
 from typing import Callable, Optional
@@ -368,24 +369,33 @@ def main(
         dataset_path=args.train_dataset_path,
     )
 
-    eval_split = (
-        "eval"
-        if args.dataset_type == "wikibook"
-        else ("train" if args.use_dummy_dataset else "validation")
-    )
-    eval_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs,
-        dataset_split=eval_split,
-        dataset_path=args.validation_dataset_path,
-    )
+    if args.eval_interval > 0:
+        eval_split = (
+            "eval"
+            if args.dataset_type == "wikibook"
+            else ("train" if args.use_dummy_dataset else "validation")
+        )
+        eval_dataloader = get_processed_dataset(
+            **common_dataloaders_kwargs,
+            dataset_split=eval_split,
+            dataset_path=args.validation_dataset_path,
+        )
+    else:
+        eval_dataloader = None
 
-    common_dataloaders_kwargs["seed"] = args.final_eval_seed
-    common_dataloaders_kwargs["batch_size"] = args.final_eval_dataloader_batch_size
-    get_final_eval_dataloader = lambda: get_processed_dataset(
-        **common_dataloaders_kwargs,
-        dataset_split=eval_split,
-        dataset_path=args.validation_dataset_path,
-    )
+    if args.n_final_eval_batches > 0:
+        final_eval_dataloader_kwargs = {**common_dataloaders_kwargs}
+        final_eval_dataloader_kwargs["seed"] = args.final_eval_seed
+        final_eval_dataloader_kwargs[
+            "batch_size"
+        ] = args.final_eval_dataloader_batch_size
+        final_eval_dataloader_kwargs["dataset_split"] = eval_split
+        final_eval_dataloader_kwargs["dataset_path"] = args.validation_dataset_path
+        get_final_eval_dataloader = partial(
+            get_processed_dataset, **final_eval_dataloader_kwargs
+        )
+    else:
+        get_final_eval_dataloader = None
 
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
