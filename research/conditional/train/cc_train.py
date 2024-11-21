@@ -22,6 +22,7 @@ from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
     convert_tokens_to_steps,
+    convert_steps_to_tokens,
     convert_transition_points_in_tokens_to_steps,
 )
 from lizrd.train.checkpoints_manager import start_job_manager_assessment
@@ -160,6 +161,32 @@ def convert_parameters(args):
             batch_sizes=batch_sizes,
         )
 
+    if args.scheduler == "trapezoidal":
+        if args.lr_trapezoidal_decay_fraction_unit == "tokens":
+            fraction_of_toks_until_decay = 1 - args.lr_trapezoidal_decay_fraction
+            tokens_until_decay = int(
+                fraction_of_toks_until_decay
+                * convert_steps_to_tokens(
+                    step=args.n_steps,
+                    seq_len=args.cutoff,
+                    target_batch_size=args.batch_size,
+                    transition_points=transition_points,
+                    batch_sizes=batch_sizes,
+                )
+            )
+            steps_until_decay = convert_tokens_to_steps(
+                tokens=tokens_until_decay,
+                seq_len=args.cutoff,
+                target_batch_size=args.batch_size,
+                transition_points=transition_points,
+                batch_sizes=batch_sizes,
+            )
+            args.lr_trapezoidal_decay_steps = args.n_steps - steps_until_decay
+        elif args.lr_trapezoidal_decay_fraction_unit == "steps":
+            args.lr_trapezoidal_decay_steps = int(
+                args.lr_trapezoidal_decay_fraction * args.n_steps
+            )
+
     if args.scheduler_trapezoidal_slides:
         assert args.scheduler == "trapezoidal"
         assert args.checkpoint_manager
@@ -176,9 +203,7 @@ def convert_parameters(args):
                     transition_points=transition_points,
                     batch_sizes=batch_sizes,
                 )
-            slide["split_step"] = (
-                int(slide["n_steps"] * (1 - args.lr_trapezoidal_decay_fraction)) - 1
-            )
+            slide["split_step"] = args.n_steps - args.lr_trapezoidal_decay_steps - 1
             new_scheduler_trapezoidal_slides.append(slide)
         args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
