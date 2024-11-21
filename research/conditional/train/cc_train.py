@@ -203,7 +203,34 @@ def convert_parameters(args):
                     transition_points=transition_points,
                     batch_sizes=batch_sizes,
                 )
-            slide["split_step"] = slide["n_steps"] - args.lr_trapezoidal_decay_steps - 1
+            else:
+                slide["n_tokens"] = (
+                    convert_steps_to_tokens(
+                        step=slide["n_steps"],
+                        seq_len=args.cutoff,
+                        target_batch_size=args.batch_size,
+                        transition_points=transition_points,
+                        batch_sizes=batch_sizes,
+                    )
+                    // 1e9
+                )  # to make sure it is in billions
+
+            if args.lr_trapezoidal_decay_fraction_unit == "tokens":
+                toks_until_split = int(
+                    (1 - args.lr_trapezoidal_decay_fraction) * slide["n_tokens"] * 1e9
+                )
+                slide["split_step"] = convert_tokens_to_steps(
+                    tokens=toks_until_split,
+                    seq_len=args.cutoff,
+                    target_batch_size=args.batch_size,
+                    transition_points=transition_points,
+                    batch_sizes=batch_sizes,
+                )
+            elif args.lr_trapezoidal_decay_fraction_unit == "steps":
+                slide["split_step"] = int(
+                    (1 - args.lr_trapezoidal_decay_fraction) * slide["n_steps"]
+                )
+
             new_scheduler_trapezoidal_slides.append(slide)
         args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
