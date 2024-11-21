@@ -197,7 +197,7 @@ def convert_parameters(args):
         for slide in args.scheduler_trapezoidal_slides:
             if "n_tokens" in slide:
                 slide["n_steps"] = convert_tokens_to_steps(
-                    tokens=args.n_tokens * 1e9,
+                    tokens=slide["n_tokens"] * 1e9,
                     seq_len=args.cutoff,
                     target_batch_size=args.batch_size,
                     transition_points=transition_points,
