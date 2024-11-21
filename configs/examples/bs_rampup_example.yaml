@@ -1,11 +1,16 @@
 parent: configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 763f39978a58f704200275285162594c
 n_gpus: 2
-time: "0-00:20:00"
+time: "0-01:00:00"
 skip_copy_code: true
 params:
-    batch_size_rampup_transition_points: [0.0000655, 0.0002455]
+    # batch_size_rampup_transition_points: [0.01, 0.05]
+    # batch_size_rampup_units: tokens
+    batch_size_rampup_transition_points: [152, 457]
+    batch_size_rampup_units: steps
     batch_size_rampup_sizes: [128, 256]
+    n_tokens: null  # 0.262144 to match steps configuration
+    n_steps: 1266    # 1266 to match tokens configuration with rampup, 1000 without rampup
     batch_size: 512
     cutoff: 512
     fsdp_enabled: true
@@ -17,10 +22,9 @@ params:
     gradient_accumulation_steps: 8
     ff_mode: vanilla
     dataset_type: c4
-    n_steps: 100
     learning_rate: 5e-4
-    name: bs_rampup
-    tags: [bs_rampup_test]
+    name: bs_rampup_refactor
+    tags: [bs_rampup_test, rampup_refactor_pr, rampup, tokens]
     decoding_interval: 0
     save_weights_interval: 0
     logging_interval_heavy: 1000

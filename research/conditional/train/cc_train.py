@@ -9,6 +9,7 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
+from ast import literal_eval
 
 from lizrd.core import misc
 from lizrd.core.llm import Parallel
@@ -20,6 +21,8 @@ from lizrd.support.logging import (
 from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
+    convert_tokens_to_steps,
+    convert_transition_points_in_tokens_to_steps,
 )
 from lizrd.train.checkpoints_manager import start_job_manager_assessment
 from lizrd.train.train_utils import (
@@ -125,6 +128,72 @@ def rescale_params_after_init(args, model):
         param.data *= scale
 
 
+def convert_parameters(args):
+    if args.batch_size_rampup_transition_points is not None:
+        # convert transition points to steps
+        transition_points = args.batch_size_rampup_transition_points
+        if args.batch_size_rampup_units == "tokens":
+            transition_points = convert_transition_points_in_tokens_to_steps(
+                transition_points_in_tokens=args.batch_size_rampup_transition_points,
+                batch_sizes=args.batch_size_rampup_sizes,
+                seq_len=args.cutoff,
+            )
+            print(f"transition_points: {transition_points}")
+
+        batch_size_rampup_config = BatchSizeRampupConfig(
+            transition_points=transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+        )
+        transition_points = batch_size_rampup_config.transition_points
+        batch_sizes = batch_size_rampup_config.batch_sizes
+    else:
+        batch_size_rampup_config = None
+        transition_points = None
+        batch_sizes = None
+
+    if args.n_steps is None:
+        args.n_steps = convert_tokens_to_steps(
+            tokens=args.n_tokens * 1e9,
+            seq_len=args.cutoff,
+            target_batch_size=args.batch_size,
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
+        )
+
+    if args.scheduler_trapezoidal_slides:
+        assert args.scheduler == "trapezoidal"
+        assert args.checkpoint_manager
+        args.scheduler_trapezoidal_slides = literal_eval(
+            args.scheduler_trapezoidal_slides
+        )
+        new_scheduler_trapezoidal_slides = []
+        for slide in args.scheduler_trapezoidal_slides:
+            if "n_tokens" in slide:
+                slide["n_steps"] = convert_tokens_to_steps(
+                    tokens=args.n_tokens * 1e9,
+                    seq_len=args.cutoff,
+                    target_batch_size=args.batch_size,
+                    transition_points=transition_points,
+                    batch_sizes=batch_sizes,
+                )
+            slide["split_step"] = (
+                int(slide["n_steps"] * (1 - args.lr_trapezoidal_decay_fraction)) - 1
+            )
+            new_scheduler_trapezoidal_slides.append(slide)
+        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
+
+    if args.lr_warmup_steps is None:
+        args.lr_warmup_steps = convert_tokens_to_steps(
+            tokens=args.lr_warmup_tokens * 1e9,
+            seq_len=args.cutoff,
+            target_batch_size=args.batch_size,
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
+        )
+
+    return batch_size_rampup_config
+
+
 def main(
     rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
@@ -146,6 +215,8 @@ def main(
             args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
+
+    batch_size_rampup_config = convert_parameters(args)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -342,15 +413,6 @@ def main(
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
-
-    batch_size_rampup_config = (
-        BatchSizeRampupConfig(
-            transition_points=args.batch_size_rampup_transition_points,
-            batch_sizes=args.batch_size_rampup_sizes,
-        )
-        if args.batch_size_rampup_transition_points is not None
-        else None
-    )
 
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
