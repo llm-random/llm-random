@@ -163,8 +163,9 @@ def convert_parameters(args):
 
     if args.scheduler == "trapezoidal":
         if args.lr_trapezoidal_decay_fraction_unit == "tokens":
-            trapezoidal_decay_tokens = int(
-                args.lr_trapezoidal_decay_fraction
+            fraction_of_toks_until_decay = 1 - args.lr_trapezoidal_decay_fraction
+            tokens_until_decay = int(
+                fraction_of_toks_until_decay
                 * convert_steps_to_tokens(
                     step=args.n_steps,
                     seq_len=args.cutoff,
@@ -173,13 +174,14 @@ def convert_parameters(args):
                     batch_sizes=batch_sizes,
                 )
             )
-            args.lr_trapezoidal_decay_steps = convert_tokens_to_steps(
-                tokens=trapezoidal_decay_tokens,
+            steps_until_decay = convert_tokens_to_steps(
+                tokens=tokens_until_decay,
                 seq_len=args.cutoff,
                 target_batch_size=args.batch_size,
                 transition_points=transition_points,
                 batch_sizes=batch_sizes,
             )
+            args.lr_trapezoidal_decay_steps = args.n_steps - steps_until_decay
         elif args.lr_trapezoidal_decay_fraction_unit == "steps":
             args.lr_trapezoidal_decay_steps = int(
                 args.lr_trapezoidal_decay_fraction * args.n_steps
