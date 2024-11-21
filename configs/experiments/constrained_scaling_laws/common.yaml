@@ -5,7 +5,7 @@ interactive_debug: false
 cpus_per_gpu: 16
 
 params:
-  name: constrained_scaling_grid_new_run
+  name: constrained_scaling_grid_21_11
   tags: ["constrained_scaling_grid"]
 
   # architecture
