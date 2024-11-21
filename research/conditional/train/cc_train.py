@@ -203,7 +203,7 @@ def convert_parameters(args):
                     transition_points=transition_points,
                     batch_sizes=batch_sizes,
                 )
-            slide["split_step"] = args.n_steps - args.lr_trapezoidal_decay_steps - 1
+            slide["split_step"] = slide["n_steps"] - args.lr_trapezoidal_decay_steps - 1
             new_scheduler_trapezoidal_slides.append(slide)
         args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
 
