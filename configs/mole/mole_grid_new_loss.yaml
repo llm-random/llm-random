@@ -7,8 +7,8 @@ md5_parent_hash: 2bbaa5654dd34fb554045eb46b465f99
 params:
   name: "MoLE_grid_nl"
   tags: ["mole", "new_loss_1", "sparse_grid"]
-  ^biased_balancing_loss_weight: [0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125, 0.0009765625, 0.00048828125, 0]
-  ^load_balancing_loss_weight: [0.0625, 0.015625, 0.00390625, 0.001953125, 0]
+  ^biased_balancing_loss_weight: [1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125, 0.0009765625, 0.00048828125, 0.000244140625]
+  ^load_balancing_loss_weight: [0.015625]
   pos_grouped: "{'NOUN':[0,9],'PUNCT':[9,14],'VERB':[14,19],'ADP':[19,24],'PROPN':[24,28],'DET':[28,32],'ADJ':[32,35],'PRON':[35,38],'AUX':[38,40],'ADV':[40,42],'CCONJ':[42,44],'PART':[44,45],'NUM':[45,46],'EOT':[46,47],'SPACE':[46,47],'SYM':[46,47],'X':[46,47],'INTJ':[46,47],'SCONJ':[47,48],}"
   expansion_rate: 48
   

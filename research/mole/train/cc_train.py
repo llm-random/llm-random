@@ -466,6 +466,7 @@ def main(
         final_eval_dataloader=final_eval_dataloader,
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
+        biased_balancing_loss_weight=args.biased_balancing_loss_weight,
     )
     trainer.train(args.n_steps)
 

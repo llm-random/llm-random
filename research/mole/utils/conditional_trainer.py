@@ -101,6 +101,7 @@ class ConditionalTrainer:
     final_eval_dataloader: Optional[DataloaderWrapper] = None
     final_eval_dataloader_batch_size: Optional[int] = None
     n_final_eval_batches: int = None
+    biased_balancing_loss_weight: float = None
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -326,7 +327,7 @@ class ConditionalTrainer:
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
-            self._log_auxiliary_losses(aux_info["losses"], step)
+            self._log_auxiliary_losses(aux_info["losses"], step, )
         self._save_weights(step)
 
     def calculate_loss_and_gradient(
@@ -584,6 +585,8 @@ class ConditionalTrainer:
 
         if step % self.logging_interval_loss == 0 and step > 0:
             for name, loss in losses.items():
+                if name == "biased_balancing_loss":
+                    loss = loss/self.biased_balancing_loss_weight
                 self.logger.report_scalar(
                     title=f"{name}",
                     value=loss / self.logging_interval_loss,

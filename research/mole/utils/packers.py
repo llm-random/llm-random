@@ -142,7 +142,7 @@ class GPTMetaPOSPacker(
     def __get_pos_multitarget(self, pos) -> list:#-> torch.Tensor:
         target = torch.zeros(self.n_experts, dtype=torch.float32)
         ran = self.pos_grouped[pos]
-        target[ran[0]:ran[1]] = 1/(ran[1]-ran[0])
+        target[ran[0]:ran[1]] = 1#/(ran[1]-ran[0])
         return list(target)
 
 

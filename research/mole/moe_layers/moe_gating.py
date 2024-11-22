@@ -193,13 +193,17 @@ class MoeGating(LoggingLayer):
 
 
 class WeightedLogLoss(torch.nn.Module):
-    def __init__(self, pos_weight=1.0, neg_weight=1.0):
+    def __init__(self, pos_weight=1.0, neg_weight=1.0, act_func=None):
         super(WeightedLogLoss, self).__init__()
         self.pos_weight = pos_weight  # No reward for true positives
         self.neg_weight = neg_weight  # Full penalty for false positives
+        self.act_func = act_func
 
     def forward(self, logits, targets):
-        probs = logits
+        if self.act_func == "sigmoid":
+            probs = torch.sigmoid(logits)
+        else:
+            probs = logits
         
         pos_loss = -self.pos_weight * (targets * torch.log(probs))
         neg_loss = -self.neg_weight * ((1 - targets) * torch.log(1 - probs))
@@ -238,8 +242,9 @@ class TokenGatingBiased(MoeGating, InputWiseRouterBias):
         self.use_einsum = use_einsum
         self.routing_top_k = routing_top_k
         self.router_target_bias: torch.Tensor = None
-        self.biased_balancing_loss_fn = torch.nn.CrossEntropyLoss()
-        # self.biased_balancing_loss_fn = WeightedLogLoss(pos_weight=0.0)
+        # self.biased_balancing_loss_fn = torch.nn.CrossEntropyLoss()
+        self.biased_balancing_loss_fn = WeightedLogLoss(pos_weight=0.0)
+        # self.biased_balancing_loss_fn = WeightedLogLoss(pos_weight=0.0, act_func="sigmoid")
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
