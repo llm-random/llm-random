@@ -76,3 +76,5 @@ def check_args(args):
             assert (
                 args.batch_size % size == 0
             ), "Currently, target batch size needs to be divisible by the rampup batch sizes"
+
+    args.pos_grouped = literal_eval(args.pos_grouped)

@@ -6,7 +6,7 @@ md5_parent_hash: 25eb0c53963eb1c7d96c91bb327c2a20
 time: 0-05:00:00
 interactive_debug_session: false
 interactive_debug: false
-n_gpus: 2
+n_gpus: 1
 cpus_per_gpu: 16
 
 params:
@@ -55,4 +55,6 @@ params:
   print_parameter_names: true
 
   num_workers: 16
+  # num_workers: 1
   logging_interval_loss: 100
+  pos_grouped: "{'NOUN':[0,1],'PUNCT':[1,2],'NUM':[1,2],'SPACE':[1,2],'SYM':[1,2],'X':[1,2],'INTJ':[1,2],'EOT':[1,2],'VERB':[2,3],'AUX':[2,3],'DET':[3,4],'PRON':[3,4],'ADP':[4,5],'PART':[4,5],'ADJ':[5,6],'ADV':[5,6],'PROPN':[6,7],'CCONJ':[7,8],'SCONJ':[7,8]}"

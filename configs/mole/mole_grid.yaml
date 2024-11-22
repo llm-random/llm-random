@@ -2,7 +2,7 @@ parent: configs/mole/common.yaml
 time: 0-03:00:00
 n_gpus: 2
 cpus_per_gpu: 16
-md5_parent_hash: 88b42d6df8736803531efbdaa0bb401e
+md5_parent_hash: 2bbaa5654dd34fb554045eb46b465f99
 
 params:
   name: "MoLE_grid_1"
@@ -11,6 +11,8 @@ params:
   ^load_balancing_loss_weight: [0, 0.00025, 0.001, 0.0039, 0.0156, 0.0625]
   # ^load_balancing_loss_weight: [0.000125, 0.0005, 0.002, 0.0078, 0.0312, 0.125]
   # ^load_balancing_loss_weight: [0, 0.000125, 0.00025, 0.0005, 0.001, 0.002, 0.0039, 0.0078, 0.0156, 0.0312, 0.0625, 0.125]
-
+  pos_grouped: "{'NOUN':[0,9],'PUNCT':[9,14],'VERB':[14,19],'ADP':[19,24],'PROPN':[24,28],'DET':[28,32],'ADJ':[32,35],'PRON':[35,38],'AUX':[38,40],'ADV':[40,42],'CCONJ':[42,44],'PART':[44,45],'NUM':[45,46],'EOT':[46,47],'SPACE':[46,47],'SYM':[46,47],'X':[46,47],'INTJ':[46,47],'SCONJ':[47,48],}"
+  expansion_rate: 48
+  
   num_workers: 16
   

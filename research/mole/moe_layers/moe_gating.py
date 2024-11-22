@@ -191,6 +191,23 @@ class MoeGating(LoggingLayer):
                 f"Bad get_router_values_from value: {get_router_values_from}"
             )
 
+
+class WeightedLogLoss(torch.nn.Module):
+    def __init__(self, pos_weight=1.0, neg_weight=1.0):
+        super(WeightedLogLoss, self).__init__()
+        self.pos_weight = pos_weight  # No reward for true positives
+        self.neg_weight = neg_weight  # Full penalty for false positives
+
+    def forward(self, logits, targets):
+        probs = logits
+        
+        pos_loss = -self.pos_weight * (targets * torch.log(probs))
+        neg_loss = -self.neg_weight * ((1 - targets) * torch.log(1 - probs))
+        
+        loss = pos_loss + neg_loss
+        return loss.mean()
+    
+
 class TokenGatingBiased(MoeGating, InputWiseRouterBias):
     def __init__(
         self,
@@ -222,6 +239,7 @@ class TokenGatingBiased(MoeGating, InputWiseRouterBias):
         self.routing_top_k = routing_top_k
         self.router_target_bias: torch.Tensor = None
         self.biased_balancing_loss_fn = torch.nn.CrossEntropyLoss()
+        # self.biased_balancing_loss_fn = WeightedLogLoss(pos_weight=0.0)
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)

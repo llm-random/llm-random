@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from lizrd.text import datasets, data, tokenizers, packers
 from lizrd.support.misc import get_ith_chunk
 from research.mole.utils.data import LLMMetaBatch
-from research.mole.utils.packers import GPTMetaPacker
+from research.mole.utils.packers import GPTMetaPOSPacker
 
 
 class DataloaderWrapper:
@@ -84,8 +84,11 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
     dataset_path: Optional[str] = None,
-    biased: Optional[str] = True
+    biased: Optional[str] = True,
+    pos_grouped: Optional[dict] = None,
+    n_experts: Optional[int] = None
 ):
+    # assert (biased and pos_grouped and n_experts) or not(biased or pos_grouped or n_experts), "Have to provide n_experts and pos_grouped when using biased datapacker." #dev
     if dataset_type == "wikibook":
         dataset = partial(
             datasets.WikiBookDataset,
@@ -118,9 +121,11 @@ def get_processed_dataset(
             tokenizer_maker=tokenizers.BertTokenizer,
         )
     elif model_type == "gpt" and biased:
-        packer = GPTMetaPacker(
+        packer = GPTMetaPOSPacker(
             sequence_length=sequence_length,
             dataset_maker=dataset,
+            pos_grouped=pos_grouped,
+            n_experts=n_experts,
             tokenizer_maker=tokenizers.GPTTokenizer,
         )
         collate_fn = LLMMetaBatch

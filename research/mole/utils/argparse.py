@@ -495,4 +495,11 @@ def introduce_parser_arguments(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
 
+    parser.add_argument(
+        "--pos_grouped",
+        type=str,
+        default=None,
+        required=False,
+    )
+    
     return parser

@@ -360,7 +360,12 @@ def main(
         "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
+        "pos_grouped": args.pos_grouped,
+        "n_experts": args.expansion_rate,
     }
+
+    # print("common_dataloaders_kwargs-------------------------------------------------------------------------")#dev 
+    # print(common_dataloaders_kwargs)#dev 
 
     train_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
