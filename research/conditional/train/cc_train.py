@@ -161,6 +161,75 @@ def convert_parameters(args):
             batch_sizes=batch_sizes,
         )
 
+    if args.scheduler_trapezoidal_slides:
+        assert args.scheduler == "trapezoidal"
+        assert args.checkpoint_manager
+        args.scheduler_trapezoidal_slides = literal_eval(
+            args.scheduler_trapezoidal_slides
+        )
+        new_scheduler_trapezoidal_slides = []
+        for slide in args.scheduler_trapezoidal_slides:
+            if "n_tokens" in slide:
+                slide["n_steps"] = convert_tokens_to_steps(
+                    tokens=slide["n_tokens"] * 1e9,
+                    seq_len=args.cutoff,
+                    target_batch_size=args.batch_size,
+                    transition_points=transition_points,
+                    batch_sizes=batch_sizes,
+                )
+            else:
+                slide["n_tokens"] = (
+                    convert_steps_to_tokens(
+                        step=slide["n_steps"],
+                        seq_len=args.cutoff,
+                        target_batch_size=args.batch_size,
+                        transition_points=transition_points,
+                        batch_sizes=batch_sizes,
+                    )
+                    // 1e9
+                )  # to make sure it is in billions
+
+            if args.lr_trapezoidal_decay_fraction_unit == "tokens":
+                toks_until_split = int(
+                    (1 - args.lr_trapezoidal_decay_fraction) * slide["n_tokens"] * 1e9
+                )
+                slide["split_step"] = (
+                    convert_tokens_to_steps(
+                        tokens=toks_until_split,
+                        seq_len=args.cutoff,
+                        target_batch_size=args.batch_size,
+                        transition_points=transition_points,
+                        batch_sizes=batch_sizes,
+                    )
+                    - 1
+                )
+            elif args.lr_trapezoidal_decay_fraction_unit == "steps":
+                slide["split_step"] = (
+                    int((1 - args.lr_trapezoidal_decay_fraction) * slide["n_steps"]) - 1
+                )
+
+            new_scheduler_trapezoidal_slides.append(slide)
+        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
+
+    if args.lr_warmup_steps is None:
+        args.lr_warmup_steps = convert_tokens_to_steps(
+            tokens=args.lr_warmup_tokens * 1e9,
+            seq_len=args.cutoff,
+            target_batch_size=args.batch_size,
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
+        )
+
+    return batch_size_rampup_config
+
+
+def convert_lr_scheduler_args(args, rampup_config):
+    if rampup_config is None:
+        transition_points = batch_sizes = None
+    else:
+        transition_points = rampup_config.transition_points
+        batch_sizes = rampup_config.batch_sizes
+
     if args.scheduler == "trapezoidal":
         if args.lr_trapezoidal_decay_fraction_unit == "tokens":
             fraction_of_toks_until_decay = 1 - args.lr_trapezoidal_decay_fraction
@@ -186,37 +255,6 @@ def convert_parameters(args):
             args.lr_trapezoidal_decay_steps = int(
                 args.lr_trapezoidal_decay_fraction * args.n_steps
             )
-
-    if args.scheduler_trapezoidal_slides:
-        assert args.scheduler == "trapezoidal"
-        assert args.checkpoint_manager
-        args.scheduler_trapezoidal_slides = literal_eval(
-            args.scheduler_trapezoidal_slides
-        )
-        new_scheduler_trapezoidal_slides = []
-        for slide in args.scheduler_trapezoidal_slides:
-            if "n_tokens" in slide:
-                slide["n_steps"] = convert_tokens_to_steps(
-                    tokens=slide["n_tokens"] * 1e9,
-                    seq_len=args.cutoff,
-                    target_batch_size=args.batch_size,
-                    transition_points=transition_points,
-                    batch_sizes=batch_sizes,
-                )
-            slide["split_step"] = slide["n_steps"] - args.lr_trapezoidal_decay_steps - 1
-            new_scheduler_trapezoidal_slides.append(slide)
-        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
-
-    if args.lr_warmup_steps is None:
-        args.lr_warmup_steps = convert_tokens_to_steps(
-            tokens=args.lr_warmup_tokens * 1e9,
-            seq_len=args.cutoff,
-            target_batch_size=args.batch_size,
-            transition_points=transition_points,
-            batch_sizes=batch_sizes,
-        )
-
-    return batch_size_rampup_config
 
 
 def main(
@@ -407,6 +445,10 @@ def main(
                 value=str(args.args_override),
                 iteration=checkpoint["step"],
             )
+
+    convert_lr_scheduler_args(
+        args, batch_size_rampup_config
+    )  # we need to convert after args override as n_steps might have changed
 
     log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
