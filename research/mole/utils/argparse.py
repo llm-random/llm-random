@@ -501,5 +501,12 @@ def introduce_parser_arguments(
         default=None,
         required=False,
     )
+
+    parser.add_argument(
+        "--biased",
+        type=str,
+        default=None,
+        required=False,
+    )
     
     return parser

@@ -19,16 +19,8 @@ class LLMMetaBatch:
     def __init__(self, examples: List[LLMMetaExample]):
         self.input_ids = self._make_tensor([example.input_ids for example in examples])
         if examples[0].one_hot_exp_groups != None:
-            # inside = [example.one_hot_exp_groups.unsqueeze(0) for example in examples]
-            # self.one_hot_exp_groups = torch.cat(inside, dim=0)
             inside = [example.one_hot_exp_groups for example in examples]
-            # print("inside---------------------------------------------------------------")#dev
-            # print(f"inside: {type(inside)}")#dev
-            # print(f"inside[0]: {type(inside[0])}")#dev
-            # print(f"inside[0][0]: {type(inside[0][0])}")#dev
             self.one_hot_exp_groups = torch.tensor(inside)
-            # print("self.one_hot_exp_groups---------------------------------------------------------------")#dev
-            print(self.one_hot_exp_groups)#dev
         else:
             self.one_hot_exp_groups = None
             

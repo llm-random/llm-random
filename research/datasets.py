@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from lizrd.text import datasets, data, tokenizers, packers
 from lizrd.support.misc import get_ith_chunk
 from research.mole.utils.data import LLMMetaBatch
-from research.mole.utils.packers import GPTMetaPOSPacker
+from research.mole.utils.packers import GPTMetaPOSPacker, GPTMetaTOKENPacker
 
 
 class DataloaderWrapper:
@@ -84,11 +84,12 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
     dataset_path: Optional[str] = None,
-    biased: Optional[str] = True,
+    biased: Optional[str] = "pos",
     pos_grouped: Optional[dict] = None,
     n_experts: Optional[int] = None
 ):
-    # assert (biased and pos_grouped and n_experts) or not(biased or pos_grouped or n_experts), "Have to provide n_experts and pos_grouped when using biased datapacker." #dev
+    # assert ((biased=="pos") and pos_grouped and n_experts) or not((biased!="pos") or pos_grouped or n_experts), "Have to provide n_experts and pos_grouped when using pos biased datapacker." #dev
+    # assert ((biased=="hash_token") and n_experts) or not((biased!="hash_token") or n_experts), "Have to provide n_experts when using hash_token biased datapacker." #dev
     if dataset_type == "wikibook":
         dataset = partial(
             datasets.WikiBookDataset,
@@ -120,11 +121,19 @@ def get_processed_dataset(
             dataset=dataset,
             tokenizer_maker=tokenizers.BertTokenizer,
         )
-    elif model_type == "gpt" and biased:
+    elif model_type == "gpt" and biased == "pos":
         packer = GPTMetaPOSPacker(
             sequence_length=sequence_length,
             dataset_maker=dataset,
             pos_grouped=pos_grouped,
+            n_experts=n_experts,
+            tokenizer_maker=tokenizers.GPTTokenizer,
+        )
+        collate_fn = LLMMetaBatch
+    elif model_type == "gpt" and biased == "hash_token":
+        packer = GPTMetaTOKENPacker(
+            sequence_length=sequence_length,
+            dataset_maker=dataset,
             n_experts=n_experts,
             tokenizer_maker=tokenizers.GPTTokenizer,
         )

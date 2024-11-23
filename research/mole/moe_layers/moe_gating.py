@@ -136,7 +136,7 @@ class MoeGating(LoggingLayer):
 
         self.update_cache_for_logging("z_loss", zloss)
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
-        return gate_out
+        return gate_out, gate_logits
 
     def calculate_topk(self, gate_out, topk):
         is_in_first = checkpointing.is_in_first_forward()
@@ -202,8 +202,8 @@ class WeightedLogLoss(torch.nn.Module):
     def forward(self, logits, targets):
         if self.act_func == "sigmoid":
             probs = torch.sigmoid(logits)
-        else:
-            probs = logits
+        elif self.act_func == "softmax":
+            probs = torch.softmax(logits, dim=-1)
         
         pos_loss = -self.pos_weight * (targets * torch.log(probs))
         neg_loss = -self.neg_weight * ((1 - targets) * torch.log(1 - probs))
@@ -243,8 +243,8 @@ class TokenGatingBiased(MoeGating, InputWiseRouterBias):
         self.routing_top_k = routing_top_k
         self.router_target_bias: torch.Tensor = None
         # self.biased_balancing_loss_fn = torch.nn.CrossEntropyLoss()
-        self.biased_balancing_loss_fn = WeightedLogLoss(pos_weight=0.0)
-        # self.biased_balancing_loss_fn = WeightedLogLoss(pos_weight=0.0, act_func="sigmoid")
+        # self.biased_balancing_loss_fn = WeightedLogLoss(pos_weight=0.0)
+        self.biased_balancing_loss_fn = WeightedLogLoss(pos_weight=0.0, act_func="softmax")
 
     def forward(self, x: torch.Tensor):
         # x is (batch, seq_len, dmodel)
@@ -255,7 +255,10 @@ class TokenGatingBiased(MoeGating, InputWiseRouterBias):
             n_tokens,
         )
         self.update_cache_for_logging("n_tokens", torch.Tensor([n_tokens]))
-        gate_out = self.calculate_gate(x, batch_size, seq_len).T
+        # gate_out = self.calculate_gate(x, batch_size, seq_len).T
+        gate_out, gate_logits = self.calculate_gate(x, batch_size, seq_len)
+        gate_out = gate_out.T
+        gate_logits = gate_logits.T
         assert gate_out.shape == (n_tokens, self.n_experts)
 
         with measure_time(self, "choose_expert"):
@@ -266,9 +269,9 @@ class TokenGatingBiased(MoeGating, InputWiseRouterBias):
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
 
-        return self.apply_capacity(capacity, expert_index, gate_out, n_tokens)
+        return self.apply_capacity(capacity, expert_index, gate_out, n_tokens, gate_logits)
 
-    def calculate_balancing_loss(self, gate_out, expert_mask):
+    def calculate_balancing_loss(self, gate_out, expert_mask, gate_logits):
         with measure_time(self, "calculate aux loss"):
             tokens_per_expert = expert_mask.sum(dim=0, dtype=gate_out.dtype)
             load_balancing_loss = calculate_load_balancing_loss(
@@ -278,7 +281,7 @@ class TokenGatingBiased(MoeGating, InputWiseRouterBias):
                 use_einsum=self.use_einsum,
             )
             biased_balancing_loss = calculate_biased_balancing_loss(
-                gate_out,
+                gate_logits,
                 router_target_bias=self.router_target_bias,
                 loss_fn=self.biased_balancing_loss_fn,
                 alpha=self.biased_balancing_loss_weight,
@@ -294,7 +297,7 @@ class TokenGatingBiased(MoeGating, InputWiseRouterBias):
         self.update_cache_for_logging("tokens_per_expert", tokens_per_expert)
         self.update_cache_for_logging("load_balancing_loss", load_balancing_loss)
 
-    def apply_capacity(self, capacity, expert_index, gate_out, n_tokens):
+    def apply_capacity(self, capacity, expert_index, gate_out, n_tokens, gate_logits):
         # create a mask telling if a token is assigned to an expert
         with measure_time(self, "create_expert_mask"):
             expanded_expert_mask = F.one_hot(expert_index, num_classes=self.n_experts)
@@ -324,7 +327,7 @@ class TokenGatingBiased(MoeGating, InputWiseRouterBias):
             torch.gather(gate_out, 0, top_tokens_per_expert_indices)
             * top_tokens_per_expert_values
         )
-        self.calculate_balancing_loss(gate_out, expert_mask)
+        self.calculate_balancing_loss(gate_out, expert_mask, gate_logits)
         return top_tokens_per_expert_indices, expert_values
 
     def log_dropped_tokens(

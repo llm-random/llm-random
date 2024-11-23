@@ -1,52 +1,66 @@
-parent: configs/baselines/gpt/expert_choice/granularity/4/medium.yaml
 runner: research.mole.train.cc_train
 argparse: "research.mole.utils.argparse"
 
-md5_parent_hash: 25eb0c53963eb1c7d96c91bb327c2a20
 time: 0-05:00:00
 interactive_debug_session: false
 interactive_debug: false
 n_gpus: 1
 cpus_per_gpu: 16
+mem_per_gpu: 220
 
 params:
   name: "MoLE"
   tags: ["mole", "medium", "common_config"]
-  ff_mode: token_choice
   capacity_factor: 1.0
   data_seed: 27
 
+  # MODEL
+  dmodel: 512
+  n_blocks: 8
+  n_att_heads: 8
+  expansion_rate: 8 
+
+  model_type: gpt
+  softmax_over: experts
   activation_type: silu
   ff_mode: token_choice_biased
   moe_inner_expert: ff_gated
-  expansion_rate: 8 
   granularity: 1
   get_router_values_from: weights
   layer_norm_in_expert_choice: False
+  init_type: truncated_normal
+  init_scale: 0.1
 
+  # technical/common params
+  group_granular_moe_by_batch: true
+  use_torch_bmm: true
+  torch_compile: false
+  granular_moe_one_hot_impl: true
+  mixed_precision: True
+  mixed_precision_dtype: bfloat16
+  flash_attention: true
+  loss_checkpoint_chungs: 0
+
+  dataset_type: c4
   batch_size: 256
   cutoff: 256
- 
   n_steps: 12_800
   final_lr_step: 12_800
+  
   zloss_weight: 0.001
   load_balancing_loss_weight: 0.01
   biased_balancing_loss_weight: 0.01
   init_scale: 0.15
   weight_decay: 0.1
+  effective_dff_x: 4
+  grad_clip: 0.5
 
   scheduler: trapezoidal
   learning_rate: 0.002
   lr_trapezoidal_decay_fraction: 0.2
   lr_warmup_percent: 0.01
   lr_warmup_steps: 0
-
-  save_weights_interval: 0
-  mixed_precision: True
-  mixed_precision_dtype: bfloat16
-  flash_attention: true
-  loss_checkpoint_chungs: 0
-
+  
   fsdp_enabled: true
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
@@ -55,6 +69,14 @@ params:
   print_parameter_names: true
 
   num_workers: 16
-  # num_workers: 1
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 5000
   logging_interval_loss: 100
+  save_weights_path: "model_ckpt"
+  save_weights_interval: 0
+  
+  biased: pos
   pos_grouped: "{'NOUN':[0,1],'PUNCT':[1,2],'NUM':[1,2],'SPACE':[1,2],'SYM':[1,2],'X':[1,2],'INTJ':[1,2],'EOT':[1,2],'VERB':[2,3],'AUX':[2,3],'DET':[3,4],'PRON':[3,4],'ADP':[4,5],'PART':[4,5],'ADJ':[5,6],'ADV':[5,6],'PROPN':[6,7],'CCONJ':[7,8],'SCONJ':[7,8]}"
