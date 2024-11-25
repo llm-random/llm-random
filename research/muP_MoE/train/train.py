@@ -16,16 +16,13 @@ from lizrd.support.misc import (
     get_n_learnable_parameters,
     set_seed,
 )
-from lizrd.train.train_utils import (
-    get_model,
-)
 from lizrd.text import tokenizers
-from research.template.utils.check_args import check_args
+from research.muP_MoE.utils.check_args import check_args
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.template.utils.trainer import TemplateTrainer
-from research.template.utils.argparse import introduce_parser_arguments
-from research.template.utils.model_utils import (
+from research.muP_MoE.utils.trainer import muP_Trainer
+from research.muP_MoE.utils.argparse import introduce_parser_arguments
+from research.muP_MoE.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
@@ -34,6 +31,7 @@ from research.template.utils.model_utils import (
     get_residual_layer,
     get_classes_from_module_names,
     update_model_fit_gpu_info,
+    get_model,
 )
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
@@ -68,6 +66,11 @@ def log_batch(
     print("Logged example batch.")
 
 
+def convert_args(args):
+    if args.dff is None:
+        args.dff = int(args.dmodel * args.dff_ratio)
+
+
 def main(
     rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
@@ -88,6 +91,8 @@ def main(
             args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
+
+    convert_args(args)
 
     if args.save_weights_interval is not None:
         save_weights_path = prepare_save_weights_path(args.save_weights_path)
@@ -287,7 +292,7 @@ def main(
         else disable_profile_schedule_fn
     )
 
-    trainer = TemplateTrainer(
+    trainer = muP_Trainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,

@@ -12,8 +12,8 @@ from lizrd.support.logging import AbstractLogger
 from lizrd.support.misc import get_ith_chunk
 from lizrd.text.data import LLMBatch
 from lizrd.train.scheduler import AbstractLRScheduler
-from research.template.utils.layer_manager import LayerManager
-from research.template.utils.model_utils import (
+from research.muP_MoE.utils.layer_manager import LayerManager
+from research.muP_MoE.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
@@ -24,7 +24,7 @@ from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 
 
 @define(slots=False)
-class TemplateTrainer:
+class muP_Trainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper

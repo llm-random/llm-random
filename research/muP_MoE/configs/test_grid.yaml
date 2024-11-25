@@ -1,0 +1,71 @@
+runner: "research.muP_MoE.train.train"
+
+time: "05:00:00"
+
+n_gpus: 1
+cpus_per_gpu: 16
+
+interactive_debug: false
+
+params:
+  name: "muP_MoE_test_grid"
+  tags: ["muP_MoE", "test_grid"]
+
+  # training
+  n_steps: 1000
+  final_lr_step: 1000
+  lr_warmup_steps: 100
+  batch_size: 128
+  cutoff: 128
+
+  # model
+  model_type: gpt
+  ^dmodel: [32, 64, 128, 256, 512, 1024]
+  dmodel: 64
+  dff_ratio: 4
+  n_blocks: 4
+  n_att_heads: 4
+  ff_mode: vanilla
+  use_torch_bmm: true
+
+  # learning
+  scheduler: cosine
+  learning_rate: 5e-4
+  final_lr_fraction: 0.1
+  grad_clip: 0.5
+  weight_decay: 0.01
+  init_scale: 0.1
+  init_type: truncated_normal
+  capacity_factor: 1.0
+
+  # aux losses
+  load_balancing_loss_weight: 0.01
+  # zloss_weight: 0.001
+
+  # FSDP
+  # fsdp_enabled: true
+  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+
+  # other
+  dataset_type: c4
+  mixed_precision: true
+  flash_attention: true
+  mixed_precision_dtype: bfloat16
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 100
+  logging_interval_light: 50
+  logging_interval_loss: 20
+  # save_weights_interval: null
+
+  # debug
+  # logger_types: "stdout"
+  # n_steps: 10
+  # use_dummy_dataset: true
+  # n_blocks: 1
+  # dmodel: 16
+  # n_att_heads: 1
