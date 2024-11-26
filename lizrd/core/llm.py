@@ -203,9 +203,9 @@ def attention_mechanism(
             enable_flash=True, enable_math=False, enable_mem_efficient=False
         ):
             output = F.scaled_dot_product_attention(
-                query=query,
-                key=key,
-                value=value,
+                query=query.contiguous(),
+                key=key.contiguous(),
+                value=value.contiguous(),
                 attn_mask=None,
                 is_causal=causal,
             )
