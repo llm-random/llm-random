@@ -41,7 +41,6 @@ def create_subprocess_args(
 ):
     configs = prepare_configs(config_path, git_branch, CLUSTER)
     grid = setup_experiments(configs)
-    check_for_argparse_correctness(grid)
     interactive_debug_session = grid[0][0]["interactive_debug_session"]
 
     if not isinstance(CLUSTER, LocalBackend) and not skip_confirmation:
