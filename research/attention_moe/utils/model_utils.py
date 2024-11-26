@@ -346,6 +346,7 @@ def get_attention_layer(args):
             init_scale=args.init_scale,
             lowrank_inner_dim=args.diff_transformer_lowrank_dim,
             flip_negative_heads=args.diff_transformer_flip_negative_heads,
+            roll_negative_heads=args.diff_transformer_roll_negative_heads,
         )
     else:
         raise NotImplementedError(

@@ -69,6 +69,7 @@ class MultiheadFlashDiff1(nn.Module):
         seq_len,
         lowrank_inner_dim,
         flip_negative_heads,
+        roll_negative_heads,
         init_type,
         init_scale,
     ):
@@ -82,6 +83,8 @@ class MultiheadFlashDiff1(nn.Module):
         #     if args.decoder_kv_attention_heads is not None
         #     else num_heads // args.model_parallel_size
         # )
+
+        assert (int(roll_negative_heads) + int(flip_negative_heads)) <= 1
 
         self.num_kv_heads = num_heads
         self.n_rep = self.num_heads // self.num_kv_heads
@@ -116,6 +119,7 @@ class MultiheadFlashDiff1(nn.Module):
         self.use_rope = use_rope
         self.seq_len = seq_len
         self.flip_negative_heads = flip_negative_heads
+        self.roll_negative_heads = roll_negative_heads
         if self.use_rope:
             self.rotary_emb = RotaryEmbedding(
                 self.head_dim,
@@ -202,6 +206,9 @@ class MultiheadFlashDiff1(nn.Module):
         if self.flip_negative_heads:
             q2 = torch.flip(q2, dims=(2,))
             k2 = torch.flip(k2, dims=(2,))
+        elif self.roll_negative_heads:
+            q2 = torch.roll(q2, shifts=1, dims=(2,))
+            k2 = torch.roll(k2, shifts=1, dims=(2,))
 
         attn1 = flash_attn_func(q1, k1, v, causal=True)
         attn2 = flash_attn_func(q2, k2, v, causal=True)
