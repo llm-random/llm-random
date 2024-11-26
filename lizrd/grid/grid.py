@@ -12,7 +12,6 @@ from lizrd.grid.utils import (
     seconds_to_timestr,
     timestr_to_minutes,
     translate_to_argparse,
-    check_for_argparse_correctness,
 )
 from lizrd.grid.utils import setup_experiments
 from lizrd.support.code_copying import copy_code
