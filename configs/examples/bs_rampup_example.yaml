@@ -1,7 +1,8 @@
 parent: configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 763f39978a58f704200275285162594c
-n_gpus: 2
-time: "0-01:00:00"
+n_gpus: 4
+time: "0-00:10:00"
+runner: "research/conditional/train/cc_train.py"
 skip_copy_code: true
 params:
     # batch_size_rampup_transition_points: [0.01, 0.05]
