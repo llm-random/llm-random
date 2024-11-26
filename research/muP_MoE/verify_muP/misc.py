@@ -1,5 +1,6 @@
 import neptune as neptune
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 
@@ -42,8 +43,6 @@ def get_neptune_table(tags, negative_tags=None, columns=None):
     return runs_table
 
 
-# TODO
-# change to activation norm data
 def get_activations(runs_table, metric=None):
     activation_dict = {}
     for i, run_row in runs_table.iterrows():
@@ -201,7 +200,7 @@ def plot_module(pivoted_dict, module_keyword, layer_num):
         sorted_indices = np.argsort(dmodels)
         sorted_dmodels = np.array(dmodels)[sorted_indices]
         sorted_values = np.array(values)[sorted_indices]
-        plt.plot(sorted_dmodels, sorted_values, marker="o", label=f"Step {step}")
+        plt.plot(sorted_dmodels, sorted_values, marker="o", label=f"Step {int(step)}")
 
     plt.xlabel("Model Width (dmodel)")
     plt.ylabel(f"Mean Activation Value ({module_keyword})")
@@ -216,3 +215,73 @@ def plot_module(pivoted_dict, module_keyword, layer_num):
     plt.xticks(all_dmodels, labels=[str(dm) for dm in all_dmodels])
 
     plt.show()
+
+
+def plot_loss_vs_lr(runs_table):
+    """
+    For each model width in the runs table, plots a line where the y-axis is the final loss value
+    and the x-axis is the learning rate (lr).
+
+    Parameters:
+    - runs_table (pd.DataFrame): The DataFrame returned by get_neptune_table(), containing run information.
+
+    Returns:
+    - None
+    """
+    # Ensure required columns are present in runs_table
+    required_columns = ["sys/id", "args/dmodel", "args/learning_rate"]
+    for col in required_columns:
+        if col not in runs_table.columns:
+            raise ValueError(
+                f"Column '{col}' is missing from runs_table. Please include it in the 'columns' parameter when calling get_neptune_table()."
+            )
+
+    # Get final loss values for each run
+    final_loss_df = get_final_loss_values(runs_table)
+
+    # Remove entries with missing final loss
+    final_loss_df = final_loss_df[final_loss_df["final_loss"].notnull()]
+
+    # Plotting
+    plt.figure(figsize=(10, 6))
+    model_widths = sorted(final_loss_df["dmodel"].unique())
+    for model_width in model_widths:
+        df_subset = final_loss_df[final_loss_df["dmodel"] == model_width]
+        df_subset = df_subset.sort_values("lr")
+        lrs = df_subset["lr"].to_numpy()
+        losses = df_subset["final_loss"].to_numpy()
+        plt.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
+
+    plt.xlabel("Learning Rate (lr)")
+    plt.ylabel("Final Loss Value")
+    plt.title("Final Loss vs Learning Rate for Different Model Widths")
+    plt.legend()
+    plt.grid(True)
+    plt.xscale(
+        "log"
+    )  # Set x-axis to logarithmic scale if learning rates vary exponentially
+    plt.show()
+
+
+def get_final_loss_values(runs_table):
+    """
+    Fetches the final loss value for each run in the runs table.
+
+    Parameters:
+    - runs_table (pd.DataFrame): The DataFrame containing run information.
+
+    Returns:
+    - pd.DataFrame: A DataFrame with columns ['run_id', 'dmodel', 'lr', 'final_loss']
+    """
+    final_losses = []
+    for _, run_row in runs_table.iterrows():
+        run_id = run_row["sys/id"]
+        model_width = run_row["args/dmodel"]
+        lr = run_row["args/learning_rate"]
+        loss = run_row["loss_interval/100"]
+
+        final_losses.append(
+            {"run_id": run_id, "dmodel": model_width, "lr": lr, "final_loss": loss}
+        )
+
+    return pd.DataFrame(final_losses)
