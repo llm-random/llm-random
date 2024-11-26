@@ -1,12 +1,12 @@
 runner: research.mole.train.cc_train
 argparse: "research.mole.utils.argparse"
 
-time: 0-05:00:00
+time: 0-01:00:00
 interactive_debug_session: false
 interactive_debug: false
-n_gpus: 1
+n_gpus: 3
 cpus_per_gpu: 16
-mem_per_gpu: 220
+mem_per_gpu: 125
 
 params:
   name: "MoLE"
@@ -18,7 +18,6 @@ params:
   dmodel: 512
   n_blocks: 8
   n_att_heads: 8
-  expansion_rate: 8 
 
   model_type: gpt
   softmax_over: experts
@@ -42,6 +41,11 @@ params:
   loss_checkpoint_chungs: 0
 
   dataset_type: c4
+  # batch_size: 512
+  # cutoff: 512
+  # n_steps: 3200
+  # final_lr_step: 3200
+  # gradient_accumulation_steps: 1
   batch_size: 256
   cutoff: 256
   n_steps: 12_800
@@ -56,7 +60,7 @@ params:
   grad_clip: 0.5
 
   scheduler: trapezoidal
-  learning_rate: 0.002
+  learning_rate: 0.001
   lr_trapezoidal_decay_fraction: 0.2
   lr_warmup_percent: 0.01
   lr_warmup_steps: 0
@@ -68,7 +72,7 @@ params:
 
   print_parameter_names: true
 
-  num_workers: 16
+  num_workers: 2
 
   # logging etc.
   logger_types: "neptune"
@@ -79,4 +83,7 @@ params:
   save_weights_interval: 0
   
   biased: pos
-  pos_grouped: "{'NOUN':[0,1],'PUNCT':[1,2],'NUM':[1,2],'SPACE':[1,2],'SYM':[1,2],'X':[1,2],'INTJ':[1,2],'EOT':[1,2],'VERB':[2,3],'AUX':[2,3],'DET':[3,4],'PRON':[3,4],'ADP':[4,5],'PART':[4,5],'ADJ':[5,6],'ADV':[5,6],'PROPN':[6,7],'CCONJ':[7,8],'SCONJ':[7,8]}"
+  expansion_rate: 48 
+  pos_grouped: "{'NOUN':[0,9],'PUNCT':[9,14],'VERB':[14,19],'ADP':[19,24],'PROPN':[24,28],'DET':[28,32],'ADJ':[32,35],'PRON':[35,38],'AUX':[38,40],'ADV':[40,42],'CCONJ':[42,44],'PART':[44,45],'NUM':[45,46],'EOT':[46,47],'SPACE':[46,47],'SYM':[46,47],'X':[46,47],'INTJ':[46,47],'SCONJ':[47,48],}"
+  # expansion_rate: 8 
+  # pos_grouped: "{'NOUN':[0,1],'PUNCT':[1,2],'NUM':[1,2],'SPACE':[1,2],'SYM':[1,2],'X':[1,2],'INTJ':[1,2],'EOT':[1,2],'VERB':[2,3],'AUX':[2,3],'DET':[3,4],'PRON':[3,4],'ADP':[4,5],'PART':[4,5],'ADJ':[5,6],'ADV':[5,6],'PROPN':[6,7],'CCONJ':[7,8],'SCONJ':[7,8]}"

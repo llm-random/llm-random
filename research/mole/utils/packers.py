@@ -17,28 +17,7 @@ from lizrd.text.tokenizers import AbstractTokenizer
 from research.mole.utils.data import LLMMetaExample
 
 EOT_POS_TAG = "EOT"
-# N_GROUPS = 8
-# pos_grouped = {
-#  'NOUN': 0,
-#  'PUNCT': 1,
-#  'NUM': 1,
-#  'SPACE': 1,
-#  'SYM': 1,
-#  'X': 1,
-#  'INTJ': 1,
-#  EOT_TAG: 1,
-#  'VERB': 2,
-#  'AUX': 2,
-#  'DET': 3,
-#  'PRON': 3,
-#  'ADP': 4,
-#  'PART': 4,
-#  'ADJ': 5,
-#  'ADV': 5,
-#  'PROPN': 6,
-#  'CCONJ': 7,
-#  'SCONJ': 7,
-# }
+
 
 def encode_with_pos(sentence, tokenizer, spacy_nlp) -> Tuple[list[int], list[str]]:
     spacy_tokens = spacy_nlp(sentence)
@@ -78,7 +57,6 @@ def encode_with_token_id(sentence, tokenizer, spacy_nlp) -> Tuple[list[int], lis
     for pt, pos in zip(pretokenized, pretokenized_pos):
         n_ids = tokenizer.encode(pt)
         ids.extend(n_ids)
-        # ids_md.extend(n_ids)
         ids_md.extend([str(ix) for ix in n_ids])
     
     assert len(ids) == len(ids_md)
@@ -108,51 +86,7 @@ class GPTMetaPOSPacker(
             seed=seed,
         )
         self.spacy_nlp = spacy.load("en_core_web_sm")
-        # self.pos_grouped = {
-        #     'NOUN': [0, 9],
-        #     'PUNCT': [9, 14],
-        #     'VERB': [14, 19],
-        #     'ADP': [19, 24],
-        #     'PROPN': [24, 28],
-        #     'DET': [28, 32],
-        #     'ADJ': [32, 35],
-        #     'PRON': [35, 38],
-        #     'AUX': [38, 40],
-        #     'ADV': [40, 42],
-        #     'CCONJ': [42, 44],
-        #     'PART': [44, 45],
-        #     'NUM': [45, 46],
-        #     'EOT': [46, 47],
-        #     'SPACE': [46, 47],
-        #     'SYM': [46, 47],
-        #     'X': [46, 47],
-        #     'INTJ': [46, 47],
-        #     'SCONJ': [47, 48],
-        # }
-        # self.pos_grouped = {
-        #  'NOUN': [0, 1],
-        #  'PUNCT': [1, 2],
-        #  'NUM': [1, 2],
-        #  'SPACE': [1, 2],
-        #  'SYM': [1, 2],
-        #  'X': [1, 2],
-        #  'INTJ': [1, 2],
-        #  EOT_POS_TAG: [1, 2],
-        #  'VERB': [2, 3],
-        #  'AUX': [2, 3],
-        #  'DET': [3, 4],
-        #  'PRON': [3, 4],
-        #  'ADP': [4, 5],
-        #  'PART': [4, 5],
-        #  'ADJ': [5, 6],
-        #  'ADV': [5, 6],
-        #  'PROPN': [6, 7],
-        #  'CCONJ': [7, 8],
-        #  'SCONJ': [7, 8],
-        # }
-        # with open("research/mole/utils/tokens_groups_distrs/token_group_ranges_2_48.json") as f:
-        #     pos_grouped = json.load(f)
-
+        
         self.pos_grouped = pos_grouped
         self.n_experts = self.__count_groups_and_validate()
         assert self.n_experts == n_experts

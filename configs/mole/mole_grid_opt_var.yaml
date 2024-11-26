@@ -8,7 +8,7 @@ cpus_per_gpu: 26 # writer
 
 params:
   name: "MoLE_grid_3_1"
-  tags: ["mole", "grid_3", "optimum_0_3", "D3"]
+  tags: ["mole", "G2", "optimum_var"]
   ^biased_balancing_loss_weight: [0.03125, 0.015625, 0.0078125, 00.00390625, 0.001953125, 0.0009765625, 0.00048828125]
   ^load_balancing_loss_weight: [0.125, 0.0625, 0.03125, 0.0078125, 0.00390625, 0.001953125]
   # ^load_balancing_loss_weight: [0.03125] # 1 - partially 2/7 entropy

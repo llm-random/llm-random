@@ -347,7 +347,7 @@ class WriterBackend(MachineBackend):
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
             f"--array=0-{n_consecutive-1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-            f"--mem={max(210, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--mem={max(200, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",

@@ -1,0 +1,14 @@
+parent: configs/mole/common.yaml
+time: 0-05:00:00
+n_gpus: 2
+cpus_per_gpu: 16
+md5_parent_hash: 934810b5bf85d2b00bc41bf6e9dc9e5f
+
+params:
+  name: "MoLE_grid_nl"
+  tags: ["mole", "new_loss_1", "sparse_grid", "BCEWithLogitsLoss", "hash_token"]
+  ^biased_balancing_loss_weight: [0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125]
+  ^load_balancing_loss_weight: [0.015625]
+  biased: "hash_token"
+
+  num_workers: 16

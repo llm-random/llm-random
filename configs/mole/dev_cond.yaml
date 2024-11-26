@@ -1,11 +1,11 @@
 parent: configs/mole/conditional.yaml
-time: 0-01:00:00
-n_gpus: 1
+time: 0-02:00:00
+n_gpus: 4
 cpus_per_gpu: 16
 md5_parent_hash: 7f4dfaa9ab7da73fb3b2071e4ff1f8da
 
 params:
   name: "MoLE"
   tags: ["mole", "dev", "conditional", "new_packer_word_split", "div_1_words_printouts"]
-  num_workers: 0
+  num_workers: 8
   

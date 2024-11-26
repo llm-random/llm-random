@@ -585,7 +585,7 @@ class ConditionalTrainer:
 
         if step % self.logging_interval_loss == 0 and step > 0:
             for name, loss in losses.items():
-                if name == "biased_balancing_loss":
+                if name == "biased_balancing_loss" and self.biased_balancing_loss_weight != 0:
                     loss = loss/self.biased_balancing_loss_weight
                 self.logger.report_scalar(
                     title=f"{name}",

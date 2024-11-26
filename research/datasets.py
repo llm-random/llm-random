@@ -84,7 +84,7 @@ def get_processed_dataset(
     use_dummy_dataset: bool = False,
     dataset_split: str = "train",
     dataset_path: Optional[str] = None,
-    biased: Optional[str] = "pos",
+    biased: Optional[str] = None,
     pos_grouped: Optional[dict] = None,
     n_experts: Optional[int] = None
 ):
