@@ -71,7 +71,7 @@ class MachineBackend(abc.ABC):
         return infrastructure_params_dict
 
     def get_runner_command(self, runner, runner_params):
-        return ["torchrun", runner, *runner_params]
+        return ["torchrun", "--nnodes=1", "--nproc_per_node=4", runner, *runner_params]
 
 
 class AthenaBackend(MachineBackend):

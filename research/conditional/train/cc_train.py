@@ -258,7 +258,7 @@ def convert_lr_scheduler_args(args, rampup_config):
 
 
 def main(
-    rank: Optional[int],
+    # rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
     port: str = "29500",
     unique_save_weights_path: Optional[str] = None,
@@ -281,12 +281,9 @@ def main(
 
     batch_size_rampup_config = convert_parameters(args)
 
-    if rank is not None:
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = port
-
-        init_process_group("nccl", rank=rank, world_size=args.n_gpus)
-        torch.cuda.set_device(rank)
+    rank = int(os.environ["LOCAL_RANK"])
+    init_process_group("nccl")
+    torch.cuda.set_device(rank)
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
@@ -617,7 +614,7 @@ if __name__ == "__main__":
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
-    if args.ddp_enabled or args.fsdp_enabled:
+    if False: # args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 
@@ -636,4 +633,6 @@ if __name__ == "__main__":
             nprocs=args.n_gpus,
         )
     else:
-        main(None, args=args, unique_save_weights_path=save_weights_path)
+        random.seed(args.data_seed)
+        data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
+        main(data_seeds=data_seeds, args=args, unique_save_weights_path=save_weights_path)
