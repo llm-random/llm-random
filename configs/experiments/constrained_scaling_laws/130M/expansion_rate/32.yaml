@@ -1,6 +1,6 @@
 parent: configs/experiments/constrained_scaling_laws/130M/model.yaml
 md5_parent_hash: 10917af781947ca6fb8c91d2a99db300
-n_gpus: 2 # works for athena
+n_gpus: 4 # works for athena
 
 params:
   tags: ["constrained_scaling_grid", "130M", "E=32"]
