@@ -46,7 +46,7 @@ class ConditionalTrainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
-    eval_dataloader: DataloaderWrapper
+    eval_dataloader: Optional[DataloaderWrapper]
     vocab_size: int
     mixed_precision: bool
     mixed_precision_dtype: torch.dtype
@@ -234,6 +234,7 @@ class ConditionalTrainer:
                     step > 0
                     and self.eval_interval > 0
                     and step % self.eval_interval == 0
+                    and self.eval_dataloader is not None
                 ):
                     self._eval_step(step)
                 if (
