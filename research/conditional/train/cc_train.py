@@ -614,7 +614,7 @@ if __name__ == "__main__":
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
-    if False: # args.ddp_enabled or args.fsdp_enabled:
+    if False:  # args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 
@@ -635,4 +635,6 @@ if __name__ == "__main__":
     else:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
-        main(data_seeds=data_seeds, args=args, unique_save_weights_path=save_weights_path)
+        main(
+            data_seeds=data_seeds, args=args, unique_save_weights_path=save_weights_path
+        )

@@ -2,7 +2,7 @@ from typing import Optional, Type, Sequence
 from functools import partial
 
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
-from torch.distributed.fsdp import MixedPrecision, CPUOffload
+from torch.distributed.fsdp import MixedPrecision, CPUOffload, ShardingStrategy
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.nn as nn
 import torch
@@ -45,6 +45,7 @@ def wrap_in_fsdp(
 
     wrapped = FSDP(
         module,
+        sharding_strategy=ShardingStrategy.HYBRID_SHARD,
         device_id=rank,
         mixed_precision=MixedPrecision(
             param_dtype=param_precision,
