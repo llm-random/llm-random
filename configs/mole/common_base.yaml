@@ -1,12 +1,12 @@
 parent: configs/mole/common.yaml
-md5_parent_hash: 934810b5bf85d2b00bc41bf6e9dc9e5f
-time: 0-19:50:00
-n_gpus: 2
-# n_gpus: 4 # athena
+md5_parent_hash: c7e284c7ce24a161e67f2011d5b49190
+time: 0-17:50:00
+# n_gpus: 2
+n_gpus: 4 # athena
 
 # cpus_per_gpu: 20 # writer
-cpus_per_gpu: 25 # entropy
-# cpus_per_gpu: 16 # athena
+# cpus_per_gpu: 25 # entropy
+cpus_per_gpu: 16 # athena
 
 params:
   dmodel: 768
@@ -14,14 +14,13 @@ params:
   n_blocks: 12
   n_att_heads: 12
   n_steps: 43_200
-  final_lr_step: 43_200
 
   name: "MoLE"
-  tags: ["mole", "base", "lr_+"]
+  tags: ["mole", "base", "G3"]
 
   ^biased_balancing_loss_weight: [0]
-  ^load_balancing_loss_weight: [0.015625]
-  ^learning_rate: [0.000125]
+  ^load_balancing_loss_weight: [0.0625]
+  learning_rate: 0.00025
 
-  num_workers: 14 # entropy
-  # num_workers: 16 # athena, writer
+  # num_workers: 14 # entropy
+  num_workers: 16 # athena, writer

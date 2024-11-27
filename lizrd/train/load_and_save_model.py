@@ -95,13 +95,13 @@ def save_checkpoint(
     loggers: list[AbstractLogger],
     args_override: Optional[dict] = None,
 ):
-    if isinstance(model, FSDP):
-        # for some reason, setting the model to training mode and
-        # running a forward pass is necessary to be able to save it
-        # in FSDP. God help us.
-        model.train()
-        with torch.no_grad():
-            _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
+    # if isinstance(model, FSDP): #dev
+    #     # for some reason, setting the model to training mode and
+    #     # running a forward pass is necessary to be able to save it
+    #     # in FSDP. God help us.
+    #     model.train()
+    #     with torch.no_grad():
+    #         _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
     if rank == 0 or rank is None:
         print(f"Saving weights...")
     if isinstance(model, FSDP):

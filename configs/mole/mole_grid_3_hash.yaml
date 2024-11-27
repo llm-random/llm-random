@@ -1,21 +1,26 @@
 parent: configs/mole/common.yaml
-time: 0-10:50:00
+md5_parent_hash: c7e284c7ce24a161e67f2011d5b49190
+time: 0-14:50:00
 n_gpus: 2
-cpus_per_gpu: 19
-md5_parent_hash: 934810b5bf85d2b00bc41bf6e9dc9e5f
+# cpus_per_gpu: 16 # athena, writer
+# cpus_per_gpu: 26 # writer
+cpus_per_gpu: 20 # entropy
 
 params:
-  name: "MoLE_grid_3"
-  tags: ["mole", "grid_3", "hash_token", "run_2"]
+  name: "MoLE_grid_3_3"
+  tags: ["mole", "grid_3", "hash_token", "run_4"]
 #   ^biased_balancing_loss_weight: [0.00390625] # 1
-  ^biased_balancing_loss_weight: [0.0078125] # 2
-#   ^biased_balancing_loss_weight: [0.015625] # 3
-#   ^biased_balancing_loss_weight: [0.03125] # 4
+  # ^biased_balancing_loss_weight: [0.0078125] # 2
+  # ^biased_balancing_loss_weight: [0.015625] # 3
+  ^biased_balancing_loss_weight: [0.03125] # 4
 #   ^biased_balancing_loss_weight: [0.0625] # 5
+  # ^biased_balancing_loss_weight: [0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625]
   ^load_balancing_loss_weight: [0.125, 0.0625, 0.03125, 0.0078125, 0.00390625, 0.001953125]
   biased: "hash_token"
   
-  num_workers: 16
+  # num_workers: 24 # writer
+  # num_workers: 16 # athena, writer
+  num_workers: 14 # entropy
 
 #   hash [0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625]
 

@@ -44,12 +44,10 @@ params:
   # batch_size: 512
   # cutoff: 512
   # n_steps: 3200
-  # final_lr_step: 3200
   # gradient_accumulation_steps: 1
   batch_size: 256
   cutoff: 256
   n_steps: 12_800
-  final_lr_step: 12_800
   
   zloss_weight: 0.001
   load_balancing_loss_weight: 0.01

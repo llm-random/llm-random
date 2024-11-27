@@ -609,7 +609,7 @@ class ConditionalTrainer:
                 step,
                 self.batch_size,
                 self.cutoff,
-                self.logger.loggers,
+                self.logger.loggers if self.rank == 0 else None, #dev TODO fix
             )
 
     def _repeater_rerun(
