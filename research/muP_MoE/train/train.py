@@ -70,6 +70,9 @@ def convert_args(args):
     if args.dff is None:
         args.dff = int(args.dmodel * args.dff_ratio)
 
+    if args.mup_params is not None:
+        args.mup_params["m_d"] = args.dmodel / args.mup_params["base_dmodel"]
+
 
 def main(
     rank: Optional[int],
@@ -201,6 +204,7 @@ def main(
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
+        mup_config=args.mup_params,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)

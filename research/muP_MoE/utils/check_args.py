@@ -36,3 +36,7 @@ def check_args(args):
         assert args.dff_ratio is not None
     else:
         assert args.dff_ratio is None
+
+    if args.mup_params is not None:
+        keys = args.mup_params.keys()
+        assert len(keys) == 3

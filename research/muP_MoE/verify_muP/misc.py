@@ -169,7 +169,7 @@ def get_steps_from_first_run(activations_dict):
     return steps_list
 
 
-def plot_module(pivoted_dict, module_keyword, layer_num):
+def plot_module(pivoted_dict, module_keyword, layer_num, step_interval=100):
     """
     Plots the activation values of a specific module in a specific layer across different model widths (dmodels) over training steps.
     The x-axis is set to logarithmic scale, and x-ticks match the dmodel values.
@@ -194,13 +194,16 @@ def plot_module(pivoted_dict, module_keyword, layer_num):
 
     # Iterate over each training step in the pivoted dictionary
     for step, data in pivoted_dict.items():
-        dmodels = data["dmodel"]
-        values = data["value"]
-        # Sort the data based on dmodels for consistent plotting
-        sorted_indices = np.argsort(dmodels)
-        sorted_dmodels = np.array(dmodels)[sorted_indices]
-        sorted_values = np.array(values)[sorted_indices]
-        plt.plot(sorted_dmodels, sorted_values, marker="o", label=f"Step {int(step)}")
+        if step % step_interval == 0:
+            dmodels = data["dmodel"]
+            values = data["value"]
+            # Sort the data based on dmodels for consistent plotting
+            sorted_indices = np.argsort(dmodels)
+            sorted_dmodels = np.array(dmodels)[sorted_indices]
+            sorted_values = np.array(values)[sorted_indices]
+            plt.plot(
+                sorted_dmodels, sorted_values, marker="o", label=f"Step {int(step)}"
+            )
 
     plt.xlabel("Model Width (dmodel)")
     plt.ylabel(f"Mean Activation Value ({module_keyword})")
@@ -217,7 +220,7 @@ def plot_module(pivoted_dict, module_keyword, layer_num):
     plt.show()
 
 
-def plot_loss_vs_lr(runs_table):
+def plot_loss_vs_lr(runs_table, ylim=None):
     """
     For each model width in the runs table, plots a line where the y-axis is the final loss value
     and the x-axis is the learning rate (lr).
@@ -260,6 +263,8 @@ def plot_loss_vs_lr(runs_table):
     plt.xscale(
         "log"
     )  # Set x-axis to logarithmic scale if learning rates vary exponentially
+    if ylim is not None:
+        plt.ylim(ylim)
     plt.show()
 
 

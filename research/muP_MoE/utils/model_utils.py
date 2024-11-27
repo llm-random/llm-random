@@ -409,6 +409,7 @@ def get_model(
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
+    mup_config: dict = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -444,7 +445,7 @@ def get_model(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(last_gpu)
 
-    model = llm.LLM(embedding_layer, encoder_tower, head)
+    model = mup_modules.muP_LLM(embedding_layer, encoder_tower, head, mup_config)
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)

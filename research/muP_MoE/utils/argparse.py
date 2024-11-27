@@ -1,4 +1,9 @@
 import argparse
+import json
+
+
+def load_dict_in_args(s: str):
+    return json.loads(s.replace("'", '"'))
 
 
 def introduce_parser_arguments(
@@ -27,8 +32,12 @@ def introduce_parser_arguments(
     parser.add_argument("--standard_ff_first", action="store_true")
     parser.add_argument("--no_ff", action="store_true")
     parser.add_argument("--moe_inner_expert", type=str, default="ff")
-
-    # CORE training hyperparameters, almost always specified in baseline configs
+    parser.add_argument(
+        "--mup_params",
+        type=load_dict_in_args,
+        default=None,
+        help="provide all 3 values: alpha_in: float, alpha_out: float, base_dmodel: int",
+    )
 
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument("--learning_rate", type=float, required=True)
