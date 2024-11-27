@@ -1,21 +1,22 @@
 parent: configs/mole/common.yaml
 md5_parent_hash: c7e284c7ce24a161e67f2011d5b49190
-time: 0-04:50:00
+time: 0-05:50:00
 n_gpus: 2
-# cpus_per_gpu: 16 # athena, writer
-cpus_per_gpu: 26 # writer
+cpus_per_gpu: 16 # athena, writer
+# cpus_per_gpu: 26 # writera
 # cpus_per_gpu: 20 # entropy
 
 params:
   name: "MoLE_su"
-  tags: ["mole", "G2", "medium", "tuned_speedup"]
-  # ^biased_balancing_loss_weight: [0.03125, 0.015625, 0.0078125, 00.00390625, 0.001953125, 0.0009765625, 0.00048828125]
-  # ^load_balancing_loss_weight: [0.125, 0.0625, 0.03125, 0.0078125, 0.00390625, 0.001953125]
+  tags: ["mole", "G2", "medium", "tuned_speedup", "rep_var"]
+  # ^biased_balancing_loss_weight: [0.0]
   ^biased_balancing_loss_weight: [0.015625]
   ^load_balancing_loss_weight: [0.03125]
   n_steps: 12_800
   checkpoint_manager: True
-  scheduler_trapezoidal_slides: "[{'n_steps':8320},{'n_steps':8960},{'n_steps':9600},{'n_steps':10240},{'n_steps':10880},{'n_steps':11520},{'n_steps':12160}]"
-  num_workers: 24 # writer
-  # num_workers: 16 # athena, writer
+  scheduler_trapezoidal_slides: "[{'n_steps':10200},{'n_steps':10900},{'n_steps':11500},{'n_steps':12200}]"
+  ^data_seed: [28, 29, 30]
+
+  # num_workers: 24 # writer
+  num_workers: 16 # athena, writer
   # num_workers: 14 # entropy
