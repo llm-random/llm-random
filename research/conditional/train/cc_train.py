@@ -306,6 +306,8 @@ def main(
             data_seeds = [None] * args.n_gpus
 
         broadcast_object_list(data_seeds, src=0)
+    else:
+        local_rank = global_rank = None
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
