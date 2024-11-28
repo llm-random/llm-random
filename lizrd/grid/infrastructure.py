@@ -79,7 +79,7 @@ class MachineBackend(abc.ABC):
                 "srun",
                 "torchrun",
                 f"--nnodes={setup_args['n_nodes']}",
-                "--nproc_per_node=4",
+                f"--nproc_per_node={setup_args['n_nodes'] // setup_args['n_gpus']}",
                 "--rdzv_id",
                 "__RANDOM__",
                 "--rdzv_backend",
