@@ -289,6 +289,7 @@ def main(
     elif (
         rank is not None
     ):  # multi-gpu without torchrun. We need to setup things manually
+        global_rank = rank
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = port
         init_process_group("nccl", rank=rank, world_size=args.n_gpus)
@@ -327,13 +328,10 @@ def main(
         fsdp_modules_to_wrap = None
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
-    if (rank is None) or (global_rank == 0) or (global_rank is None and rank == 0):
+    if rank is None or global_rank == 0:
         is_logging_process = True
     else:
         is_logging_process = False
-    print(
-        f"Rank: {rank}, global rank: {global_rank}, Is logging process: {is_logging_process}"
-    )
 
     activation_checkpointing_modules = get_classes_from_module_names(
         args.activation_checkpointing_modules
