@@ -307,10 +307,6 @@ def main(
 
         broadcast_object_list(data_seeds, src=0)
 
-    print(
-        f"Local Rank: {local_rank}, Global rank: {global_rank} Data seed: {data_seeds[global_rank]}, data_seeds: {data_seeds}"
-    )
-
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
 
