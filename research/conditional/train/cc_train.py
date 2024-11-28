@@ -258,12 +258,13 @@ def convert_lr_scheduler_args(args, rampup_config):
 
 
 def main(
-    # rank: Optional[int],
+    rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
     port: str = "29500",
     unique_save_weights_path: Optional[str] = None,
     args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
+    is_using_torchrun: bool = False,
 ):
     """
     rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
@@ -281,12 +282,17 @@ def main(
 
     batch_size_rampup_config = convert_parameters(args)
 
-    rank = int(os.environ["LOCAL_RANK"])
-    global_rank = os.environ.get("RANK", default=None)
-    if global_rank is not None:
-        global_rank = int(global_rank)
-    init_process_group("nccl")
-    torch.cuda.set_device(rank)
+    if rank is not None and is_using_torchrun:
+        global_rank = int(os.environ["RANK"])
+        init_process_group("nccl")
+        torch.cuda.set_device(rank)
+    elif (
+        rank is not None
+    ):  # multi-gpu without torchrun. We need to setup things manually
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = port
+        init_process_group("nccl", rank=rank, world_size=args.n_gpus)
+        torch.cuda.set_device(rank)
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
@@ -614,9 +620,6 @@ def main(
 
 
 if __name__ == "__main__":
-    rank = int(os.environ["LOCAL_RANK"])
-    global_rank = os.environ.get("RANK", default=None)
-    print(f"Rank: {rank}, Global Rank: {global_rank}")
     misc.print_available_gpus()
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
@@ -626,7 +629,20 @@ if __name__ == "__main__":
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
-    if False:  # args.ddp_enabled or args.fsdp_enabled:
+    if (
+        os.environ.get("MASTER_PORT") is not None
+    ):  # if this is already set, we are using multinode torchrun setup
+        world_size = int(os.environ["WORLD_SIZE"])
+        assert args.data_seed < 0, "Data seed not support"
+        data_seeds = [random.randint(0, 10000000) for _ in range(world_size)]
+        main(
+            rank=int(os.environ["RANK"]),
+            data_seeds=data_seeds,
+            args=args,
+            unique_save_weights_path=save_weights_path,
+            is_using_torchrun=True,
+        )
+    elif args.ddp_enabled or args.fsdp_enabled:  # single-node multi-gpu training
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 
@@ -644,7 +660,7 @@ if __name__ == "__main__":
             ],
             nprocs=args.n_gpus,
         )
-    else:
+    else:  # single-gpu training
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
         main(
