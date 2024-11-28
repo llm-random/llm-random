@@ -14,7 +14,7 @@ def muP_attention_mechanism(
     causal: bool,
     mode: bool,
 ):
-    if mode == "dhead":
+    if mode == "attn":
         # implementation without flash assumes other dim order
         query = query.transpose(1, 2)
         key = key.transpose(1, 2)
@@ -56,6 +56,17 @@ def muP_attention_mechanism(
                 attn_mask=None,
                 is_causal=causal,
             )
+    else:
+        with torch.backends.cuda.sdp_kernel(
+            enable_flash=True, enable_math=False, enable_mem_efficient=False
+        ):
+            output = F.scaled_dot_product_attention(
+                query=query,
+                key=key,
+                value=value,
+                attn_mask=None,
+                is_causal=causal,
+            )
     return output
 
 
@@ -80,7 +91,7 @@ class muP_AttentionMechanism(nn.Module):
             value=value,
             dhead=dhead,
             causal=causal,
-            flash=self.mode,
+            mode=self.mode,
         )
 
 
@@ -95,10 +106,9 @@ class muP_Attention(Attention):
         init_scale: float,
         dhead=None,
         flash=False,
-        mode=False,
+        mode="vanilla",
     ):
         super(muP_Attention, self).__init__(
-            self,
             dmodel,
             heads,
             causal,
@@ -106,7 +116,6 @@ class muP_Attention(Attention):
             init_scale,
             dhead=dhead,
             flash=flash,
-            mode=False,
         )
         self.attention_mechanism = muP_AttentionMechanism(mode=mode)
 

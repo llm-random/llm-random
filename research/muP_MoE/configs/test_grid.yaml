@@ -10,7 +10,7 @@ interactive_debug: false
 params:
   name: "muP_MoE"
   # tags: ["muP_MoE", "test_grid"]
-  tags: ["muP_MoE", "nonResidual_test"]
+  tags: ["muP_MoE", "muTransfer", "32_to_512"]
 
   mup_params:
     alpha_in: 1.0
@@ -18,28 +18,29 @@ params:
     base_dmodel: 32
 
   # training
-  # n_steps: 25000
-  # final_lr_step: 25000
-  # lr_warmup_steps: 250
-  n_steps: 1000
-  final_lr_step: 1000
-  lr_warmup_steps: 100
+  n_steps: 25000
+  final_lr_step: 25000
+  lr_warmup_steps: 250
+  # n_steps: 1000
+  # final_lr_step: 1000
+  # lr_warmup_steps: 100
   batch_size: 128
   cutoff: 128
 
   # model
   model_type: gpt
-  dmodel: 256
+  dmodel: 512
   # ^dmodel: [32, 64, 128, 256, 512, 768]
   dff_ratio: 4
   n_blocks: 4
   n_att_heads: 4
+  attention_mode: 'muP_attention'
   ff_mode: vanilla
   use_torch_bmm: true
 
   # learning
   scheduler: cosine
-  learning_rate: 1e-3
+  learning_rate: 1e-2
   # ^learning_rate: [2e-2, 1e-2, 5e-3, 2e-3, 1e-3, 5e-4, 2e-4, 1e-4]
   # ^learning_rate: [5e-2, 2e-2]
   final_lr_fraction: 0.1

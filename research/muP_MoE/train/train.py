@@ -3,6 +3,8 @@ import os
 import random
 from typing import Callable, Optional
 import socket
+from collections import defaultdict
+
 
 import torch
 import torch.multiprocessing as mp
@@ -72,6 +74,52 @@ def convert_args(args):
 
     if args.mup_params is not None:
         args.mup_params["m_d"] = args.dmodel / args.mup_params["base_dmodel"]
+
+
+def get_muP_learning_rates(args, model, m_d=1.0):
+    lr = args.learning_rate
+
+    key_lr_dict = {
+        "embedding_layer": 1.0,
+        "block": (1 / m_d),
+        "head": (1 / m_d),
+    }
+
+    lr_to_params = defaultdict(list)
+    for name, param in model.named_parameters():
+        ratio = 1.0
+        for keyword in key_lr_dict.keys():
+            if keyword in name:
+                ratio = key_lr_dict[keyword]
+                break
+        lr_to_params[ratio * lr].append(param)
+    param_grops = [
+        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
+    ]
+    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
+    return param_grops, ratios_in_group_order
+
+
+def apply_muP_innit(args, model, m_d=1.0):
+    # check if the model isn't loaded from checkpoint
+    if args.load_weights_path is None:
+        return
+
+    if m_d == 1.0:
+        return
+
+    key_init_dict = {
+        "embedding_layer": 1.0,
+        "block": (1 / m_d),
+        "head": (1 / m_d),
+    }
+    for name, param in model.named_parameters():
+        scale = 1.0
+        for keyword in key_init_dict.keys():
+            if keyword in name:
+                scale = key_init_dict[keyword]
+                break
+        param.data *= scale
 
 
 def main(
@@ -227,8 +275,17 @@ def main(
     if args.torch_compile:
         model = torch.compile(model)
 
+    # muP innit
+    if args.mup_params is not None:
+        m_d = args.mup_params["m_d"]
+    else:
+        m_d = 1.0
+
+    apply_muP_innit(args, model, m_d=m_d)
+    param_grops, lr_ratios_in_group_order = get_muP_learning_rates(args, model, m_d=m_d)
+
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        param_grops,
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
@@ -236,7 +293,7 @@ def main(
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args)
+    scheduler = get_scheduler(args, ratios_in_group_order=lr_ratios_in_group_order)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size

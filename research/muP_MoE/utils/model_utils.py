@@ -216,6 +216,7 @@ def get_attention_layer(args):
             flash=args.flash_attention,
             init_type=args.init_type,
             init_scale=args.init_scale,
+            mode="attn",
         )
     elif args.attention_mode == "rope":
         attention_layer_fun = lambda: llm.AttentionRoPE(
@@ -432,7 +433,7 @@ def get_model(
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
-    encoder_tower = llm.TransformerTower(
+    transformer_tower = llm.TransformerTower(
         n_blocks,
         dm,
         block_modules,
@@ -445,7 +446,7 @@ def get_model(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(last_gpu)
 
-    model = mup_modules.muP_LLM(embedding_layer, encoder_tower, head, mup_config)
+    model = mup_modules.muP_LLM(embedding_layer, transformer_tower, head, mup_config)
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
