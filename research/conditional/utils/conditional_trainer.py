@@ -263,7 +263,7 @@ class ConditionalTrainer:
                                 self.save_weights_path,
                                 self.rank,
                                 step,
-                                self.batch_size,
+                                1,
                                 self.cutoff,
                                 split_loggers,
                                 args_override={
