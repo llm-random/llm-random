@@ -212,8 +212,7 @@ class HeliosBackend(MachineBackend):
             f"--gpus-per-node={setup_args['n_nodes'] // setup_args['n_gpus']}",
             f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-gh200",
-            "--cpus-per-gpu=72",
-            "--mem-per-gpu=100G",
+            "--exclusive",  # request all non-gpu resources on node
             "--account=plgllmefficont-gpu-gh200",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",

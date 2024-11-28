@@ -1,11 +1,8 @@
-# parent: configs/baselines/gpt/dense/llama_8b.yaml
-# md5_parent_hash: fda0bad008c770c284e2a9825b02de6a
-parent: configs/baselines/gpt/dense/base.yaml
-md5_parent_hash: 763f39978a58f704200275285162594c
+parent: configs/baselines/gpt/dense/llama_8b.yaml
+md5_parent_hash: dc078b596473b6a036838306ef524a66
 n_gpus: 4
-# n_nodes: 2
+n_nodes: 4
 time: "0-02:00:00"
-cpus_per_gpu: 16
 params:
     num_workers: 16
     # batch_size_rampup_transition_points: [152, 457]
@@ -14,7 +11,7 @@ params:
     data_seed: -1
     n_tokens: null
     n_steps: 1266    
-    batch_size: 8
+    batch_size: 512
     cutoff: 512
     fsdp_enabled: true
     mixed_precision: true

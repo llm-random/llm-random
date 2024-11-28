@@ -91,7 +91,7 @@ class ConditionalTrainer:
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
-    rank: Optional[int] = None
+    global_rank: Optional[int] = None
     start_step: int = 0
     batch_size_rampup_config: Optional[BatchSizeRampupConfig] = None
     checkpoint: Optional[dict[str, torch.Tensor]] = None
@@ -162,7 +162,7 @@ class ConditionalTrainer:
                     self.optimizer,
                     self.scaler,
                     self.save_weights_path,
-                    self.rank,
+                    self.global_rank,
                     self.current_step,
                     self.batch_size,
                     self.cutoff,
@@ -261,7 +261,7 @@ class ConditionalTrainer:
                                 self.optimizer,
                                 self.scaler,
                                 self.save_weights_path,
-                                self.rank,
+                                self.global_rank,
                                 step,
                                 self.batch_size,
                                 self.cutoff,
@@ -321,7 +321,7 @@ class ConditionalTrainer:
         loss, aux_info = self.calculate_loss_and_gradient(
             processed_batch, num_batch_chunks=num_batch_chunks
         )
-        if self.rank is not None:
+        if self.global_rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
 
@@ -426,9 +426,7 @@ class ConditionalTrainer:
                 self.eval_min_group_size_logfactor,
                 self.eval_max_group_size_logfactor + 1,
             ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
+                current_group_size = int(2**log_group_size_factor * original_group_size)
                 if (
                     current_group_size
                     <= self.batch_size // self.gradient_accumulation_steps
@@ -608,7 +606,7 @@ class ConditionalTrainer:
                 self.optimizer,
                 self.scaler,
                 self.save_weights_path,
-                self.rank,
+                self.global_rank,
                 step,
                 self.batch_size,
                 self.cutoff,
@@ -627,7 +625,7 @@ class ConditionalTrainer:
                 self.optimizer,
                 self.scaler,
                 self.save_weights_path,
-                self.rank,
+                self.global_rank,
                 step,
                 self.batch_size,
                 self.cutoff,

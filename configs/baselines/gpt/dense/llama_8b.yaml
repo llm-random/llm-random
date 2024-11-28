@@ -6,3 +6,5 @@ params:
   dff: 14336
   n_blocks: 32
   n_att_heads: 32
+  activation_type: "silu"
+  

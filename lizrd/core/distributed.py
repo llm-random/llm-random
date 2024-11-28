@@ -13,14 +13,14 @@ from torch.distributed.fsdp.wrap import ModuleWrapPolicy
 
 def wrap_in_ddp(
     module: nn.Module,
-    rank: int,
+    local_rank: int,
 ):
-    return DDP(module=module.to(f"cuda:{rank}"), device_ids=[rank])
+    return DDP(module=module.to(f"cuda:{local_rank}"), device_ids=[local_rank])
 
 
 def wrap_in_fsdp(
     module: nn.Module,
-    rank: Optional[int],
+    local_rank: Optional[int],
     param_precision: torch.dtype,
     cast_inputs: bool,
     mixed_precision_ignored_classes: Sequence[Type[nn.Module]],
@@ -46,7 +46,7 @@ def wrap_in_fsdp(
     wrapped = FSDP(
         module,
         sharding_strategy=ShardingStrategy.HYBRID_SHARD,  # sharded within node, data parallel across nodes
-        device_id=rank,
+        device_id=local_rank,
         mixed_precision=MixedPrecision(
             param_dtype=param_precision,
             reduce_dtype=param_precision,

@@ -8,7 +8,11 @@ import socket
 
 import torch
 import torch.multiprocessing as mp
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import (
+    init_process_group,
+    destroy_process_group,
+    broadcast_object_list,
+)
 from ast import literal_eval
 
 from lizrd.core import misc
@@ -259,17 +263,12 @@ def convert_lr_scheduler_args(args, rampup_config):
 
 def main(
     rank: Optional[int],
-    data_seeds: Optional[list[int]] = None,
     port: str = "29500",
     unique_save_weights_path: Optional[str] = None,
     args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
     is_using_torchrun: bool = False,
 ):
-    """
-    rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
-    """
-    print(f"In main. Rank: {rank}, data_seeds: {data_seeds}, port: {port}")
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
@@ -283,18 +282,33 @@ def main(
 
     batch_size_rampup_config = convert_parameters(args)
 
-    if rank is not None and is_using_torchrun:
-        global_rank = int(os.environ["RANK"])
-        init_process_group("nccl")
-        torch.cuda.set_device(rank)
-    elif (
-        rank is not None
-    ):  # multi-gpu without torchrun. We need to setup things manually
-        global_rank = rank
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = port
-        init_process_group("nccl", rank=rank, world_size=args.n_gpus)
-        torch.cuda.set_device(rank)
+    if args.n_gpus > 1:  # multi-gpu training
+        if is_using_torchrun:
+            local_rank = int(os.environ["LOCAL_RANK"])
+            global_rank = int(os.environ["RANK"])
+            init_process_group("nccl")
+        else:  # single-node multi-gpu without torchrun. We need to setup things manually
+            local_rank = global_rank = rank
+            os.environ["MASTER_ADDR"] = "localhost"
+            os.environ["MASTER_PORT"] = port
+            init_process_group("nccl", rank=global_rank, world_size=args.n_gpus)
+
+        torch.cuda.set_device(local_rank)
+
+        if global_rank == 0:
+            if args.data_seed < 0:
+                args.random_seed = random.randint(0, 10000000)
+
+            random.seed(args.random_seed)
+            data_seeds = random.sample(range(0, 10000000), args.n_gpus)
+        else:
+            data_seeds = [None] * args.n_gpus
+
+        broadcast_object_list(data_seeds, src=0)
+
+    print(
+        f"Local Rank: {local_rank}, Global rank: {global_rank} Data seed: {data_seeds[global_rank]}, data_seeds: {data_seeds}"
+    )
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
@@ -329,11 +343,7 @@ def main(
         fsdp_modules_to_wrap = None
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
-    is_logging_process = True
-    if rank is None or global_rank == 0:
-        is_logging_process = True
-    else:
-        is_logging_process = False
+    is_logging_process = True if global_rank is None or global_rank == 0 else False
 
     activation_checkpointing_modules = get_classes_from_module_names(
         args.activation_checkpointing_modules
@@ -404,7 +414,7 @@ def main(
         dm=args.dmodel,
         n_blocks=args.n_blocks,
         device=(
-            DEVICE if rank is None else torch.device("cpu")
+            DEVICE if global_rank is None else torch.device("cpu")
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
@@ -419,7 +429,7 @@ def main(
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
-        rank=rank,
+        local_rank=local_rank,
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
@@ -483,7 +493,7 @@ def main(
     )
 
     if checkpoint is not None:
-        load_optimizer_state(optimizer, checkpoint, model, rank)
+        load_optimizer_state(optimizer, checkpoint, model, global_rank)
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
@@ -498,7 +508,7 @@ def main(
         "device": DEVICE,
         "num_workers": args.num_workers,
         "batch_size": batch_size,
-        "seed": args.data_seed if data_seeds is None else data_seeds[rank],
+        "seed": args.data_seed if data_seeds is None else data_seeds[global_rank],
         "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
@@ -527,9 +537,9 @@ def main(
     if args.n_final_eval_batches > 0:
         final_eval_dataloader_kwargs = {**common_dataloaders_kwargs}
         final_eval_dataloader_kwargs["seed"] = args.final_eval_seed
-        final_eval_dataloader_kwargs[
-            "batch_size"
-        ] = args.final_eval_dataloader_batch_size
+        final_eval_dataloader_kwargs["batch_size"] = (
+            args.final_eval_dataloader_batch_size
+        )
         final_eval_dataloader_kwargs["dataset_split"] = eval_split
         final_eval_dataloader_kwargs["dataset_path"] = args.validation_dataset_path
         get_final_eval_dataloader = partial(
@@ -600,12 +610,12 @@ def main(
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
-        rank=rank,
+        global_rank=global_rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.checkpoint_manager
-        else None,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.checkpoint_manager else None
+        ),
         scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
         args_override=args.args_override,
         batch_size_rampup_config=batch_size_rampup_config,
@@ -615,7 +625,7 @@ def main(
     )
     trainer.train(args.n_steps)
 
-    if rank is not None:
+    if global_rank is not None:
         destroy_process_group()
 
 
@@ -624,31 +634,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
     args = parser.parse_args()
-    if args.data_seed < 0:
-        args.random_seed = random.randint(0, 10000000)
-        random.seed(args.random_seed)
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
     if (
         os.environ.get("MASTER_PORT") is not None
     ):  # if this is already set, we are using multinode torchrun setup
-        print("Detected multinode")
-        world_size = int(os.environ["WORLD_SIZE"])
-        assert (
-            args.data_seed < 0
-        ), "Custom data seed not supported in multi-node training"
-        data_seeds = [random.randint(0, 10000000) for _ in range(world_size)]
-
         main(
-            rank=int(os.environ["RANK"]),
-            data_seeds=data_seeds,
+            None,
             args=args,
             unique_save_weights_path=save_weights_path,
             is_using_torchrun=True,
         )
     elif args.ddp_enabled or args.fsdp_enabled:  # single-node multi-gpu training
-        print("Detected multigpu")
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 
         # find free port
@@ -658,7 +656,6 @@ if __name__ == "__main__":
         mp.spawn(
             main,
             args=[
-                data_seeds,
                 port,
                 save_weights_path,
                 args,
@@ -666,9 +663,6 @@ if __name__ == "__main__":
             nprocs=args.n_gpus,
         )
     else:  # single-gpu training
-        print("Detected single gpu")
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
-        main(
-            data_seeds=data_seeds, args=args, unique_save_weights_path=save_weights_path
-        )
+        main(None, args=args, unique_save_weights_path=save_weights_path)
