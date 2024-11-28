@@ -295,6 +295,7 @@ def main(
 
         torch.cuda.set_device(local_rank)
 
+        # the code below is to make sure every gpu loads distinct data
         if global_rank == 0:
             if args.data_seed < 0:
                 args.random_seed = random.randint(0, 10000000)
