@@ -3,7 +3,6 @@ md5_parent_hash: 763f39978a58f704200275285162594c
 n_gpus: 8
 n_nodes: 2
 time: "0-02:00:00"
-skip_copy_code: true
 params:
     # batch_size_rampup_transition_points: [0.01, 0.05]
     # batch_size_rampup_units: tokens
