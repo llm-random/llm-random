@@ -4,13 +4,11 @@ n_gpus: 8
 n_nodes: 2
 time: "0-02:00:00"
 params:
-    # batch_size_rampup_transition_points: [0.01, 0.05]
-    # batch_size_rampup_units: tokens
     batch_size_rampup_transition_points: [152, 457]
     batch_size_rampup_units: steps
     batch_size_rampup_sizes: [128, 256]
-    n_tokens: null  # 0.262144 to match steps configuration
-    n_steps: 1266    # 1266 to match tokens configuration with rampup, 1000 without rampup
+    n_tokens: null
+    n_steps: 1266    
     batch_size: 512
     cutoff: 512
     fsdp_enabled: true
