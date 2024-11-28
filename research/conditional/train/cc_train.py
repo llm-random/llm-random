@@ -340,7 +340,7 @@ def main(
         fsdp_modules_to_wrap = None
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
-    is_logging_process = True if global_rank is None or global_rank == 0 else False
+    is_logging_process = True if rank is None or global_rank == 0 else False
 
     activation_checkpointing_modules = get_classes_from_module_names(
         args.activation_checkpointing_modules
