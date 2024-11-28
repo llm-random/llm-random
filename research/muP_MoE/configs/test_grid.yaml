@@ -10,11 +10,11 @@ interactive_debug: false
 params:
   name: "muP_MoE"
   # tags: ["muP_MoE", "test_grid"]
-  tags: ["muP_MoE", "muTransfer", "32_to_512"]
+  tags: ["muP_MoE", "muTransfer", "alpha_grid"]
 
   mup_params:
-    alpha_in: 1.0
-    alpha_out: 1.0
+    ^alpha_in: [0.2, 0.5, 1.0, 2.0, 5.0]
+    ^alpha_out: [0.2, 0.5, 1.0, 2.0, 5.0]
     base_dmodel: 32
 
   # training
@@ -29,7 +29,7 @@ params:
 
   # model
   model_type: gpt
-  dmodel: 512
+  dmodel: 32
   # ^dmodel: [32, 64, 128, 256, 512, 768]
   dff_ratio: 4
   n_blocks: 4
