@@ -2,11 +2,14 @@ parent: configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 763f39978a58f704200275285162594c
 n_gpus: 8
 n_nodes: 2
-time: "0-02:00:00"
+time: "0-00:05:00"
+cpus_per_gpus: 16
 params:
-    batch_size_rampup_transition_points: [152, 457]
-    batch_size_rampup_units: steps
-    batch_size_rampup_sizes: [128, 256]
+    num_workers: 16
+    # batch_size_rampup_transition_points: [152, 457]
+    # batch_size_rampup_units: steps
+    # batch_size_rampup_sizes: [128, 256]
+    data_seed: -1
     n_tokens: null
     n_steps: 1266    
     batch_size: 512

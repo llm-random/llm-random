@@ -623,7 +623,8 @@ if __name__ == "__main__":
     introduce_parser_arguments(parser)
     args = parser.parse_args()
     if args.data_seed < 0:
-        args.data_seed = random.randint(0, 10000000)
+        args.random_seed = random.randint(0, 10000000)
+        random.seed(args.random_seed)
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
@@ -631,8 +632,11 @@ if __name__ == "__main__":
         os.environ.get("MASTER_PORT") is not None
     ):  # if this is already set, we are using multinode torchrun setup
         world_size = int(os.environ["WORLD_SIZE"])
-        assert args.data_seed < 0, "Data seed not support"
+        assert (
+            args.data_seed < 0
+        ), "Custom data seed not supported in multi-node training"
         data_seeds = [random.randint(0, 10000000) for _ in range(world_size)]
+
         main(
             rank=int(os.environ["RANK"]),
             data_seeds=data_seeds,
@@ -641,7 +645,6 @@ if __name__ == "__main__":
             is_using_torchrun=True,
         )
     elif args.ddp_enabled or args.fsdp_enabled:  # single-node multi-gpu training
-        random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
 
         # find free port
