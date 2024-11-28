@@ -269,6 +269,7 @@ def main(
     """
     rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
     """
+    print(f"In main. Rank: {rank}, data_seeds: {data_seeds}, port: {port}")
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
@@ -328,6 +329,7 @@ def main(
         fsdp_modules_to_wrap = None
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
+    is_logging_process = True
     if rank is None or global_rank == 0:
         is_logging_process = True
     else:
