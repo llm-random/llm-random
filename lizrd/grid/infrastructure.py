@@ -74,6 +74,7 @@ class MachineBackend(abc.ABC):
         if setup_args["n_nodes"] == 1:
             return ["python3", "-m", runner, *runner_params]
         else:  # we use torchrun for multi-node
+            runner = runner.replace('.', '/') + ".py" # we need a regular path for torchrun
             return [
                 "srun",
                 "torchrun",
