@@ -405,7 +405,9 @@ class TestGrid(unittest.TestCase):
         expected_output = [
             [
                 "sbatch",
-                "--gres=gpu:2",
+                "--nodes=1",
+                "--gpus=2",
+                "--gpus-per-node=2",
                 "--array=0-0%1",
                 "--partition=plgrid-gpu-a100",
                 "--cpus-per-gpu=8",
@@ -470,7 +472,9 @@ class TestGrid(unittest.TestCase):
             ],
             [
                 "sbatch",
-                "--gres=gpu:2",
+                "--nodes=1",
+                "--gpus=2",
+                "--gpus-per-node=2",
                 "--array=0-0%1",
                 "--partition=plgrid-gpu-a100",
                 "--cpus-per-gpu=8",

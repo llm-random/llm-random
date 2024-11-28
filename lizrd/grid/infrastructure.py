@@ -141,7 +141,7 @@ class AthenaBackend(MachineBackend):
             slurm_command,
             f"--nodes={setup_args['n_nodes']}",
             f"--gpus={setup_args['n_gpus']}",
-            f"--gpus-per-node={setup_args['n_nodes'] // setup_args['n_gpus']}",
+            f"--gpus-per-node={setup_args['n_gpus'] // setup_args['n_nodes']}",
             f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-a100",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
@@ -209,7 +209,7 @@ class HeliosBackend(MachineBackend):
             slurm_command,
             f"--nodes={setup_args['n_nodes']}",
             f"--gpus={setup_args['n_gpus']}",
-            f"--gpus-per-node={setup_args['n_nodes'] // setup_args['n_gpus']}",
+            f"--gpus-per-node={setup_args['n_gpus'] // setup_args['n_nodes']}",
             f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-gh200",
             "--exclusive",  # request all non-gpu resources on node
