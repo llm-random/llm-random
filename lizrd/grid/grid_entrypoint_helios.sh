@@ -1,20 +1,9 @@
 #!/bin/bash -l
 
-echo "SLURM_JOB_NODELIST: $SLURM_JOB_NODELIST"
-nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
-echo "Hostnames:"
-scontrol show hostnames $SLURM_JOB_NODELIST
-nodes_array=( "${nodes[@]}" )
-head_node=${nodes_array[0]}
 nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
 nodes_array=( "${nodes[@]}" )
 head_node=${nodes_array[0]}
-echo "Head Node: $head_node"
-echo "Output of getent hosts for head node:"
-getent hosts "$head_node"
 head_node_ip=$(getent hosts "$head_node" | awk 'NR==1{print $1}')
-echo Node IP: $head_node_ip
-export LOGLEVEL=INFO
 
 # Replace placeholders in command-line arguments
 args=()

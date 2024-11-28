@@ -70,21 +70,24 @@ class MachineBackend(abc.ABC):
         infrastructure_params_dict.update(cluster_default_arg_dict)
         return infrastructure_params_dict
 
-    def get_runner_command(self, runner, runner_params):
-        return [
-            "srun",
-            "torchrun",
-            "--nnodes=2",
-            "--nproc_per_node=4",
-            "--rdzv_id",
-            "__RANDOM__",
-            "--rdzv_backend",
-            "c10d",
-            "--rdzv_endpoint",
-            "__HEAD_NODE_IP__:29500",
-            runner,
-            *runner_params,
-        ]
+    def get_runner_command(self, runner, runner_params, setup_args):
+        if setup_args["n_nodes"] == 1:
+            return ["python3", "-m", runner, *runner_params]
+        else:  # we use torchrun for multi-node
+            return [
+                "srun",
+                "torchrun",
+                f"--nnodes={setup_args['n_nodes']}",
+                "--nproc_per_node=4",
+                "--rdzv_id",
+                "__RANDOM__",
+                "--rdzv_backend",
+                "c10d",
+                "--rdzv_endpoint",
+                "__HEAD_NODE_IP__:29500",
+                runner,
+                *runner_params,
+            ]
 
 
 class AthenaBackend(MachineBackend):
@@ -133,7 +136,9 @@ class AthenaBackend(MachineBackend):
     ):
         return [
             slurm_command,
-            f"--gres=gpu:{setup_args['n_gpus']}",
+            f"--nodes={setup_args['n_nodes']}",
+            f"--gpus={setup_args['n_gpus']}",
+            f"--gpus-per-node={setup_args['n_nodes'] // setup_args['n_gpus']}",
             f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-a100",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
@@ -149,7 +154,7 @@ class AthenaBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
         ]
 
 
@@ -194,14 +199,14 @@ class HeliosBackend(MachineBackend):
         n_consecutive: int = 1,
     ):
         assert (
-            setup_args["n_gpus"] == 4
+            setup_args["n_gpus"] % 4 == 0
         ), "Helios only supports using whole nodes (cf. https://docs.cyfronet.pl/display/~plgpawlik/Helios)"
 
         return [
             slurm_command,
-            "--nodes=2",
-            f"--gpus=8",
-            "--gpus-per-node=4",
+            f"--nodes={setup_args['n_nodes']}",
+            f"--gpus={setup_args['n_gpus']}",
+            f"--gpus-per-node={setup_args['n_nodes'] // setup_args['n_gpus']}",
             f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-gh200",
             "--cpus-per-gpu=72",
@@ -210,7 +215,7 @@ class HeliosBackend(MachineBackend):
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
-            *self.get_runner_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
         ]
 
 
@@ -249,6 +254,7 @@ class IdeasBackend(MachineBackend):
         runner_params,
         n_consecutive: int = 1,
     ):
+        assert setup_args["n_nodes"] == 1, "multi-node on Ideas not implemented"
         return [
             slurm_command,
             f"--gres=gpu:ampere:{setup_args['n_gpus']}",
@@ -265,7 +271,7 @@ class IdeasBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
         ]
 
 
@@ -303,6 +309,7 @@ class EntropyBackend(MachineBackend):
         runner_params,
         n_consecutive: int = 1,
     ):
+        assert setup_args["n_nodes"] == 1, "multi-node on Entropy not implemented"
         return [
             slurm_command,
             "--partition=a100",
@@ -319,7 +326,7 @@ class EntropyBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
         ]
 
 
@@ -357,6 +364,7 @@ class WriterBackend(MachineBackend):
         runner_params,
         n_consecutive: int = 1,
     ):
+        assert setup_args["n_nodes"] == 1, "multi-node on Writer not implemented"
         return [
             slurm_command,
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
@@ -372,7 +380,7 @@ class WriterBackend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
         ]
 
 
@@ -411,6 +419,7 @@ class AWS1Backend(MachineBackend):
         runner_params,
         n_consecutive: int = 1,
     ):
+        assert setup_args["n_nodes"] == 1, "multi-node on AWS1 not implemented"
         if n_consecutive != 1:
             raise Exception(
                 "Cluster does not support checkpoint manager feature. Works only with slurm system."
@@ -422,7 +431,7 @@ class AWS1Backend(MachineBackend):
             make_singularity_mount_paths(setup_args, training_args),
             "--nv",
             setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params),
+            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
         ]
 
 
@@ -454,6 +463,7 @@ class LocalBackend(MachineBackend):
 COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
     "gres": "gpu:1",
     "time": "1-00:00:00",
+    "n_nodes": 1,
     "n_gpus": 1,
     "cpus_per_gpu": 8,
     "mem_per_gpu": 125,

@@ -1,6 +1,7 @@
 parent: configs/baselines/gpt/dense/base.yaml
 md5_parent_hash: 763f39978a58f704200275285162594c
 n_gpus: 4
+n_nodes: 2
 time: "0-02:00:00"
 runner: "research/conditional/train/cc_train.py"
 skip_copy_code: true
