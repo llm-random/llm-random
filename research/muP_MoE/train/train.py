@@ -5,7 +5,7 @@ from typing import Callable, Optional
 import socket
 from collections import defaultdict
 
-
+import numpy as np
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
@@ -100,7 +100,7 @@ def get_muP_learning_rates(args, model, m_d=1.0):
     return param_grops, ratios_in_group_order
 
 
-def apply_muP_innit(args, model, m_d=1.0):
+def apply_muP_init(args, model, m_d=1.0, n_blocks=1.0):
     # check if the model isn't loaded from checkpoint
     if args.load_weights_path is None:
         return
@@ -110,10 +110,20 @@ def apply_muP_innit(args, model, m_d=1.0):
 
     key_init_dict = {
         "embedding_layer": 1.0,
-        "block": (1 / m_d),
+        "input_projection": (1 / m_d),
+        "output_projection": (1 / (m_d * np.sqrt(n_blocks))),
+        "lin1_weight": (1 / m_d),
+        "lin2_weight": (1 / (m_d * np.sqrt(n_blocks))),
         "head": (1 / m_d),
     }
     for name, param in model.named_parameters():
+        # check for not implemented FFs
+        if "expert_inner_function" in name:
+            assert any(
+                substring in name
+                for substring in {"lin1_weight", "lin2_weight", "gate_weight"}
+            )
+
         scale = 1.0
         for keyword in key_init_dict.keys():
             if keyword in name:
@@ -281,7 +291,7 @@ def main(
     else:
         m_d = 1.0
 
-    apply_muP_innit(args, model, m_d=m_d)
+    apply_muP_init(args, model, m_d=m_d, n_blocks=args.n_blocks)
     param_grops, lr_ratios_in_group_order = get_muP_learning_rates(args, model, m_d=m_d)
 
     optimizer = torch.optim.AdamW(
