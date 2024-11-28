@@ -282,7 +282,7 @@ def main(
 
     batch_size_rampup_config = convert_parameters(args)
 
-    if args.n_gpus > 1:  # multi-gpu training
+    if args.n_gpus > 1:
         if is_using_torchrun:
             local_rank = int(os.environ["LOCAL_RANK"])
             global_rank = int(os.environ["RANK"])
