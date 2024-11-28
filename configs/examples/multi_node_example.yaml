@@ -1,13 +1,10 @@
 parent: configs/baselines/gpt/dense/llama_8b.yaml
 md5_parent_hash: dc078b596473b6a036838306ef524a66
-n_gpus: 4
+n_gpus: 16
 n_nodes: 4
 time: "0-02:00:00"
 params:
     num_workers: 16
-    # batch_size_rampup_transition_points: [152, 457]
-    # batch_size_rampup_units: steps
-    # batch_size_rampup_sizes: [128, 256]
     data_seed: -1
     n_tokens: null
     n_steps: 1266    
