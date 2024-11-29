@@ -168,8 +168,8 @@ class ConditionalTrainer:
                     self.batch_size,
                     self.cutoff,
                     self.logger.loggers if self.is_logging_process else None,
+                    self.checkpoint_manager_enabled,
                     self.args_override,
-                    checkpoint_manager_enabled=self.checkpoint_manager_enabled,
                 )
 
     def _after_step_operations(self, step):

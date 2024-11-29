@@ -4,7 +4,7 @@ n_gpus: 8
 n_nodes: 2
 time: "0-01:00:00"
 params:
-    num_workers: 16
+    num_workers: 4
     data_seed: -1
     n_tokens: null
     n_steps: 100    
@@ -15,12 +15,13 @@ params:
     mixed_precision_dtype: bfloat16
     flash_attention: true
     fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
-    gradient_accumulation_steps: 2
+    activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+    gradient_accumulation_steps: 1
     ff_mode: vanilla
     dataset_type: c4
     learning_rate: 5e-4
     name: multi_node_example
-    tags: [multinode]
+    tags: [multinode_4_workers]
     decoding_interval: 0
     save_weights_interval: 0
     logging_interval_heavy: 1000
