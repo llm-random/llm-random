@@ -70,6 +70,12 @@ def get_activations(runs_table, metric=None):
                     f"block_{i}/residual_feedforward/update_norms/{metric}"
                 ].fetch_values(),
             }
+        single_run_data["UNKNOWN"] = {
+            "embedding": run[
+                f"block_UNKNOWN/embedding_layer/update_norms/{metric}"
+            ].fetch_values(),
+            "head": run[f"block_UNKNOWN/head/update_norms/{metric}"].fetch_values(),
+        }
         activation_dict[run_id] = single_run_data
     return activation_dict
 
@@ -108,7 +114,7 @@ def pivot_dict(
                         if not step_data.empty:
                             value = step_data["value"].values[0]
                             result_dict[step]["dmodel"].append(dmodel)
-                            result_dict[step]["value"].append(value)
+                            result_dict[step]["value"].append(value / np.sqrt(dmodel))
                         else:
                             print(
                                 f"No data at step {step} for run {run_id}, dmodel {dmodel}, layer {layer_num}, module {module}."

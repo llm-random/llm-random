@@ -81,8 +81,11 @@ def get_muP_learning_rates(args, model, m_d=1.0):
 
     key_lr_dict = {
         "embedding_layer": 1.0,
-        "block": (1 / m_d),
-        "head": (1 / m_d),
+        "input_projection": (1 / m_d),  # Attn Q, K, V
+        "output_projection": (1 / (m_d)),  # Attn O
+        "lin1_weight": (1 / m_d),  # FF in
+        "lin2_weight": (1 / (m_d)),  # FF out
+        "head": 1,
     }
 
     lr_to_params = defaultdict(list)
@@ -110,11 +113,11 @@ def apply_muP_init(args, model, m_d=1.0, n_blocks=1.0):
 
     key_init_dict = {
         "embedding_layer": 1.0,
-        "input_projection": (1 / m_d),
-        "output_projection": (1 / (m_d * np.sqrt(n_blocks))),
+        "input_projection": (1 / (m_d)),
+        "output_projection": (1 / (m_d * 2 * n_blocks)),
         "lin1_weight": (1 / m_d),
-        "lin2_weight": (1 / (m_d * np.sqrt(n_blocks))),
-        "head": (1 / m_d),
+        "lin2_weight": (1 / (m_d * 2 * n_blocks)),
+        "head": 1.0,
     }
     for name, param in model.named_parameters():
         # check for not implemented FFs
@@ -129,7 +132,7 @@ def apply_muP_init(args, model, m_d=1.0, n_blocks=1.0):
             if keyword in name:
                 scale = key_init_dict[keyword]
                 break
-        param.data *= scale
+        torch.nn.init.normal_(param.data, mean=0.0, std=np.sqrt(scale))
 
 
 def main(
