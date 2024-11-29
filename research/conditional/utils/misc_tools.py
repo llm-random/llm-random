@@ -77,4 +77,4 @@ def assert_only_one_not_none(params: list):
     not_none_count = sum(p is not None for p in params)
     assert (
         not_none_count == 1
-    ), f"Exactly one variable must be not None, but found {not_none_count}."
+    ), f"Exactly one variable must be not None, but found {not_none_count}. args: {params}"
