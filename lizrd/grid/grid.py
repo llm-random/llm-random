@@ -12,6 +12,7 @@ from lizrd.grid.utils import (
     seconds_to_timestr,
     timestr_to_minutes,
     translate_to_argparse,
+    check_for_argparse_correctness,
 )
 from lizrd.grid.utils import setup_experiments
 from lizrd.support.code_copying import copy_code
@@ -40,6 +41,7 @@ def create_subprocess_args(
 ):
     configs = prepare_configs(config_path, git_branch, CLUSTER)
     grid = setup_experiments(configs)
+    check_for_argparse_correctness(grid)
     interactive_debug_session = grid[0][0]["interactive_debug_session"]
 
     if not isinstance(CLUSTER, LocalBackend) and not skip_confirmation:
