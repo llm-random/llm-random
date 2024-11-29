@@ -308,6 +308,7 @@ def main(
         broadcast_object_list(data_seeds, src=0)
     else:
         local_rank = global_rank = None
+        data_seeds = None
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
