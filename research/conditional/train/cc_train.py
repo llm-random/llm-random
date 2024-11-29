@@ -297,10 +297,7 @@ def main(
 
         # the code below is to make sure every gpu loads distinct data
         if global_rank == 0:
-            if args.data_seed < 0:
-                args.random_seed = random.randint(0, 10000000)
-
-            random.seed(args.random_seed)
+            random.seed(args.data_seed)
             data_seeds = random.sample(range(0, 10000000), args.n_gpus)
         else:
             data_seeds = [None] * args.n_gpus
@@ -347,7 +344,7 @@ def main(
         fsdp_modules_to_wrap = None
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
-    is_logging_process = True if rank is None or global_rank == 0 else False
+    is_logging_process = True if args.n_gpus <= 1 or global_rank == 0 else False
 
     activation_checkpointing_modules = get_classes_from_module_names(
         args.activation_checkpointing_modules
@@ -668,6 +665,4 @@ if __name__ == "__main__":
             nprocs=args.n_gpus,
         )
     else:  # single-gpu training
-        random.seed(args.data_seed)
-        data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
         main(None, args=args, unique_save_weights_path=save_weights_path)
