@@ -63,7 +63,7 @@ def check_args(args):
                 args.batch_size % size == 0
             ), "Currently, target batch size needs to be divisible by the rampup batch sizes"
 
-    assert_only_one_not_none(args.n_steps, args.n_tokens)
+    assert_only_one_not_none([args.n_steps, args.n_tokens])
 
     assert_only_one_not_none(
         [args.lr_warmup_steps, args.lr_warmup_tokens, args.lr_warmup_fraction]
