@@ -88,7 +88,7 @@ def save_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     batch_size,
     cutoff,
@@ -102,7 +102,7 @@ def save_checkpoint(
         model.train()
         with torch.no_grad():
             _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
-    if rank == 0 or rank is None:
+    if global_rank == 0 or global_rank is None:
         print(f"Saving weights...")
     if isinstance(model, FSDP):
         save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
@@ -113,7 +113,7 @@ def save_checkpoint(
         model_state_dict = model.state_dict()
         optimizer_state_dict = optimizer.state_dict()
 
-    if rank == 0 or rank is None:
+    if global_rank == 0 or global_rank is None:
         full_path = os.path.join(path, f"{step}.pt")
         neptune_loggers: Run = [
             l
