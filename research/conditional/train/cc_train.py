@@ -319,7 +319,7 @@ def main(
         else tokenizers.GPTTokenizer.VOCAB_SIZE
     )
     DEVICE = (
-        torch.cuda.get_current_device()
+        torch.cuda.current_device()
         if torch.cuda.is_available()
         else torch.device("cpu")
     )
