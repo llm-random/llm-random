@@ -188,6 +188,7 @@ def start_job_manager_assessment(
         else:
             return result, metadata
     else:
+        sleep(60)  # TODO: implement proper file locking
         for i in range(100):
             sleep(3)
             try:
@@ -264,6 +265,7 @@ def end_training_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    checkpoint_manager_enabled: bool,
     args_override: Optional[dict] = None,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
@@ -280,7 +282,7 @@ def end_training_checkpoint(
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
-    if is_logging_process:
+    if is_logging_process and checkpoint_manager_enabled:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
             manager = yaml.load(f, Loader=yaml.SafeLoader)
             manager = release_checkpoint_manager(

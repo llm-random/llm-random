@@ -62,6 +62,7 @@ class ConditionalTrainer:
     batch_size: int
     cutoff: int
     lr_scheduler: AbstractLRScheduler
+    checkpoint_manager_enabled: bool
     repeater_job_end_time: int = None
     _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
@@ -168,6 +169,7 @@ class ConditionalTrainer:
                     self.cutoff,
                     self.logger.loggers if self.is_logging_process else None,
                     self.args_override,
+                    checkpoint_manager_enabled=self.checkpoint_manager_enabled,
                 )
 
     def _after_step_operations(self, step):
