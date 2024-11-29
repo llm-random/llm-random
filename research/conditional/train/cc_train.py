@@ -318,7 +318,11 @@ def main(
         if args.model_type == "bert"
         else tokenizers.GPTTokenizer.VOCAB_SIZE
     )
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    DEVICE = (
+        torch.cuda.get_current_device()
+        if torch.cuda.is_available()
+        else torch.device("cpu")
+    )
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
@@ -414,7 +418,7 @@ def main(
         dm=args.dmodel,
         n_blocks=args.n_blocks,
         device=(
-            DEVICE if rank is None else torch.device("cpu")
+            DEVICE if args.n_gpus == 1 else torch.device("cpu")
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
