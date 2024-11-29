@@ -1,5 +1,5 @@
-parent: configs/baselines/gpt/dense/llama_8b.yaml
-md5_parent_hash: dc078b596473b6a036838306ef524a66
+parent: configs/baselines/gpt/dense/6b.yaml
+md5_parent_hash: cdcde52ce07503e2da38c1bf718a9f96
 n_gpus: 16
 n_nodes: 4
 time: "0-01:00:00"
@@ -15,7 +15,6 @@ params:
     mixed_precision_dtype: bfloat16
     flash_attention: true
     fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
-    activation_checkpointing_modules: "TransformerBlock,EmbeddingLayer,PredictionHead"
     gradient_accumulation_steps: 1
     ff_mode: vanilla
     dataset_type: c4
