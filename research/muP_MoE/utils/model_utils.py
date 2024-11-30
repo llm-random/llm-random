@@ -281,11 +281,11 @@ def clear_additional_losses(model: torch.nn.Module):
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
-            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
-        )
-    elif args.ff_mode == "muP_FF":
-        return_fn = lambda: mup_modules.muP_FeedForward(
-            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+            args.dmodel,
+            args.dff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            bias="none",
         )
     elif args.ff_mode == "swi_glu":
         return_fn = lambda: llm.SwiGLUFeedForward(
