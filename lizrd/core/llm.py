@@ -270,7 +270,7 @@ class Attention(LoggingLayer):
         init_scale: float,
         dhead=None,
         flash=False,
-        attn_scale: float = None,
+        attn_scale: str = None,
         rope: bool = False,
         seq_len: int = None,
     ):
@@ -286,7 +286,7 @@ class Attention(LoggingLayer):
         self.dhead = dhead
         self.causal = causal
         self.flash = flash
-        self.attn_scale = attn_scale
+        self.attn_scale = self.parse_attention_scale(attn_scale)
 
         self.input_projection = Linear(
             dmodel,
@@ -332,6 +332,18 @@ class Attention(LoggingLayer):
         output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
 
         return output
+
+    def parse_attention_scale(self, attn_scale: str):
+        if attn_scale is None or attn_scale == "sqrt":
+            return 1.0 / self.dhead**0.5
+        elif attn_scale == "dhead":
+            return 1.0 / self.dhead
+        else:
+            try:
+                scale = float(attn_scale)
+                return scale
+            except ValueError:
+                raise ValueError(f"Invalid attention normalization value: {attn_scale}")
 
 
 class RoPE(nn.Module):

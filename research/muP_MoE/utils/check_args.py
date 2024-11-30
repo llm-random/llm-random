@@ -1,3 +1,11 @@
+def is_float(string):
+    try:
+        float(string)
+        return True
+    except ValueError:
+        return False
+
+
 def check_args(args):
     if args.granularity_expert_config:
         print(
@@ -40,3 +48,7 @@ def check_args(args):
     if args.mup_params is not None:
         keys = args.mup_params.keys()
         assert len(keys) == 3
+
+    if args.attention_normalization is not None:
+        if args.attention_normalization not in ["sqrt", "dhead"]:
+            assert is_float(args.attention_normalization)
