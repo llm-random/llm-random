@@ -195,6 +195,40 @@ def calculate_llm_loss_and_gradient(
     return loss.item(), aux_info
 
 
+def get_attention_layer(args):
+    causal = args.model_type == "gpt"
+    if args.attention_mode == "vanilla":
+        attention_layer_fun = lambda: llm.Attention(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            attn_scale=args.attention_normalization_scale,
+        )
+    elif args.attention_mode == "rope":
+        attention_layer_fun = lambda: llm.Attention(
+            dmodel=args.dmodel,
+            heads=args.n_att_heads,
+            rope=True,
+            seq_len=args.cutoff,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            attn_scale=args.attention_normalization_scale,
+        )
+    else:
+        raise NotImplementedError(
+            f"Attention type {args.attention_mode} not implemented"
+        )
+
+    return attention_layer_fun
+
+
 def get_norm_class(norm_class):
     if norm_class == "layer_norm":
         return LayerNorm

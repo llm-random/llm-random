@@ -38,6 +38,12 @@ def introduce_parser_arguments(
         default=None,
         help="provide all 3 values: alpha_in: float, alpha_out: float, base_dmodel: int",
     )
+    parser.add_argument(
+        "--attention_normalization_scale",
+        type=float,
+        default=None,
+        help="attn = Q@K * attention_normalization_scale. defaults to 1 / dhead**0.5",
+    )
 
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument("--learning_rate", type=float, required=True)
