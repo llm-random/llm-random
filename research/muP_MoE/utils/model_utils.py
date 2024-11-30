@@ -195,48 +195,6 @@ def calculate_llm_loss_and_gradient(
     return loss.item(), aux_info
 
 
-def get_attention_layer(args):
-    causal = args.model_type == "gpt"
-    if args.attention_mode == "vanilla":
-        attention_layer_fun = lambda: llm.Attention(
-            dmodel=args.dmodel,
-            heads=args.n_att_heads,
-            causal=causal,
-            dhead=args.dhead,
-            flash=args.flash_attention,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-        )
-    elif args.attention_mode == "muP_attention":
-        attention_layer_fun = lambda: mup_modules.muP_Attention(
-            dmodel=args.dmodel,
-            heads=args.n_att_heads,
-            causal=causal,
-            dhead=args.dhead,
-            flash=args.flash_attention,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-            mode="attn",
-        )
-    elif args.attention_mode == "rope":
-        attention_layer_fun = lambda: llm.AttentionRoPE(
-            dmodel=args.dmodel,
-            heads=args.n_att_heads,
-            length=args.cutoff,
-            causal=causal,
-            dhead=args.dhead,
-            flash=args.flash_attention,
-            init_type=args.init_type,
-            init_scale=args.init_scale,
-        )
-    else:
-        raise NotImplementedError(
-            f"Attention type {args.attention_mode} not implemented"
-        )
-
-    return attention_layer_fun
-
-
 def get_norm_class(norm_class):
     if norm_class == "layer_norm":
         return LayerNorm
@@ -316,8 +274,6 @@ def get_classes_from_module_names(
     for name in packed_names.split(","):
         if name == "Attention":
             classes.append(llm.Attention)
-        elif name == "AttentionRoPE":
-            classes.append(llm.AttentionRoPE)
         elif name == "AttentionMechanism":
             classes.append(llm.AttentionMechanism)
         elif name == "RoPE":

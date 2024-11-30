@@ -199,10 +199,11 @@ def get_attention_layer(args):
             init_scale=args.init_scale,
         )
     elif args.attention_mode == "rope":
-        attention_layer_fun = lambda: llm.AttentionRoPE(
+        attention_layer_fun = lambda: llm.Attention(
             dmodel=args.dmodel,
             heads=args.n_att_heads,
-            length=args.cutoff,
+            rope=True,
+            seq_len=args.cutoff,
             causal=causal,
             dhead=args.dhead,
             flash=args.flash_attention,
@@ -292,8 +293,6 @@ def get_classes_from_module_names(
     for name in packed_names.split(","):
         if name == "Attention":
             classes.append(llm.Attention)
-        elif name == "AttentionRoPE":
-            classes.append(llm.AttentionRoPE)
         elif name == "AttentionMechanism":
             classes.append(llm.AttentionMechanism)
         elif name == "RoPE":

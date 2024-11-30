@@ -12,61 +12,19 @@ def muP_attention_mechanism(
     value: torch.Tensor,
     dhead: int,
     causal: bool,
-    mode: bool,
+    attn_scale: float = None,
 ):
-    if mode == "attn":
-        # implementation without flash assumes other dim order
-        query = query.transpose(1, 2)
-        key = key.transpose(1, 2)
-        value = value.transpose(1, 2)
-
-        a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
-        a = a * (1 / dhead)
-        if causal:
-            a.masked_fill_(
-                torch.tril(torch.ones_like(a)) == 0, float("-inf")
-            )  # mask out future tokens
-        a = torch.softmax(a, dim=-1)
-        output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
-        output = output.transpose(1, 2)
-    elif mode == "key":
-        # implementation without flash assumes other dim order
-        query = query.transpose(1, 2)
-        key = key.transpose(1, 2) / (dhead**0.5)
-        value = value.transpose(1, 2)
-
-        a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
-        a = a * (1 / dhead**0.5)
-        if causal:
-            a.masked_fill_(
-                torch.tril(torch.ones_like(a)) == 0, float("-inf")
-            )  # mask out future tokens
-        a = torch.softmax(a, dim=-1)
-        output = torch.einsum("... h l L, ... L h d -> ... l h d", a, value)
-        output = output.transpose(1, 2)
-    elif mode == "key_flash":
-        with torch.backends.cuda.sdp_kernel(
-            enable_flash=True, enable_math=False, enable_mem_efficient=False
-        ):
-            key = key / (dhead**0.5)
-            output = F.scaled_dot_product_attention(
-                query=query,
-                key=key,
-                value=value,
-                attn_mask=None,
-                is_causal=causal,
-            )
-    else:
-        with torch.backends.cuda.sdp_kernel(
-            enable_flash=True, enable_math=False, enable_mem_efficient=False
-        ):
-            output = F.scaled_dot_product_attention(
-                query=query,
-                key=key,
-                value=value,
-                attn_mask=None,
-                is_causal=causal,
-            )
+    with torch.backends.cuda.sdp_kernel(
+        enable_flash=True, enable_math=False, enable_mem_efficient=False
+    ):
+        output = F.scaled_dot_product_attention(
+            query=query,
+            key=key,
+            value=value,
+            attn_mask=None,
+            is_causal=causal,
+            scale=attn_scale,
+        )
     return output
 
 
