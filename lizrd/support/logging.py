@@ -578,7 +578,11 @@ def log_plot(figure: plotly.graph_objs.Figure, title: str, series: str, iteratio
 
 
 def get_logger(
-    args, model, VOCAB_SIZE, run_ids: list[int] = None
+    args,
+    model,
+    VOCAB_SIZE,
+    run_ids: list[int] = None,
+    non_invasive=False,
 ):  # dev TODO generalize run_id
     timestamp = make_concise_datetime()
     unique_timestamp = f"{timestamp}{secrets.token_urlsafe(1)}"
@@ -604,17 +608,23 @@ def get_logger(
 
     for logger_type, run_id in zip(logger_types, run_ids):
         if logger_type == "neptune":
-            run = neptune.init_run(
-                project=args.project_name,
-                tags=args.tags,
-                name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-                with_id=run_id,
-            )
-            run["args"] = args_dict
-            run["working_directory"] = os.getcwd()
-            run["config"].upload(args.path_to_entry_config)
-            all_config_paths = args.all_config_paths.split(",")
-            run["all_configs"].upload_files(all_config_paths)
+            if non_invasive:
+                run = neptune.init_run(
+                    project=args.project_name,
+                    with_id=run_id,
+                )
+            else:
+                run = neptune.init_run(
+                    project=args.project_name,
+                    tags=args.tags,
+                    name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+                    with_id=run_id,
+                )
+                run["args"] = args_dict
+                run["working_directory"] = os.getcwd()
+                run["config"].upload(args.path_to_entry_config)
+                all_config_paths = args.all_config_paths.split(",")
+                run["all_configs"].upload_files(all_config_paths)
 
             initialized_loggers.append(NeptuneLogger(run, args))
         elif logger_type == "wandb":

@@ -174,32 +174,26 @@ class ConditionalTrainer:
         self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
 
-    def _final_eval(
-        self,
-        n_steps: int,
-    ):
-        if self.current_step == n_steps and self.n_final_eval_batches > 0:
-            del self.train_dataloader
-            del self.eval_dataloader
-            final_eval_dataloader = self.get_final_eval_dataloader()
-            self.model.eval()
-            losses = []
-            for _ in range(self.n_final_eval_batches):
-                batch = final_eval_dataloader.get_batch()
-                with torch.no_grad():
-                    loss, _ = self.calculate_loss_and_gradient(
-                        batch, num_batch_chunks=1
-                    )
-                    losses.append(loss)
+    def final_eval(self, step):
+        self._before_train_operations()
+        assert self.get_final_eval_dataloader is not None
+        final_eval_dataloader = self.get_final_eval_dataloader()
+        self.model.eval()
+        losses = []
+        for _ in range(self.n_final_eval_batches):
+            batch = final_eval_dataloader.get_batch()
+            with torch.no_grad():
+                loss, _ = self.calculate_loss_and_gradient(batch, num_batch_chunks=1)
+                losses.append(loss)
 
-            losses_average = torch.tensor(losses, dtype=torch.float64).mean()
+        losses_average = torch.tensor(losses, dtype=torch.float64).mean()
 
-            if self.is_logging_process:
-                self.logger.report_scalar(
-                    title=f"final_eval",
-                    value=losses_average.item(),
-                    iteration=n_steps,
-                )
+        if self.is_logging_process:
+            self.logger.report_scalar(
+                title=f"final_eval",
+                value=losses_average.item(),
+                iteration=step,
+            )
 
     def train(self, n_steps: int):
         """

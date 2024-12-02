@@ -1,9 +1,22 @@
 parent: configs/experiments/constrained_scaling_laws/30M/model.yaml
 md5_parent_hash: 4309927e346780150a25f08be3e2a955
-n_gpus: 1 # works for athena
+n_gpus: 4 # works for athena
+time: 0-00:30:00
+
 
 params:
   tags: ["constrained_scaling_grid", "30M", "E=8"]
   expansion_rate: 8
   gradient_accumulation_steps: 4
-
+  run_final_eval: true
+  ^force_final_eval: [true, false]
+  final_eval_step: 22888
+  # neptune_id: "LLMRANDOM-22621"
+  n_final_eval_batches: 8
+  # load_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgjkrajewski/llm_random_cemetery/constrained_scaling_grid_21_11_2024-11-23_13-54-39/constrained_scaling_laws_grid/1074655/22888.pt
+  # load_weights_path: /home/ubuntu/constrained/22888.pt
+  # load_weights_path: /net/home/plgrid/plgmaciejpioro/constrained/22888.pt
+  checkpoint_manager: false
+  scheduler_trapezoidal_slides: Null
+  batch_size_rampup_transition_points: Null
+  batch_size_rampup_sizes: Null

@@ -24,6 +24,28 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
+    parser.add_argument(
+        "--run_final_eval",
+        action="store_true",
+        help="Simply run final eval and write ther result to Neptune.",
+    )
+    parser.add_argument(
+        "--force_final_eval",
+        action="store_true",
+        help="Reruns final eval even if it was already run.",
+    )
+    parser.add_argument(
+        "--final_eval_step",
+        type=int,
+        default=None,
+        help="Step for which to run final eval.",
+    )
+    parser.add_argument(
+        "--neptune_id",
+        type=str,
+        default=None,
+        help="Simply run final eval and write the result to Neptune.",
+    )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
     parser.add_argument("--attention_mode", type=str, default="vanilla")
     parser.add_argument("--parallel_blocks", action="store_true")
