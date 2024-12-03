@@ -106,14 +106,14 @@ class MultiheadFlashDiff1(nn.Module):
         )
         self.k_proj = Linear(
             embed_dim,
-            self.num_kv_heads * self.head_dim,
+            embed_dim,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
         )
         self.v_proj = Linear(
             embed_dim,
-            self.num_kv_heads * self.head_dim,
+            embed_dim,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,

@@ -432,9 +432,7 @@ if __name__ == "__main__":
     if args.data_seed < 0:
         args.data_seed = random.randint(0, 10000000)
 
-    save_weights_path = prepare_save_weights_path(
-        args.save_weights_path, args.repeater_mode
-    )
+    save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
