@@ -1,7 +1,9 @@
 import abc
+import importlib
 import os
 import platform
 import hashlib
+from typing import Callable, Optional
 
 
 from lizrd.grid.setup_arguments import make_singularity_mount_paths
@@ -501,3 +503,15 @@ def get_machine_backend(node=None, connection=None) -> MachineBackend:
         return HeliosBackend(username)
     else:
         return LocalBackend(username)
+
+
+def resolve_get_machine_backend_function(
+    alternative_module_name: Optional[str] = None,
+) -> Callable[..., MachineBackend]:
+    if alternative_module_name is not None:
+        module = importlib.import_module(alternative_module_name)
+        alternative_get_machine_backend = getattr(module, "get_machine_backend")
+        assert alternative_get_machine_backend is not None
+        return alternative_get_machine_backend
+    else:
+        return get_machine_backend
