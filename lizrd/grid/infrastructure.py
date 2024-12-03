@@ -80,7 +80,6 @@ class MachineBackend(abc.ABC):
                 runner.replace(".", "/") + ".py"
             )  # we need a regular path for torchrun
             return [
-                "srun",
                 "torchrun",
                 f"--nnodes={setup_args['n_nodes']}",
                 f"--nproc_per_node={setup_args['n_gpus'] // setup_args['n_nodes']}",
@@ -152,6 +151,7 @@ class AthenaBackend(MachineBackend):
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
+            "srun",
             "singularity",
             "run",
             "--bind=/net:/net",
@@ -219,6 +219,7 @@ class HeliosBackend(MachineBackend):
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
+            "srun",
             *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
         ]
 

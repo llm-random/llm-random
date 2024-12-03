@@ -283,7 +283,9 @@ def main(
 
     batch_size_rampup_config = convert_parameters(args)
 
-    if args.n_gpus > 1:
+    data_distributed = args.ddp_enabled or args.fsdp_enabled
+
+    if data_distributed:
         if is_using_torchrun:
             local_rank = int(os.environ["LOCAL_RANK"])
             global_rank = int(os.environ["RANK"])
@@ -415,7 +417,7 @@ def main(
         dm=args.dmodel,
         n_blocks=args.n_blocks,
         device=(
-            DEVICE if args.n_gpus == 1 else torch.device("cpu")
+            torch.device("cpu") if data_distributed else DEVICE
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
@@ -501,7 +503,6 @@ def main(
     if not args.checkpoint_manager:
         rescale_params_after_init(args, model)
 
-    data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
     common_dataloaders_kwargs = {
