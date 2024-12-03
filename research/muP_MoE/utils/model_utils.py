@@ -206,7 +206,7 @@ def get_attention_layer(args):
             flash=args.flash_attention,
             init_type=args.init_type,
             init_scale=args.init_scale,
-            attn_scale=args.attention_normalization_scale,
+            attn_scale=args.attention_normalization,
         )
     elif args.attention_mode == "rope":
         attention_layer_fun = lambda: llm.Attention(
@@ -219,7 +219,7 @@ def get_attention_layer(args):
             flash=args.flash_attention,
             init_type=args.init_type,
             init_scale=args.init_scale,
-            attn_scale=args.attention_normalization_scale,
+            attn_scale=args.attention_normalization,
         )
     else:
         raise NotImplementedError(

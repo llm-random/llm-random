@@ -5,7 +5,6 @@ from typing import Callable, Optional
 import socket
 from collections import defaultdict
 
-import numpy as np
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
@@ -82,9 +81,9 @@ def get_muP_learning_rates(args, model, m_d=1.0):
     key_lr_dict = {
         "embedding_layer": 1.0,
         "input_projection": (1 / m_d),  # Attn Q, K, V
-        "output_projection": (1 / (m_d)),  # Attn O
+        "output_projection": (1 / m_d),  # Attn O
         "lin1_weight": (1 / m_d),  # FF in
-        "lin2_weight": (1 / (m_d)),  # FF out
+        "lin2_weight": (1 / m_d),  # FF out
         "head": 1,
     }
 
@@ -103,7 +102,7 @@ def get_muP_learning_rates(args, model, m_d=1.0):
     return param_grops, ratios_in_group_order
 
 
-def apply_muP_init(args, model, m_d=1.0, n_blocks=1.0):
+def apply_muP_init(args, model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
     # check if the model isn't loaded from checkpoint
     if args.load_weights_path is None:
         return
@@ -113,7 +112,7 @@ def apply_muP_init(args, model, m_d=1.0, n_blocks=1.0):
 
     key_init_dict = {
         "embedding_layer": 1.0,
-        "input_projection": (1 / (m_d)),
+        "input_projection": (1 / m_d),
         "output_projection": (1 / (m_d * 2 * n_blocks)),
         "lin1_weight": (1 / m_d),
         "lin2_weight": (1 / (m_d * 2 * n_blocks)),
@@ -132,7 +131,9 @@ def apply_muP_init(args, model, m_d=1.0, n_blocks=1.0):
             if keyword in name:
                 scale = key_init_dict[keyword]
                 break
-        torch.nn.init.normal_(param.data, mean=0.0, std=np.sqrt(scale))
+        torch.nn.init.normal_(
+            param.data, mean=0.0, std=(init_base_value * scale) ** 0.5
+        )
 
 
 def main(
@@ -294,7 +295,9 @@ def main(
     else:
         m_d = 1.0
 
-    apply_muP_init(args, model, m_d=m_d, n_blocks=args.n_blocks)
+    apply_muP_init(
+        args, model, init_base_value=args.init_scale, m_d=m_d, n_blocks=args.n_blocks
+    )
     param_grops, lr_ratios_in_group_order = get_muP_learning_rates(args, model, m_d=m_d)
 
     optimizer = torch.optim.AdamW(

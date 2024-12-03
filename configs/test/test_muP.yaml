@@ -1,0 +1,58 @@
+runner: "research.muP_MoE.train.train"
+
+time: "05:00:00"
+
+n_gpus: 1
+cpus_per_gpu: 16
+
+interactive_debug: false
+
+params:
+  name: "muP_MoE_test"
+  tags: ["test"]
+
+  mup_params:
+    alpha_in: 5.0
+    alpha_out: 0.2
+    base_dmodel: 32
+
+  # training
+  n_steps: 100
+  final_lr_step: 100
+  lr_warmup_steps: 10
+  batch_size: 64
+  cutoff: 128
+
+  # model
+  model_type: gpt
+  dmodel: 128
+  dff_ratio: 4
+  n_blocks: 4
+  n_att_heads: 4
+  attention_mode: 'muP_attention'
+  ff_mode: vanilla
+  use_torch_bmm: true
+
+  # learning
+  scheduler: cosine
+  learning_rate: 1e-2
+  final_lr_fraction: 0.1
+  grad_clip: 0.5
+  weight_decay: 0.01
+  init_scale: 0.1
+  init_type: truncated_normal
+  capacity_factor: 1.0
+
+  # aux losses
+  load_balancing_loss_weight: 0.01
+
+  # other
+  dataset_type: c4
+  mixed_precision: true
+  flash_attention: true
+  mixed_precision_dtype: bfloat16
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 50
