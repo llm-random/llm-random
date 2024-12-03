@@ -275,8 +275,9 @@ def main(
         args, extra = parser.parse_known_args(runner_params)
         if len(extra):
             print("Unknown args:", extra)
-        if args.data_seed < 0:
-            args.data_seed = random.randint(0, 10000000)
+    
+    if args.data_seed < 0:
+        args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
 
@@ -301,7 +302,6 @@ def main(
             data_seeds = random.sample(range(0, 10000000), args.n_gpus)
         else:
             data_seeds = [None] * args.n_gpus
-
         broadcast_object_list(data_seeds, src=0)
     else:
         local_rank = global_rank = None
