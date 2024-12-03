@@ -220,9 +220,9 @@ def job_out_of_time_checkpoint(
     path: str,
     rank: int,
     step: int,
-    batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    batch_size: int = 1,
     args_override: Optional[dict] = None,
 ):  # TODO params
     """saves the checkpoint"""
@@ -233,10 +233,10 @@ def job_out_of_time_checkpoint(
         path,
         rank,
         step,
-        batch_size,
         cutoff,
         loggers,
-        args_override,
+        batch_size=batch_size,
+        args_override=args_override,
     )
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
@@ -261,9 +261,9 @@ def end_training_checkpoint(
     path: str,
     rank: int,
     step: int,
-    batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    batch_size: int = 1,
     args_override: Optional[dict] = None,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
@@ -274,10 +274,10 @@ def end_training_checkpoint(
         path,
         rank,
         step,
-        batch_size,
         cutoff,
         loggers,
-        args_override,
+        batch_size=batch_size,
+        args_override=args_override,
     )
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
@@ -299,9 +299,9 @@ def create_slide_checkpoint(
     path: str,
     rank: int,
     step: int,
-    batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    batch_size: int = 1,
     args_override: Optional[dict] = None,
 ):
     """saves checkpoint and creates a manager checkpoint continuation"""
@@ -312,9 +312,9 @@ def create_slide_checkpoint(
         path,
         rank,
         step,
-        batch_size,
         cutoff,
         loggers,
+        batch_size,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()

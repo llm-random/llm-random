@@ -164,10 +164,9 @@ class ConditionalTrainer:
                     self.save_weights_path,
                     self.rank,
                     self.current_step,
-                    self.batch_size,
                     self.cutoff,
                     self.logger.loggers if self.is_logging_process else None,
-                    self.args_override,
+                    args_override=self.args_override,
                 )
 
     def _after_step_operations(self, step):
@@ -263,7 +262,6 @@ class ConditionalTrainer:
                                 self.save_weights_path,
                                 self.rank,
                                 step,
-                                1,
                                 self.cutoff,
                                 split_loggers,
                                 args_override={
@@ -610,7 +608,6 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
-                self.batch_size,
                 self.cutoff,
                 self.logger.loggers,
             )
@@ -629,10 +626,9 @@ class ConditionalTrainer:
                 self.save_weights_path,
                 self.rank,
                 step,
-                self.batch_size,
                 self.cutoff,
                 self.logger.loggers if self.is_logging_process else None,
-                self.args_override,
+                args_override=self.args_override,
             )
 
             return True

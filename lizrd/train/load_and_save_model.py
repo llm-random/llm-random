@@ -90,9 +90,9 @@ def save_checkpoint(
     path: str,
     rank: int,
     step: int,
-    batch_size,
     cutoff,
     loggers: list[AbstractLogger],
+    batch_size: int = 1,
     args_override: Optional[dict] = None,
 ):
     if isinstance(model, FSDP):
