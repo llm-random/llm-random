@@ -1,0 +1,13 @@
+runner: "research.dummy_backends_project.train.dummy_runner"
+time: 0-12:00:00
+n_gpus: 0
+interactive_debug: false
+backends_module: research.dummy_backends_project.infrastructure
+
+# train params
+params:
+  name: "test_backends"
+
+  # some args
+  dataset_type: c4
+
