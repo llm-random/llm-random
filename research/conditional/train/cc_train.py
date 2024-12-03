@@ -649,10 +649,7 @@ if __name__ == "__main__":
             is_using_torchrun=True,
         )
     elif args.ddp_enabled or args.fsdp_enabled:  # single-node multi-gpu training
-        data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
-
-        # find free port
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:  # find free port
             s.bind(("", 0))
             port = str(s.getsockname()[1])
         mp.spawn(
