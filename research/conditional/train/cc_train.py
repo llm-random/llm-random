@@ -375,7 +375,7 @@ def main(
         import neptune
 
         my_step = args.final_eval_step
-        my_tags = " ".join(args.tags)
+        my_tags = ", ".join(args.tags[:3])
 
         project = neptune.init_project(
             project="pmtest/llm-random",
@@ -403,6 +403,9 @@ def main(
         my_run = runs_table[
             (runs_table["args/tags"] == my_tags) & (runs_table["step"] == my_step)
         ]
+        print("my_tags", my_tags)
+        print("my_step", my_step)
+        print(my_run)
         assert len(my_run) == 1
         args.load_weights_path = my_run["job/saved_checkpoint"].item()
         neptune_id = my_run["sys/id"].item()

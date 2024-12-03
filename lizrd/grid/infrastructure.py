@@ -104,6 +104,11 @@ class AthenaBackend(MachineBackend):
     def get_grid_entrypoint(self) -> str:
         return "lizrd/grid/grid_entrypoint.sh"
 
+    def get_singularity_image(self) -> str:
+        image_name = "sparsity_2024.12.03_12.10.15.sif"
+        common_dir = self.get_common_directory()
+        return f"{common_dir}/images/{image_name}"
+
     def get_cemetery_directory(self):
         return (
             f"/net/pr2/projects/plgrid/plggllmeffi/{self.username}/llm_random_cemetery"
