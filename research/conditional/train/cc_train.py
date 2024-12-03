@@ -642,7 +642,6 @@ if __name__ == "__main__":
     if (
         os.environ.get("MASTER_PORT") is not None
     ):  # if this is already set, we are using multinode torchrun setup
-        args.n_nodes = int(os.environ["WORLD_SIZE"])
         main(
             None,
             args=args,
