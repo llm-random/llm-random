@@ -1,7 +1,7 @@
 import argparse
 import datetime
 import os
-from typing import Optional
+from typing import Optional, Tuple
 from git import Repo
 
 from lizrd.grid.prepare_configs import load_with_inheritance
@@ -31,12 +31,17 @@ def commit_pending_changes(repo: Repo):
 
 
 def create_run_experiment_script(
-    experiment_config_path, experiment_branch_name, file_path
+    experiment_config_path,
+    experiment_branch_name,
+    file_path,
+    custom_backends_module,
 ):
     script_text = """#!/bin/bash
 python3 -m lizrd.grid --config_path={} --git_branch={} --skip_copy_code""".format(
         experiment_config_path, experiment_branch_name
     )
+    if custom_backends_module is not None:
+        script_text += f" --custom_backends_module={custom_backends_module}"
 
     with open(file_path, "w") as f:
         f.write(script_text)
@@ -47,10 +52,14 @@ def delete_run_experiment_script(file_path):
         os.remove(file_path)
 
 
-def version_code(experiment_config_path: Optional[str] = None) -> str:
+def version_code(
+    experiment_config_path: Optional[str] = None,
+) -> Tuple[str, Optional[str]]:
     repo = Repo(".", search_parent_directories=True)
     configs, paths_to_all_configs = load_with_inheritance(experiment_config_path)
     job_name = configs[0]["params"]["name"]
+    custom_backends_module = configs[0].get("backends_module")
+    assert custom_backends_module is None or isinstance(custom_backends_module, str)
     experiment_branch_name = (
         f"{job_name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
     )
@@ -60,7 +69,10 @@ def version_code(experiment_config_path: Optional[str] = None) -> str:
 
     if experiment_config_path is not None:
         create_run_experiment_script(
-            experiment_config_path, experiment_branch_name, script_run_experiment_path
+            experiment_config_path=experiment_config_path,
+            experiment_branch_name=experiment_branch_name,
+            file_path=script_run_experiment_path,
+            custom_backends_module=custom_backends_module,
         )
 
     original_branch = repo.active_branch.name
@@ -86,7 +98,7 @@ def version_code(experiment_config_path: Optional[str] = None) -> str:
         )
         if experiment_config_path is not None:
             delete_run_experiment_script(script_run_experiment_path)
-    return experiment_branch_name
+    return experiment_branch_name, custom_backends_module
 
 
 def reset_to_original_repo_state(
