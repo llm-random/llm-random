@@ -8,13 +8,21 @@ from research.grad_norm.modules.grad_norm.common import GradLoggingLayer
 
 
 def std_grad_norm_v1(grad: torch.Tensor, c: float, eps: float) -> torch.Tensor:
+    # norm_dims = (0, 1, 2)
     return grad / (torch.pow(grad.std(), c) + eps)
 
 
 def std_grad_norm_v2(grad: torch.Tensor, c: float, eps: float) -> torch.Tensor:
     # assuming grad is (batch_size, max_length, dmodel)
+    # norm_dims = (2,)
     dmodel_std = grad.std(axis=-1, correction=0, keepdim=True)  # (batch_size, max_length)
     return grad / (torch.pow(dmodel_std, c) + eps)
+
+
+def std_grad_norm_v4(grad: torch.Tensor, c: float, eps: float) -> torch.Tensor:
+    # norm_dims = (1, 2)
+    seq_dmodel_std = grad.std(axis=(1, 2), keepdim=True)  # (batch_size, max_length)
+    return grad / (torch.pow(seq_dmodel_std, c) + eps)
 
 
 def std_grad_norm_v3(grad: torch.Tensor, c: float, eps: float) -> torch.Tensor:
@@ -80,4 +88,14 @@ class GradientSTDNormLayerV3(GradientSTDNormLayerV1):
         # GradientSTDNormFunction should log the pre and post gradients
         return BaseGradientSTDNormFunction.apply(
             x, self.update_cache_for_logging, partial(std_grad_norm_v3, c=self.c, eps=self.eps)
+        )
+
+
+class GradientSTDNormLayerV4(GradientSTDNormLayerV1):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (batch_size, max_length, dmodel)
+        self.update_cache_for_logging("activations", x)
+        # GradientSTDNormFunction should log the pre and post gradients
+        return BaseGradientSTDNormFunction.apply(
+            x, self.update_cache_for_logging, partial(std_grad_norm_v4, c=self.c, eps=self.eps)
         )

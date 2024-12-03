@@ -61,7 +61,7 @@ def test_compute_k(scale_norm_grad_mock):
     y = layer(x)
     y.backward(grad)
 
-    expected_k = math.sqrt(x.shape[1] * x.shape[2])
+    expected_k = math.sqrt(x.shape[2])
     assert scale_norm_grad_mock.call_args[1]["k"] == expected_k
 
 

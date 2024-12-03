@@ -11,15 +11,19 @@ from research.grad_norm.modules.grad_norm.std_norm import (
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,
     GradientSTDNormLayerV3,
+    GradientSTDNormLayerV4,
     std_grad_norm_v1,
     std_grad_norm_v2,
     std_grad_norm_v3,
+    std_grad_norm_v4,
 )
 
 
 def get_std_grad_norm_fn_from_layer(
-    layer: Union[GradientSTDNormLayerV1, GradientSTDNormLayerV2, GradientSTDNormLayerV3]
+    layer: Union[GradientSTDNormLayerV1, GradientSTDNormLayerV2, GradientSTDNormLayerV3, GradientSTDNormLayerV4]
 ) -> Callable[[torch.Tensor, Any, float, float], torch.Tensor]:
+    if isinstance(layer, GradientSTDNormLayerV4):
+        return std_grad_norm_v4
     if isinstance(layer, GradientSTDNormLayerV3):
         return std_grad_norm_v3
     elif isinstance(layer, GradientSTDNormLayerV2):
@@ -29,7 +33,13 @@ def get_std_grad_norm_fn_from_layer(
 
 
 @pytest.mark.parametrize(
-    "grad_norm_layer", [GradientSTDNormLayerV1(c=1), GradientSTDNormLayerV2(c=1), GradientSTDNormLayerV3(c=1)]
+    "grad_norm_layer",
+    [
+        GradientSTDNormLayerV1(c=1),
+        GradientSTDNormLayerV2(c=1),
+        GradientSTDNormLayerV3(c=1),
+        GradientSTDNormLayerV4(c=1),
+    ],
 )
 class TestGradNormLayerCommonProperties:
     def test_forward_id(self, grad_norm_layer: LoggingLayer):
@@ -91,8 +101,8 @@ class TestGradNormLayerCommonProperties:
         assert torch.equal(logs["norm_grad_norms/std"], torch.std(norm_grad))
 
     def test_backward_norm(self, grad_norm_layer: LoggingLayer):
-        x = torch.randn(3, 4, requires_grad=True)
-        grad = torch.randn(3, 4)
+        x = torch.randn(3, 4, 5, requires_grad=True)
+        grad = torch.randn(3, 4, 5)
         y = grad_norm_layer(x)
         y.backward(grad)
 

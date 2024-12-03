@@ -53,7 +53,7 @@ class GradientScaleNormLayer(GradLoggingLayer):
 
     def _compute_k(self, x: torch.Tensor) -> float:
         # assuming shape of x is (batch_size, max_length, dmodel)
-        return math.sqrt(x.shape[1] * x.shape[2])
+        return math.sqrt(x.shape[2])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (batch_size, max_length, dmodel)

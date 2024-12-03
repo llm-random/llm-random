@@ -26,6 +26,7 @@ from research.grad_norm.modules.grad_norm import (
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,
     GradientSTDNormLayerV3,
+    GradientSTDNormLayerV4,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,8 @@ def get_grad_modif_fn(args) -> Optional[Callable[[], torch.nn.Module]]:
             layer = GradientSTDNormLayerV2
         elif layer_type == "v3":
             layer = GradientSTDNormLayerV3
+        elif layer_type == "v4":
+            layer = GradientSTDNormLayerV4
         else:
             raise ValueError(f"Unknown value of 'layer_type' {layer_type}")
 

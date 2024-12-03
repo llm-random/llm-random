@@ -10,6 +10,7 @@ from research.grad_norm.modules.grad_norm import (
     GradientSTDNormLayerV1,
     GradientSTDNormLayerV2,
     GradientSTDNormLayerV3,
+    GradientSTDNormLayerV4,
 )
 
 
@@ -89,6 +90,15 @@ def test_get_grad_modif_placement(args_mock):
             -0.1,
             0.0,
         ),
+        (
+            {
+                "grad_modif_type": "std_norm",
+                "grad_modif_params": ["c=0.1", "eps=0.1", "layer_type=v4"],
+            },
+            GradientSTDNormLayerV4,
+            0.1,
+            0.1,
+        ),
     ],
     indirect=["args_mock"],
 )
@@ -112,7 +122,7 @@ def test_get_grad_modif_fn_std_norm(args_mock, expected_layer_type, expected_c, 
         },
         {
             "grad_modif_type": "std_norm",
-            "grad_modif_params": ["c=0.42", "eps=1e-8", "layer_type=v4"],
+            "grad_modif_params": ["c=0.42", "eps=1e-8", "layer_type=v5"],
         },
         {
             "grad_modif_type": "scale_norm",
