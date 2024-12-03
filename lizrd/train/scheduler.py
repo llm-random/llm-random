@@ -10,11 +10,6 @@ def get_scheduler(
 ) -> "AbstractLRScheduler":
     if ratios_in_group_order is None:
         ratios_in_group_order = [1.0]
-    if hasattr(args, "lr_warmup_percent") and args.lr_warmup_percent is not None:
-        assert (
-            not args.lr_warmup_steps
-        ), "You cannot set both lr_warmap_percent and lr_warmap_steps"
-        args.lr_warmup_steps = math.ceil(args.n_steps * args.lr_warmup_percent)
     if args.final_lr_step == -1 or args.final_lr_step is None:
         args.final_lr_step = args.n_steps
 

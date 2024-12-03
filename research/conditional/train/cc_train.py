@@ -5,6 +5,7 @@ import os
 import random
 from typing import Callable, Optional
 import socket
+import math
 
 import torch
 import torch.multiprocessing as mp
@@ -160,6 +161,20 @@ def convert_parameters(args):
             transition_points=transition_points,
             batch_sizes=batch_sizes,
         )
+
+    # check_args() ensures that only of the 3 args is not None
+    # code below converts warmup to steps
+    if args.lr_warmup_steps is None:
+        if args.lr_warmup_fraction is not None:
+            args.lr_warmup_steps = math.ceil(args.n_steps * args.lr_warmup_fraction)
+        elif args.lr_warmup_tokens is not None:
+            args.lr_warmup_steps = convert_tokens_to_steps(
+                tokens=args.lr_warmup_tokens * 1e9,
+                seq_len=args.cutoff,
+                target_batch_size=args.batch_size,
+                transition_points=transition_points,
+                batch_sizes=batch_sizes,
+            )
 
     if args.scheduler_trapezoidal_slides:
         assert args.scheduler == "trapezoidal"
