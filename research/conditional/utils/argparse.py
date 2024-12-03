@@ -43,7 +43,19 @@ def introduce_parser_arguments(
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
-    parser.add_argument("--n_steps", type=int, required=True)
+    parser.add_argument(
+        "--n_steps",
+        type=int,
+        required=False,
+        help="Number of gradient steps during training. n_steps, or n_tokens must be None",
+    )
+    parser.add_argument(
+        "--n_tokens",
+        type=float,
+        default=None,
+        required=False,
+        help="Number of total training tokens in bilions. n_steps, or n_tokens must be None",
+    )
     parser.add_argument(
         "--scheduler",
         type=str,
@@ -100,17 +112,33 @@ def introduce_parser_arguments(
     parser.add_argument("--grad_clip", type=float, default=None)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--lr_decay", type=float, default=None)
-    parser.add_argument("--lr_warmup_steps", type=int, default=0)
+    parser.add_argument("--lr_warmup_steps", type=int, default=None)
+    parser.add_argument(
+        "--lr_warmup_tokens", type=float, default=None, help="in bilions of tokens"
+    )
     parser.add_argument("--lr_trapezoidal_decay_fraction", type=float, default=0.20)
+    parser.add_argument(
+        "--lr_trapezoidal_decay_fraction_unit",
+        type=str,
+        default="tokens",
+        choices=["tokens", "steps"],
+    )
     parser.add_argument("--lr_decay_interval", type=int, default=0)
     parser.add_argument(
         "--batch_size_rampup_transition_points",
         type=float,
         nargs="*",
         default=None,
-        help="list of points (in billions of tokens) when batch size will be ramped up to the next value",
+        help="list of points when batch size will be ramped up to the next value. Points in of bilions of tokens, if argument batch_size_rampup_units isn't specified",
     )
     parser.add_argument("--batch_size_rampup_sizes", type=int, nargs="*", default=None)
+    parser.add_argument(
+        "--batch_size_rampup_units",
+        type=str,
+        choices=["tokens", "steps"],
+        default="tokens",  # ensures backward compatibility
+        help="options:\n'tokens' - bilions of tokens\n'steps' - gradient steps",
+    )
 
     # CORE data hyperparameters, almost always specified in baseline configs
 
@@ -140,7 +168,7 @@ def introduce_parser_arguments(
     )
     parser.add_argument(
         "--n_final_eval_batches",
-        type=str,
+        type=int,
         default=8,
         help="Total number of batches to generate for final evaluation. Should be the same for all runs to compare them.",
     )

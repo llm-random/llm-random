@@ -1,5 +1,6 @@
 import argparse
 from collections import defaultdict
+from functools import partial
 import os
 import random
 from typing import Callable, Optional
@@ -8,6 +9,7 @@ import socket
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
+from ast import literal_eval
 
 from lizrd.core import misc
 from lizrd.core.llm import Parallel
@@ -19,6 +21,9 @@ from lizrd.support.logging import (
 from lizrd.support.misc import (
     get_argument_attributes,
     set_seed,
+    convert_tokens_to_steps,
+    convert_steps_to_tokens,
+    convert_transition_points_in_tokens_to_steps,
 )
 from lizrd.train.checkpoints_manager import start_job_manager_assessment
 from lizrd.train.train_utils import (
@@ -124,6 +129,134 @@ def rescale_params_after_init(args, model):
         param.data *= scale
 
 
+def convert_parameters(args):
+    if args.batch_size_rampup_transition_points is not None:
+        # convert transition points to steps
+        transition_points = args.batch_size_rampup_transition_points
+        if args.batch_size_rampup_units == "tokens":
+            transition_points = convert_transition_points_in_tokens_to_steps(
+                transition_points_in_tokens=args.batch_size_rampup_transition_points,
+                batch_sizes=args.batch_size_rampup_sizes,
+                seq_len=args.cutoff,
+            )
+            print(f"transition_points: {transition_points}")
+
+        batch_size_rampup_config = BatchSizeRampupConfig(
+            transition_points=transition_points,
+            batch_sizes=args.batch_size_rampup_sizes,
+        )
+        transition_points = batch_size_rampup_config.transition_points
+        batch_sizes = batch_size_rampup_config.batch_sizes
+    else:
+        batch_size_rampup_config = None
+        transition_points = None
+        batch_sizes = None
+
+    if args.n_steps is None:
+        args.n_steps = convert_tokens_to_steps(
+            tokens=args.n_tokens * 1e9,
+            seq_len=args.cutoff,
+            target_batch_size=args.batch_size,
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
+        )
+
+    if args.scheduler_trapezoidal_slides:
+        assert args.scheduler == "trapezoidal"
+        assert args.checkpoint_manager
+        args.scheduler_trapezoidal_slides = literal_eval(
+            args.scheduler_trapezoidal_slides
+        )
+        new_scheduler_trapezoidal_slides = []
+        for slide in args.scheduler_trapezoidal_slides:
+            if "n_tokens" in slide:
+                slide["n_steps"] = convert_tokens_to_steps(
+                    tokens=slide["n_tokens"] * 1e9,
+                    seq_len=args.cutoff,
+                    target_batch_size=args.batch_size,
+                    transition_points=transition_points,
+                    batch_sizes=batch_sizes,
+                )
+            else:
+                slide["n_tokens"] = (
+                    convert_steps_to_tokens(
+                        step=slide["n_steps"],
+                        seq_len=args.cutoff,
+                        target_batch_size=args.batch_size,
+                        transition_points=transition_points,
+                        batch_sizes=batch_sizes,
+                    )
+                    // 1e9
+                )  # to make sure it is in billions
+
+            if args.lr_trapezoidal_decay_fraction_unit == "tokens":
+                toks_until_split = int(
+                    (1 - args.lr_trapezoidal_decay_fraction) * slide["n_tokens"] * 1e9
+                )
+                slide["split_step"] = (
+                    convert_tokens_to_steps(
+                        tokens=toks_until_split,
+                        seq_len=args.cutoff,
+                        target_batch_size=args.batch_size,
+                        transition_points=transition_points,
+                        batch_sizes=batch_sizes,
+                    )
+                    - 1
+                )
+            elif args.lr_trapezoidal_decay_fraction_unit == "steps":
+                slide["split_step"] = (
+                    int((1 - args.lr_trapezoidal_decay_fraction) * slide["n_steps"]) - 1
+                )
+
+            new_scheduler_trapezoidal_slides.append(slide)
+        args.scheduler_trapezoidal_slides = new_scheduler_trapezoidal_slides
+
+    if args.lr_warmup_steps is None:
+        args.lr_warmup_steps = convert_tokens_to_steps(
+            tokens=args.lr_warmup_tokens * 1e9,
+            seq_len=args.cutoff,
+            target_batch_size=args.batch_size,
+            transition_points=transition_points,
+            batch_sizes=batch_sizes,
+        )
+
+    return batch_size_rampup_config
+
+
+def convert_lr_scheduler_args(args, rampup_config):
+    if rampup_config is None:
+        transition_points = batch_sizes = None
+    else:
+        transition_points = rampup_config.transition_points
+        batch_sizes = rampup_config.batch_sizes
+
+    if args.scheduler == "trapezoidal":
+        if args.lr_trapezoidal_decay_fraction_unit == "tokens":
+            fraction_of_toks_until_decay = 1 - args.lr_trapezoidal_decay_fraction
+            tokens_until_decay = int(
+                fraction_of_toks_until_decay
+                * convert_steps_to_tokens(
+                    step=args.n_steps,
+                    seq_len=args.cutoff,
+                    target_batch_size=args.batch_size,
+                    transition_points=transition_points,
+                    batch_sizes=batch_sizes,
+                )
+            )
+            steps_until_decay = convert_tokens_to_steps(
+                tokens=tokens_until_decay,
+                seq_len=args.cutoff,
+                target_batch_size=args.batch_size,
+                transition_points=transition_points,
+                batch_sizes=batch_sizes,
+            )
+            args.lr_trapezoidal_decay_steps = args.n_steps - steps_until_decay
+        elif args.lr_trapezoidal_decay_fraction_unit == "steps":
+            args.lr_trapezoidal_decay_steps = int(
+                args.lr_trapezoidal_decay_fraction * args.n_steps
+            )
+
+
 def main(
     rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
@@ -145,6 +278,8 @@ def main(
             args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
+
+    batch_size_rampup_config = convert_parameters(args)
 
     if rank is not None:
         os.environ["MASTER_ADDR"] = "localhost"
@@ -311,6 +446,10 @@ def main(
                 iteration=checkpoint["step"],
             )
 
+    convert_lr_scheduler_args(
+        args, batch_size_rampup_config
+    )  # we need to convert after args override as n_steps might have changed
+
     log_and_print_model_param_count(args, model, vocab_size=VOCAB_SIZE)
 
     args.learning_rate = calculate_lr(args)
@@ -342,15 +481,6 @@ def main(
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
-    batch_size_rampup_config = (
-        BatchSizeRampupConfig(
-            transition_points=args.batch_size_rampup_transition_points,
-            batch_sizes=args.batch_size_rampup_sizes,
-        )
-        if args.batch_size_rampup_transition_points is not None
-        else None
-    )
-
     common_dataloaders_kwargs = {
         "sequence_length": args.cutoff,
         "device": DEVICE,
@@ -368,24 +498,33 @@ def main(
         dataset_path=args.train_dataset_path,
     )
 
-    eval_split = (
-        "eval"
-        if args.dataset_type == "wikibook"
-        else ("train" if args.use_dummy_dataset else "validation")
-    )
-    eval_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs,
-        dataset_split=eval_split,
-        dataset_path=args.validation_dataset_path,
-    )
+    if args.eval_interval > 0:
+        eval_split = (
+            "eval"
+            if args.dataset_type == "wikibook"
+            else ("train" if args.use_dummy_dataset else "validation")
+        )
+        eval_dataloader = get_processed_dataset(
+            **common_dataloaders_kwargs,
+            dataset_split=eval_split,
+            dataset_path=args.validation_dataset_path,
+        )
+    else:
+        eval_dataloader = None
 
-    common_dataloaders_kwargs["seed"] = args.final_eval_seed
-    common_dataloaders_kwargs["batch_size"] = args.final_eval_dataloader_batch_size
-    final_eval_dataloader = get_processed_dataset(
-        **common_dataloaders_kwargs,
-        dataset_split=eval_split,
-        dataset_path=args.validation_dataset_path,
-    )
+    if args.n_final_eval_batches > 0:
+        final_eval_dataloader_kwargs = {**common_dataloaders_kwargs}
+        final_eval_dataloader_kwargs["seed"] = args.final_eval_seed
+        final_eval_dataloader_kwargs[
+            "batch_size"
+        ] = args.final_eval_dataloader_batch_size
+        final_eval_dataloader_kwargs["dataset_split"] = eval_split
+        final_eval_dataloader_kwargs["dataset_path"] = args.validation_dataset_path
+        get_final_eval_dataloader = partial(
+            get_processed_dataset, **final_eval_dataloader_kwargs
+        )
+    else:
+        get_final_eval_dataloader = None
 
     if args.model_type == "gpt" and is_logging_process:
         log_batch(
@@ -458,7 +597,7 @@ def main(
         scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
         args_override=args.args_override,
         batch_size_rampup_config=batch_size_rampup_config,
-        final_eval_dataloader=final_eval_dataloader,
+        get_final_eval_dataloader=get_final_eval_dataloader,
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
     )

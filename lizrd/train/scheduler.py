@@ -10,7 +10,7 @@ def get_scheduler(
 ) -> "AbstractLRScheduler":
     if ratios_in_group_order is None:
         ratios_in_group_order = [1.0]
-    if args.lr_warmup_percent is not None:
+    if hasattr(args, "lr_warmup_percent") and args.lr_warmup_percent is not None:
         assert (
             not args.lr_warmup_steps
         ), "You cannot set both lr_warmap_percent and lr_warmap_steps"
@@ -35,7 +35,7 @@ def get_scheduler(
     elif args.scheduler == "trapezoidal":
         return TrapezoidalScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
-            lr_decay_steps=math.ceil(args.n_steps * args.lr_trapezoidal_decay_fraction),
+            lr_decay_steps=args.lr_trapezoidal_decay_steps,
             n_steps=args.n_steps,
             lr=args.learning_rate,
             ratios=ratios_in_group_order,

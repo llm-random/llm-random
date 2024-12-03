@@ -164,8 +164,13 @@ full_config*.yaml
 schema.json
 
 wandb
+.DS_Store
 
 local_search_configs
 
 # MS
 *mstest*
+
+# JM
+jm/
+jupyter_files*
