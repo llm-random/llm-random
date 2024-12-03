@@ -70,6 +70,7 @@ class MultiheadFlashDiff1(nn.Module):
         roll_negative_heads,
         init_type,
         init_scale,
+        num_kv_heads=None,
     ):
         super().__init__()
         # self.args = args
@@ -84,7 +85,7 @@ class MultiheadFlashDiff1(nn.Module):
 
         assert (int(roll_negative_heads) + int(flip_negative_heads)) <= 1
 
-        self.num_kv_heads = num_heads
+        self.num_kv_heads = num_kv_heads or num_heads
         self.n_rep = self.num_heads // self.num_kv_heads
 
         self.head_dim = embed_dim // num_heads // 2
@@ -104,10 +105,18 @@ class MultiheadFlashDiff1(nn.Module):
             embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
         )
         self.k_proj = Linear(
-            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+            embed_dim,
+            self.num_kv_heads * self.head_dim,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
         )
         self.v_proj = Linear(
-            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+            embed_dim,
+            self.num_kv_heads * self.head_dim,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
         )
         self.out_proj = Linear(
             embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
