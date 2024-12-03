@@ -1,19 +1,67 @@
 from functools import partial
 from typing import Literal, Optional
+import copy
 
 import torch
 from torch.utils.data import DataLoader
 
 from lizrd.text import datasets, packers, data, tokenizers
+from lizrd.support.misc import get_ith_chunk
 
 
 class DataloaderWrapper:
-    def __init__(self, dataloader: DataLoader, device: torch.device):
+    def __init__(
+        self,
+        dataloader: DataLoader,
+        device: torch.device,
+    ):
         self.generator = iter(dataloader)
+        self.target_batch_size_per_gpu = dataloader.batch_size
         self.device = device
+        self.previous_batch_size_per_gpu = -1
+        self.chunks_iterator = 0
 
-    def get_batch(self) -> data.LLMBatch:
-        return next(self.generator).to(self.device)
+    def get_batch(self, current_batch_size_per_gpu=-1) -> data.LLMBatch:
+        """
+        Returns the next batch of data, handling batch size ramp-up if specified.
+
+        If `current_batch_size_per_gpu` is less than `self.target_batch_size`, the batch is split into smaller chunks, and the appropriate chunk is returned.
+
+        Args:
+            current_batch_size_per_gpu (int, optional): The current batch size.
+            Defaults to -1, which uses the target batch size.
+        """
+        if (
+            current_batch_size_per_gpu == -1
+            or current_batch_size_per_gpu == self.target_batch_size_per_gpu
+        ):
+            return next(self.generator).to(self.device)
+        else:
+            current_num_chunks = (
+                self.target_batch_size_per_gpu // current_batch_size_per_gpu
+            )
+            if self.batch_size_changed(current_batch_size_per_gpu):
+                self.chunks_iterator = 0
+                self.previous_batch_size_per_gpu = current_batch_size_per_gpu
+            current_chunk_index = self.chunks_iterator % current_num_chunks
+
+            if current_chunk_index == 0:
+                self.current_batch = next(self.generator).to(self.device)
+
+            self.chunks_iterator += 1
+
+            return self.get_batch_chunk(
+                self.current_batch, current_num_chunks, current_chunk_index
+            )
+
+    def batch_size_changed(self, current_batch_size_per_gpu):
+        return current_batch_size_per_gpu != self.previous_batch_size_per_gpu
+
+    def get_batch_chunk(self, batch, num_chunks, chunk_index):
+        batch_chunk = copy.deepcopy(batch)
+        for _, tensor in batch_chunk:
+            tensor.data = get_ith_chunk(tensor.data, num_chunks, chunk_index)
+        return batch_chunk
 
 
 def worker_init_fn(seed, worker_id):
@@ -45,6 +93,13 @@ def get_processed_dataset(
     elif dataset_type == "c4":
         dataset = partial(
             datasets.C4Dataset,
+            use_dummy_dataset=use_dummy_dataset,
+            split=dataset_split,
+            dataset_path=dataset_path,
+        )
+    elif dataset_type == "fineweb-edu":
+        dataset = partial(
+            datasets.FinewebEduDataset,
             use_dummy_dataset=use_dummy_dataset,
             split=dataset_split,
             dataset_path=dataset_path,

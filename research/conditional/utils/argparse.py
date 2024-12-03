@@ -6,15 +6,19 @@ def load_dict_in_args(s: str):
     return json.loads(s.replace("'", '"'))
 
 
+def math_eval(value):
+    return float(eval(value))  # fallback for other notations like float or exponential
+
+
 def introduce_parser_arguments(
     parser: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     # CORE model hyperparameters, almost always specified in baseline configs
     parser.add_argument("--cuda_visible", type=str, default=None)
     parser.add_argument(
-        "--repeater_mode",
+        "--checkpoint_manager",
         action="store_true",
-        help="Used when experiment will last longer than cluster max job time. It repeats jobs for expertiment longer continuation. Combines with periodic model saves.",
+        help="Used when experiment will last longer than cluster max job time. It repeats jobs for expertiment longer continuation. Combines with periodic model saves. Additionally operates using a manager JSON file which combines with trapezoidal slides creation and execution schedule.",
     )
     # parser.add_argument("--repeater_buffer", type=int, help="In minutes, time before cluster force-clousure that jobs saves and ends itself for next job to continue. Maximu time that model and trainig data needs to be saved, plus MAX time of one step (plus TIME OF VALIDATION that can interfeer!).") #dev TODO, currently fixed 15 min buffer time
     parser.add_argument(
@@ -39,9 +43,33 @@ def introduce_parser_arguments(
 
     # CORE training hyperparameters, almost always specified in baseline configs
 
-    parser.add_argument("--n_steps", type=int, required=True)
-    parser.add_argument("--learning_rate", type=float, required=True)
-    parser.add_argument("--scheduler", type=str, required=True)
+    parser.add_argument(
+        "--n_steps",
+        type=int,
+        required=False,
+        help="Number of gradient steps during training. n_steps, or n_tokens must be None",
+    )
+    parser.add_argument(
+        "--n_tokens",
+        type=float,
+        default=None,
+        required=False,
+        help="Number of total training tokens in bilions. n_steps, or n_tokens must be None",
+    )
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        required=True,
+        help="Options: constant, cosine, trapezoidal",
+    )
+    parser.add_argument(
+        "--scheduler_trapezoidal_slides",
+        type=str,
+        default=None,
+        required=False,
+        help="""List of dicts having n_steps of total training steps for a periticular split eg. scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':3000,'n_jobs':2}]"; !no white symbols!; n_jobs indicates how many slurm jobs may be needed to complete slide part of training.""",
+    )
+    parser.add_argument("--learning_rate", type=math_eval, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--lr_warmup_percent", type=float, required=False)
     parser.add_argument("--final_lr_fraction", type=float, required=False)
@@ -55,19 +83,70 @@ def introduce_parser_arguments(
 
     # other training hyperparameters
 
+    parser.add_argument("--learning_rate_log2", type=float, required=False, default=0.0)
+    # these default values are fitted using the scaling rule, to use them,
+    # set use_lr_scaling to True and all other lr scaling parameters to 0
+    parser.add_argument("--use_lr_scaling", action="store_true")
+    parser.add_argument(
+        "--lr_scaling_constant_factor",
+        type=float,
+        required=False,
+        default=8.391640956234012,
+    )
+    parser.add_argument(
+        "--lr_scaling_params_factor",
+        type=float,
+        required=False,
+        default=-0.8121798244457074,
+    )
+    parser.add_argument(
+        "--lr_scaling_exp_rate_factor",
+        type=float,
+        required=False,
+        default=-0.25000000000000533,
+    )
+
     parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--adam_beta1", type=float, default=0.9)
     parser.add_argument("--adam_beta2", type=float, default=0.999)
     parser.add_argument("--grad_clip", type=float, default=None)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--lr_decay", type=float, default=None)
-    parser.add_argument("--lr_warmup_steps", type=int, default=0)
+    parser.add_argument("--lr_warmup_steps", type=int, default=None)
+    parser.add_argument(
+        "--lr_warmup_tokens", type=float, default=None, help="in bilions of tokens"
+    )
+    parser.add_argument("--lr_trapezoidal_decay_fraction", type=float, default=0.20)
+    parser.add_argument(
+        "--lr_trapezoidal_decay_fraction_unit",
+        type=str,
+        default="tokens",
+        choices=["tokens", "steps"],
+    )
     parser.add_argument("--lr_decay_interval", type=int, default=0)
+    parser.add_argument(
+        "--batch_size_rampup_transition_points",
+        type=float,
+        nargs="*",
+        default=None,
+        help="list of points when batch size will be ramped up to the next value. Points in of bilions of tokens, if argument batch_size_rampup_units isn't specified",
+    )
+    parser.add_argument("--batch_size_rampup_sizes", type=int, nargs="*", default=None)
+    parser.add_argument(
+        "--batch_size_rampup_units",
+        type=str,
+        choices=["tokens", "steps"],
+        default="tokens",  # ensures backward compatibility
+        help="options:\n'tokens' - bilions of tokens\n'steps' - gradient steps",
+    )
 
     # CORE data hyperparameters, almost always specified in baseline configs
 
     parser.add_argument(
-        "--dataset_type", type=str, choices=["wikibook", "c4"], required=True
+        "--dataset_type",
+        type=str,
+        choices=["wikibook", "c4", "fineweb-edu"],
+        required=True,
     )
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--cutoff", type=int, required=True)
@@ -79,6 +158,20 @@ def introduce_parser_arguments(
     # as of 8.02.2024 it is set automatically on DGX, on other machines use manually
     parser.add_argument("--train_dataset_path", type=str, default=None)
     parser.add_argument("--validation_dataset_path", type=str, default=None)
+
+    parser.add_argument("--final_eval_seed", type=int, default=1912)
+    parser.add_argument(
+        "--final_eval_dataloader_batch_size",
+        type=int,
+        default=64,
+        help="Batch size for final evaluation dataloader. It should be the same for all runs you are comparing. Its advised to set it to the value of the biggest batch_size per GPU to avoid out of memory error.",
+    )
+    parser.add_argument(
+        "--n_final_eval_batches",
+        type=int,
+        default=8,
+        help="Total number of batches to generate for final evaluation. Should be the same for all runs to compare them.",
+    )
 
     # training tricks for memory and speed
     parser.add_argument(

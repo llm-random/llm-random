@@ -10,7 +10,7 @@ def get_scheduler(
 ) -> "AbstractLRScheduler":
     if ratios_in_group_order is None:
         ratios_in_group_order = [1.0]
-    if args.lr_warmup_percent is not None:
+    if hasattr(args, "lr_warmup_percent") and args.lr_warmup_percent is not None:
         assert (
             not args.lr_warmup_steps
         ), "You cannot set both lr_warmap_percent and lr_warmap_steps"
@@ -30,6 +30,14 @@ def get_scheduler(
             lr=args.learning_rate,
             final_lr_step=args.final_lr_step,
             final_lr_fraction=args.final_lr_fraction,
+            ratios=ratios_in_group_order,
+        )
+    elif args.scheduler == "trapezoidal":
+        return TrapezoidalScheduler(
+            lr_warmup_steps=args.lr_warmup_steps,
+            lr_decay_steps=args.lr_trapezoidal_decay_steps,
+            n_steps=args.n_steps,
+            lr=args.learning_rate,
             ratios=ratios_in_group_order,
         )
     else:
@@ -99,3 +107,31 @@ class CosineScheduler(AbstractLRScheduler):
             )
         else:
             return self.lr * self.final_lr_fraction
+
+
+class TrapezoidalScheduler(AbstractLRScheduler):
+    def __init__(
+        self,
+        lr_warmup_steps: int,
+        lr_decay_steps: int,
+        n_steps: int,
+        lr: float,
+        ratios: list[float],
+    ):
+        super().__init__(ratios=ratios)
+        self.lr_warmup_steps = lr_warmup_steps
+        self.lr_decay_steps = lr_decay_steps
+        self.final_lr_step = n_steps
+        self.lr = lr
+
+    def get_lr(self, step: int):
+        if step < self.lr_warmup_steps:
+            return step / self.lr_warmup_steps * self.lr
+        elif self.lr_warmup_steps <= step and step < (
+            self.final_lr_step - self.lr_decay_steps
+        ):
+            return self.lr
+        else:
+            return max(
+                (self.final_lr_step - (step + 1)) / self.lr_decay_steps * self.lr, 0
+            )

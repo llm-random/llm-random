@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import os
+from typing import Optional
 
 import torch
 
@@ -66,3 +67,7 @@ def temp_modify_attr(
 def get_termination_timestamp_slurm() -> int:
     env = os.environ.copy()
     return int(env["SLURM_JOB_END_TIME"])
+
+
+def get_slurm_job_id() -> Optional[str]:
+    return os.environ.get("SLURM_JOBID")

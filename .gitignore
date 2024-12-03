@@ -164,6 +164,7 @@ full_config*.yaml
 schema.json
 
 wandb
+.DS_Store
 
 local_search_configs
 
@@ -171,3 +172,7 @@ local_search_configs
 *mstest*
 
 .DS_Store
+
+# JM
+jm/
+jupyter_files*
