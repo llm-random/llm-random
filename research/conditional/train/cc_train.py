@@ -409,15 +409,16 @@ def main(
         assert my_run["lr"].item() == 0.0
         args.neptune_id = neptune_id
         final_eval_value = my_run["final_eval"].item()
-        if not math.isnan(final_eval_value):
-            if args.force_final_eval:
-                with neptune.init_run(
-                    project="pmtest/llm-random",
-                    with_id=neptune_id,
-                ) as neptune_run:
-                    del neptune_run["final_eval"]
-            else:
-                raise Exception(f"Final eval has already been run for {neptune_id}")
+        if self.is_logging_process:
+            if not math.isnan(final_eval_value):
+                if args.force_final_eval:
+                    with neptune.init_run(
+                        project="pmtest/llm-random",
+                        with_id=neptune_id,
+                    ) as neptune_run:
+                        del neptune_run["final_eval"]
+                else:
+                    raise Exception(f"Final eval has already been run for {neptune_id}")
     else:
         checkpoint_path = args.load_weights_path
 
