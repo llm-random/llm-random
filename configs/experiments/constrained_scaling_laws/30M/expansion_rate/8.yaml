@@ -1,6 +1,6 @@
 parent: configs/experiments/constrained_scaling_laws/30M/model.yaml
 md5_parent_hash: 4309927e346780150a25f08be3e2a955
-n_gpus: 4 # works for athena
+n_gpus: 1 # works for athena
 time: 0-00:30:00
 
 
@@ -9,7 +9,7 @@ params:
   expansion_rate: 8
   gradient_accumulation_steps: 4
   run_final_eval: true
-  ^force_final_eval: [true, false]
+  # ^force_final_eval: [true, false]
   final_eval_step: 22888
   # neptune_id: "LLMRANDOM-22621"
   n_final_eval_batches: 8
