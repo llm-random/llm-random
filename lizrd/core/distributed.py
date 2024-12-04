@@ -45,7 +45,7 @@ def wrap_in_fsdp(
 
     wrapped = FSDP(
         module,
-        sharding_strategy=ShardingStrategy.HYBRID_SHARD,  # sharded within node, data parallel across nodes
+        sharding_strategy=ShardingStrategy.FULL_SHARD,
         device_id=local_rank,
         mixed_precision=MixedPrecision(
             param_dtype=param_precision,
