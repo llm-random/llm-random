@@ -600,6 +600,7 @@ def main(
         get_final_eval_dataloader=get_final_eval_dataloader,
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
+        loaded_training_loop_accumulators=checkpoint["training_loop_accumulators"] if checkpoint else checkpoint
     )
     trainer.train(args.n_steps)
 
