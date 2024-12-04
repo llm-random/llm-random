@@ -1,13 +1,13 @@
-parent: configs/baselines/gpt/dense/mini.yaml
-md5_parent_hash: f181bf20ef729beb781a926a284a7e4f
-n_gpus: 8
-n_nodes: 2
-time: "0-00:45:00"
+parent: configs/baselines/gpt/dense/6b.yaml
+md5_parent_hash: cdcde52ce07503e2da38c1bf718a9f96
+n_gpus: 16
+n_nodes: 4
+time: "0-00:20:00"
 params:
     num_workers: 4
     data_seed: -1
     n_tokens: null
-    n_steps: 1000    
+    n_steps: 100    
     ^batch_size: [512]
     cutoff: 512
     fsdp_enabled: true
@@ -15,8 +15,8 @@ params:
     mixed_precision_dtype: bfloat16
     flash_attention: true
     fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
-    activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
-    gradient_accumulation_steps: 4
+    # activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+    # gradient_accumulation_steps: 4
     ff_mode: vanilla
     dataset_type: c4
     learning_rate: 5e-4
