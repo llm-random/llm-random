@@ -203,7 +203,7 @@ def start_job_manager_assessment(
                             metadata = element[CHECKPOINT_METADATA_TAG]
                             break
                 if result == -1:
-                    raise Exception("No available trainig to do")
+                    raise Exception("No available training to do")
                 else:
                     return result, metadata
             except Exception as e:

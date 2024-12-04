@@ -371,6 +371,7 @@ def main(
         ]
 
     checkpoint_path = args.load_weights_path
+    checkpoint_metadata = None
     if not args.checkpoint_manager:
         checkpoint = (
             get_checkpoint_from_path(args.load_weights_path)
@@ -434,7 +435,7 @@ def main(
         logger = None
 
     args.args_override = None
-    if checkpoint and "args_override" in checkpoint and checkpoint["args_override"]:
+    if checkpoint and checkpoint.get("args_override") and not(checkpoint_metadata and "ignore_model_args" in checkpoint_metadata and checkpoint_metadata["ignore_model_args"]):
         args.args_override = checkpoint["args_override"]
         for key, value in args.args_override.items():
             if hasattr(args, key):
