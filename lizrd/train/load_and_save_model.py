@@ -93,6 +93,10 @@ def save_checkpoint(
     batch_size,
     cutoff,
     loggers: list[AbstractLogger],
+    loss_accumulators: dict,
+    correct_tokens_accumulator: dict,
+    total_tokens_accumulator: dict,
+    auxiliary_losses_accumulator: dict,
     args_override: Optional[dict] = None,
 ):
     if isinstance(model, FSDP):
@@ -134,12 +138,20 @@ def save_checkpoint(
         else:
             logger_metadata = {"run_id": None}
 
+        training_loop_accumulators = {
+            "loss_accumulators":loss_accumulators,
+            "correct_tokens_accumulator":correct_tokens_accumulator,
+            "total_tokens_accumulator":total_tokens_accumulator,
+            "auxiliary_losses_accumulator":auxiliary_losses_accumulator,
+        }
+
         checkpoint = {
             "model": model_state_dict,
             "optimizer": optimizer_state_dict,
             "step": step,
             "logger": logger_metadata,
             "args_override": args_override,
+            "training_loop_accumulators": training_loop_accumulators
         }  # dev TODO add accumulated training variables for proper logging, f.e. loss_interval/100 - loss accumulated over 100 training steps
 
         if scaler is not None:

@@ -223,6 +223,10 @@ def job_out_of_time_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    loss_accumulators: dict,
+    correct_tokens_accumulator: dict,
+    total_tokens_accumulator: dict,
+    auxiliary_losses_accumulator: dict,
     args_override: Optional[dict] = None,
 ):  # TODO params
     """saves the checkpoint"""
@@ -236,6 +240,10 @@ def job_out_of_time_checkpoint(
         batch_size,
         cutoff,
         loggers,
+        loss_accumulators,
+        correct_tokens_accumulator,
+        total_tokens_accumulator,
+        auxiliary_losses_accumulator,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
@@ -264,6 +272,10 @@ def end_training_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    loss_accumulators: dict,
+    correct_tokens_accumulator: dict,
+    total_tokens_accumulator: dict,
+    auxiliary_losses_accumulator: dict,
     args_override: Optional[dict] = None,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
@@ -277,6 +289,10 @@ def end_training_checkpoint(
         batch_size,
         cutoff,
         loggers,
+        loss_accumulators,
+        correct_tokens_accumulator,
+        total_tokens_accumulator,
+        auxiliary_losses_accumulator,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
@@ -302,6 +318,10 @@ def create_slide_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    loss_accumulators: dict,
+    correct_tokens_accumulator: dict,
+    total_tokens_accumulator: dict,
+    auxiliary_losses_accumulator: dict,
     args_override: Optional[dict] = None,
 ):
     """saves checkpoint and creates a manager checkpoint continuation"""
@@ -315,6 +335,10 @@ def create_slide_checkpoint(
         batch_size,
         cutoff,
         loggers,
+        loss_accumulators,
+        correct_tokens_accumulator,
+        total_tokens_accumulator,
+        auxiliary_losses_accumulator,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
