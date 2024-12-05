@@ -117,7 +117,7 @@ class ConditionalTrainer:
         self.auxiliary_losses_accumulator = dict()
         
         if self.loaded_training_loop_accumulators:
-            print("--------------------------------")
+            print("--------------------------------") #dev
             print(f"self.loaded_training_loop_accumulators {self.loaded_training_loop_accumulators}")
             print(f"self.loss_accumulators.keys() {self.loss_accumulators.keys()}")
             print(f"self.loaded_training_loop_accumulators[loss_accumulators].keys() {self.loaded_training_loop_accumulators['loss_accumulators'].keys()}")
@@ -127,12 +127,10 @@ class ConditionalTrainer:
             print(f"list(self.loaded_training_loop_accumulators[loss_accumulators].keys()) {list(self.loaded_training_loop_accumulators['loss_accumulators'].keys())}")
             print(f"list(self.auxiliary_losses_accumulator.keys()) {list(self.auxiliary_losses_accumulator.keys())}")
             print(f"list(self.loaded_training_loop_accumulators[auxiliary_losses_accumulator].keys()) {list(self.loaded_training_loop_accumulators['auxiliary_losses_accumulator'].keys())}")
-            print("--------------------------------")
+            print("--------------------------------") #dev
             assert list(self.loss_accumulators.keys()) == list(self.loaded_training_loop_accumulators["loss_accumulators"].keys())
-            assert list(self.auxiliary_losses_accumulator.keys()) == list(self.loaded_training_loop_accumulators["auxiliary_losses_accumulator"].keys())
-            # for k in list(self.loss_accumulators.keys()) + ["loss"]:
-            #     self.loss_accumulators[k].acc = self.accumulators_loaded_state["loss_accumulators"][k]["acc"]
-            #     self.loss_accumulators[k].interval = self.accumulators_loaded_state["loss_accumulators"][k]["interval"]
+            # assert list(self.auxiliary_losses_accumulator.keys()) == list(self.loaded_training_loop_accumulators["auxiliary_losses_accumulator"].keys()) #dev TODO validate this, to have loaded model - config coherence
+
             self.loss_accumulators = self.loaded_training_loop_accumulators["loss_accumulators"]
             self.correct_tokens_accumulator = self.loaded_training_loop_accumulators["correct_tokens_accumulator"]
             self.total_tokens_accumulator = self.loaded_training_loop_accumulators["total_tokens_accumulator"]
@@ -173,10 +171,12 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "success",
         )
-        if self.is_logging_process:
-            self.logger.exit_job_metadata(self.current_step)
+        # if self.is_logging_process: #dev finish all experiement not job run
+        #     self.logger.exit_job_metadata(self.current_step)
 
         if self.current_step >= n_steps:  # - end of model training operations
+            if self.is_logging_process: #dev finish all experiement not job run
+                self.logger.exit_job_metadata(self.current_step)
             if self.save_weights_path:
                 job_id = get_slurm_job_id()
                 end_training_checkpoint(
@@ -410,7 +410,7 @@ class ConditionalTrainer:
         return total_cross_entropy_loss, {
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
-            "losses": losses,
+            "losses": losses,yield
         }
 
     def _apply_gradient(self):
