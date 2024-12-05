@@ -414,14 +414,15 @@ def main(
         checkpoint=checkpoint,
     )
 
+    ignore_model_args:bool = checkpoint_metadata and "ignore_model_args" in checkpoint_metadata and checkpoint_metadata["ignore_model_args"]
     if is_logging_process:
-        if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
+        if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"] and not(ignore_model_args):
             logger_runs_ids = checkpoint["logger"]["run_id"]
         else:
             if args.scheduler_trapezoidal_slides:
                 logger_runs_ids = []
                 for _ in range(len(args.scheduler_trapezoidal_slides) + 1):
-                    logger_runs_ids.append(None)
+                    logger_runs_ids.append(None) #dev TODO in case of ignore_model_args skip loggers overproduction of already passed splits checkpoint["step"] reference
             else:
                 logger_runs_ids = None
         logger = get_logger(args, model, VOCAB_SIZE, logger_runs_ids)
@@ -435,7 +436,7 @@ def main(
         logger = None
 
     args.args_override = None
-    if checkpoint and checkpoint.get("args_override") and not(checkpoint_metadata and "ignore_model_args" in checkpoint_metadata and checkpoint_metadata["ignore_model_args"]):
+    if checkpoint and checkpoint.get("args_override") and not(ignore_model_args):
         args.args_override = checkpoint["args_override"]
         for key, value in args.args_override.items():
             if hasattr(args, key):
