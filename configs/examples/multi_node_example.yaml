@@ -2,12 +2,12 @@ parent: configs/baselines/gpt/dense/6b.yaml
 md5_parent_hash: cdcde52ce07503e2da38c1bf718a9f96
 n_gpus: 16
 n_nodes: 4
-time: "0-00:20:00"
+time: "0-00:50:00"
 params:
     num_workers: 4
     data_seed: -1
     n_tokens: null
-    n_steps: 100    
+    n_steps: 300
     ^batch_size: [512]
     cutoff: 512
     fsdp_enabled: true
@@ -19,7 +19,8 @@ params:
     # gradient_accumulation_steps: 4
     ff_mode: vanilla
     dataset_type: c4
-    learning_rate: 5e-4
+    learning_rate: 1e-4
+    load_weights_path: "/net/storage/pr3/plgrid/plggllmeffi/plgjkrajewski/llm_random_cemetery/multi_node_example_2024-12-05_10-43-10/model_ckpt/55043/200.pt"
     lr_warmup_steps: 100
     final_lr_step: 1000
     final_lr_fraction: 0.1
