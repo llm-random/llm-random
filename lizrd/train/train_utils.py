@@ -29,7 +29,7 @@ def get_model(
     fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
     activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     is_logging_process: bool,
-    rank=None,
+    local_rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
@@ -75,11 +75,11 @@ def get_model(
         load_model_weights(model, checkpoint)
 
     if ddp_enabled:
-        model = wrap_in_ddp(module=model, rank=rank)
+        model = wrap_in_ddp(module=model, local_rank=local_rank)
     elif fsdp_enabled:
         model = wrap_in_fsdp(
             module=model,
-            rank=rank,
+            local_rank=local_rank,
             param_precision=fsdp_param_precision,
             cast_inputs=True,
             mixed_precision_ignored_classes=fsdp_mixed_precision_ignore_classes,
