@@ -337,7 +337,7 @@ def determine_moe_args(args):
             "or expert_size, topk_fraction, and n_experts "
             "or granularity, expansion_rate, and effective_dff_x "
             "or n_experts, expert_size, and routing_top_k."
-        )
+        ) # dev #TODO move this assert to check_args
     # 4 is the standard dff_x, we assume it's defined relative to that
     dff = args.dmodel * 4
 
