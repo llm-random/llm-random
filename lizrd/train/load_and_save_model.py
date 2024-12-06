@@ -97,6 +97,7 @@ def save_checkpoint(
     correct_tokens_accumulator: dict,
     total_tokens_accumulator: dict,
     auxiliary_losses_accumulator: dict,
+    other_training_states:dict,
     args_override: Optional[dict] = None,
 ):
     if isinstance(model, FSDP):
@@ -143,6 +144,7 @@ def save_checkpoint(
             "correct_tokens_accumulator":correct_tokens_accumulator,
             "total_tokens_accumulator":total_tokens_accumulator,
             "auxiliary_losses_accumulator":auxiliary_losses_accumulator,
+            "other_training_states":other_training_states,
         }
 
         checkpoint = {

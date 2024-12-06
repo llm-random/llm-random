@@ -163,12 +163,8 @@ def start_job_manager_assessment(
 
     Currently do not take deadlocks into account!!!
     """
-    print("-------------------------------------------------------------------------") #dev
-    print("start_job_manager_assessment")
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
-        print("-------------------------------------------------------------------------") #dev
-        print("is_logging_process")
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
             manager = yaml.load(f, Loader=yaml.SafeLoader)
             if not manager:
@@ -191,15 +187,11 @@ def start_job_manager_assessment(
                         )
                         __overwrite_manager(manager, f)
                         break
-        print("-------------------------------------------------------------------------") #dev
-        print("Pr0 barrier")
         barrier()
         if result == -1:
             raise Exception("No available training to do")
         else:
             return result, metadata
-    print("-------------------------------------------------------------------------") #dev
-    print("Other barrier")
     barrier()
     try:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
@@ -238,6 +230,7 @@ def job_out_of_time_checkpoint(
     correct_tokens_accumulator: dict,
     total_tokens_accumulator: dict,
     auxiliary_losses_accumulator: dict,
+    other_training_states:dict,
     args_override: Optional[dict] = None,
 ):  # TODO params
     """saves the checkpoint"""
@@ -255,6 +248,7 @@ def job_out_of_time_checkpoint(
         correct_tokens_accumulator,
         total_tokens_accumulator,
         auxiliary_losses_accumulator,
+        other_training_states,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
@@ -287,6 +281,7 @@ def end_training_checkpoint(
     correct_tokens_accumulator: dict,
     total_tokens_accumulator: dict,
     auxiliary_losses_accumulator: dict,
+    other_training_states:dict,
     args_override: Optional[dict] = None,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
@@ -304,6 +299,7 @@ def end_training_checkpoint(
         correct_tokens_accumulator,
         total_tokens_accumulator,
         auxiliary_losses_accumulator,
+        other_training_states,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
@@ -333,6 +329,7 @@ def create_slide_checkpoint(
     correct_tokens_accumulator: dict,
     total_tokens_accumulator: dict,
     auxiliary_losses_accumulator: dict,
+    other_training_states:dict,
     args_override: Optional[dict] = None,
 ):
     """saves checkpoint and creates a manager checkpoint continuation"""
@@ -350,6 +347,7 @@ def create_slide_checkpoint(
         correct_tokens_accumulator,
         total_tokens_accumulator,
         auxiliary_losses_accumulator,
+        other_training_states,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
