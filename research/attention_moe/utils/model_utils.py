@@ -21,7 +21,10 @@ from research.attention_moe.moe_layers.attentions import (
     DroppingMoMQA,
     MoMQA,
 )
-from research.attention_moe.moe_layers.baseline_attentions_cc import VanillaAttention
+from research.attention_moe.moe_layers.baseline_attentions_cc import (
+    GQA,
+    VanillaAttention,
+)
 from research.attention_moe.moe_layers.baseline_attentions_cc import MQA
 from research.attention_moe.moe_layers_cc.moe_gating import TokenGating
 
@@ -300,7 +303,29 @@ def get_attention_layer(args):
             init_type=args.init_type,
             init_scale=args.init_scale,
         )
+    elif args.attention_mode == "gqa":
+        # attention_layer_fun = lambda: CausalMQA(
+        #     n_embd=args.dmodel, n_head=args.n_att_heads, block_size=args.cutoff
+        # )
+        attention_layer_fun = lambda: GQA(
+            dmodel=args.dmodel,
+            n_kv_heads=args.n_kv_heads,
+            n_heads=args.n_att_heads,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
     elif args.attention_mode == "momqa":
+        attention_layer_fun = lambda: TokenChoiceMoMQA(
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
+            capacity_factor=args.capacity_factor,
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            zloss_weight=args.zloss_weight,
+            use_dropped_tokens_head=args.momqa_use_dropped_tokens_head,
+            use_extra_mqa=args.momqa_use_extra_mqa,
+        )
         # attention_layer_fun = lambda: MoMQA(
         #     n_embd=args.dmodel,
         #     n_head=args.n_att_heads,
@@ -308,17 +333,16 @@ def get_attention_layer(args):
         #     load_balancing_loss_weight=args.load_balancing_loss_weight,
         #     multiply_by_n_head=args.multiply_by_n_head,
         # )
-        attention_layer_fun = lambda: MultiheadDiffAttn(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
-            # dmodel=args.dmodel,
-            # n_heads=args.n_att_heads,
-            # capacity_factor=args.capacity_factor,
-            # load_balancing_loss_weight=args.load_balancing_loss_weight,
-            # init_type=args.init_type,
-            # init_scale=args.init_scale,
-            # use_dropped_tokens_head=args.momqa_use_dropped_tokens_head,
-        )
+        # attention_layer_fun = lambda: MultiheadDiffAttn(
+        #     embed_dim=args.dmodel,
+        #     num_heads=args.n_att_heads,
+        # dmodel=args.dmodel,
+        # n_heads=args.n_att_heads,
+        # capacity_factor=args.capacity_factor,
+        # load_balancing_loss_weight=args.load_balancing_loss_weight,
+        # init_type=args.init_type,
+        # init_scale=args.init_scale,
+        # use_dropped_tokens_head=args.momqa_use_dropped_tokens_head,
     # elif args.attention_mode == "dropping_momqa":
     #     attention_layer_fun = lambda: DroppingMoMQA(
     #         n_embd=args.dmodel,
@@ -347,6 +371,7 @@ def get_attention_layer(args):
             lowrank_inner_dim=args.diff_transformer_lowrank_dim,
             flip_negative_heads=args.diff_transformer_flip_negative_heads,
             roll_negative_heads=args.diff_transformer_roll_negative_heads,
+            num_kv_heads=args.n_kv_heads,
         )
     else:
         raise NotImplementedError(

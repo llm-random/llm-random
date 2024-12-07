@@ -6,6 +6,7 @@ from lizrd.core.misc import (
     LoggingLayer,
     time_measured,
 )
+from research.attention_moe.moe_layers.baseline_attentions_cc import MQA
 from research.attention_moe.moe_layers_cc.moe_gating import TokenGating
 
 
@@ -25,6 +26,7 @@ class TokenChoiceMoMQA(LoggingLayer):
         moe_values_exp: Optional[int] = 1,
         detach_gate: bool = False,
         use_dropped_tokens_head: bool = False,
+        use_extra_mqa: bool = False,
         **_,
     ):
         """
@@ -84,6 +86,14 @@ class TokenChoiceMoMQA(LoggingLayer):
                 2 * self.head_dim,
                 init_type=init_type,
                 init_scale=init_scale,
+            )
+        self.use_extra_mqa = use_extra_mqa
+        if self.use_extra_mqa:
+            self.mqa_k_proj = Linear(
+                self.dmodel, self.head_dim, init_type=init_type, init_scale=init_scale
+            )
+            self.mqa_v_proj = Linear(
+                self.dmodel, self.head_dim, init_type=init_type, init_scale=init_scale
             )
         self.q_proj = Linear(
             self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
@@ -198,6 +208,13 @@ class TokenChoiceMoMQA(LoggingLayer):
 
         k = k.unsqueeze(-3)
         v = v.unsqueeze(-3)
+
+        if self.use_extra_mqa:
+            x = x.reshape(batch_size, seq_len, -1)
+            extra_k = self.mqa_k_proj(x).unsqueeze(-3)
+            extra_v = self.mqa_v_proj(x).unsqueeze(-3)
+            k = torch.cat([k, extra_k], dim=-3)
+            v = torch.cat([v, extra_v], dim=-3)
 
         y = torch.nn.functional.scaled_dot_product_attention(
             q.transpose(1, 2).contiguous(),

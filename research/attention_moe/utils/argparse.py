@@ -27,6 +27,7 @@ def introduce_parser_arguments(
     parser.add_argument("--dmodel", type=int, required=True)
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
     parser.add_argument("--n_att_heads", type=int, required=True)
+    parser.add_argument("--n_kv_heads", type=int, required=False, default=None)
     parser.add_argument("--dhead", type=int, default=None)
 
     # other model hyperparameters
@@ -426,6 +427,7 @@ def introduce_parser_arguments(
     # attention moe
     parser.add_argument("--multiply_by_n_head", action="store_true")
     parser.add_argument("--momqa_use_dropped_tokens_head", action="store_true")
+    parser.add_argument("--momqa_use_extra_mqa", action="store_true")
     parser.add_argument("--use_rope", action="store_true")
     parser.add_argument("--diff_transformer_lowrank_dim", type=int, default=0)
     parser.add_argument("--diff_transformer_flip_negative_heads", action="store_true")

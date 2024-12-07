@@ -1,3 +1,4 @@
+from typing import Optional
 from lizrd.core.misc import Linear, LoggingLayer
 
 
@@ -12,16 +13,6 @@ class MQA(LoggingLayer):
         init_type: str,
         init_scale: float,
     ):
-        """
-        Args:
-            dmodel: dimension of the input
-            doutput: dimension of the output (default: dmodel)
-            n_experts: number of experts
-            expert_size: size of each expert
-            capacity_factor: scalar that determines how many tokens can be assigned to each expert
-            load_balancing_loss_weight: weight of the auxillary loss
-            expert_logic: expert logic layer, takes input of shape (n_experts, capacity, dmodel) and returns output of shape (n_experts, capacity, dmodel)
-        """
         super().__init__()
         self.dmodel = dmodel
         self.n_heads = n_heads
@@ -59,6 +50,57 @@ class MQA(LoggingLayer):
             q.transpose(1, 2).contiguous(),
             k.contiguous(),
             v.contiguous(),
+            attn_mask=None,
+            dropout_p=0.0,
+            is_causal=True,
+            enable_gqa=True,
+        ).transpose(1, 2)
+        y = y.flatten(-2, -1)
+        y = self.o_proj(y)
+        return y
+
+
+class GQA(LoggingLayer):
+    def __init__(
+        self,
+        dmodel: int,
+        n_kv_heads: Optional[int],
+        n_heads: int,
+        init_type: str,
+        init_scale: float,
+    ):
+        super().__init__()
+        self.dmodel = dmodel
+        self.n_heads = n_heads
+        self.n_kv_heads = n_kv_heads or n_heads
+        assert self.dmodel % self.n_heads == 0
+        self.head_dim = self.dmodel // self.n_heads
+        self.q_proj = Linear(
+            self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        self.o_proj = Linear(
+            self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
+        )
+        self.kv_proj = Linear(
+            self.dmodel,
+            2 * self.n_kv_heads * self.head_dim,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+
+    def forward(self, x: torch.Tensor):
+        batch_size, seq_len, _ = x.shape
+
+        q = self.q_proj(x).view(batch_size, seq_len, self.n_heads, self.head_dim)
+
+        kv = self.kv_proj(x).view(
+            batch_size, seq_len, 2 * self.n_kv_heads, self.head_dim
+        )
+        k, v = kv.split(self.n_kv_heads, dim=-2)
+        y = torch.nn.functional.scaled_dot_product_attention(
+            q.transpose(1, 2).contiguous(),
+            k.transpose(1, 2).contiguous(),
+            v.transpose(1, 2).contiguous(),
             attn_mask=None,
             dropout_p=0.0,
             is_causal=True,

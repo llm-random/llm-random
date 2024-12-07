@@ -36,14 +36,18 @@ def lambda_init_fn(depth):
 
 
 class Lowrank(nn.Module):
-    def __init__(self, outer_dim, inner_dim, init_type, init_scale):
+    def __init__(self, outer_dim, inner_dim, init_type, init_scale, output_dim=None):
         super().__init__()
         self.inner_dim = inner_dim
         self.w1 = Linear(
             outer_dim, inner_dim, bias=False, init_type=init_type, init_scale=init_scale
         )
         self.w2 = Linear(
-            inner_dim, outer_dim, bias=False, init_type=init_type, init_scale=init_scale
+            inner_dim,
+            output_dim or outer_dim,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
         )
 
     def forward(self, x):
@@ -96,24 +100,32 @@ class MultiheadFlashDiff1(nn.Module):
                 embed_dim, self.lowrank_inner_dim, init_type, init_scale
             )
             self.lowrank_k = Lowrank(
-                embed_dim, self.lowrank_inner_dim, init_type, init_scale
+                embed_dim,
+                self.lowrank_inner_dim,
+                init_type,
+                init_scale,
+                output_dim=2 * self.head_dim * self.num_kv_heads,
             )
 
         self.scaling = self.head_dim**-0.5
 
         self.q_proj = Linear(
-            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
-        )
-        self.k_proj = Linear(
             embed_dim,
             embed_dim,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
         )
+        self.k_proj = Linear(
+            embed_dim,
+            self.head_dim * 2 * self.num_kv_heads,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
         self.v_proj = Linear(
             embed_dim,
-            embed_dim,
+            self.head_dim * 2 * self.num_kv_heads,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
@@ -211,6 +223,12 @@ class MultiheadFlashDiff1(nn.Module):
             q2 = q_negative
             k1 = k
             k2 = k_negative
+            if self.num_kv_heads != self.num_heads:
+                k1 = k1.repeat_interleave(self.num_heads // self.num_kv_heads, dim=2)
+                k2 = k2.repeat_interleave(self.num_heads // self.num_kv_heads, dim=2)
+                assert (
+                    k1.shape == k2.shape == q1.shape == q2.shape
+                ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
         else:
             q = q.reshape(bsz, tgt_len, self.num_heads, 2, self.head_dim)
             k = k.reshape(bsz, src_len, self.num_kv_heads, 2, self.head_dim)
