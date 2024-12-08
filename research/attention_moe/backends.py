@@ -94,7 +94,7 @@ class AthenaBackend(MachineBackend):
         return f"/net/tscratch/people/{self.username}/.cache"
 
     def get_grid_entrypoint(self) -> str:
-        return "lizrd/grid/grid_entrypoint.sh"
+        return "research/attention_moe/entrypoints/athena.sh"
 
     def get_cemetery_directory(self):
         return (
@@ -121,13 +121,13 @@ class AthenaBackend(MachineBackend):
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
-            "singularity",
-            "run",
-            "--bind=/net:/net",
-            *singularity_env_arguments,
-            make_singularity_mount_paths(setup_args, training_args),
-            "--nv",
-            setup_args["singularity_image"],
+            # "singularity",
+            # "run",
+            # "--bind=/net:/net",
+            # *singularity_env_arguments,
+            # make_singularity_mount_paths(setup_args, training_args),
+            # "--nv",
+            # setup_args["singularity_image"],
             *self.get_runner_command(setup_args["runner"], runner_params),
         ]
 
