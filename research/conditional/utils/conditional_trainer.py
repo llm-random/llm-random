@@ -183,7 +183,11 @@ class ConditionalTrainer:
         for _ in range(self.n_final_eval_batches):
             batch = final_eval_dataloader.get_batch()
             with torch.no_grad():
-                loss, _ = self.calculate_loss_and_gradient(batch, num_batch_chunks=1)
+                loss, _ = self.calculate_loss_and_gradient(
+                    batch,
+                    num_batch_chunks=self.batch_size
+                    // self.final_eval_dataloader_batch_size,
+                )
                 losses.append(loss)
 
         losses_average = torch.tensor(losses, dtype=torch.float64).mean()

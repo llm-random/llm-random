@@ -590,9 +590,6 @@ def main(
     if args.n_final_eval_batches > 0:
         final_eval_dataloader_kwargs = {**common_dataloaders_kwargs}
         final_eval_dataloader_kwargs["seed"] = args.final_eval_seed
-        final_eval_dataloader_kwargs[
-            "batch_size"
-        ] = args.final_eval_dataloader_batch_size
         final_eval_dataloader_kwargs["dataset_split"] = eval_split
         final_eval_dataloader_kwargs["dataset_path"] = args.validation_dataset_path
         get_final_eval_dataloader = partial(
