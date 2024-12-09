@@ -5,6 +5,7 @@ from copy import deepcopy
 from time import sleep
 from datetime import datetime
 from typing import Optional, Union
+from torch.distributed import barrier
 
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from lizrd.train.load_and_save_model import save_checkpoint
@@ -172,43 +173,45 @@ def start_job_manager_assessment(
                     manager_start_checkpoint(job_id, timestamp_now)
                 ]
                 __overwrite_manager(manager, f)
-                return None, None
+                # return None, None
+                result = None
+                metadata = None
+            else:
+                result = -1
+                for i, element in enumerate(manager[CHECKPOINTS_TAG]):
+                    if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
+                        result = element[MODEL_CHECKPOINT]
+                        metadata = element[CHECKPOINT_METADATA_TAG]
+                        manager[CHECKPOINTS_TAG][i] = run_manager_checkpoint(
+                            job_id, timestamp_now, manager[CHECKPOINTS_TAG][i]
+                        )
+                        __overwrite_manager(manager, f)
+                        break
+        barrier()
+        if result == -1:
+            raise Exception("No available training to do")
+        else:
+            return result, metadata
+    barrier()
+    try:
+        with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
+            manager = yaml.load(f, Loader=yaml.SafeLoader)
             result = -1
             for i, element in enumerate(manager[CHECKPOINTS_TAG]):
-                if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
+                if (
+                    element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_RUNNING
+                    and element[CHECKPOINT_RUNNING_JOB_ID] == job_id
+                ):
                     result = element[MODEL_CHECKPOINT]
                     metadata = element[CHECKPOINT_METADATA_TAG]
-                    manager[CHECKPOINTS_TAG][i] = run_manager_checkpoint(
-                        job_id, timestamp_now, manager[CHECKPOINTS_TAG][i]
-                    )
-                    __overwrite_manager(manager, f)
                     break
         if result == -1:
             raise Exception("No available training to do")
         else:
             return result, metadata
-    else:
-        for i in range(100):
-            sleep(3)
-            try:
-                with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
-                    manager = yaml.load(f, Loader=yaml.SafeLoader)
-                    result = -1
-                    for i, element in enumerate(manager[CHECKPOINTS_TAG]):
-                        if (
-                            element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_RUNNING
-                            and element[CHECKPOINT_RUNNING_JOB_ID] == job_id
-                        ):
-                            result = element[MODEL_CHECKPOINT]
-                            metadata = element[CHECKPOINT_METADATA_TAG]
-                            break
-                if result == -1:
-                    raise Exception("No available trainig to do")
-                else:
-                    return result, metadata
-            except Exception as e:
-                if i >= 99:
-                    raise e
+    except Exception as e:
+            raise e
+      
 
 
 def job_out_of_time_checkpoint(
@@ -223,6 +226,11 @@ def job_out_of_time_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    loss_accumulators: dict,
+    correct_tokens_accumulator: dict,
+    total_tokens_accumulator: dict,
+    auxiliary_losses_accumulator: dict,
+    other_training_states:dict,
     args_override: Optional[dict] = None,
 ):  # TODO params
     """saves the checkpoint"""
@@ -236,6 +244,11 @@ def job_out_of_time_checkpoint(
         batch_size,
         cutoff,
         loggers,
+        loss_accumulators,
+        correct_tokens_accumulator,
+        total_tokens_accumulator,
+        auxiliary_losses_accumulator,
+        other_training_states,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
@@ -264,6 +277,11 @@ def end_training_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    loss_accumulators: dict,
+    correct_tokens_accumulator: dict,
+    total_tokens_accumulator: dict,
+    auxiliary_losses_accumulator: dict,
+    other_training_states:dict,
     args_override: Optional[dict] = None,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
@@ -277,6 +295,11 @@ def end_training_checkpoint(
         batch_size,
         cutoff,
         loggers,
+        loss_accumulators,
+        correct_tokens_accumulator,
+        total_tokens_accumulator,
+        auxiliary_losses_accumulator,
+        other_training_states,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
@@ -302,6 +325,11 @@ def create_slide_checkpoint(
     batch_size: int,
     cutoff,
     loggers: list[AbstractLogger],
+    loss_accumulators: dict,
+    correct_tokens_accumulator: dict,
+    total_tokens_accumulator: dict,
+    auxiliary_losses_accumulator: dict,
+    other_training_states:dict,
     args_override: Optional[dict] = None,
 ):
     """saves checkpoint and creates a manager checkpoint continuation"""
@@ -315,6 +343,11 @@ def create_slide_checkpoint(
         batch_size,
         cutoff,
         loggers,
+        loss_accumulators,
+        correct_tokens_accumulator,
+        total_tokens_accumulator,
+        auxiliary_losses_accumulator,
+        other_training_states,
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
