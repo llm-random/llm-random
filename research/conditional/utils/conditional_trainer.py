@@ -652,6 +652,12 @@ class ConditionalTrainer:
                 value=float(step/self.n_steps),
                 iteration=step,
             )
+        if step >= self.n_steps-1:
+            self.logger.report_scalar(
+                title=f"Experiment progress",
+                value=float(1),
+                iteration=step,
+            )
 
 
     def _save_weights(self, step):
