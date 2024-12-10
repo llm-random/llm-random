@@ -516,4 +516,11 @@ def introduce_parser_arguments(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
 
+    parser.add_argument(
+        "--iteration_logging_threshold",
+        type=int,
+        default=0,
+        help="Prevents neptune logging below the threshold step",
+    )
+
     return parser

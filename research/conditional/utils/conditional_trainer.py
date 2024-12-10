@@ -610,10 +610,10 @@ class ConditionalTrainer:
                 step,
                 self.cutoff,
                 self.logger.loggers,
-            ) #dev TODO add args_override for checkpoint coherence
+            ) #dev TODO add args_override for checkpoint compatibility with checkpoint manager repeater
 
     def _repeater_rerun(
-        self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
+        self, step, repeater_job_end_time: Optional[int], buffer=45 * 60 #dev TODO once was too short in constrained 190x32v2
     ) -> bool:
         if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
             job_id = get_slurm_job_id()

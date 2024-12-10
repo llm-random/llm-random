@@ -75,7 +75,8 @@ class MachineBackend(abc.ABC):
 
 
 class AthenaBackend(MachineBackend):
-    max_exp_time = 2 * 24 * 60 * 60
+    # max_exp_time = 2 * 24 * 60 * 60
+    max_exp_time = 1 * 24 * 60 * 60 #dev better for reruns that needs better priority
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
