@@ -684,7 +684,7 @@ class ConditionalTrainer:
             )
 
     def _repeater_rerun(
-        self, step, repeater_job_end_time: Optional[int], buffer=15 * 60
+        self, step, repeater_job_end_time: Optional[int], buffer=30 * 60 #dev TODO onece was too short in constrained 190x32v2
     ) -> bool:
         if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
             job_id = get_slurm_job_id()
