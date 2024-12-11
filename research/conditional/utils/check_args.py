@@ -43,7 +43,9 @@ def check_args(args):
             args.logger_types == "neptune"
         ), "Checkpoint manager is implemented only for neptune logger"
 
-        assert args.lr_trapezoidal_decay_fraction_unit, "Have to specify slides unit (steps or tokens)"
+        assert (
+            args.lr_trapezoidal_decay_fraction_unit
+        ), "Have to specify slides unit (steps or tokens)"
 
     if args.batch_size_rampup_transition_points is not None:
         assert (

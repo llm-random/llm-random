@@ -101,7 +101,7 @@ class ConditionalTrainer:
     final_eval_dataloader_batch_size: Optional[int] = None
     n_final_eval_batches: int = None
     loaded_training_loop_accumulators: dict = None
-    model_active_params:int = 1
+    model_active_params: int = 1
     gpu_flops: int = 1
 
     def __attrs_post_init__(self):
@@ -118,20 +118,32 @@ class ConditionalTrainer:
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
         self.other_training_states = dict()
-        self.other_training_states['step_fb_time_acc_sec'] = 0.0
-        self.other_training_states['last_mfu_fb_time_state_sec'] = 0.0
-        self.other_training_states['last_mfu_tokens_state'] = 0.0
-        
+        self.other_training_states["step_fb_time_acc_sec"] = 0.0
+        self.other_training_states["last_mfu_fb_time_state_sec"] = 0.0
+        self.other_training_states["last_mfu_tokens_state"] = 0.0
+
         if self.loaded_training_loop_accumulators:
-            assert list(self.loss_accumulators.keys()) == list(self.loaded_training_loop_accumulators["loss_accumulators"].keys())
+            assert list(self.loss_accumulators.keys()) == list(
+                self.loaded_training_loop_accumulators["loss_accumulators"].keys()
+            )
             # assert list(self.auxiliary_losses_accumulator.keys()) == list(self.loaded_training_loop_accumulators["auxiliary_losses_accumulator"].keys()) #dev TODO validate this, to have loaded model - config coherence
 
-            self.loss_accumulators = self.loaded_training_loop_accumulators["loss_accumulators"]
-            self.correct_tokens_accumulator = self.loaded_training_loop_accumulators["correct_tokens_accumulator"]
-            self.total_tokens_accumulator = self.loaded_training_loop_accumulators["total_tokens_accumulator"]
-            self.auxiliary_losses_accumulator = self.loaded_training_loop_accumulators["auxiliary_losses_accumulator"]
-            self.other_training_states = self.loaded_training_loop_accumulators["other_training_states"]
-                
+            self.loss_accumulators = self.loaded_training_loop_accumulators[
+                "loss_accumulators"
+            ]
+            self.correct_tokens_accumulator = self.loaded_training_loop_accumulators[
+                "correct_tokens_accumulator"
+            ]
+            self.total_tokens_accumulator = self.loaded_training_loop_accumulators[
+                "total_tokens_accumulator"
+            ]
+            self.auxiliary_losses_accumulator = self.loaded_training_loop_accumulators[
+                "auxiliary_losses_accumulator"
+            ]
+            self.other_training_states = self.loaded_training_loop_accumulators[
+                "other_training_states"
+            ]
+
         self._calculate_loss_and_gradient = make_loss_and_gradient_function(
             loss_checkpoint_chungs=self.loss_checkpoint_chungs,
         )
@@ -185,7 +197,7 @@ class ConditionalTrainer:
                     self.batch_size,
                     self.cutoff,
                     self.logger.loggers if self.is_logging_process else None,
-                    self.loss_accumulators, 
+                    self.loss_accumulators,
                     self.correct_tokens_accumulator,
                     self.total_tokens_accumulator,
                     self.auxiliary_losses_accumulator,
@@ -231,7 +243,7 @@ class ConditionalTrainer:
         self._before_train_operations()
         if self.scaler is not None and self.checkpoint is not None:
             load_scaler_state(self.scaler, self.checkpoint)
-        self.n_steps = n_steps + 1 #def TODO
+        self.n_steps = n_steps + 1  # def TODO
 
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
@@ -354,7 +366,7 @@ class ConditionalTrainer:
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
-        self.other_training_states['step_fb_time_acc_sec'] += time() - fb_start
+        self.other_training_states["step_fb_time_acc_sec"] += time() - fb_start
 
         if self.is_logging_process:
             self._log_train_stats(
@@ -629,9 +641,21 @@ class ConditionalTrainer:
                     iteration=step,
                 )
             self.auxiliary_losses_accumulator.clear()
+
     def _log_mfu(self, total_processed_tokens, step):
         if step % self.logging_interval_loss == 0 and step > 0:
-            model_flops = self.model_active_params * 6 * (total_processed_tokens - self.other_training_states['last_mfu_tokens_state']) / (self.other_training_states['step_fb_time_acc_sec'] - self.other_training_states['last_mfu_fb_time_state_sec'])
+            model_flops = (
+                self.model_active_params
+                * 6
+                * (
+                    total_processed_tokens
+                    - self.other_training_states["last_mfu_tokens_state"]
+                )
+                / (
+                    self.other_training_states["step_fb_time_acc_sec"]
+                    - self.other_training_states["last_mfu_fb_time_state_sec"]
+                )
+            )
             self.logger.report_scalar(
                 title=f"Model FLOPS",
                 value=model_flops,
@@ -639,27 +663,27 @@ class ConditionalTrainer:
             )
             self.logger.report_scalar(
                 title=f"MFU",
-                value=model_flops/(self.n_gpus*self.gpu_flops),
+                value=model_flops / (self.n_gpus * self.gpu_flops),
                 iteration=step,
             )
-            self.other_training_states['last_mfu_tokens_state'] = total_processed_tokens
-            self.other_training_states['last_mfu_fb_time_state_sec'] = self.other_training_states['step_fb_time_acc_sec']
+            self.other_training_states["last_mfu_tokens_state"] = total_processed_tokens
+            self.other_training_states[
+                "last_mfu_fb_time_state_sec"
+            ] = self.other_training_states["step_fb_time_acc_sec"]
 
     def _log_progress(self, step):
-        if step >= self.n_steps-1:
+        if step >= self.n_steps - 1:
             self.logger.report_scalar(
                 title=f"Experiment progress",
                 value=float(1),
                 iteration=step,
             )
-        elif step % self.logging_interval_loss == 0 and step > 0:            
+        elif step % self.logging_interval_loss == 0 and step > 0:
             self.logger.report_scalar(
                 title=f"Experiment progress",
-                value=float(step/self.n_steps),
+                value=float(step / self.n_steps),
                 iteration=step,
             )
-        
-
 
     def _save_weights(self, step):
         if (
@@ -677,15 +701,18 @@ class ConditionalTrainer:
                 self.batch_size,
                 self.cutoff,
                 self.logger.loggers,
-                loss_accumulators = self.loss_accumulators,
-                correct_tokens_accumulator = self.correct_tokens_accumulator,
-                total_tokens_accumulator = self.total_tokens_accumulator,
-                auxiliary_losses_accumulator = self.auxiliary_losses_accumulator,
-                other_training_states = self.other_training_states
+                loss_accumulators=self.loss_accumulators,
+                correct_tokens_accumulator=self.correct_tokens_accumulator,
+                total_tokens_accumulator=self.total_tokens_accumulator,
+                auxiliary_losses_accumulator=self.auxiliary_losses_accumulator,
+                other_training_states=self.other_training_states,
             )
 
     def _repeater_rerun(
-        self, step, repeater_job_end_time: Optional[int], buffer=45 * 60 #dev TODO onece was too short in constrained 190x32v2
+        self,
+        step,
+        repeater_job_end_time: Optional[int],
+        buffer=45 * 60,  # dev TODO onece was too short in constrained 190x32v2
     ) -> bool:
         if repeater_job_end_time and ((repeater_job_end_time - time())) < buffer:
             job_id = get_slurm_job_id()

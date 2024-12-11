@@ -210,8 +210,7 @@ def start_job_manager_assessment(
         else:
             return result, metadata
     except Exception as e:
-            raise e
-      
+        raise e
 
 
 def job_out_of_time_checkpoint(
@@ -230,7 +229,7 @@ def job_out_of_time_checkpoint(
     correct_tokens_accumulator: dict,
     total_tokens_accumulator: dict,
     auxiliary_losses_accumulator: dict,
-    other_training_states:dict,
+    other_training_states: dict,
     args_override: Optional[dict] = None,
 ):  # TODO params
     """saves the checkpoint"""
@@ -282,7 +281,7 @@ def end_training_checkpoint(
     correct_tokens_accumulator: dict,
     total_tokens_accumulator: dict,
     auxiliary_losses_accumulator: dict,
-    other_training_states:dict,
+    other_training_states: dict,
     args_override: Optional[dict] = None,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
@@ -331,7 +330,7 @@ def create_slide_checkpoint(
     correct_tokens_accumulator: dict,
     total_tokens_accumulator: dict,
     auxiliary_losses_accumulator: dict,
-    other_training_states:dict,
+    other_training_states: dict,
     args_override: Optional[dict] = None,
 ):
     """saves checkpoint and creates a manager checkpoint continuation"""

@@ -602,7 +602,9 @@ def main(
         get_final_eval_dataloader=get_final_eval_dataloader,
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
-        loaded_training_loop_accumulators=checkpoint["training_loop_accumulators"] if checkpoint else checkpoint,
+        loaded_training_loop_accumulators=checkpoint["training_loop_accumulators"]
+        if checkpoint
+        else checkpoint,
         model_active_params=args.model_n_active_params,
         gpu_flops=args.gpu_flops,
     )
@@ -643,5 +645,3 @@ if __name__ == "__main__":
         )
     else:
         main(None, args=args, unique_save_weights_path=save_weights_path)
-
-    

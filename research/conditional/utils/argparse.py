@@ -516,7 +516,11 @@ def introduce_parser_arguments(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
 
-    parser.add_argument("--gpu_flops", type=float, default=156e12, help="Single GPU FLOPS, default a100 - Tensor Float32(TF32) 156 TFLOPS")
-
+    parser.add_argument(
+        "--gpu_flops",
+        type=float,
+        default=156e12,
+        help="Single GPU FLOPS, default a100 - Tensor Float32(TF32) 156 TFLOPS",
+    )
 
     return parser
