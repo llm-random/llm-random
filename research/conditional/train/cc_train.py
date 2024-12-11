@@ -8,7 +8,7 @@ import socket
 
 import torch
 import torch.multiprocessing as mp
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import init_process_group, destroy_process_group, barrier
 from ast import literal_eval
 
 from lizrd.core import misc
@@ -268,6 +268,7 @@ def main(
     """
     rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
     """
+
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
@@ -379,11 +380,15 @@ def main(
         )
     else:
         checkpoint_path, checkpoint_metadata = start_job_manager_assessment(
-            get_slurm_job_id(), is_logging_process
+            get_slurm_job_id(),
+            is_logging_process,
+            rank,
         )
         checkpoint = (
             get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
         )
+    if rank is not None:
+        barrier()
 
     model = get_model(
         max_length=args.cutoff,
@@ -600,10 +605,16 @@ def main(
         get_final_eval_dataloader=get_final_eval_dataloader,
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
+        loaded_training_loop_accumulators=checkpoint["training_loop_accumulators"]
+        if checkpoint
+        else checkpoint,
+        model_active_params=args.model_n_active_params,
+        gpu_flops=args.gpu_flops,
     )
     trainer.train(args.n_steps)
 
     if rank is not None:
+        barrier()
         destroy_process_group()
 
 

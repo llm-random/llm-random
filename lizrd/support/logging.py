@@ -36,7 +36,7 @@ def get_current_logger() -> Optional["AbstractLogger"]:
 
 
 class AbstractLogger(ABC):
-    TITLE_JOB_STATE = "job_state"
+    TITLE_JOB_STATE = "experiment_state"
     STATE_JOB_RUNNING = "RUNNING"
     STATE_JOB_FINISHED = "FINISHED"
 
