@@ -385,7 +385,8 @@ def main(
         checkpoint = (
             get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
         )
-    barrier()
+    if rank is not None:
+        barrier()
 
     model = get_model(
         max_length=args.cutoff,
@@ -610,8 +611,8 @@ def main(
     )
     trainer.train(args.n_steps)
 
-    barrier()
     if rank is not None:
+        barrier()
         destroy_process_group()
 
 

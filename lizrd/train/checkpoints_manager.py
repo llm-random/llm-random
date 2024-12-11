@@ -152,7 +152,7 @@ def __get_manager_timestamp():
 
 
 def start_job_manager_assessment(
-    job_id: str, is_logging_process
+    job_id: str, is_logging_process, rank
 ) -> tuple[Optional[str], Optional[str | dict]]:
     """Options:
     - returns `None`, `None` to start a new training
@@ -186,12 +186,14 @@ def start_job_manager_assessment(
                         )
                         __overwrite_manager(manager, f)
                         break
-        barrier()
+        if rank is not None:
+            barrier()
         if result == -1:
             raise Exception("No available training to do")
         else:
             return result, metadata
-    barrier()
+    if rank is not None:
+        barrier()
     try:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
             manager = yaml.load(f, Loader=yaml.SafeLoader)
@@ -261,7 +263,8 @@ def job_out_of_time_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
-    barrier()
+    if rank is not None:
+        barrier()
 
 
 def end_training_checkpoint(
@@ -310,7 +313,8 @@ def end_training_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
-    barrier()
+    if rank is not None:
+        barrier()
 
 
 def create_slide_checkpoint(
@@ -364,4 +368,5 @@ def create_slide_checkpoint(
         log_checkpoint_manager(loggers, manager, step)
         for logger in loggers:
             logger.stop_connection()
-    barrier()
+    if rank is not None:
+        barrier()
