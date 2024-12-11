@@ -2,7 +2,6 @@ import yaml
 import fcntl
 import torch
 from copy import deepcopy
-from time import sleep
 from datetime import datetime
 from typing import Optional, Union
 from torch.distributed import barrier
