@@ -380,7 +380,7 @@ def main(
         )
     else:
         checkpoint_path, checkpoint_metadata = start_job_manager_assessment(
-            get_slurm_job_id(), is_logging_process
+            get_slurm_job_id(), is_logging_process, rank,
         )
         checkpoint = (
             get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
