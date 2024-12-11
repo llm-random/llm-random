@@ -661,9 +661,10 @@ class ConditionalTrainer:
                 value=model_flops,
                 iteration=step,
             )
+            hardware_flops = (self.n_gpus * self.gpu_flops) if self.n_gpus != 0 else self.gpu_flops
             self.logger.report_scalar(
                 title=f"MFU",
-                value=model_flops / (self.n_gpus * self.gpu_flops),
+                value=model_flops / hardware_flops,
                 iteration=step,
             )
             self.other_training_states["last_mfu_tokens_state"] = total_processed_tokens
