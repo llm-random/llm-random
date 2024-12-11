@@ -263,6 +263,7 @@ def job_out_of_time_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
+    barrier()
 
 
 def end_training_checkpoint(
@@ -311,6 +312,7 @@ def end_training_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
+    barrier()
 
 
 def create_slide_checkpoint(
@@ -364,3 +366,4 @@ def create_slide_checkpoint(
         log_checkpoint_manager(loggers, manager, step)
         for logger in loggers:
             logger.stop_connection()
+    barrier()

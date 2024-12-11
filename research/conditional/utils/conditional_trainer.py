@@ -646,18 +646,19 @@ class ConditionalTrainer:
             self.other_training_states['last_mfu_fb_time_state_sec'] = self.other_training_states['step_fb_time_acc_sec']
 
     def _log_progress(self, step):
-        if step % self.logging_interval_loss == 0 and step > 0:            
-            self.logger.report_scalar(
-                title=f"Experiment progress",
-                value=float(step/self.n_steps),
-                iteration=step,
-            )
         if step >= self.n_steps-1:
             self.logger.report_scalar(
                 title=f"Experiment progress",
                 value=float(1),
                 iteration=step,
             )
+        elif step % self.logging_interval_loss == 0 and step > 0:            
+            self.logger.report_scalar(
+                title=f"Experiment progress",
+                value=float(step/self.n_steps),
+                iteration=step,
+            )
+        
 
 
     def _save_weights(self, step):

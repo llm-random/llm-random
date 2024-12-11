@@ -8,7 +8,7 @@ import socket
 
 import torch
 import torch.multiprocessing as mp
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import init_process_group, destroy_process_group, barrier
 from ast import literal_eval
 
 from lizrd.core import misc
@@ -268,6 +268,9 @@ def main(
     """
     rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
     """
+    print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    print("Main process in main") #dev 
+
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
@@ -369,6 +372,8 @@ def main(
             }
             for ff_fun in ff_layer_funs
         ]
+    print("---------------------------------------------------------------------------")
+    print("Main process before checkpoint manager assensment last barrier") #dev 
 
     checkpoint_path = args.load_weights_path
     if not args.checkpoint_manager:
@@ -384,6 +389,10 @@ def main(
         checkpoint = (
             get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
         )
+    print("Main process at last barrier") #dev 
+    barrier()
+    print("Main process after last barrier") #dev 
+    print("---------------------------------------------------------------------------")
 
     model = get_model(
         max_length=args.cutoff,
@@ -606,6 +615,7 @@ def main(
     )
     trainer.train(args.n_steps)
 
+    barrier()
     if rank is not None:
         destroy_process_group()
 
@@ -628,6 +638,7 @@ if __name__ == "__main__":
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("", 0))
             port = str(s.getsockname()[1])
+        print("pre spawn ----------------------------------------------------------------") #dev 
         mp.spawn(
             main,
             args=[
@@ -638,5 +649,10 @@ if __name__ == "__main__":
             ],
             nprocs=args.n_gpus,
         )
+        print("post spawn ----------------------------------------------------------------") #dev 
     else:
+        print("pre main ----------------------------------------------------------------") #dev 
         main(None, args=args, unique_save_weights_path=save_weights_path)
+
+    print("AFTER ----------------------------------------------------------------") #dev 
+    
