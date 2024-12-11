@@ -250,6 +250,8 @@ def job_out_of_time_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
+    else:
+        sleep(10)
 
 
 def end_training_checkpoint(

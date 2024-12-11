@@ -3,6 +3,7 @@ from collections import defaultdict
 from functools import partial
 import os
 import random
+from time import sleep
 from typing import Callable, Optional
 import socket
 
@@ -604,6 +605,8 @@ def main(
         n_final_eval_batches=args.n_final_eval_batches,
     )
     trainer.train(args.n_steps)
+
+    sleep(600) # dev processes naive sync
 
     if rank is not None:
         destroy_process_group()
