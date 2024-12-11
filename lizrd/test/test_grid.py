@@ -199,6 +199,8 @@ class TestGrid(unittest.TestCase):
                 "--env",
                 f"HF_DATASETS_CACHE={hf_dataset_cache},NEPTUNE_API_TOKEN={neptune_api_key},WANDB_API_KEY={wandb_api_key}",
                 f"-B={experiment_path}:/llm-random,/local_storage_2/llm-random/datasets/c4_train:/local_storage_2/llm-random/datasets/c4_train,/local_storage_2/llm-random/datasets/c4_validation:/local_storage_2/llm-random/datasets/c4_validation",
+                "-B /local_storage_1",
+                "-B /local_storage_2",
                 "--nv",
                 f"{image_path}",
                 "python3",
