@@ -429,8 +429,10 @@ def introduce_parser_arguments(
     parser.add_argument("--momqa_use_dropped_tokens_head", action="store_true")
     parser.add_argument("--momqa_use_extra_mqa", action="store_true")
     parser.add_argument("--use_rope", action="store_true")
+    parser.add_argument("--use_qk_norm", action="store_true")
     parser.add_argument("--diff_transformer_lowrank_dim", type=int, default=0)
     parser.add_argument("--diff_transformer_flip_negative_heads", action="store_true")
     parser.add_argument("--diff_transformer_roll_negative_heads", action="store_true")
+    parser.add_argument("--diff_transformer_adapter_type", type=str, default="none")
 
     return parser

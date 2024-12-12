@@ -313,6 +313,9 @@ def get_attention_layer(args):
             n_heads=args.n_att_heads,
             init_type=args.init_type,
             init_scale=args.init_scale,
+            use_rope=args.use_rope,
+            use_qk_norm=args.use_qk_norm,
+            cutoff=args.cutoff,
         )
     elif args.attention_mode == "momqa":
         attention_layer_fun = lambda: TokenChoiceMoMQA(
@@ -325,6 +328,9 @@ def get_attention_layer(args):
             zloss_weight=args.zloss_weight,
             use_dropped_tokens_head=args.momqa_use_dropped_tokens_head,
             use_extra_mqa=args.momqa_use_extra_mqa,
+            use_rope=args.use_rope,
+            cutoff=args.cutoff,
+            use_qk_norm=args.use_qk_norm,
         )
         # attention_layer_fun = lambda: MoMQA(
         #     n_embd=args.dmodel,
@@ -372,6 +378,7 @@ def get_attention_layer(args):
             flip_negative_heads=args.diff_transformer_flip_negative_heads,
             roll_negative_heads=args.diff_transformer_roll_negative_heads,
             num_kv_heads=args.n_kv_heads,
+            adapter_type=args.diff_transformer_adapter_type,
         )
     else:
         raise NotImplementedError(

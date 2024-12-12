@@ -314,16 +314,20 @@ class RoPE(nn.Module):
         super().__init__()
         self.dhead = dhead
         self.length = length
-        angle_exponents = torch.arange(0, dhead, 2) / dhead
+        angle_exponents = torch.arange(0, dhead, 2, dtype=torch.float32) / dhead
         angles = torch.pow(1 / 10000, angle_exponents).reshape(1, -1)
-        angle_per_token = angles * torch.arange(0, length).reshape(-1, 1)
-        self.register_buffer("sin", torch.sin(angle_per_token).repeat(1, 2))
-        self.register_buffer("cos", torch.cos(angle_per_token).repeat(1, 2))
+        angle_per_token = angles * torch.arange(0, length, dtype=torch.float32).reshape(
+            -1, 1
+        )
+        self.register_buffer("sin", torch.sin(angle_per_token).repeat(1, 2).float())
+        self.register_buffer("cos", torch.cos(angle_per_token).repeat(1, 2).float())
 
     def forward(self, x):
+        original_x = x
+        x = x.float()
         [y1, y2] = torch.chunk(x, chunks=2, dim=-1)
         x_rotated = torch.cat([-y2, y1], dim=-1)
-        return x * self.cos + x_rotated * self.sin
+        return (x * self.cos + x_rotated * self.sin).to(original_x)
 
 
 class AttentionRoPE(LoggingLayer):

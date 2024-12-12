@@ -1,6 +1,7 @@
 from typing import Optional
 import torch
 
+from lizrd.core.llm import RoPE
 from lizrd.core.misc import (
     Linear,
     LoggingLayer,
@@ -27,6 +28,9 @@ class TokenChoiceMoMQA(LoggingLayer):
         detach_gate: bool = False,
         use_dropped_tokens_head: bool = False,
         use_extra_mqa: bool = False,
+        use_rope: bool = False,
+        use_qk_norm: bool = False,
+        cutoff: Optional[int] = None,
         **_,
     ):
         """
@@ -101,6 +105,16 @@ class TokenChoiceMoMQA(LoggingLayer):
         self.o_proj = Linear(
             self.dmodel, self.dmodel, init_type=init_type, init_scale=init_scale
         )
+        self.use_qk_norm = use_qk_norm
+        if self.use_qk_norm:
+            self.q_norm = torch.nn.LayerNorm(self.head_dim)
+            self.k_norm = torch.nn.LayerNorm(self.head_dim)
+
+        self.use_rope = use_rope
+        if self.use_rope:
+            assert cutoff is not None
+            self.rotary_emb = RoPE(dhead=self.head_dim, length=cutoff)
+
         assert self.expert_weights.shape == (
             self.n_heads,
             self.dmodel,
@@ -216,8 +230,17 @@ class TokenChoiceMoMQA(LoggingLayer):
             k = torch.cat([k, extra_k], dim=-3)
             v = torch.cat([v, extra_v], dim=-3)
 
+        q = q.transpose(1, 2)
+        if self.use_qk_norm:
+            q = self.q_norm(q)
+            k = self.k_norm(k)
+
+        if self.use_rope:
+            q = self.rotary_emb(q)
+            k = self.rotary_emb(k)
+
         y = torch.nn.functional.scaled_dot_product_attention(
-            q.transpose(1, 2).contiguous(),
+            q.contiguous(),
             k.contiguous(),
             v.contiguous(),
             attn_mask=None,

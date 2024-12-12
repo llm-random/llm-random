@@ -75,6 +75,7 @@ class MultiheadFlashDiff1(nn.Module):
         init_type,
         init_scale,
         num_kv_heads=None,
+        adapter_type="none",
     ):
         super().__init__()
         # self.args = args
@@ -94,8 +95,9 @@ class MultiheadFlashDiff1(nn.Module):
 
         self.head_dim = embed_dim // num_heads // 2
 
+        self.adapter_type = adapter_type
         self.lowrank_inner_dim = lowrank_inner_dim
-        if self.lowrank_inner_dim > 0:
+        if self.adapter_type == "lora" and self.lowrank_inner_dim > 0:
             self.lowrank_q = Lowrank(
                 embed_dim, self.lowrank_inner_dim, init_type, init_scale
             )
@@ -177,7 +179,8 @@ class MultiheadFlashDiff1(nn.Module):
         k = self.k_proj(x)
         v = self.v_proj(x)
 
-        if self.lowrank_inner_dim > 0:
+        if self.adapter_type == "lora":
+            # self.lowrank_inner_dim > 0:
             q_negative = (q + self.lowrank_q(x)).view(
                 bsz, tgt_len, self.num_heads, 2 * self.head_dim
             )
@@ -187,8 +190,25 @@ class MultiheadFlashDiff1(nn.Module):
             q = q.view(bsz, tgt_len, self.num_heads, 2 * self.head_dim)
             k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
             v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
-
-        else:
+        elif self.adapter_type == "additive":
+            q = q.view(bsz, tgt_len, self.num_heads, 2 * self.head_dim)
+            k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
+            v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
+            k_negative = k.clone()
+            q_negative = q + self.q_delta
+        elif self.adapter_type == "multiplicative":
+            q = q.view(bsz, tgt_len, self.num_heads, 2 * self.head_dim)
+            k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
+            v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
+            k_negative = k.clone()
+            q_negative = q * self.q_delta
+        elif self.adapter_type == "identity":
+            q = q.view(bsz, tgt_len, self.num_heads, 2 * self.head_dim)
+            k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
+            v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
+            q_negative = q.clone()
+            k_negative = k.clone()
+        elif self.adapter_type == "none":
             q = q.view(bsz, tgt_len, 2 * self.num_heads, self.head_dim)
             k = k.view(bsz, src_len, 2 * self.num_kv_heads, self.head_dim)
             v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
@@ -218,7 +238,7 @@ class MultiheadFlashDiff1(nn.Module):
         # if self.lowrank_inner_dim > 0:
         #     effective_head_dim *= 2
 
-        if self.lowrank_inner_dim > 0:
+        if self.adapter_type != "none":
             q1 = q
             q2 = q_negative
             k1 = k
