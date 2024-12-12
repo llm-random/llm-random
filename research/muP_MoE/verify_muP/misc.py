@@ -37,7 +37,7 @@ def pivot_dict(
                         if not step_data.empty:
                             value = step_data["value"].values[0]
                             result_dict[step]["dmodel"].append(dmodel)
-                            result_dict[step]["value"].append(value / np.sqrt(dmodel))
+                            result_dict[step]["value"].append(value)
                         else:
                             print(
                                 f"No data at step {step} for run {run_id}, dmodel {dmodel}, layer {layer_num}, module {module}."
@@ -142,9 +142,122 @@ def plot_module(pivoted_dict, module_keyword, layer_num, step_interval=100):
 
     # Set x-axis to logarithmic scale
     plt.xscale("log")
+    plt.yscale("log")
 
     # Set x-ticks to match dmodel values
     plt.xticks(all_dmodels, labels=[str(dm) for dm in all_dmodels])
+
+    plt.show()
+
+
+def plot_module_grid(
+    pivoted_dict, module_keyword, layer_num, step_interval=100, fig=None, ax=None
+):
+    """
+    Plots the activation values of a specific module in a specific layer across different model widths (dmodels)
+    over training steps. The x-axis is set to a logarithmic scale, and x-ticks match the dmodel values.
+
+    Parameters:
+    - pivoted_dict (dict): The dictionary returned by pivot_dict(), structured as {<step>: {'dmodel': [...], 'value': [...]} }.
+    - module_keyword (str): 'FF' or 'attn', specifying which module to plot.
+    - layer_num (int): The specific layer (block) number to plot.
+    - step_interval (int): Interval at which to sample steps for plotting.
+    - fig (matplotlib.figure.Figure, optional): Figure object to plot on. If None, a new figure is created.
+    - ax (matplotlib.axes.Axes, optional): Axes object to plot on. If None, a new axes is created.
+
+    Returns:
+    - fig (matplotlib.figure.Figure): The figure object.
+    - ax (matplotlib.axes.Axes): The axes object for the plot.
+    """
+
+    if ax is None or fig is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Collect all unique dmodel values across steps for setting x-ticks
+    all_dmodels = set()
+    for data in pivoted_dict.values():
+        all_dmodels.update(data["dmodel"])
+    all_dmodels = sorted(all_dmodels)
+
+    # Iterate over each training step in the pivoted dictionary
+    for step, data in pivoted_dict.items():
+        if step % step_interval == 0:
+            dmodels = data["dmodel"]
+            values = data["value"]
+            # Sort the data based on dmodels for consistent plotting
+            sorted_indices = np.argsort(dmodels)
+            sorted_dmodels = np.array(dmodels)[sorted_indices]
+            sorted_values = np.array(values)[sorted_indices]
+            ax.plot(
+                sorted_dmodels, sorted_values, marker="o", label=f"Step {int(step)}"
+            )
+
+    ax.set_xlabel("Model Width (dmodel)")
+    ax.set_ylabel(f"Mean Activation Value ({module_keyword})")
+    ax.set_title(f"Activation of {module_keyword} in Layer {layer_num}")
+    ax.legend()
+    ax.grid(True, which="both", ls="--", linewidth=0.5)
+
+    # Set x-axis to logarithmic scale
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+
+    # Set x-ticks to match dmodel values
+    ax.set_xticks(all_dmodels)
+    ax.set_xticklabels([str(dm) for dm in all_dmodels])
+
+    fig.tight_layout()
+    return fig, ax
+
+
+def plot_multiple_modules(
+    activations_dict,
+    module_keywords,
+    layer_nums,
+    dmodels,
+    step_interval=100,
+    figsize=(15, 10),
+):
+    """
+    Creates a grid of subplots, each plotting the activation values for a specified module and layer combination.
+    Uses the plot_module function for each combination of module_keyword and layer_num.
+
+    Parameters:
+    - pivoted_dict (dict): The dictionary returned by pivot_dict().
+    - module_keywords (list of str): List of module keywords (e.g., ['FF', 'attn']).
+    - layer_nums (list of int): List of layer numbers to plot.
+    - step_interval (int): Interval at which to sample steps for plotting.
+    - figsize (tuple): Size of the figure.
+
+    Returns:
+    - None (just shows the plot)
+    """
+
+    # Determine the number of rows and columns in the grid
+    n_rows = len(module_keywords)
+    n_cols = len(layer_nums)
+    steps = get_steps_from_first_run(activations_dict)
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
+
+    for i, mk in enumerate(module_keywords):
+        for j, ln in enumerate(layer_nums):
+            pivoted_dict = pivot_dict(
+                activations_dict=activations_dict,
+                steps=steps,
+                dmodels=dmodels,
+                layer_num=ln,
+                module=mk,
+            )
+            # Use the plot_module function to plot on the given Axes object
+            plot_module_grid(
+                pivoted_dict=pivoted_dict,
+                module_keyword=mk,
+                layer_num=ln,
+                step_interval=step_interval,
+                fig=fig,
+                ax=axs[i, j],
+            )
 
     plt.show()
 

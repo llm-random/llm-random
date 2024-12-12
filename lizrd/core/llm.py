@@ -124,6 +124,10 @@ class Residual(LoggingLayer):
         updates = self.logging_cache["update"]
         residual_stream = self.logging_cache["residual_stream"]
 
+        # muP
+        mean_abs_update = torch.mean(torch.abs(updates))
+        # muP
+
         update_norms = torch.norm(updates, dim=-1)
         residual_norms = torch.norm(residual_stream, dim=-1)
 
@@ -137,6 +141,7 @@ class Residual(LoggingLayer):
         update_to_residual_ratio_std = torch.std(update_to_residual_ratio)
 
         return {
+            "muP/mean_abs_update": mean_abs_update,
             "update_norms/mean": update_norms_mean,
             "update_norms/std": update_norms_std,
             "residual_norms/mean": residual_norms_mean,

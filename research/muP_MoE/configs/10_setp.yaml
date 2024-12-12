@@ -1,7 +1,7 @@
 runner: "research.muP_MoE.train.train"
 
 # time: "05:00:00"
-time: "02:00:00"
+time: "00:20:00"
 
 n_gpus: 1
 cpus_per_gpu: 16
@@ -9,9 +9,9 @@ cpus_per_gpu: 16
 interactive_debug: false
 
 params:
-  name: "muP_MoE_extrpl"
+  name: "muP_MoE_10_step"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "mup_grid_2"]
+  tags: ["muP_MoE", "muTransfer", "10_step"]
 
   mup_params:
     ^alpha_in: [20.0]
@@ -21,21 +21,15 @@ params:
     base_dmodel: 64
 
   # training
-  n_steps: 25000
-  final_lr_step: 25000
-  lr_warmup_steps: 250
-  # n_steps: 4000
-  # final_lr_step: 4000
-  # lr_warmup_steps: 100
+  n_steps: 10
+  lr_warmup_steps: 0
   batch_size: 64
   cutoff: 128
 
   # model
   model_type: gpt
-  # ^dmodel: [768]
+  # dmodel: 32
   ^dmodel: [32, 64, 128, 256, 512]
-  # ^dmodel: [32, 64, 128, 256, 512]
-  # ^dmodel: [128, 256]
   dff_ratio: 4
   n_blocks: 4
   n_att_heads: 4
@@ -45,13 +39,12 @@ params:
   use_torch_bmm: true
 
   # learning
-  scheduler: cosine
-  # learning_rate: 2e-2
-  ^learning_rate: [1e-1, 5e-2, 2e-2, 1e-2, 5e-3, 2e-3, 1e-3]
+  scheduler: constant
+  learning_rate: 1e-2
   final_lr_fraction: 0.1
   grad_clip: 0.5
-  ^weight_decay: [0.01, 0.0]
-  ^init_scale: [0.2]
+  weight_decay: 0.01
+  init_scale: 0.2
   init_type: truncated_normal
   capacity_factor: 1.0
 
@@ -75,7 +68,7 @@ params:
   # logging etc.
   logger_types: "neptune"
   project_name: "pmtest/llm-random"
-  logging_interval_heavy: 1000
+  logging_interval_heavy: 1
   # logging_interval_light: 50
   # logging_interval_loss: 20
   # save_weights_interval: null

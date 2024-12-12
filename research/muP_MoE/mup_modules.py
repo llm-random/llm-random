@@ -20,14 +20,10 @@ class nonResidual(LoggingLayer):
     def log_heavy(self):
         updates = self.logging_cache["update"]
 
-        update_norms = torch.norm(updates, dim=-1)
-
-        update_norms_mean = torch.mean(update_norms)
-        update_norms_std = torch.std(update_norms)
+        mean_abs_update = torch.mean(torch.abs(updates))
 
         return {
-            "update_norms/mean": update_norms_mean,
-            "update_norms/std": update_norms_std,
+            "muP/mean_abs_update": mean_abs_update,
         }
 
 
