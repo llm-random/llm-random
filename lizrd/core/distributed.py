@@ -54,6 +54,7 @@ def wrap_in_fsdp(
         ),
         cpu_offload=CPUOffload(offload_params=offload_params),
         auto_wrap_policy=wrap_policy,
+        use_orig_params=True,
     )
 
     if print_model and is_logging_process:
