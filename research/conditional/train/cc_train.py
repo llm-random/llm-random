@@ -3,6 +3,7 @@ from collections import defaultdict
 from functools import partial
 import os
 import random
+from time import sleep
 from typing import Callable, Optional
 import socket
 
@@ -371,6 +372,7 @@ def main(
         ]
 
     checkpoint_path = args.load_weights_path
+    checkpoint_metadata = None
     if not args.checkpoint_manager:
         checkpoint = (
             get_checkpoint_from_path(args.load_weights_path)
@@ -413,14 +415,17 @@ def main(
         checkpoint=checkpoint,
     )
 
+    ignore_model_args:bool = checkpoint_metadata and "ignore_model_args" in checkpoint_metadata and checkpoint_metadata["ignore_model_args"]
     if is_logging_process:
-        if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
+        if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"] and not(ignore_model_args):
             logger_runs_ids = checkpoint["logger"]["run_id"]
         else:
-            if args.scheduler_trapezoidal_slides:
+            if args.logger_runs_ids:
+                logger_runs_ids = args.logger_runs_ids
+            elif args.scheduler_trapezoidal_slides:
                 logger_runs_ids = []
                 for _ in range(len(args.scheduler_trapezoidal_slides) + 1):
-                    logger_runs_ids.append(None)
+                    logger_runs_ids.append(None) #dev TODO in case of ignore_model_args skip loggers overproduction of already passed splits checkpoint["step"] reference
             else:
                 logger_runs_ids = None
         logger = get_logger(args, model, VOCAB_SIZE, logger_runs_ids)
@@ -434,7 +439,7 @@ def main(
         logger = None
 
     args.args_override = None
-    if checkpoint and "args_override" in checkpoint and checkpoint["args_override"]:
+    if checkpoint and checkpoint.get("args_override") and not(ignore_model_args):
         args.args_override = checkpoint["args_override"]
         for key, value in args.args_override.items():
             if hasattr(args, key):
@@ -602,6 +607,8 @@ def main(
         n_final_eval_batches=args.n_final_eval_batches,
     )
     trainer.train(args.n_steps)
+
+    sleep(600) # dev processes naive sync
 
     if rank is not None:
         destroy_process_group()
