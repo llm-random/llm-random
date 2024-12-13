@@ -420,7 +420,9 @@ def main(
         if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"] and not(ignore_model_args):
             logger_runs_ids = checkpoint["logger"]["run_id"]
         else:
-            if args.scheduler_trapezoidal_slides:
+            if args.logger_runs_ids:
+                logger_runs_ids = args.logger_runs_ids
+            elif args.scheduler_trapezoidal_slides:
                 logger_runs_ids = []
                 for _ in range(len(args.scheduler_trapezoidal_slides) + 1):
                     logger_runs_ids.append(None) #dev TODO in case of ignore_model_args skip loggers overproduction of already passed splits checkpoint["step"] reference
