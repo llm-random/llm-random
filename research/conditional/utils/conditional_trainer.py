@@ -153,7 +153,7 @@ class ConditionalTrainer:
             self.logger.exit_job_metadata(self.current_step)
 
         if self.current_step >= n_steps:  # - end of model training operations
-            if self.save_weights_path:
+            if self.save_weights_path and self.checkpoint_manager:
                 job_id = get_slurm_job_id()
                 end_training_checkpoint(
                     job_id,
