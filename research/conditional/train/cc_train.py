@@ -93,23 +93,23 @@ def log_batch(
 def make_param_groups_and_lr_ratios(args, model):
     lr = args.learning_rate
     if args.relative_lr is None:
-        return [{"params": model.parameters(), "lr": lr}], [1.0]
+        return [{"params": model.parameters()}]
 
     relative_lr: dict = args.relative_lr
 
-    lr_to_params = defaultdict(list)
+    ratio_to_params = defaultdict(list)
     for name, param in model.named_parameters():
         ratio = 1.0
         for possible_name in relative_lr.keys():
             if possible_name in name:
                 ratio = relative_lr[possible_name]
                 break
-        lr_to_params[ratio * lr].append(param)
+        ratio_to_params[ratio].append(param)
     param_grops = [
-        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
+        {"params": params, "lr_ratio": lr_ratio, "lr": lr_ratio * lr}
+        for lr_ratio, params in ratio.items()
     ]
-    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
-    return param_grops, ratios_in_group_order
+    return param_grops
 
 
 def rescale_params_after_init(args, model):
@@ -461,7 +461,7 @@ def main(
         for name, param in model.named_parameters():
             print(name, param.shape)
 
-    param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
+    param_grops = make_param_groups_and_lr_ratios(args, model)
 
     optimizer = torch.optim.AdamW(
         param_grops,
@@ -473,7 +473,7 @@ def main(
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args, ratios_in_group_order)
+    scheduler = get_scheduler(args)
     print(f"Scheduler_ratios: {scheduler.ratios}")
     if not args.checkpoint_manager:
         rescale_params_after_init(args, model)
@@ -591,9 +591,9 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.checkpoint_manager
-        else None,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.checkpoint_manager else None
+        ),
         scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
         args_override=args.args_override,
         batch_size_rampup_config=batch_size_rampup_config,

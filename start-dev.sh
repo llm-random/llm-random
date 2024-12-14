@@ -5,7 +5,7 @@ git config --local core.hooksPath .githooks
 
 # setup the virtual environment
 if [ ! -d "venv" ]; then
-    python3 -m venv venv
+    python3.10 -m venv venv
     . venv/bin/activate
     ./install_requirements.sh
 else
