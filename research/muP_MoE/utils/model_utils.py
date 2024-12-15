@@ -20,6 +20,18 @@ from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
 from lizrd.core import llm
 from research.muP_MoE import mup_modules
+from research.muP_MoE.moe_layers.expert_types import (
+    ExpertFF,
+    ExpertGated,
+    ExpertLinear,
+)
+from research.muP_MoE.moe_layers.token_choice import TokenChoiceFF
+from research.muP_MoE.moe_layers.expert_choice import ExpertChoiceFF
+from research.muP_MoE.moe_layers.moe_gating import (
+    MoeGating,
+    ExpertGating,
+    TokenGating,
+)
 
 
 def make_loss_and_gradient_function(
@@ -291,9 +303,196 @@ def get_ff_layer(args):
         return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
+    elif args.ff_mode == "expert_choice":
+        args = determine_moe_args(args)
+        ff_args, make_expert_inner_function = get_expert_choice_args(args)
+        return_fn = lambda: ExpertChoiceFF(
+            **ff_args,
+            expert_inner_function=make_expert_inner_function(),
+            zloss_weight=args.zloss_weight,
+        )
+    elif args.ff_mode == "token_choice":
+        args = determine_moe_args(args)
+        make_expert_inner_function = get_inner_expert(args)
+        use_topk_initialization = get_expert_init(
+            args.expert_use_topk_initialization, default=False
+        )
+        make_expert_inner_function = partial(
+            make_expert_inner_function, use_topk_initialization=use_topk_initialization
+        )
+        return_fn = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            zloss_weight=args.zloss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+            **get_weightless_args(args),
+        )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
     return return_fn
+
+
+def determine_moe_args(args):
+    set_arguments_option1 = all(
+        [args.total_experts_width, args.effective_dff, args.n_experts]
+    ) and not any([args.expert_size, args.topk_fraction])
+    set_arguments_option2 = all(
+        [args.expert_size, args.topk_fraction, args.n_experts]
+    ) and not any([args.effective_dff, args.total_experts_width])
+    set_arguments_option3 = all(
+        [args.granularity, args.expansion_rate, args.effective_dff_x]
+    )
+    set_arguments_option4 = all([args.n_experts, args.expert_size, args.routing_top_k])
+
+    if 1 != sum(  # exactly one of the options must be set
+        [
+            set_arguments_option1,
+            set_arguments_option2,
+            set_arguments_option3,
+            set_arguments_option4,
+        ]
+    ):
+        raise AssertionError(
+            "You must specify either total_experts_width, effective_dff, and n_experts "
+            "or expert_size, topk_fraction, and n_experts "
+            "or granularity, expansion_rate, and effective_dff_x "
+            "or n_experts, expert_size, and routing_top_k."
+        )
+    # 4 is the standard dff_x, we assume it's defined relative to that
+    dff = args.dmodel * 4
+
+    if set_arguments_option4:
+        args.total_experts_width = args.n_experts * args.expert_size
+        args.expansion_rate = args.total_experts_width / dff
+        args.effective_dff = args.expert_size * args.routing_top_k
+    if set_arguments_option3:
+        args.total_experts_width = (
+            args.dmodel * args.effective_dff_x * args.expansion_rate
+        )
+        args.n_experts = args.expansion_rate * args.granularity
+        args.effective_dff = args.effective_dff_x * args.dmodel
+
+    if set_arguments_option2:
+        args.routing_top_k = args.topk_fraction * args.n_experts
+        args.effective_dff = args.routing_top_k * args.expert_size
+        args.total_experts_width = args.expert_size * args.n_experts
+    else:
+        expert_size = args.total_experts_width / args.n_experts
+        assert expert_size == int(expert_size)
+        args.expert_size = int(expert_size)
+
+        args.routing_top_k = args.effective_dff / expert_size
+        args.topk_fraction = args.routing_top_k / args.n_experts
+        assert 0.0 <= args.topk_fraction <= 1.0
+
+    assert args.routing_top_k == int(args.routing_top_k)
+    args.routing_top_k = int(args.routing_top_k)
+
+    # in the end, these arguments should be set
+    assert all(
+        [
+            args.routing_top_k,
+            args.total_experts_width,
+            args.n_experts,
+            args.expert_size,
+            args.topk_fraction,
+        ]
+    )
+    return args
+
+
+def get_expert_choice_args(args):
+    use_topk_initialization = get_expert_init(
+        args.expert_use_topk_initialization, default=True
+    )
+    expert_inner_function = partial(
+        get_inner_expert(args), use_topk_initialization=use_topk_initialization
+    )
+    args = dict(
+        **get_expert_choice_args_old(args),
+        **get_weightless_args(args),
+    )
+    del args["use_full_einsum"]  # this is no longer compatible
+    del args["expert_size"]
+    return args, expert_inner_function
+
+
+def get_expert_choice_args_old(args):
+    return {
+        "dmodel": args.dmodel,
+        "n_experts": args.n_experts,
+        "expert_size": args.expert_size,
+        "topk_fraction": args.topk_fraction,
+        "random_perm": args.expert_random_perm,
+        "group_by_batch": args.group_granular_moe_by_batch,
+        "softmax_ungrouped": args.softmax_ungrouped,
+        "one_hot_impl": args.granular_moe_one_hot_impl,
+        "softmax_over": args.softmax_over,
+        "use_full_einsum": args.use_full_einsum,
+        "group_size": args.simulate_group_size,
+        "init_type": args.init_type,
+        "init_scale": args.init_scale,
+        "use_torch_bmm": args.use_torch_bmm,
+        "use_layer_norm": args.layer_norm_in_expert_choice,
+    }
+
+
+def get_weightless_args(args):
+    try:
+        moe_values_exp = float(args.moe_values_exp)
+    except ValueError:
+        moe_values_exp = None
+
+    return dict(
+        get_router_values_from=args.get_router_values_from,
+        moe_values_exp=moe_values_exp,
+        detach_gate=args.moe_detach_gate,
+    )
+
+
+def get_expert_init(parameter, default=False):
+    if parameter == "Always":
+        return True
+    elif parameter == "Never":
+        return False
+    elif parameter == "Default":
+        return default
+    else:
+        raise ValueError(f"Unknown expert init type {parameter}")
+
+
+def get_inner_expert(args):
+    if args.moe_inner_expert == "ff":
+        expert_inner_class = partial(ExpertFF, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "ff_gated":
+        expert_inner_class = partial(ExpertGated, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "linear":
+        expert_inner_class = ExpertLinear
+    # these experts names are left for backward compatibility
+    elif args.moe_inner_expert == "relu":
+        expert_inner_class = partial(ExpertFF, activation_name="relu")
+    elif args.moe_inner_expert == "swi_glu":
+        expert_inner_class = partial(ExpertGated, activation_name="silu")
+    elif args.moe_inner_expert == "geglu":
+        expert_inner_class = partial(ExpertGated, activation_name="gelu")
+    else:
+        raise NotImplementedError(
+            f'Inner expert type "{args.moe_inner_expert}" not implemented'
+        )
+    return partial(
+        expert_inner_class,
+        dmodel=args.dmodel,
+        n_experts=args.n_experts,
+        expert_size=args.expert_size,
+        init_scale=args.init_scale,
+        init_type=args.init_type,
+        topk=args.routing_top_k,
+    )
 
 
 def get_classes_from_module_names(
@@ -328,6 +527,14 @@ def get_classes_from_module_names(
             classes.append(llm.PredictionHead)
         elif name == "Softmax":
             classes.append(torch.nn.Softmax)
+        elif name == "ExpertChoiceFF":
+            classes.append(ExpertChoiceFF)
+        elif name == "ExpertGating":
+            classes.append(ExpertGating)
+        elif name == "TokenGating":
+            classes.append(TokenGating)
+        elif name == "MoeGating":
+            classes.append(MoeGating)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)
