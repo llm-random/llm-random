@@ -101,6 +101,7 @@ class ConditionalTrainer:
     get_final_eval_dataloader: Optional[Callable[..., DataloaderWrapper]] = None
     final_eval_dataloader_batch_size: Optional[int] = None
     n_final_eval_batches: int = None
+    use_torch_dist_ckpt: bool = False
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -615,6 +616,7 @@ class ConditionalTrainer:
                 self.batch_size,
                 self.cutoff,
                 self.logger.loggers,
+                use_torch_dist_ckpt=self.use_torch_dist_ckpt,
             )
 
     def _repeater_rerun(

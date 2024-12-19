@@ -10,6 +10,7 @@ from torch.distributed.fsdp import (
     FullStateDictConfig,
     StateDictType,
 )
+import torch.distributed.checkpoint as dist_cp
 
 from lizrd.support.logging import AbstractLogger, NeptuneLogger
 from lizrd.support.misc import generate_random_string
@@ -97,6 +98,7 @@ def save_checkpoint(
     cutoff,
     loggers: list[AbstractLogger],
     args_override: Optional[dict] = None,
+    use_torch_dist_ckpt: bool = False,
 ):
     if isinstance(model, FSDP):
         # for some reason, setting the model to training mode and
@@ -107,6 +109,28 @@ def save_checkpoint(
             _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
     if global_rank == 0 or global_rank is None:
         print(f"Saving weights...")
+
+    full_path = os.path.join(path, f"{step}.pt")
+
+    additional_checkpoint_metadata = {
+        "step": step,
+        "logger": logger_metadata,
+        "args_override": args_override,
+    }
+
+    if use_torch_dist_ckpt:
+        # TODO: make sure this is only dont on node 0
+        with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
+            state_dict = {
+                "model": model.state_dict(),
+                "optimizer": FSDP.optim_state_dict(model, optimizer),
+                **additional_checkpoint_metadata,
+            }
+            dist_cp.save_state_dict(
+                state_dict=state_dict,
+                storage_writer=dist_cp.FileSystemWriter(full_path),
+            )
+
     if isinstance(model, FSDP):
         save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
         with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
@@ -117,7 +141,6 @@ def save_checkpoint(
         optimizer_state_dict = optimizer.state_dict()
 
     if global_rank == 0 or global_rank is None:
-        full_path = os.path.join(path, f"{step}.pt")
         neptune_loggers: Run = [
             l
             for l in loggers
@@ -140,9 +163,7 @@ def save_checkpoint(
         checkpoint = {
             "model": model_state_dict,
             "optimizer": optimizer_state_dict,
-            "step": step,
-            "logger": logger_metadata,
-            "args_override": args_override,
+            **additional_checkpoint_metadata,
         }  # dev TODO add accumulated training variables for proper logging, f.e. loss_interval/100 - loss accumulated over 100 training steps
 
         if scaler is not None:

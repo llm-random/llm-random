@@ -69,3 +69,6 @@ def check_args(args):
         assert args.lr_warmup_tokens is not None
     else:
         assert args.lr_warmup_tokens is None
+
+    if args.use_torch_dist_ckpt:
+        assert args.fsdp_enabled, "distributed checkpointing supported only with FSDP"

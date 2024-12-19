@@ -625,6 +625,7 @@ def main(
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
         checkpoint_manager_enabled=args.checkpoint_manager,
+        use_torch_dist_ckpt=args.use_torch_dist_ckpt,
     )
     trainer.train(args.n_steps)
 
