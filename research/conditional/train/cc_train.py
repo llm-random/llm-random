@@ -3,9 +3,12 @@ from collections import defaultdict
 from functools import partial
 import os
 import random
+from time import sleep
 from typing import Callable, Optional
 import socket
 
+# import logging
+# import neptune
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
@@ -167,6 +170,8 @@ def convert_parameters(args):
         args.scheduler_trapezoidal_slides = literal_eval(
             args.scheduler_trapezoidal_slides
         )
+        if args.logger_runs_ids:
+            assert len(args.logger_runs_ids) == len(args.scheduler_trapezoidal_slides) + 1
         new_scheduler_trapezoidal_slides = []
         for slide in args.scheduler_trapezoidal_slides:
             if "n_tokens" in slide:
@@ -371,6 +376,7 @@ def main(
         ]
 
     checkpoint_path = args.load_weights_path
+    checkpoint_metadata = None
     if not args.checkpoint_manager:
         checkpoint = (
             get_checkpoint_from_path(args.load_weights_path)
@@ -413,14 +419,17 @@ def main(
         checkpoint=checkpoint,
     )
 
+    ignore_model_args:bool = checkpoint_metadata and "ignore_model_args" in checkpoint_metadata and checkpoint_metadata["ignore_model_args"]
     if is_logging_process:
-        if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"]:
+        if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"] and not(ignore_model_args):
             logger_runs_ids = checkpoint["logger"]["run_id"]
         else:
-            if args.scheduler_trapezoidal_slides:
+            if args.logger_runs_ids:
+                logger_runs_ids = args.logger_runs_ids
+            elif args.scheduler_trapezoidal_slides:
                 logger_runs_ids = []
                 for _ in range(len(args.scheduler_trapezoidal_slides) + 1):
-                    logger_runs_ids.append(None)
+                    logger_runs_ids.append(None) #dev TODO in case of ignore_model_args skip loggers overproduction of already passed splits checkpoint["step"] reference
             else:
                 logger_runs_ids = None
         logger = get_logger(args, model, VOCAB_SIZE, logger_runs_ids)
@@ -434,7 +443,7 @@ def main(
         logger = None
 
     args.args_override = None
-    if checkpoint and "args_override" in checkpoint and checkpoint["args_override"]:
+    if checkpoint and checkpoint.get("args_override") and not(ignore_model_args):
         args.args_override = checkpoint["args_override"]
         for key, value in args.args_override.items():
             if hasattr(args, key):
@@ -603,6 +612,8 @@ def main(
     )
     trainer.train(args.n_steps)
 
+    sleep(600) # dev processes naive sync
+
     if rank is not None:
         destroy_process_group()
 
@@ -616,6 +627,18 @@ if __name__ == "__main__":
         args.data_seed = random.randint(0, 10000000)
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
+
+    # class _FilterCallback(logging.Filterer): #dev - not working
+    #     def filter(self, record: logging.LogRecord):
+    #         return not (
+    #             record.name == "neptune"
+    #             and record.getMessage().startswith(
+    #                 "Error occurred during asynchronous operation processing: X-coordinates (step) must be strictly increasing"
+    #             )
+    #         )
+    # neptune.internal.operation_processors.async_operation_processor.logger.addFilter(
+    #     _FilterCallback()
+    # )
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
@@ -637,3 +660,4 @@ if __name__ == "__main__":
         )
     else:
         main(None, args=args, unique_save_weights_path=save_weights_path)
+

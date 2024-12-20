@@ -4,6 +4,7 @@ import secrets
 from abc import ABC, abstractmethod
 from argparse import Namespace
 from typing import List, Optional
+from neptune.exceptions import NeptuneException
 
 import neptune
 import numpy as np
@@ -226,10 +227,11 @@ class ClearMLLogger(AbstractLogger):
 class NeptuneLogger(AbstractLogger):
     _TMP_PLOTS_DIR: str = "./tmp_plots"
 
-    def __init__(self, logger, args: Namespace):
+    def __init__(self, logger, args: Namespace, iteration_threshold=0):
         super().__init__(logger, args)
         self.random_id = generate_random_string(8)
         os.makedirs(self._TMP_PLOTS_DIR, exist_ok=True)
+        self.iteration_threshold = iteration_threshold if iteration_threshold else 0
 
     def _make_path(
         self, title: str, series: Optional[str] = None, iteration: Optional[int] = None
@@ -248,6 +250,8 @@ class NeptuneLogger(AbstractLogger):
         self.instance_logger[path].upload(tmp_file)
 
     def report_generic_info(self, *, title: str, iteration: int, data):
+        if iteration < self.iteration_threshold:
+            return
         if isinstance(data, plotly.graph_objs.Figure):
             self.report_plotly(figure=data, title=title, iteration=iteration)
         elif isinstance(data, list):
@@ -270,6 +274,8 @@ class NeptuneLogger(AbstractLogger):
         series: Optional[str] = None,
         processed_tokens_so_far: Optional[int] = None,
     ):
+        if iteration < self.iteration_threshold:
+            return
         path = self._make_path(title, series, iteration)
         assert (not math.isnan(value)) and (
             not math.isinf(value)
@@ -293,6 +299,8 @@ class NeptuneLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
+        if iteration < self.iteration_threshold:
+            return
         self.instance_logger[self._make_path(title, series)].append(
             value=value, step=iteration
         )
@@ -305,6 +313,8 @@ class NeptuneLogger(AbstractLogger):
         iteration: int,
         series: Optional[str] = None,
     ):
+        if iteration < self.iteration_threshold:
+            return
         path = self._make_path(title, series, iteration)
         directory, filename = path.rsplit("/", 1)
         # log json
@@ -604,19 +614,27 @@ def get_logger(
 
     for logger_type, run_id in zip(logger_types, run_ids):
         if logger_type == "neptune":
-            run = neptune.init_run(
-                project=args.project_name,
-                tags=args.tags,
-                name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-                with_id=run_id,
-            )
+            try:
+                run = neptune.init_run(
+                    project=args.project_name,
+                    tags=args.tags,
+                    name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+                    with_id=run_id,
+                )
+            except NeptuneException as e:
+                print(f"Can not initialize from provided exp id, e: {e}")
+                run = neptune.init_run(
+                    project=args.project_name,
+                    tags=args.tags,
+                    name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+                )
             run["args"] = args_dict
             run["working_directory"] = os.getcwd()
             run["config"].upload(args.path_to_entry_config)
             all_config_paths = args.all_config_paths.split(",")
             run["all_configs"].upload_files(all_config_paths)
 
-            initialized_loggers.append(NeptuneLogger(run, args))
+            initialized_loggers.append(NeptuneLogger(run, args, args.iteration_logging_threshold))
         elif logger_type == "wandb":
             wandb.init(
                 entity=args.wandb_entity,

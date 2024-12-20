@@ -1,3 +1,5 @@
+from ast import literal_eval
+
 def check_args(args):
     if args.granularity_expert_config:
         print(
@@ -69,3 +71,6 @@ def check_args(args):
         assert args.lr_warmup_tokens is not None
     else:
         assert args.lr_warmup_tokens is None
+
+    if args.logger_runs_ids:
+        args.logger_runs_ids = literal_eval(args.logger_runs_ids)

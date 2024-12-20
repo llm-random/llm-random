@@ -69,6 +69,13 @@ def introduce_parser_arguments(
         required=False,
         help="""List of dicts having n_steps of total training steps for a periticular split eg. scheduler_trapezoidal_slides: "[{'n_steps':1000},{'n_steps':3000,'n_jobs':2}]"; !no white symbols!; n_jobs indicates how many slurm jobs may be needed to complete slide part of training.""",
     )
+    parser.add_argument(
+        "--logger_runs_ids",
+        type=str,
+        default=None,
+        required=False,
+        help="""List of Neptune Logger runs IDs to continue logging into. example. "['LLMRANDOM-25371', 'LLMRANDOM-25372']" """,
+    )
     parser.add_argument("--learning_rate", type=math_eval, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--lr_warmup_percent", type=float, required=False)
@@ -515,5 +522,13 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
+
+    parser.add_argument(
+        "--iteration_logging_threshold",
+        type=int,
+        default=0,
+        help="Prevents neptune logging below the threshold step",
+    )
+
 
     return parser
