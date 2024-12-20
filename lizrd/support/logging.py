@@ -4,6 +4,7 @@ import secrets
 from abc import ABC, abstractmethod
 from argparse import Namespace
 from typing import List, Optional
+from neptune.exceptions import NeptuneException
 
 import neptune
 import numpy as np
@@ -613,12 +614,20 @@ def get_logger(
 
     for logger_type, run_id in zip(logger_types, run_ids):
         if logger_type == "neptune":
-            run = neptune.init_run(
-                project=args.project_name,
-                tags=args.tags,
-                name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
-                with_id=run_id,
-            )
+            try:
+                run = neptune.init_run(
+                    project=args.project_name,
+                    tags=args.tags,
+                    name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+                    with_id=run_id,
+                )
+            except NeptuneException as e:
+                print(f"Can not initialize from provided exp id, e: {e}")
+                run = neptune.init_run(
+                    project=args.project_name,
+                    tags=args.tags,
+                    name=f"{args.name} {tags_to_name(args.tags)} {unique_timestamp}",
+                )
             run["args"] = args_dict
             run["working_directory"] = os.getcwd()
             run["config"].upload(args.path_to_entry_config)

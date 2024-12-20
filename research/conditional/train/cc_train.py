@@ -7,6 +7,8 @@ from time import sleep
 from typing import Callable, Optional
 import socket
 
+# import logging
+# import neptune
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
@@ -168,6 +170,8 @@ def convert_parameters(args):
         args.scheduler_trapezoidal_slides = literal_eval(
             args.scheduler_trapezoidal_slides
         )
+        if args.logger_runs_ids:
+            assert len(args.logger_runs_ids) == len(args.scheduler_trapezoidal_slides) + 1
         new_scheduler_trapezoidal_slides = []
         for slide in args.scheduler_trapezoidal_slides:
             if "n_tokens" in slide:
@@ -624,6 +628,18 @@ if __name__ == "__main__":
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
+    # class _FilterCallback(logging.Filterer): #dev - not working
+    #     def filter(self, record: logging.LogRecord):
+    #         return not (
+    #             record.name == "neptune"
+    #             and record.getMessage().startswith(
+    #                 "Error occurred during asynchronous operation processing: X-coordinates (step) must be strictly increasing"
+    #             )
+    #         )
+    # neptune.internal.operation_processors.async_operation_processor.logger.addFilter(
+    #     _FilterCallback()
+    # )
+
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)
         data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
@@ -644,3 +660,4 @@ if __name__ == "__main__":
         )
     else:
         main(None, args=args, unique_save_weights_path=save_weights_path)
+
