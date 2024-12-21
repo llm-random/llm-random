@@ -7,8 +7,7 @@ def pivot_dict(
     activations_dict: dict, steps: list, dmodels: list, layer_num: int, module: str
 ):
     """
-    Constructs a dictionary that maps each training step to a dictionary containing lists of 'dmodel' values
-    and their corresponding activation 'value's for the specified layer and module.
+    Constructs a dictionary that maps each training step to a dictionary containing dicts: dmodel: values_list
 
     Parameters:
     - activations_dict (dict): The dictionary containing the activation data from get_activations().
@@ -18,17 +17,19 @@ def pivot_dict(
     - module (str): 'FF' or 'attn', specifying which module to extract data from.
 
     Returns:
-    - result_dict (dict): A dictionary with structure {<step>: {'dmodel': [...], 'value': [...]}}
+    - result_dict (dict): A dictionary with structure {<step>: {dmodel: [val1, val2, ...]}}
     """
     result_dict = {}
 
     for step in steps:
-        result_dict[step] = {"dmodel": [], "value": []}
+        result_dict[step] = {}
 
         for run_id, run_data in activations_dict.items():
             dmodel = run_data.get("dmodel")
             if dmodel in dmodels:
                 layer_data = run_data.get(layer_num)
+                if dmodel not in result_dict[step].keys():
+                    result_dict[step][dmodel] = []
                 if layer_data:
                     module_data = layer_data.get(module)
                     if module_data is not None and not module_data.empty:
@@ -36,8 +37,7 @@ def pivot_dict(
                         step_data = module_data[module_data["step"] == step]
                         if not step_data.empty:
                             value = step_data["value"].values[0]
-                            result_dict[step]["dmodel"].append(dmodel)
-                            result_dict[step]["value"].append(value)
+                            result_dict[step][dmodel].append(value)
                         else:
                             print(
                                 f"No data at step {step} for run {run_id}, dmodel {dmodel}, layer {layer_num}, module {module}."
@@ -104,7 +104,7 @@ def plot_module(pivoted_dict, module_keyword, layer_num, step_interval=100):
     The x-axis is set to logarithmic scale, and x-ticks match the dmodel values.
 
     Parameters:
-    - pivoted_dict (dict): The dictionary returned by pivot_dict(), structured as {<step>: {'dmodel': [...], 'value': [...]}}.
+    - pivoted_dict (dict): The dictionary returned by pivot_dict(), structured as {<step>: {dmodel: [val1, val2, ...]}}.
     - module_keyword (str): 'FF' or 'attn', specifying which module to plot.
     - layer_num (int): The specific layer (block) number to plot.
 
@@ -118,18 +118,20 @@ def plot_module(pivoted_dict, module_keyword, layer_num, step_interval=100):
     # Collect all unique dmodel values across steps for setting x-ticks
     all_dmodels = set()
     for data in pivoted_dict.values():
-        all_dmodels.update(data["dmodel"])
+        all_dmodels.update(data.keys())
     all_dmodels = sorted(all_dmodels)
 
     # Iterate over each training step in the pivoted dictionary
     for step, data in pivoted_dict.items():
         if step % step_interval == 0:
-            dmodels = data["dmodel"]
-            values = data["value"]
+            dmodels = np.array(list(data.keys()))
             # Sort the data based on dmodels for consistent plotting
-            sorted_indices = np.argsort(dmodels)
-            sorted_dmodels = np.array(dmodels)[sorted_indices]
-            sorted_values = np.array(values)[sorted_indices]
+            sorted_dmodels = np.sort(dmodels)
+            sorted_values = []
+            for dmodel in sorted_dmodels:
+                val = np.array(data[dmodel]).mean()
+                sorted_values.append(val)
+            sorted_values = np.array(sorted_values)
             plt.plot(
                 sorted_dmodels, sorted_values, marker="o", label=f"Step {int(step)}"
             )
@@ -158,7 +160,7 @@ def plot_module_grid(
     over training steps. The x-axis is set to a logarithmic scale, and x-ticks match the dmodel values.
 
     Parameters:
-    - pivoted_dict (dict): The dictionary returned by pivot_dict(), structured as {<step>: {'dmodel': [...], 'value': [...]} }.
+    - pivoted_dict (dict): The dictionary returned by pivot_dict(), structured as {<step>: {dmodel: [val1, val2, ...]}}.
     - module_keyword (str): 'FF' or 'attn', specifying which module to plot.
     - layer_num (int): The specific layer (block) number to plot.
     - step_interval (int): Interval at which to sample steps for plotting.
@@ -176,18 +178,20 @@ def plot_module_grid(
     # Collect all unique dmodel values across steps for setting x-ticks
     all_dmodels = set()
     for data in pivoted_dict.values():
-        all_dmodels.update(data["dmodel"])
+        all_dmodels.update(data.keys())
     all_dmodels = sorted(all_dmodels)
 
     # Iterate over each training step in the pivoted dictionary
     for step, data in pivoted_dict.items():
         if step % step_interval == 0:
-            dmodels = data["dmodel"]
-            values = data["value"]
+            dmodels = np.array(list(data.keys()))
             # Sort the data based on dmodels for consistent plotting
-            sorted_indices = np.argsort(dmodels)
-            sorted_dmodels = np.array(dmodels)[sorted_indices]
-            sorted_values = np.array(values)[sorted_indices]
+            sorted_dmodels = np.sort(dmodels)
+            sorted_values = []
+            for dmodel in sorted_dmodels:
+                val = np.array(data[dmodel]).mean()
+                sorted_values.append(val)
+            sorted_values = np.array(sorted_values)
             ax.plot(
                 sorted_dmodels, sorted_values, marker="o", label=f"Step {int(step)}"
             )
@@ -223,7 +227,6 @@ def plot_multiple_modules(
     Uses the plot_module function for each combination of module_keyword and layer_num.
 
     Parameters:
-    - pivoted_dict (dict): The dictionary returned by pivot_dict().
     - module_keywords (list of str): List of module keywords (e.g., ['FF', 'attn']).
     - layer_nums (list of int): List of layer numbers to plot.
     - step_interval (int): Interval at which to sample steps for plotting.
@@ -262,7 +265,7 @@ def plot_multiple_modules(
     plt.show()
 
 
-def plot_loss_vs_lr(runs_table, ylim=None):
+def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6)):
     """
     For each model width in the runs table, plots a line where the y-axis is the final loss value
     and the x-axis is the learning rate (lr).
@@ -288,7 +291,7 @@ def plot_loss_vs_lr(runs_table, ylim=None):
     final_loss_df = final_loss_df[final_loss_df["final_loss"].notnull()]
 
     # Plotting
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=figsize)
     model_widths = sorted(final_loss_df["dmodel"].unique())
     for model_width in model_widths:
         df_subset = final_loss_df[final_loss_df["dmodel"] == model_width]
@@ -299,7 +302,9 @@ def plot_loss_vs_lr(runs_table, ylim=None):
 
     plt.xlabel("Learning Rate (lr)")
     plt.ylabel("Final Loss Value")
-    plt.title("Final Loss vs Learning Rate for Different Model Widths")
+    if title is None:
+        title = "Final Loss vs Learning Rate for Different Model Widths"
+    plt.title(title)
     plt.legend()
     plt.grid(True)
     plt.xscale(
