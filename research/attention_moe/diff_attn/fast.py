@@ -2,7 +2,7 @@ import math
 import torch
 from torch import nn
 
-from lizrd.core.misc import Linear
+from lizrd.core.misc import Linear, LoggingLayer
 
 from .kernel.rotary import apply_rotary_emb
 from flash_attn import flash_attn_func
@@ -54,7 +54,7 @@ class Lowrank(nn.Module):
         return self.w2(self.w1(x))
 
 
-class MultiheadFlashDiff1(nn.Module):
+class MultiheadFlashDiff1(LoggingLayer):
     """
     (Recommended)
     DiffAttn implemented with FlashAttention, for packages that support different qk/v dimensions
@@ -108,6 +108,53 @@ class MultiheadFlashDiff1(nn.Module):
                 init_scale,
                 output_dim=2 * self.head_dim * self.num_kv_heads,
             )
+        elif self.adapter_type == "additive":
+            self.k_delta = nn.Parameter(
+                torch.zeros(
+                    2 * self.head_dim * self.num_kv_heads, dtype=torch.float32
+                ).normal_(mean=0, std=0.1)
+            )
+            self.q_delta = nn.Parameter(
+                torch.zeros(self.embed_dim, dtype=torch.float32).normal_(
+                    mean=0, std=0.1
+                )
+            )
+        elif self.adapter_type == "multiplicative":
+            self.k_delta = nn.Parameter(
+                torch.zeros(
+                    2 * self.head_dim * self.num_kv_heads, dtype=torch.float32
+                ).normal_(mean=1, std=0.1)
+            )
+            self.q_delta = nn.Parameter(
+                torch.zeros(self.embed_dim, dtype=torch.float32).normal_(
+                    mean=1, std=0.1
+                )
+            )
+        elif self.adapter_type == "multiadd":
+            self.k_delta_mult = nn.Parameter(
+                torch.zeros(
+                    2 * self.head_dim * self.num_kv_heads, dtype=torch.float32
+                ).normal_(mean=1, std=0.1)
+            )
+            self.q_delta_mult = nn.Parameter(
+                torch.zeros(self.embed_dim, dtype=torch.float32).normal_(
+                    mean=1, std=0.1
+                )
+            )
+            self.k_delta_add = nn.Parameter(
+                torch.zeros(
+                    2 * self.head_dim * self.num_kv_heads, dtype=torch.float32
+                ).normal_(mean=0, std=0.1)
+            )
+            self.q_delta_add = nn.Parameter(
+                torch.zeros(self.embed_dim, dtype=torch.float32).normal_(
+                    mean=0, std=0.1
+                )
+            )
+        elif self.adapter_type == "none" or self.adapter_type == "identity":
+            pass
+        else:
+            raise NotImplementedError
 
         self.scaling = self.head_dim**-0.5
 
@@ -191,17 +238,35 @@ class MultiheadFlashDiff1(nn.Module):
             k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
             v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
         elif self.adapter_type == "additive":
+            q_negative = (q + self.q_delta).view(
+                bsz, tgt_len, self.num_heads, 2 * self.head_dim
+            )
+            k_negative = (k + self.k_delta).view(
+                bsz, src_len, self.num_kv_heads, 2 * self.head_dim
+            )
             q = q.view(bsz, tgt_len, self.num_heads, 2 * self.head_dim)
             k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
             v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
-            k_negative = k.clone()
-            q_negative = q + self.q_delta
         elif self.adapter_type == "multiplicative":
+            q_negative = (q * self.q_delta).view(
+                bsz, tgt_len, self.num_heads, 2 * self.head_dim
+            )
+            k_negative = (k * self.k_delta).view(
+                bsz, src_len, self.num_kv_heads, 2 * self.head_dim
+            )
             q = q.view(bsz, tgt_len, self.num_heads, 2 * self.head_dim)
             k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
             v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
-            k_negative = k.clone()
-            q_negative = q * self.q_delta
+        elif self.adapter_type == "multiadd":
+            q_negative = (q * self.q_delta_mult + self.q_delta_add).view(
+                bsz, tgt_len, self.num_heads, 2 * self.head_dim
+            )
+            k_negative = (k * self.k_delta_mult + self.k_delta_add).view(
+                bsz, src_len, self.num_kv_heads, 2 * self.head_dim
+            )
+            q = q.view(bsz, tgt_len, self.num_heads, 2 * self.head_dim)
+            k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
+            v = v.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
         elif self.adapter_type == "identity":
             q = q.view(bsz, tgt_len, self.num_heads, 2 * self.head_dim)
             k = k.view(bsz, src_len, self.num_kv_heads, 2 * self.head_dim)
@@ -225,18 +290,13 @@ class MultiheadFlashDiff1(nn.Module):
             k = apply_rotary_emb(
                 k.to(dtype=torch.float32), *rel_pos, interleaved=True
             ).to(x)
-            if self.lowrank_inner_dim > 0:
+            if self.adapter_type != "none":
                 q_negative = apply_rotary_emb(
                     q_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
                 ).to(x)
                 k_negative = apply_rotary_emb(
                     k_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
                 ).to(x)
-
-        # offset = src_len - tgt_len
-        # effective_head_dim = self.head_dim
-        # if self.lowrank_inner_dim > 0:
-        #     effective_head_dim *= 2
 
         if self.adapter_type != "none":
             q1 = q
@@ -282,6 +342,9 @@ class MultiheadFlashDiff1(nn.Module):
             torch.sum(self.lambda_q2 * self.lambda_k2, dim=-1).float()
         ).type_as(q)
         lambda_full = lambda_1 - lambda_2 + self.lambda_init
+
+        self.update_cache_for_logging("lambda", lambda_full)
+
         attn = attn1 - lambda_full * attn2
 
         attn = self.subln(attn)
@@ -290,6 +353,11 @@ class MultiheadFlashDiff1(nn.Module):
 
         attn = self.out_proj(attn)
         return attn
+
+    def log_light(self):
+        return {
+            "lambda": self.logging_cache["lambda"],
+        }
 
 
 class VanillaFlashDiff1(nn.Module):
