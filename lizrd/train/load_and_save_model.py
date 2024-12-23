@@ -43,9 +43,12 @@ def get_checkpoint_from_path(load_weights_path: str) -> str:
     return checkpoint
 
 
-def load_model_weights(model: torch.nn.Module, checkpoint: dict[str, torch.Tensor]):
+def load_model_weights(model: torch.nn.Module, checkpoint: dict[str, torch.Tensor], use_torch_dist_ckpt: bool = False):
     print(f"Loading model weights...")
-    model.load_state_dict(checkpoint["model"], strict=False)
+    if use_torch_dist_ckpt:
+        
+    else:
+        model.load_state_dict(checkpoint["model"], strict=False)
     print(f"Loaded model weights")
 
 
@@ -54,6 +57,7 @@ def load_optimizer_state(
     checkpoint: dict[str, torch.Tensor],
     model: Union[torch.nn.Module, FSDP],
     rank: int,
+    use_torch_dist_ckpt: bool = False,
 ):
     print(f"Loading optimizer state...")
     if isinstance(model, FSDP):
@@ -119,7 +123,6 @@ def save_checkpoint(
     }
 
     if use_torch_dist_ckpt:
-        # TODO: make sure this is only dont on node 0
         with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
             state_dict = {
                 "model": model.state_dict(),
@@ -130,45 +133,45 @@ def save_checkpoint(
                 state_dict=state_dict,
                 storage_writer=dist_cp.FileSystemWriter(full_path),
             )
-
-    if isinstance(model, FSDP):
-        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-        with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
-            model_state_dict = model.state_dict()
-        optimizer_state_dict = FSDP.full_optim_state_dict(model, optimizer)
     else:
-        model_state_dict = model.state_dict()
-        optimizer_state_dict = optimizer.state_dict()
-
-    if global_rank == 0 or global_rank is None:
-        neptune_loggers: Run = [
-            l
-            for l in loggers
-            if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
-        ]
-        if len(neptune_loggers) >= 1:
-            ids = []
-            for neptune_logger in neptune_loggers:
-                neptune_logger.report_text(
-                    title=f"job/saved_checkpoint",
-                    value=str(full_path),
-                    iteration=step,
-                )
-                neptune_loggers = neptune_logger.instance_logger
-                ids.append(neptune_loggers._sys_id)
-            logger_metadata = {"run_id": ids}
+        if isinstance(model, FSDP):
+            save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+            with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
+                model_state_dict = model.state_dict()
+            optimizer_state_dict = FSDP.full_optim_state_dict(model, optimizer)
         else:
-            logger_metadata = {"run_id": None}
+            model_state_dict = model.state_dict()
+            optimizer_state_dict = optimizer.state_dict()
 
-        checkpoint = {
-            "model": model_state_dict,
-            "optimizer": optimizer_state_dict,
-            **additional_checkpoint_metadata,
-        }  # dev TODO add accumulated training variables for proper logging, f.e. loss_interval/100 - loss accumulated over 100 training steps
+        if global_rank == 0 or global_rank is None:
+            neptune_loggers: Run = [
+                l
+                for l in loggers
+                if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
+            ]
+            if len(neptune_loggers) >= 1:
+                ids = []
+                for neptune_logger in neptune_loggers:
+                    neptune_logger.report_text(
+                        title=f"job/saved_checkpoint",
+                        value=str(full_path),
+                        iteration=step,
+                    )
+                    neptune_loggers = neptune_logger.instance_logger
+                    ids.append(neptune_loggers._sys_id)
+                logger_metadata = {"run_id": ids}
+            else:
+                logger_metadata = {"run_id": None}
 
-        if scaler is not None:
-            checkpoint["scaler"] = scaler.state_dict()
+            checkpoint = {
+                "model": model_state_dict,
+                "optimizer": optimizer_state_dict,
+                **additional_checkpoint_metadata,
+            }  # dev TODO add accumulated training variables for proper logging, f.e. loss_interval/100 - loss accumulated over 100 training steps
 
-        torch.save(checkpoint, f=full_path)
+            if scaler is not None:
+                checkpoint["scaler"] = scaler.state_dict()
+
+            torch.save(checkpoint, f=full_path)
         print(f"Weights saved to {full_path} (step {step})")
         return os.path.abspath(full_path)
