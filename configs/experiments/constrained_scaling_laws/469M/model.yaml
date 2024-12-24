@@ -4,7 +4,7 @@ md5_parent_hash: 839338c2136f94ad1e69306ecea94832
 params:
   tags: ["constrained_scaling_grid", "370M"]
 
-  dmodel: 1408
-  n_blocks: 21
-  n_att_heads: 11
+  dmodel: 1280
+  n_blocks: 16
+  n_att_heads: 10
   scheduler_trapezoidal_slides: "[{'n_tokens':0.5},{'n_tokens':1},{'n_tokens':2},{'n_tokens':4},{'n_tokens':8},{'n_tokens':16},{'n_tokens':32},{'n_tokens':64},{'n_tokens':96},{'n_tokens':112}]"
