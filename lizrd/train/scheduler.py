@@ -1,6 +1,5 @@
 from abc import ABC
 import math
-from typing import Optional
 
 from torch.optim import Optimizer
 
