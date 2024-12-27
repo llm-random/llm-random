@@ -5,11 +5,7 @@ from typing import Optional
 from torch.optim import Optimizer
 
 
-def get_scheduler(
-    args, ratios_in_group_order: Optional[list[float]] = None
-) -> "AbstractLRScheduler":
-    if ratios_in_group_order is None:
-        ratios_in_group_order = [1.0]
+def get_scheduler(args) -> "AbstractLRScheduler":
     if hasattr(args, "lr_warmup_percent") and args.lr_warmup_percent is not None:
         assert (
             not args.lr_warmup_steps
@@ -22,7 +18,6 @@ def get_scheduler(
         return ConstantScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
             lr=args.learning_rate,
-            ratios=ratios_in_group_order,
         )
     elif args.scheduler == "cosine":
         return CosineScheduler(
@@ -30,7 +25,6 @@ def get_scheduler(
             lr=args.learning_rate,
             final_lr_step=args.final_lr_step,
             final_lr_fraction=args.final_lr_fraction,
-            ratios=ratios_in_group_order,
         )
     elif args.scheduler == "trapezoidal":
         return TrapezoidalScheduler(
@@ -38,15 +32,14 @@ def get_scheduler(
             lr_decay_steps=args.lr_trapezoidal_decay_steps,
             n_steps=args.n_steps,
             lr=args.learning_rate,
-            ratios=ratios_in_group_order,
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 
 
 class AbstractLRScheduler(ABC):
-    def __init__(self, ratios: list[float]):
-        self.ratios = ratios
+    def __init__(self):
+        pass
 
     def get_lr(self, step):
         raise NotImplementedError
@@ -54,13 +47,14 @@ class AbstractLRScheduler(ABC):
     # TODO optimizer get lr (like nanoGPT)
     def set_lr(self, optimizer: Optimizer, step: int):
         new_lr = self.get_lr(step)
-        for param_group, ratio in zip(optimizer.param_groups, self.ratios):
+        for param_group in optimizer.param_groups:
+            ratio = param_group.get("lr_ratio", 1.0)
             param_group["lr"] = new_lr * ratio
 
 
 class ConstantScheduler(AbstractLRScheduler):
-    def __init__(self, lr_warmup_steps: int, lr: float, ratios: list[float]):
-        super().__init__(ratios=ratios)
+    def __init__(self, lr_warmup_steps: int, lr: float):
+        super().__init__()
         self.lr_warmup_steps = lr_warmup_steps
         self.lr = lr
 
@@ -78,9 +72,8 @@ class CosineScheduler(AbstractLRScheduler):
         lr: float,
         final_lr_step: int,
         final_lr_fraction: float,
-        ratios: list[float],
     ):
-        super().__init__(ratios=ratios)
+        super().__init__()
         assert isinstance(lr_warmup_steps, int)
         assert isinstance(lr, float)
         assert isinstance(final_lr_step, int)
@@ -117,9 +110,8 @@ class TrapezoidalScheduler(AbstractLRScheduler):
         lr_decay_steps: int,
         n_steps: int,
         lr: float,
-        ratios: list[float],
     ):
-        super().__init__(ratios=ratios)
+        super().__init__()
         self.lr_warmup_steps = lr_warmup_steps
         self.lr_decay_steps = lr_decay_steps
         self.final_lr_step = n_steps

@@ -11,14 +11,14 @@ interactive_debug: false
 params:
   name: "muP_MoE_10_step"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "10_step"]
+  tags: ["muP_MoE", "muTransfer", "10_step", "kc_version_2", "like_blog", "many_heads"]
 
   mup_params:
     ^alpha_in: [20.0]
     ^alpha_out: [0.05]
     # alpha_in: 5.0
     # alpha_out: 0.2
-    base_dmodel: 64
+    base_dmodel: 128
 
   # training
   n_steps: 10
@@ -29,10 +29,10 @@ params:
   # model
   model_type: gpt
   # dmodel: 32
-  ^dmodel: [32, 64, 128, 256, 512]
+  ^dmodel: [128, 256, 512, 1024, 2048]
   dff_ratio: 4
-  n_blocks: 4
-  n_att_heads: 4
+  n_blocks: 2
+  n_att_heads: 16
   attention_mode: 'vanilla'
   attention_normalization: 'dhead'
   ff_mode: vanilla
@@ -63,7 +63,7 @@ params:
   mixed_precision: true
   flash_attention: true
   mixed_precision_dtype: bfloat16
-  data_seed: 101
+  ^data_seed: [101, 102, 103, 104, 105]
 
   # logging etc.
   logger_types: "neptune"

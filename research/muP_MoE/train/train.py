@@ -84,22 +84,25 @@ def get_muP_learning_rates(args, model, m_d=1.0):
         "output_projection": (1 / m_d),  # Attn O
         "lin1_weight": (1 / m_d),  # FF in
         "lin2_weight": (1 / m_d),  # FF out
+        "pre_relu": (1 / m_d),  # FF in, ver2
+        "post_relu": (1 / m_d),  # FF out, ver2
         "head": 1,
     }
 
-    lr_to_params = defaultdict(list)
+    ratio_to_params = defaultdict(list)
     for name, param in model.named_parameters():
         ratio = 1.0
         for keyword in key_lr_dict.keys():
             if keyword in name:
                 ratio = key_lr_dict[keyword]
                 break
-        lr_to_params[ratio * lr].append(param)
+        print(f"Assigning lr ratio {ratio} to {name}")
+        ratio_to_params[ratio].append(param)
     param_grops = [
-        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
+        {"params": params, "lr": ratio * lr, "lr_ratio": ratio}
+        for ratio, params in ratio_to_params.items()
     ]
-    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
-    return param_grops, ratios_in_group_order
+    return param_grops
 
 
 def apply_muP_init(args, model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
@@ -116,6 +119,8 @@ def apply_muP_init(args, model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
         "output_projection": (1 / (m_d * 2 * n_blocks)),
         "lin1_weight": (1 / m_d),
         "lin2_weight": (1 / (m_d * 2 * n_blocks)),
+        "pre_relu": (1 / m_d),  # FF in, ver2
+        "post_relu": (1 / (m_d * 2 * n_blocks)),  # FF out, ver2
         "head": 1.0,
     }
     for name, param in model.named_parameters():
@@ -298,7 +303,7 @@ def main(
     apply_muP_init(
         args, model, init_base_value=args.init_scale, m_d=m_d, n_blocks=args.n_blocks
     )
-    param_grops, lr_ratios_in_group_order = get_muP_learning_rates(args, model, m_d=m_d)
+    param_grops = get_muP_learning_rates(args, model, m_d=m_d)
 
     optimizer = torch.optim.AdamW(
         param_grops,
@@ -309,7 +314,7 @@ def main(
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args, ratios_in_group_order=lr_ratios_in_group_order)
+    scheduler = get_scheduler(args)
 
     data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size

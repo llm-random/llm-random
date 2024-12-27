@@ -11,11 +11,11 @@ interactive_debug: false
 params:
   name: "muP_MoE_extrpl"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "mup_grid_2"]
+  tags: ["muP_MoE", "muTransfer", "kc_version_2", "kc_extrapolation"]
 
   mup_params:
-    ^alpha_in: [20.0]
-    ^alpha_out: [0.05]
+    ^alpha_in: [10.0]
+    ^alpha_out: [0.2]
     # alpha_in: 5.0
     # alpha_out: 0.2
     base_dmodel: 64
@@ -51,7 +51,7 @@ params:
   final_lr_fraction: 0.1
   grad_clip: 0.5
   ^weight_decay: [0.01, 0.0]
-  ^init_scale: [0.2]
+  ^init_scale: [0.1]
   init_type: truncated_normal
   capacity_factor: 1.0
 
