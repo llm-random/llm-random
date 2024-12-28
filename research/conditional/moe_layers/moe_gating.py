@@ -298,6 +298,10 @@ class TokenGating(MoeGating):
                 gate_out, self.routing_top_k
             )
 
+        counts = torch.bincount(expert_index.view(-1), minlength=self.n_experts)
+        for i in range(self.n_experts):
+            self.update_cache_for_logging(f"tokens_expert_{i}", counts[i].item())
+
         self.update_cache_for_logging("gate_softmax_values", expert_gate)
         self.update_cache_for_logging("max_indices", expert_index)
 
@@ -375,11 +379,14 @@ class TokenGating(MoeGating):
         )
 
     def log_light(self):
-        return {
+        log_dict = {
             "dropped_tokens_ratio": self.logging_cache["dropped_tokens_ratio"],
             "load_balancing_loss": self.logging_cache["load_balancing_loss"],
             "z_loss": self.logging_cache["z_loss"],
         }
+        for i in range(self.n_experts):
+            log_dict[f"tokens_expert_{i}"] = self.logging_cache[f"tokens_expert_{i}"]
+        return log_dict
 
     def log_heavy(self):
         return {

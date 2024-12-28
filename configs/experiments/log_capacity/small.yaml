@@ -1,0 +1,11 @@
+parent: configs/experiments/log_capacity/common.yaml
+md5_parent_hash: a1cb06c72ae7d89b4a42bce61719bf10
+n_gpus: 1
+
+params:
+  n_tokens: 10
+  dmodel: 256
+  n_blocks: 4
+  n_att_heads: 4
+  expansion_rate: 8
+  gradient_accumulation_steps: 4
