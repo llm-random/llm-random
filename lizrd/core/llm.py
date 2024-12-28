@@ -203,9 +203,9 @@ def attention_mechanism(
             enable_flash=True, enable_math=False, enable_mem_efficient=False
         ):
             output = F.scaled_dot_product_attention(
-                query=query,
-                key=key,
-                value=value,
+                query=query.contiguous(),
+                key=key.contiguous(),
+                value=value.contiguous(),
                 attn_mask=None,
                 is_causal=causal,
             )
@@ -375,61 +375,6 @@ class AttentionRoPE(LoggingLayer):
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
         q = self.rope(q)
         k = self.rope(k)
-
-        attention_output = self.attention_mechanism(
-            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
-        )
-
-        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
-
-        return output
-
-
-class Attention(LoggingLayer):
-    def __init__(
-        self,
-        dmodel,
-        heads,
-        causal,
-        init_type: str,
-        init_scale: float,
-        dhead=None,
-        flash=False,
-    ):
-        super(Attention, self).__init__()
-        if dhead is None:
-            assert dmodel % heads == 0
-            dhead = dmodel // heads
-
-        self.heads = heads
-        self.dhead = dhead
-        self.causal = causal
-        self.flash = flash
-
-        self.input_projection = Linear(
-            dmodel,
-            3 * heads * dhead,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.output_projection = Linear(
-            heads * dhead,
-            dmodel,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-
-    def forward(self, x):
-        projected = self.input_projection(x)
-
-        batch, seq_len = x.shape[:-1]
-        projected = projected.view(
-            batch, seq_len, self.heads, 3 * self.dhead
-        ).transpose(1, 2)
-        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
 
         attention_output = self.attention_mechanism(
             query=q, key=k, value=v, dhead=self.dhead, causal=self.causal

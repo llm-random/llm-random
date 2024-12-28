@@ -1,6 +1,9 @@
 import argparse
 import os
-from lizrd.grid.infrastructure import get_machine_backend
+
+from lizrd.grid.infrastructure import (
+    resolve_get_machine_backend_function,
+)
 from lizrd.support.code_versioning import version_code
 
 from contextlib import contextmanager
@@ -11,6 +14,7 @@ from fabric import Connection
 import paramiko.ssh_exception
 
 from lizrd.support.code_versioning import version_code
+
 
 CEMETERY_REPO_URL = "git@github.com:llm-random/llm-random-cemetery.git"  # TODO(crewtool) move to constants
 BRANCH_FILENAME = "__branch__name__.txt"
@@ -50,9 +54,15 @@ def submit_experiment(
     experiment_config_path,
     clone_only,
     save_branch_and_dir,
+    custom_backends_module,
 ):
     if experiment_branch_name is None:
-        experiment_branch_name = version_code(experiment_config_path)
+        assert custom_backends_module is None
+        experiment_branch_name, custom_backends_module = version_code(
+            experiment_config_path
+        )
+
+    get_machine_backend = resolve_get_machine_backend_function(custom_backends_module)
 
     with ConnectWithPassphrase(hostname) as connection:
         result = connection.run("uname -n", hide=True)
@@ -124,6 +134,12 @@ if __name__ == "__main__":
         action="store_true",
         help="This flag will save the branch name and the directory to a file. This is only for `run_exp_remotely.sh` to use.",
     )
+    parser.add_argument(
+        "--custom_backends_module",
+        type=str,
+        default=None,
+        help="Allows you to define custom backend module, which should contain a function `get_machine_backend` that returns a `MachineBackend` object.",
+    )
 
     args = parser.parse_args()
     submit_experiment(
@@ -132,4 +148,5 @@ if __name__ == "__main__":
         args.config,
         args.clone_only,
         args.save_branch_and_dir,
+        args.custom_backends_module,
     )

@@ -62,6 +62,7 @@ class ConditionalTrainer:
     batch_size: int
     cutoff: int
     lr_scheduler: AbstractLRScheduler
+    checkpoint_manager_enabled: bool
     repeater_job_end_time: int = None
     _calculate_loss_and_gradient: Optional[Callable] = None
     mask_percent: Optional[float] = None
@@ -91,7 +92,7 @@ class ConditionalTrainer:
     profiler_enabled: bool = False
     profiler_trace_path: str = None
     profiler_schedule: None = None
-    rank: Optional[int] = None
+    global_rank: Optional[int] = None
     start_step: int = 0
     batch_size_rampup_config: Optional[BatchSizeRampupConfig] = None
     checkpoint: Optional[dict[str, torch.Tensor]] = None
@@ -162,10 +163,11 @@ class ConditionalTrainer:
                     self.optimizer,
                     self.scaler,
                     self.save_weights_path,
-                    self.rank,
+                    self.global_rank,
                     self.current_step,
                     self.cutoff,
                     self.logger.loggers if self.is_logging_process else None,
+                    self.checkpoint_manager_enabled,
                     args_override=self.args_override,
                 )
 
@@ -260,7 +262,7 @@ class ConditionalTrainer:
                                 self.optimizer,
                                 self.scaler,
                                 self.save_weights_path,
-                                self.rank,
+                                self.global_rank,
                                 step,
                                 self.cutoff,
                                 split_loggers,
@@ -319,7 +321,7 @@ class ConditionalTrainer:
         loss, aux_info = self.calculate_loss_and_gradient(
             processed_batch, num_batch_chunks=num_batch_chunks
         )
-        if self.rank is not None:
+        if self.global_rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
 
@@ -606,7 +608,7 @@ class ConditionalTrainer:
                 self.optimizer,
                 self.scaler,
                 self.save_weights_path,
-                self.rank,
+                self.global_rank,
                 step,
                 self.cutoff,
                 self.logger.loggers,
@@ -624,7 +626,7 @@ class ConditionalTrainer:
                 self.optimizer,
                 self.scaler,
                 self.save_weights_path,
-                self.rank,
+                self.global_rank,
                 step,
                 self.cutoff,
                 self.logger.loggers if self.is_logging_process else None,

@@ -188,6 +188,7 @@ def start_job_manager_assessment(
         else:
             return result, metadata
     else:
+        sleep(60)  # TODO: implement proper file locking
         for i in range(100):
             sleep(3)
             try:
@@ -218,7 +219,7 @@ def job_out_of_time_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     cutoff,
     loggers: list[AbstractLogger],
@@ -231,7 +232,7 @@ def job_out_of_time_checkpoint(
         optimizer,
         scaler,
         path,
-        rank,
+        global_rank,
         step,
         cutoff,
         loggers,
@@ -259,10 +260,11 @@ def end_training_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     cutoff,
     loggers: list[AbstractLogger],
+    checkpoint_manager_enabled: bool,
     batch_size: int = 1,
     args_override: Optional[dict] = None,
 ):
@@ -272,7 +274,7 @@ def end_training_checkpoint(
         optimizer,
         scaler,
         path,
-        rank,
+        global_rank,
         step,
         cutoff,
         loggers,
@@ -280,7 +282,7 @@ def end_training_checkpoint(
         args_override=args_override,
     )
     timestamp_now = __get_manager_timestamp()
-    if is_logging_process:
+    if is_logging_process and checkpoint_manager_enabled:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
             manager = yaml.load(f, Loader=yaml.SafeLoader)
             manager = release_checkpoint_manager(
@@ -297,7 +299,7 @@ def create_slide_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     cutoff,
     loggers: list[AbstractLogger],
@@ -310,7 +312,7 @@ def create_slide_checkpoint(
         optimizer,
         scaler,
         path,
-        rank,
+        global_rank,
         step,
         cutoff,
         loggers,
