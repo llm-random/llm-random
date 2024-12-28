@@ -54,6 +54,16 @@ class Lowrank(nn.Module):
         return self.w2(self.w1(x))
 
 
+# def manual_attention(q, k, v):
+#     ...# manual implementation of attention
+#     att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+#     att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+#     torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size))
+#     att = F.softmax(att, dim=-1)
+#     att = self.attn_dropout(att)
+#     y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+
+
 class MultiheadFlashDiff1(LoggingLayer):
     """
     (Recommended)
@@ -322,6 +332,7 @@ class MultiheadFlashDiff1(LoggingLayer):
             q2 = torch.roll(q2, shifts=1, dims=(2,))
             k2 = torch.roll(k2, shifts=1, dims=(2,))
 
+        # if self.use_flash_attn:
         attn1 = flash_attn_func(
             q1,
             k1,
@@ -334,6 +345,7 @@ class MultiheadFlashDiff1(LoggingLayer):
             v,
             causal=True,
         )
+        # elif
 
         lambda_1 = torch.exp(
             torch.sum(self.lambda_q1 * self.lambda_k1, dim=-1).float()
