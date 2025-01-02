@@ -100,3 +100,6 @@ class LayerManager:
             for name, param in layer.named_parameters():
                 if name in ["temperature_merge", "temperature_emit"]:
                     param.requires_grad = is_learning_temperature
+
+    # def set_save_attention_maps(self, save_attention_maps):
+    #     for _, layer in self._logable_layers:

@@ -80,6 +80,7 @@ class ConditionalTrainer:
     rank: Optional[int] = None
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
+    evaluate_attention_relevancy_interval: int = -1
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -153,6 +154,11 @@ class ConditionalTrainer:
             for step in range(self.start_step, n_steps + 1):
                 self.current_step = step
                 self._train_step(step)
+                if self.evaluate_attention_relevancy_interval > 0 and (
+                    step % self.evaluate_attention_relevancy_interval == 0
+                    or step == n_steps
+                ):
+                    self.evaluate_attention(step)
                 if self._repeater_rerun(step, self.repeater_job_end_time):
                     break
                 if self.profiler_enabled:
@@ -198,6 +204,70 @@ class ConditionalTrainer:
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
+
+    @torch.no_grad()
+    def evaluate_attention(self, step):
+        self.model.eval()
+        batch = self.eval_dataloader.get_batch()
+
+        # 1. split batch into examples
+        # 2. get attention weights for each example
+        # 3. stack the attention weights for each layer
+        # 4. get the relevancy score
+        # batches = [self.eval_dataloader.get_batch() for _ in range(self.n_eval_batches
+        total_me_score = defaultdict(float)
+        total_everyone_score = defaultdict(float)
+        # self.layer_manager.set_save_attention_weights(True)
+        for layer in self.model.modules():
+            if hasattr(layer, "save_attention_weights"):
+                layer.save_attention_weights = True
+        input_tokens = batch.input_ids
+        bs = input_tokens.shape[0]
+        for example_id in range(bs):
+            _ = self.model(input_tokens[example_id].unsqueeze(0))
+            query_doc = (
+                batch.document_ids[example_id]
+                .view(1, self.cutoff, 1)
+                .expand(1, self.cutoff, self.cutoff)
+            )
+            key_doc = query_doc.transpose(-2, -1)
+            docs_in_sequence = (
+                batch.document_ids[example_id].unique_consecutive().tolist()
+            )
+
+            for layer in self.model.modules():
+                if hasattr(layer, "attention_weights"):
+                    depth = layer.block_number
+                    attention_weights = layer.attention_weights
+                    for doc in docs_in_sequence:
+                        if doc == -1:
+                            continue
+                        me_looking_at_anyone = (
+                            (attention_weights * (query_doc == doc)).sum().item()
+                        )
+                        total_everyone_score[depth] += me_looking_at_anyone
+                        me_looking_at_me = (
+                            (attention_weights * (query_doc == doc) * (key_doc == doc))
+                            .sum()
+                            .item()
+                        )
+                        total_me_score[depth] += me_looking_at_me
+
+        if self.is_logging_process:
+            for d, me_score in total_me_score.items():
+                everyone_score = total_everyone_score[d]
+                # print(me_score)
+                # print(everyone_score)
+                self.logger.report_scalar(
+                    title=f"attention_relevancy/{d}",
+                    value=me_score / everyone_score,
+                    iteration=step,
+                )
+
+        for layer in self.model.modules():
+            if hasattr(layer, "save_attention_weights"):
+                layer.save_attention_weights = False
+                layer.attention_weights = None
 
     def calculate_loss_and_gradient(self, processed_batch: LLMBatch):
         """gradient accumulation: slice the batch into minibatches, get gradients from each, then average and apply them

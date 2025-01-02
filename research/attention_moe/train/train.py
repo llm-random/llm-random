@@ -11,20 +11,20 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.modules.module import Module
 
 from lizrd.core import misc
-from lizrd.core.llm import EmbeddingLayer, Parallel
+from ..llm import EmbeddingLayer, Parallel
 from lizrd.support.logging import get_current_logger, get_logger
 from lizrd.support.misc import (
     get_argument_attributes,
     get_n_learnable_parameters,
     set_seed,
 )
-from lizrd.train.train_utils import (
+from ..train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
 from research.attention_moe.utils.check_args import check_args
 from research.attention_moe.utils.misc_tools import get_termination_timestamp_slurm
-from research.datasets import DataloaderWrapper, get_processed_dataset
+from research.attention_moe.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
 from research.attention_moe.utils.trainer import ConditionalTrainer
 from research.attention_moe.utils.argparse import introduce_parser_arguments
@@ -417,6 +417,7 @@ def main(
         repeater_job_end_time=get_termination_timestamp_slurm()
         if args.repeater_mode
         else None,
+        evaluate_attention_relevancy_interval=args.evaluate_attention_relevancy_interval,
     )
     trainer.train(args.n_steps)
 

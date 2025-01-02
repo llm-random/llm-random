@@ -434,5 +434,8 @@ def introduce_parser_arguments(
     parser.add_argument("--diff_transformer_flip_negative_heads", action="store_true")
     parser.add_argument("--diff_transformer_roll_negative_heads", action="store_true")
     parser.add_argument("--diff_transformer_adapter_type", type=str, default="none")
+    parser.add_argument(
+        "--evaluate_attention_relevancy_interval", type=int, default=500
+    )
 
     return parser
