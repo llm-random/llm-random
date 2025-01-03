@@ -1,6 +1,7 @@
 import argparse
 from collections import defaultdict
 from functools import partial
+import json
 import math
 import os
 import random
@@ -292,6 +293,77 @@ def main(
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
 
+    # in case of data parallelism (DDP/FSDP), only gpu:0 should log
+    is_logging_process = True if rank is None or rank == 0 else False
+
+    if args.run_final_eval:
+        suffixes = []
+        if args.final_eval_override:
+            overrides = json.loads(args.final_eval_override)
+            for key, value in overrides.items():
+                setattr(args, key, value)
+                suffixes.append(f"{key}_{value}")
+        final_eval_series_name = "_".join(["final_eval", *suffixes])
+
+        import neptune
+
+        my_step = args.final_eval_step
+        my_tags = ", ".join(args.tags[:3])
+
+        project = neptune.init_project(
+            project="pmtest/llm-random",
+            mode="read-only",
+        )
+        runs_table = project.fetch_runs_table(
+            query='`sys/name`:string CONTAINS "constrained_scaling_grid_21_11"',
+            columns=[
+                "sys/id",
+                "sys/tags",
+                "args/tags",
+                "step",
+                final_eval_series_name,
+                "lr",
+                "job/saved_checkpoint",
+            ],
+        ).to_pandas()
+        runs_table["sys/tags"] = runs_table["sys/tags"].apply(
+            lambda x: x.split(",") if isinstance(x, str) else x
+        )
+        runs_table = runs_table[
+            ~runs_table["sys/tags"].apply(
+                lambda x: "remove_constrained_scaling_laws" in x
+            )
+        ]
+        my_run = runs_table[
+            (runs_table["args/tags"] == my_tags) & (runs_table["step"] == my_step)
+        ]
+        print("my_tags", my_tags)
+        print("my_step", my_step)
+        print(my_run)
+        assert len(my_run) == 1
+        args.load_weights_path = my_run["job/saved_checkpoint"].item()
+        checkpoint_path = None
+        neptune_id = my_run["sys/id"].item()
+        assert my_run["lr"].item() == 0.0
+        args.neptune_id = neptune_id
+        final_eval_value = (
+            my_run[final_eval_series_name].item()
+            if final_eval_series_name in my_run
+            else math.nan
+        )
+        if is_logging_process:
+            if not math.isnan(final_eval_value):
+                if args.force_final_eval:
+                    with neptune.init_run(
+                        project="pmtest/llm-random",
+                        with_id=neptune_id,
+                    ) as neptune_run:
+                        del neptune_run[final_eval_series_name]
+                else:
+                    raise Exception(f"Final eval has already been run for {neptune_id}")
+    else:
+        checkpoint_path = args.load_weights_path
+
     VOCAB_SIZE = (
         tokenizers.BertTokenizer.VOCAB_SIZE
         if args.model_type == "bert"
@@ -320,9 +392,6 @@ def main(
         fsdp_param_precision = None
         fsdp_mixed_precision_ignore_classes = None
         fsdp_modules_to_wrap = None
-
-    # in case of data parallelism (DDP/FSDP), only gpu:0 should log
-    is_logging_process = True if rank is None or rank == 0 else False
 
     activation_checkpointing_modules = get_classes_from_module_names(
         args.activation_checkpointing_modules
@@ -370,64 +439,6 @@ def main(
             }
             for ff_fun in ff_layer_funs
         ]
-
-    if args.run_final_eval:
-        import neptune
-
-        my_step = args.final_eval_step
-        my_tags = ", ".join(args.tags[:3])
-
-        project = neptune.init_project(
-            project="pmtest/llm-random",
-            mode="read-only",
-        )
-        runs_table = project.fetch_runs_table(
-            query='`sys/name`:string CONTAINS "constrained_scaling_grid_21_11"',
-            columns=[
-                "sys/id",
-                "sys/tags",
-                "args/tags",
-                "step",
-                "final_eval",
-                "lr",
-                "job/saved_checkpoint",
-            ],
-        ).to_pandas()
-        runs_table["sys/tags"] = runs_table["sys/tags"].apply(
-            lambda x: x.split(",") if isinstance(x, str) else x
-        )
-        runs_table = runs_table[
-            ~runs_table["sys/tags"].apply(
-                lambda x: "remove_constrained_scaling_laws" in x
-            )
-        ]
-        my_run = runs_table[
-            (runs_table["args/tags"] == my_tags) & (runs_table["step"] == my_step)
-        ]
-        print("my_tags", my_tags)
-        print("my_step", my_step)
-        print(my_run)
-        assert len(my_run) == 1
-        args.load_weights_path = my_run["job/saved_checkpoint"].item()
-        checkpoint_path = None
-        neptune_id = my_run["sys/id"].item()
-        assert my_run["lr"].item() == 0.0
-        args.neptune_id = neptune_id
-        final_eval_value = (
-            my_run["final_eval"].item() if "final_eval" in my_run else math.nan
-        )
-        if is_logging_process:
-            if not math.isnan(final_eval_value):
-                if args.force_final_eval:
-                    with neptune.init_run(
-                        project="pmtest/llm-random",
-                        with_id=neptune_id,
-                    ) as neptune_run:
-                        del neptune_run["final_eval"]
-                else:
-                    raise Exception(f"Final eval has already been run for {neptune_id}")
-    else:
-        checkpoint_path = args.load_weights_path
 
     if not args.checkpoint_manager:
         checkpoint = (
@@ -682,7 +693,7 @@ def main(
         else:
             logger_step = 0
 
-        trainer.final_eval(logger_step)
+        trainer.final_eval(logger_step, final_eval_series_name=final_eval_series_name)
     else:
         trainer.train(args.n_steps)
 

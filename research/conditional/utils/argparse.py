@@ -41,6 +41,12 @@ def introduce_parser_arguments(
         help="Step for which to run final eval.",
     )
     parser.add_argument(
+        "--final_eval_override",
+        type=str,
+        default=None,
+        help="Allows overriding arguments when running final eval.",
+    )
+    parser.add_argument(
         "--neptune_id",
         type=str,
         default=None,

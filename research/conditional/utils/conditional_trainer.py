@@ -174,7 +174,7 @@ class ConditionalTrainer:
         self.model.forward_pass_cache.clear()
         self.layer_manager.manage_learnable_temperature(step)
 
-    def final_eval(self, step):
+    def final_eval(self, step, final_eval_series_name="final_eval"):
         self._before_train_operations()
         assert self.get_final_eval_dataloader is not None
         final_eval_dataloader = self.get_final_eval_dataloader()
@@ -194,7 +194,7 @@ class ConditionalTrainer:
 
         if self.is_logging_process:
             self.logger.report_scalar(
-                title=f"final_eval",
+                title=final_eval_series_name,
                 value=losses_average.item(),
                 iteration=step,
             )
