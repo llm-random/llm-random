@@ -1,11 +1,17 @@
 parent: configs/experiments/log_capacity/common.yaml
-md5_parent_hash: a1cb06c72ae7d89b4a42bce61719bf10
-n_gpus: 1
+md5_parent_hash: 188379a4581d17d6005ee8a729d890f0
+n_gpus: 8
+n_nodes: 1
+time: "0-16:00:00"
 
 params:
-  n_tokens: 10
-  dmodel: 256
-  n_blocks: 4
-  n_att_heads: 4
+  tags: ["log_capacity", "big_v2"]
+  n_tokens: 6
+  dmodel: 1408
+  n_blocks: 21
+  n_att_heads: 11
   expansion_rate: 8
+  ^granularity: [1]
+  ^capacity_factor: [1.0, 1.5, 2.0]
   gradient_accumulation_steps: 4
+  logging_interval_light: 200

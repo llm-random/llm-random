@@ -1,5 +1,5 @@
 parent: configs/experiments/log_capacity/common.yaml
-md5_parent_hash: a1cb06c72ae7d89b4a42bce61719bf10
+md5_parent_hash: 188379a4581d17d6005ee8a729d890f0
 n_gpus: 1
 
 params:

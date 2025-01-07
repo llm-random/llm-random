@@ -31,7 +31,7 @@ params:
   # learning rate
   learning_rate: 0
   use_lr_scaling: true
-  lr_warmup_tokens: 0.13 # 130M
+  lr_warmup_tokens: 0.06 # 130M
   # lr_warmup_steps: 2000 # 130M
   lr_trapezoidal_decay_fraction: 0.2
   lr_trapezoidal_decay_fraction_unit: "tokens"
@@ -40,8 +40,8 @@ params:
   # batch size
   batch_size: 512
   cutoff: 512
-  batch_size_rampup_transition_points: [0.5, 1.0]
-  batch_size_rampup_sizes: [128, 256]
+  # batch_size_rampup_transition_points: [0.5, 1.0]
+  # batch_size_rampup_sizes: [128, 256]
 
   # eval
   final_eval_seed: 420
