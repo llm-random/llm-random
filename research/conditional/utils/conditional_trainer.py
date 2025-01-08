@@ -216,10 +216,6 @@ class ConditionalTrainer:
         n_steps: int,
     ):
         if self.current_step == n_steps and self.n_final_eval_batches > 0:
-            print("Final Eval call --------------------------------------------------------------------------------------------------------------------") #dev
-            print(self.current_step) #dev
-            print(n_steps) #dev
-            print(self.current_step == n_steps) #dev
             del self.train_dataloader
             del self.eval_dataloader
             final_eval_dataloader = self.get_final_eval_dataloader()
@@ -355,8 +351,6 @@ class ConditionalTrainer:
                 batch_sizes=self.batch_size_rampup_config.batch_sizes,
             )
         self.num_processed_tokens = num_processed_tokens
-        print("-----") #dev
-        print(self.current_step) #dev
         processed_batch = self.train_dataloader.get_batch(
             current_batch_size_per_gpu=current_batch_size_per_gpu,
         )

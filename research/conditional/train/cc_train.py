@@ -645,8 +645,6 @@ def main(
     # if rank is not None: #dev ask Kuba rank vs global_rank
     #     barrier()
 
-    trainer.train(args.n_steps)
-
     if global_rank is not None:
         destroy_process_group()
         barrier()
