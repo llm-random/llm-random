@@ -221,7 +221,7 @@ def job_out_of_time_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     batch_size: int,
     cutoff,
@@ -239,7 +239,7 @@ def job_out_of_time_checkpoint(
         optimizer,
         scaler,
         path,
-        rank,
+        global_rank,
         step,
         batch_size,
         cutoff,
@@ -263,7 +263,7 @@ def job_out_of_time_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
-    if rank is not None:
+    if global_rank is not None:
         barrier()
 
 
@@ -274,7 +274,7 @@ def end_training_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     batch_size: int,
     cutoff,
@@ -284,6 +284,7 @@ def end_training_checkpoint(
     total_tokens_accumulator: dict,
     auxiliary_losses_accumulator: dict,
     other_training_states: dict,
+    checkpoint_manager_enabled: bool,
     args_override: Optional[dict] = None,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
@@ -292,7 +293,7 @@ def end_training_checkpoint(
         optimizer,
         scaler,
         path,
-        rank,
+        global_rank,
         step,
         batch_size,
         cutoff,
@@ -305,7 +306,7 @@ def end_training_checkpoint(
         args_override,
     )
     timestamp_now = __get_manager_timestamp()
-    if is_logging_process:
+    if is_logging_process and checkpoint_manager_enabled:
         with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r+") as f:
             manager = yaml.load(f, Loader=yaml.SafeLoader)
             manager = release_checkpoint_manager(
@@ -313,7 +314,7 @@ def end_training_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
-    if rank is not None:
+    if global_rank is not None:
         barrier()
 
 
@@ -324,7 +325,7 @@ def create_slide_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     batch_size: int,
     cutoff,
@@ -342,7 +343,7 @@ def create_slide_checkpoint(
         optimizer,
         scaler,
         path,
-        rank,
+        global_rank,
         step,
         batch_size,
         cutoff,
@@ -368,5 +369,5 @@ def create_slide_checkpoint(
         log_checkpoint_manager(loggers, manager, step)
         for logger in loggers:
             logger.stop_connection()
-    if rank is not None:
+    if global_rank is not None:
         barrier()

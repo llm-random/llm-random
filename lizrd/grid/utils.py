@@ -230,7 +230,10 @@ def check_for_argparse_correctness(grid: list[dict[str, str]]):
             runner = setup_args["runner"]
             argparse_module_name = setup_args.get("argparse", None)
             if argparse_module_name is None:
-                argparse_module_name = runner.split(".")
+                if "/" in runner:
+                    argparse_module_name = runner.split("/")
+                else:
+                    argparse_module_name = runner.split(".")
                 argparse_module_name[-1] = "argparse"
                 argparse_module_name[-2] = "utils"
                 argparse_module_name = ".".join(argparse_module_name)
