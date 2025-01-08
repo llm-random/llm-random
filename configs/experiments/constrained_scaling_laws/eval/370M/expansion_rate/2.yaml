@@ -1,5 +1,5 @@
 parent: configs/experiments/constrained_scaling_laws/eval/370M/model.yaml
-md5_parent_hash: bbcd93e1c8cf495508ee6632b9a90ec6
+md5_parent_hash: 95bf7daa10f434de03f98551bd217edb
 n_gpus: 1
 
 params:
