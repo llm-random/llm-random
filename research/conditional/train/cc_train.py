@@ -644,7 +644,6 @@ def main(
 
     # if rank is not None: #dev ask Kuba rank vs global_rank
     #     barrier()
-        
 
     trainer.train(args.n_steps)
 
