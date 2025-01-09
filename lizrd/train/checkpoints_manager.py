@@ -224,6 +224,7 @@ def job_out_of_time_checkpoint(
     loggers: list[AbstractLogger],
     batch_size: int = 1,
     args_override: Optional[dict] = None,
+    save_sharded=False,
 ):  # TODO params
     """saves the checkpoint"""
     model_path = save_checkpoint(
@@ -237,6 +238,7 @@ def job_out_of_time_checkpoint(
         loggers,
         batch_size=batch_size,
         args_override=args_override,
+        save_sharded=save_sharded,
     )
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
@@ -267,6 +269,7 @@ def end_training_checkpoint(
     loggers: list[AbstractLogger],
     batch_size: int = 1,
     args_override: Optional[dict] = None,
+    save_sharded=False,
 ):
     """creates last checkpoint and end experiment ending whole experiment"""
     model_path = save_checkpoint(
@@ -280,6 +283,7 @@ def end_training_checkpoint(
         loggers,
         batch_size=batch_size,
         args_override=args_override,
+        save_sharded=save_sharded,
     )
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:
@@ -305,6 +309,7 @@ def create_slide_checkpoint(
     loggers: list[AbstractLogger],
     batch_size: int = 1,
     args_override: Optional[dict] = None,
+    save_sharded=False,
 ):
     """saves checkpoint and creates a manager checkpoint continuation"""
     model_path = save_checkpoint(
@@ -318,6 +323,7 @@ def create_slide_checkpoint(
         loggers,
         batch_size,
         args_override,
+        save_sharded=save_sharded,
     )
     timestamp_now = __get_manager_timestamp()
     if is_logging_process:

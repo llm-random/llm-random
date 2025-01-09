@@ -171,7 +171,9 @@ def convert_parameters(args):
             args.scheduler_trapezoidal_slides
         )
         if args.logger_runs_ids:
-            assert len(args.logger_runs_ids) == len(args.scheduler_trapezoidal_slides) + 1
+            assert (
+                len(args.logger_runs_ids) == len(args.scheduler_trapezoidal_slides) + 1
+            )
         new_scheduler_trapezoidal_slides = []
         for slide in args.scheduler_trapezoidal_slides:
             if "n_tokens" in slide:
@@ -416,12 +418,21 @@ def main(
         rank=rank,
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
-        checkpoint=checkpoint,
+        checkpoint=checkpoint if not args.save_sharded else None,
     )
 
-    ignore_model_args:bool = checkpoint_metadata and "ignore_model_args" in checkpoint_metadata and checkpoint_metadata["ignore_model_args"]
+    ignore_model_args: bool = (
+        checkpoint_metadata
+        and "ignore_model_args" in checkpoint_metadata
+        and checkpoint_metadata["ignore_model_args"]
+    )
     if is_logging_process:
-        if checkpoint and "logger" in checkpoint and "run_id" in checkpoint["logger"] and not(ignore_model_args):
+        if (
+            checkpoint
+            and "logger" in checkpoint
+            and "run_id" in checkpoint["logger"]
+            and not (ignore_model_args)
+        ):
             logger_runs_ids = checkpoint["logger"]["run_id"]
         else:
             if args.logger_runs_ids:
@@ -429,11 +440,13 @@ def main(
             elif args.scheduler_trapezoidal_slides:
                 logger_runs_ids = []
                 for _ in range(len(args.scheduler_trapezoidal_slides) + 1):
-                    logger_runs_ids.append(None) #dev TODO in case of ignore_model_args skip loggers overproduction of already passed splits checkpoint["step"] reference
+                    logger_runs_ids.append(
+                        None
+                    )  # dev TODO in case of ignore_model_args skip loggers overproduction of already passed splits checkpoint["step"] reference
             else:
                 logger_runs_ids = None
         logger = get_logger(args, model, VOCAB_SIZE, logger_runs_ids)
-        if checkpoint_path:
+        if checkpoint_path and not args.save_sharded:
             logger.report_text(
                 title=f"job/loaded_checkpoint",
                 value=checkpoint_path,
@@ -443,7 +456,7 @@ def main(
         logger = None
 
     args.args_override = None
-    if checkpoint and checkpoint.get("args_override") and not(ignore_model_args):
+    if checkpoint and checkpoint.get("args_override") and not (ignore_model_args):
         args.args_override = checkpoint["args_override"]
         for key, value in args.args_override.items():
             if hasattr(args, key):
@@ -480,7 +493,12 @@ def main(
     )
 
     if checkpoint is not None:
-        load_optimizer_state(optimizer, checkpoint, model, rank)
+        if args.fsdp_enabled and args.save_sharded:
+            load_sharded_checkpoint(
+                model=model, optimizer=optimizer, checkpoint_path=checkpoint_path
+            )
+        else:
+            load_optimizer_state(optimizer, checkpoint, model, rank)
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
@@ -609,10 +627,11 @@ def main(
         get_final_eval_dataloader=get_final_eval_dataloader,
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
+        save_sharded=args.save_sharded,
     )
     trainer.train(args.n_steps)
 
-    sleep(600) # dev processes naive sync
+    sleep(600)  # dev processes naive sync
 
     if rank is not None:
         destroy_process_group()
@@ -660,4 +679,3 @@ if __name__ == "__main__":
         )
     else:
         main(None, args=args, unique_save_weights_path=save_weights_path)
-
