@@ -11,7 +11,11 @@ import socket
 # import neptune
 import torch
 import torch.multiprocessing as mp
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import (
+    init_process_group,
+    destroy_process_group,
+    broadcast_object_list,
+)
 from ast import literal_eval
 
 from lizrd.core import misc
@@ -63,6 +67,7 @@ from research.conditional.utils.model_utils import (
 from lizrd.train.load_and_save_model import (
     get_checkpoint_from_path,
     load_optimizer_state,
+    load_sharded_checkpoint,
     prepare_save_weights_path,
 )
 
@@ -266,34 +271,51 @@ def convert_lr_scheduler_args(args, rampup_config):
 
 def main(
     rank: Optional[int],
-    data_seeds: Optional[list[int]] = None,
     port: str = "29500",
     unique_save_weights_path: Optional[str] = None,
     args: Optional[argparse.Namespace] = None,
     runner_params: Optional[list] = None,
+    is_using_torchrun: bool = False,
 ):
-    """
-    rank: int - the ID of the current process (usually also the GPU ID). Only relevant for multi-GPU training.
-    """
     if runner_params is not None:
         parser = argparse.ArgumentParser()
         introduce_parser_arguments(parser)
         args, extra = parser.parse_known_args(runner_params)
         if len(extra):
             print("Unknown args:", extra)
-        if args.data_seed < 0:
-            args.data_seed = random.randint(0, 10000000)
+
+    if args.data_seed < 0:
+        args.data_seed = random.randint(0, 10000000)
 
     check_args(args)
 
     batch_size_rampup_config = convert_parameters(args)
 
-    if rank is not None:
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = port
+    data_distributed = args.ddp_enabled or args.fsdp_enabled
 
-        init_process_group("nccl", rank=rank, world_size=args.n_gpus)
-        torch.cuda.set_device(rank)
+    if data_distributed:
+        if is_using_torchrun:
+            local_rank = int(os.environ["LOCAL_RANK"])
+            global_rank = int(os.environ["RANK"])
+            init_process_group("nccl")
+        else:  # single-node multi-gpu without torchrun. We need to setup things manually
+            local_rank = global_rank = rank
+            os.environ["MASTER_ADDR"] = "localhost"
+            os.environ["MASTER_PORT"] = port
+            init_process_group("nccl", rank=global_rank, world_size=args.n_gpus)
+
+        torch.cuda.set_device(local_rank)
+
+        # the code below is to make sure every gpu loads distinct data
+        if global_rank == 0:
+            random.seed(args.data_seed)
+            data_seeds = random.sample(range(0, 10000000), args.n_gpus)
+        else:
+            data_seeds = [None] * args.n_gpus
+        broadcast_object_list(data_seeds, src=0)
+    else:
+        local_rank = global_rank = None
+        data_seeds = None
 
     if args.deterministic_experiment:
         set_seed(args.torch_seed)
@@ -303,7 +325,11 @@ def main(
         if args.model_type == "bert"
         else tokenizers.GPTTokenizer.VOCAB_SIZE
     )
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    DEVICE = (
+        torch.cuda.current_device()
+        if torch.cuda.is_available()
+        else torch.device("cpu")
+    )
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
@@ -328,7 +354,7 @@ def main(
         fsdp_modules_to_wrap = None
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
-    is_logging_process = True if rank is None or rank == 0 else False
+    is_logging_process = True if args.n_gpus <= 1 or global_rank == 0 else False
 
     activation_checkpointing_modules = get_classes_from_module_names(
         args.activation_checkpointing_modules
@@ -400,7 +426,7 @@ def main(
         dm=args.dmodel,
         n_blocks=args.n_blocks,
         device=(
-            DEVICE if rank is None else torch.device("cpu")
+            torch.device("cpu") if data_distributed else DEVICE
         ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
         init_type=args.init_type,
         init_scale=args.init_scale,
@@ -415,7 +441,7 @@ def main(
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
-        rank=rank,
+        local_rank=local_rank,
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint if not args.save_sharded else None,
@@ -497,15 +523,19 @@ def main(
             load_sharded_checkpoint(
                 model=model, optimizer=optimizer, checkpoint_path=checkpoint_path
             )
+            logger.report_text(
+                title=f"job/loaded_checkpoint",
+                value=checkpoint_path,
+                iteration=checkpoint["step"],
+            )
         else:
-            load_optimizer_state(optimizer, checkpoint, model, rank)
+            load_optimizer_state(optimizer, checkpoint, model, global_rank)
 
     scheduler = get_scheduler(args, ratios_in_group_order)
     print(f"Scheduler_ratios: {scheduler.ratios}")
     if not args.checkpoint_manager:
         rescale_params_after_init(args, model)
 
-    data_distributed = args.ddp_enabled or args.fsdp_enabled
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 
     common_dataloaders_kwargs = {
@@ -513,7 +543,7 @@ def main(
         "device": DEVICE,
         "num_workers": args.num_workers,
         "batch_size": batch_size,
-        "seed": args.data_seed if data_seeds is None else data_seeds[rank],
+        "seed": args.data_seed if data_seeds is None else data_seeds[global_rank],
         "model_type": args.model_type,
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
@@ -615,12 +645,12 @@ def main(
         profiler_enabled=args.profiler_enabled,
         profiler_trace_path=args.profiler_trace_path,
         profiler_schedule=profiler_schedule,
-        rank=rank,
+        global_rank=global_rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.checkpoint_manager
-        else None,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.checkpoint_manager else None
+        ),
         scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
         args_override=args.args_override,
         batch_size_rampup_config=batch_size_rampup_config,
@@ -628,12 +658,15 @@ def main(
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
         save_sharded=args.save_sharded,
+        checkpoint_manager_enabled=args.checkpoint_manager,
     )
     trainer.train(args.n_steps)
 
     sleep(600)  # dev processes naive sync
 
-    if rank is not None:
+    trainer.train(args.n_steps)
+
+    if global_rank is not None:
         destroy_process_group()
 
 
@@ -642,40 +675,30 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
     args = parser.parse_args()
-    if args.data_seed < 0:
-        args.data_seed = random.randint(0, 10000000)
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
 
-    # class _FilterCallback(logging.Filterer): #dev - not working
-    #     def filter(self, record: logging.LogRecord):
-    #         return not (
-    #             record.name == "neptune"
-    #             and record.getMessage().startswith(
-    #                 "Error occurred during asynchronous operation processing: X-coordinates (step) must be strictly increasing"
-    #             )
-    #         )
-    # neptune.internal.operation_processors.async_operation_processor.logger.addFilter(
-    #     _FilterCallback()
-    # )
-
-    if args.ddp_enabled or args.fsdp_enabled:
-        random.seed(args.data_seed)
-        data_seeds = [random.randint(0, 10000000) for _ in range(args.n_gpus)]
-
-        # find free port
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    if (
+        os.environ.get("MASTER_PORT") is not None
+    ):  # if this is already set, we are using multinode torchrun setup
+        main(
+            None,
+            args=args,
+            unique_save_weights_path=save_weights_path,
+            is_using_torchrun=True,
+        )
+    elif args.ddp_enabled or args.fsdp_enabled:  # single-node multi-gpu training
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:  # find free port
             s.bind(("", 0))
             port = str(s.getsockname()[1])
         mp.spawn(
             main,
             args=[
-                data_seeds,
                 port,
                 save_weights_path,
                 args,
             ],
             nprocs=args.n_gpus,
         )
-    else:
+    else:  # single-gpu training
         main(None, args=args, unique_save_weights_path=save_weights_path)

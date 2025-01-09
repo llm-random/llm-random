@@ -246,6 +246,7 @@ def introduce_parser_arguments(
 
     # hardware
     parser.add_argument("--n_gpus", type=int, default=1)
+    parser.add_argument("--n_nodes", type=int, default=1)
 
     # Logging parameters
     parser.add_argument("--logger_types", type=str, required=True)

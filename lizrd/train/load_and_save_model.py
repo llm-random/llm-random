@@ -3,7 +3,6 @@ import re
 from typing import Union, Optional
 import os
 
-from neptune import Run
 import torch
 from torch.distributed.fsdp import (
     FullyShardedDataParallel as FSDP,
@@ -34,6 +33,9 @@ def get_latest_checkpoint(dir_path) -> pathlib.Path:
 
 def get_checkpoint_from_path(load_weights_path: str) -> str:
     assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
+
+    # TODO: modify loading to make it work with multinode
+    # as in this example: https://github.com/wz337/pytorch/blob/main/torch/distributed/checkpoint/examples/fsdp_checkpoint_example.py
 
     print(f"Loading checkpoint from {load_weights_path}...")
     if os.path.isdir(load_weights_path):
@@ -117,7 +119,7 @@ def save_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     cutoff,
     loggers: list[AbstractLogger],

@@ -1,5 +1,6 @@
 from ast import literal_eval
 
+
 def check_args(args):
     if args.granularity_expert_config:
         print(

@@ -634,7 +634,9 @@ def get_logger(
             all_config_paths = args.all_config_paths.split(",")
             run["all_configs"].upload_files(all_config_paths)
 
-            initialized_loggers.append(NeptuneLogger(run, args, args.iteration_logging_threshold))
+            initialized_loggers.append(
+                NeptuneLogger(run, args, args.iteration_logging_threshold)
+            )
         elif logger_type == "wandb":
             wandb.init(
                 entity=args.wandb_entity,
