@@ -1,0 +1,12 @@
+parent: configs/experiments/constrained_scaling_laws/7B_total/model.yaml
+md5_parent_hash: a11f1cae8065d202601598ca28ef0e6f
+n_nodes: 1
+n_gpus: 4
+
+params:
+  tags: ["constrained_scaling_grid", "7B_total", "E=8"]
+  expansion_rate: 8
+  gradient_accumulation_steps: 4
+  dmodel: 1792
+  n_blocks: 28
+  n_att_heads: 28

@@ -1,0 +1,13 @@
+parent: configs/experiments/constrained_scaling_laws/190M/model.yaml
+md5_parent_hash: 2d869341e25fbb090df80b68a7091fbf
+n_nodes:  2
+n_gpus: 8
+
+params:
+  tags: ["test_saving_sharded"]
+  expansion_rate: 2
+  gradient_accumulation_steps: 2
+  scheduler_trapezoidal_slides: "[{'n_tokens':0.008}]"
+  n_tokens: 0.01
+  lr_warmup_tokens: 0.002 # 130M
+  save_sharded: true
