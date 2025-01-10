@@ -136,7 +136,7 @@ def save_checkpoint(
             print(f"zeros arguments: {batch_size}, {cutoff}, {torch.int}")
             _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
 
-    is_saving_process = rank == 0 or rank is None
+    is_saving_process = global_rank == 0 or global_rank is None
 
     if is_saving_process:
         neptune_loggers = [
