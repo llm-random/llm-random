@@ -10,6 +10,7 @@ interactive_debug: false
 params:
   name: "muP_MoE_test"
   tags: ["test"]
+  project_name: "pmtest/llm-random-tests"
 
   mup_params:
     alpha_in: 5.0
@@ -25,7 +26,7 @@ params:
 
   # model
   model_type: gpt
-  dmodel: 128
+  dmodel: 64
   dff_ratio: 4
   n_blocks: 2
   n_att_heads: 4
@@ -55,5 +56,4 @@ params:
 
   # logging etc.
   logger_types: "neptune"
-  project_name: "pmtest/llm-random"
   logging_interval_heavy: 5
