@@ -106,7 +106,8 @@ def make_param_groups(args, model):
                 break
         ratio_to_params[ratio].append(param)
     param_grops = [
-        {"params": params, "lr": lr * ratio, "lr_ratio": ratio} for ratio, params in ratio_to_params.items()
+        {"params": params, "lr": lr * ratio, "lr_ratio": ratio}
+        for ratio, params in ratio_to_params.items()
     ]
     return param_grops
 
@@ -460,8 +461,8 @@ def main(
         for name, param in model.named_parameters():
             print(name, param.shape)
 
-    param_grops= make_param_groups(args, model)
-    
+    param_grops = make_param_groups(args, model)
+
     for param_group in param_grops:
         if "lr_ratio" in param_group:
             print(param_group["lr"], param_group["lr_ratio"])
