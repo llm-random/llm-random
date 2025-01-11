@@ -11,28 +11,28 @@ interactive_debug: false
 params:
   name: "muP_MoE_10_step"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "10_step", "kc_version_2", "like_blog", "many_heads"]
+  tags: ["muP_MoE", "muTransfer", "10_step", "kc_version_3", "constant_dhead", "like_mup"]
 
   mup_params:
-    ^alpha_in: [20.0]
-    ^alpha_out: [0.05]
+    ^alpha_in: [1.0]
+    ^alpha_out: [1.0]
     # alpha_in: 5.0
     # alpha_out: 0.2
-    base_dmodel: 128
+    base_dmodel: 256
 
   # training
   n_steps: 10
   lr_warmup_steps: 0
-  batch_size: 64
-  cutoff: 128
+  batch_size: 8
+  cutoff: 1024
 
   # model
   model_type: gpt
   # dmodel: 32
-  ^dmodel: [128, 256, 512, 1024, 2048]
+  ^dmodel: [256, 512, 1024, 2048, 4096]
   dff_ratio: 4
   n_blocks: 2
-  n_att_heads: 16
+  dhead: 64
   attention_mode: 'vanilla'
   attention_normalization: 'dhead'
   ff_mode: vanilla
@@ -42,11 +42,13 @@ params:
   scheduler: constant
   learning_rate: 1e-2
   final_lr_fraction: 0.1
-  grad_clip: 0.5
-  weight_decay: 0.01
-  init_scale: 0.2
+  grad_clip: 1
+  weight_decay: 0.1
+  init_scale: 0.0004
   init_type: truncated_normal
   capacity_factor: 1.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95
 
   # aux losses
   load_balancing_loss_weight: 0.01

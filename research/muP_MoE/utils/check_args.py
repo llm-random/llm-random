@@ -52,3 +52,7 @@ def check_args(args):
     if args.attention_normalization is not None:
         if args.attention_normalization not in ["sqrt", "dhead"]:
             assert is_float(args.attention_normalization)
+
+    assert (args.n_att_heads is not None) or (
+        args.dhead is not None
+    ), "Either n_att_heads or dhead must be specified"

@@ -296,8 +296,11 @@ def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6)):
     for model_width in model_widths:
         df_subset = final_loss_df[final_loss_df["dmodel"] == model_width]
         df_subset = df_subset.sort_values("lr")
-        lrs = df_subset["lr"].to_numpy()
-        losses = df_subset["final_loss"].to_numpy()
+        # take the mean of final loss values for each lr
+        grouped = df_subset.groupby("lr")["final_loss"].mean()
+        lrs = grouped.index.to_numpy()
+        losses = grouped.values
+        print(losses)
         plt.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
 
     plt.xlabel("Learning Rate (lr)")
