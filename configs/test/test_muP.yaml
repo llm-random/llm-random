@@ -29,7 +29,7 @@ params:
   dff_ratio: 4
   n_blocks: 4
   n_att_heads: 4
-  attention_mode: 'muP_attention'
+  attention_mode: 'vanilla'
   ff_mode: vanilla
   use_torch_bmm: true
 
