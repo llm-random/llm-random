@@ -269,11 +269,11 @@ def get_model(
         load_model_weights(model, checkpoint)
 
     if ddp_enabled:
-        model = wrap_in_ddp(module=model, rank=rank)
+        model = wrap_in_ddp(module=model, local_rank=rank)
     elif fsdp_enabled:
         model = wrap_in_fsdp(
             module=model,
-            rank=rank,
+            local_rank=rank,
             param_precision=fsdp_param_precision,
             cast_inputs=True,
             mixed_precision_ignored_classes=fsdp_mixed_precision_ignore_classes,
