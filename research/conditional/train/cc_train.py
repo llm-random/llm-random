@@ -90,26 +90,25 @@ def log_batch(
     print("Logged example batch.")
 
 
-def make_param_groups_and_lr_ratios(args, model):
+def make_param_groups(args, model):
     lr = args.learning_rate
     if args.relative_lr is None:
         return [{"params": model.parameters(), "lr": lr}], [1.0]
 
     relative_lr: dict = args.relative_lr
 
-    lr_to_params = defaultdict(list)
+    ratio_to_params = defaultdict(list)
     for name, param in model.named_parameters():
         ratio = 1.0
         for possible_name in relative_lr.keys():
             if possible_name in name:
                 ratio = relative_lr[possible_name]
                 break
-        lr_to_params[ratio * lr].append(param)
+        ratio_to_params[ratio].append(param)
     param_grops = [
-        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
+        {"params": params, "lr": lr * ratio, "lr_ratio": ratio} for ratio, params in ratio_to_params.items()
     ]
-    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
-    return param_grops, ratios_in_group_order
+    return param_grops
 
 
 def rescale_params_after_init(args, model):
@@ -461,7 +460,11 @@ def main(
         for name, param in model.named_parameters():
             print(name, param.shape)
 
-    param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
+    param_grops= make_param_groups(args, model)
+    
+    for param_group in param_grops:
+        if "lr_ratio" in param_group:
+            print(param_group["lr"], param_group["lr_ratio"])
 
     optimizer = torch.optim.AdamW(
         param_grops,
@@ -473,8 +476,7 @@ def main(
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, rank)
 
-    scheduler = get_scheduler(args, ratios_in_group_order)
-    print(f"Scheduler_ratios: {scheduler.ratios}")
+    scheduler = get_scheduler(args)
     if not args.checkpoint_manager:
         rescale_params_after_init(args, model)
 
