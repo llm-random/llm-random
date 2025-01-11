@@ -118,9 +118,6 @@ def apply_muP_init(args, model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
     if args.load_weights_path is not None:
         return
 
-    # if m_d == 1.0:
-    #     return
-
     key_init_dict = {
         "embedding_layer": 1.0,
         "input_projection": (1 / m_d),
