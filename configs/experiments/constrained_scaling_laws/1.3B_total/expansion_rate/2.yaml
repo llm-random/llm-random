@@ -1,0 +1,14 @@
+parent: configs/experiments/constrained_scaling_laws/1.3B_total/model.yaml
+md5_parent_hash: 2501a723d6195a52d2b90d396a9bb504
+n_gpus: 8
+n_nodes: 2
+
+params:
+  tags: ["constrained_scaling_grid", "1.3B_total", "E=2", "multinode"]
+  expansion_rate: 2
+
+  dmodel: 1408
+  n_blocks: 22
+  n_att_heads: 22
+  scheduler_trapezoidal_slides: "[{'n_tokens':0.778},{'n_tokens':1.557},{'n_tokens':3.114},{'n_tokens':6.228},{'n_tokens':12.456},{'n_tokens':24.912},{'n_tokens':49.824},{'n_tokens':74.736},{'n_tokens':99.648},{'n_tokens':124.559},{'n_tokens':149.471},{'n_tokens':174.383}]"
+  n_tokens: 199.295

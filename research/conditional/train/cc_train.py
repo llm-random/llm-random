@@ -660,7 +660,6 @@ def main(
         save_sharded=args.save_sharded,
         checkpoint_manager_enabled=args.checkpoint_manager,
     )
-    trainer.train(args.n_steps)
 
     sleep(600)  # dev processes naive sync
 
