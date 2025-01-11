@@ -93,7 +93,7 @@ def log_batch(
 def make_param_groups(args, model):
     lr = args.learning_rate
     if args.relative_lr is None:
-        return [{"params": model.parameters(), "lr": lr}], [1.0]
+        return [{"params": model.parameters(), "lr": lr}]
 
     relative_lr: dict = args.relative_lr
 
