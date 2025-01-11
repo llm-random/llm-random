@@ -3,7 +3,7 @@ runner: "research.muP_MoE.train.train"
 time: "05:00:00"
 
 n_gpus: 0
-# cpus_per_gpu: 16
+cuda_visible: ""
 
 interactive_debug: false
 
