@@ -1,0 +1,7 @@
+parent: configs/experiments/constrained_scaling_laws/common.yaml
+md5_parent_hash: 839338c2136f94ad1e69306ecea94832
+n_gpus: 8
+
+params:
+  tags: ["constrained_scaling_grid", "370M_total"]
+

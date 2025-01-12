@@ -1,0 +1,11 @@
+parent: configs/experiments/constrained_scaling_laws/370M_total/model.yaml
+md5_parent_hash: 94ba725e7315aeafe41a517debfb9d7e
+
+params:
+  tags: ["constrained_scaling_grid", "370M_total", "E=2"]
+  n_tokens: 179.22709793254995
+  scheduler_trapezoidal_slides: "[{'n_tokens':0.8001209729131694},{'n_tokens':1.6002419458263388},{'n_tokens':3.2004838916526777},{'n_tokens':6.400967783305355},{'n_tokens':12.80193556661071},{'n_tokens':25.60387113322142},{'n_tokens':51.20774226644284},{'n_tokens':76.81161339966427},{'n_tokens':102.41548453288569},{'n_tokens':128.01935566610712},{'n_tokens':153.62322679932853}]"
+  expansion_rate: 2
+  dmodel: 832
+  n_blocks: 13
+  n_att_heads: 13

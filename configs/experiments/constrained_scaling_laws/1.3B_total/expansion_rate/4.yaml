@@ -3,7 +3,7 @@ md5_parent_hash: 2501a723d6195a52d2b90d396a9bb504
 n_gpus: 4
 
 params:
-  tags: ["constrained_scaling_grid", "1.3B_total", "E=4", "grad_acc"]
+  tags: ["constrained_scaling_grid", "1.3B_total", "E=4"]
   expansion_rate: 4
 
   dmodel: 1152
@@ -11,4 +11,3 @@ params:
   n_att_heads: 18
   scheduler_trapezoidal_slides: "[{'n_tokens':1.294},{'n_tokens':2.588},{'n_tokens':5.175},{'n_tokens':10.350},{'n_tokens':20.700},{'n_tokens':41.400},{'n_tokens':82.800},{'n_tokens':124.200},{'n_tokens':165.600},{'n_tokens':207.000},{'n_tokens':248.400},{'n_tokens':289.800}]"
   n_tokens: 331.201
-  # gradient_accumulation_steps: 4
