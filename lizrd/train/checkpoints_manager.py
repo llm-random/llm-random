@@ -172,7 +172,6 @@ def start_job_manager_assessment(
                     manager_start_checkpoint(job_id, timestamp_now)
                 ]
                 __overwrite_manager(manager, f)
-                # return None, None
                 result = None
                 metadata = None
             else:
