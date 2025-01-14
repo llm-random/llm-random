@@ -133,7 +133,6 @@ def save_checkpoint(
         # in FSDP. God help us.
         model.train()
         with torch.no_grad():
-            print(f"zeros arguments: {batch_size}, {cutoff}, {torch.int}")
             _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
 
     is_saving_process = global_rank == 0 or global_rank is None
