@@ -1,9 +1,10 @@
-parent: configs/experiments/constrained_scaling_laws/1.3B/model.yaml
-md5_parent_hash: acec86b005739ab177754bba59dd9722
-n_gpus: 4
+parent: configs/experiments/constrained_scaling_laws/7B_total/model.yaml
+md5_parent_hash: a11f1cae8065d202601598ca28ef0e6f
+n_nodes: 4
+n_gpus: 16
 
 params:
-  tags: ["constrained_scaling_grid", "1.3B", "E=1"]
+  tags: ["constrained_scaling_grid", "7B", "E=1"]
   expansion_rate: 1
   gradient_accumulation_steps: 1
   scheduler_trapezoidal_slides: "[{'n_tokens':0.5},{'n_tokens':1},{'n_tokens':2},{'n_tokens':4},{'n_tokens':8},{'n_tokens':16},{'n_tokens':32},{'n_tokens':64}]"
