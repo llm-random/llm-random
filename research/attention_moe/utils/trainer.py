@@ -21,10 +21,13 @@ from research.attention_moe.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
+from research.attention_moe.utils.load_and_save_model import (
+    load_scaler_state,
+    save_checkpoint,
+)
 from research.datasets import DataloaderWrapper
 from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
-from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 
 
 @define(slots=False)

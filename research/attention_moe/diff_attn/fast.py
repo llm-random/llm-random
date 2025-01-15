@@ -13,7 +13,7 @@ from flash_attn.layers.rotary import RotaryEmbedding
 try:
     from apex.normalization import FusedRMSNorm as RMSNorm
 except ModuleNotFoundError:
-    print("No fused RMSNorm")
+    # print("No fused RMSNorm")
     from .rms_norm import RMSNorm
 
 
