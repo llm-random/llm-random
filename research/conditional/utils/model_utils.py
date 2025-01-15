@@ -3,6 +3,7 @@ from functools import partial
 # import json
 # from diskcache import Cache
 from typing import Optional, Type, Union, Callable
+from research.projected_distillation.llm import ProjectedAttention, ProjectedFeedForward
 import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
@@ -273,6 +274,17 @@ def get_attention_layer(args):
             dmodel=args.dmodel,
             heads=args.n_att_heads,
             length=args.cutoff,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.attention_mode == "projected_vanilla": #dev
+        attention_layer_fun = lambda: ProjectedAttention(
+            dmodel_old=args.dmodel,
+            projected_dmodel_old=args.projected_dmodel,
+            heads=args.n_att_heads,
             causal=causal,
             dhead=args.dhead,
             flash=args.flash_attention,
@@ -704,6 +716,10 @@ def get_ff_layer(args):
             no_average_attn=args.no_average_attn,
             nystrom=args.nystrom,
             xfavor=args.xfavor,
+        )
+    elif args.ff_mode == "projected_vanilla": #dev
+        return_fn = lambda: ProjectedFeedForward(
+            args.dmodel, args.dff, args.projected_dmodel, args.projected_dff, init_type=args.init_type, init_scale=args.init_scale
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

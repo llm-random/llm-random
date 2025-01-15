@@ -34,6 +34,7 @@ def get_model(
     residual_fn: Callable[[], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
+    projected_distillation: bool = False
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
