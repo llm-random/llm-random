@@ -6,7 +6,6 @@ import random
 from typing import Callable, Optional
 import socket
 
-from research.projected_distillation.utils import freez_projected_params
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import (
@@ -437,9 +436,12 @@ def main(
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
-        projected_distillation = args.projected_distillation
+        projected_checkpoint = get_checkpoint_from_path(args.projected_weights_path) if args.projected_weights_path else None
     )
-
+    # print("1-------------------------------------------------------------------------------------------------------")
+    # for name, param in model.named_parameters(): #dev
+    #     print(f"{name} requires_grad: {param.requires_grad}")
+    # raise
     # model = freez_projected_params(model)
 
     # for name, param in model.named_parameters():

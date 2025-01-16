@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/common.yaml
-md5_parent_hash: 36ade390c68024da6cad59429ce2003b
+md5_parent_hash: 49ce21414901578ae2d5e0bbbe097c10
 time: 0-02:00:00
 n_gpus: 1
 cpus_per_gpu: 16
@@ -16,13 +16,15 @@ params:
   n_steps: 3_200
   # batch_size: 1 #dev
   # cutoff: 1 #dev
-  learning_rate: 0.0005
+  # learning_rate: 0.0005
+  learning_rate: 0.001
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
 
   projected_distillation: True
-  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-12_18-11-22/models_ckpt/1153089/12800.pt
+  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-12_18-11-22/models_ckpt/1153089/12800.pt
+  projected_weights_path: /home/ludziej_a100/ms/def_512.pt
   
   # save_weights_path: /local_storage_1/ms_tmp/models/
   save_weights_path: null

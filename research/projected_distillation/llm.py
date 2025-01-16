@@ -1,14 +1,11 @@
 from collections import OrderedDict
-from typing import Literal, Callable, Optional
-from functools import partial
+from typing import Literal
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from lizrd.core import misc
-from lizrd.core.misc import default, Aggregate
-from lizrd.core.initialization import get_init_weight, ValidInitType
+from lizrd.core.initialization import ValidInitType
 from lizrd.core.misc import Linear, LoggingLayer
 
 
@@ -218,52 +215,61 @@ class ProjectedAttention(LoggingLayer):
         self.flash = flash
 
         self.input_projection = nn.Sequential(
-            Linear(
-                dmodel, # xs
-                projected_dmodel, # xb
-                bias=False,
-                init_type=init_type,
-                init_scale=init_scale,
-            ),
-            Linear(
-                projected_dmodel, # xb
-                3 * heads * projected_dhead, # yb
-                bias=False,
-                init_type=init_type,
-                init_scale=init_scale,
-            ),
-            Linear(
-                3 * heads * projected_dhead, #yb
-                3 * heads * dhead, #ys
-                bias=False,
-                init_type=init_type,
-                init_scale=init_scale,
-            ),
+            OrderedDict([
+                ("input_projection_p11",
+                Linear(
+                    dmodel, # xs
+                    projected_dmodel, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("input_projection",
+                Linear(
+                    projected_dmodel, # xb
+                    3 * heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("input_projection_p12",
+                Linear(
+                    3 * heads * projected_dhead, #yb
+                    3 * heads * dhead, #ys
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+            ])
         )
             
         self.output_projection = nn.Sequential(
-            Linear(
-                heads * dhead, # xs
-                heads * projected_dhead, # xb
-                bias=False,
-                init_type=init_type,
-                init_scale=init_scale,
-            ),
-            Linear(
-                heads * projected_dhead, # xb
-                projected_dmodel, # yb
-                bias=False,
-                init_type=init_type,
-                init_scale=init_scale,
-            ),
-            Linear(
-                projected_dmodel, # yb
-                dmodel, # ys
-                bias=False,
-                init_type=init_type,
-                init_scale=init_scale,
-            ),
-            
+            OrderedDict([
+                ("output_projection_p21",
+                Linear(
+                    heads * dhead, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    heads * projected_dhead, # xb
+                    projected_dmodel, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection_p22",
+                Linear(
+                    projected_dmodel, # yb
+                    dmodel, # ys
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+            ])
         )
 
         self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
