@@ -292,6 +292,19 @@ class Attention(LoggingLayer):
 
     def forward(self, x):
         projected = self.input_projection(x)
+        print("x.shape ------------------------------------------------------------")
+        print(x.shape)# dev
+        projected = self.input_projection(x)
+        print("projected.shape ------------------------------------------------------------")
+        print(projected.shape)# dev
+        raise
+        
+        """ #dev
+            x.shape ------------------------------------------------------------
+            torch.Size([256, 256, 256])
+            projected.shape ------------------------------------------------------------
+            torch.Size([256, 256, 768])
+        """
 
         batch, seq_len = x.shape[:-1]
         projected = projected.view(

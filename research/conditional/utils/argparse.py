@@ -517,4 +517,9 @@ def introduce_parser_arguments(
         "--moe_detach_gate", action="store_true", help="Detach gate in MoE routing"
     )
 
+    parser.add_argument("--projected_weights_path", type=str, default=None)
+    parser.add_argument("--projected_dmodel", type=int, required=False)
+    parser.add_argument("--projected_dff", type=int, required=False)
+    parser.add_argument("--projected_distillation", action="store_true")
+
     return parser

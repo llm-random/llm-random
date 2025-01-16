@@ -118,6 +118,7 @@ def get_model_configuration_for_active_param_calculation(args):
         "cont_moe_common_weighted_parameters" "cont_moe_separate_weighted_parameters",
         "cont_moe_legacy",
         "kernelized_fc",
+        "projected_vanilla",
     ]:
         return None
     else:

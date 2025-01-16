@@ -213,7 +213,7 @@ class ProjectedAttention(LoggingLayer):
             dhead = dmodel // heads
 
         self.heads = heads
-        self.dhead = projected_dhead
+        self.dhead = dhead
         self.causal = causal
         self.flash = flash
 
