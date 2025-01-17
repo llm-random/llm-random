@@ -1,0 +1,9 @@
+parent: configs/experiments/constrained_scaling_laws/eval/common.yaml
+md5_parent_hash: 75a2a2006b7473a4bfb868e59a35c66f
+
+params:
+  tags: ["constrained_scaling_grid", "630M"]
+
+  dmodel: 1408
+  n_blocks: 21
+  n_att_heads: 11
