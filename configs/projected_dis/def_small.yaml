@@ -9,6 +9,10 @@ params:
   name: "PD"
   tags: ["projected_dis", "small"]
 
+  # ^dmodel: [256, 256]
   dmodel: 256
   dff: 1024
   n_steps: 3_200
+
+  # ^fsdp_enabled: [true, false]
+  # fsdp_enabled: true

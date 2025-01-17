@@ -7,17 +7,17 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "small", "distillation", "dev"]
+  tags: ["projected_dis", "small", "distillation", "long", "freeze"]
 
   dmodel: 256
   dff: 1024
   projected_dmodel: 512
   projected_dff: 2048
-  n_steps: 3_200
-  # batch_size: 1 #dev
-  # cutoff: 1 #dev
-  # learning_rate: 0.0005
-  learning_rate: 0.001
+  # ^n_steps: [3_200, 6_400]
+  n_steps: 12_800
+
+  # ^learning_rate: [0.001, 0.0005, 0.00025, 0.000125]
+  learning_rate: 0.0005
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
