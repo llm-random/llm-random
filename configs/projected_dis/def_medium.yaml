@@ -1,7 +1,7 @@
 
 parent: configs/projected_dis/common.yaml
 md5_parent_hash: 49ce21414901578ae2d5e0bbbe097c10
-time: 0-05:00:00
+time: 0-02:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
@@ -14,7 +14,9 @@ params:
   dff: 2048
   n_steps: 12_800
 
-  save_weights_path: /local_storage_1/ms_tmp/models/
+  # save_weights_path: /local_storage_1/ms_tmp/models/
 
-  # ^fsdp_enabled: [true, false]
+  # fsdp_enabled: false
+
   # fsdp_enabled: true
+  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
