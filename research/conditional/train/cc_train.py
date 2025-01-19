@@ -436,7 +436,9 @@ def main(
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
-        projected_checkpoint = get_checkpoint_from_path(args.projected_weights_path) if args.projected_weights_path else None
+        projected_checkpoint = get_checkpoint_from_path(args.projected_weights_path) if args.projected_weights_path else None,
+        projected_dmodel = args.projected_dmodel,
+        projection_init_type = args.projection_init_type
     )
     # print("1-------------------------------------------------------------------------------------------------------")
     # for name, param in model.named_parameters(): #dev

@@ -1,13 +1,13 @@
 
 parent: configs/projected_dis/common.yaml
-md5_parent_hash: 49ce21414901578ae2d5e0bbbe097c10
+md5_parent_hash: 426d38a67881ad9b9276b25286a1ce31
 time: 0-02:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "small", "distillation", "long", "freeze"]
+  tags: ["projected_dis", "small", "distillation", "long", "dev_head", "dev_layer_norm"]
 
   dmodel: 256
   dff: 1024
@@ -21,10 +21,11 @@ params:
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
+  residual_mode: pre_norm_no_bias
 
   projected_distillation: True
-  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-12_18-11-22/models_ckpt/1153089/12800.pt
-  projected_weights_path: /home/ludziej_a100/ms/def_512.pt
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-12_18-11-22/models_ckpt/1153089/12800.pt # all layer_norm
+  # projected_weights_path: /home/ludziej_a100/ms/def_512.pt # all layer_norm
   
   # save_weights_path: /local_storage_1/ms_tmp/models/
   save_weights_path: null

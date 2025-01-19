@@ -69,3 +69,7 @@ def check_args(args):
         assert args.lr_warmup_tokens is not None
     else:
         assert args.lr_warmup_tokens is None
+
+    if args.projected_weights_path or args.projected_dmodel or args.projected_dff:
+        assert args.projected_weights_path and args.projected_dmodel and args.projected_dff
+        assert 0 == args.projected_dff % args.projected_dmodel

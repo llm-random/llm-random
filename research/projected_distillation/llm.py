@@ -6,8 +6,92 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core.initialization import ValidInitType
+from lizrd.core.llm import Residual
 from lizrd.core.misc import Linear, LoggingLayer
+from lizrd.core.initialization import get_init_weight, ValidInitType
 
+
+def ProjectedTokenEmbedding(
+    vocab_size,
+    embedding_dim,
+    projected_embedding_dim,
+    init_type: ValidInitType,
+    init_scale: float,
+):
+    weight = get_init_weight(
+        shape=(vocab_size, projected_embedding_dim),
+        fan_in=1,  # fan_in=1 is also default in pytorch
+        init_type=init_type,
+        scale=init_scale,
+    )
+
+    return nn.Sequential(
+        OrderedDict([
+                (
+                    "embedding",
+                    nn.Embedding(vocab_size, projected_embedding_dim, _weight=weight)
+                ),
+                (
+                    "embedding_p",
+                    Linear(
+                        projected_embedding_dim, #yb
+                        embedding_dim, #ys
+                        bias=False,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                )
+            ])
+    )
+
+    return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
+
+
+class ProjectedPositionalEmbedding(nn.Module):
+    def __init__(
+        self,
+        max_length,
+        embedding_dim,
+        projected_embedding_dim,
+        init_type: ValidInitType,
+        init_scale: float,
+    ):
+        super(ProjectedPositionalEmbedding, self).__init__()
+        self.layer = nn.Embedding(max_length, projected_embedding_dim)
+        default_weight = self.layer.weight.data
+        self.layer.weight.data = get_init_weight(
+            shape=default_weight.shape,
+            fan_in=1,
+            init_type=init_type,
+            scale=init_scale,
+            dtype=default_weight.dtype,
+        )
+
+        self.projected_layer = nn.Sequential(
+            OrderedDict([
+                    (
+                        "pe_layer",
+                        self.layer,
+                    ),
+                    (
+                        "pe_layer_p",
+                        Linear(
+                            projected_embedding_dim, #yb
+                            embedding_dim, #ys
+                            bias=False,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    )
+                ])
+        )
+        # TODO(jaszczur): add initialization as positional encoding
+
+    def forward(self, x):
+        positions = torch.arange(0, x.shape[-1], device=x.device)
+        positions = positions * torch.ones_like(x)
+        embeddings = self.projected_layer(positions)
+        return embeddings
 
 def decode_bias_string(bias):
     assert bias in ["both", "first", "second", "none"]
@@ -31,7 +115,7 @@ def ProjectedFeedForward( #dev
     projected_dff,
     init_type: ValidInitType,
     init_scale: float,
-    bias: Literal["both", "first", "second", "none"] = "both",
+    bias: Literal["both", "first", "second", "none"] = "none",
 ):
     """
     P1 = torch.rand(xs, xb)
@@ -53,7 +137,6 @@ def ProjectedFeedForward( #dev
     return nn.Sequential(
         OrderedDict(
             [
-
                 (
                     "logging_ff_pre_relu_p11",
                     Linear(
@@ -290,3 +373,16 @@ class ProjectedAttention(LoggingLayer):
         output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
 
         return output
+    
+
+def PreNormNoBiasBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
+    return Residual(
+        nn.Sequential(
+            OrderedDict(
+                [
+                    ("pre_norm", norm_class(dmodel, bias=False)),
+                    (f"{name}", layer),
+                ]
+            )
+        )
+    )

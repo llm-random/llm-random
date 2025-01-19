@@ -3,7 +3,7 @@ from functools import partial
 # import json
 # from diskcache import Cache
 from typing import Optional, Type, Union, Callable
-from research.projected_distillation.llm import ProjectedAttention, ProjectedFeedForward
+from research.projected_distillation.llm import PreNormNoBiasBlock, ProjectedAttention, ProjectedFeedForward
 import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
@@ -312,6 +312,8 @@ def get_residual_layer(args):
     norm_class = get_norm_class(args.norm_class)
     if args.residual_mode == "pre_norm":
         return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
+    if args.residual_mode == "pre_norm_no_bias":
+        return partial(PreNormNoBiasBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "parallel_pre_norm":
         return partial(
             llm.ParallelPreNormBlock, dmodel=args.dmodel, norm_class=norm_class
