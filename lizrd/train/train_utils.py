@@ -85,11 +85,10 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    head = llm.PredictionHead(
-        projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
-    ).to(last_gpu)
-
-    if include_positional_embedding:
+    if projected_checkpoint:
+        head = llm.PredictionHead(
+            projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
+        ).to(last_gpu)
         head = torch.nn.Sequential(
             OrderedDict([
                 (
@@ -108,6 +107,10 @@ def get_model(
                 )
             ])
         )
+    else:
+        head = llm.PredictionHead(
+            dm, vocab_size, init_type=init_type, init_scale=init_scale
+        ).to(last_gpu)
         
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
