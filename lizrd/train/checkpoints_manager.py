@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional, Union
 
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed import barrier
 from lizrd.train.load_and_save_model import save_checkpoint
 
 from lizrd.support.logging import AbstractLogger
@@ -152,8 +153,8 @@ def __get_manager_timestamp():
 
 
 def start_job_manager_assessment(
-    job_id: str, is_logging_process
-) -> tuple[Optional[str], Optional[str | dict]]:
+    job_id: str, is_logging_process, global_rank
+) -> tuple[Optional[str], Optional[Union[str, dict]]]:
     """Options:
     - returns `None`, `None` to start a new training
     - returns `filepath`, `metadata` to continue training
@@ -172,44 +173,45 @@ def start_job_manager_assessment(
                     manager_start_checkpoint(job_id, timestamp_now)
                 ]
                 __overwrite_manager(manager, f)
-                return None, None
+                result = None
+                metadata = None
+            else:
+                result = -1
+                for i, element in enumerate(manager[CHECKPOINTS_TAG]):
+                    if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
+                        result = element[MODEL_CHECKPOINT]
+                        metadata = element[CHECKPOINT_METADATA_TAG]
+                        manager[CHECKPOINTS_TAG][i] = run_manager_checkpoint(
+                            job_id, timestamp_now, manager[CHECKPOINTS_TAG][i]
+                        )
+                        __overwrite_manager(manager, f)
+                        break
+        if global_rank is not None:
+            barrier()
+        if result == -1:
+            raise Exception("No available training to do")
+        else:
+            return result, metadata
+    if global_rank is not None:
+        barrier()
+    try:
+        with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
+            manager = yaml.load(f, Loader=yaml.SafeLoader)
             result = -1
             for i, element in enumerate(manager[CHECKPOINTS_TAG]):
-                if element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_PENDING:
+                if (
+                    element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_RUNNING
+                    and element[CHECKPOINT_RUNNING_JOB_ID] == job_id
+                ):
                     result = element[MODEL_CHECKPOINT]
                     metadata = element[CHECKPOINT_METADATA_TAG]
-                    manager[CHECKPOINTS_TAG][i] = run_manager_checkpoint(
-                        job_id, timestamp_now, manager[CHECKPOINTS_TAG][i]
-                    )
-                    __overwrite_manager(manager, f)
                     break
         if result == -1:
             raise Exception("No available training to do")
         else:
             return result, metadata
-    else:
-        sleep(60)  # TODO: implement proper file locking
-        for i in range(100):
-            sleep(3)
-            try:
-                with Locker(EXPERIMENT_CHECKPOINT_MANAGER, "r") as f:
-                    manager = yaml.load(f, Loader=yaml.SafeLoader)
-                    result = -1
-                    for i, element in enumerate(manager[CHECKPOINTS_TAG]):
-                        if (
-                            element[CHECKPOINT_STATUS] == CHECKPOINT_STATUS_RUNNING
-                            and element[CHECKPOINT_RUNNING_JOB_ID] == job_id
-                        ):
-                            result = element[MODEL_CHECKPOINT]
-                            metadata = element[CHECKPOINT_METADATA_TAG]
-                            break
-                if result == -1:
-                    raise Exception("No available training to do")
-                else:
-                    return result, metadata
-            except Exception as e:
-                if i >= 99:
-                    raise e
+    except Exception as e:
+        raise e
 
 
 def job_out_of_time_checkpoint(
@@ -253,8 +255,8 @@ def job_out_of_time_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
-    else:
-        sleep(10)
+    if global_rank is not None:
+        barrier()
 
 
 def end_training_checkpoint(
@@ -296,6 +298,8 @@ def end_training_checkpoint(
             )
             __overwrite_manager(manager, f)
         log_checkpoint_manager(loggers, manager, step)
+    if global_rank is not None:
+        barrier()
 
 
 def create_slide_checkpoint(
@@ -341,3 +345,5 @@ def create_slide_checkpoint(
         log_checkpoint_manager(loggers, manager, step)
         for logger in loggers:
             logger.stop_connection()
+    if global_rank is not None:
+        barrier()

@@ -15,6 +15,7 @@ from torch.distributed import (
     init_process_group,
     destroy_process_group,
     broadcast_object_list,
+    barrier,
 )
 from ast import literal_eval
 
@@ -413,11 +414,13 @@ def main(
         )
     else:
         checkpoint_path, checkpoint_metadata = start_job_manager_assessment(
-            get_slurm_job_id(), is_logging_process
+            get_slurm_job_id(), is_logging_process, global_rank=global_rank
         )
         checkpoint = (
             get_checkpoint_from_path(checkpoint_path) if checkpoint_path else None
         )
+    if global_rank is not None:
+        barrier()
 
     model = get_model(
         max_length=args.cutoff,

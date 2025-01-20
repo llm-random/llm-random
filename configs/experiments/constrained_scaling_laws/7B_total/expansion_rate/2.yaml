@@ -11,6 +11,12 @@ params:
   n_blocks: 42
   n_att_heads: 42
   activation_checkpointing_modules: Null
-  scheduler_trapezoidal_slides: "[{'n_tokens':0.8276727787052613},{'n_tokens':1.6553455574105227},{'n_tokens':3.3106911148210454},{'n_tokens':6.621382229642091},{'n_tokens':13.242764459284182},{'n_tokens':26.485528918568363},{'n_tokens':52.971057837136726},{'n_tokens':105.94211567427345}]"
-  n_tokens: 211.8842313485469
+  # scheduler_trapezoidal_slides: "[{'n_tokens':0.8276727787052613},{'n_tokens':1.6553455574105227},{'n_tokens':3.3106911148210454},{'n_tokens':6.621382229642091},{'n_tokens':13.242764459284182},{'n_tokens':26.485528918568363},{'n_tokens':52.971057837136726},{'n_tokens':105.94211567427345}]"
+  # n_tokens: 211.8842313485469
+  scheduler_trapezoidal_slides: "[{'n_tokens':0.002},{'n_tokens':0.004}]"
+  n_tokens: 0.006
+  batch_size_rampup_transition_points: Null
+  batch_size_rampup_sizes: Null
+  save_sharded: True
+  dataset_type: c4
   # [{'n_tokens':0.8276727787052613},{'n_tokens':1.6553455574105227},{'n_tokens':3.3106911148210454},{'n_tokens':6.621382229642091},{'n_tokens':13.242764459284182},{'n_tokens':26.485528918568363},{'n_tokens':52.971057837136726},{'n_tokens':79.45658675570509},{'n_tokens':105.94211567427345},{'n_tokens':132.42764459284183},{'n_tokens':158.91317351141018},{'n_tokens':185.39870242997853},{'n_tokens':211.8842313485469}]
