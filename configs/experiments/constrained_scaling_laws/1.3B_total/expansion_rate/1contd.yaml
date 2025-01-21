@@ -1,0 +1,11 @@
+parent: configs/experiments/constrained_scaling_laws/1.3B/model.yaml
+md5_parent_hash: acec86b005739ab177754bba59dd9722
+n_gpus: 4
+
+params:
+  tags: ["constrained_scaling_grid", "1.3B", "E=1", "continued"]
+  expansion_rate: 1
+  gradient_accumulation_steps: 4
+  load_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgj321m/llm_random_cemetery/constrained_scaling_grid_21_11_2024-12-18_18-59-03/constrained_scaling_laws_grid/58494/32042.pt
+  scheduler_trapezoidal_slides: "[{'n_tokens':10.0},{'n_tokens':12.0}]"
+  n_tokens: 14.0
