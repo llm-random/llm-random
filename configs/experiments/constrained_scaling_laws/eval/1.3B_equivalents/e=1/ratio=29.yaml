@@ -1,0 +1,13 @@
+parent: configs/experiments/constrained_scaling_laws/eval/1.3B_equivalents/model.yaml
+md5_parent_hash: 931ca54d5a82ce230656d053dbe3afc0
+n_gpus: 4
+
+params:
+  tags: ["constrained_scaling_grid", "1.3B_equiv_longer", "E=1"]
+  expansion_rate: 1
+  
+  dmodel: 1280
+  n_att_heads: 20
+  n_blocks: 20
+
+  ^final_eval_step: [68664, 38146]

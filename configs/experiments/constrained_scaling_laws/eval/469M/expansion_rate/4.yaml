@@ -5,5 +5,7 @@ n_gpus: 4 # works for athena
 params:
   tags: ["constrained_scaling_grid", "469MM", "E=4"]
   expansion_rate: 4
-  # gradient_accumulation_steps: 4
+
   force_final_eval: true
+  ^final_eval_step: [7629]
+  final_eval_dataloader_batch_size: 16

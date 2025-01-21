@@ -1,0 +1,11 @@
+parent: configs/experiments/constrained_scaling_laws/eval/370M_total/model.yaml
+md5_parent_hash: dc6d72ee55ca6b79d62d5b8b30645ba0
+
+params:
+  tags: ["constrained_scaling_grid", "370M_total", "E=4"]
+  ^final_eval_step: [699341, 560999, 422656, 284314, 145971, 76800, 42214, 24922, 16275, 11952]
+  expansion_rate: 4
+
+  dmodel: 704
+  n_blocks: 11
+  n_att_heads: 11

@@ -1,0 +1,11 @@
+parent: configs/experiments/constrained_scaling_laws/1.3B/model.yaml
+md5_parent_hash: 2501a723d6195a52d2b90d396a9bb504
+n_gpus: 4
+
+params:
+  tags: ["constrained_scaling_grid", "1.3B_total", "E=8"]
+  expansion_rate: 8
+
+  dmodel: 896
+  n_blocks: 14
+  n_att_heads: 14
