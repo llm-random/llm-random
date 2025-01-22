@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from typing import Callable, Optional, Union, Type
 
+from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
 from research.projected_distillation.llm import ProjectedPositionalEmbedding, ProjectedTokenEmbedding
 from research.projected_distillation.load_and_save_model import load_projected_weights
@@ -119,12 +120,25 @@ def get_model(
         load_model_weights(model, checkpoint)
 
     if projected_checkpoint is not None:
-        load_projected_weights(model, projected_checkpoint["model"])
-        initialize_projections(model, dm, projected_dmodel, projection_init_type)
+        if not projection_init_type:
+            projection = None
+            print("No projection initialization")
+        elif projection_init_type == "random":
+            print("Random projection initialization")
+            projection = get_init_weight(
+                shape=(projected_dmodel, dm),
+                fan_in=1,  # fan_in=1 is also default in pytorch
+                init_type=init_type,
+                scale=init_scale,
+            )
+        else:
+            raise Exception("Wrong projection init type")
+        load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, device)
+        initialize_projections(model, dm, projected_dmodel, projection) #dev
         freeze_projected_params(model)
         
     for name, param in model.named_parameters(): #dev
-        print(f"{name}, shape: {param.shape} requires_grad: {param.requires_grad}")
+        print(f"{name}, shape: {param.shape} requires_grad: {param.requires_grad}, {param.device}")
         
     if ddp_enabled:
         model = wrap_in_ddp(module=model, local_rank=local_rank)
