@@ -7,7 +7,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "small", "distillation", "dev_init_projection"] #, "dev_init", "init_scale/projected_dmodel"], "no_ln_bias"
+  tags: ["projected_dis", "small", "all_distillation", "imp", "all", "dev_init", "grid_init_def_head"] #, "dev_init", "init_scale/projected_dmodel"], "no_ln_bias"
 
   dmodel: 256
   dff: 1024
@@ -24,8 +24,17 @@ params:
   ff_mode: projected_vanilla
   # residual_mode: pre_norm
   residual_mode: pre_norm_no_bias
-  projection_init_type: random
-  # projection_init_type: null
+  # ^residual_mode: [pre_norm_no_bias, pre_norm]
+  
+  projection_init_type: null
+  # projection_init_type: random
+  # projection_init_type: sum1d
+  # projection_init_type: half
+  # projection_init_type: orthagonal
+  # projection_init_type: col1
+  # projection_init_type: asd
+  # ^projection_init_type: [orthagonal, col1]
+  # ^projection_init_type: [null, random, sum1d, half, orthagonal, col1]
 
   projected_distillation: True
   # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-12_18-11-22/models_ckpt/1153089/12800.pt # all layer_norm

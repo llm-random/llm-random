@@ -23,7 +23,7 @@ CAST_PROJECTED_PARAMS_NAME_PARTS = [
 ]
 
 LAYER_NORM_COPY = [
-    # ".block.residual_feedforward.layer.pre_norm."
+    ".block.residual_feedforward.layer.pre_norm."
 ]
 
 
@@ -48,6 +48,8 @@ def load_projected_weights(model:torch.nn.Module, projected_weights, projection:
                     init_type="truncated_normal",
                     scale=init_scale,
                 ).to(prj_params.device)
+            else:
+                local_p = projection.to(prj_params.device)
             # print(prj_params.shape) #dev
             # print(prj_params.device) #dev
             # print(local_p.shape) #dev

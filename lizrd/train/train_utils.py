@@ -86,33 +86,36 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    if projected_checkpoint:
-        head = llm.PredictionHead(
-            projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
-        ).to(last_gpu)
-        head = torch.nn.Sequential(
-            OrderedDict([
-                (
-                    "head_p",
-                    Linear(
-                        dm, #xs
-                        projected_dmodel, #xb
-                        bias=False,
-                        init_type=init_type,
-                        init_scale=init_scale,
-                    ).to(last_gpu),
-                ),
-                (
-                    "head",
-                    head,
-                )
-            ])
-        )
-    else:
-        head = llm.PredictionHead(
+    # if projected_checkpoint:
+    #     head = llm.PredictionHead(
+    #         projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
+    #     ).to(last_gpu)
+    #     head = torch.nn.Sequential(
+    #         OrderedDict([
+    #             (
+    #                 "head_p",
+    #                 Linear(
+    #                     dm, #xs
+    #                     projected_dmodel, #xb
+    #                     bias=False,
+    #                     init_type=init_type,
+    #                     init_scale=init_scale,
+    #                 ).to(last_gpu),
+    #             ),
+    #             (
+    #                 "head",
+    #                 head,
+    #             )
+    #         ])
+    #     )
+    # else:
+    #     head = llm.PredictionHead(
+    #         dm, vocab_size, init_type=init_type, init_scale=init_scale
+    #     ).to(last_gpu)
+    
+    head = llm.PredictionHead(
             dm, vocab_size, init_type=init_type, init_scale=init_scale
         ).to(last_gpu)
-        
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
@@ -124,13 +127,35 @@ def get_model(
             projection = None
             print("No projection initialization")
         elif projection_init_type == "random":
-            print("Random projection initialization")
+            print("Projection initialization: random")
             projection = get_init_weight(
                 shape=(projected_dmodel, dm),
                 fan_in=1,  # fan_in=1 is also default in pytorch
                 init_type=init_type,
-                scale=init_scale,
+                scale=init_scale/dm,
             )
+        elif projection_init_type == "sum1d":
+            print("Projection initialization: sum1d")
+            assert projected_dmodel/2 == dm
+            projection = torch.zeros(projected_dmodel, projected_dmodel)
+            mask = torch.eye(projected_dmodel).bool()
+            projection = projection.masked_fill(mask, 0.25)
+            projection = projection[:, ::2] + projection[:, 1::2]
+        elif projection_init_type == "half":
+            print("Projection initialization: half")
+            assert projected_dmodel/2 == dm
+            projection = torch.zeros(projected_dmodel, projected_dmodel)
+            mask = torch.eye(projected_dmodel).bool()
+            projection = projection.masked_fill(mask, 1)
+            projection = projection[:, :int(projected_dmodel/2)]
+        elif projection_init_type == "orthagonal":
+            print("Projection initialization: orthagonal")
+            projection = torch.empty(projected_dmodel, dm)
+            projection = torch.nn.init.orthogonal_(projection)
+        elif projection_init_type == "col1":
+            print("Projection initialization: col1")
+            projection = torch.rand(projected_dmodel, dm)
+            projection = projection / projection.sum(dim=0, keepdim=True)
         else:
             raise Exception("Wrong projection init type")
         load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, device)
