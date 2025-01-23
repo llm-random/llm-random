@@ -1,0 +1,14 @@
+parent: configs/experiments/constrained_scaling_laws/3B_total/model.yaml
+md5_parent_hash: 1359f8badabd902d22bc4420b70cd474
+
+
+params:
+  tags: ["constrained_scaling_grid", "3B_total", "E=4"]
+  expansion_rate: 1
+  dmodel: 2432
+  n_blocks: 38
+  n_att_heads: 38
+
+  scheduler_trapezoidal_slides: "[{'n_tokens':15.831371520},{'n_tokens':23.74705728},{'n_tokens':31.66274304}]"
+  n_tokens: 39.5784288
+  num_workers: 2

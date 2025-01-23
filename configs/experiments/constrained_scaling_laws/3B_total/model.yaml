@@ -1,0 +1,9 @@
+parent: configs/experiments/constrained_scaling_laws/common.yaml
+md5_parent_hash: 839338c2136f94ad1e69306ecea94832
+n_gpus: 16
+n_nodes: 4
+
+params:
+  tags: ["constrained_scaling_grid", "3B_total"]
+  activation_checkpointing_modules: Null
+  gradient_accumulation_steps: 4
