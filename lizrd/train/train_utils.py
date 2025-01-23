@@ -5,7 +5,7 @@ from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
 from research.projected_distillation.llm import ProjectedPositionalEmbedding, ProjectedTokenEmbedding
 from research.projected_distillation.load_and_save_model import load_projected_weights
-from research.projected_distillation.utils import freeze_projected_params, initialize_projections
+from research.projected_distillation.utils import freeze_ln_params, freeze_projected_params, initialize_projections
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
@@ -42,7 +42,9 @@ def get_model(
     checkpoint: dict[str, torch.Tensor] = None,
     projected_checkpoint: dict[str, torch.Tensor] = None,
     projected_dmodel:int = None,
-    projection_init_type:str = None
+    projection_init_type:str = None,
+    no_projected_head:bool = False,
+    no_layer_norm:bool = False
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -86,36 +88,33 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    # if projected_checkpoint:
-    #     head = llm.PredictionHead(
-    #         projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
-    #     ).to(last_gpu)
-    #     head = torch.nn.Sequential(
-    #         OrderedDict([
-    #             (
-    #                 "head_p",
-    #                 Linear(
-    #                     dm, #xs
-    #                     projected_dmodel, #xb
-    #                     bias=False,
-    #                     init_type=init_type,
-    #                     init_scale=init_scale,
-    #                 ).to(last_gpu),
-    #             ),
-    #             (
-    #                 "head",
-    #                 head,
-    #             )
-    #         ])
-    #     )
-    # else:
-    #     head = llm.PredictionHead(
-    #         dm, vocab_size, init_type=init_type, init_scale=init_scale
-    #     ).to(last_gpu)
-    
-    head = llm.PredictionHead(
+    if projected_checkpoint and not no_projected_head:
+        head = llm.PredictionHead(
+            projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
+        ).to(last_gpu)
+        head = torch.nn.Sequential(
+            OrderedDict([
+                (
+                    "head_p",
+                    Linear(
+                        dm, #xs
+                        projected_dmodel, #xb
+                        bias=False,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ).to(last_gpu),
+                ),
+                (
+                    "head",
+                    head,
+                )
+            ])
+        )
+    else:
+        head = llm.PredictionHead(
             dm, vocab_size, init_type=init_type, init_scale=init_scale
         ).to(last_gpu)
+
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
@@ -161,6 +160,9 @@ def get_model(
         load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, device)
         initialize_projections(model, dm, projected_dmodel, projection) #dev
         freeze_projected_params(model)
+
+    if no_layer_norm:
+        freeze_ln_params(model)
         
     for name, param in model.named_parameters(): #dev
         print(f"{name}, shape: {param.shape} requires_grad: {param.requires_grad}, {param.device}")

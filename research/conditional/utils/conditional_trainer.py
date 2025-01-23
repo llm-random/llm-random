@@ -100,7 +100,8 @@ class ConditionalTrainer:
     args_override: Optional[dict] = None
     get_final_eval_dataloader: Optional[Callable[..., DataloaderWrapper]] = None
     final_eval_dataloader_batch_size: Optional[int] = None
-    n_final_eval_batches: int = None
+    n_final_eval_batches: int = None,
+    dont_save_final_model: bool = False
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -154,7 +155,7 @@ class ConditionalTrainer:
             self.logger.exit_job_metadata(self.current_step)
 
         if self.current_step >= n_steps:  # - end of model training operations
-            if self.save_weights_path:
+            if not self.dont_save_final_model:
                 job_id = get_slurm_job_id()
                 end_training_checkpoint(
                     job_id,

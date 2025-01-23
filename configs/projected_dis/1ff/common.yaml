@@ -9,12 +9,12 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "medium", "common_config"]
+  tags: ["projected_dis", "1ff", "medium", "common_config"]
   data_seed: 27
 
   # MODEL
   dmodel: 512
-  dff: 2048
+  dff: 512
   n_blocks: 8
   n_att_heads: 8
   ff_mode: vanilla
@@ -25,6 +25,7 @@ params:
   activation_type: silu
   init_type: truncated_normal
   init_scale: 0.15
+  residual_mode: pre_norm_no_bias
 
   # technical/common params
   use_torch_bmm: true
@@ -37,7 +38,7 @@ params:
   dataset_type: c4
   batch_size: 256
   cutoff: 256
-  n_steps: 12_800
+  n_steps: 6_800
   
   weight_decay: 0.1
   grad_clip: 0.5
@@ -50,8 +51,8 @@ params:
   
   fsdp_enabled: false
   # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
   activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
-  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
   print_parameter_names: true
 

@@ -31,3 +31,6 @@ def check_args(args):
         assert (
             "." not in filename
         ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
+
+    if not args.save_weights_path:
+        assert args.save_weights_interval == -1

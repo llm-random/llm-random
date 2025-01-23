@@ -269,6 +269,7 @@ def introduce_parser_arguments(
     # model versioning
 
     parser.add_argument("--save_weights_path", type=str, default="./model_ckpt")
+    parser.add_argument("--dont_save_final_model", action="store_true")
     parser.add_argument("--save_weights_interval", type=int, default=-1)
     parser.add_argument("--load_weights_path", type=str, default=None)
 
@@ -522,5 +523,7 @@ def introduce_parser_arguments(
     parser.add_argument("--projected_dff", type=int, required=False)
     parser.add_argument("--projected_distillation", action="store_true")
     parser.add_argument("--projection_init_type", type=str, default=None, help="eg. random, None (does not share same projection)") # None does not share same projection
-
+    parser.add_argument("--no_projected_head", action="store_true")
+    parser.add_argument("--no_layer_norm", action="store_true")
+    
     return parser

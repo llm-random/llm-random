@@ -1,0 +1,18 @@
+
+parent: configs/projected_dis/1ff/common.yaml
+md5_parent_hash: 3d46d5a14eb873ef5bcd6a6438fc8304
+time: 0-03:00:00
+n_gpus: 1
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  tags: ["projected_dis", "1ff", "medium", "doner"]
+
+  dmodel: 512
+  dff: 512
+  n_steps: 6_800
+  ^no_layer_norm: [True, False]
+
+  dont_save_final_model: False
+  save_weights_path: /local_storage_1/ms_tmp/models/

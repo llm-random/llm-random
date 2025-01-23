@@ -438,7 +438,10 @@ def main(
         checkpoint=checkpoint,
         projected_checkpoint = get_checkpoint_from_path(args.projected_weights_path) if args.projected_weights_path else None,
         projected_dmodel = args.projected_dmodel,
-        projection_init_type = args.projection_init_type
+        projection_init_type = args.projection_init_type,
+        no_projected_head = args.no_projected_head,
+        no_layer_norm = args.no_layer_norm,
+        
     )
     # print("1-------------------------------------------------------------------------------------------------------")
     # for name, param in model.named_parameters(): #dev
@@ -649,6 +652,7 @@ def main(
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
         checkpoint_manager_enabled=args.checkpoint_manager,
+        dont_save_final_model=args.dont_save_final_model
     )
     trainer.train(args.n_steps)
 
@@ -661,8 +665,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     introduce_parser_arguments(parser)
     args = parser.parse_args()
-
-    save_weights_path = prepare_save_weights_path(args.save_weights_path)
+    save_weights_path = prepare_save_weights_path(args.save_weights_path) if args.save_weights_path else None
 
     if (
         os.environ.get("MASTER_PORT") is not None

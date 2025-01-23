@@ -13,14 +13,23 @@ FREEZE_PARAMS_REGULES = [
     "embedding_layer.layers.0.embedding.weight", #TE
     "embedding_layer.layers.1.layer.weight", #PE
 
-    ".pre_norm.", # Layer norm
-
-    # "head.head.weight", #Head
+    "head.head.weight", #Head
 ]
 
 def freeze_projected_params(model):
     for name, param in model.named_parameters():
         if any([reg in name for reg in FREEZE_PARAMS_REGULES]):  # Check if the parameter belongs to layer1
+            param.requires_grad = False
+    return model    
+
+
+FREEZE_LN_REGULES = [
+    ".pre_norm.", # Layer norm
+]
+
+def freeze_ln_params(model):
+    for name, param in model.named_parameters():
+        if any([reg in name for reg in FREEZE_LN_REGULES]):  # Check if the parameter belongs to layer1
             param.requires_grad = False
     return model 
 
