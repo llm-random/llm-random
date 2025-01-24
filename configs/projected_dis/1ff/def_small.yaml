@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 426d38a67881ad9b9276b25286a1ce31
+md5_parent_hash: d233f50504be99b92d74b8ed59810c08
 time: 0-01:00:00
 n_gpus: 1
 cpus_per_gpu: 16
@@ -9,16 +9,10 @@ params:
   name: "PD"
   tags: ["projected_dis", "1ff", "small"]
 
-  # ^dmodel: [256, 256]
   dmodel: 256
   dff: 256
   n_steps: 1600
   
-  # residual_mode: pre_norm_no_bias
 
-  # ^fsdp_enabled: [true, false]
 
-  # fsdp_enabled: false
 
-  # fsdp_enabled: true
-  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"

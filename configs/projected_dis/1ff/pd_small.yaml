@@ -1,13 +1,13 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 426d38a67881ad9b9276b25286a1ce31
+md5_parent_hash: 3a334a7df4fb5340ca5da7c06952f387
 time: 0-01:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "small", "all_distillation"]
+  tags: ["projected_dis", "1ff", "small", "p_init_grid"]
 
   dmodel: 256
   dff: 256
@@ -19,24 +19,22 @@ params:
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
   residual_mode: pre_norm_no_bias
-
-  # ^residual_mode: [pre_norm_no_bias, pre_norm]
   
-  projection_init_type: null
-  # projection_init_type: random
-  # projection_init_type: sum1d
-  # projection_init_type: half
-  # projection_init_type: orthagonal
-  # projection_init_type: col1
-  # projection_init_type: asd
-  # ^projection_init_type: [orthagonal, col1]
-  # ^projection_init_type: [null, random, sum1d, half, orthagonal, col1]
+
+  projection_init_type: half
+  ^no_projected_head: True
+ 
+  ^projection_init_type: [orthagonal]
+  ^no_projected_head: [True, False]
+  ^no_layer_norm: [True, False]
+
+  # ^projection_init_type: [half, orthagonal, null, sum1d]
+  # ^no_projected_head: [True, False]
+
 
   projected_distillation: True
-  projected_weights_path: /local_storage_1/ms_tmp/models/41986/12800.pt # no_bias_layer_norm and no_ff_bias
+  projected_weights_path: /local_storage_1/ms_tmp/models/42951/6800.pt
   
-  # save_weights_path: /local_storage_1/ms_tmp/models/
-  save_weights_path: null
 
 
 

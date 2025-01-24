@@ -1,24 +1,22 @@
 
 parent: configs/projected_dis/common.yaml
-md5_parent_hash: 6c71c5ac18a5554a54adacab603e00eb
+md5_parent_hash: d97adc4232a6f9698ee04cec51fb1b6f
 time: 0-01:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "small", "all_distillation", "imp", "all", "dev_init", "grid_init_def_head"] #, "dev_init", "init_scale/projected_dmodel"], "no_ln_bias"
+  tags: ["projected_dis", "small", "gain", "lr_grid"]
 
   dmodel: 256
   dff: 1024
   projected_dmodel: 512
   projected_dff: 2048
-  # ^n_steps: [3_200, 6_400]
   # n_steps: 12_800
-  # n_steps: 3_200
-  n_steps: 320
-  # ^learning_rate: [0.001, 0.0005, 0.00025, 0.000125]
-  learning_rate: 0.0005
+  n_steps: 3_200
+  # n_steps: 320
+  ^learning_rate: [0.0003, 0.0004, 0.0005, 0.0006, 0.0007]
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla

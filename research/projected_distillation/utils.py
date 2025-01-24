@@ -20,7 +20,7 @@ def freeze_projected_params(model):
     for name, param in model.named_parameters():
         if any([reg in name for reg in FREEZE_PARAMS_REGULES]):  # Check if the parameter belongs to layer1
             param.requires_grad = False
-    return model    
+    return model 
 
 
 FREEZE_LN_REGULES = [
@@ -39,6 +39,7 @@ PROJECTIONS_1_1 = [
     ".block.residual_attention.layer.attention.output_projection.output_projection_p21.weight",
     ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p11.weight",
     "head.head_p.weight",
+    ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight", #FF in
 ]
 
 PROJECTIONS_1_1_T = [
@@ -46,14 +47,15 @@ PROJECTIONS_1_1_T = [
     "embedding_layer.layers.1.projected_layer.pe_layer_p.weight",
     ".block.residual_attention.layer.attention.output_projection.output_projection_p22.weight",
     ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p22.weight",
+    ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight", #FF out
 ]
 
 PROJECTIONS_1_4 = [
-    ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight",
+    # ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight",
 ]
 
 PROJECTIONS_1_4_T = [
-    ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight",
+    # ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight",
 ]
 
 PROJECTIONS_1_3 = [
@@ -63,7 +65,10 @@ PROJECTIONS_1_3 = [
 PROJECTIONS_1_3_T = [
     ".block.residual_attention.layer.attention.input_projection.input_projection_p12.weight",
 ]
-
+# encoder.blocks.block_7.block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p11.weight, shape: torch.Size([512, 256]) requires_grad: True, cuda:0
+# encoder.blocks.block_7.block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight, shape: torch.Size([256, 512]) requires_grad: True, cuda:0
+# encoder.blocks.block_7.block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight, shape: torch.Size([512, 256]) requires_grad: True, cuda:0
+# encoder.blocks.block_7.block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p22.weight, shape: torch.Size([256, 512]) requires_grad: True, cuda:0
 MULTIPLY = [
 
 ]

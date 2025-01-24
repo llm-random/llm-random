@@ -25,7 +25,6 @@ params:
   activation_type: silu
   init_type: truncated_normal
   init_scale: 0.15
-  residual_mode: pre_norm_no_bias
 
   # technical/common params
   use_torch_bmm: true
@@ -48,7 +47,7 @@ params:
   lr_trapezoidal_decay_fraction: 0.2
   lr_warmup_percent: 0.01
   lr_warmup_steps: 0
-  
+
   fsdp_enabled: false
   # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   # fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
@@ -63,4 +62,9 @@ params:
   logging_interval_loss: 100
   save_weights_path: None
   save_weights_interval: 0
+  dont_save_final_model: True
+  
+  residual_mode: pre_norm_no_bias
+  no_layer_norm: True
+  no_projected_head: True
   dont_save_final_model: True
