@@ -9,6 +9,7 @@ params:
   n_blocks: 38
   n_att_heads: 38
 
-  scheduler_trapezoidal_slides: "[{'n_tokens':15.831371520},{'n_tokens':23.74705728},{'n_tokens':31.66274304}]"
-  n_tokens: 39.5784288
+  scheduler_trapezoidal_slides: Null
+  n_tokens: 15.831371520
   num_workers: 2
+  logger_runs_ids: "['asd']"

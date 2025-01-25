@@ -1,0 +1,11 @@
+checkpoints:
+-   create_timestamp: null
+    creator_job_id: null
+    final_model_checkpoint: null
+    model_checkpoint: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/constrained_scaling_grid_21_11_2025-01-22_10-21-47/constrained_scaling_laws_grid/75558/55941.pt
+    running_job_id: null
+    start_timestamp: null
+    status: PENDING
+    stop_timestamp: null
+    metadata:
+      ignore_model_args: true
