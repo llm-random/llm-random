@@ -5,4 +5,5 @@ n_gpus: 4
 params:
   tags: ["constrained_scaling_grid", "1.3B", "E=1"]
   expansion_rate: 1
-  ^final_eval_step: [495910, 434875, 38146]
+  ^final_eval_step: [45776]
+

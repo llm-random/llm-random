@@ -3,6 +3,6 @@ md5_parent_hash: b352fdc6ee0c8f5a3a9fdfcc2c64208c
 n_gpus: 4
 
 params:
-  tags: ["constrained_scaling_grid", "1.3B", "E=2"]
+  tags: ["constrained_scaling_grid", "1.3B_total", "E=2"]
   expansion_rate: 2
-
+  ^final_eval_step: [90781]

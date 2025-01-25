@@ -3,10 +3,11 @@ md5_parent_hash: 99bb7b643ae66b10ffb86e435ebc7c04
 n_gpus: 4
 
 params:
-  tags: ["constrained_scaling_grid", "1.3B_total", "E=2", "multinode"]
+  tags: ["constrained_scaling_grid", "1.3B_total", "E=2"]
   expansion_rate: 2
 
   dmodel: 1408
   n_blocks: 22
   n_att_heads: 22
-  ^final_eval_step: [292724, 197692, 102660, 55145, 31387, 19508, 13568, 9750]
+  ^final_eval_step: [67023]
+

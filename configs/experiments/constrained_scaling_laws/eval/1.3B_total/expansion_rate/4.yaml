@@ -9,4 +9,4 @@ params:
   dmodel: 1152
   n_blocks: 18
   n_att_heads: 18
-  ^final_eval_step: [165557, 86593, 47111, 27370, 17501, 12565]
+  ^final_eval_step: [145816]
