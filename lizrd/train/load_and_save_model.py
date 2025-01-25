@@ -11,8 +11,9 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-from lizrd.support.logging import JointLogger, NeptuneLogger
+from lizrd.support.logging import AbstractLogger, NeptuneLogger
 from lizrd.support.misc import generate_random_string
+from research.conditional.utils.misc_tools import get_slurm_job_id
 
 
 def get_latest_checkpoint(dir_path) -> pathlib.Path:
@@ -29,19 +30,11 @@ def get_latest_checkpoint(dir_path) -> pathlib.Path:
     return latest_checkpoint
 
 
-def get_checkpoint_from_path(load_weights_path: str, repeater_mode: bool) -> str:
+def get_checkpoint_from_path(load_weights_path: str) -> str:
     assert os.path.exists(load_weights_path), f"Path {load_weights_path} does not exist"
-    if repeater_mode:
-        load_weights_path = pathlib.Path(load_weights_path)
 
-        if load_weights_path.is_dir():
-            latest_model = get_latest_checkpoint(load_weights_path)
-            if not latest_model:
-                print(
-                    f"No model yet saved in ({load_weights_path}), starting new training."
-                )
-                return None
-            load_weights_path = load_weights_path / latest_model.name
+    # TODO: modify loading to make it work with multinode
+    # as in this example: https://github.com/wz337/pytorch/blob/main/torch/distributed/checkpoint/examples/fsdp_checkpoint_example.py
 
     print(f"Loading checkpoint from {load_weights_path}...")
     checkpoint = torch.load(load_weights_path)
@@ -80,19 +73,14 @@ def load_scaler_state(
     scaler.load_state_dict(checkpoint["scaler"])
 
 
-def prepare_save_weights_path(
-    path_to_dir: Optional[str], is_repeater: bool = False
-) -> Optional[str]:
-    if path_to_dir is None:
-        if is_repeater:
-            raise Exception(
-                "Please specify checkpoint directory when using repeater mode"
-            )
-        return None
+def prepare_save_weights_path(path_to_dir: Optional[str]) -> Optional[str]:
     # we need a random dir because we can be running a whole grid from the same directory
-    if not is_repeater:
+    slurm_job_id = get_slurm_job_id()
+    if slurm_job_id:
+        random_dirname = slurm_job_id
+    else:
         random_dirname = f"{generate_random_string(10)}"
-        path_to_dir = os.path.join(path_to_dir, random_dirname)
+    path_to_dir = os.path.join(path_to_dir, random_dirname)
     save_weights_path = os.path.abspath(path_to_dir)
     os.makedirs(save_weights_path, exist_ok=True)
     return save_weights_path
@@ -103,11 +91,12 @@ def save_checkpoint(
     optimizer,
     scaler,
     path: str,
-    rank: int,
+    global_rank: int,
     step: int,
     batch_size,
     cutoff,
-    joint_loggers: Optional[JointLogger] = None,
+    loggers: list[AbstractLogger],
+    args_override: Optional[dict] = None,
 ):
     if isinstance(model, FSDP):
         # for some reason, setting the model to training mode and
@@ -116,7 +105,7 @@ def save_checkpoint(
         model.train()
         with torch.no_grad():
             _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
-    if rank == 0 or rank is None:
+    if global_rank == 0 or global_rank is None:
         print(f"Saving weights...")
     if isinstance(model, FSDP):
         save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
@@ -127,28 +116,38 @@ def save_checkpoint(
         model_state_dict = model.state_dict()
         optimizer_state_dict = optimizer.state_dict()
 
-    if rank == 0 or rank is None:
-        neptune_logger: Run = [
+    if global_rank == 0 or global_rank is None:
+        full_path = os.path.join(path, f"{step}.pt")
+        neptune_loggers: Run = [
             l
-            for l in joint_loggers.loggers
+            for l in loggers
             if isinstance(l, NeptuneLogger)  # dev TODO do it for other loggers
         ]
-        if len(neptune_logger) == 1:
-            neptune_logger = neptune_logger[0].instance_logger
-            logger_metadata = {"run_id": neptune_logger._sys_id}
+        if len(neptune_loggers) >= 1:
+            ids = []
+            for neptune_logger in neptune_loggers:
+                neptune_logger.report_text(
+                    title=f"job/saved_checkpoint",
+                    value=str(full_path),
+                    iteration=step,
+                )
+                neptune_loggers = neptune_logger.instance_logger
+                ids.append(neptune_loggers._sys_id)
+            logger_metadata = {"run_id": ids}
         else:
-            print(f"No Neptune logger, no saving.")
-            logger_metadata = None
+            logger_metadata = {"run_id": None}
 
-        full_path = os.path.join(path, f"{step}.pt")
         checkpoint = {
             "model": model_state_dict,
             "optimizer": optimizer_state_dict,
             "step": step,
             "logger": logger_metadata,
-        }
+            "args_override": args_override,
+        }  # dev TODO add accumulated training variables for proper logging, f.e. loss_interval/100 - loss accumulated over 100 training steps
+
         if scaler is not None:
             checkpoint["scaler"] = scaler.state_dict()
 
         torch.save(checkpoint, f=full_path)
         print(f"Weights saved to {full_path} (step {step})")
+        return os.path.abspath(full_path)

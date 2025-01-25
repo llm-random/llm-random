@@ -1,6 +1,6 @@
+from ast import literal_eval
 import datetime
 from math import ceil
-import pathlib
 from lizrd.grid.infrastructure import LocalBackend
 from lizrd.grid.prepare_configs import prepare_configs
 from lizrd.grid.setup_arguments import (
@@ -75,13 +75,13 @@ def create_subprocess_args(
         for i, training_args in enumerate(trainings_args):
             full_config_path = f"full_config{i}.yaml"
             with open(full_config_path, "w") as f:
-                if "repeater_mode" in training_args and training_args["repeater_mode"]:
-                    training_args["save_weights_path"] = str(
-                        pathlib.Path(training_args["save_weights_path"]) / f"{i}"
-                    )
-                    training_args["load_weights_path"] = str(
-                        pathlib.Path(training_args["load_weights_path"]) / f"{i}"
-                    )
+                # if "repeater_mode" in training_args and training_args["repeater_mode"]: #dev TODO add grid support to checkpoint manager
+                #     training_args["save_weights_path"] = str(
+                #         pathlib.Path(training_args["save_weights_path"]) / f"{i}"
+                #     )
+                #     training_args["load_weights_path"] = str(
+                #         pathlib.Path(training_args["load_weights_path"]) / f"{i}"
+                #     )
                 yaml.dump({**training_args, **setup_args}, f)
             training_args["all_config_paths"] += f",{full_config_path}"
 
@@ -99,11 +99,28 @@ def create_subprocess_args(
                 ], interactive_debug_session
 
             n_job_repetitions = 1
-            if "repeater_mode" in training_args and training_args["repeater_mode"]:
+            if training_args.get("checkpoint_manager"):
                 total_exp_time = timestr_to_minutes(setup_args["time"]) * 60
                 if CLUSTER.max_exp_time < total_exp_time:
                     n_job_repetitions = ceil(total_exp_time / CLUSTER.max_exp_time)
-                    setup_args["time"] = seconds_to_timestr(CLUSTER.max_exp_time)
+                if (
+                    "scheduler_trapezoidal_slides" in training_args
+                    and training_args["scheduler_trapezoidal_slides"]
+                ):
+                    scheduler_trapezoidal_slides = literal_eval(
+                        training_args["scheduler_trapezoidal_slides"]
+                    )
+                    n_slide_jobs = 0
+                    for slide in scheduler_trapezoidal_slides:
+                        if "n_jobs" in slide:
+                            n_slide_jobs += slide["n_jobs"]
+                        else:
+                            n_slide_jobs += 1
+                    n_job_repetitions = n_job_repetitions + n_slide_jobs
+                setup_args["time"] = seconds_to_timestr(CLUSTER.max_exp_time)
+            assert (
+                setup_args["n_gpus"] % setup_args["n_nodes"] == 0
+            ), "n_gpus must be divisible by n_nodes"
 
             subprocess_args = CLUSTER.get_subprocess_args(
                 slurm_command=slurm_command,

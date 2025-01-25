@@ -20,9 +20,7 @@ def get_scheduler(
         ), "You cannot set both lr_warmap_percent and lr_warmap_steps"
         args.lr_warmup_steps = math.ceil(args.n_steps * args.lr_warmup_percent)
     if args.final_lr_step == -1 or args.final_lr_step is None:
-        args.final_lr_step = (
-            args.n_steps
-        )  # dev - 1 seems proper, may cause problems, idk
+        args.final_lr_step = args.n_steps
 
     if args.scheduler == "constant":
         return ConstantScheduler(
@@ -42,7 +40,7 @@ def get_scheduler(
     elif args.scheduler == "trapezoidal":
         return TrapezoidalScheduler(
             lr_warmup_steps=args.lr_warmup_steps,
-            lr_decay_steps=math.ceil(args.n_steps * args.lr_trapezoidal_decay_fraction),
+            lr_decay_steps=args.lr_trapezoidal_decay_steps,
             n_steps=args.n_steps,
             lr=args.learning_rate,
             ratios_lr=relative_lrs_in_group_order,
