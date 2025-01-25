@@ -1,5 +1,4 @@
-torch==2.1.0
-torchvision==0.16.0
+torch==2.5.0
 protobuf==3.20.*
 numpy==1.22.1
 matplotlib==3.5.1

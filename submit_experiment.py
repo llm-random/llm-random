@@ -22,7 +22,6 @@ EXPERIMENT_DIR_FILENAME = "__experiment__dir__.txt"
 
 _SSH_HOSTS_TO_PASSPHRASES = {}
 
-
 @contextmanager
 def ConnectWithPassphrase(*args, **kwargs) -> Generator[Connection, None, None]:
     """Connect to a remote host using a passphrase if the key is encrypted. The passphrase is preserved for subsequent connections to the same host."""

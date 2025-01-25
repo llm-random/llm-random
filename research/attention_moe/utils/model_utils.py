@@ -359,8 +359,8 @@ def get_attention_layer(args):
     #     )
     elif args.attention_mode == "diff_vanilla_fast1":
         attention_layer_fun = lambda: VanillaFlashDiff1(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
@@ -368,8 +368,10 @@ def get_attention_layer(args):
         )
     elif args.attention_mode == "diff_theirs_fast1":
         attention_layer_fun = lambda: MultiheadFlashDiff1(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
+            n_positive_heads=args.n_positive_heads,
+            n_negative_heads=args.n_negative_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
@@ -377,7 +379,7 @@ def get_attention_layer(args):
             lowrank_inner_dim=args.diff_transformer_lowrank_dim,
             flip_negative_heads=args.diff_transformer_flip_negative_heads,
             roll_negative_heads=args.diff_transformer_roll_negative_heads,
-            num_kv_heads=args.n_kv_heads,
+            n_kv_heads=args.n_kv_heads,
             adapter_type=args.diff_transformer_adapter_type,
         )
     else:
