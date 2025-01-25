@@ -307,41 +307,68 @@ def main(
 
         import neptune
 
-        my_step = args.final_eval_step
-        my_tags = ", ".join(args.tags[:3])
-
         project = neptune.init_project(
             project="pmtest/llm-random",
             mode="read-only",
         )
-        runs_table = project.fetch_runs_table(
-            query='`sys/name`:string CONTAINS "constrained_scaling_grid_21_11"',
-            columns=[
-                "sys/id",
-                "sys/tags",
-                "args/tags",
-                "step",
-                final_eval_series_name,
-                "lr",
-                "job/saved_checkpoint",
-            ],
-        ).to_pandas()
-        runs_table["sys/tags"] = runs_table["sys/tags"].apply(
-            lambda x: x.split(",") if isinstance(x, str) else x
-        )
-        runs_table = runs_table[
-            ~runs_table["sys/tags"].apply(
-                lambda x: "remove_constrained_scaling_laws" in x
+
+        if args.final_eval_step is not None:
+            my_step = args.final_eval_step
+            my_tags = ", ".join(args.tags[:3])
+            runs_table = project.fetch_runs_table(
+                query='`sys/name`:string CONTAINS "constrained_scaling_grid_21_11"',
+                columns=[
+                    "sys/id",
+                    "sys/tags",
+                    "args/tags",
+                    "step",
+                    final_eval_series_name,
+                    "lr",
+                    "job/saved_checkpoint",
+                ],
+            ).to_pandas()
+            runs_table["sys/tags"] = runs_table["sys/tags"].apply(
+                lambda x: x.split(",") if isinstance(x, str) else x
             )
-        ]
-        my_run = runs_table[
-            (runs_table["args/tags"].str.startswith(my_tags))
-            & (runs_table["step"] == my_step)
-        ]
-        print("my_tags", my_tags)
-        print("my_step", my_step)
-        print(my_run)
-        assert len(my_run) == 1, f"Found {len(my_run)} runs: {my_run}"
+            runs_table = runs_table[
+                ~runs_table["sys/tags"].apply(
+                    lambda x: "remove_constrained_scaling_laws" in x
+                )
+            ]
+            my_run = runs_table[
+                (runs_table["args/tags"].str.startswith(my_tags))
+                & (runs_table["step"] == my_step)
+            ]
+            print("my_tags", my_tags)
+            print("my_step", my_step)
+            print(my_run)
+            assert len(my_run) == 1, f"Found {len(my_run)} runs: {my_run}"
+        else:
+            assert args.neptune_id is not None
+            runs_table = project.fetch_runs_table(
+                query=f'`sys/id`:string="{args.neptune_id}"',
+                columns=[
+                    "sys/id",
+                    "sys/tags",
+                    "args/tags",
+                    "step",
+                    final_eval_series_name,
+                    "lr",
+                    "job/saved_checkpoint",
+                    "args/expansion_rate",
+                    "args/dmodel",
+                    "args/n_blocks",
+                    "args/n_att_heads",
+                ],
+            ).to_pandas()
+            args.expansion_rate = runs_table["args/expansion_rate"].item()
+            args.dmodel = runs_table["args/dmodel"].item()
+            args.n_blocks = runs_table["args/n_blocks"].item()
+            args.n_att_heads = runs_table["args/n_att_heads"].item()
+            my_run = runs_table
+            print("my run", my_run)
+            args.final_eval_step = my_run["step"].item()
+
         args.load_weights_path = my_run["job/saved_checkpoint"].item()
         checkpoint_path = None
         neptune_id = my_run["sys/id"].item()
