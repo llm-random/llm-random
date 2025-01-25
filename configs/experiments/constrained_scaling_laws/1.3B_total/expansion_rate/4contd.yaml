@@ -12,3 +12,17 @@ params:
   # load_weights_path: "/net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/constrained_scaling_grid_21_11_2025-01-10_23-38-46/constrained_scaling_laws_grid/66923/70799.pt"
   scheduler_trapezoidal_slides: "[{'n_tokens':25.87504030638255},{'n_tokens':31.05004836765906}]"
   n_tokens: 36.225056428935574
+  logger_runs_ids: "['asd','asd','asd']"
+
+# + in checkpoint_manager.yaml:
+# checkpoints:
+# -   create_timestamp: null
+#     creator_job_id: null
+#     final_model_checkpoint: null
+#     model_checkpoint: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/constrained_scaling_grid_21_11_2025-01-10_23-38-46/constrained_scaling_laws_grid/66923/70799.pt
+#     running_job_id: null
+#     start_timestamp: null
+#     status: PENDING
+#     stop_timestamp: null
+#     metadata:
+#       ignore_model_args: true

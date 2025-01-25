@@ -6,6 +6,21 @@ params:
   tags: ["constrained_scaling_grid", "1.3B", "E=1", "continued"]
   expansion_rate: 1
   gradient_accumulation_steps: 4
-  load_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgj321m/llm_random_cemetery/constrained_scaling_grid_21_11_2024-12-18_18-59-03/constrained_scaling_laws_grid/58494/32042.pt
+  # load_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgj321m/llm_random_cemetery/constrained_scaling_grid_21_11_2024-12-18_18-59-03/constrained_scaling_laws_grid/58494/32042.pt
   scheduler_trapezoidal_slides: "[{'n_tokens':10.0},{'n_tokens':12.0}]"
   n_tokens: 14.0
+  logger_runs_ids: "['asd','asd','asd']"
+
+# + in checkpoint_manager.yaml:
+
+# checkpoints:
+# -   create_timestamp: null
+#     creator_job_id: null
+#     final_model_checkpoint: null
+#     model_checkpoint: /net/storage/pr3/plgrid/plggllmeffi/plgj321m/llm_random_cemetery/constrained_scaling_grid_21_11_2024-12-18_18-59-03/constrained_scaling_laws_grid/58494/32042.pt
+#     running_job_id: null
+#     start_timestamp: null
+#     status: PENDING
+#     stop_timestamp: null
+#     metadata:
+#       ignore_model_args: true
