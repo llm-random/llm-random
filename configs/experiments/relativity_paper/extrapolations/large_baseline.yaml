@@ -1,5 +1,5 @@
 parent: configs/experiments/relativity_paper/local_search/baseline.yaml
-md5_parent_hash: 4b7ddb5b3fcfe3c8af524e3fb12040d5
+md5_parent_hash: ad47f45dd04baf697df51558da545b6b
 time: "160:00:00"
 interactive_debug_session: false
 interactive_debug: false
@@ -20,7 +20,7 @@ params:
   final_lr_step: 50_000
   lr_warmup_steps: 500
 
-  loss_checkpoint_chungs: 8
+  loss_checkpoint_chungs: 0
 
   ^learning_rate: [0.0002]
 

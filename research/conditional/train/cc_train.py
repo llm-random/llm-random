@@ -560,8 +560,9 @@ def main(
         relative_lrs_in_group_order=relative_lrs_in_group_order,
         final_lr_fractions_in_group_order=relative_final_lr_fractions_in_group_order,
     )
-    if not args.repeater_mode:
-        rescale_params_after_init(args, model)
+    if hasattr(args, "repeater_mode"):
+        if not args.repeater_mode:
+            rescale_params_after_init(args, model)
 
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 

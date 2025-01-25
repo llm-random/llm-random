@@ -45,7 +45,7 @@ params:
   # other
   dataset_type: c4
   flash_attention: true
-  loss_checkpoint_chungs: 8
+  loss_checkpoint_chungs: 0
   print_parameter_names: true
   activation_checkpointing_modules: EmbeddingLayer,PredictionHead,TransformerBlock
   

@@ -29,7 +29,7 @@ params:
   logger_types: neptune
   logging_interval_heavy: 5000
   logging_interval_loss: 1000
-  loss_checkpoint_chungs: 8
+  loss_checkpoint_chungs: 0
   lr_warmup_steps: 500
   md5_parent_hash: 763f39978a58f704200275285162594c
   mem_per_gpu: 125
