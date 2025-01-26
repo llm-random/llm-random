@@ -1,6 +1,6 @@
 runner: "research.attention_moe.train.train"
 time: 1-00:00:00
-n_gpus: 4
+n_gpus: 1
 interactive_debug: false
 backends_module: research.attention_moe.backends
 

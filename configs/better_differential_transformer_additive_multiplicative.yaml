@@ -1,6 +1,6 @@
 runner: "research.attention_moe.train.train"
 time: 1-00:00:00
-n_gpus: 4
+n_gpus: 1
 interactive_debug: false
 backends_module: research.attention_moe.backends
 
@@ -47,7 +47,7 @@ params:
   ]
   ^dmodel: [768]
 #  dff: 3072
-  ^dff: [3198]
+  ^dff: [3199]
   n_blocks: 12
   n_att_heads: 12
   ^n_positive_heads: [12]
