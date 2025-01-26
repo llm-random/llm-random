@@ -66,5 +66,5 @@ params:
   
   residual_mode: pre_norm_no_bias
   no_layer_norm: True
-  no_projected_head: True
+  no_projected_head: False
   dont_save_final_model: True

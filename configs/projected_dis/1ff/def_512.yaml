@@ -1,0 +1,19 @@
+
+parent: configs/projected_dis/1ff/common.yaml
+md5_parent_hash: ea24ed4a5d6558970d3230b69a0c88fa
+time: 0-03:00:00
+n_gpus: 1
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  tags: ["projected_dis", "1ff", "dm512", "doner"]
+
+  ^learning_rate: [0.00025, 0.0005, 0.001]
+
+  dmodel: 512
+  dff: 512
+  n_steps: 19_545
+
+  dont_save_final_model: False
+  # save_weights_path: /local_storage_1/ms_tmp/models/

@@ -39,7 +39,7 @@ PROJECTIONS_1_1 = [
     ".block.residual_attention.layer.attention.output_projection.output_projection_p21.weight",
     ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p11.weight",
     "head.head_p.weight",
-    ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight", #FF in
+    ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight", #FF in - 1ff configuration
 ]
 
 PROJECTIONS_1_1_T = [
@@ -47,7 +47,7 @@ PROJECTIONS_1_1_T = [
     "embedding_layer.layers.1.projected_layer.pe_layer_p.weight",
     ".block.residual_attention.layer.attention.output_projection.output_projection_p22.weight",
     ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p22.weight",
-    ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight", #FF out
+    ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight", #FF out - 1ff configuration
 ]
 
 PROJECTIONS_1_4 = [

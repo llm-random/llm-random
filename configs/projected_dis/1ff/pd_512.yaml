@@ -7,14 +7,14 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "small", "p_init_grid"]
+  tags: ["projected_dis", "1ff", "dm512"]
 
-  dmodel: 256
-  dff: 256
-  projected_dmodel: 512
-  projected_dff: 512
-  n_steps: 1600
-  learning_rate: 0.0005
+  dmodel: 512
+  dff: 512
+  projected_dmodel: 1024
+  projected_dff: 1024
+  n_steps: 19_545 # same as dmodel
+  learning_rate: 0.0005 # same as dmodel
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
@@ -23,14 +23,6 @@ params:
 
   projection_init_type: half
   ^no_projected_head: True
- 
-  # ^projection_init_type: [orthagonal]
-  # ^no_projected_head: [True, False]
-  # ^no_layer_norm: [True, False]
-
-  # ^projection_init_type: [half, orthagonal, null, sum1d]
-  # ^no_projected_head: [True, False]
-
 
   projected_distillation: True
   projected_weights_path: /local_storage_1/ms_tmp/models/42951/6800.pt
