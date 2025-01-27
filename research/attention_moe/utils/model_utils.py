@@ -370,7 +370,6 @@ def get_attention_layer(args):
         attention_layer_fun = lambda: MultiheadFlashDiff1(
             dmodel=args.dmodel,
             n_heads=args.n_att_heads,
-            n_positive_heads=args.n_positive_heads,
             n_negative_heads=args.n_negative_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
