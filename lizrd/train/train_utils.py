@@ -44,7 +44,8 @@ def get_model(
     projected_dmodel:int = None,
     projection_init_type:str = None,
     no_projected_head:bool = False,
-    no_layer_norm:bool = False
+    no_layer_norm:bool = False,
+    fsdp_use_orig_params:bool = False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -147,8 +148,8 @@ def get_model(
             mask = torch.eye(projected_dmodel).bool()
             projection = projection.masked_fill(mask, 1)
             projection = projection[:, :int(projected_dmodel/2)]
-        elif projection_init_type == "orthagonal":
-            print("Projection initialization: orthagonal")
+        elif projection_init_type == "orthogonal":
+            print("Projection initialization: orthogonal")
             projection = torch.empty(projected_dmodel, dm)
             projection = torch.nn.init.orthogonal_(projection)
         elif projection_init_type == "col1":
@@ -159,10 +160,11 @@ def get_model(
             raise Exception("Wrong projection init type")
         load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, device)
         initialize_projections(model, dm, projected_dmodel, projection) #dev
-        freeze_projected_params(model)
+        frozen_modules = freeze_projected_params(model)
 
     if no_layer_norm:
-        freeze_ln_params(model)
+        ln_frozen_modules = freeze_ln_params(model)
+        frozen_modules = frozen_modules+ln_frozen_modules
         
     for name, param in model.named_parameters(): #dev
         print(f"{name}, shape: {param.shape} requires_grad: {param.requires_grad}, {param.device}")
@@ -181,6 +183,8 @@ def get_model(
             min_num_params=fsdp_min_num_params,
             modules_to_wrap=fsdp_modules_to_wrap,
             is_logging_process=is_logging_process,
+            # frozen_modules=frozen_modules
+            fsdp_use_orig_params=fsdp_use_orig_params,
         )
 
     if activation_checkpointing_modules is not None:

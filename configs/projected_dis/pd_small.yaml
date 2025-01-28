@@ -29,16 +29,16 @@ params:
   # projection_init_type: random
   # projection_init_type: sum1d
   # projection_init_type: half
-  # projection_init_type: orthagonal
+  # projection_init_type: orthogonal
   # projection_init_type: col1
   # projection_init_type: asd
-  # ^projection_init_type: [orthagonal, col1]
-  # ^projection_init_type: [null, random, sum1d, half, orthagonal, col1]
+  # ^projection_init_type: [orthogonal, col1]
+  # ^projection_init_type: [null, random, sum1d, half, orthogonal, col1]
 
   projected_distillation: True
   projected_weights_path: /local_storage_1/ms_tmp/models/41986/12800.pt # no_bias_layer_norm and no_ff_bias
   
-  # save_weights_path: /local_storage_1/ms_tmp/models/
+  # save_weights_path: /local_storage_1/ms_tmp/moadels/
   # ^dont_save_final_model: [True, False]
 
 

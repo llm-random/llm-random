@@ -525,5 +525,6 @@ def introduce_parser_arguments(
     parser.add_argument("--projection_init_type", type=str, default=None, help="eg. random, None (does not share same projection)") # None does not share same projection
     parser.add_argument("--no_projected_head", action="store_true")
     parser.add_argument("--no_layer_norm", action="store_true")
+    parser.add_argument("--fsdp_use_orig_params", action="store_true")
     
     return parser

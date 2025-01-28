@@ -6,9 +6,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from lizrd.core.initialization import ValidInitType
-from lizrd.core.llm import Residual
+from lizrd.core.llm import Residual, RoPE
 from lizrd.core.misc import Linear, LoggingLayer
 from lizrd.core.initialization import get_init_weight, ValidInitType
+
+
+# class ProjectedLinear(nn.Module):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+    
+#     def forward(x):
+        
 
 
 def ProjectedTokenEmbedding(
@@ -44,7 +52,7 @@ def ProjectedTokenEmbedding(
             ])
     )
 
-    return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
+    # return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
 
 
 class ProjectedPositionalEmbedding(nn.Module):
@@ -57,21 +65,31 @@ class ProjectedPositionalEmbedding(nn.Module):
         init_scale: float,
     ):
         super(ProjectedPositionalEmbedding, self).__init__()
-        self.layer = nn.Embedding(max_length, projected_embedding_dim)
-        default_weight = self.layer.weight.data
-        self.layer.weight.data = get_init_weight(
-            shape=default_weight.shape,
+        # self.layer = nn.Embedding(max_length, projected_embedding_dim)
+        # default_weight = self.layer.weight.data
+        # self.layer.weight.data = get_init_weight(
+        #     shape=default_weight.shape,
+        #     fan_in=1,
+        #     init_type=init_type,
+        #     scale=init_scale,
+        #     dtype=default_weight.dtype,
+        # )
+        weight = get_init_weight(
+            shape=(max_length, projected_embedding_dim),
             fan_in=1,
             init_type=init_type,
             scale=init_scale,
-            dtype=default_weight.dtype,
         )
 
         self.projected_layer = nn.Sequential(
             OrderedDict([
+                    # (
+                    #     "pe_layer",
+                    #     self.layer,
+                    # ),
                     (
                         "pe_layer",
-                        self.layer,
+                        nn.Embedding(max_length, projected_embedding_dim, _weight=weight),
                     ),
                     (
                         "pe_layer_p",
@@ -373,7 +391,67 @@ class ProjectedAttention(LoggingLayer):
         output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
 
         return output
-    
+
+
+
+class ProjectedAttentionRoPE(LoggingLayer): #dev TODO: implement, may not be better
+    def __init__(
+        self,
+        dmodel,
+        heads,
+        causal,
+        length,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
+        super(ProjectedAttentionRoPE, self).__init__()
+        if dhead is None:
+            assert dmodel % heads == 0
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+
+        self.input_projection = Linear(
+            dmodel,
+            3 * heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.output_projection = Linear(
+            heads * dhead,
+            dmodel,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.rope = RoPE(dhead, length=length)
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
+
+    def forward(self, x):
+        projected = self.input_projection(x)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+        q = self.rope(q)
+        k = self.rope(k)
+
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+        )
+
+        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
+
+        return output
+
 
 def PreNormNoBiasBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return Residual(

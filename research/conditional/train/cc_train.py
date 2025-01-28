@@ -441,6 +441,7 @@ def main(
         projection_init_type = args.projection_init_type,
         no_projected_head = args.no_projected_head,
         no_layer_norm = args.no_layer_norm,
+        fsdp_use_orig_params = args.fsdp_use_orig_params,
         
     )
     # print("1-------------------------------------------------------------------------------------------------------")
@@ -516,7 +517,9 @@ def main(
     param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
 
     optimizer = torch.optim.AdamW(
-        param_grops,
+        param_grops, #dev
+        # filter(lambda p: p.requires_grad, model.parameters()), #dev
+        # model.parameters(),
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),

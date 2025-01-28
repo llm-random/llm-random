@@ -1,34 +1,40 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 3a334a7df4fb5340ca5da7c06952f387
-time: 0-01:00:00
-n_gpus: 1
+md5_parent_hash: 099bae218730a43890c603c081288bf9
+time: 0-08:00:00
+n_gpus: 2
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm512"]
+  tags: ["projected_dis", "1ff", "compression", "dm512"]
 
   dmodel: 512
   dff: 512
   projected_dmodel: 1024
   projected_dff: 1024
   n_steps: 19_545 # same as dmodel
-  learning_rate: 0.0005 # same as dmodel
+  # learning_rate: 0.001 # same as dmodel
+  ^learning_rate: [0.00025, 0.0005, 0.001]
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
   residual_mode: pre_norm_no_bias
   
 
-  projection_init_type: half
-  ^no_projected_head: True
+  # projection_init_type: half
+  ^projection_init_type: [half, orthogonal]
+  no_projected_head: False
+  # ^no_projected_head: [True, False]
 
   projected_distillation: True
-  projected_weights_path: /local_storage_1/ms_tmp/models/42951/6800.pt
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-15-38/None/1171835/46770.pt
   
 
-
+  fsdp_use_orig_params: True
+  fsdp_enabled: True
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
 
 
