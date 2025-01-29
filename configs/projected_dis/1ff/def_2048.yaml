@@ -10,8 +10,8 @@ params:
   name: "PD"
   tags: ["projected_dis", "1ff", "dm2048", "doner"]
 
-  # ^learning_rate: [0.0000625, 0.000125, 0.00025] # 000125 
-  learning_rate: 000125 #? flash_attention failure
+  ^learning_rate: [0.0000625, 0.000125, 0.00025] # 000125 
+  # learning_rate: 000125 #?
   
   dmodel: 2048
   dff: 2048

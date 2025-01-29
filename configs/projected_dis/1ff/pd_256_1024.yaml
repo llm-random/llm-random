@@ -23,7 +23,7 @@ params:
   
 
   # projection_init_type: half
-  ^projection_init_type: [half, orthogonal]
+  ^projection_init_type: [half]
   no_projected_head: False
  
   projected_distillation: True

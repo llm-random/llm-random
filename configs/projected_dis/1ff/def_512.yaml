@@ -1,7 +1,7 @@
 
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 099bae218730a43890c603c081288bf9
-time: 0-12:00:00
+time: 0-06:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
@@ -11,7 +11,8 @@ params:
 
   # ^learning_rate: [0.00025, 0.0005, 0.001] #+
   # ^learning_rate: [0.00075, 0.002, 0.004] # 0.001
-  learning_rate: 0.001 # 3.852969 - LLMRANDOM-29157 - /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-16-36/None/1171839/19545.pt
+  # learning_rate: 0.001 # 3.852969 - LLMRANDOM-29157 - /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-16-36/None/1171839/19545.pt
+  ^learning_rate: [0.00075] # double check
 
   dmodel: 512
   dff: 512

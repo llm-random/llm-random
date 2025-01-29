@@ -7,12 +7,12 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm4098", "doner"]
+  tags: ["projected_dis", "1ff", "dm4096", "doner"]
 
   ^learning_rate: [0.00003125, 0.0000625, 0.000125]
   
-  dmodel: 4098
-  dff: 4098
+  dmodel: 4096
+  dff: 4096
   flash_attention: False
   n_steps: 371_403
 

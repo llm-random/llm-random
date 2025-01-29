@@ -121,7 +121,8 @@ def get_model(
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
-
+        
+    frozen_modules = []
     if projected_checkpoint is not None:
         if not projection_init_type:
             projection = None
