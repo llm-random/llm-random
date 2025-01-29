@@ -25,7 +25,7 @@ CAST_PROJECTED_PARAMS_NAME_PARTS = [
 ]
 
 LAYER_NORM_COPY = [
-    ".block.residual_feedforward.layer.pre_norm."
+    # ".block.residual_feedforward.layer.pre_norm."
 ]
 
 
