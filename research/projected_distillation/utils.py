@@ -14,6 +14,10 @@ FREEZE_PARAMS_REGULES = [
     "embedding_layer.layers.1.projected_layer.pe_layer.weight", #PE
 
     "head.head.weight", #Head
+
+    "head.weight",
+    "embedding_layer.layers.0.weight",
+    "embedding_layer.layers.1.layer.weight",
 ]
 
 def freeze_projected_params(model):
@@ -47,8 +51,8 @@ PROJECTIONS_1_1 = [
 ]
 
 PROJECTIONS_1_1_T = [
-    "embedding_layer.layers.0.embedding_p.weight",
-    "embedding_layer.layers.1.projected_layer.pe_layer_p.weight",
+    # "embedding_layer.layers.0.embedding_p.weight", #dev inverted_test
+    # "embedding_layer.layers.1.projected_layer.pe_layer_p.weight", #dev inverted_test
     ".block.residual_attention.layer.attention.output_projection.output_projection_p22.weight",
     ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p22.weight",
     ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight", #FF out - 1ff configuration
@@ -139,11 +143,13 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         if is_in_partial_list(name, PROJECTIONS_1_1):
             # projection
             print(f"projection: {name}, {params.shape}")
-            params.data.copy_(projection)
+            eye = torch.eye(params.data.shape[0])
+            params.data.copy_(eye)
         elif is_in_partial_list(name, PROJECTIONS_1_1_T):
             # projection_T
             print(f"projection_T: {name}, {params.shape}")
-            params.data.copy_(projection.T)
+            eye = torch.eye(params.data.shape[0])
+            params.data.copy_(eye)
         elif is_in_partial_list(name, PROJECTIONS_1_4):
             # projection_4
             print(f"projection_4: {name}, {params.shape}")
@@ -161,7 +167,8 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         elif is_in_partial_list(name, PROJECTIONS_1_3_T):
             # projection_3_T
             print(f"projection_3_T: {name}, {params.shape}")
-            params.data.copy_(projection_3.T)
+            eye = torch.eye(params.data.shape[0])
+            params.data.copy_(eye)
         elif is_in_partial_list(name, MULTIPLY):
             # projection
             print(f"projection: {name}, {params.shape}")
