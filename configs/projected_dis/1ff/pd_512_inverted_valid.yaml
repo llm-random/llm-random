@@ -15,7 +15,7 @@ params:
   projected_dff: 512
   # n_steps: 19_545 # same as dmodel
   n_steps: 1000 # same as dmodel
-  learning_rate: 0.0005 # same as dmodel
+  learning_rate: 0.000001 # same as dmodel
   # ^learning_rate: [0.00025, 0.0005, 0.001]
 
   attention_mode: projected_vanilla
