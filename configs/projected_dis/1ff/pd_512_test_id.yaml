@@ -1,13 +1,13 @@
 
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 099bae218730a43890c603c081288bf9
-time: 0-08:00:00
+time: 0-01:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm512", "test"]
+  tags: ["projected_dis", "1ff", "compression", "dm512", "test", "head", "pe", "emb"]
 
   dmodel: 512
   dff: 512
@@ -25,8 +25,8 @@ params:
   projection_init_type: half
 
   projected_distillation: True
-  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-16-36/None/1171839/19545.pt
-  projected_weights_path: /local_storage_1/ms_tmp/models/42951/6800.pt
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-16-36/None/1171839/19545.pt
+  # projected_weights_path: /local_storage_1/ms_tmp/models/42951/6800.pt
 
   # fsdp_use_orig_params: True 
   # fsdp_enabled: True

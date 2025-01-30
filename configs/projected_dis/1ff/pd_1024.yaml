@@ -16,7 +16,7 @@ params:
   n_steps: 46_770 # same as dmodel
   # learning_rate: 0.0005 # same as dmodel
   # ^learning_rate: [0.000015625, 0.00003125, 0.0000625, 0.000125, 0.00025, 0.0005, 0.001, 0.002] # ?????????
-  ^learning_rate: [0.000125, 0.00025, 0.0005]
+  ^learning_rate: [0.0000625, 0.000125, 0.00025]
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla

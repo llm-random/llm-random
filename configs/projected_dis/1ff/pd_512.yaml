@@ -7,7 +7,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm512",]
+  tags: ["projected_dis", "1ff", "compression", "dm512"]
 
   dmodel: 512
   dff: 512
@@ -15,7 +15,7 @@ params:
   projected_dff: 1024
   n_steps: 19_545 # same as dmodel
   # learning_rate: 0.001 # same as dmodel
-  ^learning_rate: [0.00025, 0.0005, 0.001]
+  ^learning_rate: [0.000125, 0.00025, 0.0005]
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
