@@ -15,16 +15,15 @@ params:
   projected_dff: 1024
   n_steps: 8812 # same as dmodel
   # learning_rate: 0.001 # same as dmodel
-  ^learning_rate: [0.00025, 0.0005, 0.001]
+  ^learning_rate: [0.00025, 0.0005, 0.001] # 0.0005 - LLMRANDOM-29370
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
   residual_mode: pre_norm_no_bias
   
-
   # projection_init_type: half
-  ^projection_init_type: [half]
-  no_projected_head: False
+  ^projection_init_type: [half, orthogonal]
+  # ^projection_init_type: [half]
  
   projected_distillation: True
   projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-15-38/None/1171835/46770.pt

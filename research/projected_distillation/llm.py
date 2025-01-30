@@ -9,15 +9,7 @@ from lizrd.core.initialization import ValidInitType
 from lizrd.core.llm import Residual, RoPE
 from lizrd.core.misc import Linear, LoggingLayer
 from lizrd.core.initialization import get_init_weight, ValidInitType
-
-
-# class ProjectedLinear(nn.Module):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
     
-#     def forward(x):
-        
-
 
 def ProjectedTokenEmbedding(
     vocab_size,

@@ -10,8 +10,8 @@ params:
   name: "PD"
   tags: ["projected_dis", "1ff", "dm2048", "doner"]
 
-  ^learning_rate: [0.0000625, 0.000125, 0.00025] # 000125 
-  # learning_rate: 000125 #?
+  ^learning_rate: [0.0000625, 0.000125, 0.00025] # 0.00025 - LLMRANDOM-29323 - /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-29_12-07-37/None/1181033/124261.pt
+  learning_rate: 00025 # 3.279688
   
   dmodel: 2048
   dff: 2048

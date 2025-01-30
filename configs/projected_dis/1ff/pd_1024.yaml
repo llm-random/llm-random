@@ -1,7 +1,7 @@
 
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 099bae218730a43890c603c081288bf9
-time: 0-12:00:00
+time: 1-00:00:00
 n_gpus: 2
 cpus_per_gpu: 16
 
@@ -15,19 +15,18 @@ params:
   projected_dff: 2048
   n_steps: 46_770 # same as dmodel
   # learning_rate: 0.0005 # same as dmodel
-  ^learning_rate: [0.000015625, 0.00003125, 0.0000625, 0.000125, 0.00025, 0.0005, 0.001, 0.002] # ?????????
+  # ^learning_rate: [0.000015625, 0.00003125, 0.0000625, 0.000125, 0.00025, 0.0005, 0.001, 0.002] # ?????????
+  ^learning_rate: [0.000125, 0.00025, 0.0005]
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
   residual_mode: pre_norm_no_bias
   
-
   # projection_init_type: half
   ^projection_init_type: [half, orthogonal]
-  no_projected_head: True
   
   projected_distillation: True
-  projected_weights_path: dev
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-29_12-07-37/None/1181033/124261.pt
   
   fsdp_use_orig_params: True
   fsdp_enabled: True

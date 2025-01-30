@@ -144,11 +144,11 @@ def get_model(
             projection = projection[:, ::2] + projection[:, 1::2]
         elif projection_init_type == "half":
             print("Projection initialization: half")
-            assert projected_dmodel/2 == dm
+            # assert projected_dmodel/2 == dm
             projection = torch.zeros(projected_dmodel, projected_dmodel)
             mask = torch.eye(projected_dmodel).bool()
             projection = projection.masked_fill(mask, 1)
-            projection = projection[:, :int(projected_dmodel/2)]
+            projection = projection[:, :int(dm)]
         elif projection_init_type == "orthogonal":
             print("Projection initialization: orthogonal")
             projection = torch.empty(projected_dmodel, dm)

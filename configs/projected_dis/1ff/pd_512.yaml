@@ -7,7 +7,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm512"]
+  tags: ["projected_dis", "1ff", "compression", "dm512",]
 
   dmodel: 512
   dff: 512
@@ -21,11 +21,8 @@ params:
   ff_mode: projected_vanilla
   residual_mode: pre_norm_no_bias
   
-
   # projection_init_type: half
   ^projection_init_type: [half, orthogonal]
-  no_projected_head: False
-  # ^no_projected_head: [True, False]
 
   projected_distillation: True
   projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-15-38/None/1171835/46770.pt
