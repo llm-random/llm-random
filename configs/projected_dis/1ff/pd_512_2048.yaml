@@ -15,11 +15,10 @@ params:
   projected_dff: 2048
   n_steps: 19_545 # same as dmodel
   # learning_rate: 0.0005 # same as dmodel
-  ^learning_rate: [0.00025, 0.0005, 0.001]
+  ^learning_rate: [0.000125, 0.00025, 0.0005]
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
-  residual_mode: pre_norm_no_bias
   
   # projection_init_type: half
   ^projection_init_type: [half, orthogonal]

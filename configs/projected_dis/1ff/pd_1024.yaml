@@ -20,7 +20,6 @@ params:
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
-  residual_mode: pre_norm_no_bias
   
   # projection_init_type: half
   ^projection_init_type: [half, orthogonal]
