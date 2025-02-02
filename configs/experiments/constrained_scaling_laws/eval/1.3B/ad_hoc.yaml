@@ -1,10 +1,10 @@
 parent: configs/experiments/constrained_scaling_laws/eval/parabolae/model.yaml
 md5_parent_hash: 3f5015f5ef6222d45c69b90164f37f73
 n_gpus: 4
-time: 08:00:00
+time: 04:00:00
 
 params:
-  ^neptune_id: ['LLMRANDOM-28935', 'LLMRANDOM-28932', 'LLMRANDOM-28894', 'LLMRANDOM-28893', 'LLMRANDOM-28892', 'LLMRANDOM-28891', 'LLMRANDOM-28890', 'LLMRANDOM-28889']
+  ^neptune_id: ['LLMRANDOM-29054', 'LLMRANDOM-29097', 'LLMRANDOM-29096', 'LLMRANDOM-28394', 'LLMRANDOM-29057', 'LLMRANDOM-29060', 'LLMRANDOM-29059', 'LLMRANDOM-28431']
   ^final_eval_step: [Null]
   n_blocks: 1
   dmodel: 1

@@ -1,0 +1,11 @@
+parent: configs/experiments/constrained_scaling_laws/eval/athena/model.yaml
+md5_parent_hash: 6768e08d8480a8707367f19e9aa5a321
+n_gpus: 1
+time: 04:00:00
+
+params:
+  ^neptune_id: ['LLMRANDOM-28479', 'LLMRANDOM-28478', 'LLMRANDOM-28489', 'LLMRANDOM-28488', 'LLMRANDOM-28503', 'LLMRANDOM-28502', 'LLMRANDOM-28518', 'LLMRANDOM-28517', 'LLMRANDOM-26547', 'LLMRANDOM-26516', 'LLMRANDOM-26515', 'LLMRANDOM-26513', 'LLMRANDOM-26512', 'LLMRANDOM-26511', 'LLMRANDOM-26510']
+  ^final_eval_step: [Null]
+  n_blocks: 1
+  dmodel: 1
+  n_att_heads: 1

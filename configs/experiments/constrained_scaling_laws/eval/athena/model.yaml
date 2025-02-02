@@ -1,0 +1,7 @@
+parent: configs/experiments/constrained_scaling_laws/eval/common.yaml
+md5_parent_hash: 75a2a2006b7473a4bfb868e59a35c66f
+
+params:
+  tags: ["constrained_scaling_grid", "athena"]
+
+
