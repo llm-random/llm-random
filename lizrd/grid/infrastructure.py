@@ -329,6 +329,8 @@ class EntropyBackend(MachineBackend):
             "run",
             *singularity_env_arguments,
             make_singularity_mount_paths(setup_args, training_args),
+            "-B /local_storage_1",
+            "-B /local_storage_2",
             "--nv",
             setup_args["singularity_image"],
             *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
