@@ -1,0 +1,10 @@
+parent: configs/experiments/relativity_paper/local_search/baseline.yaml
+md5_parent_hash: ad47f45dd04baf697df51558da545b6b
+time: 0-10:00:00
+interactive_debug_session: false
+interactive_debug: false
+
+params:
+  name: "medium_validation_baseline"
+  tags: ["medium_validation", "relativity_paper", "baseline"]
+  data_seed: 43

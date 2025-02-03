@@ -1,0 +1,12 @@
+parent: configs/experiments/relativity_paper/extrapolations/base.yaml
+md5_parent_hash: 237e21804af87cd10d4756e6b345b6c7
+time: 0-08:00:00
+interactive_debug_session: false
+interactive_debug: false
+n_gpus: 2
+cpus_per_gpu: 16
+
+params:
+  name: "base_uplot"
+  tags: ["base_model", "uplot", "relativity_paper"]
+  # ^data_seed: [44,45,46]  # vary this in reruns

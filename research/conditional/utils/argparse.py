@@ -456,20 +456,46 @@ def introduce_parser_arguments(
         "--relative_lr",
         type=load_dict_in_args,
         default=None,
-        help="""Dictionary with relative learning rates for different modules
-        Example: --relative_lr "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
+        help="""relative_lr parameter,
+        Dictionary with relative learning rates for different modules.
+        It sets the starting learning rate in cosine scheduler (relative_scheduler_fraction sets end lr)
+        Example: --relative_lr "{'attention': 2.0, 'feedforward': 0.1, 'moe': 0.1}
         Example in config yaml:
         relative_lr:
-            attention: 0.1
+            attention: 2.0
             feedforward: 0.1
             moe: 0.1
+        With
+        lr = 1e-3, final_lr_fraction = 0.1
+        cosine scheduler for attention will start at lr * relative_lr['attention'] (2e-3)
+        and drop to lr * final_lr_fraction (1e-4)
+        """,
+    )
+    parser.add_argument(
+        "--relative_scheduler_fraction",
+        type=load_dict_in_args,
+        default=None,
+        help="""relative_lr parameter,
+        Dictionary with relative final learning rate fractions for different modules
+        It sets the end learning rate in cosine scheduler (relative_lr sets starting lr)
+        Example: --relative_scheduler_fraction "{'attention': 0.1, 'feedforward': 0.5, 'moe': 0.1}
+        Example in config yaml:
+        relative_scheduler_fraction:
+            attention: 0.1
+            feedforward: 0.5
+            moe: 0.1
+        With
+        lr = 1e-3, final_lr_fraction = 0.1
+        cosine scheduler for feedforward will start at lr (1e-3)
+        and drop to lr * final_lr_fraction * relative_scheduler_fraction['feedforward'] (5e-5)
         """,
     )
     parser.add_argument(
         "--relative_init_scale",
         type=load_dict_in_args,
         default=None,
-        help="""Dictionary with relative initialization scales for different modules
+        help="""relative_lr parameter,
+        Dictionary with relative initialization scales for different modules
         Example: --relative_init_scale "{'attention': 0.1, 'feedforward': 0.1, 'moe': 0.1}
         Example in config yaml:
         relative_init_scale:

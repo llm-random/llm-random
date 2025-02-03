@@ -1,0 +1,16 @@
+md5_parent_hash: c149daadf50a118056e0a9e955933daf
+params:
+  name: base_contribution_gating
+  relative_scheduler_fraction:
+    ^gating:
+    - 1.0
+  relative_lr:
+    ^gating:
+    - 0.666
+  tags:
+  - base_model
+  - uplot
+  - relativity_paper
+  - gating
+  - contribution
+parent: configs/experiments/relativity_paper/ablations/contribute/base_model_contribution.yaml

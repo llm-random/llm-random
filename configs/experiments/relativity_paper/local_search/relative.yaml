@@ -1,0 +1,40 @@
+parent: configs/experiments/relativity_paper/local_search/baseline.yaml
+md5_parent_hash: d12127616885d993d86a9241b5575d5d
+
+params:
+  name: "relativity_relative"
+  tags: ["relativity_paper"]
+
+  print_parameter_names: true
+  relative_lr:
+    embedding_layer: 5.0
+    head: 0.666
+    gating: 0.666
+    expert_inner_function: 0.3
+    projection: 1.
+
+  relative_scheduler_fraction:
+    embedding_layer: 0.666
+    head: 0.444
+    gating: 1.
+    expert_inner_function: 1.125
+    projection: 1.
+
+
+# tune_config: # TODO move down
+#   iters: 20
+#   tune_params:
+#     - "learning_rate"
+#     - "init_scale"
+#     - "final_lr_fraction"
+#     - "weight_decay"
+#     - "relative_lr:embedding_layer"
+#     - "relative_lr:head"
+#     - "relative_lr:expert_inner_function"
+#     - "relative_lr:gating"
+#     - "relative_lr:projection"
+#     - "relative_scheduler_fraction:embedding_layer"
+#     - "relative_scheduler_fraction:head"
+#     - "relative_scheduler_fraction:expert_inner_function"
+#     - "relative_scheduler_fraction:gating"
+#     - "relative_scheduler_fraction:projection"

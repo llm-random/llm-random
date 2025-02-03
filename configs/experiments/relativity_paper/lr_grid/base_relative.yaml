@@ -1,0 +1,7 @@
+parent: configs/experiments/relativity_paper/extrapolations/base.yaml
+md5_parent_hash: 237e21804af87cd10d4756e6b345b6c7
+
+params:
+  name: "base_lr_grid_relative"
+  tags: ["relativity_paper", "base_model", "lr_grid"]
+  ^learning_rate: [0.0005, 0.001, 0.002, 0.005]

@@ -1,0 +1,16 @@
+md5_parent_hash: c149daadf50a118056e0a9e955933daf
+params:
+  name: base_contribution_head
+  relative_scheduler_fraction:
+    ^head:
+    - 0.444
+  relative_lr:
+    ^head:
+    - 0.666
+  tags:
+  - base_model
+  - uplot
+  - relativity_paper
+  - head
+  - contribution
+parent: configs/experiments/relativity_paper/ablations/contribute/base_model_contribution.yaml

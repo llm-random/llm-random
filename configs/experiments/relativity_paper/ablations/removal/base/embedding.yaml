@@ -1,0 +1,13 @@
+md5_parent_hash: 09702178c20a8c3996c87204d4983d0b
+params:
+  name: base_removal_embedding
+  relative_scheduler_fraction:
+    ^embedding_layer: [1.0]
+  relative_lr:
+    ^embedding_layer: [1.0]
+  tags:
+  - base_model
+  - relativity_paper
+  - embedding_layer
+  - removal
+parent: configs/experiments/relativity_paper/ablations/u_plots/base_model_uplots.yaml

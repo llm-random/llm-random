@@ -1,0 +1,20 @@
+md5_parent_hash: a329216265a1cfeac0a3830a36deb256
+params:
+  name: medium_uplot_gating_start
+  relative_lr:
+    ^gating:
+    - 0.0833
+    - 0.111
+    - 0.1665
+    - 0.333
+    - 1.332
+    - 2.664
+    - 3.996
+    - 5.328
+  tags:
+  - medium_model
+  - uplot
+  - relativity_paper
+  - gating
+  - start
+parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml

@@ -9,7 +9,7 @@ from lizrd.train.scheduler import ConstantScheduler, CosineScheduler
 
 class TestSchedulers(GeneralTestCase):
     def test_constant_scheduler(self):
-        scheduler = ConstantScheduler(lr_warmup_steps=10, lr=0.1, ratios=[1.0])
+        scheduler = ConstantScheduler(lr_warmup_steps=10, lr=0.1, ratios_lr=[1.0])
         model = Linear(1, 1)
         optim = AdamW(model.parameters())
 
@@ -37,7 +37,8 @@ class TestSchedulers(GeneralTestCase):
             lr=0.1,
             final_lr_step=90,
             final_lr_fraction=0.1,
-            ratios=[1.0],
+            ratios_lr=[1.0],
+            final_lr_fractions=[1.0],
         )
         model = Linear(1, 1)
         optim = AdamW(model.parameters())
@@ -46,7 +47,9 @@ class TestSchedulers(GeneralTestCase):
             scheduler.set_lr(optim, step)
 
             for param_group in optim.param_groups:
-                assert param_group["lr"] == scheduler.get_lr(step)
+                assert math.isclose(
+                    param_group["lr"], scheduler.get_lr(step), rel_tol=1e-8
+                )
 
             if step == 0:
                 assert math.isclose(optim.param_groups[0]["lr"], 0.1 / 10, abs_tol=1e-6)

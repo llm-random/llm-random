@@ -1,0 +1,20 @@
+md5_parent_hash: a329216265a1cfeac0a3830a36deb256
+params:
+  name: medium_uplot_head_end
+  relative_scheduler_fraction:
+    ^head:
+    - 0.0555
+    - 0.074
+    - 0.111
+    - 0.222
+    - 0.888
+    - 1.776
+    - 2.664
+    - 3.552
+  tags:
+  - medium_model
+  - uplot
+  - relativity_paper
+  - head
+  - end
+parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml

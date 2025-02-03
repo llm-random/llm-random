@@ -95,26 +95,73 @@ def log_batch(
     print("Logged example batch.")
 
 
-def make_param_groups_and_lr_ratios(args, model):
-    lr = args.learning_rate
-    if args.relative_lr is None:
-        return [{"params": model.parameters(), "lr": lr}], [1.0]
+# input:
+# two dicts of form {keyword: value}
+# returns:
+# param_groups, relative_lrs_in_group_order, relative_final_lr_fractions_in_group_order
+#
+# param_groups: separate group for each unique combination of lr and fraction
+# relative_lrs_in_group_order: list of relative lrs in group order
+# relative_final_lr_fractions_in_group_order: list of relative final lr fractions in group order
+def make_relative_param_groups(
+    model,
+    lr,
+    final_lr_fraction,
+    relative_lrs_dict: dict,
+    relative_final_lr_fractions_dict: dict,
+):
+    if (relative_lrs_dict is None) & (relative_final_lr_fractions_dict is None):
+        return (
+            [{"params": model.parameters(), "lr": lr, "fraction": final_lr_fraction}],
+            [1.0],
+            [1.0],
+        )
 
-    relative_lr: dict = args.relative_lr
+    # lr_fraction_dict: {(lr, fraction): [named_param1, named_param2, ...]}
+    relativity_to_params_dict = defaultdict(list)
 
-    lr_to_params = defaultdict(list)
+    # loop over named_parameters and put it's name to correct lr_fraction_dict key
     for name, param in model.named_parameters():
-        ratio = 1.0
-        for possible_name in relative_lr.keys():
-            if possible_name in name:
-                ratio = relative_lr[possible_name]
-                break
-        lr_to_params[ratio * lr].append(param)
-    param_grops = [
-        {"params": params, "lr": lr_group} for lr_group, params in lr_to_params.items()
+        # check relative lrs for matching with param name
+        relative_lr = 1.0
+        if relative_lrs_dict is not None:
+            for relative_lr_keyword in relative_lrs_dict.keys():
+                if relative_lr_keyword in name:
+                    relative_lr = relative_lrs_dict[relative_lr_keyword]
+                    break
+
+        # check relative final lr fractions for matching with param name
+        relative_fraction = 1.0
+        if relative_final_lr_fractions_dict is not None:
+            for relative_fraction_keyword in relative_final_lr_fractions_dict.keys():
+                if relative_fraction_keyword in name:
+                    relative_fraction = relative_final_lr_fractions_dict[
+                        relative_fraction_keyword
+                    ]
+                    break
+
+        # append param to the correct group
+        relativity_to_params_dict[(relative_lr, relative_fraction)].append(param)
+
+    param_groups = [
+        {
+            "params": params,
+            "lr": relativity_group[0] * lr,
+            "fraction": relativity_group[1] * final_lr_fraction,
+        }
+        for relativity_group, params in relativity_to_params_dict.items()
     ]
-    ratios_in_group_order = [param_group["lr"] / lr for param_group in param_grops]
-    return param_grops, ratios_in_group_order
+    relative_lrs_in_group_order = [
+        param_group["lr"] / lr for param_group in param_groups
+    ]
+    relative_final_lr_fractions_in_group_order = [
+        param_group["fraction"] / final_lr_fraction for param_group in param_groups
+    ]
+    return (
+        param_groups,
+        relative_lrs_in_group_order,
+        relative_final_lr_fractions_in_group_order,
+    )
 
 
 def rescale_params_after_init(args, model):
@@ -495,10 +542,20 @@ def main(
         for name, param in model.named_parameters():
             print(name, param.shape)
 
-    param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
+    (
+        param_groups,
+        relative_lrs_in_group_order,
+        relative_final_lr_fractions_in_group_order,
+    ) = make_relative_param_groups(
+        model,
+        lr=args.learning_rate,
+        final_lr_fraction=args.final_lr_fraction,
+        relative_lrs_dict=args.relative_lr,
+        relative_final_lr_fractions_dict=args.relative_scheduler_fraction,
+    )
 
     optimizer = torch.optim.AdamW(
-        param_grops,
+        param_groups,
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
         betas=(args.adam_beta1, args.adam_beta2),
@@ -507,10 +564,14 @@ def main(
     if checkpoint is not None:
         load_optimizer_state(optimizer, checkpoint, model, global_rank)
 
-    scheduler = get_scheduler(args, ratios_in_group_order)
-    print(f"Scheduler_ratios: {scheduler.ratios}")
-    if not args.checkpoint_manager:
-        rescale_params_after_init(args, model)
+    scheduler = get_scheduler(
+        args,
+        relative_lrs_in_group_order=relative_lrs_in_group_order,
+        final_lr_fractions_in_group_order=relative_final_lr_fractions_in_group_order,
+    )
+    if hasattr(args, "repeater_mode"):
+        if not args.repeater_mode:
+            rescale_params_after_init(args, model)
 
     batch_size = args.batch_size // args.n_gpus if data_distributed else args.batch_size
 

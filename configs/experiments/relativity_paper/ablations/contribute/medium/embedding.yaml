@@ -1,0 +1,15 @@
+md5_parent_hash: bc1c27c37b320b1c00c6e8747cb4a95f
+params:
+  name: medium_contribution_embedding
+  relative_scheduler_fraction:
+    ^embedding_layer:
+    - 0.666
+  relative_lr:
+    ^embedding_layer:
+    - 5.0
+  tags:
+  - medium_model
+  - contribution
+  - relativity_paper
+  - embedding_layer
+parent: configs/experiments/relativity_paper/ablations/contribute/medium_model_contribution.yaml

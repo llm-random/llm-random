@@ -1,0 +1,20 @@
+md5_parent_hash: a329216265a1cfeac0a3830a36deb256
+params:
+  name: medium_uplot_expertif_start
+  relative_lr:
+    ^expert_inner_function:
+    - 0.0375
+    - 0.05
+    - 0.075
+    - 0.15
+    - 0.6
+    - 1.2
+    - 1.8
+    - 2.4
+  tags:
+  - medium_model
+  - uplot
+  - relativity_paper
+  - expert_inner_function
+  - start
+parent: configs/experiments/relativity_paper/ablations/u_plots/medium_model_uplots.yaml

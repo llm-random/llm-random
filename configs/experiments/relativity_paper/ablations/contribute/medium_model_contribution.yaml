@@ -1,0 +1,12 @@
+parent: configs/experiments/relativity_paper/local_search/baseline.yaml
+md5_parent_hash: ad47f45dd04baf697df51558da545b6b
+time: 0-04:00:00
+interactive_debug_session: false
+interactive_debug: false
+n_gpus: 2
+cpus_per_gpu: 16
+
+params:
+  name: "medium_contribution"
+  tags: ["medium_model", "contribution", "relativity_paper"]
+  # ^data_seed: [44,45,46]  # vary this in reruns
