@@ -131,7 +131,9 @@ class MultiheadFlashDiff1(LoggingLayer):
         # TODO folder na expy o tej samej nazwie
 
         self.n_kv_heads = n_kv_heads or n_heads
-        self.n_rep = self.n_heads // self.n_kv_heads
+        # self.n_rep = self.n_heads // self.n_kv_heads
+        self.enable_gqa = self.n_heads != self.n_kv_heads
+        assert self.n_heads % self.n_kv_heads == 0
         # Todo paramater matched GQA bez adapterów
         self.dhead = dmodel // n_heads
 
@@ -457,6 +459,7 @@ class MultiheadFlashDiff1(LoggingLayer):
                 k1.transpose(1, 2),
                 v.transpose(1, 2),
                 causal=True,
+                enable_gqa=self.enable_gqa,
             )
             attn1 = attn1.transpose(1, 2)
             attn2, attn2_scores = manual_attention(
@@ -464,6 +467,7 @@ class MultiheadFlashDiff1(LoggingLayer):
                 k2.transpose(1, 2),
                 v.transpose(1, 2),
                 causal=True,
+                enable_gqa=self.enable_gqa,
             )
             attn2 = attn2.transpose(1, 2)
             if False and self.block_number == 0:
@@ -552,7 +556,9 @@ class VanillaFlashDiff1(nn.Module):
         # num_heads set to half of Transformer's #heads
         self.n_heads = n_heads
         self.n_kv_heads = self.n_heads
-        self.n_rep = self.n_heads // self.n_kv_heads
+        # self.n_rep = self.n_heads // self.n_kv_heads
+        self.enable_gqa = self.n_heads != self.n_kv_heads
+        assert self.n_heads % self.n_kv_heads == 0
         self.save_attention_weights = False
         self.attention_weights = None
 
@@ -612,6 +618,7 @@ class VanillaFlashDiff1(nn.Module):
                 k.transpose(1, 2),
                 v.transpose(1, 2),
                 causal=True,
+                enable_gqa=self.enable_gqa,
             )
             attn = attn.transpose(1, 2)
             if False and self.block_number == 0:
