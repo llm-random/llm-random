@@ -56,18 +56,23 @@ class Lowrank(nn.Module):
         return self.w2(self.w1(x))
 
 
-def manual_attention(q, k, v, causal=True):
+def manual_attention(q, key, value, causal=True, enable_gqa=False):
     """Preserves flashattention's interface, but also returns attention weights"""
     # ...# manual implementation of attention
     if not causal:
         raise NotImplementedError
-    bs, nh, slen, head_dim = q.shape
-    att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(head_dim))
+    bsz, nh, seq_len, dhead = q.shape
+
+    if enable_gqa:
+        key = key.repeat_interleave(nh / key.shape[1], dim=1)
+        value = value.repeat_interleave(nh / value.shape[1], dim=1)
+
+    att = (q @ key.transpose(-2, -1)) * (1.0 / math.sqrt(dhead))
     att = att.masked_fill(
-        torch.tril(torch.ones(slen, slen).to(att)) == 0, float("-inf")
+        torch.tril(torch.ones(seq_len, seq_len).to(att)) == 0, float("-inf")
     )
     att = F.softmax(att.to(torch.float32), dim=-1)
-    y = att.to(v) @ v  # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+    y = att.to(value) @ value  # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
     return y, att
 
 
@@ -113,15 +118,21 @@ class MultiheadFlashDiff1(LoggingLayer):
 
         assert (int(roll_negative_heads) + int(flip_negative_heads)) <= 1
 
+        # TODO inżynierka configów pairwise
         # TODO QQA + QDA
+        # TODO QQA na Q + normalne GDA
         # TODO naprawić adaptery z powrotem
+        # TODO DoRA jako adapter
         # TODO none razem z resztą
         # TODO sanity check multi/add/multiadd
+        # TODO Skąd bierze pomysły?
+        # TODO fineweb dataset?
+        # TODO run exp --yes
+        # TODO folder na expy o tej samej nazwie
 
         self.n_kv_heads = n_kv_heads or n_heads
         self.n_rep = self.n_heads // self.n_kv_heads
-        # Todo paramater matched adaptery
-        # TOdo paramater matched adaptery + GDA
+        # Todo paramater matched GQA bez adapterów
         self.dhead = dmodel // n_heads
 
         self.adapter_type = adapter_type
@@ -189,7 +200,23 @@ class MultiheadFlashDiff1(LoggingLayer):
                     mean=0, std=0.1
                 )
             )
-        elif self.adapter_type == "none" or self.adapter_type == "identity":
+        elif self.adapter_type == "none":
+            self.q_neg_proj = Linear(
+                self.dmodel,
+                self.dhead * self.n_negative_heads,
+                bias=False,
+                init_type=init_type,
+                init_scale=init_scale,
+            )
+            self.k_neg_proj = Linear(
+                self.dmodel,
+                # self.dhead * self.n_negative_heads,
+                self.dhead * self.n_kv_heads,
+                bias=False,
+                init_type=init_type,
+                init_scale=init_scale,
+            )
+        elif self.adapter_type == "identity":
             pass
         else:
             raise NotImplementedError
@@ -205,16 +232,16 @@ class MultiheadFlashDiff1(LoggingLayer):
         )
         self.k_proj = Linear(
             self.dmodel,
-            # self.dhead * 2 * self.n_kv_heads,
-            self.dmodel,
+            self.dhead * self.n_kv_heads,
+            # self.dmodel,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
         )
         self.v_proj = Linear(
             self.dmodel,
-            # self.dhead * 2 * self.n_kv_heads,
-            self.dmodel,
+            self.dhead * self.n_kv_heads,
+            # self.dmodel,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
@@ -258,6 +285,8 @@ class MultiheadFlashDiff1(LoggingLayer):
     ):
         global q_negative
         global k_negative
+        global q_trunc
+        global k_trunc
         bsz, _, _ = x.size()
         # print(f"x.shape: {x.shape}")
        
@@ -270,8 +299,9 @@ class MultiheadFlashDiff1(LoggingLayer):
 
         # print(f"q.shape: {q.shape}")
 
-        q_trunc = q[:, :, :self.dhead * self.n_negative_heads]
-        k_trunc = k[:, :, :self.dhead * self.n_negative_heads]
+        if self.adapter_type != "none":
+            q_trunc = q[:, :, :self.dhead * self.n_negative_heads]
+            k_trunc = k[:, :, :self.dhead * self.n_negative_heads]
         # q_trunc = q[:, :, :self.dhead * self.n_positive_heads]
         # k_trunc = k[:, :, :self.dhead * self.n_positive_heads]
 
@@ -331,15 +361,20 @@ class MultiheadFlashDiff1(LoggingLayer):
             # q_negative = q.clone().view(bsz, self.seq_len, self.n_negative_heads, 2 * self.dhead)
             # k_negative = k.clone().view(bsz, self.seq_len, self.n_negative_heads, 2 * self.dhead)
         elif self.adapter_type == "none":
-            # q = q.view(bsz, self.seq_len, self.n_positive_heads, self.dhead)
-            # k = k.view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
-            # v = v.view(bsz, self.seq_len, self.n_heads, self.dhead)
-            q_negative = q[:, :, self.dhead * self.n_heads:].view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
-            k_negative = k[:, :, self.dhead * self.n__heads:].view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
+            q = q.view(bsz, self.seq_len, self.n_heads, self.dhead)
+            k = k.view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
+            v = v.view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
 
-            q = q[:, :, :self.dhead * self.n_heads].view(bsz, self.seq_len, self.n_heads, self.dhead)
-            k = k[:, :, :self.dhead * self.n_heads].view(bsz, self.seq_len, self.n_heads, self.dhead)
-            v = v.view(bsz, self.seq_len, self.n_heads, self.dhead)
+            q_negative = self.q_neg_proj(x).view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
+            # k_negative = self.k_neg_proj(x).view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
+            k_negative = self.k_neg_proj(x).view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
+
+            # q_negative = q[:, :, self.dhead * self.n_heads:].view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
+            # k_negative = k[:, :, self.dhead * self.n__heads:].view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
+
+            # q = q[:, :, :self.dhead * self.n_heads].view(bsz, self.seq_len, self.n_heads, self.dhead)
+            # k = k[:, :, :self.dhead * self.n_heads].view(bsz, self.seq_len, self.n_heads, self.dhead)
+            # v = v.view(bsz, self.seq_len, self.n_heads, self.dhead)
 
         if self.use_rope:
             assert self.rotary_emb._cos_cached.dtype == torch.float32
@@ -373,18 +408,30 @@ class MultiheadFlashDiff1(LoggingLayer):
             #         k1.shape == k2.shape == q1.shape == q2.shape
             #     ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
         else:
-            q = q.reshape(bsz, self.seq_len, self.n_heads, self.dhead)
+            # q = q.reshape(bsz, self.seq_len, self.n_heads, self.dhead)
             # k = k.reshape(bsz, self.seq_len, self.n_kv_heads, 2, self.dhead)
-            k = k.reshape(bsz, self.seq_len, self.n_heads, self.dhead)
+            # k = k.reshape(bsz, self.seq_len, self.n_heads, self.dhead)
             # k = k.reshape(bsz, self.seq_len, self.n_kv_heads, 2, self.dhead)
             # q1, q2 = q[:, :, :, 0], q[:, :, :, 1]
             # k1, k2 = k[:, :, :, 0], k[:, :, :, 1]
+
             q1 = q
-            q2 = q_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
+            q2 = q_negative #.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
+
             k1 = k
-            k2 = k_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
-            v1 = v[:, :, :self.n_heads // 2]
-            v2 = v[:, :, self.n_heads // 2:]
+            k2 = k_negative
+
+            # # k1 = k
+            # # k2 = k_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
+            #
+            # k1 = k.repeat(1, 1, self.n_heads // self.n_kv_heads, 1)
+            # k2 = k_negative.repeat(1, 1, self.n_heads // self.n_kv_heads, 1)
+            # assert (
+            #             k1.shape == k2.shape == q1.shape == q2.shape
+            #         ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
+
+            # v1 = v[:, :, :self.n_heads // 2]
+            # v2 = v[:, :, self.n_heads // 2:]
 
         # TODO flip/roll
         # if self.flip_negative_heads:

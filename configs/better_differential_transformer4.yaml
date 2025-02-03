@@ -6,7 +6,7 @@ backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_adapter_parameter_matched"
+  name: "diff_gqa_parameter_matched"
 
   # base bass
   mixed_precision: true
@@ -20,7 +20,7 @@ params:
   logging_interval_loss: 1000
   save_weights_path: "model_ckpt"
   save_weights_interval: -1
-  tags: ["diff_adapter_parameter_matched"]
+  tags: ["diff_gqa_parameter_matched"]
 
 
   cutoff: 1024
@@ -47,10 +47,10 @@ params:
   ]
   ^dmodel: [768]
 #  dff: 3072
-  ^dff: [3072]
+  ^dff: [3840]
   n_blocks: 12
   n_att_heads: 12
-  ^n_negative_heads: [4]
+  ^n_negative_heads: [12]
   ^learning_rate: [5e-4]
   data_seed: 42
   init_type: truncated_normal
@@ -58,9 +58,9 @@ params:
   mixed_precision_dtype: bfloat16
   ^diff_transformer_lowrank_dim: [64]
   diff_transformer_roll_negative_heads: true
-#  ^n_kv_heads: [12]
+  ^n_kv_heads: [4]
 #  ^diff_transformer_adapter_type: [additive, multiplicative, lora, identity, multiadd]
-  ^diff_transformer_adapter_type: [lora]
+  ^diff_transformer_adapter_type: [none]
   evaluate_attention_relevancy_interval: 5000
   # ^load_balancing_loss_weight: [0.01]
 
