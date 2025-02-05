@@ -1,6 +1,6 @@
 import math
 
-# from weakref import ref
+from weakref import ref
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -11,11 +11,11 @@ from .kernel.rotary import apply_rotary_emb
 from flash_attn import flash_attn_func
 from flash_attn.layers.rotary import RotaryEmbedding
 
-# try:
-# from apex.normalization import FusedRMSNorm as RMSNorm
-# except ModuleNotFoundError:
-#     print("No fused RMSNorm")
-from .rms_norm import RMSNorm
+try:
+    from apex.normalization import FusedRMSNorm as RMSNorm
+except ModuleNotFoundError:
+    print("No fused RMSNorm")
+    from .rms_norm import RMSNorm
 
 
 def init_method(tensor, **kwargs):
@@ -315,16 +315,6 @@ class MultiheadFlashDiff1(LoggingLayer):
         k = self.k_proj(x)
         v = self.v_proj(x)
 
-        # print(f"q.shape: {q.shape}")
-
-        if self.adapter_type != "none":
-            q_trunc = q[:, :, : self.dhead * self.n_negative_heads]
-            k_trunc = k[:, :, : self.dhead * self.n_negative_heads]
-        # q_trunc = q[:, :, :self.dhead * self.n_positive_heads]
-        # k_trunc = k[:, :, :self.dhead * self.n_positive_heads]
-
-        # print(f"q_trunc.shape: {q_trunc.shape}")
-
         if self.adapter_type == "lora":
             # self.lowrank_inner_dim > 0:
             q_negative = (q_trunc + self.lowrank_q(x)).view(
@@ -528,12 +518,8 @@ class MultiheadFlashDiff1(LoggingLayer):
                 assert torch.allclose(
                     attn2, reference_attn2, atol=1e-3
                 ), f"Manual attn2 does not match reference attn2"
-            # print(f"attn1_scores.shape: {attn1_scores.shape}")
-            # print(f"attn2_scores.shape: {attn2_scores.shape}")
 
-            differential_scores = torch.cat(
-                (attn1_scores, -lambda_full * attn2_scores), 1
-            )
+            differential_scores = attn1_scores - lambda_full * attn2_scores
             self.attention_weights = differential_scores
         else:
             attn1 = flash_attn_func(
@@ -549,23 +535,11 @@ class MultiheadFlashDiff1(LoggingLayer):
                 causal=True,
             )
 
-        # print(f"attn1.shape: {attn1.shape}")
-        # print(f"attn2.shape: {attn2.shape}")
-
-        attn2 = -lambda_full * attn2
-        attn = attn1 + attn2
-
-        # print(f"attn2lambda.shape: {attn2.shape}")
-
-        # attn = torch.cat((attn1, attn2), 2)
-
-        # print(f"attn.shape: {attn.shape}")
+        attn = attn1 - lambda_full * attn2
 
         attn = self.subln(attn)
         attn = attn * (1 - self.lambda_init)
         attn = attn.reshape(bsz, self.seq_len, self.n_heads * self.dhead)
-
-        # print(f"attn.shape: {attn.shape}")
 
         attn = self.out_proj(attn)
         return attn

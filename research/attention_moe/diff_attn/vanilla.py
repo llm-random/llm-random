@@ -10,7 +10,7 @@ from .kernel.rotary import apply_rotary_emb
 try:
     from apex.normalization import FusedRMSNorm as RMSNorm
 except ModuleNotFoundError:
-    print("No fused RMSNorm")
+    # print("No fused RMSNorm")
     from .rms_norm import RMSNorm
 
 
