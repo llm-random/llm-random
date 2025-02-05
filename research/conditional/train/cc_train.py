@@ -167,8 +167,8 @@ def convert_parameters(args):
         )
 
     if args.scheduler_trapezoidal_slides:
-        assert args.scheduler == "trapezoidal"
-        assert args.checkpoint_manager
+        assert args.scheduler == "trapezoidal" # TODO move to check_args
+        assert args.checkpoint_manager # TODO move to check_args
         args.scheduler_trapezoidal_slides = literal_eval(
             args.scheduler_trapezoidal_slides
         )
@@ -647,8 +647,8 @@ def main(
     #     barrier()
 
     if global_rank is not None:
-        destroy_process_group()
         barrier()
+        destroy_process_group()
 
 
 if __name__ == "__main__":
