@@ -385,9 +385,9 @@ class TestTokenChoice(GeneralTestCase):
 
         with torch.no_grad():
             # make sure the gating is the same for both experts
-            token_choice_layer.gating.gate.data[
-                :, 0
-            ] = token_choice_layer.gating.gate.data[:, 1]
+            token_choice_layer.gating.gate.data[:, 0] = (
+                token_choice_layer.gating.gate.data[:, 1]
+            )
 
             # copy weights from experts to layer
             token_choice_layer.expert_inner_function.lin1_weight.data[0] = (

@@ -14,11 +14,12 @@ from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
 from research.attention_moe.diff_attn.fast import MultiheadFlashDiff1, VanillaFlashDiff1
-from research.attention_moe.diff_attn.vanilla import MultiheadDiffAttn
+
+# from research.attention_moe.diff_attn.vanilla import MultiheadDiffAttn
 from research.attention_moe.moe_layers.attentions import (
     CausalMQA,
     CausalSelfAttention,
-    DroppingMoMQA,
+    # DroppingMoMQA,
     MoMQA,
 )
 from research.attention_moe.moe_layers.baseline_attentions_cc import (
@@ -1007,7 +1008,7 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         CausalSelfAttention,
         CausalMQA,
         MoMQA,
-        TokenGating
+        TokenGating,
         # TokenChoiceRouterOld,
         # TokenGating,
     ]

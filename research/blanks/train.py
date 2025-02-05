@@ -115,10 +115,8 @@ def main(
         attention_layer_fun=attention_layer_fun,
         dm=args.dmodel,
         n_blocks=args.n_blocks,
-        device=DEVICE
-        if rank is None
-        else torch.device(
-            "cpu"
+        device=(
+            DEVICE if rank is None else torch.device("cpu")
         ),  # in case DDP is enabled, we want to keep model on CPU and move it to proper GPU later
         gradient_checkpointing=args.gradient_checkpointing,
         model_fragmentation=args.model_parallelism_fragmentation,
@@ -155,9 +153,9 @@ def main(
         "sequence_length": args.cutoff,
         "device": DEVICE,
         "num_workers": args.num_workers,
-        "batch_size": args.batch_size // args.n_gpus
-        if data_distributed
-        else args.batch_size,
+        "batch_size": (
+            args.batch_size // args.n_gpus if data_distributed else args.batch_size
+        ),
         "seed": args.data_seed if data_seeds is None else data_seeds[rank],
         "dataset_type": args.dataset_type,
         "use_dummy_dataset": args.use_dummy_dataset,
@@ -174,12 +172,14 @@ def main(
     # TODO: replace eval_dataloader with something more sensible
     eval_dataloader = get_processed_dataset(
         **common_dataloaders_kwargs,
-        dataset_split="eval"
-        if args.dataset_type == "wikibook"
-        else (
-            "train"
-            if args.dataset_type == "c4" and args.use_dummy_dataset
-            else "validation"
+        dataset_split=(
+            "eval"
+            if args.dataset_type == "wikibook"
+            else (
+                "train"
+                if args.dataset_type == "c4" and args.use_dummy_dataset
+                else "validation"
+            )
         ),
     )
 

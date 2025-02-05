@@ -174,9 +174,9 @@ def main(
     if args.fsdp_enabled:
         fsdp_param_precision = args.mixed_precision_dtype
         fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
-        fsdp_modules_to_wrap: tuple[
-            type[Module]
-        ] | None = get_classes_from_module_names(args.fsdp_modules_to_wrap)
+        fsdp_modules_to_wrap: tuple[type[Module]] | None = (
+            get_classes_from_module_names(args.fsdp_modules_to_wrap)
+        )
     else:
         fsdp_param_precision = None
         fsdp_mixed_precision_ignore_classes = None
@@ -414,9 +414,9 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.repeater_mode
-        else None,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.repeater_mode else None
+        ),
         evaluate_attention_relevancy_interval=args.evaluate_attention_relevancy_interval,
     )
     trainer.train(args.n_steps)

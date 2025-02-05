@@ -515,9 +515,9 @@ def main(
     if args.n_final_eval_batches > 0:
         final_eval_dataloader_kwargs = {**common_dataloaders_kwargs}
         final_eval_dataloader_kwargs["seed"] = args.final_eval_seed
-        final_eval_dataloader_kwargs[
-            "batch_size"
-        ] = args.final_eval_dataloader_batch_size
+        final_eval_dataloader_kwargs["batch_size"] = (
+            args.final_eval_dataloader_batch_size
+        )
         final_eval_dataloader_kwargs["dataset_split"] = eval_split
         final_eval_dataloader_kwargs["dataset_path"] = args.validation_dataset_path
         get_final_eval_dataloader = partial(
@@ -591,9 +591,9 @@ def main(
         rank=rank,
         start_step=checkpoint["step"] + 1 if checkpoint is not None else 0,
         checkpoint=checkpoint,
-        repeater_job_end_time=get_termination_timestamp_slurm()
-        if args.checkpoint_manager
-        else None,
+        repeater_job_end_time=(
+            get_termination_timestamp_slurm() if args.checkpoint_manager else None
+        ),
         scheduler_trapezoidal_slides=args.scheduler_trapezoidal_slides,
         args_override=args.args_override,
         batch_size_rampup_config=batch_size_rampup_config,

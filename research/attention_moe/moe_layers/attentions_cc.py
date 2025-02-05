@@ -7,7 +7,8 @@ from lizrd.core.misc import (
     LoggingLayer,
     time_measured,
 )
-from research.attention_moe.moe_layers.baseline_attentions_cc import MQA
+
+# from research.attention_moe.moe_layers.baseline_attentions_cc import MQA
 from research.attention_moe.moe_layers_cc.moe_gating import TokenGating
 
 

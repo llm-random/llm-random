@@ -234,9 +234,9 @@ def apply_rotary(
             rotary_dim,
             seqlen_ro,
             seqlen // 128,  # key for triton cache (limit number of compilations)
-            output.stride(0)
-            if not is_varlen
-            else 0,  # batch_strides if not varlen else 0
+            (
+                output.stride(0) if not is_varlen else 0
+            ),  # batch_strides if not varlen else 0
             output.stride(-3),  # seqlen_stride or total_seqlen_stride
             output.stride(-2),  # nheads_stride
             output.stride(-1),  # headdim_stride
