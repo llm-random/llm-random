@@ -639,6 +639,7 @@ def main(
         model_active_params=args.model_n_active_params,
         gpu_flops=args.gpu_flops,
         checkpoint_manager_enabled=args.checkpoint_manager,
+        save_final_model=args.save_final_model
     )
     trainer.train(args.n_steps)
 

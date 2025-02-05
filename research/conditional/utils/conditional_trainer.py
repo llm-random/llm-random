@@ -104,6 +104,7 @@ class ConditionalTrainer:
     loaded_training_loop_accumulators: dict = None
     model_active_params: int = 1
     gpu_flops: int = 1
+    save_final_model: bool = False
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -184,7 +185,7 @@ class ConditionalTrainer:
         if self.current_step >= n_steps:  # - end of model training operations
             if self.is_logging_process:
                 self.logger.exit_job_metadata(self.current_step)
-            if self.save_weights_path:
+            if self.save_final_model:
                 job_id = get_slurm_job_id()
                 end_training_checkpoint(
                     job_id,
