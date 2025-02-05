@@ -8,7 +8,6 @@ class AbstractTokenizer(ABC):
     sequence_separator_id: Optional[int]
     mask_id: Optional[int]
     eot_id: Optional[int]
-    blanks_ids: Optional[List[int]]
 
     @abstractmethod
     def text_to_ids(self, text: str) -> List[int]:
