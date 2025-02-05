@@ -72,7 +72,7 @@ def introduce_parser_arguments(
     parser.add_argument("--learning_rate", type=math_eval, required=True)
     parser.add_argument("--final_lr_step", type=int, required=False)
     parser.add_argument("--lr_warmup_percent", type=float, required=False)
-    parser.add_argument("--final_lr_fraction", type=float, required=False)
+    parser.add_argument("--final_lr_fraction", type=float, required=False) # TODO fix - it is required
     parser.add_argument(
         "--init_type",
         type=str,

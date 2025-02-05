@@ -116,11 +116,6 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         torch.concat((projection_z, projection, projection_z), dim=0),
         torch.concat((projection_z, projection_z, projection), dim=0),
     ), dim=1)
-    # projection_3 = torch.concat((
-    #     torch.concat((projection_z, projection_z, projection.T), dim=0),
-    #     torch.concat((projection_z, projection.T, projection_z), dim=0),
-    #     torch.concat((projection.T, projection_z, projection_z), dim=0),
-    # ), dim=1)
 
     if diagonal:
         projection_z = torch.zeros((projected_dmodel, dmodel))
@@ -154,7 +149,9 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         elif is_in_partial_list(name, PROJECTIONS_1_1_T):
             # projection_T
             print(f"projection_T: {name}, {params.shape}")
-            params.data.copy_(projection.T)
+            params.data.copy_(projection.T) #dev inverse
+            # params.data.copy_(torch.inverse(projection).T) #dev inverse
+            # params.data.copy_(torch.inverse(projection)) #dev inverse
         elif is_in_partial_list(name, PROJECTIONS_1_4):
             # projection_4
             print(f"projection_4: {name}, {params.shape}")
@@ -162,7 +159,6 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         elif is_in_partial_list(name, PROJECTIONS_1_4_T):
             # projection_4_T
             print(f"projection_4_T: {name}, {params.shape}")
-            # params.data.copy_(projection_4.T)
             params.data.copy_(projection_4_T)
         elif is_in_partial_list(name, PROJECTIONS_1_3):
             # projection_3
@@ -172,7 +168,9 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         elif is_in_partial_list(name, PROJECTIONS_1_3_T):
             # projection_3_T
             print(f"projection_3_T: {name}, {params.shape}")
-            params.data.copy_(projection_3.T)
+            params.data.copy_(projection_3.T) #dev inverse
+            # params.data.copy_(torch.inverse(projection_3).T) #dev inverse
+            # params.data.copy_(torch.inverse(projection_3)) #dev inverse
         elif is_in_partial_list(name, MULTIPLY):
             # projection
             print(f"projection: {name}, {params.shape}")
