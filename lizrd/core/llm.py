@@ -189,6 +189,7 @@ def LowRank(dinput, doutput, dlowrank):
         Linear(dlowrank, doutput),
     )
 
+from torch.nn.attention import SDPBackend
 
 def attention_mechanism(
     query: torch.Tensor,
@@ -198,6 +199,16 @@ def attention_mechanism(
     causal: bool,
     flash: bool,
 ):
+    with torch.nn.attention.sdpa_kernel(
+        [SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]
+    ):
+        return F.scaled_dot_product_attention(
+            query=query.contiguous(),
+            key=key.contiguous(),
+            value=value.contiguous(),
+            attn_mask=None,
+            is_causal=causal,
+        )
     if flash:
         with torch.backends.cuda.sdp_kernel(
             enable_flash=True, enable_math=False, enable_mem_efficient=False
@@ -290,14 +301,31 @@ class Attention(LoggingLayer):
         )
         self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
 
+    # def forward(self, x):
+    #     projected = self.input_projection(x)
+
+    #     batch, seq_len = x.shape[:-1]
+    #     projected = projected.view(
+    #         batch, seq_len, self.heads, 3 * self.dhead
+    #     ).transpose(1, 2)
+    #     q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+
+    #     attention_output = self.attention_mechanism(
+    #         query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+    #     )
+
+    #     output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
+
+    #     return output
+
     def forward(self, x):
         projected = self.input_projection(x)
 
         batch, seq_len = x.shape[:-1]
-        projected = projected.view(
-            batch, seq_len, self.heads, 3 * self.dhead
-        ).transpose(1, 2)
-        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+        q_chunk, k_chunk, v_chunk = torch.chunk(projected, chunks=3, dim=-1)
+        q = q_chunk.view(batch, seq_len, self.heads, -1).transpose(1, 2)
+        k = k_chunk.view(batch, seq_len, self.heads, -1).transpose(1, 2)
+        v = v_chunk.view(batch, seq_len, self.heads, -1).transpose(1, 2)
 
         attention_output = self.attention_mechanism(
             query=q, key=k, value=v, dhead=self.dhead, causal=self.causal

@@ -205,7 +205,7 @@ class GPTPacker(
             buffer.extend(tokens + [eot_id])
 
             document_lengths.append(len(tokens) + 1)
-            if (sum(document_lengths) - max(document_lengths)) > self.sequence_length:
+            if (sum(document_lengths) - max(document_lengths)) > self.sequence_length + 1:
                 break
 
         sample_start = self.py_rng.randint(0, len(buffer) - 1)
@@ -215,4 +215,7 @@ class GPTPacker(
         target_ids = list(take_circular(buffer, sample_start + 1, sample_end + 1))
         calculate_loss = [1] * len(target_ids)
 
+        # input_ids = input_ids[:-1]
+        # target_ids = target_ids[:-1]
+        # calculate_loss = calculate_loss[:-1]
         return LLMExample(input_ids, target_ids, calculate_loss)

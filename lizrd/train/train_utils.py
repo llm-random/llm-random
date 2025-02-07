@@ -42,6 +42,13 @@ def get_model(
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
+    # my_seed = 42
+    # torch.manual_seed(my_seed)
+    # torch.cuda.manual_seed_all(my_seed)  # if you are using multi-GPU.
+    # np.random.seed(my_seed)  # Numpy module.
+    # random.seed(my_seed)  # Python random module.
+
+
     embedding_components = [
         llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
     ]

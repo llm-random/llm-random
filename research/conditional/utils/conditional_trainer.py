@@ -434,7 +434,7 @@ class ConditionalTrainer:
                 if isinstance(self.model, FSDP):
                     self.model.clip_grad_norm_(self.gradient_clipping)
                 else:
-                    torch.nn.utils.clip_grad_norm_(
+                    _ = torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(), self.gradient_clipping
                     )
             self.optimizer.step()

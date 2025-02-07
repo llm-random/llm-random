@@ -1,0 +1,63 @@
+parent: configs/baselines/gpt/dense/medium.yaml
+md5_parent_hash: 1706dd43c527be74a6282b0319e9c31e
+time: "2-00:00:00"
+runner: "research.conditional.train.cc_train"
+n_gpus: 1
+
+train_dataset_path: "/local_storage_2/llm-random/datasets/c4_train"
+validation_dataset_path:  "/local_storage_2/llm-random/datasets/c4_validation"
+
+
+params:
+  name: "baseline_no_mixed_precision"
+  tags: ["baseline"]
+
+  ^cutoff: [32]
+  ^batch_size: [32]
+  ^learning_rate: [1e-4]
+  gradient_accumulation_steps: 1
+
+  n_steps: 1000
+  final_lr_step: 1000
+  lr_warmup_steps: 10
+  final_lr_fraction: 0.1
+
+
+  # precision / distributed
+  mixed_precision: false
+  # mixed_precision_dtype: bfloat16
+  flash_attention: false
+
+  # common
+  scheduler: cosine
+  init_type: truncated_normal_fixed
+  init_scale: 0.1
+  dataset_type: c4
+  weight_decay: 0.1
+  grad_clip: 0.5
+  logger_types: "neptune"
+
+  # intervals
+  decoding_interval: 0
+  logging_interval_heavy: 10
+  logging_interval_light: 10
+  save_weights_interval: 0
+  eval_interval: 10
+
+
+  project_name: "crewtool/mojtestproject"
+
+  torch_seed: 45
+  data_seed: 45
+  deterministic_experiment: true
+
+  dmodel: 64
+  dff: 256
+  n_blocks: 2
+  n_att_heads: 2
+
+  # cutoff: 5
+  # batch_size: 8
+  num_workers: 0
+
+  # use_dummy_dataset: true

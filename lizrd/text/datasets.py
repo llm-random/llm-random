@@ -87,6 +87,7 @@ class C4Dataset(AbstractDataset):
         dataset_path: Optional[str] = None,
     ):
         super().__init__(seed=seed)
+        self.cnt = 0
         assert split in ["train", "validation"]
         if dataset_path is not None:
             self.dataset = load_from_disk(dataset_path)
@@ -100,7 +101,9 @@ class C4Dataset(AbstractDataset):
             self.dataset = load_dataset("c4", "en", split=split)
 
     def get_document(self) -> str:
-        return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]
+        val = self.cnt
+        self.cnt += 1
+        return self.dataset[val]["text"]
 
 
 class FinewebEduDataset(AbstractDataset):
