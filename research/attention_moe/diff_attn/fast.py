@@ -121,22 +121,23 @@ class MultiheadFlashDiff1(LoggingLayer):
 
         # TODO zejść do 4dm^2 ze wszystkim!!!
 
-        # TODO inżynierka configów pairwise
         # TODO GQA + GDA
         # TODO inverse GDA??
-        # TODO lora in pretraining?
         # TODO GQA na zwykłym transformerze - debug
         # TODO GQA na Q + normalne GDA
         # TODO flip/roll + to samo na GDA/GQA
         # TODO naprawić adaptery z powrotem/none razem z resztą
         # TODO DoRA jako adapter (with rank halved?)
         # TODO scaling/B to 0's in LoRA?
+        # TODO SWiGLu i inne rzeczy z diff papera
+
+
+        # TODO inżynierka configów pairwise
+        # TODO lora in pretraining?
         # TODO Skąd bierze pomysły?
         # TODO fineweb dataset?
         # TODO run exp --yes
         # TODO folder na expy o tej samej nazwie
-        # TODO SWiGLu i inne rzeczy z diff papera
-
         self.n_kv_heads = n_kv_heads or n_heads
         # self.n_rep = self.n_heads // self.n_kv_heads
         self.enable_gqa = self.n_heads != self.n_kv_heads
@@ -224,8 +225,8 @@ class MultiheadFlashDiff1(LoggingLayer):
             )
             self.k_neg_proj = Linear(
                 self.dmodel,
-                # self.dhead * self.n_negative_heads,
-                self.dhead * self.n_kv_heads,
+                self.dhead * self.n_negative_heads,
+                # self.dhead * self.n_kv_heads,
                 bias=False,
                 init_type=init_type,
                 init_scale=init_scale,
@@ -397,8 +398,12 @@ class MultiheadFlashDiff1(LoggingLayer):
                 bsz, self.seq_len, self.n_negative_heads, self.dhead
             )
             # k_negative = self.k_neg_proj(x).view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
+            # k_negative = self.k_neg_proj(x).view(
+            #     bsz, self.seq_len, self.n_kv_heads, self.dhead
+            # )
+
             k_negative = self.k_neg_proj(x).view(
-                bsz, self.seq_len, self.n_kv_heads, self.dhead
+                bsz, self.seq_len, self.n_negative_heads, self.dhead
             )
 
             # q_negative = q[:, :, self.dhead * self.n_heads:].view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
@@ -420,13 +425,13 @@ class MultiheadFlashDiff1(LoggingLayer):
             k = apply_rotary_emb(
                 k.to(dtype=torch.float32), *rel_pos, interleaved=True
             ).to(x)
-            if self.adapter_type != "none":
-                q_negative = apply_rotary_emb(
-                    q_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
-                ).to(x)
-                k_negative = apply_rotary_emb(
-                    k_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
-                ).to(x)
+            # if self.adapter_type != "none":
+            q_negative = apply_rotary_emb(
+                q_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
+            ).to(x)
+            k_negative = apply_rotary_emb(
+                k_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
+            ).to(x)
 
         if self.adapter_type != "none":
             q1 = q
