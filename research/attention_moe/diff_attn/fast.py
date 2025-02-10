@@ -448,13 +448,13 @@ class MultiheadFlashDiff1(LoggingLayer):
             # k1, k2 = k[:, :, :, 0], k[:, :, :, 1]
 
             q1 = q
-            q2 = q_negative  # .repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
+            q2 = q_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
+
+            #k1 = k
+            #k2 = k_negative
 
             k1 = k
-            k2 = k_negative
-
-            # # k1 = k
-            # # k2 = k_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
+            k2 = k_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
             #
             # k1 = k.repeat(1, 1, self.n_heads // self.n_kv_heads, 1)
             # k2 = k_negative.repeat(1, 1, self.n_heads // self.n_kv_heads, 1)
