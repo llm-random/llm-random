@@ -458,9 +458,9 @@ class MultiheadFlashDiff1(LoggingLayer):
             #
             # k1 = k.repeat(1, 1, self.n_heads // self.n_kv_heads, 1)
             # k2 = k_negative.repeat(1, 1, self.n_heads // self.n_kv_heads, 1)
-            # assert (
-            #             k1.shape == k2.shape == q1.shape == q2.shape
-            #         ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
+            assert (
+                        k1.shape == k2.shape == q1.shape == q2.shape
+                    ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
 
             # v1 = v[:, :, :self.n_heads // 2]
             # v2 = v[:, :, self.n_heads // 2:]
