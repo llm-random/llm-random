@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 857e8482d095f33083fee68ab10421b4
+md5_parent_hash: 7608f909cc9c344e8deacb8dd2113d5d
 time: 0-03:00:00
 n_gpus: 1
 cpus_per_gpu: 16
@@ -9,10 +9,10 @@ params:
   name: "PD"
   tags: ["projected_dis", "1ff", "dm256"]
 
-  # ^learning_rate: [0.0005, 0.001, 0.002, 0.004] #+
-  ^learning_rate: [0.008, 0.016] #+
+  ^learning_rate: [0.001, 0.002, 0.004] #+
+  # ^learning_rate: [0.008, 0.016] #+
   # ^learning_rate: [0.0015, 0.004, 0.008] # 0.002 - 
-  # learning_rate: 0.002 # 0.002 - LLMRANDOM-29148
+  # learning_rate: 0.004
 
   dmodel: 256
   dff: 256

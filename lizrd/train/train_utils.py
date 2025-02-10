@@ -189,7 +189,8 @@ def get_model(
 
             columns_to_remove = torch.randperm(projected_dmodel)[:projected_dmodel-dm]
             mask = torch.ones(projected_dmodel, dtype=torch.bool)
-            mask[columns_to_remove] = False
+            # mask[columns_to_remove] = False
+            mask[:int(len(mask)/2)] = False
             print(mask) #dev
             projection = projection[:, mask]
         else:

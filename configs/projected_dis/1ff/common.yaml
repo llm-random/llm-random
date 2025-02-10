@@ -44,9 +44,9 @@ params:
 
   # scheduler: trapezoidal
   scheduler: cosine
-  final_lr_fraction: 0.01
+  final_lr_fraction: 0.1
   learning_rate: 0.001
-  lr_trapezoidal_decay_fraction: 0.2
+  # lr_trapezoidal_decay_fraction: 0.2
   lr_warmup_percent: 0.01
   lr_warmup_steps: 0
 

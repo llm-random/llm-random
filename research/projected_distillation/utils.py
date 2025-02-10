@@ -110,35 +110,27 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
     # projection_3 = torch.concat((projection, projection, projection))
     # projection_3 = torch.concat((projection_3, projection_3, projection_3), dim=1)
     
-    projection_z = torch.zeros((projected_dmodel, dmodel)) #dev
-    projection_3 = torch.concat((
-        torch.concat((projection, projection_z, projection_z), dim=0),
-        torch.concat((projection_z, projection, projection_z), dim=0),
-        torch.concat((projection_z, projection_z, projection), dim=0),
-    ), dim=1)
+    # projection_z = torch.zeros((projected_dmodel, dmodel)) #dev
+    # projection_3 = torch.concat((
+    #     torch.concat((projection, projection_z, projection_z), dim=0),
+    #     torch.concat((projection_z, projection, projection_z), dim=0),
+    #     torch.concat((projection_z, projection_z, projection), dim=0),
+    # ), dim=1)
 
-    if diagonal:
-        projection_z = torch.zeros((projected_dmodel, dmodel))
-        projection_4 = torch.concat((
-            torch.concat((projection, projection_z, projection_z, projection_z), dim=0),
-            torch.concat((projection_z, projection, projection_z, projection_z), dim=0),
-            torch.concat((projection_z, projection_z, projection, projection_z), dim=0),
-            torch.concat((projection_z, projection_z, projection_z, projection), dim=0),
-            ), dim=1)
-        # projection_T = projection.T
-        # projection_z_T = projection_z.T
-        # projection_4_T = torch.concat((
-        #     torch.concat((projection_T, projection_z_T, projection_z_T, projection_z_T), dim=0),
-        #     torch.concat((projection_z_T, projection_T, projection_z_T, projection_z_T), dim=0),
-        #     torch.concat((projection_z_T, projection_z_T, projection_T, projection_z_T), dim=0),
-        #     torch.concat((projection_z_T, projection_z_T, projection_z_T, projection_T), dim=0),
-        #     ), dim=1)
-        projection_4_T = projection_4.T
-    else:
-        print("NO DIAGONAL INIT") #dev
-        projection_4 = torch.concat((projection, projection, projection, projection))
-        projection_4 = torch.concat((projection_4, projection_4, projection_4, projection_4), dim=1)
-        projection_4_T = projection_4.T
+    # if diagonal:
+    #     projection_z = torch.zeros((projected_dmodel, dmodel))
+    #     projection_4 = torch.concat((
+    #         torch.concat((projection, projection_z, projection_z, projection_z), dim=0),
+    #         torch.concat((projection_z, projection, projection_z, projection_z), dim=0),
+    #         torch.concat((projection_z, projection_z, projection, projection_z), dim=0),
+    #         torch.concat((projection_z, projection_z, projection_z, projection), dim=0),
+    #         ), dim=1)
+    #     projection_4_T = projection_4.T
+    # else:
+    #     print("NO DIAGONAL INIT") #dev
+    #     projection_4 = torch.concat((projection, projection, projection, projection))
+    #     projection_4 = torch.concat((projection_4, projection_4, projection_4, projection_4), dim=1)
+    #     projection_4_T = projection_4.T
 
     print("------------------------------init projections------------------------") #dev
     for name, params in model.named_parameters():
@@ -155,11 +147,13 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         elif is_in_partial_list(name, PROJECTIONS_1_4):
             # projection_4
             print(f"projection_4: {name}, {params.shape}")
-            params.data.copy_(projection_4)
+            raise NotImplemented()
+            # params.data.copy_(projection_4)
         elif is_in_partial_list(name, PROJECTIONS_1_4_T):
             # projection_4_T
             print(f"projection_4_T: {name}, {params.shape}")
-            params.data.copy_(projection_4_T)
+            raise NotImplemented()
+            # params.data.copy_(projection_4_T)
         elif is_in_partial_list(name, PROJECTIONS_1_3):
             # projection_3
             print(f"projection_3: {name}, {params.shape}")
@@ -168,6 +162,13 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         elif is_in_partial_list(name, PROJECTIONS_1_3_T):
             # projection_3_T
             print(f"projection_3_T: {name}, {params.shape}")
+            projection_c = projection
+            projection_z = torch.zeros((projected_dmodel, dmodel)) #dev
+            projection_3 = torch.concat((
+                torch.concat((projection_c, projection_z, projection_z), dim=0),
+                torch.concat((projection_z, projection_c, projection_z), dim=0),
+                torch.concat((projection_z, projection_z, projection_c), dim=0),
+            ), dim=1)
             params.data.copy_(projection_3.T)
             # params.data.copy_(torch.inverse(projection_3).T) #dev inverted_test
             # params.data.copy_(torch.inverse(projection_3)) #dev inverted_test
