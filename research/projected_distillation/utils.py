@@ -92,30 +92,7 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
     if projection is None:
         print("No projection initialization")
         return
-    # if not init_type:
-    #     print("No projection initialization")
-    #     return
-    # elif init_type == "random":
-    #     print("Random projection initialization")
-    #     projection = get_init_weight(
-    #         shape=(projected_dmodel, dmodel),
-    #         fan_in=1,  # fan_in=1 is also default in pytorch
-    #         init_type="truncated_normal",
-    #         scale=init_scale/projected_dmodel,
-    #     )
-    #     projection_z = torch.zeros((projected_dmodel, dmodel))
-    # else:
-    #     raise Exception("Wrong projection init type")
-
-    # projection_3 = torch.concat((projection, projection, projection))
-    # projection_3 = torch.concat((projection_3, projection_3, projection_3), dim=1)
     
-    # projection_z = torch.zeros((projected_dmodel, dmodel)) #dev
-    # projection_3 = torch.concat((
-    #     torch.concat((projection, projection_z, projection_z), dim=0),
-    #     torch.concat((projection_z, projection, projection_z), dim=0),
-    #     torch.concat((projection_z, projection_z, projection), dim=0),
-    # ), dim=1)
 
     # if diagonal:
     #     projection_z = torch.zeros((projected_dmodel, dmodel))
@@ -132,16 +109,54 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
     #     projection_4 = torch.concat((projection_4, projection_4, projection_4, projection_4), dim=1)
     #     projection_4_T = projection_4.T
 
+    #dev start experimental layer dependent projections
+    # def generate_projection():
+    #     ret_proj = torch.zeros(projected_dmodel, projected_dmodel)
+    #     mask = torch.eye(projected_dmodel).bool()
+    #     ret_proj = ret_proj.masked_fill(mask, 1)
+    #     # projection = projection[:, int(dm):]
+
+    #     columns_to_remove = torch.randperm(projected_dmodel)[:projected_dmodel-dmodel]
+    #     mask = torch.ones(projected_dmodel, dtype=torch.bool)
+    #     mask[columns_to_remove] = False
+    #     # print(mask) #dev
+    #     ret_proj = ret_proj[:, mask]
+    #     return ret_proj
+    # default_projection = generate_projection() 
+    # projections_dict = {
+    #     "block_0": default_projection,
+    #     "block_1": default_projection,
+    #     "block_2": default_projection,
+    #     "block_3": default_projection,
+    #     "block_4": default_projection,
+    #     "block_5": default_projection,
+    #     "block_6": default_projection,
+    #     "block_7": default_projection,
+    # }
+    #dev stop experimental layer dependent projections
+    
+    projection_z = torch.zeros((projected_dmodel, dmodel), device=projection.device)
+
     print("------------------------------init projections------------------------") #dev
     for name, params in model.named_parameters():
+
+        # print(f"{name} projection fitting") #dev layer_dependent
+        # projection = default_projection #dev layer_dependent
+        # for k, v in projections_dict.items(): #dev layer_dependent
+        #     if k in name:
+        #         print(f"{k} in this name")
+        #         projection = v
+
         if is_in_partial_list(name, PROJECTIONS_1_1):
             # projection
             print(f"projection: {name}, {params.shape}")
-            params.data.copy_(projection)
+            # params.data.copy_(projection)
+            params.data = projection #dev coupled 
         elif is_in_partial_list(name, PROJECTIONS_1_1_T):
             # projection_T
             print(f"projection_T: {name}, {params.shape}")
-            params.data.copy_(projection.T)
+            # params.data.copy_(projection.T)
+            params.data = projection.T #dev coupled 
             # params.data.copy_(torch.inverse(projection).T) #dev inverted_test
             # params.data.copy_(torch.inverse(projection)) #dev inverted_test
         elif is_in_partial_list(name, PROJECTIONS_1_4):
@@ -163,13 +178,13 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
             # projection_3_T
             print(f"projection_3_T: {name}, {params.shape}")
             projection_c = projection
-            projection_z = torch.zeros((projected_dmodel, dmodel)) #dev
             projection_3 = torch.concat((
                 torch.concat((projection_c, projection_z, projection_z), dim=0),
                 torch.concat((projection_z, projection_c, projection_z), dim=0),
                 torch.concat((projection_z, projection_z, projection_c), dim=0),
             ), dim=1)
-            params.data.copy_(projection_3.T)
+            # params.data.copy_(projection_3.T)
+            params.data = projection_3.T #dev coupled 
             # params.data.copy_(torch.inverse(projection_3).T) #dev inverted_test
             # params.data.copy_(torch.inverse(projection_3)) #dev inverted_test
         elif is_in_partial_list(name, MULTIPLY):

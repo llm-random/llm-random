@@ -564,6 +564,15 @@ class ConditionalTrainer:
             for name, value in {**g_norms, **w_norms}.items():
                 self.logger.report_scalar(title=name, value=value, iteration=step)
 
+            # weight_name_1 = "embedding_layer.layers.0.embedding_p.weight" #dev
+            # projection_weight_1 = self.model.state_dict()[weight_name_1] #dev
+            # weight_name_2 = "encoder.blocks.block_3.block.residual_attention.layer.attention.output_projection.output_projection_p22.weight" #dev
+            # projection_weight_2 = self.model.state_dict()[weight_name_2] #dev
+            # print("Printing projections ------------------------------------------------") #dev
+            # print(projection_weight_1[:10][:10]) #dev
+            # print(projection_weight_2[:10][:10]) #dev
+
+
     def _log_fraction_dataset_processed(self, step):
         processed = step * self.batch_size * self.max_sequence_length
         total = C4Dataset.total_gpt2_tokens

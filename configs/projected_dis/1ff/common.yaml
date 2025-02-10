@@ -60,7 +60,7 @@ params:
   # logging etc.
   logger_types: "neptune"
   project_name: "pmtest/llm-random"
-  logging_interval_heavy: 5000
+  logging_interval_heavy: 500
   logging_interval_loss: 100
   save_weights_path: None
   save_weights_interval: 0

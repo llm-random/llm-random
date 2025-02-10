@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 7608f909cc9c344e8deacb8dd2113d5d
+md5_parent_hash: 6bbc89126d738f215bf51745e143d6bc
 time: 0-04:00:00
 # n_gpus: 2 #dev
 n_gpus: 1
@@ -8,7 +8,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm256"]
+  tags: ["projected_dis", "1ff", "compression", "dm256", "test_coupled_projections"]
 
   dmodel: 256
   dff: 256
@@ -16,18 +16,17 @@ params:
   projected_dff: 512
   # ^n_steps: [6168, 8812] # same as dmodel
   n_steps: 6168 # same as dmodel
-  # ^learning_rate: [0.00025, 0.0005, 0.001, 0.002, 0.004, 0.008]
+  # ^learning_rate: [0.001, 0.002, 0.004]
   learning_rate: 0.001
   
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
 
-  projection_init_type: half_var
+  projection_init_type: half
   # ^projection_init_type: [half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var]
   # ^projection_init_type: [half, orthogonal]
  
   projected_distillation: True
-  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-16-36/None/1171839/19545.pt # trapez
   projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-02-06_15-04-30/None/1191645/19545.pt # cosine
 
   # fsdp_use_orig_params: True
@@ -35,6 +34,8 @@ params:
   # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   # fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
+  logging_interval_heavy: 100
+  log_gradients_and_weights: true
 
 
 

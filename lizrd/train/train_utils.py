@@ -189,12 +189,12 @@ def get_model(
 
             columns_to_remove = torch.randperm(projected_dmodel)[:projected_dmodel-dm]
             mask = torch.ones(projected_dmodel, dtype=torch.bool)
-            # mask[columns_to_remove] = False
-            mask[:int(len(mask)/2)] = False
+            mask[columns_to_remove] = False
             print(mask) #dev
             projection = projection[:, mask]
         else:
             raise Exception("Wrong projection init type")
+        projection = projection.to(device) #dev to device projection reference 
         load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, device)
         initialize_projections(model, dm, projected_dmodel, projection) #dev
         frozen_modules = freeze_projected_params(model)
