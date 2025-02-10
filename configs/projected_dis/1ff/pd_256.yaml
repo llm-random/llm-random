@@ -1,38 +1,33 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 099bae218730a43890c603c081288bf9
-time: 0-02:00:00
+md5_parent_hash: 857e8482d095f33083fee68ab10421b4
+time: 0-04:00:00
 # n_gpus: 2 #dev
 n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm256"]
+  tags: ["projected_dis", "1ff", "compression", "dm256", "half_var"]
 
   dmodel: 256
   dff: 256
   projected_dmodel: 512
   projected_dff: 512
-  n_steps: 8812 # same as dmodel
-  # ^n_steps: [881, 1762, 2643, 3524, 4406, 5287, 6168, 7049, 7930] # same as dmodel
-  # learning_rate: 0.001
-  # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001, 0.002, 0.004, 0.008]
-  # ^learning_rate: [0.000015625, 0.00003125, 0.0000625, 0.000125, 0.00025, 0.0005, 0.001, 0.002]
-  # ^learning_rate: [0.00025, 0.0005, 0.001, 0.002] # 0.0005; half
+  # ^n_steps: [6168, 8812] # same as dmodel
+  n_steps: 6168 # same as dmodel
+  # ^learning_rate: [0.00025, 0.0005, 0.001, 0.002, 0.004, 0.008]
   learning_rate: 0.001
-  # scheduler: cosine
-  # final_lr_fraction: 0.01
-
+  
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
-  
-  # projection_init_type: half
-  ^projection_init_type: [half, orthogonal]
+
+  ^projection_init_type: [half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var]
+  # ^projection_init_type: [half, orthogonal]
  
   projected_distillation: True
-  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-16-36/None/1171839/19545.pt
-  # projected_weights_path: /local_storage_1/ms_tmp/models/42951/6800.pt
+  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-16-36/None/1171839/19545.pt # trapez
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-02-06_15-04-30/None/1191645/19545.pt # cosine
 
   # fsdp_use_orig_params: True
   # fsdp_enabled: True

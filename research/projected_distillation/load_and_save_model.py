@@ -35,6 +35,7 @@ def load_projected_weights(model:torch.nn.Module, projected_weights, projection:
     for name, params in model.named_parameters():
         for e in CAST_PROJECTED_PARAMS_NAME_PARTS:
             if e == "head.weight":
+                # name = "head.weight" #dev inverted_test
                 name = "default_head"
             if e[0] in name:
                 name = name.replace(e[0], e[1])

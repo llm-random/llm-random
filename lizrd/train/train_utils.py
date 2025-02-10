@@ -55,6 +55,7 @@ def get_model(
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
     if projected_checkpoint:
+    # if False: #dev inverted_test
         embedding_components = [
             ProjectedTokenEmbedding(vocab_size, dm, projected_dmodel, init_type=init_type, init_scale=init_scale)
         ]
@@ -65,6 +66,7 @@ def get_model(
 
     if include_positional_embedding:
         if projected_checkpoint:
+        # if False: #dev inverted_test
             embedding_components.append(
                 ProjectedPositionalEmbedding(
                     max_length, dm, projected_dmodel, init_type=init_type, init_scale=init_scale
@@ -90,6 +92,7 @@ def get_model(
     )
 
     if projected_checkpoint and not no_projected_head:
+    # if False: #dev inverted_test
         head = llm.PredictionHead(
             projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
         ).to(last_gpu)
@@ -149,6 +152,9 @@ def get_model(
             mask = torch.eye(projected_dmodel).bool()
             projection = projection.masked_fill(mask, 1)
             projection = projection[:, :int(dm)]
+            # shuffled_indices = torch.randperm(int(dm))
+            # projection = projection[shuffled_indices]
+            # projection
         elif projection_init_type == "orthogonal":
             print("Projection initialization: orthogonal")
             projection = torch.empty(projected_dmodel, dm)
@@ -157,6 +163,35 @@ def get_model(
             print("Projection initialization: col1")
             projection = torch.rand(projected_dmodel, dm)
             projection = projection / projection.sum(dim=0, keepdim=True)
+        elif projection_init_type == "half_2":
+            print("Projection initialization: half_2")
+            assert projected_dmodel%4 == 0
+            projection = torch.zeros(int(projected_dmodel/2), int(projected_dmodel/2))
+            mask = torch.eye(int(projected_dmodel/2)).bool()
+            projection = projection.masked_fill(mask, 0.125) #dev change half_2
+            projection = torch.concat((
+                torch.concat((projection, projection), dim=0),
+                torch.concat((projection, projection), dim=0),
+            ), dim=1)
+            projection = projection[:, :int(dm)]
+        elif projection_init_type == "zeros":
+            print("Projection initialization: zeros")
+            projection = torch.zeros(projected_dmodel, projected_dmodel)
+            projection[0][0] = 1.0
+            projection = projection[:, int(dm):]
+        elif projection_init_type == "half_var":
+            print("Projection initialization: half_var")
+            assert projected_dmodel/2 == dm
+            projection = torch.zeros(projected_dmodel, projected_dmodel)
+            mask = torch.eye(projected_dmodel).bool()
+            projection = projection.masked_fill(mask, 1)
+            # projection = projection[:, int(dm):]
+
+            columns_to_remove = torch.randperm(projected_dmodel)[:projected_dmodel-dm]
+            mask = torch.ones(projected_dmodel, dtype=torch.bool)
+            mask[columns_to_remove] = False
+            print(mask) #dev
+            projection = projection[:, mask]
         else:
             raise Exception("Wrong projection init type")
         load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, device)

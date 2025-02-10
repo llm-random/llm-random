@@ -42,7 +42,9 @@ params:
   weight_decay: 0.1
   grad_clip: 0.5
 
-  scheduler: trapezoidal
+  # scheduler: trapezoidal
+  scheduler: cosine
+  final_lr_fraction: 0.01
   learning_rate: 0.001
   lr_trapezoidal_decay_fraction: 0.2
   lr_warmup_percent: 0.01

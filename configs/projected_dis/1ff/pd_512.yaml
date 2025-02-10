@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 099bae218730a43890c603c081288bf9
+md5_parent_hash: 857e8482d095f33083fee68ab10421b4
 time: 0-08:00:00
 n_gpus: 2
 cpus_per_gpu: 16
@@ -15,7 +15,7 @@ params:
   projected_dff: 1024
   n_steps: 19_545 # same as dmodel
   # learning_rate: 0.001 # same as dmodel
-  ^learning_rate: [0.000125, 0.00025, 0.0005]
+  ^learning_rate: [0.0000625, 0.000125, 0.00025, 0.0005]
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla

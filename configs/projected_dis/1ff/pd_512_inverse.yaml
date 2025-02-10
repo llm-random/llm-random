@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 099bae218730a43890c603c081288bf9
+md5_parent_hash: 857e8482d095f33083fee68ab10421b4
 time: 0-02:00:00
 # n_gpus: 2 #dev
 n_gpus: 1
@@ -20,8 +20,8 @@ params:
   # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001, 0.002, 0.004, 0.008]
   # ^learning_rate: [0.000015625, 0.00003125, 0.0000625, 0.000125, 0.00025, 0.0005, 0.001, 0.002]
   # ^learning_rate: [0.00025, 0.0005, 0.001, 0.002] # 0.0005; half
-  learning_rate: 0.00025
-  # scheduler: cosine
+  ^learning_rate: [0.0000625, 0.000125, 0.00025]
+  scheduler: trapezoidal
   # final_lr_fraction: 0.01
 
   attention_mode: projected_vanilla
