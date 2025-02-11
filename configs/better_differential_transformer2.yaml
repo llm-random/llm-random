@@ -47,7 +47,7 @@ params:
   ]
   ^dmodel: [768]
 #  dff: 3072
-  ^dff: [4032]
+  ^dff: [3712]
   n_blocks: 12
   n_att_heads: 12
   ^n_negative_heads: [12]
