@@ -6,7 +6,7 @@ backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_gqa_sanity_check"
+  name: "diff_lora_dora_compare"
 
   # base bass
   mixed_precision: true
@@ -20,15 +20,15 @@ params:
   logging_interval_loss: 1000
   save_weights_path: "model_ckpt"
   save_weights_interval: -1
-  tags: ["diff_gqa_sanity_check"]
+  tags: ["diff_lora_dora_compare"]
 
 
   cutoff: 1024
   batch_size: 128
-  n_steps: 30_000
-  final_lr_step: 30_000
+  n_steps: 90_000
+  final_lr_step: 90_000
   scheduler: cosine
-  lr_warmup_steps: 300
+  lr_warmup_steps: 900
   final_lr_fraction: 0.1
   gradient_accumulation_steps: 1
 
@@ -47,7 +47,7 @@ params:
   ]
   ^dmodel: [768]
 #  dff: 3072
-  ^dff: [3936]
+  ^dff: [3072]
   n_blocks: 12
   n_att_heads: 12
   ^n_negative_heads: [12]
@@ -58,9 +58,9 @@ params:
   mixed_precision_dtype: bfloat16
   ^diff_transformer_lowrank_dim: [64]
   diff_transformer_roll_negative_heads: true
-  ^n_kv_heads: [3]
+  ^n_kv_heads: [12]
 #  ^diff_transformer_adapter_type: [additive, multiplicative, lora, identity, multiadd]
-  ^diff_transformer_adapter_type: [none]
+  ^diff_transformer_adapter_type: [lora, dora]
   evaluate_attention_relevancy_interval: 5000
   # ^load_balancing_loss_weight: [0.01]
 

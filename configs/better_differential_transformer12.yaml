@@ -6,7 +6,7 @@ backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_gqa_ropefix_parameter_matched"
+  name: "diff_gqa_sanity_check"
 
   # base bass
   mixed_precision: true
@@ -20,7 +20,7 @@ params:
   logging_interval_loss: 1000
   save_weights_path: "model_ckpt"
   save_weights_interval: -1
-  tags: ["diff_gqa_ropefix_parameter_matched"]
+  tags: ["diff_gqa_sanity_check"]
 
 
   cutoff: 1024
