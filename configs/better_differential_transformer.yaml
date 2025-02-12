@@ -6,7 +6,7 @@ backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_gqa_sanity_check"
+  name: "diff_gqa_vanilla_sanity_check"
 
   # base bass
   mixed_precision: true
@@ -20,7 +20,7 @@ params:
   logging_interval_loss: 1000
   save_weights_path: "model_ckpt"
   save_weights_interval: -1
-  tags: ["diff_gqa_sanity_check"]
+  tags: ["diff_gqa_vanilla_sanity_check"]
 
 
   cutoff: 1024
@@ -42,8 +42,8 @@ params:
   # model
   use_rope: true
   ^attention_mode: [
-#     "diff_vanilla_fast1",
-    "diff_theirs_fast1"
+     "diff_vanilla_fast1",
+#    "diff_theirs_fast1"
   ]
   ^dmodel: [768]
 #  dff: 3072
