@@ -8,26 +8,30 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm256", "test_coupled_projections"]
+  tags: ["projected_dis", "1ff", "compression", "dm256", "fix_projected_attention", "dev"]
 
   dmodel: 256
   dff: 256
   projected_dmodel: 512
   projected_dff: 512
-  # ^n_steps: [6168, 8812] # same as dmodel
-  n_steps: 6168 # same as dmodel
+  # ^n_steps: [6168, 8812] # same as dmodel and 70%
+  n_steps: 8812
+  # n_steps: 1000 #dev
   # ^learning_rate: [0.001, 0.002, 0.004]
   learning_rate: 0.001
   
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
+  # attention_mode: vanilla
+  # ff_mode: vanilla
 
   projection_init_type: half
-  # ^projection_init_type: [half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var, half_var]
+  # ^projection_init_type: [half_var, half_var, half_var, half_var, half_var]
   # ^projection_init_type: [half, orthogonal]
+  # ^projection_init_type: [half, half_down, half_var, half_var, half_var, half_var, half_var]
  
   projected_distillation: True
-  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-02-06_15-04-30/None/1191645/19545.pt # cosine
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-02-10_12-54-15/None/1195464/19545.pt # cosine
 
   # fsdp_use_orig_params: True
   # fsdp_enabled: True
@@ -36,7 +40,9 @@ params:
 
   logging_interval_heavy: 100
   log_gradients_and_weights: true
-
+  # unprojected_embeddings: true
+  # unprojected_attention: true
+  # unprojected_ff: true
 
 
 

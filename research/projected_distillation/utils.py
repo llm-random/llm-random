@@ -3,6 +3,7 @@ import torch
 
 from lizrd.core.initialization import get_init_weight
 
+
 FREEZE_PARAMS_REGULES = [
     ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.", #FF
     ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu.",
@@ -16,9 +17,16 @@ FREEZE_PARAMS_REGULES = [
     "head.head.weight", #Head
 ]
 
-def freeze_projected_params(model):
+FF_PARAMS_BLACKLIST = [
+    ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.", #FF
+    ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu.",
+]
+
+def freeze_projected_params(model, unprojected_ff):
     frozen_modules = []
     for name, param in model.named_parameters():
+        if unprojected_ff and any([reg in name for reg in FF_PARAMS_BLACKLIST]):  # Check if the parameter belongs to layer1
+            continue
         if any([reg in name for reg in FREEZE_PARAMS_REGULES]):  # Check if the parameter belongs to layer1
             param.requires_grad = False
             frozen_modules.append(param)
@@ -36,7 +44,6 @@ def freeze_ln_params(model):
             param.requires_grad = False
             frozen_modules.append(param)
     return frozen_modules 
-
 
 PROJECTIONS_1_1 = [
     ".block.residual_attention.layer.attention.input_projection.input_projection_p11.weight",
@@ -150,13 +157,13 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
         if is_in_partial_list(name, PROJECTIONS_1_1):
             # projection
             print(f"projection: {name}, {params.shape}")
-            # params.data.copy_(projection)
-            params.data = projection #dev coupled 
+            params.data.copy_(projection)
+            # params.data = projection #dev coupled 
         elif is_in_partial_list(name, PROJECTIONS_1_1_T):
             # projection_T
             print(f"projection_T: {name}, {params.shape}")
-            # params.data.copy_(projection.T)
-            params.data = projection.T #dev coupled 
+            params.data.copy_(projection.T)
+            # params.data = projection.T #dev coupled 
             # params.data.copy_(torch.inverse(projection).T) #dev inverted_test
             # params.data.copy_(torch.inverse(projection)) #dev inverted_test
         elif is_in_partial_list(name, PROJECTIONS_1_4):
@@ -183,8 +190,8 @@ def initialize_projections(model:torch.nn.Module, dmodel:int, projected_dmodel:i
                 torch.concat((projection_z, projection_c, projection_z), dim=0),
                 torch.concat((projection_z, projection_z, projection_c), dim=0),
             ), dim=1)
-            # params.data.copy_(projection_3.T)
-            params.data = projection_3.T #dev coupled 
+            params.data.copy_(projection_3.T)
+            # params.data = projection_3.T #dev coupled 
             # params.data.copy_(torch.inverse(projection_3).T) #dev inverted_test
             # params.data.copy_(torch.inverse(projection_3)) #dev inverted_test
         elif is_in_partial_list(name, MULTIPLY):

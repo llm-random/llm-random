@@ -28,25 +28,57 @@ LAYER_NORM_COPY = [
     # ".block.residual_feedforward.layer.pre_norm."
 ]
 
+UNPROJECTED_EMBEDDINGS_BLACKLIST = [
+    "embedding_layer.layers.0.weight",
+    "head.weight",
+    "embedding_layer.layers.1.layer.weight",
+    "asdasd",
+]
 
-def load_projected_weights(model:torch.nn.Module, projected_weights, projection:torch.Tensor, dm, projected_dmodel, init_scale, device):
+UNPROJECTED_ATTENTION_BLACKLIST = [
+    "block.residual_attention.layer.attention.input_projection.weight",
+    "block.residual_attention.layer.attention.output_projection.weight",
+    "asdasd",
+]
+
+UNPROJECTED_FF_BLACKLIST = [
+    ".feedforward.logging_ff_pre_relu.",
+    ".feedforward.logging_ff_post_relu.",
+    "asdasd",
+]
+
+
+def load_projected_weights(model:torch.nn.Module, projected_weights, projection:torch.Tensor, dm, projected_dmodel, init_scale, unprojected_embeddings, unprojected_attention, unprojected_ff): 
     print(list(projected_weights.keys())) #dev
     print("------------------------------replace with new values------------------------") #dev
     for name, params in model.named_parameters():
+        print(f"--- Next param: {name} {params.shape}")
         for e in CAST_PROJECTED_PARAMS_NAME_PARTS:
-            if e == "head.weight":
-                # name = "head.weight" #dev inverted_test
+            if e == "head.weight": # prevents copying to default not projected head - old - to remove wisely
                 name = "default_head"
             if e[0] in name:
                 name = name.replace(e[0], e[1])
                 print("replaced name", name) #dev
+        if unprojected_embeddings:
+            for e in UNPROJECTED_EMBEDDINGS_BLACKLIST:
+                if e in name:
+                    name = name + "_unprojected_embeddings"
+        if unprojected_attention:
+            for e in UNPROJECTED_ATTENTION_BLACKLIST:
+                if e in name:
+                    name = name + "_unprojected_embeddings"
+        if unprojected_ff:
+            for e in UNPROJECTED_FF_BLACKLIST:
+                if e in name:
+                    name = name + "_unprojected_embeddings"
+        
         prj_params = projected_weights.get(name)
-        print("prj_params ", prj_params.shape if prj_params is not None else prj_params) #dev
+        print(f"{name} - prj_params: ", prj_params.shape if prj_params is not None else prj_params) #dev
         if (prj_params is not None) and any([reg in name for reg in TRANSFER_PARAMS]):
             print(f"REPLACED: {name}, {prj_params.device}")
             params.data.copy_(prj_params)
         if (prj_params is not None) and any([reg in name for reg in LAYER_NORM_COPY]):
-            print(f"REPLACED_PROJECTED: {name}, {prj_params.device}")
+            print(f"REPLACED_PROJECTED (ie. layernorm): {name}, {prj_params.device}")
             if projection is None:
                 local_p = get_init_weight(
                     shape=(projected_dmodel, dm),
@@ -56,12 +88,7 @@ def load_projected_weights(model:torch.nn.Module, projected_weights, projection:
                 ).to(prj_params.device)
             else:
                 local_p = projection.to(prj_params.device)
-            # print(prj_params.shape) #dev
-            # print(prj_params.device) #dev
-            # print(local_p.shape) #dev
-            # print(local_p.device) #dev
             np = prj_params@local_p
-            print(np.shape) #dev
             params.data.copy_(np)
     print("------------------------------replace with new values end------------------------") #dev
 

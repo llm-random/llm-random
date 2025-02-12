@@ -526,5 +526,8 @@ def introduce_parser_arguments(
     parser.add_argument("--no_projected_head", action="store_true")
     parser.add_argument("--no_layer_norm", action="store_true")
     parser.add_argument("--fsdp_use_orig_params", action="store_true")
+    parser.add_argument("--unprojected_embeddings", action="store_true")
+    parser.add_argument("--unprojected_attention", action="store_true")
+    parser.add_argument("--unprojected_ff", action="store_true")
     
     return parser
