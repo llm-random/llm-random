@@ -122,11 +122,12 @@ class MultiheadFlashDiff1(LoggingLayer):
 
         # TODO GQA + GDA
         # TODO inverse GDA??
-        # TODO GQA na zwykłym transformerze - debug
         # TODO GQA na Q + normalne GDA
         # TODO flip/roll + to samo na GDA/GQA
         # TODO naprawić adaptery z powrotem/none razem z resztą
         # TODO scaling/B to 0's in LoRA?
+        
+        # TODO softmax na końcu??
 
 
         # TODO SWiGLu i inne rzeczy z diff papera!!!
@@ -265,22 +266,21 @@ class MultiheadFlashDiff1(LoggingLayer):
                 ).normal_(mean=0, std=0.1)
             )
         elif self.adapter_type == "none":
-            # self.q_neg_proj = Linear(
-            #     self.dmodel,
-            #     self.dhead * self.n_negative_heads,
-            #     bias=False,
-            #     init_type=init_type,
-            #     init_scale=init_scale,
-            # )
-            # self.k_neg_proj = Linear(
-            #     self.dmodel,
-            #     # self.dhead * self.n_negative_heads,
-            #     self.dhead * self.n_kv_heads,
-            #     bias=False,
-            #     init_type=init_type,
-            #     init_scale=init_scale,
-            # )
-            pass
+            self.q_neg_proj = Linear(
+                self.dmodel,
+                self.dhead * self.n_negative_heads,
+                bias=False,
+                init_type=init_type,
+                init_scale=init_scale,
+            )
+            self.k_neg_proj = Linear(
+                self.dmodel,
+                # self.dhead * self.n_negative_heads,
+                self.dhead * self.n_kv_heads,
+                bias=False,
+                init_type=init_type,
+                init_scale=init_scale,
+            )
         elif self.adapter_type == "identity":
             pass
         else:
@@ -435,18 +435,18 @@ class MultiheadFlashDiff1(LoggingLayer):
             k = k.view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
             v = v.view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
 
-            # q_negative = self.q_neg_proj(x).view(
-            #     bsz, self.seq_len, self.n_negative_heads, self.dhead
-            # )
+            q_negative = self.q_neg_proj(x).view(
+                bsz, self.seq_len, self.n_negative_heads, self.dhead
+            )
 
             # k_negative = self.k_neg_proj(x).view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
             # k_negative = self.k_neg_proj(x).view(
             #     bsz, self.seq_len, self.n_kv_heads, self.dhead
             # )
 
-            # k_negative = self.k_neg_proj(x).view(
-            #     bsz, self.seq_len, self.n_negative_heads, self.dhead
-            # )
+            k_negative = self.k_neg_proj(x).view(
+                bsz, self.seq_len, self.n_negative_heads, self.dhead
+            )
 
             # q_negative = q[:, :, self.dhead * self.n_heads:].view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
             # k_negative = k[:, :, self.dhead * self.n__heads:].view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
@@ -468,12 +468,12 @@ class MultiheadFlashDiff1(LoggingLayer):
                 k.to(dtype=torch.float32), *rel_pos, interleaved=True
             ).to(x)
             # if self.adapter_type != "none":
-            # q_negative = apply_rotary_emb(
-            #     q_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
-            # ).to(x)
-            # k_negative = apply_rotary_emb(
-            #     k_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
-            # ).to(x)
+            q_negative = apply_rotary_emb(
+                q_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
+            ).to(x)
+            k_negative = apply_rotary_emb(
+                k_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
+            ).to(x)
 
         if self.adapter_type != "none":
             q1 = q
@@ -495,13 +495,13 @@ class MultiheadFlashDiff1(LoggingLayer):
             # k1, k2 = k[:, :, :, 0], k[:, :, :, 1]
 
             q1 = q
-            # q2 = q_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
+            q2 = q_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
 
             #k1 = k
             #k2 = k_negative
 
             k1 = k
-            # k2 = k_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
+            k2 = k_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
             #
             # k1 = k.repeat(1, 1, self.n_heads // self.n_kv_heads, 1)
             # k2 = k_negative.repeat(1, 1, self.n_heads // self.n_kv_heads, 1)
@@ -538,14 +538,14 @@ class MultiheadFlashDiff1(LoggingLayer):
                 enable_gqa=self.enable_gqa,
             )
             attn1 = attn1.transpose(1, 2)
-            # attn2, attn2_scores = manual_attention(
-            #     q2.transpose(1, 2),
-            #     k2.transpose(1, 2),
-            #     v.transpose(1, 2),
-            #     causal=True,
-            #     enable_gqa=self.enable_gqa,
-            # )
-            # attn2 = attn2.transpose(1, 2)
+            attn2, attn2_scores = manual_attention(
+                q2.transpose(1, 2),
+                k2.transpose(1, 2),
+                v.transpose(1, 2),
+                causal=True,
+                enable_gqa=self.enable_gqa,
+            )
+            attn2 = attn2.transpose(1, 2)
             if False and self.block_number == 0:
                 reference_attn1 = flash_attn_func(
                     q1,
@@ -553,20 +553,20 @@ class MultiheadFlashDiff1(LoggingLayer):
                     v,
                     causal=True,
                 )
-                # reference_attn2 = flash_attn_func(
-                #     q2,
-                #     k2,
-                #     v,
-                #     causal=True,
-                # )
+                reference_attn2 = flash_attn_func(
+                    q2,
+                    k2,
+                    v,
+                    causal=True,
+                )
                 assert torch.allclose(
                     attn1, reference_attn1, atol=1e-3
                 ), f"Manual attn1 does not match reference attn1: {attn1-reference_attn1}"
-                # assert torch.allclose(
-                #     attn2, reference_attn2, atol=1e-3
-                # ), f"Manual attn2 does not match reference attn2"
+                assert torch.allclose(
+                    attn2, reference_attn2, atol=1e-3
+                ), f"Manual attn2 does not match reference attn2"
 
-            differential_scores = attn1_scores# - lambda_full * attn2_scores
+            differential_scores = attn1_scores - lambda_full * attn2_scores
             self.attention_weights = differential_scores
         else:
             attn1 = flash_attn_func(
@@ -575,17 +575,17 @@ class MultiheadFlashDiff1(LoggingLayer):
                 v,
                 causal=True,
             )
-            # attn2 = flash_attn_func(
-            #     q2,
-            #     k2,
-            #     v,
-            #     causal=True,
-            # )
+            attn2 = flash_attn_func(
+                q2,
+                k2,
+                v,
+                causal=True,
+            )
 
-        attn = attn1 #- lambda_full * attn2
+        attn = attn1 - lambda_full * attn2
 
         attn = self.subln(attn)
-        # attn = attn * (1 - self.lambda_init)
+        attn = attn * (1 - self.lambda_init)
         attn = attn.reshape(bsz, self.seq_len, self.n_heads * self.dhead)
 
         attn = self.out_proj(attn)
@@ -608,6 +608,7 @@ class VanillaFlashDiff1(nn.Module):
         self,
         dmodel,
         n_heads,
+        n_kv_heads,
         use_rope,
         seq_len,
         init_type,
@@ -617,7 +618,7 @@ class VanillaFlashDiff1(nn.Module):
         self.dmodel = dmodel
         # num_heads set to half of Transformer's #heads
         self.n_heads = n_heads
-        self.n_kv_heads = self.n_heads
+        self.n_kv_heads = n_kv_heads or n_heads
         # self.n_rep = self.n_heads // self.n_kv_heads
         self.enable_gqa = self.n_heads != self.n_kv_heads
         assert self.n_heads % self.n_kv_heads == 0
@@ -638,10 +639,10 @@ class VanillaFlashDiff1(nn.Module):
             dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
         )
         self.k_proj = Linear(
-            dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
+            dmodel, self.dhead * n_kv_heads, bias=False, init_type=init_type, init_scale=init_scale
         )
         self.v_proj = Linear(
-            dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
+            dmodel, self.dhead * n_kv_heads, bias=False, init_type=init_type, init_scale=init_scale
         )
         self.out_proj = Linear(
             dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale

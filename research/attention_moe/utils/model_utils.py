@@ -362,6 +362,7 @@ def get_attention_layer(args):
         attention_layer_fun = lambda: VanillaFlashDiff1(
             dmodel=args.dmodel,
             n_heads=args.n_att_heads,
+            n_kv_heads=args.n_kv_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
