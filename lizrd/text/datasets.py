@@ -100,7 +100,8 @@ class C4Dataset(AbstractDataset):
             self.dataset = load_dataset("c4", "en", split=split)
 
     def get_document(self) -> str:
-        return self.dataset[self.py_rng.randint(0, len(self.dataset) - 1)]["text"]
+        random_id = self.py_rng.randint(0, len(self.dataset) - 1)
+        return self.dataset[random_id]["text"], random_id
 
 
 class FinewebEduDataset(AbstractDataset):

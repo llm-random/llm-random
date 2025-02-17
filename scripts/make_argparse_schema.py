@@ -27,12 +27,23 @@ def make_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def action_to_schema_entry(action) -> dict:
+def action_to_schema_entry(action, is_grid=False) -> dict:
     res = {}
 
     type_ = None
-    if action.nargs in ["*", "+"]:
+    if action.nargs in ["*", "+"] or is_grid:
         type_ = "array"
+        if action.type == float:
+            items_type = "number"
+        elif action.type == int:
+            items_type = "integer"
+        elif action.type == str:
+            items_type = "string"
+        elif isinstance(action.default, bool):
+            items_type = "boolean"
+        else:
+            items_type = "string"
+        res["items"] = {"type": items_type}
     elif action.type == float:
         type_ = "number"
     elif action.type == int:
@@ -45,7 +56,7 @@ def action_to_schema_entry(action) -> dict:
         res["type"] = type_
 
     if action.default is not None:
-        res["default"] = action.default
+        res["default"] = [action.default] if is_grid else action.default
 
     if action.choices is not None:
         res["enum"] = action.choices
@@ -90,7 +101,6 @@ def create_schema(parser: argparse.ArgumentParser) -> dict:
                 "type": "string",
             },
             "singularity_image": {
-                "description": "Path to singularity image",
                 "type": "string",
             },
             "cuda_visible": {
@@ -117,17 +127,39 @@ def create_schema(parser: argparse.ArgumentParser) -> dict:
     }
     params_properties = {}
     required_params = []
+    all_of_constraints = []
     for action in parser._actions:
         name = action.dest
         required = action.required
         if name == "help":
             continue
-        if required:
-            required_params.append(name)
         params_properties[action.dest] = action_to_schema_entry(action)
+        params_properties[f"^{action.dest}"] = action_to_schema_entry(
+            action, is_grid=True
+        )
+        if required:
+            all_of_constraints.append(
+                {
+                    "oneOf": [
+                        {"required": [name], "not": {"required": [f"^{name}"]}},
+                        {"required": [f"^{name}"], "not": {"required": [name]}},
+                    ]
+                }
+            )
+        else:
+            all_of_constraints.append(
+                {
+                    "oneOf": [
+                        {"required": [name], "not": {"required": [f"^{name}"]}},
+                        {"required": [f"^{name}"], "not": {"required": [name]}},
+                        {"not": {"required": [name, f"^{name}"]}},
+                    ]
+                }
+            )
 
     res["properties"]["params"]["properties"] = params_properties
-    res["properties"]["params"]["required"] = required_params
+    # res["properties"]["params"]["required"] = required_params
+    res["properties"]["params"]["allOf"] = all_of_constraints
 
     return res
 

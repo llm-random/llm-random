@@ -171,6 +171,8 @@ local_search_configs
 # MS
 *mstest*
 
+.DS_Store
+
 # JM
 jm/
 jupyter_files*
