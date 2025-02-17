@@ -26,7 +26,7 @@ from research.attention_moe.utils.check_args import check_args
 from research.attention_moe.utils.misc_tools import get_termination_timestamp_slurm
 from research.attention_moe.datasets import DataloaderWrapper, get_processed_dataset
 from lizrd.train.scheduler import get_scheduler
-from research.attention_moe.utils.trainer import ConditionalTrainer
+from research.attention_moe.utils.trainer import Trainer
 from research.attention_moe.utils.argparse import introduce_parser_arguments
 from research.attention_moe.utils.model_utils import (
     disable_profile_schedule_fn,
@@ -371,7 +371,7 @@ def main(
         else disable_profile_schedule_fn
     )
 
-    trainer = ConditionalTrainer(
+    trainer = Trainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
@@ -400,11 +400,7 @@ def main(
         log_gradients_and_weights=args.log_gradients_and_weights,
         max_sequence_length=args.cutoff,
         is_logging_process=is_logging_process,
-        eval_dynamic_groupsize=args.eval_dynamic_groupsize,
-        eval_discrete_mot=args.eval_discrete_mot,
         decoding_interval=args.decoding_interval,
-        eval_min_group_size_logfactor=args.eval_min_group_size_logfactor,
-        eval_max_group_size_logfactor=args.eval_max_group_size_logfactor,
         steps_until_start_temperature_learn=args.steps_until_start_temperature_learn,
         model_fit_gpu_info_database_path=args.model_fit_gpu_info_database_path,
         model_fit_gpu_info_params=model_fit_gpu_info_params,
@@ -418,6 +414,7 @@ def main(
         if args.repeater_mode
         else None,
         evaluate_attention_relevancy_interval=args.evaluate_attention_relevancy_interval,
+        should_log_update_norm=args.should_log_update_norm,
     )
     trainer.train(args.n_steps)
 

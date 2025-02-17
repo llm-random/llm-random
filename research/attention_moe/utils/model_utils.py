@@ -3,6 +3,7 @@ from functools import partial
 # import json
 # from diskcache import Cache
 from typing import Optional, Type, Union, Callable
+from sympy import use
 import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
@@ -13,7 +14,12 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
-from research.attention_moe.diff_attn.fast import MultiheadFlashDiff1, VanillaFlashDiff1
+from research.attention_moe.diff_attn.fast import (
+    Lowrank,
+    MultiheadFlashDiff1,
+    VanillaFlashDiff1,
+)
+from research.attention_moe.diff_attn.rms_norm import RMSNorm
 from research.attention_moe.diff_attn.vanilla import MultiheadDiffAttn
 from research.attention_moe.moe_layers.attentions import (
     CausalMQA,
@@ -379,6 +385,9 @@ def get_attention_layer(args):
             roll_negative_heads=args.diff_transformer_roll_negative_heads,
             num_kv_heads=args.n_kv_heads,
             adapter_type=args.diff_transformer_adapter_type,
+            lowrank_dtype=args.lowrank_dtype,
+            use_qk_norm=args.use_qk_norm,
+            reuse_positive_k=args.diff_transformer_reuse_positive_k,
         )
     else:
         raise NotImplementedError(
@@ -982,6 +991,8 @@ def get_classes_from_module_names(
         #     classes.append(ExpertGating)
         elif name == "Softmax":
             classes.append(torch.nn.Softmax)
+        elif name == "Lowrank":
+            classes.append(Lowrank)
         # elif name == "TokenChoiceRouterOld":
         #     classes.append(TokenChoiceRouterOld)
         # elif name == "TokenGating":

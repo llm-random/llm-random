@@ -153,6 +153,11 @@ def introduce_parser_arguments(
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
+    parser.add_argument(
+        "--should_log_update_norm",
+        action="store_true",
+        help="Whether to log the norm of the update. This option is separate from normal logging intervals, because it uses up a lot of memory.",
+    )
     parser.add_argument("--eval_interval", type=int, default=1000)
     parser.add_argument("--n_eval_batches", type=int, default=10)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
@@ -183,27 +188,8 @@ def introduce_parser_arguments(
 
     ## used by MoE (common)
     parser.add_argument("--general_ff_layer_config", type=str, default=None)
-    parser.add_argument(
-        "--eval_dynamic_groupsize",
-        action="store_true",
-        help="During evaluation, evaluate model with multiple group sizes",
-    )
-    parser.add_argument(
-        "--eval_min_group_size_logfactor",
-        type=int,
-        default=None,
-        help="During evaluation, the smallest group size is group_size * 2**eval_min_group_size_logfactor",
-    )
-    parser.add_argument(
-        "--eval_max_group_size_logfactor",
-        type=int,
-        default=None,
-        help="During evaluation, the largest group size is group_size * 2**eval_max_group_size_logfactor",
-    )
 
     ## used often by Continuous MoE
-
-    parser.add_argument("--eval_discrete_mot", action="store_true")
     parser.add_argument("--emit_softmax_over_experts", action="store_true")
     parser.add_argument("--steps_until_start_temperature_learn", type=int, default=0)
     parser.add_argument("--n_experts", type=int)
@@ -434,8 +420,15 @@ def introduce_parser_arguments(
     parser.add_argument("--diff_transformer_flip_negative_heads", action="store_true")
     parser.add_argument("--diff_transformer_roll_negative_heads", action="store_true")
     parser.add_argument("--diff_transformer_adapter_type", type=str, default="none")
+    parser.add_argument("--diff_transformer_reuse_positive_k", action="store_true")
     parser.add_argument(
         "--evaluate_attention_relevancy_interval", type=int, default=500
+    )
+    parser.add_argument(
+        "--lowrank_dtype",
+        type=str,
+        choices=["float16", "float32", "bfloat16"],
+        default=None,
     )
 
     return parser

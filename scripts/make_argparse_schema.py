@@ -158,7 +158,7 @@ def create_schema(parser: argparse.ArgumentParser) -> dict:
             )
 
     res["properties"]["params"]["properties"] = params_properties
-    res["properties"]["params"]["required"] = required_params
+    # res["properties"]["params"]["required"] = required_params
     res["properties"]["params"]["allOf"] = all_of_constraints
 
     return res
