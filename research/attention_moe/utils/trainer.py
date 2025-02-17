@@ -60,6 +60,7 @@ class ConditionalTrainer:
     n_gpus: int = 1
     save_weights_path: Optional[str] = None
     save_weights_interval: int = 1000
+    save_final_weights: bool = False
     gradient_clipping: float = None
     loss_checkpoint_chungs: int = 0
     gradient_accumulation_steps: int = 1
@@ -121,7 +122,19 @@ class ConditionalTrainer:
             "failure",
         )
 
-    def _after_train_operations(self):
+    def _after_train_operations(self, n_steps: int):
+        if self.save_final_weights:
+            save_checkpoint(
+                self.model,
+                self.optimizer,
+                self.scaler,
+                self.save_weights_path,
+                self.rank,
+                n_steps,
+                self.batch_size,
+                self.cutoff,
+                self.logger,
+            )
         update_model_fit_gpu_info(
             self.model_fit_gpu_info_database_path,
             self.model_fit_gpu_info_params,
@@ -184,7 +197,7 @@ class ConditionalTrainer:
                     except:
                         print("Decoding failed, skipping...")
                 self._after_step_operations(step)
-        self._after_train_operations()
+        self._after_train_operations(n_steps)
 
     def _train_step(
         self,

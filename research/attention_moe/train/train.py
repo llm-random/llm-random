@@ -394,6 +394,7 @@ def main(
         n_gpus=args.n_gpus,
         save_weights_path=unique_save_weights_path,
         save_weights_interval=args.save_weights_interval,
+        save_final_weights=args.save_final_weights,
         gradient_clipping=args.grad_clip,
         loss_checkpoint_chungs=args.loss_checkpoint_chungs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,

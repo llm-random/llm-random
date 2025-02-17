@@ -3,7 +3,7 @@ import re
 from typing import Union, Optional
 import os
 
-from neptune import Run
+# from neptune import Run
 import torch
 from torch.distributed.fsdp import (
     FullyShardedDataParallel as FSDP,
@@ -11,7 +11,7 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-from lizrd.support.logging import AbstractLogger, NeptuneLogger
+from lizrd.support.logging import AbstractLogger  # , NeptuneLogger
 from lizrd.support.misc import generate_random_string
 from research.conditional.utils.misc_tools import get_slurm_job_id
 

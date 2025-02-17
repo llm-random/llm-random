@@ -1,6 +1,6 @@
 import math
 
-from weakref import ref
+# from weakref import ref
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -119,20 +119,24 @@ class MultiheadFlashDiff1(LoggingLayer):
 
         assert (int(roll_negative_heads) + int(flip_negative_heads)) <= 1
 
-
-        # TODO GQA + GDA
         # TODO inverse GDA??
         # TODO GQA na Q + normalne GDA
-        # TODO flip/roll + to samo na GDA/GQA
-        # TODO naprawić adaptery z powrotem/none razem z resztą
-        # TODO scaling/B to 0's in LoRA?
-        
-        # TODO softmax na końcu??
 
-
+        # TODO flip/roll ze wszystkim
+        # różne lry
+        # GDA
+        # adaptery
         # TODO SWiGLu i inne rzeczy z diff papera!!!
         # TODO zejść do 4dm^2 ze wszystkim!!!
+        # TODO cutoff 4096 bsz 32
+        # TODO rope czy dobra theta?
+        # TODO inżynierka checkpointy na końcu NAJWAŻNIEJSZE
 
+        # TODO naprawić adaptery z powrotem/none razem z resztą
+        # TODO scaling/B to 0's in LoRA?
+        # TODO Q LoRA + K identity?
+
+        # TODO softmax na końcu??
 
         # TODO inżynierka configów pairwise
         # TODO lora in pretraining?
@@ -140,6 +144,7 @@ class MultiheadFlashDiff1(LoggingLayer):
         # TODO fineweb dataset?
         # TODO run exp --yes
         # TODO folder na expy o tej samej nazwie
+
         self.n_kv_heads = n_kv_heads or n_heads
         # self.n_rep = self.n_heads // self.n_kv_heads
         self.enable_gqa = self.n_heads != self.n_kv_heads
@@ -211,9 +216,11 @@ class MultiheadFlashDiff1(LoggingLayer):
                 output_dim=self.dhead * self.n_negative_heads,
             )
             self.magnitude_q = nn.Parameter(
-                self.q_proj.weight.norm(p=2, dim=0, keepdim=True))
+                self.q_proj.weight.norm(p=2, dim=0, keepdim=True)
+            )
             self.magnitude_k = nn.Parameter(
-                self.k_proj.weight.norm(p=2, dim=0, keepdim=True))
+                self.k_proj.weight.norm(p=2, dim=0, keepdim=True)
+            )
         elif self.adapter_type == "additive":
             self.k_delta = nn.Parameter(
                 torch.zeros(
@@ -356,18 +363,18 @@ class MultiheadFlashDiff1(LoggingLayer):
             denominator_q = numerator_q.norm(p=2, dim=0, keepdim=True)
             directional_component_q = numerator_q / denominator_q
             q_negative_weights = self.magnitude_q * directional_component_q
-            q_negative = (q_negative_weights @ x.view(bsz * self.seq_len, self.dmodel).T).view(
-                bsz, self.seq_len, self.n_negative_heads, self.dhead
-            )
+            q_negative = (
+                q_negative_weights @ x.view(bsz * self.seq_len, self.dmodel).T
+            ).view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
 
             lora_k = self.lowrank_k.w2.weight @ self.lowrank_k.w1.weight
             numerator_k = self.k_proj.weight + lora_k
             denominator_k = numerator_k.norm(p=2, dim=0, keepdim=True)
             directional_component_k = numerator_k / denominator_k
             k_negative_weights = self.magnitude_k * directional_component_k
-            k_negative = (k_negative_weights @ x.view(bsz * self.seq_len, self.dmodel).T).view(
-                bsz, self.seq_len, self.n_negative_heads, self.dhead
-            )
+            k_negative = (
+                k_negative_weights @ x.view(bsz * self.seq_len, self.dmodel).T
+            ).view(bsz, self.seq_len, self.n_negative_heads, self.dhead)
 
             q = q.view(bsz, self.seq_len, self.n_heads, self.dhead)
             k = k.view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
@@ -497,8 +504,8 @@ class MultiheadFlashDiff1(LoggingLayer):
             q1 = q
             q2 = q_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
 
-            #k1 = k
-            #k2 = k_negative
+            # k1 = k
+            # k2 = k_negative
 
             k1 = k
             k2 = k_negative.repeat(1, 1, self.n_heads // self.n_negative_heads, 1)
@@ -639,10 +646,18 @@ class VanillaFlashDiff1(nn.Module):
             dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
         )
         self.k_proj = Linear(
-            dmodel, self.dhead * n_kv_heads, bias=False, init_type=init_type, init_scale=init_scale
+            dmodel,
+            self.dhead * n_kv_heads,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
         )
         self.v_proj = Linear(
-            dmodel, self.dhead * n_kv_heads, bias=False, init_type=init_type, init_scale=init_scale
+            dmodel,
+            self.dhead * n_kv_heads,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
         )
         self.out_proj = Linear(
             dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
