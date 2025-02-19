@@ -158,6 +158,7 @@ class MultiheadFlashDiff1(LoggingLayer):
         self.k_proj = Linear(
             self.dmodel,
             self.dhead * self.n_kv_heads,
+            # self.dmodel,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
@@ -165,6 +166,7 @@ class MultiheadFlashDiff1(LoggingLayer):
         self.v_proj = Linear(
             self.dmodel,
             self.dhead * self.n_kv_heads,
+            # self.dmodel,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
@@ -273,13 +275,28 @@ class MultiheadFlashDiff1(LoggingLayer):
                     self.dhead * self.n_negative_heads, dtype=torch.float32
                 ).normal_(mean=0, std=0.1)
             )
-        elif self.adapter_type == "none" or self.adapter_type == "identity":
+        elif self.adapter_type == "none":
+            self.q_neg_proj = Linear(
+                self.dmodel,
+                self.dhead * self.n_negative_heads,
+                bias=False,
+                init_type=init_type,
+                init_scale=init_scale,
+            )
+            self.k_neg_proj = Linear(
+                self.dmodel,
+                # self.dhead * self.n_negative_heads,
+                self.dhead * self.n_kv_heads,
+                bias=False,
+                init_type=init_type,
+                init_scale=init_scale,
+            )
+        elif self.adapter_type == "identity":
             pass
         else:
             raise NotImplementedError
 
         self.scaling = self.dhead**-0.5
-        # self.dmodel,
 
         self.lambda_init = None
         self.use_rope = use_rope
@@ -291,16 +308,16 @@ class MultiheadFlashDiff1(LoggingLayer):
             )
             self.rotary_emb._update_cos_sin_cache(self.seq_len, dtype=torch.float32)
         self.lambda_q1 = nn.Parameter(
-            torch.zeros(self.dhead // 2, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_k1 = nn.Parameter(
-            torch.zeros(self.dhead // 2, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_q2 = nn.Parameter(
-            torch.zeros(self.dhead // 2, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_k2 = nn.Parameter(
-            torch.zeros(self.dhead // 2, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
 
         self.subln = RMSNorm(self.dhead, eps=1e-5, elementwise_affine=True)
