@@ -31,7 +31,7 @@ from transformers import GPT2Tokenizer
 
 
 @define(slots=False)
-class ConditionalTrainer:
+class Trainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
@@ -45,6 +45,7 @@ class ConditionalTrainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
+    should_log_update_norm: bool
     eval_interval: int
     n_eval_batches: int
     max_sequence_length: int
@@ -70,11 +71,7 @@ class ConditionalTrainer:
     total_time_trainsteps: float = 0.0
     total_time_decoding: float = 0.0
     total_time_afterstep: float = 0.0
-    eval_min_group_size_logfactor: int = 0
-    eval_max_group_size_logfactor: int = 0
-    eval_discrete_mot: bool = False
     is_logging_process: bool = True
-    eval_dynamic_groupsize: bool = False
     steps_until_start_temperature_learn: int = -1
     model_fit_gpu_info_database_path: str = None
     model_fit_gpu_info_params: Optional[str] = None
@@ -111,6 +108,7 @@ class ConditionalTrainer:
         # if temp training is delayed, turn if off for now
         self.layer_manager.manage_learnable_temperature(0)
         self._check_config()
+        self.model_checkpoint = {}
 
     def _before_train_operations(self):
         if self.is_logging_process:
@@ -121,6 +119,95 @@ class ConditionalTrainer:
             self.model_fit_gpu_info_params,
             "failure",
         )
+        self._initialize_fsdp_model()
+
+    def _initialize_fsdp_model(self):
+        if isinstance(self.model, FSDP):
+            # for some reason, setting the model to training mode and
+            # running a forward pass is necessary to be able to save it
+            # in FSDP. God help us.
+            self.model.train()
+            with torch.no_grad():
+                _ = self.model(torch.zeros((1, self.cutoff), dtype=torch.int))
+
+    def will_report_update_norm(self):
+        # update != gradient
+        # update is the gradient after being processed by the optimizer
+        return (
+            self.should_log_update_norm
+            and (self.logging_interval_heavy > 0)
+            and (self.current_step % self.logging_interval_heavy == 0)
+            and isinstance(self.model, FSDP)
+        )
+
+    def will_report_gradient_norm(self):
+        return (
+            (self.logging_interval_heavy > 0)
+            and (self.current_step % self.logging_interval_heavy == 0)
+            and isinstance(self.model, FSDP)
+        )
+
+    def maybe_report_gradient_norm(self):
+        if not self.will_report_gradient_norm():
+            return
+
+        with FSDP.summon_full_params(
+            self.model, with_grads=True, rank0_only=True, writeback=False
+        ):
+            if self.is_logging_process:
+                for name, value in self.model.named_parameters():
+                    if value.grad is not None:
+                        eps = 1e-5
+                        grad_norm = torch.linalg.norm(value.grad)
+                        param_norm = torch.linalg.norm(self.model_checkpoint[name])
+                        # if self.is_logging_process:
+                        self.logger.report_scalar(
+                            title=f"gradient_norm/{name.replace('.', '/')}",
+                            value=grad_norm,
+                            iteration=self.current_step,
+                        )
+                        self.logger.report_scalar(
+                            title=f"scaled_gradient_norm/{name.replace('.', '/')}",
+                            value=grad_norm / (param_norm + eps),
+                            iteration=self.current_step,
+                        )
+
+    def maybe_report_update_norm(self):
+        if not self.will_report_update_norm():
+            return
+
+        with FSDP.summon_full_params(
+            self.model, with_grads=False, rank0_only=True, writeback=False
+        ):
+            if self.is_logging_process:
+                for name, value in self.model.named_parameters():
+                    eps = 1e-5
+                    update_norm = torch.linalg.norm(
+                        value.detach() - self.model_checkpoint[name]
+                    )
+                    param_norm = torch.linalg.norm(self.model_checkpoint[name])
+                    self.logger.report_scalar(
+                        title=f"update_norm/{name.replace('.', '/')}",
+                        value=update_norm,
+                        iteration=self.current_step,
+                    )
+                    self.logger.report_scalar(
+                        title=f"scaled_update_norm/{name.replace('.', '/')}",
+                        value=update_norm / (param_norm + eps),
+                        iteration=self.current_step,
+                    )
+
+    def maybe_save_weights_for_diff_inspection(self):
+        if self.will_report_update_norm() or self.will_report_gradient_norm():
+            with FSDP.summon_full_params(
+                self.model,
+                with_grads=False,
+                rank0_only=True,
+                writeback=False,
+            ):
+                if self.is_logging_process:
+                    for name, value in self.model.named_parameters():
+                        self.model_checkpoint[name] = value.clone().detach()
 
     def _after_train_operations(self, n_steps: int):
         if self.save_final_weights:
@@ -203,6 +290,7 @@ class ConditionalTrainer:
         self,
         step,
     ):
+        self.maybe_save_weights_for_diff_inspection()
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
@@ -213,6 +301,7 @@ class ConditionalTrainer:
         if self.rank is not None:
             dist.all_reduce(torch.tensor(loss, device="cuda"), op=dist.ReduceOp.AVG)
         self._apply_gradient()
+        self.maybe_report_update_norm()
         if self.is_logging_process:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
@@ -326,6 +415,7 @@ class ConditionalTrainer:
 
     def _apply_gradient(self):
         if self.scaler is None:
+            self.maybe_report_gradient_norm()
             if self.gradient_clipping is not None:
                 if isinstance(self.model, FSDP):
                     self.model.clip_grad_norm_(self.gradient_clipping)
@@ -528,9 +618,4 @@ class ConditionalTrainer:
             return False
 
     def _check_config(self):
-        if self.eval_dynamic_groupsize:
-            assert self.eval_max_group_size_logfactor is not None
-            assert self.eval_min_group_size_logfactor is not None
-            assert (
-                self.eval_min_group_size_logfactor <= self.eval_max_group_size_logfactor
-            )
+        pass
