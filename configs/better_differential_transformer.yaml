@@ -1,12 +1,12 @@
 runner: "research.attention_moe.train.train"
-time: 1-00:00:00
+time: 06:00:00
 n_gpus: 4
 interactive_debug: false
 backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_gqa_vanilla_sanity_check"
+  name: "diff_gda_adapters_grid"
 
   # base bass
   mixed_precision: true
@@ -20,15 +20,16 @@ params:
   logging_interval_loss: 1000
   save_weights_path: "model_ckpt"
   save_weights_interval: -1
-  tags: ["diff_gqa_vanilla_sanity_check"]
+  save_final_weights: true
+  tags: ["diff_gda_adapters_grid"]
 
 
-  cutoff: 1024
-  batch_size: 128
-  n_steps: 30_000
-  final_lr_step: 30_000
+  cutoff: 4096
+  batch_size: 32
+  n_steps: 45_000
+  final_lr_step: 45_000
   scheduler: cosine
-  lr_warmup_steps: 300
+  lr_warmup_steps: 450
   final_lr_fraction: 0.1
   gradient_accumulation_steps: 1
 
@@ -42,23 +43,22 @@ params:
   # model
   use_rope: true
   ^attention_mode: [
-     "diff_vanilla_fast1",
-#    "diff_theirs_fast1"
+#     "diff_vanilla_fast1",
+    "diff_theirs_fast1"
   ]
   ^dmodel: [768]
 #  dff: 3072
-  ^dff: [3776]
+  ^dff: [3072]
   n_blocks: 12
   n_att_heads: 12
   ^n_negative_heads: [12]
-  ^learning_rate: [5e-4]
+  ^learning_rate: [2e-4, 5e-4, 1e-3]
   data_seed: 42
   init_type: truncated_normal
   init_scale: 0.1
   mixed_precision_dtype: bfloat16
   ^diff_transformer_lowrank_dim: [64]
-  diff_transformer_roll_negative_heads: true
-  ^n_kv_heads: [1]
+  ^diff_transformer_negative_heads_permutation: [identity, roll, flip]
 #  ^diff_transformer_adapter_type: [additive, multiplicative, lora, identity, multiadd]
   ^diff_transformer_adapter_type: [none]
   evaluate_attention_relevancy_interval: 5000
