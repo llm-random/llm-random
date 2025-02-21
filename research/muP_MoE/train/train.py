@@ -68,8 +68,9 @@ def log_batch(
 
 
 def convert_args(args):
-    if args.dff is None:
-        args.dff = int(args.dmodel * args.dff_ratio)
+    if args.ff_mode != "token_choice":
+        if args.dff is None:
+            args.dff = int(args.dmodel * args.dff_ratio)
 
     if args.mup_params is not None:
         args.mup_params["m_d"] = args.dmodel / args.mup_params["base_dmodel"]
@@ -95,6 +96,7 @@ def get_muP_learning_rates(args, model, m_d=1.0):
         "pre_relu": (1 / m_d),  # FF in, ver2
         "post_relu": (1 / m_d),  # FF out, ver2
         "head": 1,
+        "gating": 1,
     }
 
     ratio_to_params = defaultdict(list)
@@ -127,6 +129,7 @@ def apply_muP_init(args, model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
         "pre_relu": (1 / m_d),  # FF in, ver2
         "post_relu": (1 / (m_d * 2 * n_blocks)),  # FF out, ver2
         "head": 1.0,
+        "gating": 1,
     }
     for name, param in model.named_parameters():
         # check for not implemented FFs
@@ -302,6 +305,10 @@ def main(
 
     if args.torch_compile:
         model = torch.compile(model)
+
+    if args.print_parameter_names:
+        for name, param in model.named_parameters():
+            print(name, param.shape)
 
     # muP innit
     if args.mup_params is not None:

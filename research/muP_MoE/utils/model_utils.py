@@ -20,6 +20,8 @@ from lizrd.train.checkpointing import make_checkpoint_wrapper_function
 from lizrd.train.load_and_save_model import load_model_weights
 from lizrd.core import llm
 from research.muP_MoE import mup_modules
+from research.muP_MoE.moe_layers.expert_types import ExpertFF, ExpertGated
+from research.muP_MoE.moe_layers.token_choice import TokenChoiceFF
 
 
 def make_loss_and_gradient_function(
@@ -278,6 +280,55 @@ def clear_additional_losses(model: torch.nn.Module):
         model.forward_pass_cache.pop("load_balancing_losses", None)
 
 
+def determine_moe_args(args):
+    args.total_experts_width = args.dmodel * args.effective_dff_x * args.expansion_rate
+    args.n_experts = args.expansion_rate * args.granularity
+    args.effective_dff = args.effective_dff_x * args.dmodel
+
+    expert_size = args.total_experts_width / args.n_experts
+    assert expert_size == int(expert_size)
+    args.expert_size = int(expert_size)
+
+    args.routing_top_k = args.effective_dff / expert_size
+    args.topk_fraction = args.routing_top_k / args.n_experts
+    assert 0.0 <= args.topk_fraction <= 1.0
+
+    assert args.routing_top_k == int(args.routing_top_k)
+    args.routing_top_k = int(args.routing_top_k)
+
+    # in the end, these arguments should be set
+    assert all(
+        [
+            args.routing_top_k,
+            args.total_experts_width,
+            args.n_experts,
+            args.expert_size,
+            args.topk_fraction,
+        ]
+    )
+    return args
+
+
+def get_inner_expert(args):
+    if args.moe_inner_expert == "ff":
+        expert_inner_class = partial(ExpertFF, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "ff_gated":
+        expert_inner_class = partial(ExpertGated, activation_name=args.activation_type)
+    else:
+        raise NotImplementedError(
+            f'Inner expert type "{args.moe_inner_expert}" not implemented'
+        )
+    return partial(
+        expert_inner_class,
+        dmodel=args.dmodel,
+        n_experts=args.n_experts,
+        expert_size=args.expert_size,
+        init_scale=args.init_scale,
+        init_type=args.init_type,
+        topk=args.routing_top_k,
+    )
+
+
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
@@ -290,6 +341,26 @@ def get_ff_layer(args):
     elif args.ff_mode == "swi_glu":
         return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
+    elif args.ff_mode == "token_choice":
+        args = determine_moe_args(args)
+        make_expert_inner_function = get_inner_expert(args)
+        # use_topk_initialization = get_expert_init(
+        #     args.expert_use_topk_initialization, default=False
+        # )
+        # make_expert_inner_function = partial(
+        #     make_expert_inner_function, use_topk_initialization=use_topk_initialization
+        # )
+        return_fn = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            zloss_weight=args.zloss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

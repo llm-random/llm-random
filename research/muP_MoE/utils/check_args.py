@@ -40,10 +40,11 @@ def check_args(args):
             "." not in filename
         ), "Do not add filename extensions (e.g. .pt or .pth) to save_weights_path! It is added automatically, along with step number."
 
-    if args.dff is None:
-        assert args.dff_ratio is not None
-    else:
-        assert args.dff_ratio is None
+    if args.ff_mode != "token_choice":
+        if args.dff is None:
+            assert args.dff_ratio is not None
+        else:
+            assert args.dff_ratio is None
 
     if args.mup_params is not None:
         keys = args.mup_params.keys()
@@ -56,3 +57,7 @@ def check_args(args):
     assert (args.n_att_heads is not None) or (
         args.dhead is not None
     ), "Either n_att_heads or dhead must be specified"
+
+    if args.save_weights_interval is not None:
+        if args.save_weights_interval < 1:
+            args.save_weights_interval = None
