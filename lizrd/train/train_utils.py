@@ -185,18 +185,29 @@ def get_model(
             projection[0][0] = 1.0
             projection = projection[:, int(dm):]
         elif projection_init_type == "half_var":
+            N_HEADS = 8
             print("Projection initialization: half_var")
             assert projected_dmodel/2 == dm
+            # projection = torch.zeros(projected_dmodel, projected_dmodel)
+            # mask = torch.eye(projected_dmodel).bool()
+            # projection = projection.masked_fill(mask, 1)
+
+            # columns_to_remove = torch.randperm(projected_dmodel/N_HEADS)[:projected_dmodel-dm]
+            # mask = torch.ones(projected_dmodel/N_HEADS, dtype=torch.bool)
+            # mask[columns_to_remove] = False
+            # # mask[:int(len(mask)/2)] = False #dev
+            # print(mask) #dev
+            # projection = projection[:, mask]
             projection = torch.zeros(projected_dmodel, projected_dmodel)
             mask = torch.eye(projected_dmodel).bool()
             projection = projection.masked_fill(mask, 1)
 
-            columns_to_remove = torch.randperm(projected_dmodel)[:projected_dmodel-dm]
-            mask = torch.ones(projected_dmodel, dtype=torch.bool)
+            columns_to_remove = torch.randperm(int(projected_dmodel/N_HEADS))[:int(projected_dmodel/N_HEADS-dm/N_HEADS)]
+            mask = torch.ones(int(projected_dmodel/N_HEADS), dtype=torch.bool)
             mask[columns_to_remove] = False
             # mask[:int(len(mask)/2)] = False #dev
             print(mask) #dev
-            projection = projection[:, mask]
+            projection = projection[:, torch.concat([mask]*N_HEADS)]
         else:
             raise Exception("Wrong projection init type")
         projection = projection.to(device) #dev to device projection reference 

@@ -8,7 +8,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm256", "fix_projected_attention", "dev"]
+  tags: ["projected_dis", "1ff", "compression", "dm256"]
 
   dmodel: 256
   dff: 256
@@ -25,8 +25,8 @@ params:
   # attention_mode: vanilla
   # ff_mode: vanilla
 
-  projection_init_type: half
-  # ^projection_init_type: [half_var, half_var, half_var, half_var, half_var]
+  # projection_init_type: half_var
+  ^projection_init_type: [half_var, half_var, half_var, half_var]
   # ^projection_init_type: [half, orthogonal]
   # ^projection_init_type: [half, half_down, half_var, half_var, half_var, half_var, half_var]
  

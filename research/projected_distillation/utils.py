@@ -59,6 +59,9 @@ PROJECTIONS_1_1_T = [
     ".block.residual_attention.layer.attention.output_projection.output_projection_p22.weight",
     ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p22.weight",
     ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight", #FF out - 1ff configuration
+    ".block.residual_attention.layer.attention.input_projection_out_projection_q.input_projection_p12_q.weight", #Attention in_projection_out_projection
+    ".block.residual_attention.layer.attention.input_projection_out_projection_k.input_projection_p12_k.weight", 
+    ".block.residual_attention.layer.attention.input_projection_out_projection_v.input_projection_p12_v.weight", 
 ]
 
 PROJECTIONS_1_4 = [
@@ -74,7 +77,7 @@ PROJECTIONS_1_3 = [
 ]
 
 PROJECTIONS_1_3_T = [
-    ".block.residual_attention.layer.attention.input_projection.input_projection_p12.weight",
+    # ".block.residual_attention.layer.attention.input_projection.input_projection_p12.weight",
 ]
 # encoder.blocks.block_7.block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p11.weight, shape: torch.Size([512, 256]) requires_grad: True, cuda:0
 # encoder.blocks.block_7.block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight, shape: torch.Size([256, 512]) requires_grad: True, cuda:0

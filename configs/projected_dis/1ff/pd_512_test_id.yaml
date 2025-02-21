@@ -7,13 +7,13 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm512", "test", "shuffle"]
+  tags: ["projected_dis", "1ff", "compression", "dm512", "test", "dev"]
 
   dmodel: 512
   dff: 512
   projected_dmodel: 512
   projected_dff: 512
-  n_steps: 500 # same as dmodel
+  n_steps: 500
   # learning_rate: 0.001 # same as dmodel
   # ^learning_rate: [0.00025, 0.0005, 0.001]
   learning_rate: 0.0001
@@ -24,8 +24,8 @@ params:
   projection_init_type: half
 
   projected_distillation: True
-  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-16-36/None/1171839/19545.pt
-  projected_weights_path: /local_storage_1/ms_tmp/models/42951/6800.pt
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-02-10_12-54-15/None/1195464/19545.pt
+  # projected_weights_path: /local_storage_1/ms_tmp/models/42951/6800.pt
 
   # fsdp_use_orig_params: True 
   # fsdp_enabled: True
