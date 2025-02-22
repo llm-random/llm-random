@@ -51,7 +51,7 @@ params:
   ^dff: [3072]
   n_blocks: 12
   n_att_heads: 12
-  ^n_negative_heads: [12]
+  ^n_negative_heads: [1, 2, 3, 4, 6, 12]
   ^learning_rate: [5e-4, 1e-3, 2e-3]
   data_seed: 42
   init_type: truncated_normal
@@ -60,7 +60,7 @@ params:
   ^diff_transformer_lowrank_dim: [64]
   ^diff_transformer_negative_heads_permutation: [repeat, interleave, flip_repeat, flip_interleave, roll_repeat, repeat_roll, roll_interleave]
 #  ^diff_transformer_adapter_type: [additive, multiplicative, lora, identity, multiadd]
-  ^diff_transformer_adapter_type: [none]
+  ^diff_transformer_adapter_type: [identity]
   use_qk_norm: true
   evaluate_attention_relevancy_interval: 5000
   # ^load_balancing_loss_weight: [0.01]

@@ -48,10 +48,10 @@ params:
   ]
   ^dmodel: [768]
 #  dff: 3072
-  ^dff: [3072]
+  ^dff: [3328]
   n_blocks: 12
   n_att_heads: 12
-  ^n_negative_heads: [12]
+  ^n_negative_heads: [4]
   ^learning_rate: [5e-4, 1e-3, 2e-3]
   data_seed: 42
   init_type: truncated_normal

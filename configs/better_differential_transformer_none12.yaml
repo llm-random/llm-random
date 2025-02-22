@@ -58,7 +58,7 @@ params:
   init_scale: 0.1
   mixed_precision_dtype: bfloat16
   ^diff_transformer_lowrank_dim: [64]
-  ^diff_transformer_negative_heads_permutation: [repeat, interleave, flip_repeat, flip_interleave, roll_repeat, repeat_roll, roll_interleave]
+  ^diff_transformer_negative_heads_permutation: [repeat, flip_repeat, roll_repeat]
 #  ^diff_transformer_adapter_type: [additive, multiplicative, lora, identity, multiadd]
   ^diff_transformer_adapter_type: [none]
   use_qk_norm: true
