@@ -9,16 +9,16 @@ cpus_per_gpu: 16
 interactive_debug: false
 
 params:
-  name: "muP_MoE_lr_plot_moe"
+  name: "muP_MoE_lr_plot_moe_mup"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "lr_plot_moe", "kc_version_3_moe"]
+  tags: ["muP_MoE", "muTransfer", "lr_plot_moe_mup", "kc_version_3_moe"]
 
-  # mup_params:
-  #   ^alpha_in: [10.0]
-  #   ^alpha_out: [0.1]
-  #   # alpha_in: 5.0
-  #   # alpha_out: 0.2
-  #   base_dmodel: 64
+  mup_params:
+    ^alpha_in: [10.0]
+    ^alpha_out: [0.1]
+    # alpha_in: 5.0
+    # alpha_out: 0.2
+    base_dmodel: 64
 
   # training
   n_steps: 25000
@@ -55,8 +55,8 @@ params:
 
   # learning
   scheduler: cosine
-  # learning_rate: 2e-2
-  ^learning_rate: [1e-2, 5e-3, 2e-3, 1e-3, 5e-4, 2e-4, 1e-4]
+  # ^learning_rate: [1e-2, 5e-3, 2e-3, 1e-3, 5e-4, 2e-4, 1e-4]
+  ^learning_rate: [5e-2, 2e-2]
   final_lr_fraction: 0.1
   grad_clip: 1
   ^weight_decay: [0.01]
