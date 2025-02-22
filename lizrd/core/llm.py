@@ -124,6 +124,10 @@ class Residual(LoggingLayer):
         updates = self.logging_cache["update"]
         residual_stream = self.logging_cache["residual_stream"]
 
+        # muP
+        mean_abs_update = torch.mean(torch.abs(updates))
+        # muP
+
         update_norms = torch.norm(updates, dim=-1)
         residual_norms = torch.norm(residual_stream, dim=-1)
 
@@ -137,6 +141,7 @@ class Residual(LoggingLayer):
         update_to_residual_ratio_std = torch.std(update_to_residual_ratio)
 
         return {
+            "muP/mean_abs_update": mean_abs_update,
             "update_norms/mean": update_norms_mean,
             "update_norms/std": update_norms_std,
             "residual_norms/mean": residual_norms_mean,
@@ -197,6 +202,7 @@ def attention_mechanism(
     dhead: int,
     causal: bool,
     flash: bool,
+    attn_scale: float = None,
 ):
     if flash:
         with torch.backends.cuda.sdp_kernel(
@@ -208,6 +214,7 @@ def attention_mechanism(
                 value=value.contiguous(),
                 attn_mask=None,
                 is_causal=causal,
+                scale=attn_scale,
             )
     else:
         # implementation without flash assumes other dim order
@@ -216,7 +223,10 @@ def attention_mechanism(
         value = value.transpose(1, 2)
 
         a = torch.einsum("... l h d, ... L h d -> ... h l L", query, key)
-        a = a * (1 / dhead**0.5)
+        if attn_scale is None:
+            a = a * (1 / dhead**0.5)
+        else:
+            a = a * attn_scale
         if causal:
             a.masked_fill_(
                 torch.tril(torch.ones_like(a)) == 0, float("-inf")
@@ -240,6 +250,7 @@ class AttentionMechanism(nn.Module):
         value: torch.Tensor,
         dhead: int,
         causal: bool,
+        attn_scale: float = None,
         *args,
         **kwargs,
     ):
@@ -250,6 +261,7 @@ class AttentionMechanism(nn.Module):
             dhead=dhead,
             causal=causal,
             flash=self.use_flash_attention,
+            attn_scale=attn_scale,
         )
 
 
@@ -263,16 +275,23 @@ class Attention(LoggingLayer):
         init_scale: float,
         dhead=None,
         flash=False,
+        attn_scale: str = None,
+        rope: bool = False,
+        seq_len: int = None,
     ):
         super(Attention, self).__init__()
         if dhead is None:
             assert dmodel % heads == 0
             dhead = dmodel // heads
 
+        if rope:
+            assert seq_len is not None
+
         self.heads = heads
         self.dhead = dhead
         self.causal = causal
         self.flash = flash
+        self.attn_scale = self.parse_attention_scale(attn_scale)
 
         self.input_projection = Linear(
             dmodel,
@@ -288,6 +307,10 @@ class Attention(LoggingLayer):
             init_type=init_type,
             init_scale=init_scale,
         )
+        if rope:
+            self.rope = RoPE(dhead, length=seq_len)
+        else:
+            self.rope = None
         self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
 
     def forward(self, x):
@@ -298,14 +321,34 @@ class Attention(LoggingLayer):
             batch, seq_len, self.heads, 3 * self.dhead
         ).transpose(1, 2)
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+        if self.rope is not None:
+            q = self.rope(q)
+            k = self.rope(k)
 
         attention_output = self.attention_mechanism(
-            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+            query=q,
+            key=k,
+            value=v,
+            dhead=self.dhead,
+            causal=self.causal,
+            attn_scale=self.attn_scale,
         )
 
         output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
 
         return output
+
+    def parse_attention_scale(self, attn_scale: str):
+        if attn_scale is None or attn_scale == "sqrt":
+            return 1.0 / self.dhead**0.5
+        elif attn_scale == "dhead":
+            return 1.0 / self.dhead
+        else:
+            try:
+                scale = float(attn_scale)
+                return scale
+            except ValueError:
+                raise ValueError(f"Invalid attention normalization value: {attn_scale}")
 
 
 class RoPE(nn.Module):
@@ -324,65 +367,6 @@ class RoPE(nn.Module):
         [y1, y2] = torch.chunk(x, chunks=2, dim=-1)
         x_rotated = torch.cat([-y2, y1], dim=-1)
         return x * self.cos + x_rotated * self.sin
-
-
-class AttentionRoPE(LoggingLayer):
-    def __init__(
-        self,
-        dmodel,
-        heads,
-        causal,
-        length,
-        init_type: str,
-        init_scale: float,
-        dhead=None,
-        flash=False,
-    ):
-        super(AttentionRoPE, self).__init__()
-        if dhead is None:
-            assert dmodel % heads == 0
-            dhead = dmodel // heads
-
-        self.heads = heads
-        self.dhead = dhead
-        self.causal = causal
-        self.flash = flash
-
-        self.input_projection = Linear(
-            dmodel,
-            3 * heads * dhead,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.output_projection = Linear(
-            heads * dhead,
-            dmodel,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.rope = RoPE(dhead, length=length)
-        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-
-    def forward(self, x):
-        projected = self.input_projection(x)
-
-        batch, seq_len = x.shape[:-1]
-        projected = projected.view(
-            batch, seq_len, self.heads, 3 * self.dhead
-        ).transpose(1, 2)
-        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
-        q = self.rope(q)
-        k = self.rope(k)
-
-        attention_output = self.attention_mechanism(
-            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
-        )
-
-        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
-
-        return output
 
 
 class RMSNorm(nn.Module):

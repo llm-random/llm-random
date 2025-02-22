@@ -3,14 +3,25 @@ from functools import partial
 # import json
 # from diskcache import Cache
 from typing import Optional, Type, Union, Callable
+
 import torch
 from torch.nn import LayerNorm
 import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.profiler import ProfilerAction
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+    apply_activation_checkpointing,
+)
 
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
+from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
+from lizrd.train.checkpointing import make_checkpoint_wrapper_function
+from lizrd.train.load_and_save_model import load_model_weights
+from lizrd.core import llm
+from research.muP_MoE import mup_modules
+from research.muP_MoE.moe_layers.expert_types import ExpertFF, ExpertGated
+from research.muP_MoE.moe_layers.token_choice import TokenChoiceFF
 
 
 def make_loss_and_gradient_function(
@@ -197,6 +208,7 @@ def get_attention_layer(args):
             flash=args.flash_attention,
             init_type=args.init_type,
             init_scale=args.init_scale,
+            attn_scale=args.attention_normalization,
         )
     elif args.attention_mode == "rope":
         attention_layer_fun = lambda: llm.Attention(
@@ -209,6 +221,7 @@ def get_attention_layer(args):
             flash=args.flash_attention,
             init_type=args.init_type,
             init_scale=args.init_scale,
+            attn_scale=args.attention_normalization,
         )
     else:
         raise NotImplementedError(
@@ -267,14 +280,87 @@ def clear_additional_losses(model: torch.nn.Module):
         model.forward_pass_cache.pop("load_balancing_losses", None)
 
 
+def determine_moe_args(args):
+    args.total_experts_width = args.dmodel * args.effective_dff_x * args.expansion_rate
+    args.n_experts = args.expansion_rate * args.granularity
+    args.effective_dff = args.effective_dff_x * args.dmodel
+
+    expert_size = args.total_experts_width / args.n_experts
+    assert expert_size == int(expert_size)
+    args.expert_size = int(expert_size)
+
+    args.routing_top_k = args.effective_dff / expert_size
+    args.topk_fraction = args.routing_top_k / args.n_experts
+    assert 0.0 <= args.topk_fraction <= 1.0
+
+    assert args.routing_top_k == int(args.routing_top_k)
+    args.routing_top_k = int(args.routing_top_k)
+
+    # in the end, these arguments should be set
+    assert all(
+        [
+            args.routing_top_k,
+            args.total_experts_width,
+            args.n_experts,
+            args.expert_size,
+            args.topk_fraction,
+        ]
+    )
+    return args
+
+
+def get_inner_expert(args):
+    if args.moe_inner_expert == "ff":
+        expert_inner_class = partial(ExpertFF, activation_name=args.activation_type)
+    elif args.moe_inner_expert == "ff_gated":
+        expert_inner_class = partial(ExpertGated, activation_name=args.activation_type)
+    else:
+        raise NotImplementedError(
+            f'Inner expert type "{args.moe_inner_expert}" not implemented'
+        )
+    return partial(
+        expert_inner_class,
+        dmodel=args.dmodel,
+        n_experts=args.n_experts,
+        expert_size=args.expert_size,
+        init_scale=args.init_scale,
+        init_type=args.init_type,
+        topk=args.routing_top_k,
+    )
+
+
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
         return_fn = lambda: llm.FeedForward(
-            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+            args.dmodel,
+            args.dff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            bias="none",
         )
     elif args.ff_mode == "swi_glu":
         return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
+        )
+    elif args.ff_mode == "token_choice":
+        args = determine_moe_args(args)
+        make_expert_inner_function = get_inner_expert(args)
+        # use_topk_initialization = get_expert_init(
+        #     args.expert_use_topk_initialization, default=False
+        # )
+        # make_expert_inner_function = partial(
+        #     make_expert_inner_function, use_topk_initialization=use_topk_initialization
+        # )
+        return_fn = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            zloss_weight=args.zloss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
@@ -360,3 +446,94 @@ def disable_profile_schedule_fn(_: int) -> ProfilerAction:
     Passing this function to the profiler as a scheduler disables profiling
     """
     return ProfilerAction.NONE
+
+
+def get_model(
+    max_length: int,
+    vocab_size: int,
+    block_modules: dict[str, Callable[[], torch.nn.Module]],
+    dm: int,
+    n_blocks: int,
+    device: torch.device,
+    init_type,
+    init_scale,
+    ddp_enabled: bool,
+    fsdp_enabled: bool,
+    fsdp_param_precision: torch.dtype,
+    fsdp_mixed_precision_ignore_classes: list[Type[torch.nn.Module]],
+    fsdp_offload_params: bool,
+    fsdp_min_num_params: int,
+    fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
+    activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
+    is_logging_process: bool,
+    rank=None,
+    model_fragmentation: Optional[list[int]] = None,
+    residual_fn: Callable[[], torch.nn.Module] = None,
+    include_positional_embedding: bool = True,
+    checkpoint: dict[str, torch.Tensor] = None,
+    mup_config: dict = None,
+):
+    if model_fragmentation is None or device == torch.device("cpu"):
+        first_gpu = device
+        last_gpu = device
+    else:
+        first_gpu = torch.device("cuda:0")
+        last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
+
+    embedding_components = [
+        llm.TokenEmbedding(vocab_size, dm, init_type=init_type, init_scale=init_scale)
+    ]
+
+    if include_positional_embedding:
+        embedding_components.append(
+            llm.PositionalEmbedding(
+                max_length, dm, init_type=init_type, init_scale=init_scale
+            )
+        )
+
+    embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
+
+    # Python officially preserves dict order since 3.7, so we pass the layer dict
+    transformer_tower = llm.TransformerTower(
+        n_blocks,
+        dm,
+        block_modules,
+        device,
+        model_fragmentation=model_fragmentation,
+        residual_fn=residual_fn,
+    )
+
+    head = llm.PredictionHead(
+        dm, vocab_size, init_type=init_type, init_scale=init_scale
+    ).to(last_gpu)
+
+    model = mup_modules.muP_LLM(embedding_layer, transformer_tower, head, mup_config)
+
+    if checkpoint is not None:
+        load_model_weights(model, checkpoint)
+
+    if ddp_enabled:
+        model = wrap_in_ddp(module=model, rank=rank)
+    elif fsdp_enabled:
+        model = wrap_in_fsdp(
+            module=model,
+            rank=rank,
+            param_precision=fsdp_param_precision,
+            cast_inputs=True,
+            mixed_precision_ignored_classes=fsdp_mixed_precision_ignore_classes,
+            offload_params=fsdp_offload_params,
+            print_model=True,
+            min_num_params=fsdp_min_num_params,
+            modules_to_wrap=fsdp_modules_to_wrap,
+            is_logging_process=is_logging_process,
+        )
+
+    if activation_checkpointing_modules is not None:
+        check_fn = lambda x: isinstance(x, activation_checkpointing_modules)
+        apply_activation_checkpointing(
+            model,
+            check_fn=check_fn,
+            checkpoint_wrapper_fn=make_checkpoint_wrapper_function(),
+        )
+
+    return model

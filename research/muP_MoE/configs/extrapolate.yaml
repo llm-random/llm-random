@@ -1,0 +1,92 @@
+runner: "research.muP_MoE.train.train"
+
+# time: "05:00:00"
+time: "02:00:00"
+
+n_gpus: 1
+cpus_per_gpu: 16
+
+interactive_debug: false
+
+params:
+  name: "muP_MoE_extrpl"
+  # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
+  tags: ["muP_MoE", "muTransfer", "kc_mup_extrapolation", "kc_version_3", "no_mu_extrapol_2_1"]
+
+  # mup_params:
+  #   ^alpha_in: [10.0]
+  #   ^alpha_out: [0.1]
+  #   # alpha_in: 5.0
+  #   # alpha_out: 0.2
+  #   base_dmodel: 64
+
+  # training
+  n_steps: 25000
+  final_lr_step: 25000
+  lr_warmup_steps: 250
+  # n_steps: 4000
+  # final_lr_step: 4000
+  # lr_warmup_steps: 100
+  batch_size: 64
+  cutoff: 128
+
+  # model
+  model_type: gpt
+  # ^dmodel: [768]
+  ^dmodel: [64, 128, 256, 512]
+  # ^dmodel: [32, 64, 128, 256, 512]
+  # ^dmodel: [128, 256]
+  dff_ratio: 4
+  n_blocks: 4
+  n_att_heads: 4
+  attention_mode: 'vanilla'
+  # attention_normalization: 'dhead'
+  attention_normalization: 'sqrt'
+  ff_mode: vanilla
+  use_torch_bmm: true
+
+  # learning
+  scheduler: cosine
+  # learning_rate: 2e-2
+  ^learning_rate: [1e-2, 5e-3, 2e-3, 1e-3, 5e-4, 2e-4, 1e-4]
+  final_lr_fraction: 0.1
+  grad_clip: 1
+  ^weight_decay: [0.01]
+  ^init_scale: [0.1]
+  init_type: truncated_normal
+  capacity_factor: 1.0
+
+  # aux losses
+  load_balancing_loss_weight: 0.01
+  # zloss_weight: 0.001
+
+  # FSDP
+  # fsdp_enabled: true
+  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+
+  # other
+  dataset_type: c4
+  mixed_precision: true
+  flash_attention: true
+  mixed_precision_dtype: bfloat16
+  ^data_seed: [101, 102, 103]
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 100
+  # logging_interval_light: 50
+  # logging_interval_loss: 20
+  # save_weights_interval: null
+
+  # debug
+  # logger_types: "stdout"
+  # n_steps: 100
+  # batch_size: 8
+  # cutoff: 16
+  # use_dummy_dataset: true
+  # n_blocks: 2
+  # dmodel: 16
+  # n_att_heads: 2
