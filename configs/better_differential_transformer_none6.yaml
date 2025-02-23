@@ -42,6 +42,7 @@ params:
 
   # model
   use_rope: true
+  ff_mode: swi_glu
   ^attention_mode: [
 #     "diff_vanilla_fast1",
     "diff_theirs_fast1"
