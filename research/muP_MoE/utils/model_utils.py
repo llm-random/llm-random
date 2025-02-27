@@ -535,7 +535,9 @@ def get_model(
 
     model = mup_modules.muP_LLM(embedding_layer, transformer_tower, head, mup_config)
 
-    apply_muP_init(model, init_base_value=init_scale, m_d=mup_config['m_d'], n_blocks=n_blocks)
+    apply_muP_init(
+        model, init_base_value=init_scale, m_d=mup_config["m_d"], n_blocks=n_blocks
+    )
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)

@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
 from typing import Literal
-from collections import OrderedDict
 
 from lizrd.core.llm import LLM
 from lizrd.core.misc import LoggingLayer, Linear
-from lizrd.core.initialization import get_init_weight, ValidInitType
+from lizrd.core.initialization import ValidInitType
 
 
 class nonResidual(LoggingLayer):
