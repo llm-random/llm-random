@@ -11,7 +11,7 @@ interactive_debug: false
 params:
   name: "muP_MoE_lr_plot_moe_mup"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "lr_plot_moe_mup", "kc_version_3_moe"]
+  tags: ["muP_MoE", "muTransfer", "lr_plot_moe_mup", "fixed_init"]
 
   mup_params:
     ^alpha_in: [10.0]
@@ -27,7 +27,7 @@ params:
   # n_steps: 4000
   # final_lr_step: 4000
   # lr_warmup_steps: 100
-  batch_size: 64
+  batch_size: 128
   cutoff: 128
 
   # model
@@ -55,8 +55,7 @@ params:
 
   # learning
   scheduler: cosine
-  # ^learning_rate: [1e-2, 5e-3, 2e-3, 1e-3, 5e-4, 2e-4, 1e-4]
-  ^learning_rate: [5e-2, 2e-2]
+  ^learning_rate: [5e-2, 2e-2, 1e-2, 5e-3, 2e-3, 1e-3, 5e-4, 2e-4]
   final_lr_fraction: 0.1
   grad_clip: 1
   ^weight_decay: [0.01]
@@ -75,12 +74,12 @@ params:
   mixed_precision: true
   flash_attention: true
   mixed_precision_dtype: bfloat16
-  data_seed: 1007
+  ^data_seed: [21, 23, 27]
 
   # logging etc.
   logger_types: "neptune"
   project_name: "pmtest/llm-random"
-  logging_interval_heavy: 100
+  logging_interval_heavy: 10000
 
   # debug
   # logger_types: "stdout"

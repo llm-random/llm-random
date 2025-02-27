@@ -1,7 +1,11 @@
 import torch
+import torch.nn as nn
+from typing import Literal
+from collections import OrderedDict
 
 from lizrd.core.llm import LLM
-from lizrd.core.misc import LoggingLayer
+from lizrd.core.misc import LoggingLayer, Linear
+from lizrd.core.initialization import get_init_weight, ValidInitType
 
 
 class nonResidual(LoggingLayer):
@@ -53,3 +57,52 @@ class muP_LLM(LLM):
         x = self.encoder(x)
         x = self.head(x)
         return x
+
+
+def decode_bias_string(bias):
+    assert bias in ["both", "first", "second", "none"]
+    if bias == "both":
+        bias_first = bias_second = True
+    elif bias == "first":
+        bias_first = True
+        bias_second = False
+    elif bias == "second":
+        bias_first = False
+        bias_second = True
+    else:
+        bias_first = bias_second = False
+    return bias_first, bias_second
+
+
+class FeedForward(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        init_type: ValidInitType,
+        init_scale: float,
+        bias: Literal["both", "first", "second", "none"] = "both",
+    ):
+        super().__init__()
+        bias_first, bias_second = decode_bias_string(bias)
+        self.lin1_weight = Linear(
+            dmodel,
+            dff,
+            bias=bias_first,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.relu = nn.ReLU()
+        self.lin2_weight = Linear(
+            dff,
+            dmodel,
+            bias=bias_second,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+
+    def forward(self, x):
+        out = self.lin1_weight(x)
+        out = self.relu(out)
+        out = self.lin2_weight(out)
+        return out

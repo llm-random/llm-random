@@ -1,3 +1,7 @@
-if 2 blocks 10_step MoE works run: 10_step MoE with 4/8 blocks
-compare old vs new init without fsdp
-run lr_plot with fixed init (after 10_step is OK)
+done - compare old vs new init without fsdp
+
+10_step dense fsdp - running
+10_step moe no-fsdp
+10_step moe fsdp
+10_step moe with 4/8 blocks
+run lr_plot with fixed init

@@ -9,13 +9,13 @@ cpus_per_gpu: 16
 interactive_debug: false
 
 params:
-  name: "muP_MoE_10_step_new"
+  name: "muP_MoE_10_step"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "10_step_new"]
+  tags: ["muP_MoE", "muTransfer", "10_step_fixin", "no_fsdp", "naples"]
 
   mup_params:
-    ^alpha_in: [10.0]
-    ^alpha_out: [0.1]
+    ^alpha_in: [1.0]
+    ^alpha_out: [1.0]
     # alpha_in: 5.0
     # alpha_out: 0.2
     base_dmodel: 256
@@ -23,15 +23,16 @@ params:
   # training
   n_steps: 10
   lr_warmup_steps: 0
-  batch_size: 64
-  cutoff: 256
+  batch_size: 8
+  cutoff: 1024
 
   # model
   model_type: gpt
-  # dmodel: 32
+  # dmodel: 512
   # ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]
-  ^dmodel: [256, 384, 512, 768, 1024]
-  ^n_blocks: [2]
+  # ^dmodel: [256, 512, 1024, 2048, 4096]
+  ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048]
+  n_blocks: 2
   dhead: 64
   attention_mode: 'vanilla'
   attention_normalization: 'dhead'
@@ -40,18 +41,13 @@ params:
   ff_mode: vanilla
   dff_ratio: 4
 
-  # MoE aux losses
-  load_balancing_loss_weight: 0.01
-  zloss_weight: 0.001
-
-
   # learning
   scheduler: constant
-  learning_rate: 1e-3
+  learning_rate: 1e-2
   final_lr_fraction: 0.1
   grad_clip: 1
   weight_decay: 0.1
-  ^init_scale: [0.001]
+  init_scale: 0.0004
   init_type: truncated_normal
   capacity_factor: 1.0
   adam_beta1: 0.9
@@ -59,7 +55,7 @@ params:
 
   # FSDP
   # fsdp_enabled: true
-  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,Attention,ExpertFF,TokenGating"
+  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock,Attention,FeedForward"
   # activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
   # fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
 
@@ -68,7 +64,7 @@ params:
   mixed_precision: true
   flash_attention: true
   mixed_precision_dtype: bfloat16
-  ^data_seed: [205, 206, 207, 208, 209]
+  ^data_seed: [303, 304, 305, 306, 307]
 
   # logging etc.
   logger_types: "neptune"

@@ -1,7 +1,7 @@
 runner: "research.muP_MoE.train.train"
 
 # time: "05:00:00"
-time: "00:20:00"
+time: "00:15:00"
 
 n_gpus: 2
 cpus_per_gpu: 16
@@ -11,7 +11,7 @@ interactive_debug: false
 params:
   name: "muP_MoE_10_step_moe"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "10_step_moe_2gpu", "kc_version_3_moe", "constant_dhead"]
+  tags: ["muP_MoE", "muTransfer", "10_step_moe", "fsdp"]
 
   mup_params:
     ^alpha_in: [10.0]
@@ -23,15 +23,16 @@ params:
   # training
   n_steps: 10
   lr_warmup_steps: 0
-  batch_size: 16
-  cutoff: 512
+  batch_size: 128
+  cutoff: 128
 
   # model
   model_type: gpt
   # dmodel: 32
-  # ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]
-  ^dmodel: [256, 384, 512, 768, 1024]
-  ^n_blocks: [2]
+  ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]
+  # ^dmodel: [256, 512, 1024, 2048, 4096]
+  # ^dmodel: [256, 384, 512, 768, 1024, 1536]
+  n_blocks: 2
   dhead: 64
   attention_mode: 'vanilla'
   attention_normalization: 'dhead'
@@ -54,11 +55,11 @@ params:
 
   # learning
   scheduler: constant
-  learning_rate: 1e-3
+  learning_rate: 1e-2
   final_lr_fraction: 0.1
   grad_clip: 1
   weight_decay: 0.1
-  ^init_scale: [0.0004, 0.1]
+  ^init_scale: [0.0004]
   init_type: truncated_normal
   capacity_factor: 1.0
   adam_beta1: 0.9
@@ -75,7 +76,7 @@ params:
   mixed_precision: true
   flash_attention: true
   mixed_precision_dtype: bfloat16
-  ^data_seed: [205, 206, 207, 208, 209]
+  ^data_seed: [205, 206, 207]
 
   # logging etc.
   logger_types: "neptune"

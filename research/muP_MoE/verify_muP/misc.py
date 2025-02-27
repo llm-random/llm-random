@@ -221,6 +221,7 @@ def plot_multiple_modules(
     dmodels,
     step_interval=100,
     figsize=(15, 10),
+    subplots=None,
 ):
     """
     Creates a grid of subplots, each plotting the activation values for a specified module and layer combination.
@@ -241,7 +242,10 @@ def plot_multiple_modules(
     n_cols = len(layer_nums)
     steps = get_steps_from_first_run(activations_dict)
 
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
+    if subplots is None:
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
+    else:
+        fig, axs, i_start, j_start = subplots
 
     for i, mk in enumerate(module_keywords):
         for j, ln in enumerate(layer_nums):
@@ -259,13 +263,14 @@ def plot_multiple_modules(
                 layer_num=ln,
                 step_interval=step_interval,
                 fig=fig,
-                ax=axs[i, j],
+                ax=axs[i_start + i, j_start + j],
             )
 
-    plt.show()
+    if subplots is None:
+        plt.show()
 
 
-def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6)):
+def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6), ax=None):
     """
     For each model width in the runs table, plots a line where the y-axis is the final loss value
     and the x-axis is the learning rate (lr).
@@ -301,21 +306,36 @@ def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6)):
         lrs = grouped.index.to_numpy()
         losses = grouped.values
         print(losses)
-        plt.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
+        if ax is None:
+            plt.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
+        else:
+            ax.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
 
-    plt.xlabel("Learning Rate (lr)")
-    plt.ylabel("Final Loss Value")
-    if title is None:
-        title = "Final Loss vs Learning Rate for Different Model Widths"
-    plt.title(title)
-    plt.legend()
-    plt.grid(True)
-    plt.xscale(
-        "log"
-    )  # Set x-axis to logarithmic scale if learning rates vary exponentially
-    if ylim is not None:
-        plt.ylim(ylim)
-    plt.show()
+    if ax is None:
+        plt.xlabel("Learning Rate (lr)")
+        plt.ylabel("Final Loss Value")
+        if title is None:
+            title = "Final Loss vs Learning Rate for Different Model Widths"
+        plt.title(title)
+        plt.legend()
+        plt.grid(True)
+        plt.xscale(
+            "log"
+        )  # Set x-axis to logarithmic scale if learning rates vary exponentially
+        if ylim is not None:
+            plt.ylim(ylim)
+        plt.show()
+    else:
+        ax.set_xlabel("Learning Rate (lr)")
+        ax.set_ylabel("Final Loss Value")
+        ax.set_xscale("log")  # Set x-axis to logarithmic scale
+        if title is None:
+            title = "Final Loss vs Learning Rate"
+        ax.set_title(title)
+        ax.legend()
+        ax.grid(True)
+        if ylim is not None:
+            ax.set_ylim(ylim)
 
 
 def get_final_loss_values(runs_table):

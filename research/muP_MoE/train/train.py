@@ -89,9 +89,10 @@ def get_muP_learning_rates(args, model, m_d=1.0):
 
     key_lr_dict = {
         "embedding_layer": 1.0,
-        # "input_projection": (1 / m_d),  # Attn Q, K, V
-        # "output_projection": (1 / m_d),  # Attn O
+        "input_projection": (1 / m_d),  # Attn Q, K, V
+        "output_projection": (1 / m_d),  # Attn O
         "residual_attention.layer.attention": (1 / m_d),
+        "residual_feedforward.layer.feedforward": (1 / m_d),
         "lin1_weight": (1 / m_d),  # FF in
         "lin2_weight": (1 / m_d),  # FF out
         "pre_relu": (1 / m_d),  # FF in, ver2
@@ -219,6 +220,7 @@ def main(
         fsdp_param_precision = args.mixed_precision_dtype
         fsdp_mixed_precision_ignore_classes = get_mixed_precision_ignored_classes(args)
         fsdp_modules_to_wrap = get_classes_from_module_names(args.fsdp_modules_to_wrap)
+        print(f"FSDP modules to wrap: {fsdp_modules_to_wrap}")
     else:
         fsdp_param_precision = None
         fsdp_mixed_precision_ignore_classes = None

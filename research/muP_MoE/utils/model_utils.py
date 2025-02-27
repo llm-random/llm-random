@@ -332,16 +332,12 @@ def get_inner_expert(args):
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        return_fn = lambda: llm.FeedForward(
+        return_fn = lambda: mup_modules.FeedForward(
             args.dmodel,
             args.dff,
             init_type=args.init_type,
             init_scale=args.init_scale,
             bias="none",
-        )
-    elif args.ff_mode == "swi_glu":
-        return_fn = lambda: llm.SwiGLUFeedForward(
-            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
     elif args.ff_mode == "token_choice":
         args = determine_moe_args(args)
@@ -380,7 +376,7 @@ def get_classes_from_module_names(
         elif name == "RoPE":
             classes.append(llm.RoPE)
         elif name == "FeedForward":
-            classes.append(llm.FeedForward)
+            classes.append(mup_modules.FeedForward)
         elif name == "Residual":
             classes.append(llm.Residual)
         elif name == "TransformerBlock":
@@ -510,21 +506,23 @@ def get_model(
         residual_fn=residual_fn,
     )
     if mup_config is not None:
-        print("---Unembedding init with muP---")
+        print("---TransformerTower init with muP---")
         transformer_init_dict = {
             "input_projection": (1 / mup_config["m_d"]),
             "output_projection": (1 / (mup_config["m_d"] * 2 * n_blocks)),
             "lin1_weight": (1 / mup_config["m_d"]),
             "lin2_weight": (1 / (mup_config["m_d"] * 2 * n_blocks)),
+            "pre_relu": (1 / mup_config["m_d"]),  # FF in, ver2
+            "post_relu": (1 / (mup_config["m_d"] * 2 * n_blocks)),  # FF out, ver2
         }
         for name, param in transformer_tower.named_parameters():
             scale = init_scale
             for keyword, value in transformer_init_dict.items():
                 if keyword in name:
                     scale *= value
+                    print(f"Initializing {name} with scale {scale}")
+                    torch.nn.init.normal_(param.data, mean=0.0, std=(scale) ** 0.5)
                     break
-            print(f"Initializing {name} with scale {scale}")
-            torch.nn.init.normal_(param.data, mean=0.0, std=(scale) ** 0.5)
 
     head = llm.PredictionHead(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
@@ -536,6 +534,8 @@ def get_model(
             torch.nn.init.normal_(param.data, mean=0.0, std=(init_scale) ** 0.5)
 
     model = mup_modules.muP_LLM(embedding_layer, transformer_tower, head, mup_config)
+
+    apply_muP_init(model, init_base_value=init_scale, m_d=mup_config['m_d'], n_blocks=n_blocks)
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
@@ -565,3 +565,31 @@ def get_model(
         )
 
     return model
+
+
+def apply_muP_init(model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
+    # pass
+    key_init_dict = {
+        "embedding_layer": 1.0,
+        "input_projection": (1 / m_d),
+        "output_projection": (1 / (m_d * 2 * n_blocks)),
+        "lin1_weight": (1 / m_d),
+        "lin2_weight": (1 / (m_d * 2 * n_blocks)),
+        "pre_relu": (1 / m_d),  # FF in, ver2
+        "post_relu": (1 / (m_d * 2 * n_blocks)),  # FF out, ver2
+        "head": 1.0,
+        "gating": 1,
+    }
+    for name, param in model.named_parameters():
+        scale = 1.0
+        for keyword in key_init_dict.keys():
+            if keyword in name:
+                scale = key_init_dict[keyword]
+                break
+        # we don't want to initialize normalization layers, those have their own initialization
+        if "norm" not in name:
+            print(f"Initializing {name} with scale {scale}")
+            print(f"Resulting std: {(init_base_value * scale) ** 0.5}")
+            torch.nn.init.normal_(
+                param.data, mean=0.0, std=(init_base_value * scale) ** 0.5
+            )
