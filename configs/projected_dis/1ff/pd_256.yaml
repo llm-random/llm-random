@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 6bbc89126d738f215bf51745e143d6bc
+md5_parent_hash: 3493a4a04cbeb4e7debcc1192829e3d1
 time: 0-04:00:00
 # n_gpus: 2 #dev
 n_gpus: 1
@@ -8,24 +8,32 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm256"]
+  tags: ["projected_dis", "1ff", "compression", "dm256", "tune_08"]
 
   dmodel: 256
   dff: 256
   projected_dmodel: 512
   projected_dff: 512
-  # ^n_steps: [6168, 8812] # same as dmodel and 70%
-  n_steps: 8812
-  # n_steps: 1000 #dev
+  # ^n_steps: [8812, 7931, 7050, 6168] # 1, 0.9, 0.8, 0.7
+  n_steps: 7050
+
+  scheduler: trapezoidal
+  # scheduler: cosine
+  ^lr_trapezoidal_decay_fraction: [0.7, 0.8, 0.9, 1.0]
   # ^learning_rate: [0.001, 0.002, 0.004]
+  # ^learning_rate: [0.00025, 0.0005, 0.001, 0.0015]
+  # ^learning_rate: [0.000125, 0.00025]
   learning_rate: 0.001
-  
+  ^lr_warmup_percent: [0.01, 0.02]
+  # ^final_lr_fraction: [0.025, 0.05, 0.075, 0.1]
+  # ^final_lr_fraction: [0.0]
+
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
   # attention_mode: vanilla
   # ff_mode: vanilla
 
-  projection_init_type: svd_half
+  projection_init_type: head_half
   # ^projection_init_type: [half_var, half, head_half, head_half_var]
   # ^projection_init_type: [half, half_down, half_var, half_var, half_var, half_var, half_var]
  
@@ -37,12 +45,17 @@ params:
   # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   # fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
-  logging_interval_heavy: 100
-  log_gradients_and_weights: true
   # unprojected_embeddings: true
   # unprojected_attention: true
   # unprojected_ff: true
 
 
 
-
+# fine tuning TODO continue:
+#  trapezoidal: warmup, decay % or not
+#  lr_warmup_percent + decay
+#  delete some of error def exp 
+#  
+#  
+#  
+#  

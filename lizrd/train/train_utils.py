@@ -4,8 +4,7 @@ from typing import Callable, Optional, Union, Type
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
 from research.projected_distillation.llm import ProjectedPositionalEmbedding, ProjectedTokenEmbedding
-from research.projected_distillation.load_and_save_model import load_projected_weights
-from research.projected_distillation.utils import freeze_ln_params, freeze_projected_params, initialize_projections
+from research.projected_distillation.utils import freeze_ln_params, freeze_projected_params, initialize_compressor
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
@@ -232,13 +231,50 @@ def get_model(
             mask_1d = torch.concat([mask_1d]*n_att_heads)
             print(mask_1d) #dev
             projection = "svd"
+        elif projection_init_type == "shared_block_half_var":
+            print("Projection initialization: shared_block_half_var")
+            assert (projected_dmodel/n_att_heads)%2 == 0
+            
+            columns_to_chose = torch.randperm(int(projected_dmodel/n_att_heads))[:int(projected_dmodel/n_att_heads-dm/n_att_heads)]
+            mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
+            mask_1d[columns_to_chose] = False
+            mask_1d = torch.concat([mask_1d]*n_att_heads)
+            print(mask_1d) #dev
+            projection = "shared_block"
+        elif projection_init_type == "shared_att_in_half":
+            print("Projection initialization: shared_att_in_half")
+            assert (projected_dmodel/n_att_heads)%2 == 0
+            
+            mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
+            mask_1d[int(len(mask_1d)/2):] = False
+            mask_1d = torch.concat([mask_1d]*n_att_heads)
+            print(mask_1d) #dev
+            projection = "shared_att_in"
+        elif projection_init_type == "shared_att_out_half":
+            print("Projection initialization: shared_att_out_half")
+            assert (projected_dmodel/n_att_heads)%2 == 0
+            
+            mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
+            mask_1d[int(len(mask_1d)/2):] = False
+            mask_1d = torch.concat([mask_1d]*n_att_heads)
+            print(mask_1d) #dev
+            projection = "shared_att_out"
+        elif projection_init_type == "shared_att_in_out_half":
+            print("Projection initialization: shared_att_in_out_half")
+            assert (projected_dmodel/n_att_heads)%2 == 0
+            
+            mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
+            mask_1d[int(len(mask_1d)/2):] = False
+            mask_1d = torch.concat([mask_1d]*n_att_heads)
+            print(mask_1d) #dev
+            projection = "shared_att_in_out"
         else:
             raise Exception("Wrong projection init type")
         
         if isinstance(projection, torch.Tensor):
             projection = projection.to(device) #dev to device projection reference 
-        load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, unprojected_embeddings, unprojected_attention, unprojected_ff)
-        initialize_projections(model, dm, projected_dmodel, projection, mask_1d) #dev
+        # load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, unprojected_embeddings, unprojected_attention, unprojected_ff)
+        initialize_compressor(model, projected_checkpoint["model"], dm, projected_dmodel, projection, mask_1d) #dev
         frozen_modules = freeze_projected_params(model, unprojected_ff)
 
     if no_layer_norm:

@@ -1,18 +1,18 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 6bbc89126d738f215bf51745e143d6bc
+md5_parent_hash: 3493a4a04cbeb4e7debcc1192829e3d1
 time: 0-06:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm512", "doner"]
+  tags: ["projected_dis", "1ff", "dm512", "doner", "test"]
 
   # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001] #+
   # ^learning_rate: [0.00075, 0.002, 0.004] # 0.001
-  # learning_rate: 0.001
-  learning_rate: 0.0011 #test var
+  learning_rate: 0.001
+  # learning_rate: 0.0011 #test var
 
   dmodel: 512
   dff: 512

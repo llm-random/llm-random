@@ -274,9 +274,30 @@ class Attention(LoggingLayer):
         self.causal = causal
         self.flash = flash
 
-        self.input_projection = Linear(
+        # self.input_projection = Linear(
+        #     dmodel,
+        #     3 * heads * dhead,
+        #     bias=False,
+        #     init_type=init_type,
+        #     init_scale=init_scale,
+        # )
+        self.input_projection_q = Linear(
             dmodel,
-            3 * heads * dhead,
+            heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.input_projection_k = Linear(
+            dmodel,
+            heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.input_projection_v = Linear(
+            dmodel,
+            heads * dhead,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
@@ -291,8 +312,15 @@ class Attention(LoggingLayer):
         self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
 
     def forward(self, x):
-        projected = self.input_projection(x)
-        projected = self.input_projection(x)
+        # projected = self.input_projection(x)
+        # projected_q = self.input_projection_q(x)
+        # projected_k = self.input_projection_k(x)
+        # projected_v = self.input_projection_v(x)
+        q = self.input_projection_q(x)
+        k = self.input_projection_k(x)
+        v = self.input_projection_v(x)
+
+        projected = torch.concat((q,k,v), dim=-1)
 
         batch, seq_len = x.shape[:-1]
         projected = projected.view(

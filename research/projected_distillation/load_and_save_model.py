@@ -24,10 +24,6 @@ CAST_PROJECTED_PARAMS_NAME_PARTS = [
     ("embedding_layer.layers.1.projected_layer.pe_layer.weight", "embedding_layer.layers.1.layer.weight"), # PE
 ]
 
-LAYER_NORM_COPY = [
-    # ".block.residual_feedforward.layer.pre_norm."
-]
-
 UNPROJECTED_EMBEDDINGS_BLACKLIST = [
     "embedding_layer.layers.0.weight",
     "head.weight",
@@ -40,7 +36,7 @@ UNPROJECTED_ATTENTION_BLACKLIST = [
     "block.residual_attention.layer.attention.output_projection.weight",
     "asdasd",
 ]
-
+encoder.blocks.block_7.block.residual_attention.layer.attention.input_projection_q.projected_weight.weight
 UNPROJECTED_FF_BLACKLIST = [
     ".feedforward.logging_ff_pre_relu.",
     ".feedforward.logging_ff_post_relu.",
@@ -77,18 +73,18 @@ def load_projected_weights(model:torch.nn.Module, projected_weights, projection:
         if (prj_params is not None) and any([reg in name for reg in TRANSFER_PARAMS]):
             print(f"REPLACED: {name}, {prj_params.device}")
             params.data.copy_(prj_params)
-        if (prj_params is not None) and any([reg in name for reg in LAYER_NORM_COPY]):
-            print(f"REPLACED_PROJECTED (ie. layernorm): {name}, {prj_params.device}")
-            if projection is None:
-                local_p = get_init_weight(
-                    shape=(projected_dmodel, dm),
-                    fan_in=1,  # fan_in=1 is also default in pytorch
-                    init_type="truncated_normal",
-                    scale=init_scale,
-                ).to(prj_params.device)
-            else:
-                local_p = projection.to(prj_params.device)
-            np = prj_params@local_p
-            params.data.copy_(np)
+        # if (prj_params is not None) and any([reg in name for reg in LAYER_NORM_COPY]):
+        #     print(f"REPLACED_PROJECTED (ie. layernorm): {name}, {prj_params.device}")
+        #     if projection is None:
+        #         local_p = get_init_weight(
+        #             shape=(projected_dmodel, dm),
+        #             fan_in=1,  # fan_in=1 is also default in pytorch
+        #             init_type="truncated_normal",
+        #             scale=init_scale,
+        #         ).to(prj_params.device)
+        #     else:
+        #         local_p = projection.to(prj_params.device)
+        #     np = prj_params@local_p
+        #     params.data.copy_(np)
     print("------------------------------replace with new values end------------------------") #dev
 
