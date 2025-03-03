@@ -44,6 +44,52 @@ def ProjectedTokenEmbedding(
             ])
     )
 
+class ProjectedTokenEmbeddingRes(nn.Module):
+    def __init__(
+        self,
+        vocab_size,
+        embedding_dim,
+        projected_embedding_dim,
+        init_type: ValidInitType,
+        init_scale: float,
+        *args, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        weight = get_init_weight(
+            shape=(vocab_size, projected_embedding_dim),
+            fan_in=1,  # fan_in=1 is also default in pytorch
+            init_type=init_type,
+            scale=init_scale,
+        )
+        self.embedding = nn.Sequential(
+            OrderedDict([
+                    (
+                        "embedding",
+                        nn.Embedding(vocab_size, projected_embedding_dim, _weight=weight)
+                    ),
+                    (
+                        "embedding_p",
+                        Linear(
+                            projected_embedding_dim, #yb
+                            embedding_dim, #ys
+                            bias=False,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    )
+                ])
+        )
+        self.embedding_res = Linear(
+            vocab_size, # xs
+            embedding_dim, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+    def forward(self, x):
+        return self.embedding(x) + self.embedding_res(x)
+
 
 class ProjectedPositionalEmbedding(nn.Module):
     def __init__(
@@ -52,16 +98,16 @@ class ProjectedPositionalEmbedding(nn.Module):
         embedding_dim,
         projected_embedding_dim,
         init_type: ValidInitType,
-        init_scale: float,
+        init_scale: float, 
+        *args, **kwargs
     ):
-        super(ProjectedPositionalEmbedding, self).__init__()
+        super().__init__(*args, **kwargs)
         weight = get_init_weight(
             shape=(max_length, projected_embedding_dim),
             fan_in=1,
             init_type=init_type,
             scale=init_scale,
         )
-
         self.projected_layer = nn.Sequential(
             OrderedDict([
                     (
@@ -85,6 +131,56 @@ class ProjectedPositionalEmbedding(nn.Module):
         positions = torch.arange(0, x.shape[-1], device=x.device)
         positions = positions * torch.ones_like(x)
         embeddings = self.projected_layer(positions)
+        return embeddings
+    
+
+class ProjectedPositionalEmbeddingRes(nn.Module):
+    def __init__(
+        self,
+        max_length,
+        embedding_dim,
+        projected_embedding_dim,
+        init_type: ValidInitType,
+        init_scale: float,
+        *args, **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        weight = get_init_weight(
+            shape=(max_length, projected_embedding_dim),
+            fan_in=1,
+            init_type=init_type,
+            scale=init_scale,
+        )
+        self.projected_layer = nn.Sequential(
+            OrderedDict([
+                    (
+                        "pe_layer",
+                        nn.Embedding(max_length, projected_embedding_dim, _weight=weight),
+                    ),
+                    (
+                        "pe_layer_p",
+                        Linear(
+                            projected_embedding_dim, #yb
+                            embedding_dim, #ys
+                            bias=False,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    )
+                ])
+        )
+        self.projected_layer_res = Linear(
+            max_length, # xs
+            embedding_dim, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+    def forward(self, x):
+        positions = torch.arange(0, x.shape[-1], device=x.device)
+        positions = positions * torch.ones_like(x)
+        embeddings = self.projected_layer(positions) + self.projected_layer_res(positions)
         return embeddings
 
 
@@ -693,7 +789,7 @@ class ClassProejectedFeedForwardRes(nn.Module):
         *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
-        
+
         self.ff_in = nn.Sequential(
             OrderedDict([
                 (
@@ -819,5 +915,46 @@ def ProjectedFeedForwardRes( #dev
     bias_first, bias_second = decode_bias_string(bias)
     return ClassProejectedFeedForwardRes(dmodel, dff, projected_dmodel, projected_dff, init_type, init_scale,bias_first, bias_second)
 
+
+class PredictionHeadRes(nn.Module):
+    def __init__(self, projected_dmodel, vocab_size, dm, init_type, init_scale, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # self.emb = Linear( 
+        #     projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
+        # )
+        self.head = torch.nn.Sequential(
+            OrderedDict([
+                (
+                    "head_p",
+                    Linear(
+                        dm, #xs
+                        projected_dmodel, #xb
+                        bias=False,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
+                (
+                    "head",
+                    Linear( 
+                        projected_dmodel, 
+                        vocab_size, 
+                        init_type=init_type, 
+                        init_scale=init_scale
+                    ),
+                )
+            ])
+        )
+
+        self.head_res = Linear(
+            dm, # xs
+            vocab_size, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+    
+    def forward(self, x):
+        return self.head(x) + self.head_res(x)
 
 
