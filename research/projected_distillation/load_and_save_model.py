@@ -6,6 +6,9 @@ TRANSFER_PARAMS = [
     ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.", #FF
     ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu.", #FF
 
+    ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.", #FF
+    ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu.", #FF
+
     ".block.residual_attention.layer.attention.input_projection.weight", #ATT
     ".block.residual_attention.layer.attention.output_projection.weight", #ATT
 

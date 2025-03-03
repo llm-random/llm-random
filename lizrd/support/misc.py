@@ -119,6 +119,7 @@ def get_model_configuration_for_active_param_calculation(args):
         "cont_moe_legacy",
         "kernelized_fc",
         "projected_vanilla",
+        "projected_vanilla_res",
     ]:
         return None
     else:

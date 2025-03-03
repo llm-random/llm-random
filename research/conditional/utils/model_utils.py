@@ -3,7 +3,7 @@ from functools import partial
 # import json
 # from diskcache import Cache
 from typing import Optional, Type, Union, Callable
-from research.projected_distillation.llm import PreNormNoBiasBlock, ProjectedAttention, ProjectedFeedForward
+from research.projected_distillation.llm import PreNormNoBiasBlock, ProjectedAttention, ProjectedAttentionRes, ProjectedFeedForward, ProjectedFeedForwardRes
 import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
@@ -282,6 +282,17 @@ def get_attention_layer(args):
         )
     elif args.attention_mode == "projected_vanilla": #dev
         attention_layer_fun = lambda: ProjectedAttention(
+            dmodel=args.dmodel,
+            projected_dmodel=args.projected_dmodel,
+            heads=args.n_att_heads,
+            causal=causal,
+            dhead=args.dhead,
+            flash=args.flash_attention,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.attention_mode == "projected_vanilla_res": #dev
+        attention_layer_fun = lambda: ProjectedAttentionRes(
             dmodel=args.dmodel,
             projected_dmodel=args.projected_dmodel,
             heads=args.n_att_heads,
@@ -721,6 +732,10 @@ def get_ff_layer(args):
         )
     elif args.ff_mode == "projected_vanilla": #dev
         return_fn = lambda: ProjectedFeedForward(
+            args.dmodel, args.dff, args.projected_dmodel, args.projected_dff, init_type=args.init_type, init_scale=args.init_scale
+        )
+    elif args.ff_mode == "projected_vanilla_res": #dev
+        return_fn = lambda: ProjectedFeedForwardRes(
             args.dmodel, args.dff, args.projected_dmodel, args.projected_dff, init_type=args.init_type, init_scale=args.init_scale
         )
     else:

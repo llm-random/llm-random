@@ -9,7 +9,7 @@ from lizrd.core.initialization import ValidInitType
 from lizrd.core.llm import Residual, RoPE
 from lizrd.core.misc import Linear, LoggingLayer
 from lizrd.core.initialization import get_init_weight, ValidInitType
-    
+
 
 def ProjectedTokenEmbedding(
     vocab_size,
@@ -44,8 +44,6 @@ def ProjectedTokenEmbedding(
             ])
     )
 
-    # return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
-
 
 class ProjectedPositionalEmbedding(nn.Module):
     def __init__(
@@ -57,15 +55,6 @@ class ProjectedPositionalEmbedding(nn.Module):
         init_scale: float,
     ):
         super(ProjectedPositionalEmbedding, self).__init__()
-        # self.layer = nn.Embedding(max_length, projected_embedding_dim)
-        # default_weight = self.layer.weight.data
-        # self.layer.weight.data = get_init_weight(
-        #     shape=default_weight.shape,
-        #     fan_in=1,
-        #     init_type=init_type,
-        #     scale=init_scale,
-        #     dtype=default_weight.dtype,
-        # )
         weight = get_init_weight(
             shape=(max_length, projected_embedding_dim),
             fan_in=1,
@@ -75,10 +64,6 @@ class ProjectedPositionalEmbedding(nn.Module):
 
         self.projected_layer = nn.Sequential(
             OrderedDict([
-                    # (
-                    #     "pe_layer",
-                    #     self.layer,
-                    # ),
                     (
                         "pe_layer",
                         nn.Embedding(max_length, projected_embedding_dim, _weight=weight),
@@ -95,13 +80,13 @@ class ProjectedPositionalEmbedding(nn.Module):
                     )
                 ])
         )
-        # TODO(jaszczur): add initialization as positional encoding
 
     def forward(self, x):
         positions = torch.arange(0, x.shape[-1], device=x.device)
         positions = positions * torch.ones_like(x)
         embeddings = self.projected_layer(positions)
         return embeddings
+
 
 def decode_bias_string(bias):
     assert bias in ["both", "first", "second", "none"]
@@ -116,7 +101,6 @@ def decode_bias_string(bias):
     else:
         bias_first = bias_second = False
     return bias_first, bias_second
-
 
 def ProjectedFeedForward( #dev
     dmodel,
@@ -211,7 +195,6 @@ def ProjectedFeedForward( #dev
             ]
         )
     )
-
 
 def attention_mechanism(
     query: torch.Tensor,
@@ -492,3 +475,349 @@ def PreNormNoBiasBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
             )
         )
     )
+
+
+class ProjectedAttentionRes(LoggingLayer):
+    def __init__(
+        self,
+        dmodel, # xs
+        projected_dmodel, # xb
+        heads,
+        causal,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
+        """
+            P1 = torch.rand(xs, xb)
+            W = torch.rand(xb, yb)  
+            P2 = torch.rand(yb, ys)
+            P1@W@P2 = (xs, ys)
+        """
+        super(ProjectedAttentionRes, self).__init__()
+        assert dhead is None
+        if dhead is None:
+            assert projected_dmodel % heads == 0
+            assert dmodel % heads == 0
+            projected_dhead = projected_dmodel // heads
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+        self.projected_dhead = projected_dhead
+        
+        self.input_projection_q = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    projected_dmodel, # xb
+                    dmodel, # xs
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+        
+        self.input_projection_k = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    projected_dmodel, # xb
+                    dmodel, # xs
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+
+        self.input_projection_v = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    projected_dmodel, # xb
+                    dmodel, # xs
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+        self.input_projection_q_res = Linear(
+            dmodel, # xs
+            heads * dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+        self.input_projection_k_res = Linear(
+            dmodel, # xs
+            heads * dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+        self.input_projection_v_res = Linear(
+            dmodel, # xs
+            heads * dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+        self.output_projection = nn.Sequential(
+            OrderedDict([
+                ("output_projection_p21",
+                Linear(
+                    heads * dhead, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    heads * projected_dhead, # xb
+                    projected_dmodel, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection_p22",
+                Linear(
+                    projected_dmodel, # yb
+                    dmodel, # ys
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+            ])
+        )
+        self.output_projection_res = Linear(
+            heads * dhead, # xs
+            dmodel, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
+
+    def forward(self, x):
+        q = self.input_projection_q(x) + self.input_projection_q_res(x)
+        k = self.input_projection_k(x) + self.input_projection_k_res(x)
+        v = self.input_projection_v(x) + self.input_projection_v_res(x)
+
+
+        projected = torch.concat((q,k,v), dim=-1)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+        )
+
+        to_output = attention_output.transpose(1, 2).flatten(-2)
+        output = self.output_projection(to_output) + self.output_projection_res(to_output)
+
+        return output
+    
+
+class ClassProejectedFeedForwardRes(nn.Module):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        projected_dmodel,
+        projected_dff,
+        init_type: ValidInitType,
+        init_scale: float,
+        bias_first,
+        bias_second, 
+        *args, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        
+        self.ff_in = nn.Sequential(
+            OrderedDict([
+                (
+                    "logging_ff_pre_relu_p11",
+                    Linear(
+                        dmodel, #xs
+                        projected_dmodel, #xb
+                        bias=bias_first,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
+                (
+                    "logging_ff_pre_relu",
+                    Linear(
+                        projected_dmodel, #xb
+                        projected_dff, #yb
+                        bias=bias_first,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
+                (
+                    "logging_ff_pre_relu_p12",
+                    Linear(
+                        projected_dff, #yb
+                        dff, #ys
+                        bias=bias_first,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                )
+            ])
+        )
+        self.act_fun = nn.ReLU()
+        self.ff_out = nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        "logging_ff_post_relu_p21",
+                        Linear(
+                            dff, #ys
+                            projected_dff, #yb
+                            bias=bias_second,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                    (
+                        "logging_ff_post_relu",
+                        Linear(
+                            projected_dff, #yb
+                            projected_dmodel, #xb
+                            bias=bias_second,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                    (
+                        "logging_ff_post_relu_p22",
+                        Linear(
+                            projected_dmodel, #xb
+                            dmodel, #xs
+                            bias=bias_second,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                ]
+            )
+        )
+
+        self.ff_in_res = Linear(
+            dmodel, # xs
+            dff, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+        self.ff_out_res = Linear(
+            dff, # xs
+            dmodel, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+    
+    def forward(self, x):
+        h = self.ff_in(x) + self.ff_in_res(x)
+        h = self.act_fun(h)
+        h = self.ff_out(h) + self.ff_out_res(h)
+        return h
+
+
+
+def ProjectedFeedForwardRes( #dev
+    dmodel,
+    dff,
+    projected_dmodel,
+    projected_dff,
+    init_type: ValidInitType,
+    init_scale: float,
+    bias: Literal["both", "first", "second", "none"] = "none",
+):
+    """
+    P1 = torch.rand(xs, xb)
+    W = torch.rand(xb, yb)
+    P2 = torch.rand(yb, ys)
+    P1@W@P2 = (xs, ys)
+
+    :param _type_ dmodel: _description_ #xb
+    :param _type_ dff: _description_ #yb
+    :param _type_ projected_dmodel: _description_ #xs
+    :param _type_ projected_dff: _description_ #ys
+    :param ValidInitType init_type: _description_
+    :param float init_scale: _description_
+    :param Literal[&quot;both&quot;, &quot;first&quot;, &quot;second&quot;, &quot;none&quot;] bias: _description_, defaults to "both"
+    :return _type_: _description_
+    """
+
+    bias_first, bias_second = decode_bias_string(bias)
+    return ClassProejectedFeedForwardRes(dmodel, dff, projected_dmodel, projected_dff, init_type, init_scale,bias_first, bias_second)
+
+
+

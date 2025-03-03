@@ -6,8 +6,10 @@ from lizrd.core.initialization import get_init_weight
 
 
 FREEZE_PARAMS_REGULES = [
-    ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.", #FF
-    ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu.",
+    # ".block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.", #FF
+    # ".block.residual_feedforward.layer.feedforward.logging_ff_post_relu.",
+    ".block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu.weight",
+    ".block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu.weight",
 
     ".block.residual_attention.layer.attention.input_projection_q.projected_weight.weight", #ATT
     ".block.residual_attention.layer.attention.input_projection_k.projected_weight.weight",
@@ -145,8 +147,10 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
         "block.residual_attention.layer.attention.input_projection_v.input_projection.weight",
         # "block.residual_attention.layer.attention.input_projection.input_projection.weight", #dev switch
         "block.residual_attention.layer.attention.output_projection.output_projection_p21.weight",
-        "block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p11.weight",
-        "block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight",
+        # "block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p11.weight",
+        # "block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight",
+        "block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu_p11.weight",
+        "block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu_p21.weight",
     ]
     BLOCK_P_T = [
         "block.residual_attention.layer.attention.input_projection_q.output_projection.weight",
@@ -154,9 +158,22 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
         "block.residual_attention.layer.attention.input_projection_v.output_projection.weight",
         # "block.residual_attention.layer.attention.input_projection_out.output_projection.weight", #dev switch
         "block.residual_attention.layer.attention.output_projection.output_projection_p22.weight",
-        "block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight",
-        "block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p22.weight",
+        # "block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight",
+        # "block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p22.weight",
+        "block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu_p12.weight",
+        "block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu_p22.weight",
     ]
+
+    # Not projection: block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu_p11.weight, torch.Size([512, 256]), True
+    # # Not projection: block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu.weight, torch.Size([512, 512]), True
+    # Not projection: block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu_p12.weight, torch.Size([256, 512]), True
+    #
+    # Not projection: block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu_p21.weight, torch.Size([512, 256]), True
+    # # Not projection: block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu.weight, torch.Size([512, 512]), True
+    # Not projection: block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu_p22.weight, torch.Size([256, 512]), True
+    #
+    # Not projection: block.residual_feedforward.layer.feedforward.ff_in_res.weight, torch.Size([256, 256]), True
+    # Not projection: block.residual_feedforward.layer.feedforward.ff_out_res.weight, torch.Size([256, 256]), True
 
     if not weight_dependent_projections:
         add_projections(model_grouped[embedding_layer_tag], projection,  projection.T, EMBEDDING_P, EMBEDDING_P_T)
@@ -340,8 +357,17 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
         block_params.get("block.residual_attention.layer.attention.input_projection_k.projected_weight.weight").data.copy_(input_projections[1])
         block_params.get("block.residual_attention.layer.attention.input_projection_v.projected_weight.weight").data.copy_(input_projections[2])
         block_params.get("block.residual_attention.layer.attention.output_projection.output_projection.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.output_projection.weight"])
-        block_params.get("block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight"])
-        block_params.get("block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight"])
+        
+        ff_in = block_params.get("block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu.weight")
+        ff_out = block_params.get("block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu.weight")
+        # if ff_in is None or ff_out is None:
+        #     raise Exception("IDK")
+        #     ff_in = block_params.get("block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight")
+        #     ff_out = block_params.get("block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight")
+        ff_in.data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight"])
+        ff_out.data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight"])
+        
+        
         print(f'{block_id}, {input_projections[0].shape}, {input_projections[1].shape}, {input_projections[2].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.output_projection.weight"].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight"].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight"].shape}') #dev
         
 

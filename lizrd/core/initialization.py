@@ -4,7 +4,7 @@ from functools import partial
 import torch.nn as nn
 from typing import Literal
 
-ValidInitType = Literal["kaiming_uniform", "truncated_normal", "truncated_normal_fixed"]
+ValidInitType = Literal["kaiming_uniform", "truncated_normal", "truncated_normal_fixed", "zeros"]
 
 
 def get_init_weight(
@@ -21,6 +21,10 @@ def get_init_weight(
     elif init_type == "truncated_normal_fixed":
         return init_truncated_normal_fixed(
             shape=shape, fan_in=fan_in, scale=scale, dtype=dtype
+        )
+    elif init_type == "zeros":
+        return init_zeros(
+            shape=shape, fan_in=None, scale=None, dtype=dtype
         )
     else:
         raise ValueError(f"Unknown init_type: {init_type}")
@@ -57,4 +61,13 @@ def get_init_bias(shape, fan_in=None, fan_out=None, dtype=torch.float32):
         raise ValueError("fan_in unsupported")
     if fan_out is not None:
         raise ValueError("fan_out unsupported")
+    return torch.zeros(shape, dtype=dtype)
+
+def init_zeros(shape, fan_in=None, fan_out=None, scale=None, dtype=torch.float32):
+    if fan_in is not None:
+        raise ValueError("fan_in unsupported")
+    if fan_out is not None:
+        raise ValueError("fan_out unsupported")
+    if scale is not None:
+        raise ValueError("scale unsupported")
     return torch.zeros(shape, dtype=dtype)
