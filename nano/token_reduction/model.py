@@ -126,7 +126,7 @@ class TokenMergingEmbedding(torch.nn.Module):
         ] += merge_tokens
 
         x = batch_index_select(x, keep_indexes)
-        return xq
+        return x
 
 
 def create_token_merging_function(_config, common: CommonDroppingConfig):
