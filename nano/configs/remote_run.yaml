@@ -1,0 +1,10 @@
+defaults:
+  - .@clusters: ./clusters
+
+host: ???
+
+cemetery_experiment_path: "~/llmrandom_cemetery"
+
+git:
+  remote_name: "cemetery"
+  remote_url: ???

@@ -1,0 +1,100 @@
+defaults:
+    - .@_here_: remote_run
+
+model:
+    _target_: model.LLM    
+
+    embedding_config:
+        _target_: model.EmbeddingConfig
+        mode: "vanilla"
+
+    tower_config:  
+        _target_: model.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 4              # BERT-mini
+
+        block_config: 
+            _target_: model.BlockConfig
+            attention:
+                _target_: model.AttentionConfig
+                mode: "vanilla"
+                n_heads: 4       # BERT-mini
+                flash: true
+
+
+            feedforward:
+                _target_: model.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
+
+    common: 
+        _target_: model.Common
+        model_type: "gpt"
+        sequence_length: 256
+        dmodel: 256             # BERT-mini
+        dff: 1024               # BERT-mini
+        init_type: truncated_normal_fixed
+        init_scale: 0.1
+        vocab_size: 50257
+
+
+training:
+    _target_: model.TrainingConfig
+    n_steps: 10000
+    learning_rate: 1e-4
+    weight_decay: 0.1
+
+    scheduler: 
+        _target_: model.CosineSchedulerConfig
+        type: "cosine"
+        warmup_steps: 5
+        n_steps: ${training.n_steps}
+        final_lr_fraction: 0.1
+        
+    gradient_accumulation_steps: 1
+    seed: 44
+    gradient_clipping: 0.1
+    dataloader:
+        num_workers: 4
+        dataset: "c4"
+        split: "train"
+        total_batch_size: 256
+        use_new_sampling_method: true
+        shuffle: true
+        world_size_independent: true
+
+        training_dataset_path: ${hydra:launcher.training_dataset_path}
+        eval_dataset_path: ${hydra:launcher.eval_dataset_path}
+
+    evaluation:
+        eval_interval: 100
+        n_eval_steps: 5
+
+metric_logger:
+    _target_: model.MetricLoggerConfig
+    type: "neptune"
+    heavy_metrics_calculation_interval: 100
+    project_name: ???
+    tags:
+        - "vanilla"
+
+distributed:
+    fsdp: 
+        modules_to_wrap: 
+            - TransformerBlock
+            - EmbeddingLayer
+            - PredictionHead
+        mixed_precision: 
+            dtype: bfloat16
+            ignored_classes: 
+                - LayerNorm
+                - AttentionMechanism
+
+checkpoint_config:
+    interval: 5000
+    path: null
+    training_state_filename: __training_state__.pt
+    model_checkpoint_filename: __model_optim_scheduler__.pt

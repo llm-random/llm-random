@@ -1,0 +1,36 @@
+Bootstrap: localimage
+From: build/sparsity-base.sif
+
+%files
+    requirements.txt
+    submitit_plugin/* submitit_plugin/
+    hydra_plugin/* hydra_plugin/
+    scripts/* scripts/
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    python3 -m venv /opt/venv
+    . /opt/venv/bin/activate
+
+    ./scripts/prepare_environment.sh
+    chmod -R 755 /opt # fixes problem with access to venv library files
+
+    ldconfig  # this fixes the problem with libcuda.so not being found when using torch.compile
+
+    echo "Image generated $(date "+%Y-%m-%d %H:%M:%S")" > /build_time
+
+
+%runscript
+    . /opt/venv/bin/activate
+    cat << "EOF"
+╔═════════════════════════════════════════════════════════════╗
+║    ____                                     __              ║
+║   / / /___ ___        _________ _____  ____/ /___  ____ ___ ║
+║  / / / __ `__ \______/ ___/ __ `/ __ \/ __  / __ \/ __ `__ \║
+║ / / / / / / / /_____/ /  / /_/ / / / / /_/ / /_/ / / / / / /║
+║/_/_/_/ /_/ /_/     /_/   \__,_/_/ /_/\__,_/\____/_/ /_/ /_/ ║
+╚═════════════════════════════════════════════════════════════╝
+EOF
+    cat /build_time
+    $@

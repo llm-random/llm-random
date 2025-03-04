@@ -1,0 +1,4 @@
+training_dataset_path: "/net/tscratch/people/plgkciebiera/datasets/c4/train"
+eval_dataset_path: "/net/tscratch/people/plgkciebiera/datasets/c4/validation"
+
+cemetery_experiments_dir: "~/llmrandom_cemetery"

@@ -1,0 +1,74 @@
+defaults:
+    - configs@_here_: llmrandom_default
+    - configs@model: medium
+    - override hydra/launcher: ${__llmrandom_cluster_config:}
+    - override hydra/callbacks: log
+    - _self_
+
+
+hydra:
+    launcher:
+        timeout_min: 1440
+        gres: gpu:1
+        nodes: 1
+
+        cpus_per_task: 8
+
+        training_dataset_path: data
+        eval_dataset_path: data
+
+    sweeper:
+        params:
+            training.learning_rate: 1e-4
+
+    searchpath:
+        - file://${oc.env:PWD}
+
+    verbose:
+        - __main__
+        - model
+
+training:
+    evaluation:
+        eval_interval: 0
+        n_eval_steps: 5
+
+    n_steps: 8000
+    warmup_steps: 80
+    seed: 44
+
+    gradient_accumulation_steps: 2
+    gradient_clipping: 1.0
+
+    dataloader:
+        total_batch_size: 8
+        use_new_sampling_method: false
+        shuffle: false
+        world_size_independent: false
+        num_workers: 0 # for debugging
+
+
+checkpoint_config:
+    interval: 0
+    path: null
+
+
+model:
+
+    embedding_config:
+        mode:  token_dropping
+
+    tower_config:  
+        n_blocks: 2             
+
+        block_config: 
+            attention:
+                n_heads: 2       
+
+    common: 
+        _target_: token_reduction.model.CommonDroppingConfig
+        sequence_length: 8
+        dmodel: 64             
+        dff: 256
+        dropped_tokens: 2      
+

@@ -1,0 +1,4 @@
+# This file is used to configure the log job return callback, which logs the return value
+# of the job to the logger. It enables us to see errors returned by the job in the logs.
+log_job_return:
+  _target_: hydra.experimental.callbacks.LogJobReturnCallback

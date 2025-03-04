@@ -1,0 +1,10 @@
+tower_config:
+  n_blocks: 8
+
+  block_config:
+    attention:
+      n_heads: 8
+  
+common:
+  dmodel: 512
+  dff: 2048
