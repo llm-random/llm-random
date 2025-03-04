@@ -180,7 +180,7 @@ def submit_experiment(
         try:
             connection.run(f"tmux new -d -s {experiment_branch_name}")
             connection.run(
-                f'tmux send -t {experiment_branch_name}.0 "cd {experiment_dir}" ENTER'
+                f'tmux send -t {experiment_branch_name}.0 "cd {experiment_dir}/nano" ENTER'
             )
             connection.run(
                 f'tmux send -t {experiment_branch_name}.0 "source {cfg.venv_path}" ENTER'
