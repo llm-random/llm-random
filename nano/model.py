@@ -1370,7 +1370,7 @@ class Trainer:
         if isinstance(self.model, FSDP):
             # Sharded save
             checkpoint_folder = step_checkpoint_path(
-                self.checkpoint_config.path, self.step
+                self.checkpoint_config, self.step
             )
             state_dict = {
                 "app": TrainingState(
@@ -1383,7 +1383,7 @@ class Trainer:
             # Non-sharded save
             if os.environ["RANK"] == "0":
                 checkpoint_folder = step_checkpoint_path(
-                    self.checkpoint_config.path, self.step
+                    self.checkpoint_config, self.step
                 )
                 os.makedirs(checkpoint_folder, exist_ok=True)
                 checkpoint_path = f"{checkpoint_folder}/{self.checkpoint_config.model_checkpoint_filename}"
@@ -1683,9 +1683,9 @@ def broadcast_message(rank, message=None):
     return message_tensor.cpu().numpy().tobytes().decode("utf-8")
 
 
-def step_checkpoint_path(checkpoint_config_path, step):
-    return f"{checkpoint_config_path}/step_{step}"
-
+def step_checkpoint_path(checkpoint_config, step):
+    full_config_path = get_full_checkpoint_path(checkpoint_config)
+    return f"{full_config_path}/step_{step}"
 
 def save_training_state(
     checkpoint_config,
@@ -1699,7 +1699,7 @@ def save_training_state(
         else None
     )
 
-    directory = step_checkpoint_path(checkpoint_config.path, step)
+    directory = step_checkpoint_path(checkpoint_config, step)
     torch.save(
         {"next_step": step + 1, "run_id": run_id, "processed_tokens": processed_tokens},
         f"{directory}/{checkpoint_config.training_state_filename}",
@@ -1710,13 +1710,23 @@ def save_training_state(
     )
 
 
+def get_full_checkpoint_path(checkpoint_config):
+    slurm_array_task_id = os.getenv("SLURM_ARRAY_TASK_ID")
+    return (
+        f"{checkpoint_config.path}/{slurm_array_task_id}"
+        if slurm_array_task_id is not None
+        else checkpoint_config.path
+    )
+
+
 def load_training_state(checkpoint_config):
     training_start_config = {"next_step": 0, "run_id": None, "processed_tokens": 0}
     if checkpoint_config.path is None:
         return training_start_config
 
-    os.makedirs(checkpoint_config.path, exist_ok=True)
-    latest_checkpoint = _find_latest_checkpoint(checkpoint_config.path)
+    full_checkpoint_path = get_full_checkpoint_path(checkpoint_config)
+    os.makedirs(full_checkpoint_path, exist_ok=True)
+    latest_checkpoint = _find_latest_checkpoint(full_checkpoint_path)
     if latest_checkpoint is None:
         return training_start_config
 
@@ -1742,7 +1752,8 @@ def load_checkpoint(checkpoint_config, model, optimizer, scheduler, train_datalo
     if checkpoint_config.path is None:
         return
 
-    latest_checkpoint_folder = _find_latest_checkpoint(checkpoint_config.path)
+    full_checkpoint_path = get_full_checkpoint_path(checkpoint_config)
+    latest_checkpoint_folder = _find_latest_checkpoint(full_checkpoint_path)
 
     if latest_checkpoint_folder is not None:
 

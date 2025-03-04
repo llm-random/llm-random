@@ -50,7 +50,7 @@ def generate_sbatch_script(slurm_config, config_folder, n_experiments, venv_path
 
     lines.append(f"source {venv_path}")
     lines.append(
-        f"srun python -u main.py --config-path={config_folder} --config-name=config_${{SLURM_ARRAY_TASK_ID}}.yaml +just_run=True"
+        f"srun python -u main.py --config-path={config_folder} --config-name=config_${{SLURM_ARRAY_TASK_ID}}.yaml +checkpoint_config.slurm_array_task_id=${{SLURM_ARRAY_TASK_ID}}  +just_run=True"
     )
 
     with open("exp.job", "w") as f:
