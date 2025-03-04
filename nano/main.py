@@ -13,12 +13,18 @@ from omegaconf import OmegaConf
 def dump_grid_configs(configs_grid, output_folder):
     os.makedirs(output_folder, exist_ok=True)
 
+    class CustomDumper(yaml.SafeDumper):
+        def write_line_break(self, data=None):
+            super().write_line_break(data)
+            if len(self.indents) == 1:  # Check if we're at the root level
+                super().write_line_break()
+
     for idx, (cfg_dict, overrides_list) in enumerate(configs_grid):
         cfg_dict["overrides"] = overrides_list
 
         out_path = os.path.join(output_folder, f"config_{idx}.yaml")
         with open(out_path, "w", encoding="utf-8") as f:
-            yaml.dump(cfg_dict, f, sort_keys=True)
+            yaml.dump(cfg_dict, f, Dumper=CustomDumper, sort_keys=True)
 
 
 logger = logging.getLogger(__name__)
