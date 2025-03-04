@@ -46,7 +46,6 @@ from torch.distributed.checkpoint.state_dict import get_state_dict, set_state_di
 import torch.distributed.checkpoint as dcp
 from datasets.distributed import split_dataset_by_node
 from torchdata.stateful_dataloader import StatefulDataLoader
-from omegaconf import OmegaConf
 from hydra.utils import instantiate
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, ConstantLR
@@ -122,12 +121,12 @@ def setup_enviroment():
             os.environ["LOCAL_RANK"] = "0"
 
     if "MASTER_ADDR" not in os.environ:
-        default_master_addr = 'localhost'
+        default_master_addr = "localhost"
         logger.warning(f"MASTER_ADDR is not set, setting it to {default_master_addr}")
-        os.environ['MASTER_ADDR'] = default_master_addr
+        os.environ["MASTER_ADDR"] = default_master_addr
 
     if "MASTER_PORT" not in os.environ:
-        default_master_port = '12355'
+        default_master_port = "12355"
         logger.warning(f"MASTER_PORT is not set, setting it to {default_master_port}")
         os.environ["MASTER_PORT"] = default_master_port
 
@@ -547,7 +546,12 @@ class Residual(nn.Module):
         if dist.is_initialized():
             world_size = int(os.environ["WORLD_SIZE"])
             gpu_batch_size, seq_len = residual_norms_concat.shape
-            update_norms = torch.empty(world_size * gpu_batch_size, seq_len, device=update_norms_concat.device, dtype=update_norms_concat.dtype)
+            update_norms = torch.empty(
+                world_size * gpu_batch_size,
+                seq_len,
+                device=update_norms_concat.device,
+                dtype=update_norms_concat.dtype,
+            )
             dist.all_gather_into_tensor(update_norms, update_norms_concat)
 
             residual_norms = torch.empty(
