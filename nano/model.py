@@ -1090,7 +1090,7 @@ def get_metric_logger(
                         neptune_run_id = broadcast_message(rank)
                     neptune_logger = neptune.init_run(
                         project=metric_logger_config.project_name,
-                        with_id=neptune_run_id,
+                        with_id=neptune_run_id, 
                         monitoring_namespace=f"monitoring/gpu_{rank}",
                         tags=metric_logger_config.tags,
                     )
