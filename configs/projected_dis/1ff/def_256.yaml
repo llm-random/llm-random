@@ -7,7 +7,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm256", "tune_08"]
+  tags: ["projected_dis", "1ff", "dm256", "range", "tuned"]
 
   # ^learning_rate: [0.001, 0.002, 0.004] #+
   # ^learning_rate: [0.008, 0.016] #+
@@ -15,6 +15,7 @@ params:
   learning_rate: 0.004
   # ^learning_rate: [0.002, 0.003, 0.006, 0.004]
   # ^final_lr_fraction: [0.0, 0.0125, 0.025, 0.05]
+  final_lr_fraction: 0.0125
 
   dmodel: 256
   dff: 256

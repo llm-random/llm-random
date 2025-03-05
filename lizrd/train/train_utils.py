@@ -3,7 +3,7 @@ from typing import Callable, Optional, Union, Type
 
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
-from research.projected_distillation.llm import PredictionHeadRes, ProjectedPositionalEmbedding, ProjectedPositionalEmbeddingRes, ProjectedTokenEmbedding
+from research.projected_distillation.llm import PredictionHeadRes, ProjectedPositionalEmbedding, ProjectedPositionalEmbeddingRes, ProjectedTokenEmbedding, ProjectedTokenEmbeddingRes
 from research.projected_distillation.utils import freeze_ln_params, freeze_projected_params, initialize_compressor
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -63,7 +63,7 @@ def get_model(
         #     ProjectedTokenEmbedding(vocab_size, dm, projected_dmodel, init_type=init_type, init_scale=init_scale)
         # ] #dev
         embedding_components = [
-            ProjectedTokenEmbedding(vocab_size, dm, projected_dmodel, init_type=init_type, init_scale=init_scale)
+            ProjectedTokenEmbeddingRes(vocab_size, dm, projected_dmodel, init_type=init_type, init_scale=init_scale)
         ]
     else:
         embedding_components = [

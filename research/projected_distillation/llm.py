@@ -79,16 +79,28 @@ class ProjectedTokenEmbeddingRes(nn.Module):
                     )
                 ])
         )
-        self.embedding_res = Linear(
-            vocab_size, # xs
-            embedding_dim, # ys
-            bias=False,
+        weight_res = get_init_weight(
+            shape=(vocab_size, embedding_dim),
+            fan_in=None,  # fan_in=1 is also default in pytorch
             init_type="zeros",
-            init_scale=None,
+            scale=None,
         )
+        self.embedding_res = nn.Embedding(vocab_size, embedding_dim, _weight=weight_res)
+        # self.embedding_res = Linear(
+        #     embedding_dim, # ys
+        #     vocab_size, # xs
+        #     bias=False,
+        #     init_type="zeros",
+        #     init_scale=None,
+        # )
 
     def forward(self, x):
-        return self.embedding(x) + self.embedding_res(x)
+        h1 = self.embedding(x)
+        h2 = self.embedding_res(x)
+        # h2 = self.embedding(x)
+        # print(h1.shape) #dev 
+        # print(h2.shape) #dev 
+        return h1 + h2
 
 
 class ProjectedPositionalEmbedding(nn.Module):
@@ -169,13 +181,20 @@ class ProjectedPositionalEmbeddingRes(nn.Module):
                     )
                 ])
         )
-        self.projected_layer_res = Linear(
-            max_length, # xs
-            embedding_dim, # ys
-            bias=False,
+        weight_res = get_init_weight(
+            shape=(max_length, projected_embedding_dim),
+            fan_in=None,
             init_type="zeros",
-            init_scale=None,
+            scale=None,
         )
+        # self.projected_layer_res = Linear(
+        #     max_length, # xs
+        #     embedding_dim, # ys
+        #     bias=False,
+        #     init_type="zeros",
+        #     init_scale=None,
+        # )
+        self.projected_layer_res = nn.Embedding(max_length, embedding_dim, _weight=weight_res)
 
     def forward(self, x):
         positions = torch.arange(0, x.shape[-1], device=x.device)
