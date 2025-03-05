@@ -1,0 +1,70 @@
+defaults:
+  - _self_
+
+model:
+    _target_: model.LLM
+
+    embedding_config:
+        _target_: model.EmbeddingConfig
+        mode: "vanilla"
+
+    tower_config:  
+        _target_: model.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 2
+
+        block_config: 
+            _target_: model.BlockConfig
+            attention:
+                _target_: model.AttentionConfig
+                mode: "vanilla"
+                n_heads: 4
+
+            feedforward:
+                _target_: model.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
+
+    common: 
+        _target_: model.Common
+        model_type: "gpt"
+        sequence_length: 33
+        dmodel: 32
+        dff: 128
+        init_type: truncated_normal_fixed
+        init_scale: 1
+        vocab_size: 50257
+
+
+training:
+    _target_: model.TrainingConfig
+    learning_rate: 1e-4
+    weight_decay: 0.1
+    scheduler: "cosine"
+    gradient_accumulation_steps: 2
+    n_steps: 100
+    warmup_steps: 9
+    seed: 44
+    dataloader:
+        num_workers: 0
+        dataset: "c4"
+        split: "train"
+        total_batch_size: 10
+        training_dataset_path: "data"
+        use_new_sampling_method: false
+        shuffle: false
+        world_size_independent: true
+
+metric_logger:
+    _target_: model.MetricLoggerConfig
+    type: "dummy"
+    tags: []
+    project_name: null
+    heavy_metrics_calculation_interval: -1
+
+checkpoint_config:
+    interval: 0
+    path: null

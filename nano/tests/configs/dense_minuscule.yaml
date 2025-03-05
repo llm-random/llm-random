@@ -1,0 +1,106 @@
+model:
+    _target_: model.LLM
+
+    embedding_config:
+        _target_: model.EmbeddingConfig
+        mode: "vanilla"
+
+    # embedding:
+    #     _target_: token_reduction.model.create_token_dropping_function
+    #     # _target_: model.get_vanilla_embedding
+    #     _partial_: true
+    #     config: null
+    #     common: ${model.common}
+
+    tower_config:  
+        _target_: model.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 2
+
+        block_config: 
+            _target_: model.BlockConfig
+            attention:
+                _target_: model.AttentionConfig
+                mode: "vanilla"
+                n_heads: 4 
+
+
+            feedforward:
+                _target_: model.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
+
+    common: 
+        _target_: model.Common
+        model_type: "gpt"
+        sequence_length: 33
+        dmodel: 32
+        dff: 128
+        init_type: truncated_normal_fixed
+        init_scale: 1
+        vocab_size: 50257
+
+training:
+    _target_: model.TrainingConfig
+    learning_rate: 1e-4
+    weight_decay: 0.1
+
+    scheduler: 
+        _target_: model.CosineSchedulerConfig
+        type: "cosine"
+        warmup_steps: 5
+        n_steps: ${training.n_steps}
+        final_lr_fraction: 0.1
+        
+    gradient_accumulation_steps: 2
+    n_steps: 10
+    seed: 2311
+    gradient_clipping: 0.1
+    dataloader:
+        num_workers: 0 # it is important to keep it 0, as it is hard to mock new processes in tests
+        dataset: "c4"
+        split: "train"
+        total_batch_size: 10
+        use_new_sampling_method: false
+        shuffle: false
+        world_size_independent: true
+
+        training_dataset_path: "data"
+        eval_dataset_path: "data_eval"
+
+    evaluation:
+        eval_interval: 2
+        n_eval_steps: 5
+
+checkpoint_config:
+    interval: 0
+    path: null
+
+
+metric_logger:
+    _target_: model.MetricLoggerConfig
+    project_name: null
+    type: "record"
+    tags: []
+    heavy_metrics_calculation_interval: 1
+
+
+dataloaders_factory:
+    _target_: model.get_dataloaders
+    _partial_: true
+    dataloader_config: ${training.dataloader}
+    sequence_length: ${model.common.sequence_length}
+    seed: ${training.seed}
+
+
+trainer_factory: 
+    _target_: model.Trainer
+    gradient_accumulation_steps: ${training.gradient_accumulation_steps}
+    n_steps: ${training.n_steps}
+    eval_interval: ${training.evaluation.eval_interval}
+    n_eval_steps: ${training.evaluation.n_eval_steps}
+    gradient_clipping: ${training.gradient_clipping}
+    checkpoint_config: ${checkpoint_config}
