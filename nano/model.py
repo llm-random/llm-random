@@ -50,6 +50,7 @@ from hydra.utils import instantiate
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, ConstantLR
 
+
 logger = logging.getLogger(__name__)
 
 _metric_logger = None
@@ -1690,6 +1691,7 @@ def broadcast_message(rank, message=None):
 def step_checkpoint_path(checkpoint_config, step):
     full_config_path = get_full_checkpoint_path(checkpoint_config)
     return f"{full_config_path}/step_{step}"
+
 
 def save_training_state(
     checkpoint_config,
