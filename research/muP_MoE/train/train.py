@@ -322,14 +322,14 @@ def main(
         m_d = args.mup_params["m_d"]
     else:
         m_d = 1.0
-    if args.mup_params is not None:
-        apply_muP_init(
-            args,
-            model,
-            init_base_value=args.init_scale,
-            m_d=m_d,
-            n_blocks=args.n_blocks,
-        )
+    # if args.mup_params is not None:
+    #     apply_muP_init(
+    #         args,
+    #         model,
+    #         init_base_value=args.init_scale,
+    #         m_d=m_d,
+    #         n_blocks=args.n_blocks,
+    #     )
     param_groups = get_muP_learning_rates(args, model, m_d=m_d)
 
     optimizer = torch.optim.AdamW(

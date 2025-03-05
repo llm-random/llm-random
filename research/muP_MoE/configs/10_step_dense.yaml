@@ -9,9 +9,9 @@ cpus_per_gpu: 16
 interactive_debug: false
 
 params:
-  name: "muP_MoE_10_step"
+  name: "muP_MoE_10_step_gya"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "10_step_fixin", "no_fsdp", "naples"]
+  tags: ["muP_MoE", "muTransfer", "10_step_fixing_gya", "no_fsdp", "ato_remove_after_fix"]
 
   mup_params:
     ^alpha_in: [1.0]
@@ -23,8 +23,8 @@ params:
   # training
   n_steps: 10
   lr_warmup_steps: 0
-  batch_size: 8
-  cutoff: 1024
+  batch_size: 64
+  cutoff: 128
 
   # model
   model_type: gpt
@@ -64,7 +64,7 @@ params:
   mixed_precision: true
   flash_attention: true
   mixed_precision_dtype: bfloat16
-  ^data_seed: [303, 304, 305, 306, 307]
+  ^data_seed: [12345, 12346, 12347]
 
   # logging etc.
   logger_types: "neptune"

@@ -55,7 +55,7 @@ params:
 
   # learning
   scheduler: constant
-  learning_rate: 1e-2
+  learning_rate: 2e-3
   final_lr_fraction: 0.1
   grad_clip: 1
   weight_decay: 0.1

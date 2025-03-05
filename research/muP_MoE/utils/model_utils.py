@@ -535,9 +535,9 @@ def get_model(
 
     model = mup_modules.muP_LLM(embedding_layer, transformer_tower, head, mup_config)
 
-    apply_muP_init(
-        model, init_base_value=init_scale, m_d=mup_config["m_d"], n_blocks=n_blocks
-    )
+    # apply_muP_init(
+    #     model, init_base_value=init_scale, m_d=mup_config["m_d"], n_blocks=n_blocks
+    # )
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
@@ -569,29 +569,29 @@ def get_model(
     return model
 
 
-def apply_muP_init(model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
-    # pass
-    key_init_dict = {
-        "embedding_layer": 1.0,
-        "input_projection": (1 / m_d),
-        "output_projection": (1 / (m_d * 2 * n_blocks)),
-        "lin1_weight": (1 / m_d),
-        "lin2_weight": (1 / (m_d * 2 * n_blocks)),
-        "pre_relu": (1 / m_d),  # FF in, ver2
-        "post_relu": (1 / (m_d * 2 * n_blocks)),  # FF out, ver2
-        "head": 1.0,
-        "gating": 1,
-    }
-    for name, param in model.named_parameters():
-        scale = 1.0
-        for keyword in key_init_dict.keys():
-            if keyword in name:
-                scale = key_init_dict[keyword]
-                break
-        # we don't want to initialize normalization layers, those have their own initialization
-        if "norm" not in name:
-            print(f"Initializing {name} with scale {scale}")
-            print(f"Resulting std: {(init_base_value * scale) ** 0.5}")
-            torch.nn.init.normal_(
-                param.data, mean=0.0, std=(init_base_value * scale) ** 0.5
-            )
+# def apply_muP_init(model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
+#     # pass
+#     key_init_dict = {
+#         "embedding_layer": 1.0,
+#         "input_projection": (1 / m_d),
+#         "output_projection": (1 / (m_d * 2 * n_blocks)),
+#         "lin1_weight": (1 / m_d),
+#         "lin2_weight": (1 / (m_d * 2 * n_blocks)),
+#         "pre_relu": (1 / m_d),  # FF in, ver2
+#         "post_relu": (1 / (m_d * 2 * n_blocks)),  # FF out, ver2
+#         "head": 1.0,
+#         "gating": 1,
+#     }
+#     for name, param in model.named_parameters():
+#         scale = 1.0
+#         for keyword in key_init_dict.keys():
+#             if keyword in name:
+#                 scale = key_init_dict[keyword]
+#                 break
+#         # we don't want to initialize normalization layers, those have their own initialization
+#         if "norm" not in name:
+#             print(f"Initializing {name} with scale {scale}")
+#             print(f"Resulting std: {(init_base_value * scale) ** 0.5}")
+#             torch.nn.init.normal_(
+#                 param.data, mean=0.0, std=(init_base_value * scale) ** 0.5
+#             )
