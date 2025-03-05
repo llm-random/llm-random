@@ -1364,9 +1364,7 @@ class Trainer:
     def save_checkpoint(self):
         if isinstance(self.model, FSDP):
             # Sharded save
-            checkpoint_folder = step_checkpoint_path(
-                self.checkpoint_config, self.step
-            )
+            checkpoint_folder = step_checkpoint_path(self.checkpoint_config, self.step)
             state_dict = {
                 "app": TrainingState(
                     self.model, self.optimizer, self.scheduler, self.train_dataloader
