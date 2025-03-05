@@ -411,8 +411,6 @@ def get_dataloader(
 class AttentionConfig:
     mode: str
     n_heads: int
-    flash: bool
-
 
 @dataclass
 class FeedForwardConfig:

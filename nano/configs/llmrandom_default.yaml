@@ -19,8 +19,6 @@ model:
                 _target_: model.AttentionConfig
                 mode: "vanilla"
                 n_heads: 4       # BERT-mini
-                flash: true
-
 
             feedforward:
                 _target_: model.FeedForwardConfig
