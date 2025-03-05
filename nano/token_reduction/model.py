@@ -8,9 +8,6 @@ import logging
 from torch.nn import (
     LayerNorm as LayerNorm,
 )  # used by FSDP, but it keeps getting removed during file formatting
-from omegaconf import OmegaConf
-from hydra.utils import instantiate
-from torch.nn.parallel import DistributedDataParallel as DDP
 from torchdata.stateful_dataloader import StatefulDataLoader
 import torch.distributed as dist
 from model import (
@@ -18,19 +15,9 @@ from model import (
     Common,
     EmbeddingLayer,
     Linear,
-    NeptuneLogger,
     PositionalEmbedding,
     TokenEmbedding,
     Trainer,
-    cleanup,
-    distributed_setup,
-    get_composition_file_path,
-    get_metric_logger,
-    get_scheduler,
-    load_checkpoint,
-    load_training_state,
-    setup_enviroment,
-    wrap_model,
 )
 
 logger = logging.getLogger(__name__)
@@ -81,7 +68,7 @@ class TokenDroppingEmbedding(torch.nn.Module):
         return x
 
 
-def create_token_dropping_function(_config, common: CommonDroppingConfig):
+def create_token_dropping_function(config, common: CommonDroppingConfig):
     normal_embedding = EmbeddingLayer(
         *[
             TokenEmbedding(
@@ -147,15 +134,6 @@ def create_token_merging_function(_config, common: CommonDroppingConfig):
         ]
     )
     return TokenMergingEmbedding(normal_embedding, common)
-
-
-def collate_reduction(result_seq_len, n_dropped_tokens, batch):
-    batch = torch.tensor(batch)
-    batch_size, seq_len = batch.shape
-    return (
-        batch,
-        batched_split_indexes(batch_size, seq_len, result_seq_len, n_dropped_tokens),
-    )
 
 
 class DroppingTrainer(Trainer):
@@ -259,6 +237,15 @@ class MergingTrainer(Trainer):
         return avg_loss / float(os.environ["WORLD_SIZE"])
 
 
+def collate_reduction(result_seq_len, n_dropped_tokens, batch):
+    batch = torch.tensor(batch)
+    batch_size, seq_len = batch.shape
+    return (
+        batch,
+        batched_split_indexes(batch_size, seq_len, result_seq_len, n_dropped_tokens),
+    )
+
+
 def get_dropping_dataloader(
     dataloader_config: dict,
     batch_size_per_device: int,
@@ -294,73 +281,31 @@ def get_dropping_dataloader(
     return dataloader
 
 
-def run(cfg, hydra_config):
-    instantiate(cfg.training, _convert_="all")  # Works as check
-    setup_enviroment()
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    distributed_setup(world_size)
-    training_state = load_training_state(cfg.checkpoint_config)
-    metric_logger = get_metric_logger(
-        metric_logger_config=instantiate(cfg.metric_logger_config, _convert_="all"),
-        neptune_run_id=training_state["run_id"],
-    )
-
-    if isinstance(metric_logger, NeptuneLogger):
-        config_path = get_composition_file_path(hydra_config)
-        metric_logger.run["hydra_config"] = hydra_config
-        metric_logger.run["job_config"] = cfg
-        metric_logger.run["config_composition_file"].upload(config_path)
-        metric_logger.run["sys/tags"].add(
-            OmegaConf.to_object(hydra_config.overrides.task)
-        )
-
-    torch.manual_seed(cfg.training.seed)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    model = instantiate(cfg.model, _convert_="all").to(device)
-    if world_size > 1:
-        if torch.cuda.is_available():
-            model = wrap_model(model, cfg.distributed.fsdp)
-        else:
-            logger.info("FSDP is not supported with CPU. Running DDP instead")
-            model = DDP(model)
-
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=cfg.training.learning_rate,
-        weight_decay=cfg.training.weight_decay,
-    )
-
-    scheduler = get_scheduler(optimizer, cfg.training)
+def get_reduction_dataloaders(
+    dataloader_config,
+    sequence_length,
+    seed,
+    dropped_tokens,
+):
+    world_size = int(os.environ["WORLD_SIZE"])
+    batch_size_per_device = dataloader_config.total_batch_size // world_size
+    logger.debug(f"Batch size per device: {batch_size_per_device}")
+    logger.debug(f"Total: {dataloader_config.total_batch_size}")
 
     train_dataloader = get_dropping_dataloader(
-        dataloader_config=cfg.training.dataloader,
-        batch_size_per_device=cfg.training.dataloader.total_batch_size,
-        sequence_length=cfg.model.common.sequence_length,
-        dropped_tokens=cfg.model.common.dropped_tokens,
-        seed=cfg.training.seed,
+        dataloader_config=dataloader_config,
+        batch_size_per_device=batch_size_per_device,
+        sequence_length=sequence_length,
+        seed=seed,
+        dropped_tokens=dropped_tokens,
         dataset_split="train",
     )
-    eval_dataloader = None
-
-    load_checkpoint(
-        cfg.checkpoint_config, model, optimizer, scheduler, train_dataloader
+    eval_dataloader = get_dropping_dataloader(
+        dataloader_config=dataloader_config,
+        batch_size_per_device=batch_size_per_device,
+        sequence_length=sequence_length,
+        seed=seed,
+        dropped_tokens=dropped_tokens,
+        dataset_split="validation",
     )
-    DroppingTrainer(
-        model=model,
-        optimizer=optimizer,
-        scheduler=scheduler,
-        gradient_accumulation_steps=cfg.training.gradient_accumulation_steps,
-        training_state=training_state,
-        n_steps=cfg.training.n_steps,
-        train_dataloader=train_dataloader,
-        eval_dataloader=eval_dataloader,
-        metric_logger=metric_logger,
-        eval_interval=cfg.training.evaluation.eval_interval,
-        n_eval_steps=cfg.training.evaluation.n_eval_steps,
-        gradient_clipping=cfg.training.gradient_clipping,
-        checkpoint_config=cfg.checkpoint_config,
-    ).train()
-
-    cleanup()
+    return train_dataloader, eval_dataloader

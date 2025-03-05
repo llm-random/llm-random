@@ -189,29 +189,21 @@ def run(cfg):
     scheduler_config = instantiate(cfg.training.scheduler)
     scheduler = get_scheduler(optimizer, scheduler_config)
 
-    train_dataloader, eval_dataloader = get_dataloaders(
-        dataloader_config=cfg.training.dataloader,
-        sequence_length=cfg.model.common.sequence_length + 1,
-        seed=cfg.training.seed,
-    )
+    dataloaders_factory = instantiate(cfg.dataloaders_factory)
+    train_dataloader, eval_dataloader = dataloaders_factory()
 
     load_checkpoint(
         cfg.checkpoint_config, model, optimizer, scheduler, train_dataloader
     )
-    Trainer(
+    trainer_factory = instantiate(cfg.trainer_factory, _partial_=True)
+    trainer_factory(
         model=model,
         optimizer=optimizer,
         scheduler=scheduler,
-        gradient_accumulation_steps=cfg.training.gradient_accumulation_steps,
         training_state=training_state,
-        n_steps=cfg.training.n_steps,
         train_dataloader=train_dataloader,
         eval_dataloader=eval_dataloader,
         metric_logger=metric_logger,
-        eval_interval=cfg.training.evaluation.eval_interval,
-        n_eval_steps=cfg.training.evaluation.n_eval_steps,
-        gradient_clipping=cfg.training.gradient_clipping,
-        checkpoint_config=cfg.checkpoint_config,
     ).train()
 
     cleanup()
@@ -387,7 +379,7 @@ def get_dataloader(
             else dataloader_config.eval_dataset_path
         )
         dataset = C4Dataset(
-            sequence_length=sequence_length,
+            sequence_length=sequence_length + 1,
             path=path,
             seed=seed,
             use_new_sampling_method=dataloader_config.use_new_sampling_method,
@@ -1564,6 +1556,22 @@ def get_embedding_layer_function(
 
     return partial(embedding_functions[config.mode], config, common=common)
 
+
+def get_vanilla_embedding(config, common):
+    return EmbeddingLayer(
+        TokenEmbedding(
+            common.vocab_size,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+        PositionalEmbedding(
+            common.sequence_length,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+    )
 
 def get_cosine_scheduler_with_warmup(optimizer, config: CosineSchedulerConfig):
     assert (
