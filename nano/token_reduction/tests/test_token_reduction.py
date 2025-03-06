@@ -1,4 +1,3 @@
-import os
 import unittest
 from unittest.mock import patch
 import torch
@@ -9,23 +8,16 @@ from hydra.utils import instantiate
 
 from token_reduction.model import (
     CommonDroppingConfig,
-    DroppingTrainer,
-    MergingTrainer,
     batch_index_select,
     batched_split_indexes,
     create_token_dropping_function,
     flatten_with_indices_adjustment,
-    get_dropping_dataloader,
 )
 
 from model import (
     RecorderLogger,
-    distributed_setup,
-    get_scheduler,
-    load_checkpoint,
     load_training_state,
     run,
-    setup_enviroment,
 )
 
 

@@ -37,6 +37,7 @@ class TestComparison(unittest.TestCase):
     def test_compare(self):
 
         with patch.dict("os.environ", {"WORLD_SIZE": "1", "RANK": "0"}):
+
             @dataclass
             class Config:
                 num_workers: int
@@ -86,6 +87,7 @@ class TestComparison(unittest.TestCase):
             itertools.islice(zip(old_train_dataset, train_dataloader), 10), start=1
         ):
             assert torch.equal(a.input_ids, b), f"Samples number:{i} are not equal "
+
 
 if __name__ == "__main__":
     unittest.main()

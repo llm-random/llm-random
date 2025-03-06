@@ -2,7 +2,6 @@ import unittest
 from unittest.mock import patch
 from hydra import initialize, compose
 from hydra.utils import instantiate
-import torch
 import sys
 
 from model import (
@@ -12,8 +11,10 @@ from model import (
 )
 
 TOLERANCE = 1e-6
+
+
 class TestDense(unittest.TestCase):
- 
+
     def patch_randint_in_get_document(self, dataset):
         original_get_document = dataset.get_document
 
@@ -91,27 +92,39 @@ class TestDense(unittest.TestCase):
         target_tuple_lrs = list(zip(target_lrs, range(cfg.training.n_steps)))
 
         current_version = sys.version_info
-        if current_version.major == 3 and current_version.minor == 10 and current_version.micro == 12:
+        if (
+            current_version.major == 3
+            and current_version.minor == 10
+            and current_version.micro == 12
+        ):
             # if the version is 3.10.12 we know the exact values
             self.assertListEqual(target_losses, metric_logger.data["steps/train/loss"])
             self.assertListEqual(target_tuple_lrs, metric_logger.data["steps/train/lr"])
-            self.assertListEqual(grad_norms, metric_logger.data["steps/train/grad_norm"])
+            self.assertListEqual(
+                grad_norms, metric_logger.data["steps/train/grad_norm"]
+            )
             self.assertListEqual(eval_losses, metric_logger.data["steps/eval/loss"])
         else:
+
             def compare_lists(list1, list2, key):
                 self.assertEqual(len(list1), len(list2), f"Mismatch in {key} length")
                 for (v1, s1), (v2, s2) in zip(list1, list2):
-                    self.assertAlmostEqual(v1, v2, delta=TOLERANCE, 
-                                        msg=f"Mismatch in {key} at step {s1}")
+                    self.assertAlmostEqual(
+                        v1, v2, delta=TOLERANCE, msg=f"Mismatch in {key} at step {s1}"
+                    )
                     self.assertEqual(s1, s2, f"Step mismatch in {key}")
 
-            compare_lists(target_losses, metric_logger.data["steps/train/loss"], "train/loss")
+            compare_lists(
+                target_losses, metric_logger.data["steps/train/loss"], "train/loss"
+            )
             self.assertListEqual(target_tuple_lrs, metric_logger.data["steps/train/lr"])
-            compare_lists(grad_norms, metric_logger.data["steps/train/grad_norm"], "grad_norm")
-            compare_lists(eval_losses, metric_logger.data["steps/eval/loss"], "eval/loss")
+            compare_lists(
+                grad_norms, metric_logger.data["steps/train/grad_norm"], "grad_norm"
+            )
+            compare_lists(
+                eval_losses, metric_logger.data["steps/eval/loss"], "eval/loss"
+            )
 
 
 if __name__ == "__main__":
     unittest.main()
-
-

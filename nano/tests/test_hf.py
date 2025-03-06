@@ -11,7 +11,8 @@ import sys
 from model import get_dataloader, get_metric_logger
 
 import os
-TOLERANCE=1e-5
+
+TOLERANCE = 1e-5
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
@@ -81,10 +82,8 @@ class TestHFModel(unittest.TestCase):
             cfg = compose(config_name="test_hf", overrides=[])
 
         torch.manual_seed(cfg.training.seed)
-        metric_logger_config = instantiate(
-            cfg.metric_logger, _convert_="all"
-        )
-        _ = get_metric_logger(metric_logger_config) #for early initialization
+        metric_logger_config = instantiate(cfg.metric_logger, _convert_="all")
+        _ = get_metric_logger(metric_logger_config)  # for early initialization
         model = instantiate(cfg.model, _convert_="all")
 
         hf_config = GPT2Config(
@@ -111,7 +110,7 @@ class TestHFModel(unittest.TestCase):
 
         optimizer = torch.optim.AdamW(
             model.parameters(),
-            lr=cfg.training.learning_rate, 
+            lr=cfg.training.learning_rate,
             weight_decay=cfg.training.weight_decay,
         )
 

@@ -103,8 +103,10 @@ class TestC4Dataset(unittest.TestCase):
         }
 
         for rank in [0, 1]:
-            self.mock_data_generator = Mock() # Reset the mock data generator
-            self.mock_data_generator.__iter__ = Mock(return_value=iter(self.mock_tokens))
+            self.mock_data_generator = Mock()  # Reset the mock data generator
+            self.mock_data_generator.__iter__ = Mock(
+                return_value=iter(self.mock_tokens)
+            )
             with patch.dict("os.environ", {"WORLD_SIZE": "2", "RANK": str(rank)}):
                 num_samples = 2
                 mock_randint.side_effect = [1, 0, 1, 4]
