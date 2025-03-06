@@ -182,7 +182,7 @@ class ProjectedPositionalEmbeddingRes(nn.Module):
                 ])
         )
         weight_res = get_init_weight(
-            shape=(max_length, projected_embedding_dim),
+            shape=(max_length, embedding_dim),
             fan_in=None,
             init_type="zeros",
             scale=None,
