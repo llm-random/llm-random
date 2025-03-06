@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from functools import partial
 import os
 import re
 import neptune
@@ -54,48 +53,6 @@ from torch.optim.lr_scheduler import SequentialLR, LinearLR, ConstantLR
 logger = logging.getLogger(__name__)
 
 _metric_logger = None
-
-
-def singleton(class_):
-    class class_w(class_):
-        _instance = None
-
-        def __new__(class_, *args, **kwargs):
-            if class_w._instance is None:
-                class_w._instance = super(class_w, class_).__new__(
-                    class_, *args, **kwargs
-                )
-                class_w._instance._sealed = False
-            return class_w._instance
-
-        def __init__(self, *args, **kwargs):
-            if self._sealed:
-                return
-            super(class_w, self).__init__(*args, **kwargs)
-            self._sealed = True
-
-    class_w.__name__ = class_.__name__
-    return class_w
-
-
-@singleton
-class FunctionsRegistry:
-    registry = {
-        "embedding": {},
-        "scheduler": {},
-    }
-
-    def register(self, kind, mode, function):
-        self.registry[kind][mode] = function
-
-    def load(self, kind):
-        return self.registry[kind]
-
-    def create(self, kind, mode, *args, **kwargs):
-        return self.registry[kind][mode](*args, **kwargs)
-
-
-function_registry = FunctionsRegistry()
 
 
 def check_env_vars():
@@ -186,8 +143,7 @@ def run(cfg):
         weight_decay=cfg.training.weight_decay,
     )
 
-    scheduler_config = instantiate(cfg.training.scheduler)
-    scheduler = get_scheduler(optimizer, scheduler_config)
+    scheduler = instantiate(cfg.training.scheduler)(optimizer=optimizer)
 
     dataloaders_factory = instantiate(cfg.dataloaders_factory)
     train_dataloader, eval_dataloader = dataloaders_factory()
@@ -404,6 +360,7 @@ class AttentionConfig:
     mode: str
     n_heads: int
 
+
 @dataclass
 class FeedForwardConfig:
     mode: str
@@ -459,7 +416,7 @@ class TrainingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     learning_rate: PositiveFloat
     weight_decay: PositiveFloat
-    scheduler: SchedulerConfig
+    scheduler: object
     gradient_accumulation_steps: PositiveInt
     n_steps: PositiveInt
     seed: int
@@ -762,15 +719,13 @@ class LLM(nn.Module):
 
     def __init__(
         self,
+        embedding,
         common: Common,
-        embedding_config: EmbeddingConfig,
         tower_config: TowerConfig,
     ):
         super(LLM, self).__init__()
 
-        self.embedding_layer = get_embedding_layer_function(
-            config=embedding_config, common=common
-        )()
+        self.embedding_layer = embedding
 
         self.encoder = TransformerTower(
             common=common,
@@ -1080,7 +1035,7 @@ def get_metric_logger(
                         neptune_run_id = broadcast_message(rank)
                     neptune_logger = neptune.init_run(
                         project=metric_logger_config.project_name,
-                        with_id=neptune_run_id, 
+                        with_id=neptune_run_id,
                         monitoring_namespace=f"monitoring/gpu_{rank}",
                         tags=metric_logger_config.tags,
                     )
@@ -1125,6 +1080,10 @@ class TrapezoidalLR(SequentialLR):
         constant_steps,
         decay_steps,
     ):
+        self.warmup_steps = warmup_steps
+        self.constant_steps = constant_steps
+        self.decay_steps = decay_steps
+
         # Define individual schedulers
         warmup_scheduler = LinearLR(
             optimizer,
@@ -1167,24 +1126,6 @@ class TrapezoidalLR(SequentialLR):
         """
         while loaded_state["last_epoch"] > self.last_epoch:
             self.step()
-
-
-function_registry.register(
-    "scheduler",
-    "trapezoidal",
-    lambda optimizer, scheduler_config: TrapezoidalLR(
-        optimizer,
-        warmup_steps=scheduler_config.warmup_steps,
-        constant_steps=scheduler_config.constant_steps,
-        decay_steps=scheduler_config.decay_steps,
-    ),
-)
-
-
-def get_scheduler(optimizer, scheduler_config):
-    return function_registry.create(
-        "scheduler", scheduler_config.type, optimizer, scheduler_config
-    )
 
 
 @define(slots=False)
@@ -1519,43 +1460,7 @@ def get_ff_layer_function(
     return ff_functions[ff_mode]
 
 
-def get_embedding_layer_function(
-    config: EmbeddingConfig,
-    common: Common,
-) -> Callable[[], nn.Module]:
-
-    embedding_functions = {
-        "vanilla": lambda _config, common: EmbeddingLayer(
-            *[
-                TokenEmbedding(
-                    common.vocab_size,
-                    common.dmodel,
-                    init_type=common.init_type,
-                    init_scale=common.init_scale,
-                ),
-                PositionalEmbedding(
-                    common.sequence_length,
-                    common.dmodel,
-                    init_type=common.init_type,
-                    init_scale=common.init_scale,
-                ),
-            ]
-        ),
-        # Add other here
-    }
-
-    registered = function_registry.load("embedding")
-    embedding_functions.update(registered)
-
-    if config.mode not in embedding_functions:
-        raise ValueError(
-            f"Unsupported encoding mode: {config.mode}. Supported modes are: {list(embedding_functions.keys())}"
-        )
-
-    return partial(embedding_functions[config.mode], config, common=common)
-
-
-def get_vanilla_embedding(config, common):
+def get_vanilla_embedding(common):
     return EmbeddingLayer(
         TokenEmbedding(
             common.vocab_size,
@@ -1570,6 +1475,7 @@ def get_vanilla_embedding(config, common):
             init_scale=common.init_scale,
         ),
     )
+
 
 def get_cosine_scheduler_with_warmup(optimizer, config: CosineSchedulerConfig):
     assert (
@@ -1599,9 +1505,6 @@ def get_cosine_scheduler_with_warmup(optimizer, config: CosineSchedulerConfig):
         milestones=[config.warmup_steps, config.warmup_steps + 1],
     )
     return training_scheduler
-
-
-function_registry.register("scheduler", "cosine", get_cosine_scheduler_with_warmup)
 
 
 def get_classes_from_globals(names):

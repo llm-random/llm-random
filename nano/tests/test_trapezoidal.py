@@ -3,11 +3,6 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 import torch
 
-from model import (
-    get_scheduler,
-)
-
-
 target_lrs = [
     1e-05,
     3.9999999999999996e-05,
@@ -22,12 +17,22 @@ target_lrs = [
     5.000000000000001e-05,
     2.5000000000000005e-05,
 ]
+# config_yaml = """
+# training:
+#     learning_rate: 1e-4
+#     scheduler:
+#         _target_: model.TrapezoidalSchedulerConfig
+#         type: "trapezoidal"
+#         warmup_steps: 3
+#         constant_steps: 5
+#         decay_steps: 4
+# """
 config_yaml = """
 training:
     learning_rate: 1e-4
-    scheduler:
-        _target_: model.TrapezoidalSchedulerConfig
-        type: "trapezoidal"
+    scheduler: 
+        _target_: model.TrapezoidalLR
+        _partial_: true       
         warmup_steps: 3
         constant_steps: 5
         decay_steps: 4
@@ -37,8 +42,8 @@ faster_decay_yaml_end = """
 training:
     learning_rate: 1e-4
     scheduler:
-        _target_: model.TrapezoidalSchedulerConfig
-        type: "trapezoidal"
+        _target_: model.TrapezoidalLR
+        _partial_: true       
         warmup_steps: 3
         constant_steps: 2
         decay_steps: 3
@@ -48,8 +53,8 @@ faster_decay_yaml_middle = """
 training:
     learning_rate: 1e-4
     scheduler:
-        _target_: model.TrapezoidalSchedulerConfig
-        type: "trapezoidal"
+        _target_: model.TrapezoidalLR
+        _partial_: true       
         warmup_steps: 3
         constant_steps: 3
         decay_steps: 3
@@ -66,14 +71,11 @@ class TestTrapezoidal(unittest.TestCase):
             lr=cfg.training.learning_rate,
         )
 
-        scheduler_config = instantiate(cfg.training.scheduler)
-        scheduler = get_scheduler(optimizer, scheduler_config)
+        scheduler = instantiate(cfg.training.scheduler)(optimizer=optimizer)
 
         lrs = []
         for _ in range(
-            scheduler_config.warmup_steps
-            + scheduler_config.constant_steps
-            + scheduler_config.decay_steps
+            scheduler.warmup_steps + scheduler.constant_steps + scheduler.decay_steps
         ):
             lrs.append(scheduler.get_last_lr()[0])
             scheduler.step()
@@ -101,14 +103,10 @@ class TestTrapezoidal(unittest.TestCase):
             lr=cfg.training.learning_rate,
         )
 
-        scheduler_config = instantiate(cfg.training.scheduler)
-        scheduler = get_scheduler(optimizer, scheduler_config)
-
+        scheduler = instantiate(cfg.training.scheduler)(optimizer=optimizer)
         lrs = []
         for step in range(
-            scheduler_config.warmup_steps
-            + scheduler_config.constant_steps
-            + scheduler_config.decay_steps
+            scheduler.warmup_steps + scheduler.constant_steps + scheduler.decay_steps
         ):
             lrs.append(scheduler.get_last_lr()[0])
             scheduler.step()
@@ -123,17 +121,18 @@ class TestTrapezoidal(unittest.TestCase):
                 torch.nn.Linear(1, 1).parameters(),
                 lr=tested_cfg.training.learning_rate,
             )
-            scheduler_fast_config = instantiate(tested_cfg.training.scheduler)
-            scheduler_fast = get_scheduler(optimizer_for_test, scheduler_fast_config)
 
+            scheduler_fast = instantiate(tested_cfg.training.scheduler)(
+                optimizer=optimizer_for_test
+            )
             scheduler_fast.load_state_dict(checkpoint)
 
             result_lrs = []
             for _ in range(
-                scheduler_fast_config.decay_steps
+                scheduler_fast.decay_steps
                 + (
-                    scheduler_fast_config.warmup_steps
-                    + scheduler_fast_config.constant_steps
+                    scheduler_fast.warmup_steps
+                    + scheduler_fast.constant_steps
                     - checkpoint["last_epoch"]
                 )
             ):

@@ -4,9 +4,9 @@ defaults:
 model:
     _target_: model.LLM
 
-    embedding_config:
-        _target_: model.EmbeddingConfig
-        mode: "vanilla"
+    embedding:
+        _target_: model.get_vanilla_embedding
+        common: ${model.common}
 
     tower_config:  
         _target_: model.TowerConfig

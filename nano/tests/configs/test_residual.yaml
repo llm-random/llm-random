@@ -1,9 +1,9 @@
 model:
     _target_: model.LLM
 
-    embedding_config:
-        _target_: model.EmbeddingConfig
-        mode: "vanilla"
+    embedding:
+        _target_: model.get_vanilla_embedding
+        common: ${model.common}
 
     tower_config:  
         _target_: model.TowerConfig
@@ -61,11 +61,13 @@ training:
         n_eval_steps: 5
 
     scheduler: 
-        _target_: model.CosineSchedulerConfig
-        type: "cosine"
-        warmup_steps: 5
-        n_steps: ${training.n_steps}
-        final_lr_fraction: 0.1
+        _target_: model.get_cosine_scheduler_with_warmup
+        _partial_: true
+        config:        
+            warmup_steps: 5
+            n_steps: ${training.n_steps}
+            final_lr_fraction: 0.1
+            type: "cosine"
 
 checkpoint_config:
     interval: 0

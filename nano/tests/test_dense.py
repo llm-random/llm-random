@@ -6,10 +6,7 @@ import torch
 import sys
 
 from model import (
-    Trainer,
-    get_dataloader,
     get_metric_logger,
-    get_scheduler,
     load_training_state,
     run,
 )
@@ -116,3 +113,5 @@ class TestDense(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
