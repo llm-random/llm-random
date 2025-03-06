@@ -1,0 +1,59 @@
+defaults:
+    - configs/clusters: ${__llmrandom_cluster_config:}
+    - configs/defaults:
+      - checkpoints
+      - distributed
+      - factories
+      - infrastructure
+      - metric_logger
+      - model
+      - training
+    - _self_
+
+
+hydra:
+    searchpath:
+        - file://${oc.env:PWD}
+
+
+metric_logger:
+  heavy_metrics_calculation_interval: 10
+
+git:
+  remote_name: "cemetery"
+
+model:
+  common:
+    sequence_length: 32
+    dff: 256
+    dmodel: 64
+  tower_config:
+    n_blocks: 2
+    block_config:
+      attention:
+        n_heads: 2
+
+slurm:
+  gres: gpu:1
+
+training:
+  dataloader:
+    shuffle: false
+    total_batch_size: 32
+    use_new_sampling_method: false
+    world_size_independent: true
+    num_workers: 0
+  
+  evaluation:
+    eval_interval: 10
+
+  gradient_clipping: 0.5
+  n_steps: 1001
+  seed: 45
+
+  scheduler:
+    config:
+      warmup_steps: 9
+
+
+server: entropia

@@ -111,7 +111,7 @@ def ConnectWithPassphrase(*args, **kwargs) -> Generator[Connection, None, None]:
         connection.close()
 
 
-def get_experiment_config_path(
+def get_experiment_components(
     hydra_config: OmegaConf,
 ) -> str:
     # this is a workaround as hydra does not provide a way to get the config path
@@ -122,7 +122,7 @@ def get_experiment_config_path(
         for path in hydra_config.runtime.config_sources
         if path["schema"] == "file"
     ][0]
-    return f"{config_path}/{config_name}.yaml"
+    return config_path, config_name
 
 
 @hydra.main(version_base=None, config_path=".", config_name="experiment")
@@ -130,7 +130,8 @@ def submit_experiment(
     cfg: OmegaConf,
 ):
     hydra_config = hydra.utils.HydraConfig.get()
-    experiment_config_path = get_experiment_config_path(hydra_config)
+    config_path, config_name = get_experiment_components(hydra_config)
+    experiment_config_path = f"{config_path}/{config_name}.yaml"
 
     experiment_branch_name = version_code(
         cfg.git.remote_name,
@@ -185,8 +186,10 @@ def submit_experiment(
             connection.run(
                 f'tmux send -t {experiment_branch_name}.0 "source {cfg.venv_path}" ENTER'
             )
+            pwd = os.getcwd()
+            relative_path = os.path.relpath(config_path, pwd)
             connection.run(
-                f'tmux send -t {experiment_branch_name}.0 "python main.py " ENTER'
+                f'tmux send -t {experiment_branch_name}.0 "python main.py --config-path={relative_path} --config-name={config_name}" ENTER'
             )
             connection.run(
                 f'tmux send -t {experiment_branch_name}.0 "sbatch exp.job" ENTER'
