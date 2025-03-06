@@ -1,0 +1,12 @@
+# @package _global_
+distributed:
+    fsdp: 
+        modules_to_wrap: 
+            - TransformerBlock
+            - EmbeddingLayer
+            - PredictionHead
+        mixed_precision: 
+            dtype: bfloat16
+            ignored_classes: 
+                - LayerNorm
+                - AttentionMechanism

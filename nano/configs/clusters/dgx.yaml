@@ -1,0 +1,13 @@
+# @package _global_
+cluster_name: "dgx"
+
+training:
+  dataloader:
+    training_dataset_path: "/raid/NFS_SHARE/datasets/c4/train/c4_train"
+    eval_dataset_path: "/raid/NFS_SHARE/datasets/c4/validation/c4_validation"
+
+
+slurm:
+  gres: gpu:ampere:1
+
+cemetery_experiments_dir: "~/llmrandom_cemetery"

@@ -21,6 +21,7 @@ def dump_grid_configs(configs_grid, output_folder):
 
     for idx, (cfg_dict, overrides_list) in enumerate(configs_grid):
         cfg_dict["overrides"] = overrides_list
+        cfg_dict["_run_"] = True
 
         out_path = os.path.join(output_folder, f"config_{idx}.yaml")
         with open(out_path, "w", encoding="utf-8") as f:
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 @hydra.main(version_base=None, config_path=".", config_name="experiment")
 def main(config):
 
-    if "just_run" in config and config.just_run:
+    if config.get("_run_"):
         run(config)
         return
 
@@ -41,7 +42,7 @@ def main(config):
 
     generate_sbatch_script(config.slurm, output_folder, len(configs_grid), config.venv_path)
 
-    if "run_first" in config and config.run_first:
+    if config.get("_debug_"):
         training_config, overrides = configs_grid[0]
         training_config["overrides"] = overrides
         training_config = OmegaConf.create(training_config)

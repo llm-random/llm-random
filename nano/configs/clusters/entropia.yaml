@@ -1,0 +1,14 @@
+# @package _global_
+cluster_name: "entropia"
+
+
+training:
+  dataloader:
+    training_dataset_path: "/storage_ssd_1/llm-random-data/train"
+    eval_dataset_path: "/storage_ssd_1/llm-random-data/validation"
+
+
+slurm:
+  partition: "a100"
+
+cemetery_experiments_dir: "~/llmrandom_cemetery"

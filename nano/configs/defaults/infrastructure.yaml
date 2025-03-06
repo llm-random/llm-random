@@ -1,0 +1,17 @@
+# @package _global_
+hydra:
+  callbacks:
+    log_job_return:
+      _target_: hydra.experimental.callbacks.LogJobReturnCallback
+  verbose:
+      - __main__
+      - model
+
+git:
+  remote_name: cemetery
+  remote_url: git@github.com:llm-random/llm-random-cemetery.git
+
+slurm:
+  job-name: "sotamodel_training"
+
+venv_path: "venv/bin/activate"

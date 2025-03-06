@@ -1,10 +1,9 @@
-# Order should be from most specific to least specific
 - name: "dgx"
   hosts: 
     - "login01"
     - "gpu01"
 
-- name: "entropy"
+- name: "entropia"
   hosts: 
     - "asusgpu0"
     - "a100a"

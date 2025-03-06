@@ -143,14 +143,14 @@ def submit_experiment(
     if missing_keys:
         raise RuntimeError(f"Got missing keys in config:\n{missing_keys}")
 
-    with ConnectWithPassphrase(host=cfg.host, inline_ssh_env=True) as connection:
+    with ConnectWithPassphrase(host=cfg.server, inline_ssh_env=True) as connection:
         result = connection.run("uname -n", hide=True)
         hostname = result.stdout.strip()
         username = connection.user
 
         cluster_name = get_cluster_name(hostname, username)
 
-        cluster_config = OmegaConf.load(f"hydra/launcher/{cluster_name}.yaml")
+        cluster_config = OmegaConf.load(f"configs/clusters/{cluster_name}.yaml")
 
         cemetery_dir = cluster_config.cemetery_experiments_dir
         connection.run(f"mkdir -p {cemetery_dir}")

@@ -18,6 +18,6 @@ def get_cluster_name(hostname=None, username=None) -> str:
                 if re.match(host_pattern, hostname):
                     return cluster.name
 
-    return "common"
+    return "default"
 
 OmegaConf.register_new_resolver("__llmrandom_cluster_config", get_cluster_name)
