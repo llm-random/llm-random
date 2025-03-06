@@ -17,16 +17,7 @@ target_lrs = [
     5.000000000000001e-05,
     2.5000000000000005e-05,
 ]
-# config_yaml = """
-# training:
-#     learning_rate: 1e-4
-#     scheduler:
-#         _target_: model.TrapezoidalSchedulerConfig
-#         type: "trapezoidal"
-#         warmup_steps: 3
-#         constant_steps: 5
-#         decay_steps: 4
-# """
+
 config_yaml = """
 training:
     learning_rate: 1e-4
