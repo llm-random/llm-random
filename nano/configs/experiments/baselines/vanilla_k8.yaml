@@ -1,0 +1,48 @@
+hydra:
+    searchpath:
+        - file://${oc.env:PWD}
+
+defaults:
+    - configs/clusters: ${__llmrandom_cluster_config:}
+    - configs/defaults:
+      - checkpoints
+      - distributed
+      - factories
+      - infrastructure
+      - metric_logger
+      - model
+      - training
+    - _self_
+
+
+model:
+  common:
+    sequence_length: 256
+    dff: 2048
+    dmodel: 512
+  tower_config:
+    n_blocks: 8
+    block_config:
+      attention:
+        n_heads: 8
+
+slurm:
+  # gres: gpu:1
+  time: 3-00:00:00
+
+
+training:
+  dataloader:
+      total_batch_size: 256
+  seed: 234234
+  n_steps: 50001
+  learning_rate: 5e-4
+
+
+  scheduler: 
+    config:
+      warmup_steps: 500
+
+venv_path: '$HOME/onefiler/venv/bin/activate' 
+
+server: vpn

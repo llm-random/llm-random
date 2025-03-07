@@ -1,0 +1,108 @@
+hydra:
+    searchpath:
+        - file://${oc.env:PWD}
+
+defaults:
+    - configs/clusters: ${__llmrandom_cluster_config:}
+    - configs/defaults:
+      - checkpoints
+      - distributed
+      # - factories
+      - infrastructure
+      - metric_logger
+      # - model
+      - training
+    - _self_
+
+
+metric_logger:
+  heavy_metrics_calculation_interval: 10
+
+git:
+  remote_name: "cemetery"
+
+
+model:
+    _target_: model.LLM    
+
+    embedding:
+        _target_: token_reduction.model.TokenDroppingEmbedding
+        normal_embedding:
+            _target_: model.get_vanilla_embedding
+            common: ${model.common}
+
+    tower_config:  
+        _target_: model.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 2
+
+        block_config:
+            _target_: model.BlockConfig
+            attention:
+                _target_: model.AttentionConfig
+                mode: "vanilla"
+                n_heads: 2
+
+            feedforward:
+                _target_: model.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
+    common: 
+        _target_: model.Common
+        model_type: "gpt"
+        sequence_length: 32
+        dmodel: 64
+        dff: 256
+        init_type: truncated_normal_fixed
+        init_scale: 0.1
+        vocab_size: 50257
+        dropped_tokens: 0
+
+
+slurm:
+  gres: gpu:1
+
+training:
+  dataloader:
+    shuffle: false
+    total_batch_size: 32
+    use_new_sampling_method: false
+    world_size_independent: true
+    num_workers: 0
+  
+  evaluation:
+    eval_interval: 10
+
+  gradient_clipping: 0.5
+  n_steps: 1001
+  seed: 45
+
+  scheduler:
+    config:
+      warmup_steps: 9
+
+
+server: entropia
+
+dataloaders_factory:
+    _target_: token_reduction.model.get_reduction_dataloaders
+    _partial_: true
+    dataloader_config: ${training.dataloader}
+    sequence_length: ${model.common.sequence_length}
+    seed: ${training.seed}
+    dropped_tokens: ${model.common.dropped_tokens}
+
+
+trainer_factory: 
+    _target_: token_reduction.model.DroppingTrainer
+    gradient_accumulation_steps: ${training.gradient_accumulation_steps}
+    n_steps: ${training.n_steps}
+    eval_interval: ${training.evaluation.eval_interval}
+    n_eval_steps: ${training.evaluation.n_eval_steps}
+    gradient_clipping: ${training.gradient_clipping}
+    checkpoint_config: ${checkpoint_config}
+
+venv_path: '$HOME/onefiler/venv/bin/activate' 
