@@ -119,7 +119,7 @@ class MultiheadFlashDiff1(LoggingLayer):
         self.save_attention_weights = False
         self.attention_weights = None
         # num_heads set to half of Transformer's #heads
-        self.num_heads = num_heads  # // args.model_parallel_size
+        self.num_heads = num_heads // 2  # // args.model_parallel_size
         # self.num_kv_heads = (
         #     args.decoder_kv_attention_heads // args.model_parallel_size
         #     if args.decoder_kv_attention_heads is not None
@@ -131,14 +131,17 @@ class MultiheadFlashDiff1(LoggingLayer):
         if self.reuse_positive_k:
             assert adapter_type == "none"
 
-        self.num_kv_heads = num_kv_heads or num_heads
+        self.num_kv_heads = (num_kv_heads or num_heads) // 2
         self.n_rep = self.num_heads // self.num_kv_heads
         self.adapter_type = adapter_type
 
-        if self.adapter_type == "none":
-            self.head_dim = embed_dim // num_heads // 2
-        else:
-            self.head_dim = embed_dim // num_heads
+        # if self.adapter_type == "none":
+        self.head_dim = embed_dim // num_heads
+
+        q_proj_out_dim = self.head_dim * self.num_heads
+        if self.adapter_type != "none":
+            q_proj_out_dim //= 2
+        k_proj_out_dim = self.head_dim * self.num_kv_heads
 
         self.adapter_type = adapter_type
         self.lowrank_inner_dim = lowrank_inner_dim
@@ -148,6 +151,7 @@ class MultiheadFlashDiff1(LoggingLayer):
                 self.lowrank_inner_dim,
                 init_type,
                 init_scale,
+                output_dim=self.num_heads * self.head_dim,
                 dtype=lowrank_dtype,
             )
             self.lowrank_k = Lowrank(
@@ -155,7 +159,7 @@ class MultiheadFlashDiff1(LoggingLayer):
                 self.lowrank_inner_dim,
                 init_type,
                 init_scale,
-                output_dim=self.head_dim * self.num_kv_heads,
+                output_dim=self.num_kv_heads * self.head_dim,
                 dtype=lowrank_dtype,
             )
         elif self.adapter_type == "additive":
@@ -210,8 +214,8 @@ class MultiheadFlashDiff1(LoggingLayer):
 
         self.q_proj = Linear(
             embed_dim,
-            embed_dim,
-            bias=False,
+            q_proj_out_dim,
+            bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )

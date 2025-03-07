@@ -35,6 +35,7 @@ from research.attention_moe.utils.model_utils import (
     get_attention_layer,
     get_mamba_layer,
     get_mixed_precision_ignored_classes,
+    get_norm_class,
     get_residual_layer,
     get_classes_from_module_names,
     update_model_fit_gpu_info,
@@ -189,6 +190,8 @@ def main(
         args.activation_checkpointing_modules
     )
 
+    norm_fn = get_norm_class(args.norm_class, args)
+
     residual_fn = get_residual_layer(args)
 
     model_fit_gpu_info_params = get_argument_attributes(
@@ -265,6 +268,8 @@ def main(
         and (args.attention_mode != "rope")
         and (not args.use_rope),
         checkpoint=checkpoint,
+        use_final_norm=args.use_final_norm,
+        norm_fn=norm_fn,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)

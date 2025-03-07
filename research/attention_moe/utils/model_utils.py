@@ -14,6 +14,7 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
+from research.attention_moe.diff_attn.clean import AdapterDifferentialAttention
 from research.attention_moe.diff_attn.fast import (
     Lowrank,
     MultiheadFlashDiff1,
@@ -389,6 +390,23 @@ def get_attention_layer(args):
             use_qk_norm=args.use_qk_norm,
             reuse_positive_k=args.diff_transformer_reuse_positive_k,
         )
+    elif args.attention_mode == "adapter_differential":
+        attention_layer_fun = lambda: AdapterDifferentialAttention(
+            embed_dim=args.dmodel,
+            num_heads=args.n_att_heads,
+            use_rope=args.use_rope,
+            seq_len=args.cutoff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            lowrank_inner_dim=args.diff_transformer_lowrank_dim,
+            flip_negative_heads=args.diff_transformer_flip_negative_heads,
+            roll_negative_heads=args.diff_transformer_roll_negative_heads,
+            num_kv_heads=args.n_kv_heads,
+            adapter_type=args.diff_transformer_adapter_type,
+            lowrank_dtype=args.lowrank_dtype,
+            rms_norm_eps=args.rms_norm_eps,
+            rope_theta=args.rope_theta,
+        )
     else:
         raise NotImplementedError(
             f"Attention type {args.attention_mode} not implemented"
@@ -397,17 +415,20 @@ def get_attention_layer(args):
     return attention_layer_fun
 
 
-def get_norm_class(norm_class):
+def get_norm_class(norm_class, args):
     if norm_class == "layer_norm":
         return LayerNorm
     elif norm_class == "rms_norm":
-        return llm.RMSNorm
+        return partial(
+            RMSNorm,
+            eps=args.rms_norm_eps,
+        )
     else:
         raise NotImplementedError(f"Norm type {norm_class} not implemented")
 
 
 def get_residual_layer(args):
-    norm_class = get_norm_class(args.norm_class)
+    norm_class = get_norm_class(args.norm_class, args)
     if args.residual_mode == "pre_norm":
         return partial(llm.PreNormBlock, dmodel=args.dmodel, norm_class=norm_class)
     elif args.residual_mode == "parallel_pre_norm":
@@ -1017,7 +1038,8 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         CausalSelfAttention,
         CausalMQA,
         MoMQA,
-        TokenGating
+        TokenGating,
+        RMSNorm
         # TokenChoiceRouterOld,
         # TokenGating,
     ]
