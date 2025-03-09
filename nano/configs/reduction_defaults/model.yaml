@@ -1,0 +1,44 @@
+# @package _global_
+model:
+    _target_: model.LLM    
+
+    embedding:
+        _target_: token_reduction.model.TokenDroppingEmbedding
+        normal_embedding:
+            _target_: token_reduction.model.get_dropping_standard_embedding
+            sequence_length: ${model.common.sequence_length}
+            dmodel: ${model.common.dmodel}
+            init_type: ${model.common.init_type}
+            init_scale: ${model.common.init_scale}
+            vocab_size: ${model.common.vocab_size}
+            reduction_tokens: ${model.common.dropped_tokens}
+
+    tower_config:  
+        _target_: model.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 4
+
+        block_config:
+            _target_: model.BlockConfig
+            attention:
+                _target_: model.AttentionConfig
+                mode: "vanilla"
+                n_heads: 4
+
+            feedforward:
+                _target_: model.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
+    common: 
+        _target_: token_reduction.model.CommonDroppingConfig
+        model_type: "gpt"
+        sequence_length: 256
+        dmodel: 256
+        dff: 1024
+        init_type: truncated_normal_fixed
+        init_scale: 0.1
+        vocab_size: 50257
+        dropped_tokens: 0

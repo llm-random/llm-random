@@ -15,46 +15,32 @@ defaults:
     - _self_
 
 
-metric_logger:
-  heavy_metrics_calculation_interval: 10
-
-git:
-  remote_name: "cemetery"
-
 model:
   common:
-    sequence_length: 32
-    dff: 256
-    dmodel: 64
+    sequence_length: 256
+    dff: 4096
+    dmodel: 1024
   tower_config:
-    n_blocks: 2
+    n_blocks: 16
     block_config:
       attention:
-        n_heads: 2
+        n_heads: 16
 
 slurm:
   gres: gpu:1
+  time: 2-00:00:00
+
 
 training:
   dataloader:
-    shuffle: false
-    total_batch_size: 32
-    use_new_sampling_method: false
-    world_size_independent: true
-    num_workers: 0
-  
-  evaluation:
-    eval_interval: 10
+      total_batch_size: 256
+  seed: 123432423
+  n_steps: 190001
+  learning_rate: 5e-4
 
-  gradient_clipping: 0.5
-  n_steps: 1001
-  seed: 45
 
-  scheduler:
+  scheduler: 
     config:
-      warmup_steps: 9
-
-
-server: entropia
+      warmup_steps: 1900
 
 venv_path: '$HOME/onefiler/venv/bin/activate' 

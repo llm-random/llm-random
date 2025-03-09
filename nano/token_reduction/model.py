@@ -18,6 +18,7 @@ from model import (
     PositionalEmbedding,
     TokenEmbedding,
     Trainer,
+    get_dataloader,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,8 @@ class TokenDroppingEmbedding(torch.nn.Module):
 
     def forward(self, x, indexes):
         x = self.normal_embedding(x)
-        x = batch_index_select(x, indexes)
+        if self.training:
+            x = batch_index_select(x, indexes)
         return x
 
 
@@ -101,18 +103,19 @@ class TokenMergingEmbedding(torch.nn.Module):
 
     def forward(self, x, keep_indexes, merge_indexes):
         x = self.normal_embedding(x)
-        merge_tokens = batch_index_select(x, merge_indexes)
-        merge_tokens = self.linear(merge_tokens)
+        if self.training:
+            merge_tokens = batch_index_select(x, merge_indexes)
+            merge_tokens = self.linear(merge_tokens)
 
-        # It can happend that if we pick for merge last token from sequence, we do not have next token to merge it with, so we add zero vector
-        batch_size, _, dmodel = x.shape
-        x = torch.cat([x, torch.zeros(batch_size, 1, dmodel)], dim=1)
+            # It can happend that if we pick for merge last token from sequence, we do not have next token to merge it with, so we add zero vector
+            batch_size, _, dmodel = x.shape
+            x = torch.cat([x, torch.zeros(batch_size, 1, dmodel)], dim=1)
 
-        x[
-            torch.arange(merge_indexes.size(0)).unsqueeze(-1), merge_indexes + 1
-        ] += merge_tokens
+            x[
+                torch.arange(merge_indexes.size(0)).unsqueeze(-1), merge_indexes + 1
+            ] += merge_tokens
 
-        x = batch_index_select(x, keep_indexes)
+            x = batch_index_select(x, keep_indexes)
         return x
 
 
@@ -156,26 +159,34 @@ class DroppingTrainer(Trainer):
             loss = mask_loss.mean()
             return loss
 
-        input_data, (keep_indexes, _dropped) = batch
         losses = []
+        if self.model.training:
+            input_data, (keep_indexes, _dropped) = batch
 
-        for batch_chunk, keep_indexes_chunk in zip(
-            input_data.chunk(self.gradient_accumulation_steps),
-            keep_indexes.chunk(self.gradient_accumulation_steps),
-        ):
-            input_ids, target_ids = self._preprocess_input(batch_chunk)
-            target_ids = batch_index_select(target_ids, keep_indexes_chunk)
+            for batch_chunk, keep_indexes_chunk in zip(
+                input_data.chunk(self.gradient_accumulation_steps),
+                keep_indexes.chunk(self.gradient_accumulation_steps),
+            ):
+                input_ids, target_ids = self._preprocess_input(batch_chunk)
+                target_ids = batch_index_select(target_ids, keep_indexes_chunk)
 
-            loss = _hack_for_python_garbage_collection(
-                input_ids, target_ids, keep_indexes_chunk
-            )
-            if self.model.training:
-                loss.backward()
+                loss = _hack_for_python_garbage_collection(
+                    input_ids, target_ids, keep_indexes_chunk
+                )
+                if self.model.training:
+                    loss.backward()
 
-            losses.append(loss.item())
+                losses.append(loss.item())
 
-            if self.model.training:
-                self._update_processed_tokens(input_ids)
+                if self.model.training:
+                    self._update_processed_tokens(input_ids)
+        else:
+            for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
+                input_ids, target_ids = self._preprocess_input(batch_chunk)
+                input_ids = input_ids.to(self.device)
+
+                loss = _hack_for_python_garbage_collection(input_ids, target_ids, None)
+                losses.append(loss.item())
 
         # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
         avg_loss = torch.tensor(losses, device=loss.device).mean()
@@ -300,12 +311,30 @@ def get_reduction_dataloaders(
         dropped_tokens=dropped_tokens,
         dataset_split="train",
     )
-    eval_dataloader = get_dropping_dataloader(
+    eval_dataloader = get_dataloader(
         dataloader_config=dataloader_config,
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
         seed=seed,
-        dropped_tokens=dropped_tokens,
         dataset_split="validation",
     )
     return train_dataloader, eval_dataloader
+
+
+def get_dropping_standard_embedding(
+    vocab_size, dmodel, init_type, init_scale, sequence_length, reduction_tokens
+):
+    return EmbeddingLayer(
+        TokenEmbedding(
+            vocab_size,
+            dmodel,
+            init_type,
+            init_scale,
+        ),
+        PositionalEmbedding(
+            sequence_length + reduction_tokens,
+            dmodel,
+            init_type,
+            init_scale,
+        ),
+    )

@@ -1,0 +1,24 @@
+defaults:
+  - drop_k16
+
+
+hydra:
+    searchpath:
+        - file://${oc.env:PWD}
+
+# hydra:
+#   launcher:
+#       training_dataset_path: data
+#       eval_dataset_path: data
+
+model:
+  tower_config:
+    n_blocks: 2
+    block_config:
+      attention:
+        n_heads: 2
+  common:
+    sequence_length: 32
+    dff: 256
+    dmodel: 64
+    dropped_tokens: 7
