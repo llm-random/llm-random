@@ -417,6 +417,8 @@ def introduce_parser_arguments(
     parser.add_argument("--momqa_use_dropped_tokens_head", action="store_true")
     parser.add_argument("--momqa_use_extra_mqa", action="store_true")
     parser.add_argument("--use_rope", action="store_true")
+    parser.add_argument("--rope_theta", type=float, default=10000.0)
+    parser.add_argument("--rms_norm_eps", type=float, default=1e-6)
     parser.add_argument("--use_qk_norm", action="store_true")
     parser.add_argument("--diff_transformer_lowrank_dim", type=int, default=0)
     parser.add_argument("--diff_transformer_flip_negative_heads", action="store_true")
@@ -424,6 +426,7 @@ def introduce_parser_arguments(
     parser.add_argument("--diff_transformer_negative_heads_permutation", type=str)
     parser.add_argument("--diff_transformer_adapter_type", type=str, default="none")
     parser.add_argument("--diff_transformer_reuse_positive_k", action="store_true")
+    parser.add_argument("--use_final_norm", action="store_true")
     parser.add_argument(
         "--evaluate_attention_relevancy_interval", type=int, default=500
     )

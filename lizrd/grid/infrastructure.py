@@ -260,22 +260,22 @@ class EntropyBackend(MachineBackend):
     max_exp_time = 14 * 24 * 60 * 60
 
     def get_common_directory(self) -> str:
-        return "/home/jkrajewski_a100"
+        return "/storage_nvme_1/llm-random/"
 
     def get_cache_path(self) -> str:
-        return "/local_storage_2/dataset_cache"
+        return "/storage_nvme_1/llm-random/cache"
 
     def get_grid_entrypoint(self) -> str:
         return "lizrd/grid/grid_entrypoint.sh"
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
-            return "/local_storage_2/llm-random/datasets/c4_train"
+            return "/storage_nvme_1/llm-random/datasets/c4/train"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_default_validation_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
-            return "/local_storage_2/llm-random/datasets/c4_validation"
+            return "/storage_nvme_1/llm-random/datasets/c4/validation"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_cemetery_directory(self):

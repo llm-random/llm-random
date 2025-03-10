@@ -610,14 +610,17 @@ class PredictionHead(Linear):
 
 
 class LLM(nn.Module):
-    def __init__(self, embedding_layer, encoder_tower, head):
+    def __init__(self, embedding_layer, encoder_tower, head, output_norm=None):
         super(LLM, self).__init__()
         self.embedding_layer = embedding_layer
         self.encoder = encoder_tower
+        self.output_norm = None
         self.head = head
 
     def forward(self, *args, **kwargs):
         x = self.embedding_layer(*args, **kwargs)
         x = self.encoder(x)
+        if self.output_norm is not None:
+            x = self.output_norm(x)
         x = self.head(x)
         return x

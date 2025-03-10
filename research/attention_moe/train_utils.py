@@ -5,6 +5,8 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
 )
 
+from research.attention_moe.diff_attn.rms_norm import RMSNorm
+
 from . import llm
 from lizrd.core.distributed import wrap_in_fsdp, wrap_in_ddp
 from lizrd.train.checkpointing import make_checkpoint_wrapper_function
@@ -29,9 +31,11 @@ def get_model(
     fsdp_modules_to_wrap: Union[tuple[Type[torch.nn.Module]], None],
     activation_checkpointing_modules: Union[tuple[Type[torch.nn.Module]], None],
     is_logging_process: bool,
+    use_final_norm: bool,
     rank=None,
     model_fragmentation: Optional[list[int]] = None,
     residual_fn: Callable[[], torch.nn.Module] = None,
+    norm_fn: Callable[[int], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
 ):
@@ -69,7 +73,12 @@ def get_model(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(last_gpu)
 
-    model = llm.LLM(embedding_layer, encoder_tower, head)
+    if use_final_norm:
+        output_norm = norm_fn(dm).to(last_gpu)
+    else:
+        output_norm = None
+
+    model = llm.LLM(embedding_layer, encoder_tower, head, output_norm=output_norm)
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
