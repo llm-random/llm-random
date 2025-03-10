@@ -31,6 +31,12 @@ run_grid_remotely() {
   if [ -n "$WANDB_API_KEY" ]; then
     script+="WANDB_API_KEY=$WANDB_API_KEY "
   fi
+  if [ -n "$USE_A100" ]; then
+    script+="USE_A100=$USE_A100 "
+  fi
+  if [ -n "$USE_H100" ]; then
+    script+="USE_H100=$USE_H100 "
+  fi
   script+="./run_experiment.sh' C-m"
   script+="; tmux attach -t $experiment_branch"
   script+="; echo 'done'" #black magic: without it, interactive sessions like "srun" cannot be detached from without killing the session

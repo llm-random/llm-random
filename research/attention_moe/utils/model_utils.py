@@ -14,7 +14,12 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
-from research.attention_moe.diff_attn.clean import AdapterDifferentialAttention
+from research.attention_moe.diff_attn.clean import (
+    AdapterDifferentialAttention,
+    DifferentialAttention,
+    GroupedDifferentialAttention,
+    VanillaAttention,
+)
 from research.attention_moe.diff_attn.fast import (
     Lowrank,
     MultiheadFlashDiff1,
@@ -30,7 +35,7 @@ from research.attention_moe.moe_layers.attentions import (
 )
 from research.attention_moe.moe_layers.baseline_attentions_cc import (
     GQA,
-    VanillaAttention,
+    # VanillaAttention,
 )
 from research.attention_moe.moe_layers.baseline_attentions_cc import MQA
 from research.attention_moe.moe_layers_cc.moe_gating import TokenGating
@@ -295,10 +300,15 @@ def get_attention_layer(args):
         # )
 
         attention_layer_fun = lambda: VanillaAttention(
-            dmodel=args.dmodel,
-            n_heads=args.n_att_heads,
+            embed_dim=args.dmodel,
+            num_heads=args.n_att_heads,
+            use_rope=args.use_rope,
+            seq_len=args.cutoff,
             init_type=args.init_type,
             init_scale=args.init_scale,
+            num_kv_heads=args.n_kv_heads,
+            rms_norm_eps=args.rms_norm_eps,
+            rope_theta=args.rope_theta,
         )
     elif args.attention_mode == "mqa":
         # attention_layer_fun = lambda: CausalMQA(
@@ -404,6 +414,32 @@ def get_attention_layer(args):
             num_kv_heads=args.n_kv_heads,
             adapter_type=args.diff_transformer_adapter_type,
             lowrank_dtype=args.lowrank_dtype,
+            rms_norm_eps=args.rms_norm_eps,
+            rope_theta=args.rope_theta,
+        )
+    elif args.attention_mode == "differential":
+        attention_layer_fun = lambda: DifferentialAttention(
+            embed_dim=args.dmodel,
+            num_heads=args.n_att_heads,
+            use_rope=args.use_rope,
+            seq_len=args.cutoff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            num_kv_heads=args.n_kv_heads,
+            adapter_type=args.diff_transformer_adapter_type,
+            rms_norm_eps=args.rms_norm_eps,
+            rope_theta=args.rope_theta,
+        )
+    elif args.attention_mode == "gda":
+        attention_layer_fun = lambda: GroupedDifferentialAttention(
+            embed_dim=args.dmodel,
+            num_heads=args.n_att_heads,
+            use_rope=args.use_rope,
+            seq_len=args.cutoff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            num_kv_heads=args.n_kv_heads,
+            num_negative_heads=args.diff_transformer_num_negative_heads,
             rms_norm_eps=args.rms_norm_eps,
             rope_theta=args.rope_theta,
         )

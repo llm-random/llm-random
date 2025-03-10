@@ -419,6 +419,7 @@ def introduce_parser_arguments(
     parser.add_argument("--rms_norm_eps", type=float, default=1e-6)
     parser.add_argument("--use_qk_norm", action="store_true")
     parser.add_argument("--diff_transformer_lowrank_dim", type=int, default=0)
+    parser.add_argument("--diff_transformer_num_negative_heads", type=int, default=None)
     parser.add_argument("--diff_transformer_flip_negative_heads", action="store_true")
     parser.add_argument("--diff_transformer_roll_negative_heads", action="store_true")
     parser.add_argument("--diff_transformer_adapter_type", type=str, default="none")

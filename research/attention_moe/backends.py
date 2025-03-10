@@ -4,10 +4,12 @@ import platform
 import hashlib
 from typing import Optional
 
-import fabric
-
-
 from lizrd.grid.setup_arguments import make_singularity_mount_paths
+
+try:
+    import fabric
+except ImportError:
+    pass
 
 
 class MachineBackend(abc.ABC):
@@ -248,7 +250,7 @@ class EntropyH100Backend(MachineBackend):
         return "/storage_nvme_1/llm-random/dataset_cache"
 
     def get_grid_entrypoint(self) -> str:
-        return "research/attention_moe/entrypoints/helios.sh"
+        return "research/attention_moe/entrypoints/entropy_h100.sh"
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
@@ -480,21 +482,20 @@ COMMON_DEFAULT_INFRASTRUCTURE_ARGS = {
 }
 
 
-def get_env_var(connection: fabric.Connection, var_name: str):
+def get_env_var(connection: "fabric.Connection", var_name: str):
     return connection.run(f"echo ${var_name}", hide=True).stdout.strip()
 
 
 def get_machine_backend(
-    node=None, connection: Optional[fabric.Connection] = None
+    node=None, connection: Optional["fabric.Connection"] = None
 ) -> MachineBackend:
-    breakpoint()
     if node is None:
         node = platform.uname().node
     username = os.environ.get("USER") if connection is None else connection.user
     if node == "asusgpu0":
         is_a100 = os.environ.get("USE_A100") == "1"
         is_h100 = os.environ.get("USE_H100") == "1"
-        assert is_a100 ^ is_h100
+        assert is_a100 ^ is_h100, f"Got USE_A100={is_a100} and USE_H100={is_h100}"
         if is_a100:
             return EntropyA100Backend(username)
         elif is_h100:

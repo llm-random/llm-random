@@ -1,9 +1,8 @@
 #!/bin/bash -l
 
-module load ML-bundle/24.06a
-echo "Running Custom ENTRYPOINT!!!!!"
-source /net/storage/pr3/plgrid/plggllmeffi/momqa/venv/bin/activate
-export TRITON_PTXAS_PATH="/net/software/aarch64/el8/CUDA/12.4.0/bin/ptxas"
+source ~/miniconda3/etc/profile.d/conda.sh
+echo "Running Entropy H100 Entrypoint"
+conda activate /storage_nvme_1/llm-random/differential-conda
 echo "Will run the following command:"
 echo "$@"
 echo "==============================="

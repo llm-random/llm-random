@@ -11,7 +11,7 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-from lizrd.support.logging import AbstractLogger, NeptuneLogger
+from lizrd.support.logging import AbstractLogger, JointLogger, NeptuneLogger
 from lizrd.support.misc import generate_random_string
 from research.conditional.utils.misc_tools import get_slurm_job_id
 
@@ -92,7 +92,7 @@ def save_checkpoint(
     step: int,
     batch_size,
     cutoff,
-    loggers: list[AbstractLogger],
+    loggers: JointLogger,
     args_override: Optional[dict] = None,
 ):
     if isinstance(model, FSDP):
@@ -132,7 +132,15 @@ def save_checkpoint(
         #         ids.append(neptune_loggers._sys_id)
         #     logger_metadata = {"run_id": ids}
         # else:
-        logger_metadata = {"run_id": None}
+        run_ids = []
+        assert isinstance(loggers, JointLogger)
+        loggers.report_text(
+            title=f"job/saved_checkpoint", value=str(full_path), iteration=step
+        )
+        for logger in loggers.loggers:
+            assert isinstance(logger, NeptuneLogger)
+            run_ids.append(logger.instance_logger["sys/id"].fetch())
+        logger_metadata = {"run_id": run_ids}
 
         checkpoint = {
             "model": model_state_dict,
