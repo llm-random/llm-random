@@ -118,6 +118,9 @@ def create_subprocess_args(
                             n_slide_jobs += 1
                     n_job_repetitions = n_job_repetitions + n_slide_jobs
                 setup_args["time"] = seconds_to_timestr(CLUSTER.max_exp_time)
+            assert (
+                setup_args["n_gpus"] % setup_args["n_nodes"] == 0
+            ), "n_gpus must be divisible by n_nodes"
 
             subprocess_args = CLUSTER.get_subprocess_args(
                 slurm_command=slurm_command,

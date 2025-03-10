@@ -192,7 +192,7 @@ def main(
         model_fragmentation=args.model_parallelism_fragmentation,
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
-        rank=rank,
+        local_rank=rank,
         include_positional_embedding=(not args.no_positional_embedding)
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
