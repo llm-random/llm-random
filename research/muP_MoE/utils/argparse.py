@@ -49,6 +49,7 @@ def introduce_parser_arguments(
         defaults to None, which results in normalization by 1 / dhead**0.5""",
     )
 
+    parser.add_argument("--optimizer", type=str, default="adamw", help="adamw or adam")
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument("--learning_rate", type=float, required=True)
     parser.add_argument("--scheduler", type=str, required=True)

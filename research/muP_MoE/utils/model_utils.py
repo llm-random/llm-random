@@ -490,11 +490,6 @@ def get_model(
         )
 
     embedding_layer = llm.EmbeddingLayer(*embedding_components).to(first_gpu)
-    if mup_config is not None:
-        print("---Embedding init with muP---")
-        for name, param in embedding_layer.named_parameters():
-            print(f"Initializing {name} with scale {init_scale}")
-            torch.nn.init.normal_(param.data, mean=0.0, std=(init_scale) ** 0.5)
 
     # Python officially preserves dict order since 3.7, so we pass the layer dict
     transformer_tower = llm.TransformerTower(
@@ -505,7 +500,26 @@ def get_model(
         model_fragmentation=model_fragmentation,
         residual_fn=residual_fn,
     )
+
+    head = llm.PredictionHead(
+        dm, vocab_size, init_type=init_type, init_scale=init_scale
+    ).to(last_gpu)
+
     if mup_config is not None:
+        scale = (
+            init_scale / mup_config["base_dmodel"]
+        )  # this is a normal init undercover xd
+        print("---Embedding init with muP---")
+        for name, param in embedding_layer.named_parameters():
+            # if "0" in name:
+            print(f"Initializing {name} with scale {scale}")
+            torch.nn.init.normal_(param.data, mean=0.0, std=(scale) ** 0.5)
+
+        print("---Unembedding init with muP---")
+        for name, param in head.named_parameters():
+            print(f"Initializing {name} with scale {scale}")
+            torch.nn.init.normal_(param.data, mean=0.0, std=(scale) ** 0.5)
+
         print("---TransformerTower init with muP---")
         transformer_init_dict = {
             "input_projection": (1 / mup_config["m_d"]),
@@ -516,22 +530,13 @@ def get_model(
             "post_relu": (1 / (mup_config["m_d"] * 2 * n_blocks)),  # FF out, ver2
         }
         for name, param in transformer_tower.named_parameters():
-            scale = init_scale
             for keyword, value in transformer_init_dict.items():
                 if keyword in name:
-                    scale *= value
-                    print(f"Initializing {name} with scale {scale}")
-                    torch.nn.init.normal_(param.data, mean=0.0, std=(scale) ** 0.5)
+                    print(f"Initializing {name} with scale {scale * value}")
+                    torch.nn.init.normal_(
+                        param.data, mean=0.0, std=(scale * value) ** 0.5
+                    )
                     break
-
-    head = llm.PredictionHead(
-        dm, vocab_size, init_type=init_type, init_scale=init_scale
-    ).to(last_gpu)
-    if mup_config is not None:
-        print("---Unembedding init with muP---")
-        for name, param in head.named_parameters():
-            print(f"Initializing {name} with scale {init_scale}")
-            torch.nn.init.normal_(param.data, mean=0.0, std=(init_scale) ** 0.5)
 
     model = mup_modules.muP_LLM(embedding_layer, transformer_tower, head, mup_config)
 
