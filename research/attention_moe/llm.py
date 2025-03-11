@@ -614,7 +614,7 @@ class LLM(nn.Module):
         super(LLM, self).__init__()
         self.embedding_layer = embedding_layer
         self.encoder = encoder_tower
-        self.output_norm = None
+        self.output_norm = output_norm
         self.head = head
 
     def forward(self, *args, **kwargs):
