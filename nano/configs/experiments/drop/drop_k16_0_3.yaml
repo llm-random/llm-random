@@ -1,0 +1,54 @@
+hydra:
+    searchpath:
+        - file://${oc.env:PWD}
+
+defaults:
+    - configs/clusters: ${__llmrandom_cluster_config:}
+    - configs/defaults:
+      - checkpoints
+      - distributed
+      - infrastructure
+      - metric_logger
+      - training
+    - configs/reduction_defaults:
+      - model
+      - factories
+    - _self_
+
+
+model:
+  tower_config:
+    n_blocks: 16
+    block_config:
+      attention:
+        n_heads: 16
+  common:
+    sequence_length: 256
+    dff: 4096
+    dmodel: 1024
+    dropped_tokens: 77
+
+slurm:
+  gres: gpu:1
+  time: 2-00:00:00
+
+
+training:
+  dataloader:
+      total_batch_size: 256
+  seed: 4839284
+  n_steps: 100001
+  learning_rate: 2e-4
+
+
+  scheduler: 
+    config:
+      warmup_steps: 1000
+
+venv_path: '$HOME/onefiler/venv/bin/activate' 
+
+server: entropia
+
+checkpoint_config:
+    interval: 20000
+    path: "/storage_ssd_1/crewtool/checkpoints/k16_real_drop_0_3_1"
