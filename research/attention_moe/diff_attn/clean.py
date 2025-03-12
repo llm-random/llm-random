@@ -479,6 +479,7 @@ class GroupedDifferentialAttention(LoggingLayer):
         seq_len,
         init_type,
         init_scale,
+        repeat_or_interleave: str,
         n_kv_heads=None,
         n_negative_heads=None,
         use_qk_norm: bool = False,
@@ -491,6 +492,7 @@ class GroupedDifferentialAttention(LoggingLayer):
         self.save_attention_weights = False
         self.attention_weights = None
         self.n_positive_heads = n_heads // 2
+        self.repeat_or_interleave = repeat_or_interleave
 
         self.n_positive_kv_heads = (n_kv_heads or n_heads) // 2
         assert n_negative_heads <= self.n_positive_kv_heads
@@ -634,10 +636,16 @@ class GroupedDifferentialAttention(LoggingLayer):
             self.n_positive_kv_heads != self.n_positive_heads
             or self.n_negative_heads != self.n_positive_heads
         ):
-            q2 = q2.repeat_interleave(self.n_rep_negative, dim=2)
-            k1 = k1.repeat_interleave(self.n_rep_kv, dim=2)
-            v = v.repeat_interleave(self.n_rep_kv, dim=2)
-            k2 = k2.repeat_interleave(self.n_rep_negative, dim=2)
+            if self.repeat_or_interleave == "interleave":
+                q2 = q2.repeat_interleave(self.n_rep_negative, dim=2)
+                k1 = k1.repeat_interleave(self.n_rep_kv, dim=2)
+                v = v.repeat_interleave(self.n_rep_kv, dim=2)
+                k2 = k2.repeat_interleave(self.n_rep_negative, dim=2)
+            else:
+                q2 = q2.repeat(1, 1, self.n_rep_negative, 1)
+                k1 = k1.repeat(1, 1, self.n_rep_kv, 1)
+                v = v.repeat(1, 1, self.n_rep_kv, 1)
+                k2 = k2.repeat(1, 1, self.n_rep_negative, 1)
             assert (
                 k1.shape == k2.shape == q1.shape == q2.shape
             ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"

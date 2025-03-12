@@ -439,9 +439,10 @@ def get_attention_layer(args):
             init_type=args.init_type,
             init_scale=args.init_scale,
             n_kv_heads=args.n_kv_heads,
-            n_negative_heads=args.diff_transformer_num_negative_heads,
+            n_negative_heads=args.diff_transformer_n_negative_heads,
             rms_norm_eps=args.rms_norm_eps,
             rope_theta=args.rope_theta,
+            repeat_or_interleave=args.diff_transformer_repeat_or_interleave,
         )
     else:
         raise NotImplementedError(
