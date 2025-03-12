@@ -300,13 +300,13 @@ def get_attention_layer(args):
         # )
 
         attention_layer_fun = lambda: VanillaAttention(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
             init_scale=args.init_scale,
-            num_kv_heads=args.n_kv_heads,
+            n_kv_heads=args.n_kv_heads,
             rms_norm_eps=args.rms_norm_eps,
             rope_theta=args.rope_theta,
         )
@@ -376,8 +376,8 @@ def get_attention_layer(args):
     #     )
     elif args.attention_mode == "diff_vanilla_fast1":
         attention_layer_fun = lambda: VanillaFlashDiff1(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
@@ -385,8 +385,8 @@ def get_attention_layer(args):
         )
     elif args.attention_mode == "diff_theirs_fast1":
         attention_layer_fun = lambda: MultiheadFlashDiff1(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
@@ -402,8 +402,8 @@ def get_attention_layer(args):
         )
     elif args.attention_mode == "adapter_differential":
         attention_layer_fun = lambda: AdapterDifferentialAttention(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
@@ -411,7 +411,7 @@ def get_attention_layer(args):
             lowrank_inner_dim=args.diff_transformer_lowrank_dim,
             flip_negative_heads=args.diff_transformer_flip_negative_heads,
             roll_negative_heads=args.diff_transformer_roll_negative_heads,
-            num_kv_heads=args.n_kv_heads,
+            n_kv_heads=args.n_kv_heads,
             adapter_type=args.diff_transformer_adapter_type,
             lowrank_dtype=args.lowrank_dtype,
             rms_norm_eps=args.rms_norm_eps,
@@ -419,27 +419,27 @@ def get_attention_layer(args):
         )
     elif args.attention_mode == "differential":
         attention_layer_fun = lambda: DifferentialAttention(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
             init_scale=args.init_scale,
-            num_kv_heads=args.n_kv_heads,
+            n_kv_heads=args.n_kv_heads,
             adapter_type=args.diff_transformer_adapter_type,
             rms_norm_eps=args.rms_norm_eps,
             rope_theta=args.rope_theta,
         )
     elif args.attention_mode == "gda":
         attention_layer_fun = lambda: GroupedDifferentialAttention(
-            embed_dim=args.dmodel,
-            num_heads=args.n_att_heads,
+            dmodel=args.dmodel,
+            n_heads=args.n_att_heads,
             use_rope=args.use_rope,
             seq_len=args.cutoff,
             init_type=args.init_type,
             init_scale=args.init_scale,
-            num_kv_heads=args.n_kv_heads,
-            num_negative_heads=args.diff_transformer_num_negative_heads,
+            n_kv_heads=args.n_kv_heads,
+            n_negative_heads=args.diff_transformer_num_negative_heads,
             rms_norm_eps=args.rms_norm_eps,
             rope_theta=args.rope_theta,
         )

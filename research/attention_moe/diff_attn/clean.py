@@ -36,9 +36,9 @@ class AdapterDifferentialAttention(LoggingLayer):
     def __init__(
         self,
         # args,
-        embed_dim,
+        dmodel,
         # depth,
-        num_heads,
+        n_heads,
         use_rope,
         seq_len,
         lowrank_inner_dim,
@@ -46,7 +46,7 @@ class AdapterDifferentialAttention(LoggingLayer):
         roll_negative_heads,
         init_type,
         init_scale,
-        num_kv_heads=None,
+        n_kv_heads=None,
         adapter_type: str = "lora",
         lowrank_dtype=None,
         use_qk_norm: bool = False,
@@ -55,27 +55,27 @@ class AdapterDifferentialAttention(LoggingLayer):
     ):
         super().__init__()
         # self.args = args
-        self.embed_dim = embed_dim
+        self.dmodel = dmodel
         self.save_attention_weights = False
         self.attention_weights = None
-        self.num_positive_heads = num_heads // 2
+        self.n_positive_heads = n_heads // 2
         assert (int(roll_negative_heads) + int(flip_negative_heads)) <= 1
 
-        self.num_positive_kv_heads = (num_kv_heads or num_heads) // 2
-        self.n_rep = self.num_positive_heads // self.num_positive_kv_heads
+        self.n_positive_kv_heads = (n_kv_heads or n_heads) // 2
+        self.n_rep = self.n_positive_heads // self.n_positive_kv_heads
         self.adapter_type = adapter_type
 
-        self.head_dim = embed_dim // num_heads
+        self.dhead = dmodel // n_heads
 
-        q_proj_out_dim = self.head_dim * self.num_positive_heads
+        q_proj_out_dim = self.dhead * self.n_positive_heads
         assert self.adapter_type == "lora"
-        k_proj_out_dim = self.head_dim * self.num_positive_kv_heads
+        k_proj_out_dim = self.dhead * self.n_positive_kv_heads
 
         self.adapter_type = adapter_type
         self.lowrank_inner_dim = lowrank_inner_dim
         if self.adapter_type == "lora" and self.lowrank_inner_dim > 0:
             self.lowrank_q = Lowrank(
-                embed_dim,
+                dmodel,
                 self.lowrank_inner_dim,
                 init_type,
                 init_scale,
@@ -83,7 +83,7 @@ class AdapterDifferentialAttention(LoggingLayer):
                 dtype=lowrank_dtype,
             )
             self.lowrank_k = Lowrank(
-                embed_dim,
+                dmodel,
                 self.lowrank_inner_dim,
                 init_type,
                 init_scale,
@@ -94,7 +94,7 @@ class AdapterDifferentialAttention(LoggingLayer):
             raise ValueError(f"Adapter type {self.adapter_type} not supported")
 
         self.q_proj = Linear(
-            embed_dim,
+            dmodel,
             q_proj_out_dim,
             bias=True,
             init_type=init_type,
@@ -102,22 +102,22 @@ class AdapterDifferentialAttention(LoggingLayer):
         )
 
         self.k_proj = Linear(
-            embed_dim,
+            dmodel,
             k_proj_out_dim,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
-        self.v_dim = self.embed_dim // self.num_positive_heads
+        self.v_dim = self.dmodel // self.n_positive_heads
         self.v_proj = Linear(
-            embed_dim,
-            self.v_dim * self.num_positive_kv_heads,
+            dmodel,
+            self.v_dim * self.n_positive_kv_heads,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
         self.out_proj = Linear(
-            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+            dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
         )
 
         self.lambda_init = None
@@ -127,31 +127,31 @@ class AdapterDifferentialAttention(LoggingLayer):
         self.roll_negative_heads = roll_negative_heads
 
         self.lambda_q1 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_k1 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_q2 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_k2 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
 
         self.subln = RMSNorm(self.v_dim, eps=rms_norm_eps, elementwise_affine=True)
         self.use_qk_norm = use_qk_norm
         if self.use_qk_norm:
             self.q_norm = RMSNorm(
-                self.head_dim, eps=rms_norm_eps, elementwise_affine=True
+                self.dhead, eps=rms_norm_eps, elementwise_affine=True
             )
             self.k_norm = RMSNorm(
-                self.head_dim, eps=rms_norm_eps, elementwise_affine=True
+                self.dhead, eps=rms_norm_eps, elementwise_affine=True
             )
 
         if self.use_rope:
             self.rotary_emb = RotaryEmbedding(
-                self.head_dim,
+                self.dhead,
                 base=rope_theta,
                 interleaved=True,
             )
@@ -163,8 +163,7 @@ class AdapterDifferentialAttention(LoggingLayer):
         rel_pos=None,
         attn_mask=None,
     ):
-        bsz, tgt_len, embed_dim = x.size()
-        src_len = tgt_len
+        bsz, _, _ = x.size()
 
         if self.lambda_init is None:
             self.lambda_init = lambda_init_fn(self.block_number + 1)
@@ -176,14 +175,14 @@ class AdapterDifferentialAttention(LoggingLayer):
         if self.adapter_type == "lora":
             # self.lowrank_inner_dim > 0:
             q_negative = (q + self.lowrank_q(x)).view(
-                bsz, tgt_len, self.num_positive_heads, self.head_dim
+                bsz, self.seq_len, self.n_positive_heads, self.dhead
             )
             k_negative = (k + self.lowrank_k(x)).view(
-                bsz, src_len, self.num_positive_kv_heads, self.head_dim
+                bsz, self.seq_len, self.n_positive_kv_heads, self.dhead
             )
-            q = q.view(bsz, tgt_len, self.num_positive_heads, self.head_dim)
-            k = k.view(bsz, src_len, self.num_positive_kv_heads, self.head_dim)
-            v = v.view(bsz, src_len, self.num_positive_kv_heads, self.v_dim)
+            q = q.view(bsz, self.seq_len, self.n_positive_heads, self.dhead)
+            k = k.view(bsz, self.seq_len, self.n_positive_kv_heads, self.dhead)
+            v = v.view(bsz, self.seq_len, self.n_positive_kv_heads, self.v_dim)
         else:
             raise ValueError(f"Adapter type {self.adapter_type} not supported")
 
@@ -217,7 +216,7 @@ class AdapterDifferentialAttention(LoggingLayer):
             q2 = q_negative
             k1 = k
             k2 = k_negative
-            if self.num_positive_kv_heads != self.num_positive_heads:
+            if self.n_positive_kv_heads != self.n_positive_heads:
                 k1 = k1.repeat_interleave(self.n_rep, dim=2)
                 k2 = k2.repeat_interleave(self.n_rep, dim=2)
                 v = v.repeat_interleave(self.n_rep, dim=2)
@@ -297,7 +296,7 @@ class AdapterDifferentialAttention(LoggingLayer):
 
         attn = self.subln(attn)
         attn = attn * (1 - self.lambda_init)
-        attn = attn.reshape(bsz, tgt_len, self.num_positive_heads * self.v_dim)
+        attn = attn.reshape(bsz, self.seq_len, self.n_positive_heads * self.v_dim)
 
         attn = self.out_proj(attn)
         return attn
@@ -318,56 +317,56 @@ class VanillaAttention(LoggingLayer):
     def __init__(
         self,
         # args,
-        embed_dim,
+        dmodel,
         # depth,
-        num_heads,
+        n_heads,
         use_rope,
         seq_len,
         init_type,
         init_scale,
-        num_kv_heads=None,
+        n_kv_heads=None,
         use_qk_norm: bool = False,
         rms_norm_eps: float = 1e-6,
         rope_theta: float = 10000.0,
     ):
         super().__init__()
         # self.args = args
-        self.embed_dim = embed_dim
+        self.dmodel = dmodel
         self.save_attention_weights = False
         self.attention_weights = None
 
-        self.num_heads = num_heads
-        self.num_kv_heads = num_kv_heads or num_heads
-        self.n_rep = self.num_heads // self.num_kv_heads
+        self.n_heads = n_heads
+        self.n_kv_heads = n_kv_heads or n_heads
+        self.n_rep = self.n_heads // self.n_kv_heads
 
-        self.head_dim = embed_dim // num_heads
+        self.dhead = dmodel // n_heads
 
-        v_proj_out_dim = k_proj_out_dim = self.head_dim * self.num_kv_heads
+        v_proj_out_dim = k_proj_out_dim = self.dhead * self.n_kv_heads
 
         self.q_proj = Linear(
-            embed_dim,
-            embed_dim,
+            dmodel,
+            dmodel,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
 
         self.k_proj = Linear(
-            embed_dim,
+            dmodel,
             k_proj_out_dim,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
         self.v_proj = Linear(
-            embed_dim,
+            dmodel,
             v_proj_out_dim,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
         self.out_proj = Linear(
-            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+            dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
         )
 
         self.use_rope = use_rope
@@ -376,15 +375,15 @@ class VanillaAttention(LoggingLayer):
         self.use_qk_norm = use_qk_norm
         if self.use_qk_norm:
             self.q_norm = RMSNorm(
-                self.head_dim, eps=rms_norm_eps, elementwise_affine=True
+                self.dhead, eps=rms_norm_eps, elementwise_affine=True
             )
             self.k_norm = RMSNorm(
-                self.head_dim, eps=rms_norm_eps, elementwise_affine=True
+                self.dhead, eps=rms_norm_eps, elementwise_affine=True
             )
 
         if self.use_rope:
             self.rotary_emb = RotaryEmbedding(
-                self.head_dim,
+                self.dhead,
                 base=rope_theta,
                 interleaved=True,
             )
@@ -398,16 +397,15 @@ class VanillaAttention(LoggingLayer):
         rel_pos=None,
         attn_mask=None,
     ):
-        bsz, tgt_len, embed_dim = x.size()
-        src_len = tgt_len
+        bsz, _, _ = x.size()
 
         q = self.q_proj(x)
         k = self.k_proj(x)
         v = self.v_proj(x)
 
-        q = q.view(bsz, tgt_len, self.num_heads, self.head_dim)
-        k = k.view(bsz, src_len, self.num_kv_heads, self.head_dim)
-        v = v.view(bsz, src_len, self.num_kv_heads, self.head_dim)
+        q = q.view(bsz, self.seq_len, self.n_heads, self.dhead)
+        k = k.view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
+        v = v.view(bsz, self.seq_len, self.n_kv_heads, self.dhead)
 
         if self.use_qk_norm:
             q = self.q_norm(q)
@@ -426,7 +424,7 @@ class VanillaAttention(LoggingLayer):
                 k.to(dtype=torch.float32), *rel_pos, interleaved=True
             ).to(x)
 
-        if self.num_heads != self.num_kv_heads:
+        if self.n_heads != self.n_kv_heads:
             k = k.repeat_interleave(self.n_rep, dim=2)
             v = v.repeat_interleave(self.n_rep, dim=2)
             assert k.shape == q.shape, f"Shapes don't match: {k.shape}, {q.shape}"
@@ -460,7 +458,7 @@ class VanillaAttention(LoggingLayer):
                 causal=True,
             )
 
-        attn = attn.reshape(bsz, tgt_len, embed_dim)
+        attn = attn.reshape(bsz, self.seq_len, self.dmodel)
 
         attn = self.out_proj(attn)
         return attn
@@ -475,39 +473,39 @@ class GroupedDifferentialAttention(LoggingLayer):
 
     def __init__(
         self,
-        embed_dim,
-        num_heads,
+        dmodel,
+        n_heads,
         use_rope,
         seq_len,
         init_type,
         init_scale,
-        num_kv_heads=None,
-        num_negative_heads=None,
+        n_kv_heads=None,
+        n_negative_heads=None,
         use_qk_norm: bool = False,
         rms_norm_eps: float = 1e-6,
         rope_theta: float = 10000.0,
     ):
         super().__init__()
         # self.args = args
-        self.embed_dim = embed_dim
+        self.dmodel = dmodel
         self.save_attention_weights = False
         self.attention_weights = None
-        self.num_positive_heads = num_heads // 2
+        self.n_positive_heads = n_heads // 2
 
-        self.num_positive_kv_heads = (num_kv_heads or num_heads) // 2
-        assert num_negative_heads <= self.num_positive_kv_heads
-        self.num_negative_heads = num_negative_heads
-        self.n_rep_kv = self.num_positive_heads // self.num_positive_kv_heads
-        self.n_rep_negative = self.num_positive_heads // self.num_negative_heads
+        self.n_positive_kv_heads = (n_kv_heads or n_heads) // 2
+        assert n_negative_heads <= self.n_positive_kv_heads
+        self.n_negative_heads = n_negative_heads
+        self.n_rep_kv = self.n_positive_heads // self.n_positive_kv_heads
+        self.n_rep_negative = self.n_positive_heads // self.n_negative_heads
 
-        self.head_dim = embed_dim // num_heads
+        self.dhead = dmodel // n_heads
 
-        plus_q_proj_out_dim = self.head_dim * self.num_positive_heads
-        plus_k_proj_out_dim = self.head_dim * self.num_positive_kv_heads
-        minus_qk_proj_out_dim = self.head_dim * num_negative_heads
+        plus_q_proj_out_dim = self.dhead * self.n_positive_heads
+        plus_k_proj_out_dim = self.dhead * self.n_positive_kv_heads
+        minus_qk_proj_out_dim = self.dhead * n_negative_heads
 
         self.q_proj = Linear(
-            embed_dim,
+            dmodel,
             plus_q_proj_out_dim + minus_qk_proj_out_dim,
             bias=True,
             init_type=init_type,
@@ -515,23 +513,23 @@ class GroupedDifferentialAttention(LoggingLayer):
         )
 
         self.k_proj = Linear(
-            embed_dim,
+            dmodel,
             plus_k_proj_out_dim + minus_qk_proj_out_dim,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
 
-        self.v_dim = self.embed_dim // self.num_positive_heads
+        self.v_dim = self.dmodel // self.n_positive_heads
         self.v_proj = Linear(
-            embed_dim,
-            self.v_dim * self.num_positive_kv_heads,
+            dmodel,
+            self.v_dim * self.n_positive_kv_heads,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
         self.out_proj = Linear(
-            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+            dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
         )
 
         self.lambda_init = None
@@ -539,31 +537,31 @@ class GroupedDifferentialAttention(LoggingLayer):
         self.seq_len = seq_len
 
         self.lambda_q1 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_k1 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_q2 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_k2 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
 
         self.subln = RMSNorm(self.v_dim, eps=rms_norm_eps, elementwise_affine=True)
         self.use_qk_norm = use_qk_norm
         if self.use_qk_norm:
             self.q_norm = RMSNorm(
-                self.head_dim, eps=rms_norm_eps, elementwise_affine=True
+                self.dhead, eps=rms_norm_eps, elementwise_affine=True
             )
             self.k_norm = RMSNorm(
-                self.head_dim, eps=rms_norm_eps, elementwise_affine=True
+                self.dhead, eps=rms_norm_eps, elementwise_affine=True
             )
 
         if self.use_rope:
             self.rotary_emb = RotaryEmbedding(
-                self.head_dim,
+                self.dhead,
                 base=rope_theta,
                 interleaved=True,
             )
@@ -576,33 +574,32 @@ class GroupedDifferentialAttention(LoggingLayer):
         rel_pos=None,
         attn_mask=None,
     ):
-        bsz, tgt_len, embed_dim = x.size()
-        src_len = tgt_len
+        bsz, _, _ = x.size()
 
         if self.lambda_init is None:
             self.lambda_init = lambda_init_fn(self.block_number + 1)
 
         q = self.q_proj(x).view(
             bsz,
-            tgt_len,
-            self.num_positive_heads + self.num_negative_heads,
-            self.head_dim,
+            self.seq_len,
+            self.n_positive_heads + self.n_negative_heads,
+            self.dhead,
         )
         q, q_negative = (
-            q[:, :, : self.num_positive_heads],
-            q[:, :, self.num_positive_heads :],
+            q[:, :, : self.n_positive_heads],
+            q[:, :, self.n_positive_heads:],
         )
         k = self.k_proj(x).view(
             bsz,
-            src_len,
-            self.num_positive_kv_heads + self.num_negative_heads,
-            self.head_dim,
+            self.seq_len,
+            self.n_positive_kv_heads + self.n_negative_heads,
+            self.dhead,
         )
         k, k_negative = (
-            k[:, :, : self.num_positive_kv_heads],
-            k[:, :, self.num_positive_kv_heads :],
+            k[:, :, : self.n_positive_kv_heads],
+            k[:, :, self.n_positive_kv_heads:],
         )
-        v = self.v_proj(x).view(bsz, src_len, self.num_positive_kv_heads, self.v_dim)
+        v = self.v_proj(x).view(bsz, self.seq_len, self.n_positive_kv_heads, self.v_dim)
 
         if self.use_qk_norm:
             q = self.q_norm(q)
@@ -634,8 +631,8 @@ class GroupedDifferentialAttention(LoggingLayer):
         k1 = k
         k2 = k_negative
         if (
-            self.num_positive_kv_heads != self.num_positive_heads
-            or self.num_negative_heads != self.num_positive_heads
+            self.n_positive_kv_heads != self.n_positive_heads
+            or self.n_negative_heads != self.n_positive_heads
         ):
             q2 = q2.repeat_interleave(self.n_rep_negative, dim=2)
             k1 = k1.repeat_interleave(self.n_rep_kv, dim=2)
@@ -710,7 +707,7 @@ class GroupedDifferentialAttention(LoggingLayer):
 
         attn = self.subln(attn)
         attn = attn * (1 - self.lambda_init)
-        attn = attn.reshape(bsz, tgt_len, self.num_positive_heads * self.v_dim)
+        attn = attn.reshape(bsz, self.seq_len, self.n_positive_heads * self.v_dim)
 
         attn = self.out_proj(attn)
         return attn
@@ -730,13 +727,13 @@ class DifferentialAttention(LoggingLayer):
 
     def __init__(
         self,
-        embed_dim,
-        num_heads,
+        dmodel,
+        n_heads,
         use_rope,
         seq_len,
         init_type,
         init_scale,
-        num_kv_heads=None,
+        n_kv_heads=None,
         adapter_type: str = "lora",
         use_qk_norm: bool = False,
         rms_norm_eps: float = 1e-6,
@@ -744,22 +741,22 @@ class DifferentialAttention(LoggingLayer):
     ):
         super().__init__()
         # self.args = args
-        self.embed_dim = embed_dim
+        self.dmodel = dmodel
         self.save_attention_weights = False
         self.attention_weights = None
-        self.num_positive_heads = num_heads // 2
+        self.n_positive_heads = n_heads // 2
 
-        self.num_positive_kv_heads = (num_kv_heads or num_heads) // 2
-        self.n_rep = self.num_positive_heads // self.num_positive_kv_heads
+        self.n_positive_kv_heads = (n_kv_heads or n_heads) // 2
+        self.n_rep = self.n_positive_heads // self.n_positive_kv_heads
         self.adapter_type = adapter_type
 
-        self.head_dim = embed_dim // num_heads
+        self.dhead = dmodel // n_heads
 
-        q_proj_out_dim = self.head_dim * self.num_positive_heads
-        k_proj_out_dim = self.head_dim * self.num_positive_kv_heads
+        q_proj_out_dim = self.dhead * self.n_positive_heads
+        k_proj_out_dim = self.dhead * self.n_positive_kv_heads
 
         self.q_proj = Linear(
-            embed_dim,
+            dmodel,
             2 * q_proj_out_dim,
             bias=True,
             init_type=init_type,
@@ -767,23 +764,23 @@ class DifferentialAttention(LoggingLayer):
         )
 
         self.k_proj = Linear(
-            embed_dim,
+            dmodel,
             2 * k_proj_out_dim,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
 
-        self.v_dim = self.embed_dim // self.num_positive_heads
+        self.v_dim = self.dmodel // self.n_positive_heads
         self.v_proj = Linear(
-            embed_dim,
-            self.v_dim * self.num_positive_kv_heads,
+            dmodel,
+            self.v_dim * self.n_positive_kv_heads,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
         )
         self.out_proj = Linear(
-            embed_dim, embed_dim, bias=False, init_type=init_type, init_scale=init_scale
+            dmodel, dmodel, bias=False, init_type=init_type, init_scale=init_scale
         )
 
         self.lambda_init = None
@@ -791,31 +788,31 @@ class DifferentialAttention(LoggingLayer):
         self.seq_len = seq_len
 
         self.lambda_q1 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_k1 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_q2 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
         self.lambda_k2 = nn.Parameter(
-            torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            torch.zeros(self.dhead, dtype=torch.float32).normal_(mean=0, std=0.1)
         )
 
         self.subln = RMSNorm(self.v_dim, eps=rms_norm_eps, elementwise_affine=True)
         self.use_qk_norm = use_qk_norm
         if self.use_qk_norm:
             self.q_norm = RMSNorm(
-                self.head_dim, eps=rms_norm_eps, elementwise_affine=True
+                self.dhead, eps=rms_norm_eps, elementwise_affine=True
             )
             self.k_norm = RMSNorm(
-                self.head_dim, eps=rms_norm_eps, elementwise_affine=True
+                self.dhead, eps=rms_norm_eps, elementwise_affine=True
             )
 
         if self.use_rope:
             self.rotary_emb = RotaryEmbedding(
-                self.head_dim,
+                self.dhead,
                 base=rope_theta,
                 interleaved=True,
             )
@@ -828,21 +825,20 @@ class DifferentialAttention(LoggingLayer):
         rel_pos=None,
         attn_mask=None,
     ):
-        bsz, tgt_len, embed_dim = x.size()
-        src_len = tgt_len
+        bsz, _, _ = x.size()
 
         if self.lambda_init is None:
             self.lambda_init = lambda_init_fn(self.block_number + 1)
 
         q = self.q_proj(x).view(
-            bsz, tgt_len, self.num_positive_heads, 2 * self.head_dim
+            bsz, self.seq_len, self.n_positive_heads, 2 * self.dhead
         )
         q, q_negative = q.chunk(2, dim=-1)
         k = self.k_proj(x).view(
-            bsz, src_len, self.num_positive_kv_heads, 2 * self.head_dim
+            bsz, self.seq_len, self.n_positive_kv_heads, 2 * self.dhead
         )
         k, k_negative = k.chunk(2, dim=-1)
-        v = self.v_proj(x).view(bsz, src_len, self.num_positive_kv_heads, self.v_dim)
+        v = self.v_proj(x).view(bsz, self.seq_len, self.n_positive_kv_heads, self.v_dim)
 
         if self.use_qk_norm:
             q = self.q_norm(q)
@@ -874,7 +870,7 @@ class DifferentialAttention(LoggingLayer):
             q2 = q_negative
             k1 = k
             k2 = k_negative
-            if self.num_positive_kv_heads != self.num_positive_heads:
+            if self.n_positive_kv_heads != self.n_positive_heads:
                 k1 = k1.repeat_interleave(self.n_rep, dim=2)
                 k2 = k2.repeat_interleave(self.n_rep, dim=2)
                 v = v.repeat_interleave(self.n_rep, dim=2)
@@ -947,7 +943,7 @@ class DifferentialAttention(LoggingLayer):
 
         attn = self.subln(attn)
         attn = attn * (1 - self.lambda_init)
-        attn = attn.reshape(bsz, tgt_len, self.num_positive_heads * self.v_dim)
+        attn = attn.reshape(bsz, self.seq_len, self.n_positive_heads * self.v_dim)
 
         attn = self.out_proj(attn)
         return attn
