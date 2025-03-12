@@ -49,6 +49,132 @@ class SwiGLUFeedForward(LoggingLayer):
         return self.w2(activation * gate)
 
 
+class SwiGLURepeatedActivationFeedForward(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        n,
+        init_type: ValidInitType,
+        init_scale: float,
+    ):
+        super().__init__()
+        desired_size = 3 * dmodel * dff
+        x = desired_size // (dmodel * (2 * n + 1))
+        self.n = n
+        self.w1 = Linear(
+            dmodel, x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w2 = Linear(
+            dmodel, n * x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w3 = Linear(
+            n * x, dmodel, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, x):
+        activation = nn.functional.silu(self.w1(x)).repeat_interleave(
+            repeats=self.n, dim=-1
+        )
+        gate = self.w2(x)
+        return self.w3(activation * gate)
+
+
+class SwiGLURepeatedGatingFeedForward(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        n,
+        init_type: ValidInitType,
+        init_scale: float,
+    ):
+        super().__init__()
+        desired_size = 3 * dmodel * dff
+        x = desired_size // (dmodel * (2 * n + 1))
+        self.n = n
+        self.w1 = Linear(
+            dmodel, n * x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w2 = Linear(
+            dmodel, x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w3 = Linear(
+            n * x, dmodel, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, x):
+        activation = nn.functional.silu(self.w1(x))
+        gate = self.w2(x).repeat_interleave(repeats=self.n, dim=-1)
+        return self.w3(activation * gate)
+
+
+import numpy as np
+
+
+def solve_for_x(dm, size):
+    coeffs = [dm, 2 * dm, -size]
+    roots = np.roots(coeffs)
+    return max(roots)
+
+
+class OuterProductSwiglu(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        init_type: ValidInitType,
+        init_scale: float,
+    ):
+        super().__init__()
+        desired_size = 3 * dmodel * dff
+        x = int(solve_for_x(dmodel, desired_size))
+        self.w1 = Linear(
+            dmodel, x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w2 = Linear(
+            dmodel, x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w3 = Linear(
+            x * x, dmodel, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, x):
+        activation = nn.functional.silu(self.w1(x))
+        gate = self.w2(x)
+        square = activation.unsqueeze(-1) * gate.unsqueeze(-2)
+        square = square.flatten(2)
+        return self.w3(square)
+
+
+class DecoupledSwiGLU(LoggingLayer):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        init_type: ValidInitType,
+        init_scale: float,
+    ):
+        super().__init__()
+        desired_size = 3 * dmodel * dff
+        x = desired_size // (dmodel * 4)
+        self.w1 = Linear(
+            dmodel, x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w2 = Linear(
+            dmodel, x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w3 = Linear(
+            dmodel, x, init_type=init_type, init_scale=init_scale, bias=False
+        )
+        self.w4 = Linear(
+            x, dmodel, init_type=init_type, init_scale=init_scale, bias=False
+        )
+
+    def forward(self, x):
+        return self.w4(self.w1(x) * self.w2(x) * F.sigmoid(self.w3(x)))
+
+
 def FeedForward(
     dmodel,
     dff,

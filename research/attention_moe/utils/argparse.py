@@ -416,6 +416,7 @@ def introduce_parser_arguments(
     parser.add_argument("--momqa_use_extra_mqa", action="store_true")
     parser.add_argument("--use_rope", action="store_true")
     parser.add_argument("--rope_theta", type=float, default=10000.0)
+    parser.add_argument("--repeat_activation_count", type=int, default=1)
     parser.add_argument("--rms_norm_eps", type=float, default=1e-6)
     parser.add_argument("--use_qk_norm", action="store_true")
     parser.add_argument("--diff_transformer_lowrank_dim", type=int, default=0)

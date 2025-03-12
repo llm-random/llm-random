@@ -712,6 +712,36 @@ def get_ff_layer(args):
         return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
+    elif args.ff_mode == "swi_glu_repeat_activation":
+        return_fn = lambda: llm.SwiGLURepeatedActivationFeedForward(
+            args.dmodel,
+            args.dff,
+            args.repeat_activation_count,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.ff_mode == "swi_glu_repeat_gating":
+        return_fn = lambda: llm.SwiGLURepeatedGatingFeedForward(
+            args.dmodel,
+            args.dff,
+            args.repeat_activation_count,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.ff_mode == "decoupled_swiglu":
+        return_fn = lambda: llm.DecoupledSwiGLU(
+            args.dmodel,
+            args.dff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
+    elif args.ff_mode == "outer_product_swiglu":
+        return_fn = lambda: llm.OuterProductSwiglu(
+            args.dmodel,
+            args.dff,
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+        )
     elif args.ff_mode == "vanilla_timed":
         return_fn = lambda: FeedForwardTimed(
             args.dmodel, args.dff, args.activation_type, args.no_ff
