@@ -55,7 +55,7 @@ if __name__ == "__main__":
             env["PYTHONPATH"] = os.getcwd()
 
             PROCESS_CALL_FUNCTION(subprocess_args, env)
-            sleep(1)
+            sleep(0.1)
 
             if interactive_debug_session:
                 print("Ran only the first experiment in interactive mode. Aborting...")

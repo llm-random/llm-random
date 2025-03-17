@@ -58,7 +58,12 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--init_type",
         type=str,
-        choices=["kaiming_uniform", "truncated_normal", "truncated_normal_fixed"],
+        choices=[
+            "kaiming_uniform",
+            "truncated_normal",
+            "truncated_normal_fixed",
+            "normal",
+        ],
         required=True,
     )
     parser.add_argument("--init_scale", type=float, required=True)
@@ -162,6 +167,7 @@ def introduce_parser_arguments(
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
+    parser.add_argument("--logging_spectral_norm", action="store_true")
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
     parser.add_argument("--eval_interval", type=int, default=1000)
     parser.add_argument("--n_eval_batches", type=int, default=10)

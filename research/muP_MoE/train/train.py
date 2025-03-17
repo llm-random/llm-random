@@ -102,18 +102,28 @@ def get_muP_learning_rates(args, model, m_d=1.0):
         "gating": 1,
     }
 
-    ratio_to_params = defaultdict(list)
+    ratio_to_params = defaultdict(lambda: {"params": [], "name": "other"})
+
     for name, param in model.named_parameters():
         ratio = 1.0
-        for keyword in key_lr_dict.keys():
+        group_name = "other"
+        for keyword, ratio in key_lr_dict.items():
             if keyword in name:
-                ratio = key_lr_dict[keyword]
+                ratio = ratio
+                group_name = keyword
                 break
-        print(f"Assigning lr ratio {ratio} to {name}")
-        ratio_to_params[ratio].append(param)
+        print(f"Assigning lr ratio {ratio} to {name} (Group: {group_name})")
+        ratio_to_params[ratio]["params"].append(param)
+        ratio_to_params[ratio]["name"] = group_name
+
     param_groups = [
-        {"params": params, "lr": ratio * lr, "lr_ratio": ratio}
-        for ratio, params in ratio_to_params.items()
+        {
+            "params": group["params"],
+            "lr": ratio * lr,
+            "lr_ratio": ratio,
+            "name": group["name"],
+        }
+        for ratio, group in ratio_to_params.items()
     ]
     return param_groups
 
@@ -263,11 +273,16 @@ def main(
         else None
     )
 
+    dff_ratio = None
+    if args.dff is not None:
+        dff_ratio = args.dff / args.dmodel
+
     model = get_model(
         max_length=args.cutoff,
         vocab_size=VOCAB_SIZE,
         block_modules=block_modules,
         dm=args.dmodel,
+        dff_ratio=dff_ratio,
         n_blocks=args.n_blocks,
         device=(
             DEVICE if rank is None else torch.device("cpu")
@@ -427,6 +442,7 @@ def main(
         logging_interval_loss=args.logging_interval_loss,
         logging_interval_light=args.logging_interval_light,
         logging_interval_heavy=args.logging_interval_heavy,
+        logging_spectral_norm=args.logging_spectral_norm,
         eval_interval=args.eval_interval,
         n_eval_batches=args.n_eval_batches,
         n_gpus=args.n_gpus,

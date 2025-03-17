@@ -38,6 +38,7 @@ class muP_Trainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
+    logging_spectral_norm: bool
     eval_interval: int
     n_eval_batches: int
     max_sequence_length: int
@@ -312,6 +313,11 @@ class muP_Trainer:
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
         )
+        for i, param_group in enumerate(self.optimizer.param_groups):
+            name = param_group.get("name", f"Group {i}")  # Default to index if no name
+            self.logger.report_scalar(
+                title=f"param_groups_lr/{name}", value=param_group["lr"], iteration=step
+            )
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
@@ -329,16 +335,33 @@ class muP_Trainer:
         if (
             self.logging_interval_heavy > 0
             and step % self.logging_interval_heavy == 0
-            and step > 0
             and self.log_gradients_and_weights
         ):
             for name, value in self.model.named_parameters():
                 if value.grad is not None:
                     norm = torch.linalg.norm(value.grad)
                     g_norms[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
+                    if (
+                        self.logging_spectral_norm and value.grad.dim() >= 2
+                    ):  # Ensure it's at least 2D
+                        spectral_norm = torch.linalg.svdvals(value.grad.float()).max()
+                        g_norms[
+                            f"spectral_norms/{name.replace('.', '/')}/grad"
+                        ] = spectral_norm
                 if value.requires_grad:
                     norm = torch.linalg.norm(value)
+                    variance = torch.var(value)
                     w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
+                    w_norms[
+                        f"weight_variances/{name.replace('.', '/')}/weight"
+                    ] = variance
+                    if (
+                        self.logging_spectral_norm and value.dim() >= 2
+                    ):  # Ensure it's at least 2D
+                        spectral_norm = torch.linalg.svdvals(value.float()).max()
+                        g_norms[
+                            f"spectral_norms/{name.replace('.', '/')}/weight"
+                        ] = spectral_norm
             g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
                 torch.tensor(list(g_norms.values()))
             )

@@ -470,6 +470,7 @@ def get_model(
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
     mup_config: dict = None,
+    dff_ratio: int = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -506,14 +507,15 @@ def get_model(
     ).to(last_gpu)
 
     if mup_config is not None:
-        scale = (
-            init_scale / mup_config["base_dmodel"]
-        )  # this is a normal init undercover xd
+        scale = (init_scale**2) / mup_config["base_dmodel"]
+        lin2_factor = 1.0
+        if dff_ratio is not None:
+            lin2_factor = dff_ratio
         print("---Embedding init with muP---")
         for name, param in embedding_layer.named_parameters():
             # if "0" in name:
             print(f"Initializing {name} with scale {scale}")
-            torch.nn.init.normal_(param.data, mean=0.0, std=(scale) ** 0.5)
+            torch.nn.init.normal_(param.data, mean=0.0, std=init_scale)
 
         print("---Unembedding init with muP---")
         for name, param in head.named_parameters():
@@ -523,11 +525,11 @@ def get_model(
         print("---TransformerTower init with muP---")
         transformer_init_dict = {
             "input_projection": (1 / mup_config["m_d"]),
-            "output_projection": (1 / (mup_config["m_d"] * 2 * n_blocks)),
+            "output_projection": (1 / (mup_config["m_d"])),
             "lin1_weight": (1 / mup_config["m_d"]),
-            "lin2_weight": (1 / (mup_config["m_d"] * 2 * n_blocks)),
+            "lin2_weight": (1 / (mup_config["m_d"] * lin2_factor)),
             "pre_relu": (1 / mup_config["m_d"]),  # FF in, ver2
-            "post_relu": (1 / (mup_config["m_d"] * 2 * n_blocks)),  # FF out, ver2
+            "post_relu": (1 / (mup_config["m_d"] * lin2_factor)),  # FF out, ver2
         }
         for name, param in transformer_tower.named_parameters():
             for keyword, value in transformer_init_dict.items():
