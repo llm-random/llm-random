@@ -1,0 +1,60 @@
+
+parent: configs/projected_dis/1ff/common.yaml
+md5_parent_hash: ba8618af2f2e0bb92c5a7aaa3ba1d2a7
+time: 0-10:00:00
+# time: 0-00:20:00
+n_gpus: 2
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
+  tags: ["projected_dis", "1ff", "compression", "dm768_1024", "cosine_tune"] 
+#  /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-08_19-15-12
+ 
+  dmodel: 768
+  dff: 768
+  projected_dmodel: 1024
+  projected_dff: 1024
+  ^n_steps: [6108, 10179]
+  # n_steps: 10179
+
+  # scheduler: trapezoidal
+  scheduler: cosine
+  # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001, 0.0015]
+  ^learning_rate: [0.0015] #dev
+  # learning_rate: #dev
+
+  ^lr_warmup_percent: [0.1]
+  # lr_warmup_percent: #dev
+
+  ^final_lr_fraction: [0.01]
+  # final_lr_fraction: #dev
+
+  
+  # attention_mode: projected_vanilla
+  # ff_mode: projected_vanilla
+  # attention_mode: vanilla
+  # ff_mode: vanilla
+  attention_mode: projected_vanilla_res
+  ff_mode: projected_vanilla_res
+
+  projection_init_type: head_half
+ 
+  projected_distillation: True
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-05_23-35-50/None/1227083/15533.pt
+
+  # fsdp_use_orig_params: True
+  # fsdp_enabled: True
+  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
+
+  # unprojected_embeddings: true
+  # unprojected_attention: true
+  # unprojected_ff: true
+
+  fsdp_use_orig_params: True
+  fsdp_enabled: True
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
+
