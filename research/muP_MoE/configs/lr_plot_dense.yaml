@@ -41,7 +41,7 @@ params:
 
   # learning
   scheduler: cosine
-  ^learning_rate: [2e-2, 1e-2, 5e-3, 2e-3, 1e-3]
+  ^learning_rate: [1e-2, 5e-3, 2e-3, 1e-3, 5e-4]
   final_lr_fraction: 0.1
   grad_clip: 0.5
   weight_decay: 0.1
