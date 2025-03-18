@@ -37,7 +37,7 @@ params:
   # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
   learning_rate: 0.00025
 
-  ^lr_warmup_percent: [0.075, 0.15]
+  ^lr_warmup_percent: [0.075]
   # lr_warmup_percent: 0.1
 
   ^final_lr_fraction: [0.0075, 0.015]

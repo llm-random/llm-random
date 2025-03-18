@@ -12,7 +12,7 @@ params:
   # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
   # tags: ["projected_dis", "1ff", "compression", "dm256", "residual_all", "cosine_tune"] 
   tags: ["projected_dis", "1ff", "compression", "dm256"] 
-  tags: ["projected_dis", "1ff", "compression", "dm256", "debug_proj"] 
+  # tags: ["projected_dis", "1ff", "compression", "dm256", "debug_proj"] 
 #  /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_17-56-34
  
   dmodel: 256
