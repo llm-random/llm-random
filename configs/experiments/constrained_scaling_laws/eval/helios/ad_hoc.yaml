@@ -1,0 +1,11 @@
+parent: configs/experiments/constrained_scaling_laws/eval/helios/model.yaml
+md5_parent_hash: ec87d65545b98b830608d6aba7782afe
+n_gpus: 4
+time: 04:00:00
+
+params:
+  ^neptune_id: ['LLMRANDOM-30165']
+  ^final_eval_step: [Null]
+  n_blocks: 1
+  dmodel: 1
+  n_att_heads: 1

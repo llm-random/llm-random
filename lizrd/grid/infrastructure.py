@@ -196,7 +196,7 @@ class HeliosBackend(MachineBackend):
             "--partition=plgrid-gpu-gh200",
             "--cpus-per-gpu=72",
             "--mem-per-gpu=100G",
-            "--account=plgllmefficont-gpu-gh200",
+            "--account=plgllmefficont2-gpu-gh200",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
