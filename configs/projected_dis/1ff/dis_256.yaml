@@ -2,7 +2,7 @@
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
 # time: 0-02:00:00
-time: 0-00:30:00
+time: 0-01:30:00
 # n_gpus: 2 #dev
 n_gpus: 2
 cpus_per_gpu: 16
@@ -16,12 +16,12 @@ params:
   dff: 256
   distilled_dmodel: 512
   distilled_dff: 512
-  distillation_temperature: 1.0
+  distillation_temperature: 2.0
   
   n_steps: 7050
 
-  # batch_size: 256
-  batch_size: 64
+  batch_size: 256
+  # batch_size: 64
   cutoff: 256
   n_blocks: 8
   n_att_heads: 8

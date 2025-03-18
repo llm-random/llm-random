@@ -296,14 +296,20 @@ def calculate_llm_distillation_loss_and_gradient(
             mask_loss = mask_loss[mask.reshape(-1) == 1]
             cross_entropy_loss = mask_loss.mean() / num_checkpoint_accumulation_steps
 
-        mask_loss = F.kl_div(
-            F.log_softmax(model_output.flatten(0, -2) / distillation_temperature, dim=-1),
-            F.softmax(tutor_target.flatten(0, -2) / distillation_temperature, dim=-1),
+        # mask_loss = F.kl_div(
+        #     F.log_softmax(model_output.flatten(0, -2) / distillation_temperature, dim=-1),
+        #     F.softmax(tutor_target.flatten(0, -2) / distillation_temperature, dim=-1),
+        #     reduction="none"
+        # ) * (distillation_temperature ** 2)
+
+        mask_loss = F.cross_entropy(
+            model_output.flatten(0, -2),
+            tutor_target.flatten(0, -2),
             reduction="none"
-        ) * (distillation_temperature ** 2)
-        # mask_loss = mask_loss.sum(dim=-1)  #dev Sum over vocab dimension
-        print(f"kl_div: {mask_loss.shape}") #dev
-        print(f"kl_div: {mask.reshape(-1).shape}") #dev
+        )
+
+        # print(f"kl_div: {mask_loss.shape}") #dev
+        # print(f"kl_div: {mask.reshape(-1).shape}") #dev
         mask_loss = mask_loss[mask.reshape(-1) == 1]
         loss = mask_loss.mean() / num_checkpoint_accumulation_steps
 
@@ -330,7 +336,8 @@ def calculate_llm_distillation_loss_and_gradient(
         run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
 
     clear_additional_losses(model)
-    return cross_entropy_loss.item(), aux_info
+    # return loss.item(), aux_info #dev
+    return cross_entropy_loss.item(), aux_info #dev
 
 
 def get_attention_layer(args):
