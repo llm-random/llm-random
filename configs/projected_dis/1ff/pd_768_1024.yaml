@@ -1,35 +1,47 @@
 
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: ba8618af2f2e0bb92c5a7aaa3ba1d2a7
-time: 0-10:00:00
-# time: 0-00:20:00
-n_gpus: 2
+time: 0-05:00:00
+# time: 0-00:50:00
+n_gpus: 4
 cpus_per_gpu: 16
 
 params:
   name: "PD"
   # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
-  tags: ["projected_dis", "1ff", "compression", "dm768_1024", "cosine_tune"] 
-#  /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-08_19-15-12
- 
+  # tags: ["projected_dis", "1ff", "compression", "dm768_1024", "test"] 
+  tags: ["projected_dis", "1ff", "compression", "dm768_1024", "tune"] 
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_15-58-13
+  # t0036 is bad
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_17-03-19 - ??
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-31-50 - 256 batch
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-32-52 - 512 batch
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-34-25 - 512 - 5h
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-36-04 - 512 - 5h - 8gpus
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-55-22 - 32 - 5h - 8gpus
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-58-39 - 128 - 1h - 2gpus
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_23-03-52 - 256 - 1h - 2gpus
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_23-04-53 - 512 - 1h - 2gpus
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_23-12-46 - 512 - 1h - 4gpus
+  batch_size: 512
+
   dmodel: 768
   dff: 768
   projected_dmodel: 1024
   projected_dff: 1024
-  ^n_steps: [6108, 10179]
-  # n_steps: 10179
+  # ^n_steps: [6108, 10179]
+  n_steps: 10179
 
   # scheduler: trapezoidal
   scheduler: cosine
-  # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001, 0.0015]
-  ^learning_rate: [0.0015] #dev
-  # learning_rate: #dev
+  # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
+  learning_rate: 0.00025
 
-  ^lr_warmup_percent: [0.1]
-  # lr_warmup_percent: #dev
+  ^lr_warmup_percent: [0.075, 0.15]
+  # lr_warmup_percent: 0.1
 
-  ^final_lr_fraction: [0.01]
-  # final_lr_fraction: #dev
+  ^final_lr_fraction: [0.0075, 0.015]
+  # final_lr_fraction: 0.01
 
   
   # attention_mode: projected_vanilla

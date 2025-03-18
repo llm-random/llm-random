@@ -4,7 +4,7 @@ from typing import Callable, Optional, Union, Type
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
 from research.projected_distillation.llm import PredictionHeadRes, ProjectedPositionalEmbedding, ProjectedPositionalEmbeddingRes, ProjectedTokenEmbedding, ProjectedTokenEmbeddingRes
-from research.projected_distillation.utils import freeze_ln_params, freeze_projected_params, initialize_compressor
+from research.projected_distillation.utils import freeze_ln_params, freeze_projected_params, get_var_head_projection, initialize_compressor
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
@@ -134,28 +134,13 @@ def get_model(
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
-        
+
     frozen_modules = []
     mask_1d = None
     if projected_checkpoint is not None:
         if not projection_init_type:
             projection = None
             print("No projection initialization")
-        elif projection_init_type == "random":
-            print("Projection initialization: random")
-            projection = get_init_weight(
-                shape=(projected_dmodel, dm),
-                fan_in=1,  # fan_in=1 is also default in pytorch
-                init_type=init_type,
-                scale=init_scale/dm,
-            )
-        elif projection_init_type == "sum1d":
-            print("Projection initialization: sum1d")
-            assert projected_dmodel/2 == dm
-            projection = torch.zeros(projected_dmodel, projected_dmodel)
-            mask = torch.eye(projected_dmodel).bool()
-            projection = projection.masked_fill(mask, 0.25)
-            projection = projection[:, ::2] + projection[:, 1::2]
         elif projection_init_type == "half":
             print("Projection initialization: half")
             # assert projected_dmodel/2 == dm
@@ -163,64 +148,16 @@ def get_model(
             mask = torch.eye(projected_dmodel).bool()
             projection = projection.masked_fill(mask, 1)
             projection = projection[:, :int(dm)]
-        elif projection_init_type == "half_down":
-            print("Projection initialization: half")
-            # assert projected_dmodel/2 == dm
-            projection = torch.zeros(projected_dmodel, projected_dmodel)
-            mask = torch.eye(projected_dmodel).bool()
-            projection = projection.masked_fill(mask, 1)
-            projection = projection[:, int(dm):]
         elif projection_init_type == "orthogonal":
             print("Projection initialization: orthogonal")
             projection = torch.empty(projected_dmodel, dm)
             projection = torch.nn.init.orthogonal_(projection)
-        elif projection_init_type == "col1":
-            print("Projection initialization: col1")
-            projection = torch.rand(projected_dmodel, dm)
-            projection = projection / projection.sum(dim=0, keepdim=True)
-        elif projection_init_type == "half_2":
-            print("Projection initialization: half_2")
-            assert projected_dmodel%4 == 0
-            projection = torch.zeros(int(projected_dmodel/2), int(projected_dmodel/2))
-            mask = torch.eye(int(projected_dmodel/2)).bool()
-            projection = projection.masked_fill(mask, 0.125) #dev change half_2
-            projection = torch.concat((
-                torch.concat((projection, projection), dim=0),
-                torch.concat((projection, projection), dim=0),
-            ), dim=1)
-            projection = projection[:, :int(dm)]
-        elif projection_init_type == "zeros":
-            print("Projection initialization: zeros")
-            projection = torch.zeros(projected_dmodel, projected_dmodel)
-            projection[0][0] = 1.0
-            projection = projection[:, int(dm):]
-        elif projection_init_type == "half_var":
-            print("Projection initialization: half_var")
-
-            projection = torch.zeros(projected_dmodel, projected_dmodel)
-            mask = torch.eye(projected_dmodel).bool()
-            projection = projection.masked_fill(mask, 1)
-
-            columns_to_remove = torch.randperm(int(projected_dmodel))[:int(projected_dmodel-dm)]
-            mask = torch.ones(int(projected_dmodel), dtype=torch.bool)
-            mask[columns_to_remove] = False
-            print(mask) #dev
-            projection = projection[:, mask]
         elif projection_init_type == "head_half_var":
             print("Projection initialization: head_half_var")
-            
-            projection = torch.zeros(projected_dmodel, projected_dmodel)
-            mask = torch.eye(projected_dmodel).bool()
-            projection = projection.masked_fill(mask, 1)
-
-            columns_to_chose = torch.randperm(int(projected_dmodel/n_att_heads))[:int(projected_dmodel/n_att_heads-dm/n_att_heads)]
-            mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-            mask_1d[columns_to_chose] = False
-
-            print(mask_1d) #dev
-            projection = projection[:, torch.concat([mask_1d]*n_att_heads)]
+            projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
+            print(mask_1d)
         elif projection_init_type == "head_half":
-            print("Projection initialization: head_half_var")
+            print("Projection initialization: head_half")
             assert (projected_dmodel/n_att_heads)%2 == 0
             
             projection = torch.zeros(projected_dmodel, projected_dmodel)
@@ -228,7 +165,8 @@ def get_model(
             projection = projection.masked_fill(mask, 1)
 
             mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-            mask_1d[int(len(mask_1d)/2):] = False #dev
+            # mask_1d[int(len(mask_1d)/2):] = False #dev
+            mask_1d[int(dm/n_att_heads):] = False #dev
             print(mask_1d) #dev
             projection = projection[:, torch.concat([mask_1d]*n_att_heads)]
         elif projection_init_type == "svd_half":
@@ -243,12 +181,8 @@ def get_model(
         elif projection_init_type == "shared_block_half_var":
             print("Projection initialization: shared_block_half_var")
             assert (projected_dmodel/n_att_heads)%2 == 0
-            
-            columns_to_chose = torch.randperm(int(projected_dmodel/n_att_heads))[:int(projected_dmodel/n_att_heads-dm/n_att_heads)]
-            mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-            mask_1d[columns_to_chose] = False
-            mask_1d = torch.concat([mask_1d]*n_att_heads)
-            print(mask_1d) #dev
+            assert (dm/n_att_heads)%2 == 0
+            projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
             projection = "shared_block"
         elif projection_init_type == "shared_att_in_half":
             print("Projection initialization: shared_att_in_half")
@@ -283,7 +217,7 @@ def get_model(
         if isinstance(projection, torch.Tensor):
             projection = projection.to(device) #dev to device projection reference 
         # load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, unprojected_embeddings, unprojected_attention, unprojected_ff)
-        initialize_compressor(model, projected_checkpoint["model"], dm, projected_dmodel, projection, mask_1d) #dev
+        initialize_compressor(model, projected_checkpoint["model"], dm, projected_dmodel, n_att_heads, projection, mask_1d) #dev
         frozen_modules = freeze_projected_params(model, unprojected_ff)
 
     if no_layer_norm:

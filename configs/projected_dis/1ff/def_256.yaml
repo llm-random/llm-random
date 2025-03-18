@@ -17,6 +17,9 @@ params:
   # ^final_lr_fraction: [0.0, 0.0125, 0.025, 0.05]
   final_lr_fraction: 0.0125
 
+  batch_size: 256
+  cutoff: 256
+  
   dmodel: 256
   dff: 256
   ^n_steps: [8812, 7931, 7050, 6168, 5287, 4406, 3525, 2644, 1762, 881] # 1, 0.9, 0.8, 0.7 ...

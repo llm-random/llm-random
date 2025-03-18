@@ -10,16 +10,18 @@ cpus_per_gpu: 16
 params:
   name: "PD"
   # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
-  tags: ["projected_dis", "1ff", "compression", "dm256", "residual_all", "cosine_tune"] 
-#  /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-05_23-41-24
+  # tags: ["projected_dis", "1ff", "compression", "dm256", "residual_all", "cosine_tune"] 
+  tags: ["projected_dis", "1ff", "compression", "dm256"] 
+  tags: ["projected_dis", "1ff", "compression", "dm256", "debug_proj"] 
+#  /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_17-56-34
  
   dmodel: 256
   dff: 256
   projected_dmodel: 512
   projected_dff: 512
   # ^n_steps: [8812, 7931, 7050, 6168, 5287, 4406, 3525, 2644, 1762, 881]
-  ^n_steps: [7050, 8812]
-#   n_steps: 7050,
+  # ^n_steps: [7050, 8812]
+  n_steps: 7050
 
   batch_size: 256
   cutoff: 256
@@ -33,16 +35,16 @@ params:
   # ^learning_rate: [0.001, 0.002, 0.004]
   # ^learning_rate: [0.0005, 0.00075, 0.001, 0.0015, 0.002]
   # ^learning_rate: [0.00075, 0.0015]
-#   ^learning_rate: [0.00075, 0.001, 0.0015]
+  # ^learning_rate: [0.00075, 0.001, 0.0015]
   learning_rate: 0.0015
   # ^lr_warmup_percent: [0.04, 0.08, 0.1, 0.16]
-#   ^lr_warmup_percent: [0.01, 0.02, 0.04]
-#   ^lr_warmup_percent: [0.06, 0.08, 0.1]
-  ^lr_warmup_percent: [0.14, 0.18, 0.22, 0.26, 0.3]
-#   lr_warmup_percent: 0.04
+  # ^lr_warmup_percent: [0.01, 0.02, 0.04]
+  # ^lr_warmup_percent: [0.06, 0.08, 0.1]
+  # ^lr_warmup_percent: [0.14, 0.18, 0.22, 0.26, 0.3]
+  lr_warmup_percent: 0.1
   # ^final_lr_fraction: [0.025, 0.05, 0.075, 0.1]
-  ^final_lr_fraction: [0.01]
-#   final_lr_fraction: 0.03
+  # ^final_lr_fraction: [0.01]
+  final_lr_fraction: 0.01
 
   attention_mode: projected_vanilla_res
   ff_mode: projected_vanilla_res
@@ -51,7 +53,7 @@ params:
   # attention_mode: vanilla
   # ff_mode: vanilla
 
-  projection_init_type: head_half
+  projection_init_type: shared_block_half_var
   # ^projection_init_type: [half_var, half, head_half, head_half_var]
   # ^projection_init_type: [half, half_down, half_var, half_var, half_var, half_var, half_var]
  

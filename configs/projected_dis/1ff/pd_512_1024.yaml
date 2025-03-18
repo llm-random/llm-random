@@ -1,8 +1,8 @@
 
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: ba8618af2f2e0bb92c5a7aaa3ba1d2a7
-time: 0-10:00:00
-# time: 0-00:20:00
+# time: 0-10:00:00
+time: 0-00:20:00
 n_gpus: 2
 cpus_per_gpu: 16
 
@@ -11,7 +11,7 @@ params:
   # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
   tags: ["projected_dis", "1ff", "compression", "dm768_1024", "cosine_tune"] 
 #  /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-08_19-15-12
- 
+
   dmodel: 768
   dff: 768
   projected_dmodel: 1024

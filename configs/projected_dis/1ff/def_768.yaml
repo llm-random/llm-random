@@ -1,0 +1,24 @@
+
+parent: configs/projected_dis/1ff/common.yaml
+md5_parent_hash: ba8618af2f2e0bb92c5a7aaa3ba1d2a7
+time: 0-10:00:00
+n_gpus: 4
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  tags: ["projected_dis", "1ff", "dm768"]
+  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-18_11-56-22 - broken 036 cluster
+
+  # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
+  ^learning_rate: [0.000125]
+  # learning_rate: 0.001
+
+  dmodel: 768
+  dff: 768
+  n_steps: 10_179
+
+  fsdp_use_orig_params: True
+  fsdp_enabled: True
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
