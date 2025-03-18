@@ -16,6 +16,7 @@ from torch.distributed import (
 from ast import literal_eval
 
 from lizrd.core import misc
+from lizrd.core import llm
 from lizrd.core.llm import Parallel
 from lizrd.support.logging import (
     get_current_logger,
@@ -55,6 +56,7 @@ from research.conditional.utils.model_utils import (
     get_attention_layer,
     get_mamba_layer,
     get_mixed_precision_ignored_classes,
+    get_norm_class,
     get_residual_layer,
     get_classes_from_module_names,
     update_model_fit_gpu_info,
@@ -66,6 +68,7 @@ from lizrd.train.load_and_save_model import (
     load_optimizer_state,
     prepare_save_weights_path,
 )
+from research.projected_distillation.llm import PreNormNoBiasBlock
 
 
 def log_batch(
@@ -446,27 +449,58 @@ def main(
         unprojected_attention = args.unprojected_attention,
         unprojected_ff = args.unprojected_ff,
         n_att_heads = args.n_att_heads,
-    )
-    # print("1-------------------------------------------------------------------------------------------------------")
-    # for name, param in model.named_parameters(): #dev
-    #     print(f"{name} requires_grad: {param.requires_grad}")
-    # raise
-    # model = freez_projected_params(model)
+    ) 
 
-    # for name, param in model.named_parameters():
-    # if 'layer1' in name:  # Check if the parameter belongs to layer1
-    #     param.requires_grad = False
-    # print("1-------------------------------------------------------------------------------------------------------")
-    # print(model)
-    # print("2-------------------------------------------------------------------------------------------------------")
-    # print(model.parameters())
-    # print("3-------------------------------------------------------------------------------------------------------")
-    # print(model.named_parameters())
-    # print("4-------------------------------------------------------------------------------------------------------")
-    # for name, param in model.parameters():#dev
-    #     print(f"{name} requires_grad: {param.requires_grad}")
-    # print("5-------------------------------------------------------------------------------------------------------")
-    # raise /home/ludziej_a100/llm_random_cemetery/PD_2025-01-15_16-44-31
+    if args.distillation:
+        print("Initialize distilled model") #dev
+        distilled_block_modules ={ 
+            "attention": lambda: llm.Attention(
+                            dmodel=args.distilled_dmodel,
+                            heads=args.n_att_heads,
+                            causal=args.model_type == "gpt",
+                            dhead=None,
+                            flash=args.flash_attention,
+                            init_type=args.init_type,
+                            init_scale=args.init_scale,
+                        ),
+            "feedforward": lambda: llm.FeedForward( 
+                            args.distilled_dmodel, 
+                            args.distilled_dff, 
+                            init_type=args.init_type, 
+                            init_scale=args.init_scale
+                        ),
+        }
+
+        distilled_model = get_model(
+            max_length=args.cutoff,
+            vocab_size=VOCAB_SIZE,
+            block_modules=distilled_block_modules,
+            dm=args.distilled_dmodel,
+            n_blocks=args.n_blocks,
+            device=(
+                torch.device("cpu") if data_distributed else DEVICE
+            ),  # in case of  DDP/FSDP, we initialize the model on CPU and move it to the GPU later
+            init_type=args.init_type,
+            init_scale=args.init_scale,
+            ddp_enabled=args.ddp_enabled,   
+            fsdp_enabled=args.fsdp_enabled,
+            fsdp_param_precision=fsdp_param_precision,
+            fsdp_mixed_precision_ignore_classes=fsdp_mixed_precision_ignore_classes,
+            fsdp_offload_params=args.fsdp_offload_params,
+            fsdp_min_num_params=args.fsdp_min_num_params,
+            fsdp_modules_to_wrap=fsdp_modules_to_wrap,
+            activation_checkpointing_modules=activation_checkpointing_modules,
+            model_fragmentation=args.model_parallelism_fragmentation,
+            residual_fn=partial(PreNormNoBiasBlock, dmodel=args.distilled_dmodel, norm_class=get_norm_class(args.norm_class)),
+            is_logging_process=is_logging_process,
+            local_rank=local_rank,
+            include_positional_embedding=(not args.no_positional_embedding)
+            and (args.attention_mode != "rope"),
+            checkpoint=get_checkpoint_from_path(args.distillation_weights_path),
+            fsdp_use_orig_params = args.fsdp_use_orig_params,
+        )
+    else:
+        distilled_model = None
 
 
     if is_logging_process:
@@ -658,7 +692,9 @@ def main(
         final_eval_dataloader_batch_size=args.final_eval_dataloader_batch_size,
         n_final_eval_batches=args.n_final_eval_batches,
         checkpoint_manager_enabled=args.checkpoint_manager,
-        dont_save_final_model=args.dont_save_final_model
+        dont_save_final_model=args.dont_save_final_model,
+        distilled_model = distilled_model,
+        distillation_temperature = args.distillation_temperature
     )
     trainer.train(args.n_steps)
 

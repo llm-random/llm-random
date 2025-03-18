@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: ba8618af2f2e0bb92c5a7aaa3ba1d2a7
+md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
 time: 0-05:00:00
 # time: 0-00:50:00
 n_gpus: 4
@@ -37,11 +37,11 @@ params:
   # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
   learning_rate: 0.00025
 
-  ^lr_warmup_percent: [0.075]
-  # lr_warmup_percent: 0.1
+  # ^lr_warmup_percent: [0.075]
+  lr_warmup_percent: 0.1
 
-  ^final_lr_fraction: [0.0075, 0.015]
-  # final_lr_fraction: 0.01
+  # ^final_lr_fraction: [0.0075, 0.015]
+  final_lr_fraction: 0.01
 
   
   # attention_mode: projected_vanilla
@@ -55,11 +55,6 @@ params:
  
   projected_distillation: True
   projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-05_23-35-50/None/1227083/15533.pt
-
-  # fsdp_use_orig_params: True
-  # fsdp_enabled: True
-  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
-  # fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
   # unprojected_embeddings: true
   # unprojected_attention: true

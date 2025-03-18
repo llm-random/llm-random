@@ -256,6 +256,82 @@ def calculate_llm_loss_and_gradient(
     clear_additional_losses(model)
     return loss.item(), aux_info
 
+def calculate_llm_distillation_loss_and_gradient(
+    batch: LLMBatch,
+    model: torch.nn.Module,
+    distilled_model: torch.nn.Module,
+    mixed_precision: bool,
+    mixed_precision_dtype: torch.dtype,
+    num_checkpoint_accumulation_steps: int,
+    scaler: Optional[torch.cuda.amp.GradScaler] = None,
+    distillation_temperature = 1.0
+) -> tuple[float, dict]:
+    def hack_for_python_garbage_collection():
+        """we want to have no reference to model output while backpropagating to allow torch to free memory,
+        so we wrap loss calculation in a function"""
+        input_tokens = batch.input_ids
+        gt_tokens = batch.target_ids
+        mask = batch.should_calculate_loss
+
+        with torch.autocast(
+            device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
+        ):
+            model_output = model(input_tokens)
+            with torch.no_grad():
+                tutor_target = distilled_model(input_tokens)
+
+        # # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
+        # gt_tokens = gt_tokens.to(model_output.device) #dev
+        tutor_target = tutor_target.to(model_output.device)
+        mask = mask.to(model_output.device)
+
+        with torch.no_grad():
+            mask_loss = F.cross_entropy(
+                model_output.flatten(0, -2),
+                gt_tokens.reshape(-1).long(),
+                reduction="none",
+            )
+            print(f"cross_entropy: {mask_loss.shape}") #dev
+            print(f"cross_entropy: {mask.reshape(-1).shape}") #dev
+            mask_loss = mask_loss[mask.reshape(-1) == 1]
+            cross_entropy_loss = mask_loss.mean() / num_checkpoint_accumulation_steps
+
+        mask_loss = F.kl_div(
+            F.log_softmax(model_output.flatten(0, -2) / distillation_temperature, dim=-1),
+            F.softmax(tutor_target.flatten(0, -2) / distillation_temperature, dim=-1),
+            reduction="none"
+        ) * (distillation_temperature ** 2)
+        # mask_loss = mask_loss.sum(dim=-1)  #dev Sum over vocab dimension
+        print(f"kl_div: {mask_loss.shape}") #dev
+        print(f"kl_div: {mask.reshape(-1).shape}") #dev
+        mask_loss = mask_loss[mask.reshape(-1) == 1]
+        loss = mask_loss.mean() / num_checkpoint_accumulation_steps
+
+
+        correct_tokens = gt_tokens.long() == model_output.argmax(dim=-1)
+        correct_tokens = correct_tokens.long().reshape(-1) * mask.reshape(-1)
+        correct_tokens = correct_tokens.sum()
+        total_masked_tokens = mask.sum()
+
+        aux_info = {
+            "correct_tokens": correct_tokens,
+            "total_masked_tokens": total_masked_tokens,
+            "losses": retrieve_additional_losses(model),
+        }
+        return loss, aux_info, cross_entropy_loss
+
+    loss, aux_info, cross_entropy_loss = hack_for_python_garbage_collection()
+    for key, value in aux_info["losses"].items():
+        aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
+    if model.training:
+        loss_to_optimize = loss.clone()
+        for value in aux_info["losses"].values():
+            loss_to_optimize += value
+        run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
+
+    clear_additional_losses(model)
+    return cross_entropy_loss.item(), aux_info
+
 
 def get_attention_layer(args):
     causal = args.model_type == "gpt"

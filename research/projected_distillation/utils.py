@@ -359,13 +359,15 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
 
     for block_id, block_params in model_grouped[encode_block_tag].items():
        
-        # input_projections = torch.chunk(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection.weight"], 3, dim=0)
-        # block_params.get("block.residual_attention.layer.attention.input_projection_q.projected_weight.weight").data.copy_(input_projections[0])
-        # block_params.get("block.residual_attention.layer.attention.input_projection_k.projected_weight.weight").data.copy_(input_projections[1])
-        # block_params.get("block.residual_attention.layer.attention.input_projection_v.projected_weight.weight").data.copy_(input_projections[2])
-        block_params.get("block.residual_attention.layer.attention.input_projection_q.projected_weight.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_q.weight"])
-        block_params.get("block.residual_attention.layer.attention.input_projection_k.projected_weight.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_k.weight"])
-        block_params.get("block.residual_attention.layer.attention.input_projection_v.projected_weight.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_v.weight"])
+        input_projections = torch.chunk(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection.weight"], 3, dim=0) #dev switch
+        block_params.get("block.residual_attention.layer.attention.input_projection_q.projected_weight.weight").data.copy_(input_projections[0])
+        block_params.get("block.residual_attention.layer.attention.input_projection_k.projected_weight.weight").data.copy_(input_projections[1])
+        block_params.get("block.residual_attention.layer.attention.input_projection_v.projected_weight.weight").data.copy_(input_projections[2])
+        
+        # block_params.get("block.residual_attention.layer.attention.input_projection_q.projected_weight.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_q.weight"]) #dev switch
+        # block_params.get("block.residual_attention.layer.attention.input_projection_k.projected_weight.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_k.weight"])
+        # block_params.get("block.residual_attention.layer.attention.input_projection_v.projected_weight.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_v.weight"])
+
         block_params.get("block.residual_attention.layer.attention.output_projection.output_projection.weight").data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.output_projection.weight"])
         
         ff_in = block_params.get("block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu.weight")
@@ -375,6 +377,6 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
         ff_out.data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight"])
         
         
-        print(f'{block_id}, 3 x {projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_q.weight"]}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.output_projection.weight"].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight"].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight"].shape}') #dev
+        # print(f'{block_id}, 3 x {projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_q.weight"]}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.output_projection.weight"].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight"].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight"].shape}') #dev
         
     print("------------------------------copy weights end------------------------") #dev

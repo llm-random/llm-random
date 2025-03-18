@@ -32,6 +32,7 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_slurm_job_id, temp_modify_attr
 from research.conditional.utils.model_utils import (
+    calculate_llm_distillation_loss_and_gradient,
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
@@ -101,7 +102,9 @@ class ConditionalTrainer:
     get_final_eval_dataloader: Optional[Callable[..., DataloaderWrapper]] = None
     final_eval_dataloader_batch_size: Optional[int] = None
     n_final_eval_batches: int = None,
-    dont_save_final_model: bool = False
+    dont_save_final_model: bool = False,
+    distilled_model: torch.nn.Module = None,
+    distillation_temperature: float = 1.0,
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -116,9 +119,12 @@ class ConditionalTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
-        self._calculate_loss_and_gradient = make_loss_and_gradient_function(
-            loss_checkpoint_chungs=self.loss_checkpoint_chungs,
-        )
+        if not self.distilled_model:
+            self._calculate_loss_and_gradient = make_loss_and_gradient_function(
+                loss_checkpoint_chungs=self.loss_checkpoint_chungs,
+            )
+        else:
+            self._calculate_loss_and_gradient = calculate_llm_distillation_loss_and_gradient
         self.layer_manager = LayerManager(
             self.model,
             self.logging_interval_light,
@@ -282,6 +288,8 @@ class ConditionalTrainer:
         self,
         step,
     ):
+        if self.distilled_model:
+            self.distilled_model.eval()
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
@@ -361,15 +369,26 @@ class ConditionalTrainer:
                     num_batch_chunks,
                     i,
                 )
-
-            cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
-                batch=batch_copy,
-                model=self.model,
-                mixed_precision=self.mixed_precision,
-                mixed_precision_dtype=self.mixed_precision_dtype,
-                num_checkpoint_accumulation_steps=num_batch_chunks,
-                scaler=self.scaler,
-            )
+            if not self.distilled_model:
+                cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
+                    batch=batch_copy,
+                    model=self.model,
+                    mixed_precision=self.mixed_precision,
+                    mixed_precision_dtype=self.mixed_precision_dtype,
+                    num_checkpoint_accumulation_steps=num_batch_chunks,
+                    scaler=self.scaler,
+                )
+            else:
+                cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
+                    batch=batch_copy,
+                    model=self.model,
+                    distilled_model=self.distilled_model,
+                    mixed_precision=self.mixed_precision,
+                    mixed_precision_dtype=self.mixed_precision_dtype,
+                    num_checkpoint_accumulation_steps=num_batch_chunks,
+                    scaler=self.scaler,
+                    distillation_temperature=self.distillation_temperature
+                )
 
             total_cross_entropy_loss += cross_entropy_loss
             correct_tokens_value += aux_info["correct_tokens"]

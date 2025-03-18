@@ -530,4 +530,10 @@ def introduce_parser_arguments(
     parser.add_argument("--unprojected_attention", action="store_true")
     parser.add_argument("--unprojected_ff", action="store_true")
     
+    parser.add_argument("--distillation", action="store_true")
+    parser.add_argument("--distillation_weights_path", type=str, default=None)
+    parser.add_argument("--distilled_dmodel", type=int, required=False)
+    parser.add_argument("--distilled_dff", type=int, required=False)
+    parser.add_argument("--distillation_temperature", type=float, required=False, default=None)
+
     return parser

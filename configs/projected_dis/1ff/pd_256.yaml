@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: ba8618af2f2e0bb92c5a7aaa3ba1d2a7
+md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
 time: 0-02:00:00
 # time: 0-00:20:00
 # n_gpus: 2 #dev
@@ -9,11 +9,8 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
-  # tags: ["projected_dis", "1ff", "compression", "dm256", "residual_all", "cosine_tune"] 
-  tags: ["projected_dis", "1ff", "compression", "dm256"] 
-  # tags: ["projected_dis", "1ff", "compression", "dm256", "debug_proj"] 
-#  /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_17-56-34
+  # tags: ["projected_dis", "1ff", "compression", "dm256", "test"] 
+  tags: ["projected_dis", "1ff", "compression", "dm256", "debug_compressor"] 
  
   dmodel: 256
   dff: 256
@@ -30,8 +27,6 @@ params:
 
   # scheduler: trapezoidal
   scheduler: cosine
-  # ^lr_trapezoidal_decay_fraction: [0.2, 0.4, 0.6, 0.8, 1.0]
-  # lr_trapezoidal_decay_fraction: 0.9
   # ^learning_rate: [0.001, 0.002, 0.004]
   # ^learning_rate: [0.0005, 0.00075, 0.001, 0.0015, 0.002]
   # ^learning_rate: [0.00075, 0.0015]
@@ -53,12 +48,16 @@ params:
   # attention_mode: vanilla
   # ff_mode: vanilla
 
-  projection_init_type: shared_block_half_var
-  # ^projection_init_type: [half_var, half, head_half, head_half_var]
+  projection_init_type: head_half
+  # ^projection_init_type: [half_var, half, head_half, head_half_var, shared_block_half_var]
   # ^projection_init_type: [half, half_down, half_var, half_var, half_var, half_var, half_var]
  
   projected_distillation: True
-  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-02-10_12-54-15/None/1195464/19545.pt # cosine
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-02-10_12-54-15/None/1195464/19545.pt # cosine - old
+  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_14-39-57/None/1238307/19545.pt # 20tpp
+  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_14-39-57/None/1238308/40000.pt # 40tpp
+  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_14-39-57/None/1238309/80000.pt # 80tpp
+  # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_14-39-57/None/1238310/120000.pt # 120tpp
 
   # fsdp_use_orig_params: True
   # fsdp_enabled: True
