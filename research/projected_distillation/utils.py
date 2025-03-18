@@ -123,7 +123,6 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
         embedding_layer_tag: {},
         head_tag: {},
         encode_block_tag: {
-
         }
     }
     
@@ -334,46 +333,6 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
     print("------------------------------init projections end------------------------") #dev
     print("------------------------------copy weights start------------------------") #dev
 
-#     embedding_layer.
-#      layers.0.embedding.embedding.weight
-#      layers.0.embedding.embedding_p.weight
-#      layers.0.embedding_res.weight
-#      layers.1.projected_layer.pe_layer.weight
-#      layers.1.projected_layer.pe_layer_p.weight
-#      layers.1.projected_layer_res.weight
-#    head.
-#      head.head_p.weight
-#      head.head.weight
-#      head_res.weight
-#    encoder.blocks.block_
-#      0
-#        block.residual_attention.layer.pre_norm.weight
-#        block.residual_attention.layer.attention.input_projection_q.input_projection.weight
-#        block.residual_attention.layer.attention.input_projection_q.projected_weight.weight
-#        block.residual_attention.layer.attention.input_projection_q.output_projection.weight
-#        block.residual_attention.layer.attention.input_projection_k.input_projection.weight
-#        block.residual_attention.layer.attention.input_projection_k.projected_weight.weight
-#        block.residual_attention.layer.attention.input_projection_k.output_projection.weight
-#        block.residual_attention.layer.attention.input_projection_v.input_projection.weight
-#        block.residual_attention.layer.attention.input_projection_v.projected_weight.weight
-#        block.residual_attention.layer.attention.input_projection_v.output_projection.weight
-#        block.residual_attention.layer.attention.input_projection_q_res.weight
-#        block.residual_attention.layer.attention.input_projection_k_res.weight
-#        block.residual_attention.layer.attention.input_projection_v_res.weight
-#        block.residual_attention.layer.attention.output_projection.output_projection_p21.weight
-#        block.residual_attention.layer.attention.output_projection.output_projection.weight
-#        block.residual_attention.layer.attention.output_projection.output_projection_p22.weight
-#        block.residual_attention.layer.attention.output_projection_res.weight
-#        block.residual_feedforward.layer.pre_norm.weight
-#        block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu_p11.weight
-#        block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu.weight
-#        block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu_p12.weight
-#        block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu_p21.weight
-#        block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu.weight
-#        block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu_p22.weight
-#        block.residual_feedforward.layer.feedforward.ff_in_res.weight
-#        block.residual_feedforward.layer.feedforward.ff_out_res.weight
-
     # "{partial_name_of_compressor_weight}": {transformations}
     EMBEDDING_TRANSFER = {
         "layers.0.embedding.embedding.weight": [("layers.0.embedding.embedding.weight", "embedding_layer.layers.0.weight")],
@@ -399,9 +358,7 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
                     params.data.copy_(transfered_params)
 
     for block_id, block_params in model_grouped[encode_block_tag].items():
-        # print("**************************************************************************************************************************************************************************************************************************************************************************") #dev
-        # print(f"{projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection.weight"].shape}") #dev
-        # raise [1536, 512]
+       
         # input_projections = torch.chunk(projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection.weight"], 3, dim=0)
         # block_params.get("block.residual_attention.layer.attention.input_projection_q.projected_weight.weight").data.copy_(input_projections[0])
         # block_params.get("block.residual_attention.layer.attention.input_projection_k.projected_weight.weight").data.copy_(input_projections[1])
@@ -413,48 +370,11 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
         
         ff_in = block_params.get("block.residual_feedforward.layer.feedforward.ff_in.logging_ff_pre_relu.weight")
         ff_out = block_params.get("block.residual_feedforward.layer.feedforward.ff_out.logging_ff_post_relu.weight")
-        # if ff_in is None or ff_out is None:
-        #     raise Exception("IDK")
-        #     ff_in = block_params.get("block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight")
-        #     ff_out = block_params.get("block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight")
+        
         ff_in.data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight"])
         ff_out.data.copy_(projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight"])
         
         
         print(f'{block_id}, 3 x {projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.input_projection_q.weight"]}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_attention.layer.attention.output_projection.weight"].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight"].shape}, {projected_weights[encode_block_tag+block_id+"."+"block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight"].shape}') #dev
         
-
-
     print("------------------------------copy weights end------------------------") #dev
-
-# encoder.blocks.block_7.block.residual_attention.layer.pre_norm.weight
-# encoder.blocks.block_7.block.residual_attention.layer.attention.input_projection.weight
-# encoder.blocks.block_7.block.residual_attention.layer.attention.output_projection.weight
-# encoder.blocks.block_7.block.residual_feedforward.layer.pre_norm.weight
-# encoder.blocks.block_7.block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight
-# encoder.blocks.block_7.block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight
-
-#  7
-#    block.residual_attention.layer.pre_norm.weight
-#    block.residual_attention.layer.attention.input_projection_q.input_projection.weight
-#    block.residual_attention.layer.attention.input_projection_q.projected_weight.weight
-#    block.residual_attention.layer.attention.input_projection_q.output_projection.weight
-#    block.residual_attention.layer.attention.input_projection_k.input_projection.weight
-#    block.residual_attention.layer.attention.input_projection_k.projected_weight.weight
-#    block.residual_attention.layer.attention.input_projection_k.output_projection.weight
-#    block.residual_attention.layer.attention.input_projection_v.input_projection.weight
-#    block.residual_attention.layer.attention.input_projection_v.projected_weight.weight
-#    block.residual_attention.layer.attention.input_projection_v.output_projection.weight
-#    block.residual_attention.layer.attention.output_projection.output_projection_p21.weight
-#    block.residual_attention.layer.attention.output_projection.output_projection.weight
-#    block.residual_attention.layer.attention.output_projection.output_projection_p22.weight
-#    block.residual_feedforward.layer.pre_norm.weight
-#    block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p11.weight
-#    block.residual_feedforward.layer.feedforward.logging_ff_pre_relu.weight
-#    block.residual_feedforward.layer.feedforward.logging_ff_pre_relu_p12.weight
-#    block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p21.weight
-#    block.residual_feedforward.layer.feedforward.logging_ff_post_relu.weight
-#    block.residual_feedforward.layer.feedforward.logging_ff_post_relu_p22.weight
-
-
-    

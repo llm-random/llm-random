@@ -86,20 +86,10 @@ class ProjectedTokenEmbeddingRes(nn.Module):
             scale=None,
         )
         self.embedding_res = nn.Embedding(vocab_size, embedding_dim, _weight=weight_res)
-        # self.embedding_res = Linear(
-        #     embedding_dim, # ys
-        #     vocab_size, # xs
-        #     bias=False,
-        #     init_type="zeros",
-        #     init_scale=None,
-        # )
 
     def forward(self, x):
         h1 = self.embedding(x)
         h2 = self.embedding_res(x)
-        # h2 = self.embedding(x)
-        # print(h1.shape) #dev 
-        # print(h2.shape) #dev 
         return h1 + h2
 
 
@@ -187,13 +177,6 @@ class ProjectedPositionalEmbeddingRes(nn.Module):
             init_type="zeros",
             scale=None,
         )
-        # self.projected_layer_res = Linear(
-        #     max_length, # xs
-        #     embedding_dim, # ys
-        #     bias=False,
-        #     init_type="zeros",
-        #     init_scale=None,
-        # )
         self.projected_layer_res = nn.Embedding(max_length, embedding_dim, _weight=weight_res)
 
     def forward(self, x):
@@ -405,32 +388,6 @@ class ProjectedAttention(LoggingLayer):
         self.causal = causal
         self.flash = flash
         self.projected_dhead = projected_dhead
-
-        # self.input_projection = nn.Sequential(
-        #     OrderedDict([
-        #         ("input_projection",
-        #         Linear(
-        #             dmodel, # xs
-        #             heads * projected_dhead, # xb
-        #             bias=False,
-        #             init_type=init_type,
-        #             init_scale=init_scale,
-        #         ))
-        #     ])
-        # )
-
-        # self.input_projection_out = nn.Sequential(
-        #     OrderedDict([
-        #         ("output_projection",
-        #         Linear(
-        #             heads * projected_dhead, # xb
-        #             dmodel, # xs
-        #             bias=False,
-        #             init_type=init_type,
-        #             init_scale=init_scale,
-        #         ))
-        #     ])
-        # )
         
         self.input_projection_q = nn.Sequential(
             OrderedDict([
@@ -551,17 +508,9 @@ class ProjectedAttention(LoggingLayer):
         self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
 
     def forward(self, x):
-        # projected = self.input_projection(x)
-        # raise Exception(f"shape {projected.shape}")
-        # q, k, v = torch.chunk(projected, 3, dim=-1)
-        # x = self.input_projection(x)
         q = self.input_projection_q(x)
         k = self.input_projection_k(x)
         v = self.input_projection_v(x)
-        # q = self.input_projection_out(q)
-        # k = self.input_projection_out(k)
-        # v = self.input_projection_out(v)
-
 
         projected = torch.concat((q,k,v), dim=-1)
 
@@ -938,9 +887,6 @@ def ProjectedFeedForwardRes( #dev
 class PredictionHeadRes(nn.Module):
     def __init__(self, projected_dmodel, vocab_size, dm, init_type, init_scale, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # self.emb = Linear( 
-        #     projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
-        # )
         self.head = torch.nn.Sequential(
             OrderedDict([
                 (

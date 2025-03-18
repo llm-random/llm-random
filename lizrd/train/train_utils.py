@@ -61,7 +61,7 @@ def get_model(
     if projected_checkpoint and not unprojected_embeddings:
         # embedding_components = [
         #     ProjectedTokenEmbedding(vocab_size, dm, projected_dmodel, init_type=init_type, init_scale=init_scale)
-        # ] #dev
+        # ] #dev switch weights residuals
         embedding_components = [
             ProjectedTokenEmbeddingRes(vocab_size, dm, projected_dmodel, init_type=init_type, init_scale=init_scale)
         ]
@@ -75,7 +75,7 @@ def get_model(
             embedding_components.append(
                 # ProjectedPositionalEmbedding(
                 #     max_length, dm, projected_dmodel, init_type=init_type, init_scale=init_scale
-                # ) #dev
+                # ) #dev switch weights residuals
                 ProjectedPositionalEmbeddingRes(
                     max_length, dm, projected_dmodel, init_type=init_type, init_scale=init_scale
                 )
@@ -120,7 +120,7 @@ def get_model(
         #             head,
         #         )
         #     ])
-        # ) #dev
+        # ) #dev switch weights residuals
         head = PredictionHeadRes( #dev
             projected_dmodel, vocab_size, dm, init_type=init_type, init_scale=init_scale
         ).to(last_gpu)
@@ -143,7 +143,6 @@ def get_model(
             print("No projection initialization")
         elif projection_init_type == "half":
             print("Projection initialization: half")
-            # assert projected_dmodel/2 == dm
             projection = torch.zeros(projected_dmodel, projected_dmodel)
             mask = torch.eye(projected_dmodel).bool()
             projection = projection.masked_fill(mask, 1)
@@ -154,6 +153,9 @@ def get_model(
             projection = torch.nn.init.orthogonal_(projection)
         elif projection_init_type == "head_half_var":
             print("Projection initialization: head_half_var")
+            assert (projected_dmodel/n_att_heads)%2 == 0
+            assert (dm/n_att_heads)%2 == 0
+            
             projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
             print(mask_1d)
         elif projection_init_type == "head_half":
@@ -165,7 +167,6 @@ def get_model(
             projection = projection.masked_fill(mask, 1)
 
             mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-            # mask_1d[int(len(mask_1d)/2):] = False #dev
             mask_1d[int(dm/n_att_heads):] = False #dev
             print(mask_1d) #dev
             projection = projection[:, torch.concat([mask_1d]*n_att_heads)]
@@ -182,6 +183,7 @@ def get_model(
             print("Projection initialization: shared_block_half_var")
             assert (projected_dmodel/n_att_heads)%2 == 0
             assert (dm/n_att_heads)%2 == 0
+
             projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
             projection = "shared_block"
         elif projection_init_type == "shared_att_in_half":
