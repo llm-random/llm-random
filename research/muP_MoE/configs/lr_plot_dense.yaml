@@ -1,6 +1,6 @@
 runner: "research.muP_MoE.train.train"
 
-time: '1-00:00:00'
+time: '2-00:00:00'
 
 n_gpus: 4
 cpus_per_gpu: 16
@@ -28,7 +28,7 @@ params:
 
   # model
   model_type: gpt
-  ^dmodel: [768, 1024, 1536]
+  ^dmodel: [64, 128, 256, 512, 768, 1024, 1536]
   n_blocks: 24
   dhead: 64
   attention_mode: 'vanilla'

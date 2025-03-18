@@ -310,24 +310,24 @@ def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6), ax=None)
 
         if ax is None:
             plt.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
-            plt.errorbar(
-                lrs,
-                losses,
-                yerr=loss_stds,
-                marker="o",
-                label=f"Model width {model_width}",
-                capsize=3,
-            )
+            # plt.errorbar(
+            #     lrs,
+            #     losses,
+            #     yerr=loss_stds,
+            #     marker="o",
+            #     label=f"Model width {model_width}",
+            #     capsize=3,
+            # )
         else:
             ax.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
-            ax.errorbar(
-                lrs,
-                losses,
-                yerr=loss_stds,
-                marker="o",
-                label=f"Model width {model_width}",
-                capsize=3,
-            )
+            # ax.errorbar(
+            #     lrs,
+            #     losses,
+            #     yerr=loss_stds,
+            #     marker="o",
+            #     label=f"Model width {model_width}",
+            #     capsize=3,
+            # )
 
     if ax is None:
         plt.xlabel("Learning Rate (lr)")
