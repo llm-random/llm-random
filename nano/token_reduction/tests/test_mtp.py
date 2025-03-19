@@ -46,15 +46,12 @@ class TestMTPTrainer(unittest.TestCase):
             eval_dataloader=eval_dataloader,
             metric_logger=metric_logger,
         )
-
-
+        print('all ok')
+        mtp_trainer.train()
 
     def test_preprocess_input_mtp(self):
         test_batch = torch.rand(size=(3, 7))
         
 
-
-
-
 t = TestMTPTrainer()
-t.test_preprocess_input_mtp()
+t.test_mtp()
