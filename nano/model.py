@@ -151,7 +151,7 @@ def run(cfg):
     load_checkpoint(
         cfg.checkpoint_config, model, optimizer, scheduler, train_dataloader
     )
-    trainer_factory = instantiate(cfg.trainer_factory, _partial_=True)
+    trainer_factory = instantiate(cfg.trainer_factory)
     trainer_factory(
         model=model,
         optimizer=optimizer,

@@ -1,0 +1,58 @@
+hydra:
+    searchpath:
+        - file://${oc.env:PWD}
+
+defaults:
+    - configs/defaults:
+      - checkpoints
+      - distributed
+      - factories
+      - infrastructure
+      - metric_logger
+    - configs/reduction_defaults:
+      - mtp_model
+      - mtp_factories
+    - _self_
+
+training:
+    _target_: model.TrainingConfig
+    n_steps: 10
+    learning_rate: 1e-4
+    weight_decay: 0.1
+    gradient_accumulation_steps: 1
+    seed: -1
+    gradient_clipping: 0.1
+
+    scheduler: 
+        _target_: model.get_cosine_scheduler_with_warmup
+        _partial_: true
+        config:        
+            warmup_steps: 0
+            n_steps: ${training.n_steps}
+            final_lr_fraction: 1.0
+            type: "cosine"
+
+    dataloader:
+        num_workers: 4
+        dataset: "c4"
+        split: "train"
+        total_batch_size: 16
+        use_new_sampling_method: true
+        shuffle: true
+        world_size_independent: true
+
+    evaluation:
+        eval_interval: 100
+        n_eval_steps: 5
+
+
+metric_logger:
+    _target_: model.MetricLoggerConfig
+    type: "dummy"
+    tags: []
+    project_name: null
+    heavy_metrics_calculation_interval: -1
+
+checkpoint_config:
+    interval: 0
+    path: null

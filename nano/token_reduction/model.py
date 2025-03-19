@@ -1,8 +1,10 @@
 from functools import partial
 import os
+import re
 import torch
 import os
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import logging
 from torch.nn import (
@@ -10,6 +12,7 @@ from torch.nn import (
 )  # used by FSDP, but it keeps getting removed during file formatting
 from torchdata.stateful_dataloader import StatefulDataLoader
 import torch.distributed as dist
+from dataclasses import dataclass
 from model import (
     C4Dataset,
     Common,
@@ -19,6 +22,11 @@ from model import (
     TokenEmbedding,
     Trainer,
     get_dataloader,
+    TowerConfig,
+    TransformerTower,
+    BlockConfig,
+    TransformerBlock,
+    PredictionHead,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,6 +96,63 @@ def create_token_dropping_function(config, common: CommonDroppingConfig):
         ]
     )
     return TokenDroppingEmbedding(normal_embedding)
+
+
+@dataclass
+class MTPConfig:
+    n_mtp: int
+    mtp_block_config: BlockConfig
+
+
+class LLM_MTP(nn.Module):
+
+    def __init__(
+        self,
+        embedding,
+        common: Common,
+        tower_config: TowerConfig,
+        mtp_config: MTPConfig,
+    ):
+        super(LLM_MTP, self).__init__()
+
+        self.embedding_layer = embedding
+
+        self.encoder = TransformerTower(
+            common=common,
+            tower_config=tower_config,
+        )
+
+        self.mtp_modules = nn.ModuleList(
+            [TransformerBlock(common, mtp_config.mtp_block_config) for _ in range(mtp_config.n_mtp)]
+        )
+
+        self.head = PredictionHead(
+            common.dmodel,
+            common.vocab_size,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        )
+
+        self._add_metric_log_names()
+
+    def _add_metric_log_names(self):
+        def _get_metric_log_name(name: str):
+            meaningful_regex = ["block_\\d+", "attention", "feedforward", "residual"]
+            module_names = name.split(".")
+            meaningful_names = [
+                module_name
+                for module_name in module_names
+                if any(re.search(pattern, module_name) for pattern in meaningful_regex)
+            ]
+            return "/".join(meaningful_names)
+
+        for name, model in self.named_modules():
+            model.log_name = _get_metric_log_name(name)
+
+    def forward(self, *args, **kwargs):
+        x = self.embedding_layer(*args, **kwargs)
+        x = self.encoder(x)
+        return x
 
 
 class TokenMergingEmbedding(torch.nn.Module):
@@ -257,6 +322,56 @@ class MergingTrainer(Trainer):
 
         return avg_loss / float(os.environ["WORLD_SIZE"])
 
+class MTPTrainer(Trainer):
+    n_mtp: int
+
+    def _preprocess_input_mtp(self, batch):  # TODO test it
+        input_ids = batch[:, :-self.n_mtp].contiguous()
+        target_ids = batch[:, 1:].contiguous()
+
+        return input_ids, target_ids
+
+    def calculate_loss(self, batch):
+
+        def _hack_for_python_garbage_collection(input_ids, target_ids):
+            """we want to have no reference to model output while backpropagating to allow torch to free memory,
+            so we wrap loss calculation in a function"""
+            encoder_embeddings = self.model(input_ids)
+            encoder_embeddings_detatched = encoder_embeddings.detach()
+
+            # Tensors should be on the same device for loss calculation #TODO check
+            target_ids = target_ids.to(encoder_embeddings.device)
+
+            for i in range(self.n_mtp):
+                mtp_module_output = self.model.mtp_modules[i](encoder_embeddings_detatched)
+                predicted_ids = self.model.head(mtp_module_output)
+                mtp_loss = F.cross_entropy(
+                    predicted_ids.flatten(0, -2),
+                    target_ids[:, i:i + 1 - self.n_mtp].reshape(-1).long(),
+                    reduction="none",
+                )
+                mtp_loss.backward()
+            loss = mask_loss.mean() / self.gradient_accumulation_steps
+            return loss
+
+        losses = []
+        for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
+            input_ids, target_ids = self._preprocess_input_mtp(batch_chunk)
+            input_ids = input_ids.to(self.device)
+            if self.model.training:
+                self._update_processed_tokens(input_ids)
+
+            loss = _hack_for_python_garbage_collection(input_ids, target_ids)
+            if self.model.training:
+                loss.backward()
+            losses.append(loss.item())
+
+        # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
+        avg_loss = torch.tensor(losses, device=loss.device).sum()
+        if dist.is_initialized():
+            dist.all_reduce(avg_loss, op=dist.ReduceOp.SUM)
+
+        return avg_loss / float(os.environ["WORLD_SIZE"])
 
 def collate_reduction(result_seq_len, n_dropped_tokens, batch):
     batch = torch.tensor(batch)

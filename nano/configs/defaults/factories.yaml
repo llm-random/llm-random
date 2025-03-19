@@ -9,6 +9,7 @@ dataloaders_factory:
 
 trainer_factory: 
     _target_: model.Trainer
+    _partial_: true
     gradient_accumulation_steps: ${training.gradient_accumulation_steps}
     n_steps: ${training.n_steps}
     eval_interval: ${training.evaluation.eval_interval}

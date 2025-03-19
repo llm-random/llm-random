@@ -43,6 +43,8 @@ training:
     config:
       warmup_steps: 500
 
-venv_path: '$HOME/onefiler/venv/bin/activate' 
+venv_path: '$HOME/llm-random/nano/venv/bin/activate' 
 
-server: vpn
+server: entropy
+
+# server: vpn

@@ -1,0 +1,41 @@
+# @package _global_
+model:
+    _target_: token_reduction.model.LLM_MTP    
+
+    embedding:
+        _target_: model.get_vanilla_embedding
+        common: ${model.common}
+
+    tower_config:
+        _target_: model.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 4
+
+        block_config:
+            _target_: model.BlockConfig
+            attention:
+                _target_: model.AttentionConfig
+                mode: "vanilla"
+                n_heads: 4
+
+            feedforward:
+                _target_: model.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
+    common: 
+        _target_: model.Common
+        model_type: "gpt"
+        sequence_length: 256
+        dmodel: 256
+        dff: 1024
+        init_type: truncated_normal_fixed
+        init_scale: 0.1
+        vocab_size: 50257
+
+    mtp_config:
+        __target__: token_reduction.model.MTPConfig
+        n_mtp: 2
+        mtp_block_config: ${tower_config.block_config}
