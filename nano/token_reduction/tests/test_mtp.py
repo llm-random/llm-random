@@ -11,6 +11,8 @@ from token_reduction.model import (
 )
 from model import (
     StdoutLogger,
+    setup_enviroment,
+    get_metric_logger,
 )
 
 
@@ -18,6 +20,11 @@ class TestMTPTrainer(unittest.TestCase):
     def test_mtp(self):
         with initialize(version_base=None, config_path="configs"):
             cfg = compose(config_name="test_mtp", overrides=[])
+
+        setup_enviroment()
+        metric_logger = get_metric_logger(
+            metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
+        )
 
         model = instantiate(cfg.model, _convert_="all")
 
@@ -33,8 +40,6 @@ class TestMTPTrainer(unittest.TestCase):
         train_dataloader, eval_dataloader = dataloaders_factory()
 
         training_state = {"next_step": 0, "run_id": None, "processed_tokens": 0}
-        metric_logger_config = instantiate(cfg.metric_logger, _convert_="all")
-        metric_logger = StdoutLogger(metric_logger_config)
 
         trainer_factory = instantiate(cfg.trainer_factory)
         mtp_trainer = trainer_factory(

@@ -36,6 +36,6 @@ model:
         vocab_size: 50257
 
     mtp_config:
-        __target__: token_reduction.model.MTPConfig
+        _target_: token_reduction.model.MTPConfig
         n_mtp: 2
-        mtp_block_config: ${tower_config.block_config}
+        mtp_block_config: ${model.tower_config.block_config}

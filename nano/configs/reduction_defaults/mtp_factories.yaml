@@ -1,6 +1,6 @@
 trainer_factory: 
     _target_: token_reduction.model.MTPTrainer
-    __partial__: true
+    _partial_: true
     gradient_accumulation_steps: ${training.gradient_accumulation_steps}
     n_steps: ${training.n_steps}
     eval_interval: ${training.evaluation.eval_interval}

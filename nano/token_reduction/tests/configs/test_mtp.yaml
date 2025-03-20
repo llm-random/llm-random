@@ -3,12 +3,13 @@ hydra:
         - file://${oc.env:PWD}
 
 defaults:
+    - configs/clusters:
+      - default
     - configs/defaults:
       - checkpoints
       - distributed
       - factories
       - infrastructure
-      - metric_logger
     - configs/reduction_defaults:
       - mtp_model
       - mtp_factories
@@ -48,7 +49,7 @@ training:
 
 metric_logger:
     _target_: model.MetricLoggerConfig
-    type: "dummy"
+    type: "stdout"
     tags: []
     project_name: null
     heavy_metrics_calculation_interval: -1
