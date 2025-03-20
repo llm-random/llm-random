@@ -72,7 +72,9 @@ def introduce_parser_arguments(
 
     parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--adam_beta1", type=float, default=0.9)
-    parser.add_argument("--adam_beta2", type=float, default=0.999)
+    parser.add_argument(
+        "--adam_beta2", type=float, default=0.95
+    )  # TODO check with gpt3 paper
     parser.add_argument("--grad_clip", type=float, default=None)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--lr_decay", type=float, default=None)
