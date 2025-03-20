@@ -2,7 +2,7 @@
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
 time: 0-20:00:00
-n_gpus: 1
+n_gpus: 4
 cpus_per_gpu: 16
 
 params:
@@ -12,7 +12,6 @@ params:
   # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001] #+
   # ^learning_rate: [0.00075, 0.002, 0.004] # 0.001
   learning_rate: 0.001
-  # learning_rate: 0.0011 #test var
 
   batch_size: 256
   cutoff: 256
@@ -21,8 +20,14 @@ params:
 
   dmodel: 512
   dff: 512
-  ^n_steps: [19_545, 40_000, 80_000, 120_000]
-  # n_steps: 19_545
+  # ^n_steps: [19_545, 40_000, 80_000, 120_000]
+  # ^n_steps: [80_000, 120_000]
+  n_steps: 19_545
 
   dont_save_final_model: False
   # save_weights_path: /local_storage_1/ms_tmp/models/
+
+  fsdp_use_orig_params: True
+  fsdp_enabled: True
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"

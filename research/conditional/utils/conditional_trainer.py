@@ -119,6 +119,7 @@ class ConditionalTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
+        self.distill_losses_accumulator = dict()
         if not self.distilled_model:
             self._calculate_loss_and_gradient = make_loss_and_gradient_function(
                 loss_checkpoint_chungs=self.loss_checkpoint_chungs,
@@ -347,6 +348,7 @@ class ConditionalTrainer:
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
+            self._log_distill_losses(aux_info["distill_losses"], step)
         self._save_weights(step)
 
     def calculate_loss_and_gradient(
@@ -359,6 +361,7 @@ class ConditionalTrainer:
         correct_tokens_value = 0
         total_masked_tokens_value = 0
         losses = {}
+        distill_losses = {}
 
         for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
@@ -389,6 +392,8 @@ class ConditionalTrainer:
                     scaler=self.scaler,
                     distillation_temperature=self.distillation_temperature
                 )
+                for key, value in aux_info["distill_losses"].items():
+                    distill_losses[key] = distill_losses.get(key, 0) + value.item()
 
             total_cross_entropy_loss += cross_entropy_loss
             correct_tokens_value += aux_info["correct_tokens"]
@@ -401,6 +406,7 @@ class ConditionalTrainer:
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
+            "distill_losses": distill_losses,
         }
 
     def _apply_gradient(self):
@@ -627,6 +633,21 @@ class ConditionalTrainer:
                     iteration=step,
                 )
             self.auxiliary_losses_accumulator.clear()
+
+    def _log_distill_losses(self, losses, step):
+        for name, loss in losses.items():
+            self.distill_losses_accumulator[name] = (
+                self.distill_losses_accumulator.get(name, 0) + loss
+            )
+
+        if step % self.logging_interval_loss == 0 and step > 0:
+            for name, loss in losses.items():
+                self.logger.report_scalar(
+                    title=f"distill_losses/{name}",
+                    value=loss / self.logging_interval_loss,
+                    iteration=step,
+                )
+            self.distill_losses_accumulator.clear()
 
     def _save_weights(self, step):
         if (

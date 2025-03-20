@@ -1,0 +1,39 @@
+
+parent: configs/projected_dis/1ff/common.yaml
+md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
+time: 0-04:00:00
+n_gpus: 4
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  # tags: ["projected_dis", "1ff", "distillation", "dm768"] 
+  tags: ["projected_dis", "1ff", "distillation", "dm768", "test"] 
+ 
+  dmodel: 768
+  dff: 768
+  distilled_dmodel: 1024
+  distilled_dff: 1024
+  distillation_temperature: 2.0
+
+  batch_size: 256 # dev debug
+
+  n_steps: 10_179
+
+  scheduler: cosine
+  # ^learning_rate: [asd, asd, asd, asd, asd]
+  learning_rate: 0.0015
+  # ^lr_warmup_percent: [asd, asd, asd, asd, asd]
+  lr_warmup_percent: 0.01
+  # ^final_lr_fraction: [asd, asd, asd, asd, asd]
+  final_lr_fraction: 0.03
+ 
+  distillation: True
+  distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-15-49/None/118520/15533.pt # helios
+
+  
+  fsdp_use_orig_params: True
+  fsdp_enabled: True
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
+

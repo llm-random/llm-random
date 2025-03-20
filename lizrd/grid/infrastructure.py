@@ -215,13 +215,13 @@ class HeliosBackend(MachineBackend):
             f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-gh200",
             "--exclusive",  # request all non-gpu resources on node
-            "--account=plgllmefficont-gpu-gh200",
+            "--account=plgllmefficont2-gpu-gh200",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
             "srun",
             *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
-        ]
+        ]   
 
 
 class IdeasBackend(MachineBackend):
