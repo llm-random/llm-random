@@ -22,7 +22,6 @@ from model import (
 
 
 class TestSplittingIndexes(unittest.TestCase):
-
     @patch("torch.randperm")
     def test_split_indexes(self, randperm):
         batch_size = 2
