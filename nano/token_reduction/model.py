@@ -105,7 +105,6 @@ class MTPConfig:
 
 
 class LLM_MTP(nn.Module):
-
     def __init__(
         self,
         embedding,
@@ -123,7 +122,10 @@ class LLM_MTP(nn.Module):
         )
 
         self.mtp_modules = nn.ModuleList(
-            [TransformerBlock(common, mtp_config.mtp_block_config) for _ in range(mtp_config.n_mtp)]
+            [
+                TransformerBlock(common, mtp_config.mtp_block_config)
+                for _ in range(mtp_config.n_mtp)
+            ]
         )
 
         self.head = PredictionHead(
@@ -206,9 +208,7 @@ def create_token_merging_function(config, common: CommonDroppingConfig):
 
 
 class DroppingTrainer(Trainer):
-
     def calculate_loss(self, batch):
-
         def _hack_for_python_garbage_collection(input_ids, target_ids, keep_indexes):
             """we want to have no reference to model output while backpropagating to allow torch to free memory,
             so we wrap loss calculation in a function"""
@@ -263,9 +263,7 @@ class DroppingTrainer(Trainer):
 
 
 class MergingTrainer(Trainer):
-
     def calculate_loss(self, batch):
-
         def _hack_for_python_garbage_collection(
             input_ids, target_ids, keep_indexes, drop_indexes
         ):
@@ -322,37 +320,86 @@ class MergingTrainer(Trainer):
 
         return avg_loss / float(os.environ["WORLD_SIZE"])
 
-class MTPTrainer(Trainer):
+
+class TrainerMTP(Trainer):
     n_mtp: int
 
+    def __init__(self, *args, **kwargs):
+        self.n_mtp = kwargs["n_mtp"]
+        del kwargs["n_mtp"]
+        super().__init__(*args, **kwargs)
+
     def _preprocess_input_mtp(self, batch):  # TODO test it
-        input_ids = batch[:, :-self.n_mtp].contiguous()
+        input_ids = batch[:, : -self.n_mtp].contiguous()
         target_ids = batch[:, 1:].contiguous()
 
         return input_ids, target_ids
 
-    def calculate_loss(self, batch):
+    def train(self):
+        for step, batch in zip(
+            range(self.start_step, self.n_steps), self.train_dataloader
+        ):
+            self.step = step
+            self.metric_logger.set_step(step)
+            self.model.train()
+            loss = self.calculate_loss(batch)
 
+            grad_norm = self.clip_gradient()
+
+            self.log_metrics(loss, grad_norm)
+
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            self.scheduler.step()
+
+            if self._should_save_checkpoint:
+                self.save_checkpoint()
+
+            if self._should_evaluate:
+                self.eval()
+
+    def calculate_loss(self, batch):
         def _hack_for_python_garbage_collection(input_ids, target_ids):
             """we want to have no reference to model output while backpropagating to allow torch to free memory,
             so we wrap loss calculation in a function"""
             encoder_embeddings = self.model(input_ids)
             encoder_embeddings_detatched = encoder_embeddings.detach()
+            encoder_embeddings_detatched.requires_grad = True
 
             # Tensors should be on the same device for loss calculation #TODO check
             target_ids = target_ids.to(encoder_embeddings.device)
+            target_len = target_ids.shape[-1]
+            if self.step == 0:
+                print(f"input_ids: {input_ids[0, :]}")
+                print(f"target_ids: {target_ids[0, :]}")
 
+            mtp_losses = []
             for i in range(self.n_mtp):
-                mtp_module_output = self.model.mtp_modules[i](encoder_embeddings_detatched)
+                mtp_module_output = self.model.mtp_modules[i](
+                    encoder_embeddings_detatched
+                )
                 predicted_ids = self.model.head(mtp_module_output)
+                mtp_target_ids = target_ids[
+                    :, i : target_len + i - self.n_mtp + 1
+                ].detach()
+                print(f"n_mtp: {i}\predicted_ids: {predicted_ids.shape}")
+                print(f"n_mtp: {i}\mtp_target_ids: {mtp_target_ids.shape}")
                 mtp_loss = F.cross_entropy(
                     predicted_ids.flatten(0, -2),
-                    target_ids[:, i:i + 1 - self.n_mtp].reshape(-1).long(),
+                    mtp_target_ids.reshape(-1).long(),
                     reduction="none",
                 )
-                mtp_loss.backward()
-            loss = mask_loss.mean() / self.gradient_accumulation_steps
-            return loss
+                mtp_loss = mtp_loss.mean() / self.gradient_accumulation_steps
+                print(f"step: {self.step},\tn MTP: {i},\tloss: {mtp_loss}")
+                if self.model.training:
+                    mtp_loss.backward()
+                mtp_losses.append(mtp_loss)
+
+            if self.model.training:
+                mtp_grad = encoder_embeddings_detatched.grad
+                return mtp_losses, encoder_embeddings, mtp_grad
+            else:
+                return mtp_losses, None, None
 
         losses = []
         for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
@@ -361,17 +408,38 @@ class MTPTrainer(Trainer):
             if self.model.training:
                 self._update_processed_tokens(input_ids)
 
-            loss = _hack_for_python_garbage_collection(input_ids, target_ids)
+            loss, encoder_embeddings, mtp_grad = _hack_for_python_garbage_collection(
+                input_ids, target_ids
+            )
             if self.model.training:
-                loss.backward()
-            losses.append(loss.item())
+                encoder_embeddings.backward(gradient=mtp_grad)
+            losses.append(loss[0].item())  # TODO handle other mtp losses
 
         # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
-        avg_loss = torch.tensor(losses, device=loss.device).sum()
+        print(f"losses: {losses}")
+        print(f"loss: {loss}")
+        avg_loss = torch.tensor(losses, device=loss[0].device).sum()
         if dist.is_initialized():
             dist.all_reduce(avg_loss, op=dist.ReduceOp.SUM)
 
         return avg_loss / float(os.environ["WORLD_SIZE"])
+
+    def eval(self):
+        self.model.eval()
+        self.metric_logger.set_step(None)  # disables heavy logging
+        losses = []
+        with torch.no_grad():
+            for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
+                batch = batch.to(self.device)
+                loss = self.calculate_loss(batch)
+                losses.append(loss.item())
+                self.metric_logger.flush_accumulated_metrics(self.step)
+            avg_loss = torch.tensor(losses).mean()
+            self.metric_logger.log("steps/eval/loss", self.step, avg_loss.item())
+            self.metric_logger.log(
+                "tokens/eval/loss", self.processed_tokens, avg_loss.item()
+            )
+
 
 def collate_reduction(result_seq_len, n_dropped_tokens, batch):
     batch = torch.tensor(batch)
