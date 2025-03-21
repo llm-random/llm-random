@@ -1,0 +1,62 @@
+hydra:
+    searchpath:
+        - file://${oc.env:PWD}
+
+defaults:
+    - configs/clusters: ${__llmrandom_cluster_config:}
+    - configs/defaults:
+      - checkpoints
+      - distributed
+      - factories
+      - infrastructure
+      - metric_logger
+    - configs/reduction_defaults:
+      - mtp_model
+      - mtp_factories
+    - _self_
+
+training:
+    _target_: model.TrainingConfig
+    n_steps: 1000
+    learning_rate: 2e-4
+    weight_decay: 0.1
+    gradient_accumulation_steps: -1
+    seed: 11
+    gradient_clipping: 1.0
+
+    scheduler: 
+        _target_: model.get_cosine_scheduler_with_warmup
+        _partial_: true
+        config:        
+            warmup_steps: 10
+            n_steps: ${training.n_steps}
+            final_lr_fraction: 0.1
+            type: "cosine"
+
+    dataloader:
+        num_workers: 4
+        dataset: "c4"
+        split: "train"
+        total_batch_size: 128
+        use_new_sampling_method: true
+        shuffle: true
+        world_size_independent: true
+
+    evaluation:
+        eval_interval: 100
+        n_eval_steps: 5
+
+model:
+    common: 
+        sequence_length: 128
+
+checkpoint_config:
+    interval: 0
+    path: null
+
+slurm:
+  gres: gpu:1
+  time: 10:00:00
+
+venv_path: '$HOME/llm-random/nano/venv/bin/activate' 
+server: entropy
