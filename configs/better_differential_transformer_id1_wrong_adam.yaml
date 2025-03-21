@@ -1,12 +1,12 @@
 runner: "research.attention_moe.train.train"
-time: "06:00:00"
+time: "12:00:00"
 n_gpus: 4
 interactive_debug: false
 backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_adam_beta"
+  name: "diff_gda_identity_last_resort"
 
   # base bass
   mixed_precision: true
@@ -20,15 +20,15 @@ params:
   logging_interval_loss: 1000
   # save_weights_path: "model_ckpt"
   save_weights_interval: 15000
-  tags: ["diff_neurips", "diff_adam_beta_small_kv_cache"]
+  tags: ["diff_gda_identity_last_resort"]
 
 
-  cutoff: 2048
-  batch_size: 64
+  cutoff: 4096
+  batch_size: 32
   n_steps: 45_000
   final_lr_step: 45_000
   scheduler: cosine
-  lr_warmup_steps: 4500
+  lr_warmup_steps: 450
   final_lr_fraction: 0.1
 
   model_type: gpt
@@ -60,19 +60,12 @@ params:
   ff_mode: swi_glu
   use_final_norm: true
 
-  ^attention_mode: [adapter_differential]
-#  ^diff_transformer_n_negative_heads: [1, 2, 3, 6]
-#  ^diff_transformer_negative_heads_permutation: [repeat, interleave, flip_repeat, flip_interleave, roll_repeat, repeat_roll, roll_interleave]
-#  ^learning_rate: [1e-3, 2e-3]
-  ^learning_rate: [1e-3]
-  ^diff_transformer_adapter_type: [lora]
-  ^diff_transformer_lowrank_dim: [64]
+  ^attention_mode: [gda]
+  ^diff_transformer_n_negative_heads: [1]
+  ^diff_transformer_negative_heads_permutation: [repeat, interleave, flip_repeat, flip_interleave, roll_repeat, repeat_roll, roll_interleave]
+  ^learning_rate: [1e-3, 2e-3]
+  ^diff_transformer_adapter_type: [identity]
   ^dff: [2048]
-#  ^dff: [1814]
-#  ^diff_transformer_lowrank_scaling: [0.5, 1.0, 2.0, 4.0]
-  ^diff_transformer_lowrank_scaling: [1.0]
-  ^diff_transformer_lowrank_bias: [false]
-  ^diff_transformer_double_kv_cache: [true]
 
 
 

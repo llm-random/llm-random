@@ -48,6 +48,8 @@ class Lowrank(nn.Module):
         inner_dim,
         init_type,
         init_scale,
+        lowrank_scaling,
+        lowrank_bias,
         output_dim=None,
         dtype=None,
     ):
@@ -64,6 +66,14 @@ class Lowrank(nn.Module):
             init_scale=init_scale,
         )
         self.dtype = dtype
+        self.lowrank_scaling = lowrank_scaling
+        self.lowrank_bias = lowrank_bias
+        if lowrank_bias:
+            self.bias = nn.Parameter(
+                torch.zeros(outer_dim, dtype=torch.float32).normal_(
+                    mean=0, std=0.1
+                )
+            )
 
     def forward(self, x):
         if self.dtype is None:
@@ -72,7 +82,7 @@ class Lowrank(nn.Module):
             original_dtype = x.dtype
             forced_dtype = getattr(torch, self.dtype)
             x = x.to(forced_dtype)
-            res = self.w2(self.w1(x))
+            res = self.w2(self.w1(x)) * self.lowrank_scaling
             return res.to(original_dtype)
 
 

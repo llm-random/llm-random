@@ -46,6 +46,9 @@ class AdapterDifferentialAttention(LoggingLayer):
         roll_negative_heads,
         init_type,
         init_scale,
+        lowrank_scaling,
+        lowrank_bias,
+        double_kv_cache,
         n_kv_heads=None,
         adapter_type: str = "lora",
         lowrank_dtype=None,
@@ -58,10 +61,10 @@ class AdapterDifferentialAttention(LoggingLayer):
         self.dmodel = dmodel
         self.save_attention_weights = False
         self.attention_weights = None
-        self.n_positive_heads = n_heads // 2
+        self.n_positive_heads = n_heads if double_kv_cache else n_heads // 2
         assert (int(roll_negative_heads) + int(flip_negative_heads)) <= 1
 
-        self.n_positive_kv_heads = (n_kv_heads or n_heads) // 2
+        self.n_positive_kv_heads = (n_kv_heads or n_heads) if double_kv_cache else (n_kv_heads or n_heads) // 2
         self.n_rep = self.n_positive_heads // self.n_positive_kv_heads
         self.adapter_type = adapter_type
 
@@ -79,6 +82,8 @@ class AdapterDifferentialAttention(LoggingLayer):
                 self.lowrank_inner_dim,
                 init_type,
                 init_scale,
+                lowrank_scaling=lowrank_scaling,
+                lowrank_bias=lowrank_bias,
                 output_dim=q_proj_out_dim,
                 dtype=lowrank_dtype,
             )
@@ -87,6 +92,8 @@ class AdapterDifferentialAttention(LoggingLayer):
                 self.lowrank_inner_dim,
                 init_type,
                 init_scale,
+                lowrank_scaling=lowrank_scaling,
+                lowrank_bias=lowrank_bias,
                 output_dim=k_proj_out_dim,
                 dtype=lowrank_dtype,
             )
@@ -479,7 +486,9 @@ class GroupedDifferentialAttention(LoggingLayer):
         seq_len,
         init_type,
         init_scale,
-        repeat_or_interleave: str,
+        # repeat_or_interleave: str,
+        negative_heads_permutation: str,
+        adapter_type: str,
         n_kv_heads=None,
         n_negative_heads=None,
         use_qk_norm: bool = False,
@@ -488,11 +497,13 @@ class GroupedDifferentialAttention(LoggingLayer):
     ):
         super().__init__()
         # self.args = args
+        self.adapter_type = adapter_type or "none"
         self.dmodel = dmodel
         self.save_attention_weights = False
         self.attention_weights = None
         self.n_positive_heads = n_heads // 2
-        self.repeat_or_interleave = repeat_or_interleave
+        # self.repeat_or_interleave = repeat_or_interleave
+        self.negative_heads_permutation = negative_heads_permutation
 
         self.n_positive_kv_heads = (n_kv_heads or n_heads) // 2
         assert n_negative_heads <= self.n_positive_kv_heads
@@ -500,11 +511,11 @@ class GroupedDifferentialAttention(LoggingLayer):
         self.n_rep_kv = self.n_positive_heads // self.n_positive_kv_heads
         self.n_rep_negative = self.n_positive_heads // self.n_negative_heads
 
-        self.dhead = dmodel // n_heads
+        self.dhead = dmodel // n_heads if adapter_type != "identity" else 2 * dmodel // n_heads
 
         plus_q_proj_out_dim = self.dhead * self.n_positive_heads
         plus_k_proj_out_dim = self.dhead * self.n_positive_kv_heads
-        minus_qk_proj_out_dim = self.dhead * n_negative_heads
+        minus_qk_proj_out_dim = self.dhead * n_negative_heads if adapter_type != "identity" else 0
 
         self.q_proj = Linear(
             dmodel,
@@ -584,23 +595,28 @@ class GroupedDifferentialAttention(LoggingLayer):
         q = self.q_proj(x).view(
             bsz,
             self.seq_len,
-            self.n_positive_heads + self.n_negative_heads,
+            self.n_positive_heads + self.n_negative_heads if self.adapter_type != "identity" else self.n_positive_heads,
             self.dhead,
-        )
-        q, q_negative = (
-            q[:, :, : self.n_positive_heads],
-            q[:, :, self.n_positive_heads:],
         )
         k = self.k_proj(x).view(
             bsz,
             self.seq_len,
-            self.n_positive_kv_heads + self.n_negative_heads,
+            self.n_positive_kv_heads + self.n_negative_heads if self.adapter_type != "identity" else self.n_positive_kv_heads,
             self.dhead,
         )
-        k, k_negative = (
-            k[:, :, : self.n_positive_kv_heads],
-            k[:, :, self.n_positive_kv_heads:],
-        )
+
+        if self.adapter_type != "identity":
+            q, q_negative = (
+                q[:, :, : self.n_positive_heads],
+                q[:, :, self.n_positive_heads:],
+            )
+            k, k_negative = (
+                k[:, :, : self.n_positive_kv_heads],
+                k[:, :, self.n_positive_kv_heads:],
+            )
+        else:
+            q_negative = q[:, :, :self.n_negative_heads]
+            k_negative = k[:, :, :self.n_negative_heads]
         v = self.v_proj(x).view(bsz, self.seq_len, self.n_positive_kv_heads, self.v_dim)
 
         if self.use_qk_norm:
@@ -632,23 +648,57 @@ class GroupedDifferentialAttention(LoggingLayer):
         q2 = q_negative
         k1 = k
         k2 = k_negative
-        if (
-            self.n_positive_kv_heads != self.n_positive_heads
-            or self.n_negative_heads != self.n_positive_heads
-        ):
-            if self.repeat_or_interleave == "interleave":
-                q2 = q2.repeat_interleave(self.n_rep_negative, dim=2)
-                k1 = k1.repeat_interleave(self.n_rep_kv, dim=2)
-                v = v.repeat_interleave(self.n_rep_kv, dim=2)
-                k2 = k2.repeat_interleave(self.n_rep_negative, dim=2)
-            else:
-                q2 = q2.repeat(1, 1, self.n_rep_negative, 1)
-                k1 = k1.repeat(1, 1, self.n_rep_kv, 1)
-                v = v.repeat(1, 1, self.n_rep_kv, 1)
-                k2 = k2.repeat(1, 1, self.n_rep_negative, 1)
-            assert (
-                k1.shape == k2.shape == q1.shape == q2.shape
-            ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
+
+        # WARNING niekompatybilne z GQA
+        # if (
+        #     self.n_positive_kv_heads != self.n_positive_heads
+        #     or self.n_negative_heads != self.n_positive_heads
+        # ):
+        #     if self.repeat_or_interleave == "interleave":
+        #         q2 = q2.repeat_interleave(self.n_rep_negative, dim=2)
+        #         k1 = k1.repeat_interleave(self.n_rep_kv, dim=2)
+        #         v = v.repeat_interleave(self.n_rep_kv, dim=2)
+        #         k2 = k2.repeat_interleave(self.n_rep_negative, dim=2)
+        #     else:
+        #         q2 = q2.repeat(1, 1, self.n_rep_negative, 1)
+        #         k1 = k1.repeat(1, 1, self.n_rep_kv, 1)
+        #         v = v.repeat(1, 1, self.n_rep_kv, 1)
+        #         k2 = k2.repeat(1, 1, self.n_rep_negative, 1)
+        #     assert (
+        #         k1.shape == k2.shape == q1.shape == q2.shape
+        #     ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
+
+        if self.negative_heads_permutation == "repeat":
+            q2 = q2.repeat(1, 1, self.n_positive_heads // self.n_negative_heads, 1)
+            k2 = k2.repeat(1, 1, self.n_positive_heads // self.n_negative_heads, 1)
+        elif self.negative_heads_permutation == "interleave":
+            q2 = q2.repeat_interleave(self.n_positive_heads // self.n_negative_heads, dim=2)
+            k2 = k2.repeat_interleave(self.n_positive_heads // self.n_negative_heads, dim=2)
+        elif self.negative_heads_permutation == "flip_repeat":
+            q2 = torch.flip(q2, dims=(2,))
+            q2 = q2.repeat(1, 1, self.n_positive_heads // self.n_negative_heads, 1)
+            k2 = torch.flip(k2, dims=(2,))
+            k2 = k2.repeat(1, 1, self.n_positive_heads // self.n_negative_heads, 1)
+        elif self.negative_heads_permutation == "flip_interleave":
+            q2 = torch.flip(q2, dims=(2,))
+            q2 = q2.repeat_interleave(self.n_positive_heads // self.n_negative_heads, dim=2)
+            k2 = torch.flip(k2, dims=(2,))
+            k2 = k2.repeat_interleave(self.n_positive_heads // self.n_negative_heads, dim=2)
+        elif self.negative_heads_permutation == "roll_repeat":
+            q2 = torch.roll(q2, shifts=1, dims=(2,))
+            q2 = q2.repeat(1, 1, self.n_positive_heads // self.n_negative_heads, 1)
+            k2 = torch.roll(k2, shifts=1, dims=(2,))
+            k2 = k2.repeat(1, 1, self.n_positive_heads // self.n_negative_heads, 1)
+        elif self.negative_heads_permutation == "repeat_roll":
+            q2 = q2.repeat(1, 1, self.n_positive_heads // self.n_negative_heads, 1)
+            q2 = torch.roll(q2, shifts=1, dims=(2,))
+            k2 = k2.repeat(1, 1, self.n_positive_heads // self.n_negative_heads, 1)
+            k2 = torch.roll(k2, shifts=1, dims=(2,))
+        elif self.negative_heads_permutation == "roll_interleave":
+            q2 = torch.roll(q2, shifts=1, dims=(2,))
+            q2 = q2.repeat_interleave(self.n_positive_heads // self.n_negative_heads, dim=2)
+            k2 = torch.roll(k2, shifts=1, dims=(2,))
+            k2 = k2.repeat_interleave(self.n_positive_heads // self.n_negative_heads, dim=2)
 
         lambda_1 = torch.exp(
             torch.sum(self.lambda_q1 * self.lambda_k1, dim=-1).float()
@@ -873,18 +923,18 @@ class DifferentialAttention(LoggingLayer):
                 k_negative.to(dtype=torch.float32), *rel_pos, interleaved=True
             ).to(x)
 
-        if self.adapter_type != "none":
-            q1 = q
-            q2 = q_negative
-            k1 = k
-            k2 = k_negative
-            if self.n_positive_kv_heads != self.n_positive_heads:
-                k1 = k1.repeat_interleave(self.n_rep, dim=2)
-                k2 = k2.repeat_interleave(self.n_rep, dim=2)
-                v = v.repeat_interleave(self.n_rep, dim=2)
-                assert (
-                    k1.shape == k2.shape == q1.shape == q2.shape
-                ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
+        # if self.adapter_type != "none":
+        q1 = q
+        q2 = q_negative
+        k1 = k
+        k2 = k_negative
+        if self.n_positive_kv_heads != self.n_positive_heads:
+            k1 = k1.repeat_interleave(self.n_rep, dim=2)
+            k2 = k2.repeat_interleave(self.n_rep, dim=2)
+            v = v.repeat_interleave(self.n_rep, dim=2)
+            assert (
+                k1.shape == k2.shape == q1.shape == q2.shape
+            ), f"Shapes don't match: {k1.shape}, {k2.shape}, {q1.shape}, {q2.shape}"
 
         lambda_1 = torch.exp(
             torch.sum(self.lambda_q1 * self.lambda_k1, dim=-1).float()

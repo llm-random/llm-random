@@ -425,6 +425,10 @@ def introduce_parser_arguments(
     parser.add_argument("--diff_transformer_adapter_type", type=str, default="none")
     parser.add_argument("--diff_transformer_reuse_positive_k", action="store_true")
     parser.add_argument("--diff_transformer_repeat_or_interleave", type=str, default="interleave")
+    parser.add_argument("--diff_transformer_negative_heads_permutation", type=str, default="none")
+    parser.add_argument("--diff_transformer_lowrank_scaling", type=float, default=1.0)
+    parser.add_argument("--diff_transformer_lowrank_bias", action="store_true")
+    parser.add_argument("--diff_transformer_double_kv_cache", action="store_true")
     parser.add_argument("--use_final_norm", action="store_true")
     parser.add_argument(
         "--evaluate_attention_relevancy_interval", type=int, default=500
