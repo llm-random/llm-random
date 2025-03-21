@@ -694,8 +694,17 @@ def main(
         checkpoint_manager_enabled=args.checkpoint_manager,
         dont_save_final_model=args.dont_save_final_model,
         distilled_model = distilled_model,
-        distillation_temperature = args.distillation_temperature
+        distill_loss_type = args.distill_loss_type,
+        kd_ratio = args.kd_ratio,
+        distillation_temperature = args.distillation_temperature,
+        method_lam = args.method_lam
     )
+
+    # distill_loss_type: float = None,
+    # kd_ratio: float = None,
+    # distillation_temperature: float = None,
+    # method_lam: float = None,
+
     trainer.train(args.n_steps)
 
     if global_rank is not None:

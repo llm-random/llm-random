@@ -104,7 +104,10 @@ class ConditionalTrainer:
     n_final_eval_batches: int = None,
     dont_save_final_model: bool = False,
     distilled_model: torch.nn.Module = None,
-    distillation_temperature: float = 1.0,
+    distill_loss_type: float = None,
+    kd_ratio: float = None,
+    distillation_temperature: float = None,
+    method_lam: float = None,
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -390,7 +393,10 @@ class ConditionalTrainer:
                     mixed_precision_dtype=self.mixed_precision_dtype,
                     num_checkpoint_accumulation_steps=num_batch_chunks,
                     scaler=self.scaler,
+                    distill_loss_type=self.distill_loss_type
+                    kd_ratio=self.kd_ratio
                     distillation_temperature=self.distillation_temperature
+                    method_lam=self.method_lam
                 )
                 for key, value in aux_info["distill_losses"].items():
                     distill_losses[key] = distill_losses.get(key, 0) + value.item()

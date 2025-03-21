@@ -264,8 +264,11 @@ def calculate_llm_distillation_loss_and_gradient(
     mixed_precision: bool,
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
+    distill_loss_type,
+    kd_ratio,
+    distillation_temperature,
+    method_lam,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
-    distillation_temperature = 1.0
 ) -> tuple[float, dict]:
     def hack_for_python_garbage_collection():
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
@@ -293,10 +296,11 @@ def calculate_llm_distillation_loss_and_gradient(
         ) # (batch*context)
         mask_loss = mask_loss[mask.reshape(-1) == 1]
         cross_entropy_loss = mask_loss.mean() / num_checkpoint_accumulation_steps
-        
-        KD_RATIO = 0.5
-        distill_loss = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), "skl", mask.reshape(-1))
-        loss = (1 - KD_RATIO) * cross_entropy_loss + KD_RATIO * distill_loss
+          
+        # KD_RATIO = 0.5 #dev
+        # METHOD_LAM = 0.9 #dev
+        distill_loss = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), distill_loss_type, mask.reshape(-1), method_lam)
+        loss = (1 - kd_ratio) * cross_entropy_loss + kd_ratio * distill_loss
 
         # mask_loss = F.kl_div(
         #     F.log_softmax(model_output.flatten(0, -2) / distillation_temperature, dim=-1),
@@ -318,10 +322,10 @@ def calculate_llm_distillation_loss_and_gradient(
 
         distill_losses = {}
         distill_losses["distill_loss"] = loss
-        AVAILABLE_DISTILL_LOSSES = ["fkl", "rkl", "skl"]
+        AVAILABLE_DISTILL_LOSSES = ["sfkl", "srkl", "tvd", "fkl", "rkl", "skl"]
         with torch.no_grad():
             for e in AVAILABLE_DISTILL_LOSSES:
-                distill_losses[e]  = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), e, mask.reshape(-1))
+                distill_losses[e]  = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), e, mask.reshape(-1), method_lam)
 
         aux_info = {
             "correct_tokens": correct_tokens,

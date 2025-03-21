@@ -534,6 +534,9 @@ def introduce_parser_arguments(
     parser.add_argument("--distillation_weights_path", type=str, default=None)
     parser.add_argument("--distilled_dmodel", type=int, required=False)
     parser.add_argument("--distilled_dff", type=int, required=False)
+    parser.add_argument("--distill_loss_type", type=str, default=None, help="options: [sfkl, srkl, tvd, fkl, rkl, skl]") #dev decide what is the best
+    parser.add_argument("--kd_ratio", type=float, required=False, default=0.5)
     parser.add_argument("--distillation_temperature", type=float, required=False, default=None)
+    parser.add_argument("--method_lam", type=float, required=False, default=None)
 
     return parser

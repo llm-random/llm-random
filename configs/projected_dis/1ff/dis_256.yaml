@@ -35,6 +35,10 @@ params:
   final_lr_fraction: 0.03
  
   distillation: True
+  distill_loss_type: skl
+  kd_ratio: 0.5
+  distillation_temperature: 1.0 #not implemented
+  method_lam: 0.9
   # distillation_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_14-39-57/None/1238307/19545.pt
   distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-21-44/None/118527/19545.pt #helios
 
