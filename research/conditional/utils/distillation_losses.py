@@ -106,7 +106,7 @@ def skewed_reverse_kl(logits, teacher_logits, mask, lam=0.1):
     distill_loss = torch.sum(prod_probs, dim=-1).view(-1)
     return -distill_loss.mean()
 
-def get_distill_loss(logits, teacher_logits, loss_type, loss_mask, method_lam=None):
+def get_distill_loss(logits, teacher_logits, loss_mask, loss_type, method_lam=None):
     if "sfkl" == loss_type: #dev
         assert method_lam
         distill_loss = skewed_forward_kl(logits, teacher_logits, loss_mask, method_lam)

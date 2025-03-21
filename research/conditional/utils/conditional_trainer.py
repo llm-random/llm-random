@@ -393,9 +393,9 @@ class ConditionalTrainer:
                     mixed_precision_dtype=self.mixed_precision_dtype,
                     num_checkpoint_accumulation_steps=num_batch_chunks,
                     scaler=self.scaler,
-                    distill_loss_type=self.distill_loss_type
-                    kd_ratio=self.kd_ratio
-                    distillation_temperature=self.distillation_temperature
+                    distill_loss_type=self.distill_loss_type,
+                    kd_ratio=self.kd_ratio,
+                    distillation_temperature=self.distillation_temperature,
                     method_lam=self.method_lam
                 )
                 for key, value in aux_info["distill_losses"].items():

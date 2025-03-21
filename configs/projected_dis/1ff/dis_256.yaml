@@ -10,7 +10,8 @@ cpus_per_gpu: 16
 params:
   name: "PD"
   # tags: ["projected_dis", "1ff", "distillation", "dm256"] 
-  tags: ["projected_dis", "1ff", "distillation", "dm256", "test"] 
+  # tags: ["projected_dis", "1ff", "distillation", "dm256", "test"] 
+  tags: ["projected_dis", "1ff", "distillation", "dm256", "tune"] 
  
   dmodel: 256
   dff: 256
@@ -34,11 +35,16 @@ params:
   # ^final_lr_fraction: [asd, asd, asd, asd, asd]
   final_lr_fraction: 0.03
  
+  # [("sfkl", 0.1), ("srkl", 0.1), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9)]
   distillation: True
-  distill_loss_type: skl
-  kd_ratio: 0.5
+  # ^distill_loss_type: [sfkl, srkl] 
+  # ^distill_loss_type: [tvd, fkl, rkl] 
+  ^distill_loss_type: [skl] 
+  # ^method_lam: [0.05, 0.1, 0.2]
+  # ^method_lam: [Null]
+  ^method_lam: [0.8, 0.9, 0.99]
+  ^kd_ratio: [0.25, 0.5, 0.75]
   distillation_temperature: 1.0 #not implemented
-  method_lam: 0.9
   # distillation_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_14-39-57/None/1238307/19545.pt
   distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-21-44/None/118527/19545.pt #helios
 

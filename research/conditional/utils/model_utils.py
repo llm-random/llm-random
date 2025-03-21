@@ -270,7 +270,7 @@ def calculate_llm_distillation_loss_and_gradient(
     method_lam,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> tuple[float, dict]:
-    def hack_for_python_garbage_collection():
+    def hack_for_python_garbage_collection(distill_loss_type, kd_ratio, distillation_temperature, method_lam):
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
         so we wrap loss calculation in a function"""
         input_tokens = batch.input_ids # (batch, context)
@@ -299,7 +299,7 @@ def calculate_llm_distillation_loss_and_gradient(
           
         # KD_RATIO = 0.5 #dev
         # METHOD_LAM = 0.9 #dev
-        distill_loss = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), distill_loss_type, mask.reshape(-1), method_lam)
+        distill_loss = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), mask.reshape(-1), distill_loss_type, method_lam)
         loss = (1 - kd_ratio) * cross_entropy_loss + kd_ratio * distill_loss
 
         # mask_loss = F.kl_div(
@@ -322,10 +322,20 @@ def calculate_llm_distillation_loss_and_gradient(
 
         distill_losses = {}
         distill_losses["distill_loss"] = loss
-        AVAILABLE_DISTILL_LOSSES = ["sfkl", "srkl", "tvd", "fkl", "rkl", "skl"]
+        AVAILABLE_DISTILL_LOSSES = [("sfkl", 0.1), ("srkl", 0.1), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9)]
         with torch.no_grad():
-            for e in AVAILABLE_DISTILL_LOSSES:
-                distill_losses[e]  = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), e, mask.reshape(-1), method_lam)
+            # model_output_cpu = model_output.flatten(0, -2).to("cpu")
+            # tutor_output_cpu = tutor_output.flatten(0, -2).to("cpu")
+            # mask_cpu = mask.reshape(-1).to("cpu")
+            # model_output_cpu = model_output.flatten(0, -2).detach().to('cpu').requires_grad_(False)
+            # tutor_output_cpu = tutor_output.flatten(0, -2).detach().to('cpu').requires_grad_(False)
+            # mask_cpu = mask.reshape(-1).detach().to('cpu').requires_grad_(False)
+            model_output_cpu = model_output.flatten(0, -2).requires_grad_(False)
+            tutor_output_cpu = tutor_output.flatten(0, -2).requires_grad_(False)
+            mask_cpu = mask.reshape(-1).requires_grad_(False)
+
+            for loss_type_i, method_lam in AVAILABLE_DISTILL_LOSSES:
+                distill_losses[loss_type_i]  = get_distill_loss(model_output_cpu, tutor_output_cpu, mask_cpu, loss_type_i, method_lam)
 
         aux_info = {
             "correct_tokens": correct_tokens,
@@ -335,7 +345,7 @@ def calculate_llm_distillation_loss_and_gradient(
         }
         return loss, aux_info, cross_entropy_loss
 
-    loss, aux_info, cross_entropy_loss = hack_for_python_garbage_collection()
+    loss, aux_info, cross_entropy_loss = hack_for_python_garbage_collection(distill_loss_type, kd_ratio, distillation_temperature, method_lam)
     for key, value in aux_info["losses"].items():
         aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     for key, value in aux_info["distill_losses"].items():

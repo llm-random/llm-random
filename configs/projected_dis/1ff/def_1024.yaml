@@ -22,11 +22,11 @@ params:
   dmodel: 1024
   dff: 1024
   # ^n_steps: [15_533, 31_066, 62_132]  # 20T/ap
-  ^n_steps: [31_066, 62_132]
-  # n_steps: 15_533
+  # ^n_steps: [31_066, 62_132]
+  n_steps: 15_533
 
   dont_save_final_model: False
-  # save_weights_path: /local_storage_1/ms_tmp/models/
+  # save_weights_path: /local_storage_1/ms_tmp/models/ #dev entropy models dir
 
   fsdp_use_orig_params: True
   fsdp_enabled: True
