@@ -507,20 +507,22 @@ def get_model(
     ).to(last_gpu)
 
     if mup_config is not None:
-        scale = (init_scale**2) / mup_config["base_dmodel"]
+        mup_base_variance = (init_scale**2) / mup_config[
+            "base_dmodel"
+        ]  # does it correspond to "standard" variance?
         lin2_factor = 1.0
         if dff_ratio is not None:
             lin2_factor = dff_ratio
         print("---Embedding init with muP---")
         for name, param in embedding_layer.named_parameters():
             # if "0" in name:
-            print(f"Initializing {name} with scale {scale}")
-            torch.nn.init.normal_(param.data, mean=0.0, std=init_scale)
+            print(f"Initializing {name} with variance {mup_base_variance}")
+            torch.nn.init.normal_(param.data, mean=0.0, std=(mup_base_variance) ** 0.5)
 
         print("---Unembedding init with muP---")
         for name, param in head.named_parameters():
-            print(f"Initializing {name} with scale {scale}")
-            torch.nn.init.normal_(param.data, mean=0.0, std=(scale) ** 0.5)
+            print(f"Initializing {name} with variance {mup_base_variance}")
+            torch.nn.init.normal_(param.data, mean=0.0, std=(mup_base_variance) ** 0.5)
 
         print("---TransformerTower init with muP---")
         transformer_init_dict = {
@@ -534,9 +536,11 @@ def get_model(
         for name, param in transformer_tower.named_parameters():
             for keyword, value in transformer_init_dict.items():
                 if keyword in name:
-                    print(f"Initializing {name} with scale {scale * value}")
+                    print(
+                        f"Initializing {name} with variance {mup_base_variance * value}"
+                    )
                     torch.nn.init.normal_(
-                        param.data, mean=0.0, std=(scale * value) ** 0.5
+                        param.data, mean=0.0, std=(mup_base_variance * value) ** 0.5
                     )
                     break
 
