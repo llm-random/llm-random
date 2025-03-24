@@ -26,12 +26,9 @@ from lizrd.train.checkpoints_manager import (
 )
 from lizrd.train.scheduler import AbstractLRScheduler
 from research.batch_size_rampup_config import BatchSizeRampupConfig
-from research.conditional.moe_layers.continuous_moe import ContinuousMoE
-from research.conditional.moe_layers._expert_choice_old import ExpertChoiceFFOld
-from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
-from research.conditional.utils.layer_manager import LayerManager
-from research.conditional.utils.misc_tools import get_slurm_job_id, temp_modify_attr
-from research.conditional.utils.model_utils import (
+from research.context_scaling.utils.layer_manager import LayerManager
+from research.context_scaling.utils.misc_tools import get_slurm_job_id
+from research.context_scaling.utils.model_utils import (
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
@@ -42,7 +39,7 @@ from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 
 
 @define(slots=False)
-class ConditionalTrainer:
+class Trainer:
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     train_dataloader: DataloaderWrapper
@@ -209,7 +206,6 @@ class ConditionalTrainer:
 
     def _after_step_operations(self, step):
         self.model.forward_pass_cache.clear()
-        self.layer_manager.manage_learnable_temperature(step)
 
     def _final_eval(
         self,
@@ -432,6 +428,7 @@ class ConditionalTrainer:
         if self.scaler is None:
             if self.gradient_clipping is not None:
                 if isinstance(self.model, FSDP):
+                    print("Using FSDP gradient clipping")
                     self.model.clip_grad_norm_(self.gradient_clipping)
                 else:
                     torch.nn.utils.clip_grad_norm_(
@@ -455,46 +452,6 @@ class ConditionalTrainer:
             step=step,
             variant_name="normal",
         )
-        layers = [
-            l
-            for _, l in self.layer_manager._layers
-            if isinstance(
-                l,
-                (
-                    ContinuousMoE,
-                    ExpertChoiceFFOld,
-                    ExpertChoiceFF,
-                ),
-            )
-        ]
-        if self.eval_dynamic_groupsize:
-            original_group_size = layers[0].group_size
-            for log_group_size_factor in range(
-                self.eval_min_group_size_logfactor,
-                self.eval_max_group_size_logfactor + 1,
-            ):
-                current_group_size = int(
-                    2**log_group_size_factor * original_group_size
-                )
-                if (
-                    current_group_size
-                    <= self.batch_size // self.gradient_accumulation_steps
-                    and current_group_size > 0
-                ):
-                    with temp_modify_attr(layers, "group_size", current_group_size):
-                        self._eval_single_variant(
-                            batches=batches,
-                            step=step,
-                            variant_name=f"group size={current_group_size}",
-                        )
-
-        if self.eval_discrete_mot:
-            with temp_modify_attr(layers, "use_discrete_routing", True):
-                self._eval_single_variant(
-                    batches=batches,
-                    step=step,
-                    variant_name="discrete MoT routing",
-                )
 
     def _eval_single_variant(
         self, batches: Iterable[LLMBatch], step: int, variant_name: str

@@ -32,6 +32,7 @@ def introduce_parser_arguments(
     parser.add_argument("--dff", type=int, required=False)  # not used by granularity
     parser.add_argument("--n_att_heads", type=int, required=True)
     parser.add_argument("--dhead", type=int, default=None)
+    parser.add_argument("--norm_eps", type=float, default=1e-6)
 
     # other model hyperparameters
     parser.add_argument("--activation_type", type=str, default="relu")
@@ -103,9 +104,9 @@ def introduce_parser_arguments(
 
     parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--adam_beta1", type=float, default=0.9)
-    parser.add_argument("--adam_beta2", type=float, default=0.999)
-    parser.add_argument("--grad_clip", type=float, default=None)
-    parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--adam_beta2", type=float, default=0.95)
+    parser.add_argument("--grad_clip", type=float, default=1.0)
+    parser.add_argument("--weight_decay", type=float, default=0.1)
     parser.add_argument("--lr_decay", type=float, default=None)
     parser.add_argument("--lr_warmup_steps", type=int, default=None)
     parser.add_argument(
@@ -278,9 +279,20 @@ def introduce_parser_arguments(
             "layer_norm",
             "rms_norm",
         ],
-        default="layer_norm",
+        default="rms_norm",
         required=False,
     )
+    parser.add_argument(
+        "--positional_encoding",
+        type=str,
+        choices=[
+            "rope",
+            "learnable",
+        ],
+        default="rope",
+        required=False,
+    )
+    parser.add_argument("--rope_theta", type=float, default=1e4)
 
     parser.add_argument(
         "--relative_init_scale",

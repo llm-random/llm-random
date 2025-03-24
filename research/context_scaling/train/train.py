@@ -31,35 +31,34 @@ from lizrd.support.misc import (
     convert_transition_points_in_tokens_to_steps,
 )
 from lizrd.train.checkpoints_manager import start_job_manager_assessment
-from lizrd.train.train_utils import (
+from research.context_scaling.train_utils import (
     get_model,
 )
 from lizrd.text import tokenizers
 from research.batch_size_rampup_config import BatchSizeRampupConfig
-from research.conditional.utils.check_args import check_args
-from research.conditional.utils.misc_tools import (
+from research.context_scaling.utils.check_args import check_args
+from research.context_scaling.utils.misc_tools import (
     get_slurm_job_id,
     get_termination_timestamp_slurm,
 )
+from research.context_scaling.utils.model_utils import get_norm_class
+from research.context_scaling.utils.trainer import Trainer
 from research.datasets import DataloaderWrapper, get_processed_dataset
 from research.datasets import (
     DataloaderWrapper,
     get_processed_dataset,
 )
 from lizrd.train.scheduler import get_scheduler
-from research.conditional.utils.conditional_trainer import ConditionalTrainer
-from research.conditional.utils.argparse import introduce_parser_arguments
-from research.conditional.utils.model_utils import (
+from research.context_scaling.utils.argparse import introduce_parser_arguments
+from research.context_scaling.utils.model_utils import (
     disable_profile_schedule_fn,
     get_classes_from_module_names,
     get_ff_layer,
     get_attention_layer,
-    get_mamba_layer,
     get_mixed_precision_ignored_classes,
     get_residual_layer,
     get_classes_from_module_names,
     update_model_fit_gpu_info,
-    get_vanilla_mamba_layer,
     calculate_lr,
 )
 from lizrd.train.load_and_save_model import (
@@ -373,10 +372,6 @@ def main(
                 block_modules[module_name] = get_attention_layer(args)
             elif module_name == "feedforward":
                 block_modules[module_name] = get_ff_layer(args)
-            elif module_name == "mamba":
-                block_modules[module_name] = get_mamba_layer(args)
-            elif module_name == "vanilla_mamba":
-                block_modules[module_name] = get_vanilla_mamba_layer(args)
             else:
                 raise ValueError(f"Unknown module name: {module_name}")
 
@@ -442,8 +437,8 @@ def main(
         residual_fn=residual_fn,
         is_logging_process=is_logging_process,
         local_rank=local_rank,
-        include_positional_embedding=(not args.no_positional_embedding)
-        and (args.attention_mode != "rope"),
+        get_final_norm=get_norm_class(args.norm_class, args.norm_eps),
+        positional_encoding=args.positional_encoding,
         checkpoint=checkpoint,
     )
 
@@ -581,7 +576,7 @@ def main(
         else disable_profile_schedule_fn
     )
 
-    trainer = ConditionalTrainer(
+    trainer = Trainer(
         model=model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
