@@ -322,20 +322,21 @@ def calculate_llm_distillation_loss_and_gradient(
 
         distill_losses = {}
         distill_losses["distill_loss"] = loss
-        AVAILABLE_DISTILL_LOSSES = [("sfkl", 0.1), ("srkl", 0.1), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9)]
-        with torch.no_grad():
-            # model_output_cpu = model_output.flatten(0, -2).to("cpu")
-            # tutor_output_cpu = tutor_output.flatten(0, -2).to("cpu")
-            # mask_cpu = mask.reshape(-1).to("cpu")
-            # model_output_cpu = model_output.flatten(0, -2).detach().to('cpu').requires_grad_(False)
-            # tutor_output_cpu = tutor_output.flatten(0, -2).detach().to('cpu').requires_grad_(False)
-            # mask_cpu = mask.reshape(-1).detach().to('cpu').requires_grad_(False)
-            model_output_cpu = model_output.flatten(0, -2).requires_grad_(False)
-            tutor_output_cpu = tutor_output.flatten(0, -2).requires_grad_(False)
-            mask_cpu = mask.reshape(-1).requires_grad_(False)
+        
+        # AVAILABLE_DISTILL_LOSSES = [("sfkl", 0.1), ("srkl", 0.1), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9)]
+        # with torch.no_grad():
+        #     # model_output_cpu = model_output.flatten(0, -2).to("cpu")
+        #     # tutor_output_cpu = tutor_output.flatten(0, -2).to("cpu")
+        #     # mask_cpu = mask.reshape(-1).to("cpu")
+        #     # model_output_cpu = model_output.flatten(0, -2).detach().to('cpu').requires_grad_(False)
+        #     # tutor_output_cpu = tutor_output.flatten(0, -2).detach().to('cpu').requires_grad_(False)
+        #     # mask_cpu = mask.reshape(-1).detach().to('cpu').requires_grad_(False)
+        #     model_output_cpu = model_output.flatten(0, -2).requires_grad_(False)
+        #     tutor_output_cpu = tutor_output.flatten(0, -2).requires_grad_(False)
+        #     mask_cpu = mask.reshape(-1).requires_grad_(False)
 
-            for loss_type_i, method_lam in AVAILABLE_DISTILL_LOSSES:
-                distill_losses[loss_type_i]  = get_distill_loss(model_output_cpu, tutor_output_cpu, mask_cpu, loss_type_i, method_lam)
+        #     for loss_type_i, method_lam in AVAILABLE_DISTILL_LOSSES:
+        #         distill_losses[loss_type_i]  = get_distill_loss(model_output_cpu, tutor_output_cpu, mask_cpu, loss_type_i, method_lam)#.item()
 
         aux_info = {
             "correct_tokens": correct_tokens,

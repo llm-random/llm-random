@@ -8,31 +8,58 @@ cpus_per_gpu: 16
 params:
   name: "PD"
   # tags: ["projected_dis", "1ff", "distillation", "dm768"] 
-  tags: ["projected_dis", "1ff", "distillation", "dm768", "test"] 
+  tags: ["projected_dis", "1ff", "distillation", "dm768", "reproduction"] 
  
   dmodel: 768
   dff: 768
   distilled_dmodel: 1024
   distilled_dff: 1024
-  distillation_temperature: 2.0
-
-  batch_size: 256 # dev debug
-
+  
   n_steps: 10_179
+  # n_steps: 81432
+  # n_steps: 651456
 
   scheduler: cosine
   # ^learning_rate: [asd, asd, asd, asd, asd]
-  learning_rate: 0.0015
-  # ^lr_warmup_percent: [asd, asd, asd, asd, asd]
+  # ^learning_rate: [0.00075, 0.001, 0.0015]
+  # learning_rate: 0.0015
   lr_warmup_percent: 0.01
-  # ^final_lr_fraction: [asd, asd, asd, asd, asd]
   final_lr_fraction: 0.03
- 
-  distillation: True
-  distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-15-49/None/118520/15533.pt # helios
 
+  # [("sfkl", 0.1), ("srkl", 0.1), ("jsd", 0.9), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9)]
+  distillation: True
+  # ^distill_loss_type: [sfkl] 
+  # ^distill_loss_type: [sfkl, srkl] 
+  # ^distill_loss_type: [tvd, fkl, rkl] 
+  # ^distill_loss_type: [skl] 
+  # ^method_lam: [0.05, 0.1, 0.2]
+  # ^method_lam: [0.8, 0.9, 0.99]
+  # ^kd_ratio: [0.25, 0.5, 0.75]
+
+  # ^distill_loss_type: [skl] 
+  # ^method_lam: [0.2]
+  # ^kd_ratio: [0.5, 0.75]
+  # ^method_lam: [0.1]
+  # ^kd_ratio: [1.0]
+  # ^learning_rate: [0.0005, 0.00075, 0.001]
+  # ^kd_ratio: [1.0]
+  # ^batch_size: [8]
+
+  ^distill_loss_type: [srkl] 
+  # ^learning_rate: [0.001, 0.002, 0.004]
+  ^method_lam: [0.1]
+  ^learning_rate: [0.002]
+  # ^kd_ratio: [0.5, 0.75, 1]
+  ^kd_ratio: [0.75]
+
+  gradient_accumulation_steps: 2
+
+  distillation: True
+  # distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # helios
+  distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # helios
+  distillation_temperature: 1.0 #not implemented
   
-  fsdp_use_orig_params: True
+  fsdp_use_orig_params: True # 126111_0, 126120_0
   fsdp_enabled: True
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
