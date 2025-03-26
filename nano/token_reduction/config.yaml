@@ -32,6 +32,7 @@ training:
     evaluation:
         eval_interval: 0
         n_eval_steps: 5
+        seed: 123
 
     n_steps: 8000
     warmup_steps: 80

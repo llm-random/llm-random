@@ -1,3 +1,7 @@
+hydra:
+    searchpath:
+        - file://${oc.env:PWD}
+
 defaults:
     - configs/clusters: ${__llmrandom_cluster_config:}
     - configs/defaults:
@@ -9,11 +13,6 @@ defaults:
       - model
       - training
     - _self_
-
-
-hydra:
-    searchpath:
-        - file://${oc.env:PWD}
 
 
 metric_logger:
@@ -46,6 +45,7 @@ training:
   
   evaluation:
     eval_interval: 10
+    seed: 123
 
   gradient_clipping: 0.5
   n_steps: 1001
@@ -57,3 +57,5 @@ training:
 
 
 server: entropia
+
+venv_path: '$HOME/llm-random/nano/venv/bin/activate' 
