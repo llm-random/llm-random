@@ -10,6 +10,7 @@ from hydra import initialize, compose
 import logging
 from omegaconf import OmegaConf
 
+
 def dump_grid_configs(configs_grid, output_folder):
     os.makedirs(output_folder, exist_ok=True)
 
@@ -29,6 +30,8 @@ def dump_grid_configs(configs_grid, output_folder):
 
 
 logger = logging.getLogger(__name__)
+
+
 @hydra.main(version_base=None, config_path=".", config_name="experiment")
 def main(config):
 
@@ -37,16 +40,19 @@ def main(config):
         return
 
     configs_grid = create_grid_config(config)
-    output_folder = "generated_configs" # TODO parametrize
+    output_folder = "generated_configs"  # TODO parametrize
     dump_grid_configs(configs_grid, output_folder)
 
-    generate_sbatch_script(config.slurm, output_folder, len(configs_grid), config.venv_path)
+    generate_sbatch_script(
+        config.slurm, output_folder, len(configs_grid), config.venv_path
+    )
 
     if config.get("_debug_"):
         training_config, overrides = configs_grid[0]
         training_config["overrides"] = overrides
         training_config = OmegaConf.create(training_config)
         run(training_config)
+
 
 if __name__ == "__main__":
     main()

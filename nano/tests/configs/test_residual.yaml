@@ -59,6 +59,7 @@ training:
     evaluation:
         eval_interval: 2
         n_eval_steps: 5
+        seed: 2311
 
     scheduler: 
         _target_: model.get_cosine_scheduler_with_warmup
@@ -86,7 +87,8 @@ dataloaders_factory:
     _partial_: true
     dataloader_config: ${training.dataloader}
     sequence_length: ${model.common.sequence_length}
-    seed: ${training.seed}
+    train_seed: ${training.seed}
+    eval_seed: ${training.evaluation.seed}
 
 
 trainer_factory: 
