@@ -6,7 +6,7 @@ dataloaders_factory:
     dataloader_config: ${training.dataloader}
     sequence_length: ${model.common.sequence_length}
     train_seed: ${training.seed}
-    eval_seed: ${training.evaluation.eval_seed}
+    eval_seed: ${training.evaluation.seed}
     dropped_tokens: ${model.common.dropped_tokens}
 
 
