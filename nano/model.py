@@ -294,7 +294,8 @@ def collate_wrapper(examples):
 def get_dataloaders(
     dataloader_config: dict,
     sequence_length: int,
-    seed: int,
+    train_seed: int,
+    eval_seed: int,
 ):
 
     world_size = int(os.environ["WORLD_SIZE"])
@@ -306,7 +307,7 @@ def get_dataloaders(
         dataloader_config=dataloader_config,
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
-        seed=seed,
+        seed=train_seed,
         dataset_split="train",
     )
 
@@ -314,7 +315,7 @@ def get_dataloaders(
         dataloader_config=dataloader_config,
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
-        seed=seed,
+        seed=eval_seed,
         dataset_split="validation",
     )
 
