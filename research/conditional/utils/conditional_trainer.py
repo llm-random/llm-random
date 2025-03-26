@@ -32,6 +32,7 @@ from research.conditional.moe_layers.expert_choice import ExpertChoiceFF
 from research.conditional.utils.layer_manager import LayerManager
 from research.conditional.utils.misc_tools import get_slurm_job_id, temp_modify_attr
 from research.conditional.utils.model_utils import (
+    calculate_llm_distillation_loss_and_gradient,
     make_loss_and_gradient_function,
     update_model_fit_gpu_info,
 )
@@ -101,7 +102,12 @@ class ConditionalTrainer:
     get_final_eval_dataloader: Optional[Callable[..., DataloaderWrapper]] = None
     final_eval_dataloader_batch_size: Optional[int] = None
     n_final_eval_batches: int = None,
-    dont_save_final_model: bool = False
+    dont_save_final_model: bool = False,
+    distilled_model: torch.nn.Module = None,
+    distill_loss_type: float = None,
+    kd_ratio: float = None,
+    distillation_temperature: float = None,
+    method_lam: float = None,
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -116,9 +122,13 @@ class ConditionalTrainer:
         self.correct_tokens_accumulator = 0.0
         self.total_tokens_accumulator = 0.0
         self.auxiliary_losses_accumulator = dict()
-        self._calculate_loss_and_gradient = make_loss_and_gradient_function(
-            loss_checkpoint_chungs=self.loss_checkpoint_chungs,
-        )
+        self.distill_losses_accumulator = dict()
+        if not self.distilled_model:
+            self._calculate_loss_and_gradient = make_loss_and_gradient_function(
+                loss_checkpoint_chungs=self.loss_checkpoint_chungs,
+            )
+        else:
+            self._calculate_loss_and_gradient = calculate_llm_distillation_loss_and_gradient
         self.layer_manager = LayerManager(
             self.model,
             self.logging_interval_light,
@@ -282,6 +292,8 @@ class ConditionalTrainer:
         self,
         step,
     ):
+        if self.distilled_model:
+            self.distilled_model.eval()
         self.model.train()
         if self.is_logging_process:
             self.layer_manager.prepare_for_logging(step)
@@ -339,6 +351,7 @@ class ConditionalTrainer:
             self.layer_manager.log(step)
             self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
+            self._log_distill_losses(aux_info["distill_losses"], step)
         self._save_weights(step)
 
     def calculate_loss_and_gradient(
@@ -351,6 +364,7 @@ class ConditionalTrainer:
         correct_tokens_value = 0
         total_masked_tokens_value = 0
         losses = {}
+        distill_losses = {}
 
         for i in range(num_batch_chunks):
             # TODO: make a way to avoid copying the whole batch just to get a slice
@@ -361,15 +375,31 @@ class ConditionalTrainer:
                     num_batch_chunks,
                     i,
                 )
-
-            cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
-                batch=batch_copy,
-                model=self.model,
-                mixed_precision=self.mixed_precision,
-                mixed_precision_dtype=self.mixed_precision_dtype,
-                num_checkpoint_accumulation_steps=num_batch_chunks,
-                scaler=self.scaler,
-            )
+            if not self.distilled_model:
+                cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
+                    batch=batch_copy,
+                    model=self.model,
+                    mixed_precision=self.mixed_precision,
+                    mixed_precision_dtype=self.mixed_precision_dtype,
+                    num_checkpoint_accumulation_steps=num_batch_chunks,
+                    scaler=self.scaler,
+                )
+            else:
+                cross_entropy_loss, aux_info = self._calculate_loss_and_gradient(
+                    batch=batch_copy,
+                    model=self.model,
+                    distilled_model=self.distilled_model,
+                    mixed_precision=self.mixed_precision,
+                    mixed_precision_dtype=self.mixed_precision_dtype,
+                    num_checkpoint_accumulation_steps=num_batch_chunks,
+                    scaler=self.scaler,
+                    distill_loss_type=self.distill_loss_type,
+                    kd_ratio=self.kd_ratio,
+                    distillation_temperature=self.distillation_temperature,
+                    method_lam=self.method_lam
+                )
+                for key, value in aux_info["distill_losses"].items():
+                    distill_losses[key] = distill_losses.get(key, 0) + value.item()
 
             total_cross_entropy_loss += cross_entropy_loss
             correct_tokens_value += aux_info["correct_tokens"]
@@ -382,6 +412,7 @@ class ConditionalTrainer:
             "correct_tokens": correct_tokens_value,
             "total_masked_tokens": total_masked_tokens_value,
             "losses": losses,
+            "distill_losses": distill_losses,
         }
 
     def _apply_gradient(self):
@@ -608,6 +639,21 @@ class ConditionalTrainer:
                     iteration=step,
                 )
             self.auxiliary_losses_accumulator.clear()
+
+    def _log_distill_losses(self, losses, step):
+        for name, loss in losses.items():
+            self.distill_losses_accumulator[name] = (
+                self.distill_losses_accumulator.get(name, 0) + loss
+            )
+
+        if step % self.logging_interval_loss == 0 and step > 0:
+            for name, loss in losses.items():
+                self.logger.report_scalar(
+                    title=f"distill_losses/{name}",
+                    value=loss / self.logging_interval_loss,
+                    iteration=step,
+                )
+            self.distill_losses_accumulator.clear()
 
     def _save_weights(self, step):
         if (

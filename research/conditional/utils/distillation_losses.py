@@ -1,0 +1,133 @@
+import torch
+import torch.nn.functional as F
+def my_kl_div(logits, teacher_logits, mask):
+    log_probs = F.log_softmax(logits, dim=-1)
+    teacher_probs = F.softmax(teacher_logits, dim=-1)
+    
+    prod_probs = teacher_probs * (log_probs - torch.log(teacher_probs))
+    
+    prod_probs = prod_probs[mask == 1]
+    return prod_probs.mean()
+
+def kl_div(logits, teacher_logits, mask):
+    mask_loss = F.kl_div(
+        F.log_softmax(logits, dim=-1),
+        F.softmax(teacher_logits, dim=-1),
+        reduction="none"
+    )
+    mask_loss = mask_loss[mask == 1]
+    return mask_loss.mean()
+
+def forward_kl(logits, teacher_logits, mask):
+    student_logprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
+    teacher_probs = F.softmax(teacher_logits, dim=-1, dtype=torch.float32)
+    prod_probs = teacher_probs * student_logprobs
+    prod_probs = prod_probs[mask == 1]
+    prod_probs = -torch.sum(prod_probs, dim=0)
+    return prod_probs.mean()
+
+def reverse_kl(logits, teacher_logits, mask):
+    student_probs = F.softmax(logits, dim=-1, dtype=torch.float32)
+    student_logprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
+    teacher_logprobs = F.log_softmax(teacher_logits, dim=-1, dtype=torch.float32)
+    prod_probs = student_probs * teacher_logprobs
+    prod_probs -= student_probs * student_logprobs
+    prod_probs = prod_probs[mask == 1]
+    prod_probs = -torch.sum(prod_probs, dim=-1).view(-1)
+    return prod_probs.mean()
+
+def symmetric_kl(logits, teacher_logits, mask, lam=0.9):
+    for_kl = forward_kl(logits, teacher_logits, mask)
+    rev_kl = reverse_kl(logits, teacher_logits, mask)
+    distill_loss = (1-lam) * for_kl + lam * rev_kl
+    return distill_loss
+
+def js_distance(logits, teacher_logits, mask, lam=0.9):
+    logits = logits[mask == 1]
+    teacher_logits = teacher_logits[mask == 1]
+    
+    teacher_probs = F.softmax(teacher_logits, dim=-1)
+    student_probs = F.softmax(logits, dim=-1)
+    mixed_probs = (1-lam) * teacher_probs + lam * student_probs
+
+    teacher_logprobs = F.log_softmax(teacher_logits, dim=-1)
+    student_logprobs = F.log_softmax(logits, dim=-1)
+    mixed_logprobs = torch.log(mixed_probs)
+
+    prod_probs = student_probs * mixed_logprobs
+    prod_probs -= student_probs * student_logprobs
+    prod_probs = torch.sum(prod_probs, dim=-1)
+    distill_loss = lam * -prod_probs.mean()
+
+    prod_probs = teacher_probs * mixed_logprobs
+    prod_probs -= teacher_probs * teacher_logprobs
+    prod_probs = torch.sum(prod_probs, dim=-1)
+    distill_loss += (1-lam) * -prod_probs.mean()
+    return distill_loss
+
+
+def tv_distance(logits, teacher_logits, mask):
+    logits = logits[mask == 1]
+    teacher_logits = teacher_logits[mask == 1]
+
+    teacher_probs = F.softmax(teacher_logits, dim=-1, dtype=torch.float32)
+    student_probs = F.softmax(logits, dim=-1, dtype=torch.float32)
+    
+    prod_probs = 0.5 * torch.abs(teacher_probs - student_probs)
+    return prod_probs.mean()
+
+def skewed_forward_kl(logits, teacher_logits, mask, lam=0.1):
+    logits = logits[mask == 1]
+    teacher_logits = teacher_logits[mask == 1]
+
+    teacher_probs = F.softmax(teacher_logits, dim=-1)
+    student_probs = F.softmax(logits, dim=-1)
+    mixed_probs = lam * teacher_probs + (1-lam) * student_probs
+    mixed_logprobs = torch.log(mixed_probs)
+
+    prod_probs = teacher_probs * mixed_logprobs
+    distill_loss = torch.sum(prod_probs, dim=-1).view(-1)
+    return -distill_loss.mean()
+
+def skewed_reverse_kl(logits, teacher_logits, mask, lam=0.1):
+    logits = logits[mask == 1]
+    teacher_logits = teacher_logits[mask == 1]
+
+    teacher_probs = F.softmax(teacher_logits, dim=-1)
+    student_probs = F.softmax(logits, dim=-1)
+    mixed_probs = (1-lam) * teacher_probs + lam * student_probs
+    
+    student_logprobs = F.log_softmax(logits, dim=-1)
+    mixed_logprobs = torch.log(mixed_probs)
+
+
+    prod_probs = student_probs * mixed_logprobs
+    prod_probs -= student_probs * student_logprobs
+    distill_loss = torch.sum(prod_probs, dim=-1).view(-1)
+    return -distill_loss.mean()
+
+def get_distill_loss(logits, teacher_logits, loss_mask, loss_type, method_lam=None):
+    if "sfkl" == loss_type: #dev
+        assert method_lam
+        distill_loss = skewed_forward_kl(logits, teacher_logits, loss_mask, method_lam)
+    elif "srkl" == loss_type:
+        assert method_lam
+        distill_loss = skewed_reverse_kl(logits, teacher_logits, loss_mask, method_lam)
+    elif "jsd" == loss_type:
+        assert method_lam
+        distill_loss = js_distance(logits, teacher_logits, loss_mask, method_lam)
+    elif "tvd" == loss_type:
+        assert not method_lam
+        distill_loss = tv_distance(logits, teacher_logits, loss_mask)
+    elif "fkl" == loss_type:
+        assert not method_lam
+        distill_loss = forward_kl(logits, teacher_logits, loss_mask)
+    elif "rkl" == loss_type:
+        assert not method_lam
+        distill_loss = reverse_kl(logits, teacher_logits, loss_mask)
+    elif "skl" == loss_type:
+        assert method_lam
+        distill_loss = symmetric_kl(logits, teacher_logits, loss_mask, method_lam)
+    else:
+        raise NotImplementedError(f"Not recognized distillation type {loss_type}")
+    return distill_loss

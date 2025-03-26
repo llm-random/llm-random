@@ -221,7 +221,7 @@ class HeliosBackend(MachineBackend):
             f"{setup_args['grid_entrypoint']}",
             "srun",
             *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
-        ]
+        ]   
 
 
 class IdeasBackend(MachineBackend):

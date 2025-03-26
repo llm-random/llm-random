@@ -1,24 +1,23 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: ba8618af2f2e0bb92c5a7aaa3ba1d2a7
+md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
 time: 0-03:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm256", "range", "tuned"]
+  tags: ["projected_dis", "1ff", "dm256", "range", "test"]
 
   # ^learning_rate: [0.001, 0.002, 0.004] #+
   # ^learning_rate: [0.008, 0.016] #+
   # ^learning_rate: [0.0015, 0.004, 0.008] # 0.002 - 
   learning_rate: 0.004
-  # ^learning_rate: [0.002, 0.003, 0.006, 0.004]
-  # ^final_lr_fraction: [0.0, 0.0125, 0.025, 0.05]
-  final_lr_fraction: 0.0125
 
   batch_size: 256
   cutoff: 256
+  n_blocks: 8
+  n_att_heads: 8
   
   dmodel: 256
   dff: 256

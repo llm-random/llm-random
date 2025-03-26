@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: ba8618af2f2e0bb92c5a7aaa3ba1d2a7
+md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
 time: 0-05:00:00
 # time: 0-00:50:00
 n_gpus: 4
@@ -10,60 +10,39 @@ params:
   name: "PD"
   # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
   # tags: ["projected_dis", "1ff", "compression", "dm768_1024", "test"] 
-  tags: ["projected_dis", "1ff", "compression", "dm768_1024", "tune"] 
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_15-58-13
-  # t0036 is bad
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_17-03-19 - ??
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-31-50 - 256 batch
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-32-52 - 512 batch
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-34-25 - 512 - 5h
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-36-04 - 512 - 5h - 8gpus
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-55-22 - 32 - 5h - 8gpus
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_22-58-39 - 128 - 1h - 2gpus
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_23-03-52 - 256 - 1h - 2gpus
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_23-04-53 - 512 - 1h - 2gpus
-  # /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-17_23-12-46 - 512 - 1h - 4gpus
+  tags: ["projected_dis", "1ff", "compression", "dm768_1024", "range"] 
+
   batch_size: 512
 
   dmodel: 768
   dff: 768
   projected_dmodel: 1024
   projected_dff: 1024
-  # ^n_steps: [6108, 10179]
+  # ^n_steps: [6_108, 10_179]
+  # ^n_steps: [1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
+  # ^n_steps: [9161, 10179]
+  ^n_steps: [509, 764]
   n_steps: 10179
-
-  # scheduler: trapezoidal
+  
   scheduler: cosine
   # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
-  learning_rate: 0.00025
+  ^learning_rate: [0.00025, 0.0005, 0.00075]
+  # learning_rate: 0.00025
 
-  ^lr_warmup_percent: [0.075]
-  # lr_warmup_percent: 0.1
+  lr_warmup_percent: 0.1
+  final_lr_fraction: 0.01
 
-  ^final_lr_fraction: [0.0075, 0.015]
-  # final_lr_fraction: 0.01
 
-  
-  # attention_mode: projected_vanilla
-  # ff_mode: projected_vanilla
-  # attention_mode: vanilla
-  # ff_mode: vanilla
   attention_mode: projected_vanilla_res
   ff_mode: projected_vanilla_res
 
   projection_init_type: head_half
  
   projected_distillation: True
-  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-05_23-35-50/None/1227083/15533.pt
-
-  # fsdp_use_orig_params: True
-  # fsdp_enabled: True
-  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
-  # fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
-
-  # unprojected_embeddings: true
-  # unprojected_attention: true
-  # unprojected_ff: true
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # 20
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118537/31066.pt # 40
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # 80
+  projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt
 
   fsdp_use_orig_params: True
   fsdp_enabled: True
