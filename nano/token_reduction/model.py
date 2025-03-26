@@ -305,7 +305,8 @@ def get_dropping_dataloader(
 def get_reduction_dataloaders(
     dataloader_config,
     sequence_length,
-    seed,
+    train_seed,
+    eval_seed,
     dropped_tokens,
 ):
     world_size = int(os.environ["WORLD_SIZE"])
@@ -317,7 +318,7 @@ def get_reduction_dataloaders(
         dataloader_config=dataloader_config,
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
-        seed=seed,
+        seed=train_seed,
         dropped_tokens=dropped_tokens,
         dataset_split="train",
     )
@@ -325,7 +326,7 @@ def get_reduction_dataloaders(
         dataloader_config=dataloader_config,
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
-        seed=seed,
+        seed=eval_seed,
         dataset_split="validation",
     )
     return train_dataloader, eval_dataloader
