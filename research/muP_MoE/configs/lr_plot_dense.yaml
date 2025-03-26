@@ -2,14 +2,14 @@ runner: "research.muP_MoE.train.train"
 
 time: '2-00:00:00'
 
-n_gpus: 4
+n_gpus: 2
 cpus_per_gpu: 16
 
 interactive_debug: false
 
 params:
   name: muP_MoE_lr_grid_dense_fixed
-  tags: ["muP_MoE", "muTransfer", "lr_grid_dense_fixed", "with_mup"]
+  tags: ["muP_MoE", "muTransfer", "lr_grid_dense_fixed_kc", "with_mup"]
 
   mup_params:
     # alpha_in: 10.0
@@ -28,7 +28,8 @@ params:
 
   # model
   model_type: gpt
-  ^dmodel: [64, 128, 256, 512, 768, 1024, 1536]
+  # ^dmodel: [64, 128, 256, 512, 768, 1024, 1536]
+  ^dmodel: [64]
   n_blocks: 24
   dhead: 64
   attention_mode: 'vanilla'

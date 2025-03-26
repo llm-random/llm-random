@@ -5,6 +5,8 @@ from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from torch.profiler import profile, ProfilerActivity
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
@@ -330,46 +332,54 @@ class muP_Trainer:
                 )
                 stats.acc = 0.0
 
-    def _log_weights_and_gradients(self, step):
+    def _log_weights_and_gradients_loop(self, step):
         g_norms, w_norms = {}, {}
+        for name, value in self.model.named_parameters():
+            if value.grad is not None:
+                norm = torch.linalg.norm(value.grad)
+                g_norms[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
+                if (
+                    self.logging_spectral_norm and value.grad.dim() >= 2
+                ):  # Ensure it's at least 2D
+                    spectral_norm = torch.linalg.svdvals(value.grad.float()).max()
+                    g_norms[
+                        f"spectral_norms/{name.replace('.', '/')}/grad"
+                    ] = spectral_norm
+            if value.requires_grad:
+                norm = torch.linalg.norm(value)
+                variance = torch.var(value)
+                w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
+                w_norms[f"weight_variances/{name.replace('.', '/')}/weight"] = variance
+                if (
+                    self.logging_spectral_norm and value.dim() >= 2
+                ):  # Ensure it's at least 2D
+                    spectral_norm = torch.linalg.svdvals(value.float()).max()
+                    g_norms[
+                        f"spectral_norms/{name.replace('.', '/')}/weight"
+                    ] = spectral_norm
+        g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
+            torch.tensor(list(g_norms.values()))
+        )
+        w_norms[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
+            torch.tensor(list(w_norms.values()))
+        )
+        for name, value in {**g_norms, **w_norms}.items():
+            self.logger.report_scalar(title=name, value=value, iteration=step)
+
+    def _log_weights_and_gradients(self, step):
+        print(f"torch.__version__:\n{torch.__version__}")
         if (
             self.logging_interval_heavy > 0
             and step % self.logging_interval_heavy == 0
             and self.log_gradients_and_weights
         ):
-            for name, value in self.model.named_parameters():
-                if value.grad is not None:
-                    norm = torch.linalg.norm(value.grad)
-                    g_norms[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
-                    if (
-                        self.logging_spectral_norm and value.grad.dim() >= 2
-                    ):  # Ensure it's at least 2D
-                        spectral_norm = torch.linalg.svdvals(value.grad.float()).max()
-                        g_norms[
-                            f"spectral_norms/{name.replace('.', '/')}/grad"
-                        ] = spectral_norm
-                if value.requires_grad:
-                    norm = torch.linalg.norm(value)
-                    variance = torch.var(value)
-                    w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
-                    w_norms[
-                        f"weight_variances/{name.replace('.', '/')}/weight"
-                    ] = variance
-                    if (
-                        self.logging_spectral_norm and value.dim() >= 2
-                    ):  # Ensure it's at least 2D
-                        spectral_norm = torch.linalg.svdvals(value.float()).max()
-                        g_norms[
-                            f"spectral_norms/{name.replace('.', '/')}/weight"
-                        ] = spectral_norm
-            g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
-                torch.tensor(list(g_norms.values()))
-            )
-            w_norms[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
-                torch.tensor(list(w_norms.values()))
-            )
-            for name, value in {**g_norms, **w_norms}.items():
-                self.logger.report_scalar(title=name, value=value, iteration=step)
+            if isinstance(self.model, FSDP):
+                with FSDP.summon_full_params(
+                    self.model, with_grads=True, rank0_only=True, writeback=False
+                ):
+                    self._log_weights_and_gradients_loop(step)
+            else:
+                self._log_weights_and_gradients_loop(step)
 
     def _log_fraction_dataset_processed(self, step):
         processed = step * self.batch_size * self.max_sequence_length

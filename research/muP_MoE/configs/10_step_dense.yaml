@@ -1,7 +1,7 @@
 runner: "research.muP_MoE.train.train"
 
 # time: "05:00:00"
-time: "00:10:00"
+time: "02:00:00"
 
 n_gpus: 2
 cpus_per_gpu: 16
@@ -11,7 +11,7 @@ interactive_debug: false
 params:
   name: "muP_MoE_10_step_gya"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "10_step_fixing_gyang", "fsdp", "ato_remove_after_fix"]
+  tags: ["muP_MoE", "muTransfer", "10k_step_kc_fix", "fsdp", "ato_remove_after_fix"]
 
   mup_params:
     ^alpha_in: [1.0]
@@ -21,7 +21,7 @@ params:
     base_dmodel: 256
 
   # training
-  n_steps: 10
+  n_steps: 10000
   lr_warmup_steps: 0
   batch_size: 128
   cutoff: 128
@@ -30,8 +30,8 @@ params:
   model_type: gpt
   # dmodel: 512
   # ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]
-  # ^dmodel: [256, 512, 1024, 2048]
-  ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048]
+  ^dmodel: [256, 512, 1024, 2048]
+  # ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048]
   n_blocks: 2
   dhead: 64
   attention_mode: 'vanilla'
@@ -64,12 +64,13 @@ params:
   mixed_precision: true
   flash_attention: true
   mixed_precision_dtype: bfloat16
-  ^data_seed: [1000, 1001, 1002, 1003, 1004]
+  # ^data_seed: [1000, 1001, 1002, 1003, 1004]
+  ^data_seed: [102, 103, 104]
 
   # logging etc.
   logger_types: "neptune"
   project_name: "pmtest/llm-random"
-  logging_interval_heavy: 1
+  logging_interval_heavy: 1000
   # logging_interval_light: 50
   # logging_interval_loss: 20
   # save_weights_interval: null
