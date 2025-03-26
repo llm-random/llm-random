@@ -8,7 +8,7 @@ cpus_per_gpu: 16
 params:
   name: "PD"
   # tags: ["projected_dis", "1ff", "distillation", "dm768"] 
-  tags: ["projected_dis", "1ff", "distillation", "dm768", "test"] 
+  tags: ["projected_dis", "1ff", "distillation", "compression", "dm768", "tune"] 
  
   dmodel: 768
   dff: 768
@@ -20,37 +20,34 @@ params:
   # batch_size: 256 # dev debug
   gradient_accumulation_steps: 2
 
-  n_steps: 10_179
+  # ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
+  ^n_steps: [509, 764]
+
 
   scheduler: cosine
-  # ^learning_rate: [asd, asd, asd, asd, asd]
-  learning_rate: 0.00025
-  # ^lr_warmup_percent: [asd, asd, asd, asd, asd]
+  # learning_rate: 0.00025
+  ^learning_rate: [0.000125]
   lr_warmup_percent: 0.01
-  # ^final_lr_fraction: [asd, asd, asd, asd, asd]
   final_lr_fraction: 0.03
 
   # [("sfkl", 0.1), ("srkl", 0.1), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9)]
   distillation: True
-  ^distill_loss_type: [sfkl] 
-  # ^distill_loss_type: [sfkl, srkl] 
-  # ^distill_loss_type: [tvd, fkl, rkl] 
-  # ^distill_loss_type: [skl] 
-  # ^method_lam: [0.05, 0.1, 0.2]
-  ^method_lam: [0.05]
-  # ^method_lam: [0.8, 0.9, 0.99]
-  # ^kd_ratio: [0.25, 0.5, 0.75]
-  ^kd_ratio: [0.75]
+  ^distill_loss_type: [skl] 
+  ^method_lam: [0.2]
+  ^kd_ratio: [0.5, 0.75]
+  # ^distill_loss_type: [srkl] 
+  # ^method_lam: [0.1]
+  # ^kd_ratio: [0.5]
   distillation_temperature: 1.0 #not implemented
  
   distillation: True
-  distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # helios
+  distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # helios
   
   attention_mode: projected_vanilla_res
   ff_mode: projected_vanilla_res
   projection_init_type: head_half
   projected_distillation: True
-  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt
 
   fsdp_use_orig_params: True
   fsdp_enabled: True
