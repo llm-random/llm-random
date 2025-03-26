@@ -20,7 +20,7 @@ training:
     n_steps: 1000
     learning_rate: 2e-4
     weight_decay: 0.1
-    gradient_accumulation_steps: -1
+    gradient_accumulation_steps: 1
     seed: 11
     gradient_clipping: 1.0
 
@@ -34,6 +34,8 @@ training:
             type: "cosine"
 
     dataloader:
+        training_dataset_path: "/storage_nvme_1/llm-random/datasets/c4/train"
+        eval_dataset_path: "/storage_nvme_1/llm-random/datasets/c4/validation"
         num_workers: 4
         dataset: "c4"
         split: "train"
@@ -55,8 +57,10 @@ checkpoint_config:
     path: null
 
 slurm:
-  gres: gpu:1
-  time: 10:00:00
+    gres: gpu:1
+    time: 00:10:00
+    partition: h100
+
 
 venv_path: '$HOME/llm-random/nano/venv/bin/activate' 
 server: entropy

@@ -362,28 +362,26 @@ class TrainerMTP(Trainer):
         def _hack_for_python_garbage_collection(input_ids, target_ids):
             """we want to have no reference to model output while backpropagating to allow torch to free memory,
             so we wrap loss calculation in a function"""
-            encoder_embeddings = self.model(input_ids)
-            encoder_embeddings_detatched = encoder_embeddings.detach()
-            encoder_embeddings_detatched.requires_grad = True
+            tower_outputs = self.model(input_ids)
+            tower_outputs_detatched = tower_outputs.detach()
+            tower_outputs_detatched.requires_grad = True
 
             # Tensors should be on the same device for loss calculation #TODO check
-            target_ids = target_ids.to(encoder_embeddings.device)
+            target_ids = target_ids.to(tower_outputs.device)
             target_len = target_ids.shape[-1]
             if self.step == 0:
                 print(f"input_ids: {input_ids[0, :]}")
                 print(f"target_ids: {target_ids[0, :]}")
-
+            # model_body = self.model.module
             mtp_losses = []
             for i in range(self.n_mtp):
-                mtp_module_output = self.model.mtp_modules[i](
-                    encoder_embeddings_detatched
+                mtp_module_output = self.model.module.mtp_modules[i](
+                    tower_outputs_detatched
                 )
-                predicted_ids = self.model.head(mtp_module_output)
+                predicted_ids = self.model.module.head(mtp_module_output)
                 mtp_target_ids = target_ids[
                     :, i : target_len + i - self.n_mtp + 1
                 ].detach()
-                print(f"n_mtp: {i}\predicted_ids: {predicted_ids.shape}")
-                print(f"n_mtp: {i}\mtp_target_ids: {mtp_target_ids.shape}")
                 mtp_loss = F.cross_entropy(
                     predicted_ids.flatten(0, -2),
                     mtp_target_ids.reshape(-1).long(),
@@ -396,8 +394,8 @@ class TrainerMTP(Trainer):
                 mtp_losses.append(mtp_loss)
 
             if self.model.training:
-                mtp_grad = encoder_embeddings_detatched.grad
-                return mtp_losses, encoder_embeddings, mtp_grad
+                mtp_grad = tower_outputs_detatched.grad
+                return mtp_losses, tower_outputs, mtp_grad
             else:
                 return mtp_losses, None, None
 
@@ -408,11 +406,11 @@ class TrainerMTP(Trainer):
             if self.model.training:
                 self._update_processed_tokens(input_ids)
 
-            loss, encoder_embeddings, mtp_grad = _hack_for_python_garbage_collection(
+            loss, tower_outputs, mtp_grad = _hack_for_python_garbage_collection(
                 input_ids, target_ids
             )
             if self.model.training:
-                encoder_embeddings.backward(gradient=mtp_grad)
+                tower_outputs.backward(gradient=mtp_grad)
             losses.append(loss[0].item())  # TODO handle other mtp losses
 
         # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
