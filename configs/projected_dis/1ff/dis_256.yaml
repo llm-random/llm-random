@@ -28,11 +28,8 @@ params:
   n_att_heads: 8
 
   scheduler: cosine
-  # ^learning_rate: [asd, asd, asd, asd, asd]
   learning_rate: 0.004
-  # ^lr_warmup_percent: [asd, asd, asd, asd, asd]
   lr_warmup_percent: 0.01
-  # ^final_lr_fraction: [asd, asd, asd, asd, asd]
   final_lr_fraction: 0.03
  
   # [("sfkl", 0.1), ("srkl", 0.1), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9)]
