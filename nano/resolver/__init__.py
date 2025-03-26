@@ -3,6 +3,7 @@ import platform
 import os
 import re
 
+
 def get_cluster_name(hostname=None, username=None) -> str:
     if "LLMRANDOM_CLUSTER" in os.environ:
         return os.environ.get("LLMRANDOM_CLUSTER")
@@ -19,5 +20,6 @@ def get_cluster_name(hostname=None, username=None) -> str:
                     return cluster.name
 
     return "default"
+
 
 OmegaConf.register_new_resolver("__llmrandom_cluster_config", get_cluster_name)

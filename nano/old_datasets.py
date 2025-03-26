@@ -366,7 +366,7 @@ def get_processed_dataset(
             sequence_length=sequence_length,
             dataset_maker=dataset,
             tokenizer_maker=GPTTokenizer,
-            seed=seed
+            seed=seed,
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
