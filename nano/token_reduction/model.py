@@ -472,6 +472,14 @@ class TrainerMTP(Trainer):
             )
 
         self.metric_logger.flush_accumulated_metrics(self.step)
+        # log average loss per 100 steps
+        if self.step > 0:
+            self.loss_interval_100 += mtp_losses[0].item()
+            if self.step % 100 == 0:
+                self.metric_logger.log(
+                    "steps/train/loss_100", self.step, self.loss_interval_100 / 100.0
+                )
+                self.loss_interval_100 = 0.0
 
     def get_n_mtp(self):
         if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):

@@ -1143,6 +1143,7 @@ class Trainer:
         self.processed_tokens = self.training_state["processed_tokens"]
         self.start_step = self.training_state["next_step"]
         self.device = next(self.model.parameters()).device
+        self.loss_interval_100 = 0.0
 
     @property
     def _should_evaluate(self) -> bool:
@@ -1295,6 +1296,14 @@ class Trainer:
             "tokens/train/grad_norm", self.processed_tokens, grad_norm.item()
         )
         self.metric_logger.flush_accumulated_metrics(self.step)
+        # log average loss per 100 steps
+        if self.step > 0:
+            self.loss_interval_100 += loss.item()
+            if self.step % 100 == 0:
+                self.metric_logger.log(
+                    "steps/train/loss_100", self.step, self.loss_interval_100 / 100.0
+                )
+                self.loss_interval_100 = 0.0
 
     def save_checkpoint(self):
         if isinstance(self.model, FSDP):
