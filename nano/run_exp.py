@@ -14,6 +14,7 @@ from omegaconf import OmegaConf
 import paramiko.ssh_exception
 
 from resolver import get_cluster_name
+
 logger = logging.getLogger(__name__)
 
 _SSH_HOSTS_TO_PASSPHRASES = {}
