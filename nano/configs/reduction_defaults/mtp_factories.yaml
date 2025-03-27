@@ -5,7 +5,8 @@ dataloaders_factory:
     dataloader_config: ${training.dataloader}
     sequence_length: ${model.common.sequence_length}
     n_mtp: ${model.mtp_config.n_mtp}
-    seed: ${training.seed}
+    train_seed: ${training.seed}
+    eval_seed: ${training.evaluation.seed}
 
 
 trainer_factory: 

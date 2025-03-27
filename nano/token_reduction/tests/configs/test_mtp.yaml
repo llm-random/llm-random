@@ -49,6 +49,7 @@ training:
     evaluation:
         eval_interval: 20
         n_eval_steps: 3
+        seed: 123
 
 
 metric_logger:

@@ -10,6 +10,7 @@ defaults:
       - factories
       - infrastructure
       - metric_logger
+      - training
     - configs/reduction_defaults:
       - mtp_model
       - mtp_factories
@@ -17,18 +18,18 @@ defaults:
 
 training:
     _target_: model.TrainingConfig
-    n_steps: 1000
-    learning_rate: 2e-4
+    n_steps: 50000
+    ^learning_rate: [2e-3, 1e-3, 5e-4]
     weight_decay: 0.1
     gradient_accumulation_steps: 1
-    seed: 11
+    seed: 46768
     gradient_clipping: 1.0
 
     scheduler: 
         _target_: model.get_cosine_scheduler_with_warmup
         _partial_: true
         config:        
-            warmup_steps: 10
+            warmup_steps: 500
             n_steps: ${training.n_steps}
             final_lr_fraction: 0.1
             type: "cosine"
@@ -36,32 +37,29 @@ training:
     dataloader:
         training_dataset_path: "/storage_nvme_1/llm-random/datasets/c4/train"
         eval_dataset_path: "/storage_nvme_1/llm-random/datasets/c4/validation"
-        num_workers: 4
-        dataset: "c4"
-        split: "train"
-        total_batch_size: 128
-        use_new_sampling_method: true
-        shuffle: true
-        world_size_independent: true
-
-    evaluation:
-        eval_interval: 100
-        n_eval_steps: 5
-        seed: 123
 
 model:
-    common: 
-        sequence_length: 128
+  common:
+    sequence_length: 256
+    dff: 2048
+    dmodel: 512
+  tower_config:
+    n_blocks: 8
+    block_config:
+      attention:
+        n_heads: 8
+  mtp_config:
+    _target_: token_reduction.model.MTPConfig
+    n_mtp: 2
+
+slurm:
+    gres: gpu:1
+    time: "20:00:00"
+    partition: h100
 
 checkpoint_config:
     interval: 0
     path: null
-
-slurm:
-    gres: gpu:1
-    time: 00:10:00
-    partition: h100
-
 
 venv_path: '$HOME/llm-random/nano/venv/bin/activate' 
 server: entropy

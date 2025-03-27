@@ -5,7 +5,8 @@ training:
     learning_rate: 1e-4
     weight_decay: 0.1
     gradient_accumulation_steps: 1
-    seed: ${oc.decode:${oc.env:RANDOM}}
+    # seed: ${oc.decode:${oc.env:RANDOM}}
+    seed: 13
     gradient_clipping: 0.1
 
     scheduler: 
