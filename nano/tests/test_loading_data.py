@@ -9,7 +9,6 @@ import random
 
 
 class TestLoadingData(unittest.TestCase):
-
     def test__process_document(self):
         EOT = "<|endoftext|>"
 

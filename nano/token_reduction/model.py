@@ -379,9 +379,7 @@ class TrainerMTP(Trainer):
                         tower_outputs_detatched
                     )
                     predicted_ids = self.model.head(mtp_module_output)
-                mtp_target_ids = target_ids[
-                    :, i : target_len + i - n_mtp + 1
-                ].detach()
+                mtp_target_ids = target_ids[:, i : target_len + i - n_mtp + 1].detach()
                 mtp_loss = F.cross_entropy(
                     predicted_ids.flatten(0, -2),
                     mtp_target_ids.reshape(-1).long(),
@@ -436,8 +434,14 @@ class TrainerMTP(Trainer):
                 "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
             )
             for i, mtp_avg_loss in enumerate(avg_loss):
-                self.metric_logger.log(f"steps/eval/mtp_loss_{i}", self.step, mtp_avg_loss.item())
-                self.metric_logger.log(f"tokens/eval/mtp_loss_{i}", self.processed_tokens, mtp_avg_loss.item())
+                self.metric_logger.log(
+                    f"steps/eval/mtp_loss_{i}", self.step, mtp_avg_loss.item()
+                )
+                self.metric_logger.log(
+                    f"tokens/eval/mtp_loss_{i}",
+                    self.processed_tokens,
+                    mtp_avg_loss.item(),
+                )
 
     def log_metrics(self, mtp_losses, grad_norm):
         self.metric_logger.log("step", self.step, self.step)
@@ -450,7 +454,9 @@ class TrainerMTP(Trainer):
         self.metric_logger.log(
             "steps/train/processed_tokens", self.step, self.processed_tokens
         )
-        self.metric_logger.log("tokens/train/loss", self.processed_tokens, mtp_losses[0].item())
+        self.metric_logger.log(
+            "tokens/train/loss", self.processed_tokens, mtp_losses[0].item()
+        )
         self.metric_logger.log(
             "tokens/lr", self.processed_tokens, (self.scheduler.get_last_lr()[0])
         )
@@ -458,11 +464,15 @@ class TrainerMTP(Trainer):
             "tokens/train/grad_norm", self.processed_tokens, grad_norm.item()
         )
         for i, mtp_loss in enumerate(mtp_losses):
-            self.metric_logger.log(f"steps/train/mtp_loss_{i}", self.step, mtp_loss.item())
-            self.metric_logger.log(f"tokens/train/mtp_loss_{i}", self.processed_tokens, mtp_loss.item())
+            self.metric_logger.log(
+                f"steps/train/mtp_loss_{i}", self.step, mtp_loss.item()
+            )
+            self.metric_logger.log(
+                f"tokens/train/mtp_loss_{i}", self.processed_tokens, mtp_loss.item()
+            )
 
         self.metric_logger.flush_accumulated_metrics(self.step)
-    
+
     def get_n_mtp(self):
         if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
             n_mtp = len(self.model.module.mtp_modules)
@@ -563,11 +573,13 @@ def get_dropping_standard_embedding(
         ),
     )
 
+
 def get_mtp_dataloaders(
     dataloader_config: dict,
     sequence_length: int,
     n_mtp: int,
-    seed: int,
+    train_seed: int,
+    eval_seed: int,
 ):
 
     world_size = int(os.environ["WORLD_SIZE"])
@@ -580,7 +592,7 @@ def get_mtp_dataloaders(
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
         n_mtp=n_mtp,
-        seed=seed,
+        seed=train_seed,
         dataset_split="train",
     )
 
@@ -589,11 +601,12 @@ def get_mtp_dataloaders(
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
         n_mtp=n_mtp,
-        seed=seed,
+        seed=eval_seed,
         dataset_split="validation",
     )
 
     return train_dataloader, eval_dataloader
+
 
 def get_mtp_dataloader(
     dataloader_config: dict,
