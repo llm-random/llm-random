@@ -425,7 +425,7 @@ class TrainerMTP(Trainer):
         with torch.no_grad():
             for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
                 batch = batch.to(self.device)
-                mtp_losses = self.calculate_loss(batch, n_mtp)
+                mtp_losses = self.calculate_loss(batch, n_mtp).float()
                 losses.append(mtp_losses)
                 self.metric_logger.flush_accumulated_metrics(self.step)
             avg_loss = torch.stack(losses).mean(dim=0)
