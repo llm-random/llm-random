@@ -1,7 +1,3 @@
-hydra:
-    searchpath:
-        - file://${oc.env:PWD}
-
 defaults:
     - configs/clusters:
       - default
