@@ -1,7 +1,3 @@
-hydra:
-    searchpath:
-        - file://${oc.env:PWD}
-
 defaults:
     - configs/clusters: ${__llmrandom_cluster_config:}
     - configs/defaults:
@@ -49,5 +45,5 @@ server: entropia
 
 checkpoint_config:
     interval: 20000
-    path: "/storage_ssd_1/crewtool/checkpoints/k16_baseline"
+    path: "xd"
 

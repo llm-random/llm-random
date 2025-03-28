@@ -21,9 +21,6 @@ hydra:
         params:
             training.learning_rate: 1e-4
 
-    searchpath:
-        - file://${oc.env:PWD}
-
     verbose:
         - __main__
         - model
