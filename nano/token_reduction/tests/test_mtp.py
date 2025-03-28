@@ -26,8 +26,10 @@ class TestTrainerMTP(unittest.TestCase):
         metric_logger = get_metric_logger(
             metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
         )
+        torch.manual_seed(cfg.training.seed)
+        device = torch.device("cpu")
 
-        model = instantiate(cfg.model, _convert_="all")
+        model = instantiate(cfg.model, _convert_="all").to(device)
 
         optimizer = torch.optim.AdamW(
             model.parameters(),
