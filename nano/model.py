@@ -449,7 +449,7 @@ class RMSNorm(nn.Module):
         self.b = nn.Parameter(torch.zeros(dmodel))
 
     def forward(self, x):
-        norm = torch.mean(x**2, dim=-1, keepdim=True)
+        norm = torch.mean(x ** 2, dim=-1, keepdim=True)
         x = x * torch.rsqrt(norm + self.eps)
         return x * self.g + self.b
 
@@ -598,7 +598,6 @@ class PositionalEmbedding(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-
     def __init__(
         self,
         common,
@@ -633,7 +632,6 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerTower(nn.Module):
-
     def __init__(
         self,
         common: Common,
@@ -717,7 +715,6 @@ class PredictionHead(Linear):
 
 
 class LLM(nn.Module):
-
     def __init__(
         self,
         embedding,
@@ -927,7 +924,6 @@ class MetricLogger(ABC):
 
 
 class MetricAccumulator:
-
     def __init__(self, calculate_fn, metrics):
         self.acc_dict = {}
         self.calculate_fn = calculate_fn
@@ -954,7 +950,6 @@ class DummyLogger(MetricLogger):
 
 
 class NeptuneLogger(MetricLogger):
-
     def __init__(self, run, rank, config=None):
         super().__init__(config)
         self.run = run
@@ -966,7 +961,6 @@ class NeptuneLogger(MetricLogger):
 
 
 class StdoutLogger(MetricLogger):
-
     def __init__(self, config=None):
         super().__init__(config)
         self.rank = os.environ.get("RANK", 0)
@@ -1197,7 +1191,6 @@ class Trainer:
         return input_ids, target_ids
 
     def calculate_loss(self, batch):
-
         def _hack_for_python_garbage_collection(input_ids, target_ids):
             """we want to have no reference to model output while backpropagating to allow torch to free memory,
             so we wrap loss calculation in a function"""
@@ -1537,7 +1530,6 @@ def wrap_model(model, fsdp_config):
 
 
 class TrainingState(Stateful):
-
     def __init__(self, model, optimizer, scheduler, train_dataloader):
         self.model = model
         self.optimizer = optimizer

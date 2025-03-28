@@ -141,9 +141,7 @@ def create_token_merging_function(config, common: CommonDroppingConfig):
 
 
 class DroppingTrainer(Trainer):
-
     def calculate_loss(self, batch):
-
         def _hack_for_python_garbage_collection(input_ids, target_ids, keep_indexes):
             """we want to have no reference to model output while backpropagating to allow torch to free memory,
             so we wrap loss calculation in a function"""
@@ -198,9 +196,7 @@ class DroppingTrainer(Trainer):
 
 
 class MergingTrainer(Trainer):
-
     def calculate_loss(self, batch):
-
         def _hack_for_python_garbage_collection(
             input_ids, target_ids, keep_indexes, drop_indexes
         ):
