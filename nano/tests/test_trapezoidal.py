@@ -53,7 +53,6 @@ training:
 
 
 class TestTrapezoidal(unittest.TestCase):
-
     def test_trapezoidal_sheduler(self):
         cfg = OmegaConf.create(config_yaml)
 

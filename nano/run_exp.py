@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import datetime
+import logging
 import os
+import time
 from git import Repo
 from contextlib import contextmanager
 import copy
@@ -13,6 +15,7 @@ import paramiko.ssh_exception
 
 from resolver import get_cluster_name
 
+logger = logging.getLogger(__name__)
 
 _SSH_HOSTS_TO_PASSPHRASES = {}
 
@@ -65,11 +68,11 @@ def version_code(
     original_branch = repo.active_branch.name
     original_branch_commit_hash = repo.head.object.hexsha
 
-    try:
-        ensure_remote_config_exist(repo, remote_name, remote_url)
+    ensure_remote_config_exist(repo, remote_name, remote_url)
+    repo.git.add(experiment_config_path, force=True)
+    repo.git.add(all=True)
 
-        repo.git.add(all=True)
-        repo.git.add(experiment_config_path, force=True)
+    try:
         commit_pending_changes(repo)
 
         repo.git.checkout(b=experiment_branch_name)
@@ -194,6 +197,12 @@ def submit_experiment(
             connection.run(
                 f'tmux send -t {experiment_branch_name}.0 "sbatch exp.job" ENTER'
             )
+            logger.info("=" * 38 + "TMUX" + "=" * 38)
+            time.sleep(3)
+            output = connection.run(
+                f"tmux capture-pane -t {experiment_branch_name}.0 -p", hide=True
+            ).stdout
+            logger.info(output)
         except Exception as e:
             print("Exception while running an experiment: ", e)
 

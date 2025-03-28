@@ -14,7 +14,6 @@ TOLERANCE = 1e-6
 
 
 class TestDense(unittest.TestCase):
-
     def patch_randint_in_get_document(self, dataset):
         original_get_document = dataset.get_document
 
