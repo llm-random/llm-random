@@ -4,6 +4,7 @@ import os
 
 root_dir_name = "nano"
 
+
 class MainSearchPathPlugin(SearchPathPlugin):
     def manipulate_search_path(self, search_path: ConfigSearchPath) -> None:
         # Appends the search path for this plugin to the end of the search path
@@ -13,7 +14,7 @@ class MainSearchPathPlugin(SearchPathPlugin):
 
         if root_dir_name in path_parts:
             index = path_parts.index(root_dir_name)
-            result_path = os.sep.join(path_parts[:index+1])
+            result_path = os.sep.join(path_parts[: index + 1])
 
             search_path.append(
                 provider="add-nano-root-path", path=f"file://{result_path}"
