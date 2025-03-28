@@ -45,5 +45,5 @@ server: entropia
 
 checkpoint_config:
     interval: 20000
-    path: "xd"
+    path: "/storage_ssd_1/crewtool/checkpoints/k16_baseline"
 
