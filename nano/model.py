@@ -151,7 +151,7 @@ def run(cfg):
     load_checkpoint(
         cfg.checkpoint_config, model, optimizer, scheduler, train_dataloader
     )
-    trainer_factory = instantiate(cfg.trainer_factory, _partial_=True)
+    trainer_factory = instantiate(cfg.trainer_factory)
     trainer_factory(
         model=model,
         optimizer=optimizer,
@@ -1143,6 +1143,7 @@ class Trainer:
         self.processed_tokens = self.training_state["processed_tokens"]
         self.start_step = self.training_state["next_step"]
         self.device = next(self.model.parameters()).device
+        self.loss_interval_100 = 0.0
 
     @property
     def _should_evaluate(self) -> bool:
@@ -1163,7 +1164,7 @@ class Trainer:
 
     def train(self):
         for step, batch in zip(
-            range(self.start_step, self.n_steps), self.train_dataloader
+            range(self.start_step, self.n_steps + 1), self.train_dataloader
         ):
             self.step = step
             self.metric_logger.set_step(step)
