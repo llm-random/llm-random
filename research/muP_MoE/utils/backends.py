@@ -187,7 +187,7 @@ class HeliosBackend(MachineBackend):
         return f"/net/scratch/hscra/plgrid/plgmaciejpioro/{self.username}/.cache"
 
     def get_grid_entrypoint(self) -> str:
-        return "lizrd/grid/grid_entrypoint_helios.sh"
+        return "research/attention_moe/entrypoints/helios.sh"
 
     def get_cemetery_directory(self):
         return (
@@ -204,23 +204,20 @@ class HeliosBackend(MachineBackend):
         n_consecutive: int = 1,
     ):
         assert (
-            setup_args["n_gpus"] % 4 == 0
+            setup_args["n_gpus"] == 4
         ), "Helios only supports using whole nodes (cf. https://docs.cyfronet.pl/display/~plgpawlik/Helios)"
 
         return [
             slurm_command,
-            f"--nodes={setup_args['n_nodes']}",
-            f"--gpus={setup_args['n_gpus']}",
-            f"--gpus-per-node={setup_args['n_gpus'] // setup_args['n_nodes']}",
+            f"--gres=gpu:{setup_args['n_gpus']}",
             f"--array=0-{n_consecutive-1}%1",
             "--partition=plgrid-gpu-gh200",
-            "--exclusive",  # request all non-gpu resources on node
+            "--exclusive",
             "--account=plgllmefficont2-gpu-gh200",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
-            "srun",
-            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
+            *self.get_runner_command(setup_args["runner"], runner_params),
         ]
 
 
@@ -280,26 +277,26 @@ class IdeasBackend(MachineBackend):
         ]
 
 
-class EntropyBackend(MachineBackend):
+class EntropyA100Backend(MachineBackend):
     max_exp_time = 14 * 24 * 60 * 60
 
     def get_common_directory(self) -> str:
-        return "/home/jkrajewski_a100"
+        return "/storage_nvme_1/llm-random"
 
     def get_cache_path(self) -> str:
-        return "/local_storage_2/dataset_cache"
+        return "/storage_nvme_1/llm-random/dataset_cache"
 
     def get_grid_entrypoint(self) -> str:
-        return "lizrd/grid/grid_entrypoint.sh"
+        return "research/attention_moe/entrypoints/entropy_a100.sh"
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
-            return "/local_storage_2/llm-random/datasets/c4_train"
+            return "/storage_nvme_1/llm-random/datasets/c4/train"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_default_validation_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
-            return "/local_storage_2/llm-random/datasets/c4_validation"
+            return "/storage_nvme_1/llm-random/datasets/c4/validation"
         return super().get_default_train_dataset_path(dataset_type)
 
     def get_cemetery_directory(self):
@@ -314,7 +311,6 @@ class EntropyBackend(MachineBackend):
         runner_params,
         n_consecutive: int = 1,
     ):
-        assert setup_args["n_nodes"] == 1, "multi-node on Entropy not implemented"
         return [
             slurm_command,
             "--partition=a100",
@@ -325,15 +321,55 @@ class EntropyBackend(MachineBackend):
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
-            "singularity",
-            "run",
-            *singularity_env_arguments,
-            make_singularity_mount_paths(setup_args, training_args),
-            "-B /local_storage_1",
-            "-B /local_storage_2",
-            "--nv",
-            setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
+            *self.get_runner_command(setup_args["runner"], runner_params),
+        ]
+
+
+class EntropyH100Backend(MachineBackend):
+    max_exp_time = 14 * 24 * 60 * 60
+
+    def get_common_directory(self) -> str:
+        return "/storage_nvme_1/llm-random"
+
+    def get_cache_path(self) -> str:
+        return "/storage_nvme_1/llm-random/dataset_cache"
+
+    def get_grid_entrypoint(self) -> str:
+        return "research/attention_moe/entrypoints/entropy_h100.sh"
+
+    def get_default_train_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/storage_nvme_1/llm-random/datasets/c4/train"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/storage_nvme_1/llm-random/datasets/c4/validation"
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_cemetery_directory(self):
+        return f"~/llm_random_cemetery"
+
+    def get_subprocess_args(
+        self,
+        slurm_command,
+        setup_args,
+        training_args,
+        singularity_env_arguments,
+        runner_params,
+        n_consecutive: int = 1,
+    ):
+        return [
+            slurm_command,
+            "--partition=h100",
+            f"--gres=gpu:h100:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive-1}%1",
+            f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--job-name={training_args['name']}",
+            f"--time={setup_args['time']}",
+            f"{setup_args['grid_entrypoint']}",
+            *self.get_runner_command(setup_args["runner"], runner_params),
         ]
 
 
@@ -347,7 +383,7 @@ class WriterBackend(MachineBackend):
         return "/home/ubuntu/.cache"
 
     def get_grid_entrypoint(self) -> str:
-        return "lizrd/grid/grid_entrypoint.sh"
+        return "research/attention_moe/entrypoints/writer.sh"
 
     def get_default_train_dataset_path(self, dataset_type: str):
         if dataset_type == "c4":
@@ -371,7 +407,6 @@ class WriterBackend(MachineBackend):
         runner_params,
         n_consecutive: int = 1,
     ):
-        assert setup_args["n_nodes"] == 1, "multi-node on Writer not implemented"
         return [
             slurm_command,
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
@@ -381,64 +416,7 @@ class WriterBackend(MachineBackend):
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
-            "singularity",
-            "run",
-            *singularity_env_arguments,
-            make_singularity_mount_paths(setup_args, training_args),
-            "--nv",
-            setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
-        ]
-
-
-class AWS1Backend(MachineBackend):
-    def get_common_directory(self) -> str:
-        return "/home/ubuntu/"
-
-    def get_cache_path(self) -> str:
-        return "/home/ubuntu/.cache"
-
-    def get_grid_entrypoint(self) -> str:
-        return "lizrd/grid/grid_entrypoint.sh"
-
-    def get_default_train_dataset_path(self, dataset_type: str):
-        if dataset_type == "c4":
-            return "/data/datasets/data/train"
-        return super().get_default_train_dataset_path(dataset_type)
-
-    def get_default_validation_dataset_path(self, dataset_type: str):
-        if dataset_type == "c4":
-            return "/data/datasets/data/validation"
-        return super().get_default_train_dataset_path(dataset_type)
-
-    def get_cemetery_directory(self):
-        return "/home/ubuntu/llm-random-cemetery"
-
-    def get_singularity_image(self) -> str:
-        return "/data/sparsity_2024.02.06_16.14.02.sif"
-
-    def get_subprocess_args(
-        self,
-        slurm_command,
-        setup_args,
-        training_args,
-        singularity_env_arguments,
-        runner_params,
-        n_consecutive: int = 1,
-    ):
-        assert setup_args["n_nodes"] == 1, "multi-node on AWS1 not implemented"
-        if n_consecutive != 1:
-            raise Exception(
-                "Cluster does not support checkpoint manager feature. Works only with slurm system."
-            )
-        return [
-            "singularity",
-            "run",
-            *singularity_env_arguments,
-            make_singularity_mount_paths(setup_args, training_args),
-            "--nv",
-            setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params, setup_args),
+            *self.get_runner_command(setup_args["runner"], runner_params),
         ]
 
 
