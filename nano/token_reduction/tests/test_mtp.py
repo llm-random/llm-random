@@ -45,9 +45,6 @@ class TestTrainerMTP(unittest.TestCase):
         training_state = {"next_step": 0, "run_id": None, "processed_tokens": 0}
 
         trainer_factory = instantiate(cfg.trainer_factory)
-        # print(f'cfg.trainer_factory:\n{cfg.trainer_factory}')
-        # print(f'trainer_factory:\n{type(trainer_factory)}')
-        # print(f'model: {type(model)}')
         mtp_trainer = trainer_factory(
             model=model,
             optimizer=optimizer,
@@ -57,7 +54,6 @@ class TestTrainerMTP(unittest.TestCase):
             eval_dataloader=eval_dataloader,
             metric_logger=metric_logger,
         )
-        # print(f'mtp_trainer: {type(mtp_trainer)}')
         print("ok")
         mtp_trainer.train()
 
