@@ -89,6 +89,8 @@ def prepare_configs(
         # Here we should be confident that all the necessary keys are present in the config
         # Arguments below are used both in the runner and in the infrastructure
         config["params"]["n_gpus"] = config["n_gpus"]
+        if "n_nodes" not in config:
+            config["n_nodes"] = 1
         config["params"]["n_nodes"] = config["n_nodes"]
         config["params"].setdefault("train_dataset_path", config["train_dataset_path"])
         config["params"].setdefault(
