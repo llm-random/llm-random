@@ -69,12 +69,8 @@ def version_code(
     original_branch_commit_hash = repo.head.object.hexsha
 
     ensure_remote_config_exist(repo, remote_name, remote_url)
-
-    try:
-        repo.git.add(all=True)
-        repo.git.add(experiment_config_path, force=True)
-    finally:
-        repo.git.reset()
+    repo.git.add(experiment_config_path, force=True)
+    repo.git.add(all=True)
 
     try:
         commit_pending_changes(repo)
