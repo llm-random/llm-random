@@ -1,0 +1,8 @@
+defaults:
+  - merge_common
+  - _self_
+
+model:
+  common:
+    dropped_tokens: 77
+    
