@@ -202,9 +202,21 @@ class TokenMergingEmbeddingBothTokens(torch.nn.Module):
     def forward(self, x, keep_indexes, merge_indexes):
         x = self.normal_embedding(x)
         if self.training:
+            # It can happend that if we pick for merge last token from sequence, we do not have next token to merge it with, so we add zero vector
+            x = F.pad(x, (0, 0, 0, 1), value=0)
+
             merge_tokens_a = batch_index_select(x, merge_indexes)
             merge_tokens_b = batch_index_select(x, merge_indexes + 1)
             merge_tokens = torch.cat((merge_tokens_a, merge_tokens_b), dim=-1)
+
+            merge_tokens = self.linear(merge_tokens)
+            x[torch.arange(merge_indexes.size(0)).unsqueeze(-1), merge_indexes + 1] = (
+                merge_tokens
+            )
+
+            x = batch_index_select(x, keep_indexes)
+        return x
+
 
             merge_tokens = self.linear(merge_tokens)
 
