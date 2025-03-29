@@ -17,14 +17,14 @@ model:
     tower_config:  
         _target_: model.TowerConfig
         mode: "same" # is every block in tower the same
-        n_blocks: 4
+        n_blocks: ???
 
         block_config:
             _target_: model.BlockConfig
             attention:
                 _target_: model.AttentionConfig
                 mode: "vanilla"
-                n_heads: 4
+                n_heads: ???
 
             feedforward:
                 _target_: model.FeedForwardConfig
@@ -36,10 +36,10 @@ model:
     common: 
         _target_: token_reduction.model.CommonDroppingConfig
         model_type: "gpt"
-        sequence_length: 256
-        dmodel: 256
-        dff: 1024
+        sequence_length: ???
+        dmodel: ???
+        dff: ???
         init_type: truncated_normal_fixed
         init_scale: 0.1
         vocab_size: 50257
-        dropped_tokens: 0
+        dropped_tokens: ???
