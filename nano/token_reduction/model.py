@@ -176,9 +176,7 @@ class TokenMergingEmbedding(torch.nn.Module):
             merge_tokens = self.linear(merge_tokens)
 
             # It can happend that if we pick for merge last token from sequence, we do not have next token to merge it with, so we add zero vector
-            batch_size, _, dmodel = x.shape
-            additional = torch.zeros(batch_size, 1, dmodel, device=x.device)
-            x = torch.cat([x, additional], dim=1)
+            x = F.pad(x, (0, 0, 0, 1), value=0)
 
             x[
                 torch.arange(merge_indexes.size(0)).unsqueeze(-1), merge_indexes + 1
