@@ -17,6 +17,7 @@ class CommonParams:
 
 common = CommonParams()
 
+
 class TestTokenMergingEmbeddingBothTokens(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(42)
@@ -91,6 +92,7 @@ class TestTokenMergingEmbeddingBothTokens(unittest.TestCase):
             expected_shape,
             f"Expected output shape {expected_shape}, but got {output.shape}",
         )
+
 
 if __name__ == "__main__":
     unittest.main()
