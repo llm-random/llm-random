@@ -1,0 +1,29 @@
+hydra:
+  searchpath: 
+    - file://${oc.env:PWD}/configs/experiments/mtp_merge
+
+
+training:
+  dataloader:
+    eval_dataset_path: #TODO
+    training_dataset_path: #TODO
+
+slurm:
+  gres: gpu:1
+  time: 2-00:00:00
+  partition: h100 #TODO
+
+venv_path: #TODO
+
+checkpoint_config:
+  path: #TODO
+
+model:
+  common:
+    dropped_tokens: 26
+
+defaults:
+  - #TODO
+  - _self_
+
+server: #TODO
