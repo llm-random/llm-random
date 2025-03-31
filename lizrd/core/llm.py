@@ -630,6 +630,19 @@ class PredictionHead(Linear):
         )
 
 
+# class LLM(nn.Module):
+#     def __init__(self, embedding_layer, encoder_tower, head):
+#         super(LLM, self).__init__()
+#         self.embedding_layer = embedding_layer
+#         self.encoder = encoder_tower
+#         self.head = head
+
+#     def forward(self, *args, **kwargs):
+#         x = self.embedding_layer(*args, **kwargs)
+#         x = self.encoder(x)
+#         x = self.head(x)
+#         return x
+    
 class LLM(nn.Module):
     def __init__(self, embedding_layer, encoder_tower, head):
         super(LLM, self).__init__()
@@ -637,8 +650,12 @@ class LLM(nn.Module):
         self.encoder = encoder_tower
         self.head = head
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, output_hidden_states=False, **kwargs):
         x = self.embedding_layer(*args, **kwargs)
-        x = self.encoder(x)
-        x = self.head(x)
-        return x
+        hidden = self.encoder(x)
+        logits = self.head(hidden)
+
+        if output_hidden_states:
+            return logits, hidden  # Return both for cosine loss
+        else:
+            return logits  # Default behavior

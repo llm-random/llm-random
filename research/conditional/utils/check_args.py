@@ -73,3 +73,10 @@ def check_args(args):
     if args.projected_weights_path or args.projected_dmodel or args.projected_dff:
         assert args.projected_weights_path and args.projected_dmodel and args.projected_dff
         assert 0 == args.projected_dff % args.projected_dmodel
+
+    if args.distillation_type == "distilgpt":
+        # assert args.dmodel == args.distilled_dmodel
+        # assert args.dff == args.distilled_dff
+        assert args.distillation_weights_path
+    else:
+        assert not args.distillation_weights_path

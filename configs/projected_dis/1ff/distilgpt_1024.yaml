@@ -1,0 +1,65 @@
+
+parent: configs/projected_dis/1ff/common.yaml
+md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
+time: 0-10:00:00
+n_gpus: 4
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  # tags: ["projected_dis", "1ff", "distillation", "dm1024"] 
+  tags: ["projected_dis", "1ff", "distillation", "dm1024"] 
+ 
+  dmodel: 1024
+  dff: 1024
+  distilled_dmodel: 1024
+  distilled_dff: 1024
+  
+  n_steps: 10_179
+  # n_steps: 81432
+  # n_steps: 651456
+
+  scheduler: cosine
+  # ^learning_rate: [asd, asd, asd, asd, asd]
+  # ^learning_rate: [0.00075, 0.001, 0.0015]
+  # ^learning_rate: [0.001, 0.002, 0.004]
+  # ^learning_rate: [0.002]
+  # ^learning_rate: [0.0015]
+  # ^learning_rate: [0.0005]
+  # ^learning_rate: [0.00005]
+  # ^learning_rate: [0.000125, 0.00025, 0.001]
+  # ^learning_rate: [0.0000625, 3.125e-05]
+  # ^learning_rate: [1.5625e-05, 7.8125e-06]
+  ^learning_rate: [0.0005] #??
+  # ^learning_rate: [0.00025] #??
+  ^lr_warmup_percent: [0.05, 0.1, 0.2]
+  ^final_lr_fraction: [0.01, 0.03]
+
+  # [("sfkl", 0.1), ("srkl", 0.1), ("jsd", 0.9), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9), ("distilgpt", asd)]
+  distillation: True
+
+  ^distill_loss_type: [distilgpt] 
+  # ^method_lam: [0.2]
+  # ^kd_ratio: [0.75]
+  ^distilgpt_alpha: [5.0]
+  # ^distilgpt_alpha: [3.33, 5.0, 7.5]
+  ^distilgpt_beta: [1.0]
+  # ^distilgpt_beta: [0.75, 1.0, 1.5]
+  ^distilgpt_gamma: [2.0]
+  # ^distilgpt_gamma: [1.33, 2.0, 3.0]
+  ^distillation_temperature: [2.0]
+  # ^distillation_temperature: [1.33, 2.0, 3.0] #not implemented
+
+  gradient_accumulation_steps: 2
+
+  distillation: True
+  distillation_type: distilgpt
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # 20
+  distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # helios
+  # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_20.pt
+  
+  fsdp_use_orig_params: True
+  fsdp_enabled: True
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
+

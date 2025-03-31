@@ -108,6 +108,9 @@ class ConditionalTrainer:
     kd_ratio: float = None,
     distillation_temperature: float = None,
     method_lam: float = None,
+    distilgpt_alpha: float = None,
+    distilgpt_beta: float = None,
+    distilgpt_gamma: float = None,
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -396,7 +399,10 @@ class ConditionalTrainer:
                     distill_loss_type=self.distill_loss_type,
                     kd_ratio=self.kd_ratio,
                     distillation_temperature=self.distillation_temperature,
-                    method_lam=self.method_lam
+                    method_lam=self.method_lam,
+                    distilgpt_alpha=self.distilgpt_alpha,
+                    distilgpt_beta=self.distilgpt_beta,
+                    distilgpt_gamma=self.distilgpt_gamma,
                 )
                 for key, value in aux_info["distill_losses"].items():
                     distill_losses[key] = distill_losses.get(key, 0) + value.item()

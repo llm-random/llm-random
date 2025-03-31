@@ -3,7 +3,7 @@ from functools import partial
 # import json
 # from diskcache import Cache
 from typing import Optional, Type, Union, Callable
-from research.conditional.utils.distillation_losses import get_distill_loss
+from research.conditional.utils.distillation_losses import distilbert, distilbert_loss, get_distill_loss
 from research.projected_distillation.llm import PreNormNoBiasBlock, ProjectedAttention, ProjectedAttentionRes, ProjectedFeedForward, ProjectedFeedForwardRes
 import torch
 import torch.nn as nn
@@ -268,9 +268,12 @@ def calculate_llm_distillation_loss_and_gradient(
     kd_ratio,
     distillation_temperature,
     method_lam,
+    distilgpt_alpha,
+    distilgpt_beta,
+    distilgpt_gamma,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> tuple[float, dict]:
-    def hack_for_python_garbage_collection(distill_loss_type, kd_ratio, distillation_temperature, method_lam):
+    def hack_for_python_garbage_collection(distill_loss_type, kd_ratio, distillation_temperature, method_lam, distilgpt_alpha, distilgpt_beta, distilgpt_gamma):
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
         so we wrap loss calculation in a function"""
         input_tokens = batch.input_ids # (batch, context)
@@ -280,14 +283,26 @@ def calculate_llm_distillation_loss_and_gradient(
         with torch.autocast(
             device_type="cuda", enabled=mixed_precision, dtype=mixed_precision_dtype
         ):
-            model_output = model(input_tokens)  # (batch, context, vocab)
-            with torch.no_grad():
-                tutor_output = distilled_model(input_tokens)  # (batch, context, vocab)
+            if distill_loss_type=="distilgpt":
+                model_output, model_hidden = model(input_tokens, output_hidden_states=True)  # (batch, context, vocab)
+                with torch.no_grad():
+                    tutor_output, tutor_hidden = distilled_model(input_tokens, output_hidden_states=True)  # (batch, context, vocab)
+            else:   
+                model_output = model(input_tokens)  # (batch, context, vocab)
+                with torch.no_grad():
+                    tutor_output = distilled_model(input_tokens)  # (batch, context, vocab)
 
         # # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
         gt_tokens = gt_tokens.to(model_output.device)
         tutor_output = tutor_output.to(model_output.device)
         mask = mask.to(model_output.device)
+
+        # print(f"student_hidden------------------------------------") #dev
+        # print(f"student_hidden {model_hidden.shape}") #dev
+        # print(f"tutor_hidden {tutor_hidden.shape}") #dev
+        # print(f"student_hidden.flatten(0, -2) {model_hidden.flatten(0, -2).shape}") #dev
+        # print(f"tutor_hidden.flatten(0, -2) {tutor_hidden.flatten(0, -2).shape}") #dev
+        # raise Exception(model_hidden.shape)
 
         mask_loss = F.cross_entropy(
             model_output.flatten(0, -2), # (batch*context, vocab)
@@ -299,8 +314,32 @@ def calculate_llm_distillation_loss_and_gradient(
           
         # KD_RATIO = 0.5 #dev
         # METHOD_LAM = 0.9 #dev
-        distill_loss = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), mask.reshape(-1), distill_loss_type, method_lam)
-        loss = (1 - kd_ratio) * cross_entropy_loss + kd_ratio * distill_loss
+        if distill_loss_type == "distilgpt" and distilgpt_gamma and (distilgpt_gamma != 0):
+            loss = distilbert_loss(
+                model_output.flatten(0, -2), 
+                tutor_output.flatten(0, -2), 
+                mask.reshape(-1), 
+                model_hidden.flatten(0, -2), 
+                tutor_hidden.flatten(0, -2),
+                cross_entropy_loss,
+                temperature=distillation_temperature,
+                alpha=distilgpt_alpha,
+                beta=distilgpt_beta,
+                gamma=distilgpt_gamma,
+            )
+        elif distill_loss_type == "distilgpt":
+            loss = distilbert(
+                model_output.flatten(0, -2), 
+                tutor_output.flatten(0, -2), 
+                mask.reshape(-1), 
+                cross_entropy_loss,
+                temperature=distillation_temperature,
+                alpha=distilgpt_alpha,
+                beta=distilgpt_beta,
+            )
+        else:
+            distill_loss = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), mask.reshape(-1), distill_loss_type, method_lam)
+            loss = (1 - kd_ratio) * cross_entropy_loss + kd_ratio * distill_loss
 
         # mask_loss = F.kl_div(
         #     F.log_softmax(model_output.flatten(0, -2) / distillation_temperature, dim=-1),
@@ -346,7 +385,7 @@ def calculate_llm_distillation_loss_and_gradient(
         }
         return loss, aux_info, cross_entropy_loss
 
-    loss, aux_info, cross_entropy_loss = hack_for_python_garbage_collection(distill_loss_type, kd_ratio, distillation_temperature, method_lam)
+    loss, aux_info, cross_entropy_loss = hack_for_python_garbage_collection(distill_loss_type, kd_ratio, distillation_temperature, method_lam, distilgpt_alpha, distilgpt_beta, distilgpt_gamma,)
     for key, value in aux_info["losses"].items():
         aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     for key, value in aux_info["distill_losses"].items():
