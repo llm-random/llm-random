@@ -20,13 +20,14 @@ params:
   # batch_size: 256 # dev debug
   gradient_accumulation_steps: 2
 
-  ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
-  # ^n_steps: [509, 764]
+  # ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
+  ^n_steps: [10179]
 
 
-  scheduler: cosine
+  scheduler: cosine 
   # ^learning_rate: [0.000125]
-  learning_rate: 0.00025
+  ^learning_rate: [6.25e-05]
+  # learning_rate: 0.00025
   lr_warmup_percent: 0.01
   final_lr_fraction: 0.03
 
@@ -42,15 +43,17 @@ params:
   distillation_temperature: 1.0 #not implemented
  
   distillation: True
-  # distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # helios
-  distillation_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt
+  # distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # 20
+  distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # helios
+  # distillation_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt
     
   attention_mode: projected_vanilla_res
   ff_mode: projected_vanilla_res
   projection_init_type: head_half
   projected_distillation: True
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt
-  projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # 20
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt
+  # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt
 
   fsdp_use_orig_params: True
   fsdp_enabled: True

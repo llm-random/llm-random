@@ -1,7 +1,7 @@
 
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
-time: 0-04:00:00
+time: 0-10:00:00
 n_gpus: 4
 cpus_per_gpu: 16
 
@@ -55,8 +55,9 @@ params:
   gradient_accumulation_steps: 2
 
   distillation: True
-  # distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # helios
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # 20
   distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # helios
+  # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_20.pt
   distillation_temperature: 1.0 #not implemented
   
   fsdp_use_orig_params: True # 126111_0, 126120_0
