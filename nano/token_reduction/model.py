@@ -114,6 +114,7 @@ class LLM_MTP(nn.Module):
         mtp_config: MTPConfig,
     ):
         super(LLM_MTP, self).__init__()
+        tower_config.n_blocks -= 1
 
         self.embedding_layer = embedding
 
@@ -448,7 +449,7 @@ class TrainerMTP(Trainer):
     def eval(self):
         self.model.eval()
         self.metric_logger.set_step(None)  # disables heavy logging
-        n_mtp = self.get_n_mtp()
+        n_mtp = 1   # only the 1st MTP head will be used
         losses = []
         with torch.no_grad():
             for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
@@ -461,15 +462,6 @@ class TrainerMTP(Trainer):
             self.metric_logger.log(
                 "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
             )
-            for i, mtp_avg_loss in enumerate(avg_loss):
-                self.metric_logger.log(
-                    f"steps/eval/mtp_loss_{i}", self.step, mtp_avg_loss.item()
-                )
-                self.metric_logger.log(
-                    f"tokens/eval/mtp_loss_{i}",
-                    self.processed_tokens,
-                    mtp_avg_loss.item(),
-                )
 
     def log_metrics(self, mtp_losses, grad_norm):
         self.metric_logger.log("step", self.step, self.step)
@@ -632,11 +624,10 @@ def get_mtp_dataloaders(
         dataset_split="train",
     )
 
-    eval_dataloader = get_mtp_dataloader(
+    eval_dataloader = get_dataloader(
         dataloader_config=dataloader_config,
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
-        n_mtp=n_mtp,
         seed=eval_seed,
         dataset_split="validation",
     )
