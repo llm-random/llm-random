@@ -177,9 +177,9 @@ class muP_Trainer:
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
-        self._apply_gradient()
         # this function needs to check for logging_process itself
         self._log_weights_and_gradients(step)
+        self._apply_gradient()
 
         if self.is_logging_process:
             self._log_train_stats(loss, step)
@@ -227,19 +227,21 @@ class muP_Trainer:
             "losses": losses,
         }
 
+    def clip_gradient(self):
+        if self.gradient_clipping is not None:
+            if isinstance(self.model, FSDP):
+                return self.model.clip_grad_norm_(self.gradient_clipping)
+            else:
+                return torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
+
     def _apply_gradient(self):
         if self.scaler is None:
-            if self.gradient_clipping is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+            self.clip_gradient()
             self.optimizer.step()
         else:
-            if self.gradient_clipping is not None:
-                self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+            self.clip_gradient()
             self.scaler.step(self.optimizer)
             self.scaler.update()
         self.optimizer.zero_grad()
@@ -369,7 +371,6 @@ class muP_Trainer:
             self.logger.report_scalar(title=name, value=value, iteration=step)
 
     def _log_weights_and_gradients(self, step):
-        print(f"torch.__version__:\n{torch.__version__}")
         if (
             self.logging_interval_heavy > 0
             and step % self.logging_interval_heavy == 0
