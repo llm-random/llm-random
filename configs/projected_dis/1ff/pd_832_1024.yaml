@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
+md5_parent_hash: 5b270cc58e274afa4420c121b7fb69dc
 time: 0-10:00:00
 # time: 0-00:50:00
 n_gpus: 4
@@ -27,9 +27,10 @@ params:
   # ^learning_rate: [0.00015]
   # ^learning_rate: [0.0001]
   # ^learning_rate: [0.00005]
-  ^learning_rate: [0.000025, 0.0000125]
+  # ^learning_rate: [0.000025, 0.0000125]
   # learning_rate: 0.00025
   # learning_rate: 0.0002
+  learning_rate: 0.00015
 
   lr_warmup_percent: 0.1
   final_lr_fraction: 0.01

@@ -1,13 +1,15 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 916b89348a6cb0465eafe8f681ca5542
-time: 0-03:00:00
+md5_parent_hash: 5b270cc58e274afa4420c121b7fb69dc
+time: 0-01:00:00
 n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
   tags: ["projected_dis", "1ff", "dm256", "range", "test"]
+  # on entropy: /home/mstefaniak/llm_random_cemetery/PD_2025-04-01_16-53-13
+  # /home/mstefaniak/llm_random_cemetery/PD_2025-04-02_12-33-14
 
   # ^learning_rate: [0.001, 0.002, 0.004] #+
   # ^learning_rate: [0.008, 0.016] #+
@@ -21,5 +23,5 @@ params:
   
   dmodel: 256
   dff: 256
-  ^n_steps: [8812, 7931, 7050, 6168, 5287, 4406, 3525, 2644, 1762, 881] # 1, 0.9, 0.8, 0.7 ...
-  # n_steps: 8812
+  # ^n_steps: [8812, 7931, 7050, 6168, 5287, 4406, 3525, 2644, 1762, 881] # 1, 0.9, 0.8, 0.7 ...
+  n_steps: 8812
