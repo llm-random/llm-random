@@ -436,6 +436,7 @@ class TrainingConfig(BaseModel):
 class MetricLoggerConfig(BaseModel):
     type: Optional[str]
     project_name: Optional[str]
+    name: str
     tags: Optional[List[str]]
     heavy_metrics_calculation_interval: Optional[int]
 
@@ -1017,6 +1018,7 @@ def get_metric_logger(
                         project=metric_logger_config.project_name,
                         with_id=neptune_run_id,
                         monitoring_namespace=f"monitoring/gpu_{rank}",
+                        name=metric_logger_config,
                         tags=metric_logger_config.tags,
                     )
                     if neptune_run_id is None:
@@ -1032,6 +1034,7 @@ def get_metric_logger(
                         project=metric_logger_config.project_name,
                         with_id=neptune_run_id,
                         monitoring_namespace=f"monitoring/gpu_{rank}",
+                        name=metric_logger_config.name,
                         tags=metric_logger_config.tags,
                     )
                     _metric_logger = NeptuneLogger(
@@ -1041,6 +1044,7 @@ def get_metric_logger(
             else:
                 neptune_logger = neptune.init_run(
                     project=metric_logger_config.project_name,
+                    name=metric_logger_config.name,
                     tags=metric_logger_config.tags,
                     with_id=neptune_run_id,
                 )
