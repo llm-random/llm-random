@@ -392,9 +392,6 @@ class TrainerMTP(Trainer):
             # Tensors should be on the same device for loss calculation #TODO check
             target_ids = target_ids.to(tower_outputs.device)
             target_len = target_ids.shape[-1]
-            if self.step == 0:
-                print(f"input_ids: {input_ids.shape}")
-                print(f"target_ids: {target_ids.shape}")
             mtp_losses = []
             for i in range(n_mtp):
                 if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
@@ -448,7 +445,7 @@ class TrainerMTP(Trainer):
     def eval(self):
         self.model.eval()
         self.metric_logger.set_step(None)  # disables heavy logging
-        n_mtp = self.get_n_mtp()
+        n_mtp = 1   # on eval the model doesn't use MTP modules for further tokens
         losses = []
         with torch.no_grad():
             for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
@@ -461,15 +458,6 @@ class TrainerMTP(Trainer):
             self.metric_logger.log(
                 "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
             )
-            for i, mtp_avg_loss in enumerate(avg_loss):
-                self.metric_logger.log(
-                    f"steps/eval/mtp_loss_{i}", self.step, mtp_avg_loss.item()
-                )
-                self.metric_logger.log(
-                    f"tokens/eval/mtp_loss_{i}",
-                    self.processed_tokens,
-                    mtp_avg_loss.item(),
-                )
 
     def log_metrics(self, mtp_losses, grad_norm):
         self.metric_logger.log("step", self.step, self.step)
@@ -632,11 +620,10 @@ def get_mtp_dataloaders(
         dataset_split="train",
     )
 
-    eval_dataloader = get_mtp_dataloader(
+    eval_dataloader = get_dataloader(
         dataloader_config=dataloader_config,
         batch_size_per_device=batch_size_per_device,
         sequence_length=sequence_length,
-        n_mtp=n_mtp,
         seed=eval_seed,
         dataset_split="validation",
     )

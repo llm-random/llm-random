@@ -436,7 +436,7 @@ class TrainingConfig(BaseModel):
 class MetricLoggerConfig(BaseModel):
     type: Optional[str]
     project_name: Optional[str]
-    name: str
+    name: Optional[str]
     tags: Optional[List[str]]
     heavy_metrics_calculation_interval: Optional[int]
 
