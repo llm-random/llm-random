@@ -49,6 +49,7 @@ def generate_sbatch_script(
     lines.extend(slurm_parameters)
 
     lines.extend(create_master_node_configuration())
+    lines.extend(create_distributed_variables())
 
     lines.append(f"source {venv_path}")
     lines.append(
