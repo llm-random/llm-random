@@ -4,4 +4,5 @@ metric_logger:
     type: "neptune"
     heavy_metrics_calculation_interval: 100
     project_name: "pmtest/llm-random"
-    tags: []
+    name: "nano"
+    tags: ["nano"]
