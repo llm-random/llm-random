@@ -107,7 +107,7 @@ def upload_config_file(metric_logger):
     slurm_array_task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
     file_path = f"generated_configs/config_{slurm_array_task_id}.yaml"
     if slurm_array_task_id is not None and os.path.exists(file_path):
-        metric_logger.run(f"generated_configs/config_{slurm_array_task_id}.yaml")
+        metric_logger.run["yaml_config"].upload(f"generated_configs/config_{slurm_array_task_id}.yaml")
 
 
 def cleanup():
