@@ -1,7 +1,7 @@
 
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 5b270cc58e274afa4420c121b7fb69dc
-time: 0-10:00:00
+time: 0-05:00:00
 n_gpus: 4
 cpus_per_gpu: 16
 
@@ -41,10 +41,10 @@ params:
   # ^method_lam: [0.2]
 
   ^distill_loss_type: [distilgpt] 
-  ^distilgpt_alpha: [5.0]
-  # ^distilgpt_alpha: [0, 2.5, 5.0, 10]
+  # ^distilgpt_alpha: [5.0]
+  ^distilgpt_alpha: [0.0, 2.5, 5.0, 10.0]
   # # ^distilgpt_alpha: [0.0, 3.33, 5.0, 7.5]
-  # ^distilgpt_beta: [1.0]
+  ^distilgpt_beta: [1.0]
   # ^distilgpt_beta: [0.0, 0.5, 2.0]
   # # ^distilgpt_beta: [0.0, 0.75, 1.5]
   ^distilgpt_gamma: [2.0]
@@ -58,10 +58,11 @@ params:
 
   distillation: True
   distillation_type: distilgpt
-  # distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # 20
-  # distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # helios
-  # distillation_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_20.pt
-  distillation_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt
+  # distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # 20 helios
+  # distillation_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # 80 helios
+  # distillation_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_20.pt # writer
+  # distillation_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt # writer
+  distillation_weights_path: /home/mstefaniak/checkpoints/dm_1024_80.pt # entropy
   
   fsdp_use_orig_params: True
   fsdp_enabled: True

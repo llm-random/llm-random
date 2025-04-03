@@ -107,7 +107,7 @@ def skewed_reverse_kl(logits, teacher_logits, mask, lam=0.1):
     return -distill_loss.mean()
 
 
-def distilbert(student_logits, teacher_logits, mask, ce_loss=1.0, temperature=2.0, alpha=5.0, beta=1.0): #dev
+def distilbert(student_logits, teacher_logits, mask, ce_loss, temperature=2.0, alpha=5.0, beta=1.0): #dev
     student_logits = student_logits[mask == 1]
     teacher_logits = teacher_logits[mask == 1]
 
@@ -155,7 +155,7 @@ def distilbert_loss(
     cos_loss = F.cosine_embedding_loss(s_hidden, t_hidden, cos_targets)
 
     # Final combined loss
-    total_loss = alpha * ce_loss + beta * distill_loss + gamma * cos_loss
+    total_loss = ((alpha * ce_loss + beta * distill_loss + gamma * cos_loss)/(alpha+beta+gamma))*8.0
     return total_loss
 
 def get_distill_loss(logits, teacher_logits, loss_mask, loss_type, method_lam=None):

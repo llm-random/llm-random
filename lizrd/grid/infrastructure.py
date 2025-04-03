@@ -624,8 +624,8 @@ class EntropyH100Backend(MachineBackendMP):
     ):
         return [
             slurm_command,
-            "--partition=a100", #switch
-            f"--gres=gpu:a100:{setup_args['n_gpus']}", #switch
+            "--partition=a100", #switch h100 a100
+            f"--gres=gpu:a100:{setup_args['n_gpus']}", #switch h100 a100
             f"--array=0-{n_consecutive-1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",

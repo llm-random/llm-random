@@ -10,21 +10,20 @@ params:
   name: "PD"
   # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
   # tags: ["projected_dis", "1ff", "compression", "dm768_1024", "test"] 
-  tags: ["projected_dis", "1ff", "compression", "dm768_1024", "range", "20_doner"] 
+  tags: ["projected_dis", "1ff", "compression", "dmx_1024", "range", "comp_distilgpt"] 
 
   batch_size: 512
 
-  dmodel: 768
-  dff: 768
+  dmodel: 512
+  dff: 512
   projected_dmodel: 1024
   projected_dff: 1024
-  ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
-  # n_steps: 10179
+  # ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
+  n_steps: 20863
   
   scheduler: cosine
-  # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
-  # ^learning_rate: [0.00025, 0.0005, 0.00075]
-  learning_rate: 0.00025
+  ^learning_rate: [0.0000625, 0.000125, 0.00025, 0.0005]
+  # learning_rate: 0.00025
 
   lr_warmup_percent: 0.1
   final_lr_fraction: 0.01

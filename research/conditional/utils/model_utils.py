@@ -314,7 +314,8 @@ def calculate_llm_distillation_loss_and_gradient(
           
         # KD_RATIO = 0.5 #dev
         # METHOD_LAM = 0.9 #dev
-        if distill_loss_type == "distilgpt" and distilgpt_gamma and (distilgpt_gamma != 0):
+        # if distill_loss_type == "distilgpt" and distilgpt_gamma and (distilgpt_gamma != 0):
+        if distill_loss_type == "distilgpt":
             loss = distilbert_loss(
                 model_output.flatten(0, -2), 
                 tutor_output.flatten(0, -2), 
@@ -327,16 +328,16 @@ def calculate_llm_distillation_loss_and_gradient(
                 beta=distilgpt_beta,
                 gamma=distilgpt_gamma,
             )
-        elif distill_loss_type == "distilgpt":
-            loss = distilbert(
-                model_output.flatten(0, -2), 
-                tutor_output.flatten(0, -2), 
-                mask.reshape(-1), 
-                cross_entropy_loss,
-                temperature=distillation_temperature,
-                alpha=distilgpt_alpha,
-                beta=distilgpt_beta,
-            )
+        # elif distill_loss_type == "distilgpt":
+        #     loss = distilbert(
+        #         model_output.flatten(0, -2), 
+        #         tutor_output.flatten(0, -2), 
+        #         mask.reshape(-1), 
+        #         cross_entropy_loss,
+        #         temperature=distillation_temperature,
+        #         alpha=distilgpt_alpha,
+        #         beta=distilgpt_beta,
+        #     )
         else:
             distill_loss = get_distill_loss(model_output.flatten(0, -2), tutor_output.flatten(0, -2), mask.reshape(-1), distill_loss_type, method_lam)
             loss = (1 - kd_ratio) * cross_entropy_loss + kd_ratio * distill_loss

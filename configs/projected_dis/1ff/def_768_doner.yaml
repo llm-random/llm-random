@@ -1,23 +1,23 @@
 
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 5b270cc58e274afa4420c121b7fb69dc
-time: 0-10:00:00
+time: 0-20:00:00
 n_gpus: 4
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm512", "tune"]
+  tags: ["projected_dis", "1ff", "dm768", "COMP", "doner", "ot_4"]
 
-  ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
-  # learning_rate: 0.001
+  # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
+  # ^learning_rate: [0.002, 0.0015]
+  ^learning_rate: [0.0015, 0.00075]
 
-  dmodel: 512
-  dff: 512
-  # n_steps: 23_304
-  n_steps: 5_826
-
-  # dont_save_final_model: False # switch
+  dmodel: 768
+  dff: 768
+  n_steps: 40_716
+  
+  dont_save_final_model: False
   # save_weights_path: /local_storage_1/ms_tmp/models/ #dev entropy models dir
 
   fsdp_use_orig_params: True
