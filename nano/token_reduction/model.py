@@ -678,6 +678,7 @@ def get_mtp_dataloader(
 
     return dataloader
 
+
 class TrainerMTPWithMerging(Trainer):
     def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
         input_ids = batch[:, :-n_mtp].contiguous()
@@ -708,25 +709,24 @@ class TrainerMTPWithMerging(Trainer):
 
             if self._should_evaluate:
                 self.eval()
-                
-    def _hack_for_python_garbage_collection(self, input_ids, target_ids, n_mtp, keep_indexes, drop_indexes):
+
+    def _hack_for_python_garbage_collection(
+        self, input_ids, target_ids, n_mtp, keep_indexes, drop_indexes
+    ):
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
         so we wrap loss calculation in a function"""
         tower_outputs = self.model(input_ids, keep_indexes, drop_indexes)
         tower_outputs_detatched = tower_outputs.detach()
         tower_outputs_detatched.requires_grad = True
-        
 
         # Tensors should be on the same device for loss calculation #TODO check
         target_ids = target_ids.to(tower_outputs.device)
 
         mtp_losses = []
         for i in range(n_mtp):
-            mtp_module_output = self.model.mtp_modules[i](
-                tower_outputs_detatched
-            )
+            mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
             predicted_ids = self.model.head(mtp_module_output)
-            
+
             if self.model.training:
                 mtp_target_ids = batch_index_select(target_ids, keep_indexes + i)
             else:
@@ -759,14 +759,16 @@ class TrainerMTPWithMerging(Trainer):
             input_ids, target_ids = self._preprocess_input_mtp(batch_chunk, n_mtp)
             self._update_processed_tokens(input_ids)
 
-            mtp_losses, tower_outputs, mtp_grad = self._hack_for_python_garbage_collection(
-                input_ids, target_ids, n_mtp, keep_indexes_chunk, drop_indexes_chunk
+            mtp_losses, tower_outputs, mtp_grad = (
+                self._hack_for_python_garbage_collection(
+                    input_ids, target_ids, n_mtp, keep_indexes_chunk, drop_indexes_chunk
+                )
             )
             tower_outputs.backward(gradient=mtp_grad)
 
             losses.append(mtp_losses)
         return losses
-            
+
     def calculate_loss_eval(self, batch):
         losses = []
         for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
@@ -778,21 +780,20 @@ class TrainerMTPWithMerging(Trainer):
             )
             losses.append(mtp_losses)
         return losses
-        
+
     def calculate_loss(self, batch, n_mtp):
         if self.model.training:
             losses = self.calculate_loss_training(batch, n_mtp)
         else:
-            losses =  self.calculate_loss_eval(batch)
+            losses = self.calculate_loss_eval(batch)
 
         # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
-        device = self.model.head.weight.device # could be any
+        device = self.model.head.weight.device  # could be any
         avg_mtp_losses = torch.tensor(losses, device=device).mean(dim=0)
         if dist.is_initialized():
             dist.all_reduce(avg_mtp_losses, op=dist.ReduceOp.SUM)
 
-        return avg_mtp_losses / float(os.environ["WORLD_SIZE"])            
-
+        return avg_mtp_losses / float(os.environ["WORLD_SIZE"])
 
     def eval(self):
         self.model.eval()
@@ -856,13 +857,11 @@ class TrainerMTPWithMerging(Trainer):
         return n_mtp
 
 
-
-
 def get_extra_dataloaders(
     dataloader_config: dict,
     sequence_length: int,
     n_mtp: int,
-    dropped_tokens: int, 
+    dropped_tokens: int,
     train_seed: int,
     eval_seed: int,
 ):
