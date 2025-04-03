@@ -323,7 +323,8 @@ class RoPE(nn.Module):
     def forward(self, x):
         [y1, y2] = torch.chunk(x, chunks=2, dim=-1)
         x_rotated = torch.cat([-y2, y1], dim=-1)
-        return x * self.cos + x_rotated * self.sin
+        length = x.shape[-2]
+        return x * self.cos[:length] + x_rotated * self.sin[:length]
 
 
 class AttentionRoPE(LoggingLayer):

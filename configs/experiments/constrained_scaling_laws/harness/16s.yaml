@@ -1,0 +1,20 @@
+parent: configs/experiments/constrained_scaling_laws/harness/common.yaml
+md5_parent_hash: 2921e9fd4049e5357388bbd45f789343
+n_gpus: 4
+time: 04:00:00
+
+params:
+  # ^neptune_id: ['LLMRANDOM-23746', 'LLMRANDOM-23745', 'LLMRANDOM-23744', 'LLMRANDOM-23743', 'LLMRANDOM-23742', 'LLMRANDOM-23641', 'LLMRANDOM-23640', 'LLMRANDOM-23639', 'LLMRANDOM-23638', 'LLMRANDOM-23637', 'LLMRANDOM-23636', 'LLMRANDOM-23426', 'LLMRANDOM-23425', 'LLMRANDOM-23424', 'LLMRANDOM-23423', 'LLMRANDOM-22398', 'LLMRANDOM-22397', 'LLMRANDOM-22396']
+  ^neptune_id: ['LLMRANDOM-23746', 'LLMRANDOM-23745', 'LLMRANDOM-23744', 'LLMRANDOM-23743', 'LLMRANDOM-23742', 'LLMRANDOM-23641', 'LLMRANDOM-23640', 'LLMRANDOM-23639', 'LLMRANDOM-23638', 'LLMRANDOM-23637', 'LLMRANDOM-23636', 'LLMRANDOM-23426', 'LLMRANDOM-23425', 'LLMRANDOM-23424', 'LLMRANDOM-23423']
+  ^final_eval_step: [Null]
+  n_blocks: 1
+  dmodel: 1
+  n_att_heads: 1
+  
+  harness_tasks: openbookqa,sciq,social_iqa,commonsense_qa,mmlu,lambada,hellaswag,piqa,arc_easy,arc_challenge,winogrande
+
+  # harness_limit: 1
+  harness_n_fewshot: 0
+  ^batch_size: [128]
+  override_n_gpus: 1
+  final_eval_override: '{"capacity_factor":16.0}'

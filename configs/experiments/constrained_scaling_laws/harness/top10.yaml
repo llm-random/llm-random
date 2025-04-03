@@ -1,0 +1,21 @@
+parent: configs/experiments/constrained_scaling_laws/harness/common.yaml
+md5_parent_hash: 2921e9fd4049e5357388bbd45f789343
+n_gpus: 4
+time: 04:00:00
+
+params:
+  # ^neptune_id: ['LLMRANDOM-25515', 'LLMRANDOM-25514', 'LLMRANDOM-25513', 'LLMRANDOM-25502', 'LLMRANDOM-25512', 'LLMRANDOM-25501', 'LLMRANDOM-25500', 'LLMRANDOM-30616', 'LLMRANDOM-25499', 'LLMRANDOM-28964']
+  ^neptune_id: ['LLMRANDOM-25515', 'LLMRANDOM-25514', 'LLMRANDOM-25513', 'LLMRANDOM-25502', 'LLMRANDOM-25512', 'LLMRANDOM-25501', 'LLMRANDOM-25500', 'LLMRANDOM-30616', 'LLMRANDOM-25499', 'LLMRANDOM-28964']
+  # ^neptune_id: []
+  ^final_eval_step: [Null]
+  n_blocks: 1
+  dmodel: 1
+  n_att_heads: 1
+  
+  harness_tasks: openbookqa,anli,sciq,social_iqa,commonsense_qa,mmlu,lambada,hellaswag,piqa,arc_easy,arc_challenge,winogrande
+
+  # harness_limit: 1
+  harness_n_fewshot: 5
+  ^batch_size: [512]
+  override_n_gpus: 1
+  final_eval_override: '{"capacity_factor":1.5}'

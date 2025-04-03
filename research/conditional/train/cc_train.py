@@ -14,6 +14,7 @@ from torch.distributed import init_process_group, destroy_process_group
 from ast import literal_eval
 
 from lizrd.core import misc
+from lizrd.core.harness_wrapper import HarnessLM
 from lizrd.core.llm import Parallel
 from lizrd.support.logging import (
     get_current_logger,
@@ -295,8 +296,9 @@ def main(
 
     # in case of data parallelism (DDP/FSDP), only gpu:0 should log
     is_logging_process = True if rank is None or rank == 0 else False
+    only_run_eval = args.run_final_eval or args.harness_tasks
 
-    if args.run_final_eval:
+    if only_run_eval:
         suffixes = []
         if args.final_eval_override:
             overrides = json.loads(args.final_eval_override)
@@ -370,6 +372,8 @@ def main(
             args.final_eval_step = my_run["step"].item()
 
         args.load_weights_path = my_run["job/saved_checkpoint"].item()
+        if not os.path.exists(args.load_weights_path):
+            args.load_weights_path = f"/net/storage/pr3/plgrid/plggllmeffi/constrained/backups/{args.neptune_id}/{int(args.final_eval_step)}.pt"
         checkpoint_path = None
         neptune_id = my_run["sys/id"].item()
         assert my_run["lr"].item() == 0.0
@@ -379,7 +383,7 @@ def main(
             if final_eval_series_name in my_run
             else math.nan
         )
-        if is_logging_process:
+        if is_logging_process and args.run_final_eval:
             if not math.isnan(final_eval_value):
                 if args.force_final_eval:
                     with neptune.init_run(
@@ -520,7 +524,7 @@ def main(
                     logger_runs_ids.append(None)
             else:
                 logger_runs_ids = None
-        if args.run_final_eval:
+        if only_run_eval:
             assert args.neptune_id is not None
             assert not args.checkpoint_manager
             logger_runs_ids = [args.neptune_id]
@@ -571,7 +575,7 @@ def main(
 
     param_grops, ratios_in_group_order = make_param_groups_and_lr_ratios(args, model)
 
-    if not args.run_final_eval:
+    if not only_run_eval:
         optimizer = torch.optim.AdamW(
             param_grops,
             lr=args.learning_rate,
@@ -603,7 +607,7 @@ def main(
         "use_dummy_dataset": args.use_dummy_dataset,
     }
 
-    if not args.run_final_eval:
+    if not only_run_eval:
         train_dataloader = get_processed_dataset(
             **common_dataloaders_kwargs,
             dataset_split="train",
@@ -617,7 +621,7 @@ def main(
         if args.dataset_type == "wikibook"
         else ("train" if args.use_dummy_dataset else "validation")
     )
-    if args.eval_interval > 0 and not args.run_final_eval:
+    if args.eval_interval > 0 and not only_run_eval:
         eval_dataloader = get_processed_dataset(
             **common_dataloaders_kwargs,
             dataset_split=eval_split,
@@ -641,7 +645,7 @@ def main(
     else:
         get_final_eval_dataloader = None
 
-    if args.model_type == "gpt" and is_logging_process and not args.run_final_eval:
+    if args.model_type == "gpt" and is_logging_process and not only_run_eval:
         log_batch(
             train_dataloader,
             tokenizer_maker=(
@@ -662,6 +666,28 @@ def main(
         if args.profiler_enabled
         else disable_profile_schedule_fn
     )
+
+    if args.harness_tasks is not None:
+        # assert args.n_gpus <= 1, "For now, at most 1 GPU is supported for harness"
+        # logger = get_logger(args, model, VOCAB_SIZE)
+
+        # common_dataloaders_kwargs = {
+        #     "sequence_length": args.cutoff,
+        #     "device": DEVICE,
+        #     "num_workers": args.num_workers,
+        #     "batch_size": args.batch_size,
+        #     "seed": args.data_seed if data_seeds is None else data_seeds[rank],
+        #     "model_type": args.model_type,
+        #     "dataset_type": args.dataset_type,
+        #     "use_dummy_dataset": args.use_dummy_dataset,
+        # }
+
+        # train_dataloader = get_processed_dataset(
+        #     **common_dataloaders_kwargs,
+        #     dataset_split="train",
+        #     dataset_path=args.train_dataset_path,
+        # )
+        train_dataloader = None
 
     trainer = ConditionalTrainer(
         model=model,
@@ -726,6 +752,68 @@ def main(
             logger_step = 0
 
         trainer.final_eval(logger_step, final_eval_series_name=final_eval_series_name)
+    elif args.harness_tasks:
+        trainer._before_train_operations()
+        model.eval()
+        harness_wrapper = HarnessLM(
+            model,
+            batch_size=args.batch_size,
+            tokenizer=tokenizers.GPTTokenizer(),
+            max_length=args.cutoff,
+            device=DEVICE,
+            dataset=train_dataloader,
+        )
+        import lm_eval
+
+        task_manager = lm_eval.tasks.TaskManager()
+        harness_limit = args.harness_limit
+        if harness_limit is not None:
+            try:
+                harness_limit = int(harness_limit)
+            except ValueError:
+                print(
+                    f"Could not parse harness_limit ({harness_limit}) as int, trying float"
+                )
+                try:
+                    harness_limit = float(harness_limit)
+                except ValueError:
+                    print(
+                        f"Could not parse harness_limit ({harness_limit}) as float, aborting"
+                    )
+
+            # with torch.autocast(
+            #     device_type="cuda",
+            #     enabled=args.mixed_precision,
+            #     dtype=args.mixed_precision_dtype,
+            # ):
+        with torch.no_grad():
+            results = lm_eval.simple_evaluate(  # call simple_evaluate
+                model=harness_wrapper,
+                tasks=args.harness_tasks.split(","),
+                num_fewshot=args.harness_n_fewshot,
+                task_manager=task_manager,
+                limit=harness_limit,
+            )
+
+        harness_setup_string = (
+            f"n_fewshot={args.harness_n_fewshot},limit={args.harness_limit}"
+        )
+        try:
+            suffixes
+        except NameError:
+            ...
+        else:
+            overrides_string = ",".join(suffixes)
+            harness_setup_string += f",overrides={overrides_string}"
+
+        for benchmark_name in results["results"].keys():
+            for key in results["results"][benchmark_name].keys():
+                logger.report_generic_info(
+                    title=f"harness_results/{harness_setup_string}/{benchmark_name}/{key}",
+                    iteration=checkpoint["step"],
+                    data=results["results"][benchmark_name][key],
+                )
+        exit(0)
     else:
         trainer.train(args.n_steps)
 
@@ -742,6 +830,8 @@ if __name__ == "__main__":
         args.data_seed = random.randint(0, 10000000)
 
     save_weights_path = prepare_save_weights_path(args.save_weights_path)
+
+    args.n_gpus = args.override_n_gpus or args.n_gpus
 
     if args.ddp_enabled or args.fsdp_enabled:
         random.seed(args.data_seed)

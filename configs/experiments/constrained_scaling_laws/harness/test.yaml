@@ -1,0 +1,22 @@
+parent: configs/experiments/constrained_scaling_laws/harness/common.yaml
+md5_parent_hash: 2921e9fd4049e5357388bbd45f789343
+n_gpus: 4
+time: 04:00:00
+
+params:
+  # ^neptune_id: ['LLMRANDOM-25501', "LLMRANDOM-25500", "LLMRANDOM-25513", "LLMRANDOM-25512", "LLMRANDOM-25511"]
+  # ^neptune_id: ["LLMRANDOM-25516"] 
+  ^neptune_id: ["LLMRANDOM-22288"]
+  ^final_eval_step: [Null]
+  n_blocks: 1
+  dmodel: 1
+  n_att_heads: 1
+  
+  #
+  # harness_tasks: lambada,hellaswag,piqa,arc_easy,arc_challenge,winogrande
+  harness_tasks: mmlu,lambada,hellaswag,piqa,arc_easy,arc_challenge,winogrande
+
+  # harness_limit: 1
+  harness_n_fewshot: 0
+  ^batch_size: [512]
+  override_n_gpus: 1
