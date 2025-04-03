@@ -1258,7 +1258,9 @@ class Trainer:
         self.metric_logger.set_step(None)  # disables heavy logging
         losses = []
         with torch.no_grad():
-            for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
+            for eval_step, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
+                if eval_step == 0:
+                    self.log_eval_batch(batch)
                 batch = batch.to(self.device)
                 loss = self.calculate_loss(batch)
                 losses.append(loss.item())
@@ -1300,6 +1302,18 @@ class Trainer:
             "tokens/train/grad_norm", self.processed_tokens, grad_norm.item()
         )
         self.metric_logger.flush_accumulated_metrics(self.step)
+
+    def log_eval_batch(self, batch):
+        input_ids, target_ids = self._preprocess_input(batch)
+        input_ids_flat = input_ids.flatten()
+        target_ids_flat = target_ids.flatten()
+        self.metric_logger.log("step/eval/batch/shape", self.step, batch.shape)
+        self.metric_logger.log(f"step/eval/batch/input_ids_start", self.step, input_ids_flat[0])
+        self.metric_logger.log(f"step/eval/batch/input_ids_mid", self.step, input_ids_flat[input_ids_flat.shape[0] // 2])
+        self.metric_logger.log(f"step/eval/batch/input_ids_end", self.step, input_ids_flat[-1])
+        self.metric_logger.log(f"step/eval/batch/target_ids_start", self.step, target_ids_flat[0])
+        self.metric_logger.log(f"step/eval/batch/target_ids_mid", self.step, target_ids_flat[target_ids_flat.shape[0] // 2])
+        self.metric_logger.log(f"step/eval/batch/target_ids_end", self.step, target_ids_flat[01])
 
     def save_checkpoint(self):
         if isinstance(self.model, FSDP):
