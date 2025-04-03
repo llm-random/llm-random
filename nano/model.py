@@ -103,6 +103,12 @@ def distributed_setup():
         logger.warning("CUDA is not available. Running on CPU and 'gloo' backend.")
         dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
 
+def upload_config_file(metric_logger):
+    slurm_array_task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
+    file_path = f"generated_configs/config_{slurm_array_task_id}.yaml"
+    if slurm_array_task_id is not None and os.path.exists(file_path):
+        metric_logger.run(f"generated_configs/config_{slurm_array_task_id}.yaml")
+
 
 def cleanup():
     if dist.is_initialized():
@@ -123,6 +129,7 @@ def run(cfg):
 
     if isinstance(metric_logger, NeptuneLogger):
         metric_logger.run["job_config"] = cfg
+        upload_config_file(metric_logger)
 
     torch.manual_seed(cfg.training.seed)
 
