@@ -677,3 +677,252 @@ def get_mtp_dataloader(
         raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
 
     return dataloader
+
+
+class TrainerMTPWithMerging(Trainer):
+    def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
+        input_ids = batch[:, :-n_mtp].contiguous()
+        target_ids = batch[:, 1:].contiguous()
+
+        return input_ids, target_ids
+
+    def train(self):
+        for step, batch in zip(
+            range(self.start_step, self.n_steps + 1), self.train_dataloader
+        ):
+            self.step = step
+            self.metric_logger.set_step(step)
+            self.model.train()
+            n_mtp = self.get_n_mtp()
+            mtp_losses = self.calculate_loss(batch, n_mtp)
+
+            grad_norm = self.clip_gradient()
+
+            self.log_metrics(mtp_losses, grad_norm)
+
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            self.scheduler.step()
+
+            if self._should_save_checkpoint:
+                self.save_checkpoint()
+
+            if self._should_evaluate:
+                self.eval()
+
+    def _hack_for_python_garbage_collection(
+        self, input_ids, target_ids, n_mtp, keep_indexes, drop_indexes
+    ):
+        """we want to have no reference to model output while backpropagating to allow torch to free memory,
+        so we wrap loss calculation in a function"""
+        tower_outputs = self.model(input_ids, keep_indexes, drop_indexes)
+        tower_outputs_detatched = tower_outputs.detach()
+        tower_outputs_detatched.requires_grad = True
+
+        # Tensors should be on the same device for loss calculation #TODO check
+        target_ids = target_ids.to(tower_outputs.device)
+
+        mtp_losses = []
+        for i in range(n_mtp):
+            mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
+            predicted_ids = self.model.head(mtp_module_output)
+
+            if self.model.training:
+                mtp_target_ids = batch_index_select(target_ids, keep_indexes + i)
+            else:
+                mtp_target_ids = target_ids
+
+            mtp_loss = F.cross_entropy(
+                predicted_ids.flatten(0, -2),
+                mtp_target_ids.reshape(-1).long(),
+                reduction="none",
+            )
+            mtp_loss = mtp_loss.mean() / self.gradient_accumulation_steps
+            if self.model.training:
+                mtp_loss.backward()
+            mtp_losses.append(mtp_loss.item())
+
+        if self.model.training:
+            mtp_grad = tower_outputs_detatched.grad
+            return mtp_losses, tower_outputs, mtp_grad
+        else:
+            return mtp_losses, None, None
+
+    def calculate_loss_training(self, batch, n_mtp):
+        losses = []
+        input_data, (keep_indexes, drop_indexes) = batch
+        for batch_chunk, keep_indexes_chunk, drop_indexes_chunk in zip(
+            input_data.chunk(self.gradient_accumulation_steps),
+            keep_indexes.chunk(self.gradient_accumulation_steps),
+            drop_indexes.chunk(self.gradient_accumulation_steps),
+        ):
+            input_ids, target_ids = self._preprocess_input_mtp(batch_chunk, n_mtp)
+            self._update_processed_tokens(input_ids)
+
+            mtp_losses, tower_outputs, mtp_grad = (
+                self._hack_for_python_garbage_collection(
+                    input_ids, target_ids, n_mtp, keep_indexes_chunk, drop_indexes_chunk
+                )
+            )
+            tower_outputs.backward(gradient=mtp_grad)
+
+            losses.append(mtp_losses)
+        return losses
+
+    def calculate_loss_eval(self, batch):
+        losses = []
+        for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
+            input_ids, target_ids = self._preprocess_input(batch_chunk)
+            input_ids = input_ids.to(self.device)
+
+            mtp_losses, _, _ = self._hack_for_python_garbage_collection(
+                input_ids, target_ids, 1, None, None
+            )
+            losses.append(mtp_losses)
+        return losses
+
+    def calculate_loss(self, batch, n_mtp):
+        if self.model.training:
+            losses = self.calculate_loss_training(batch, n_mtp)
+        else:
+            losses = self.calculate_loss_eval(batch)
+
+        # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
+        device = self.model.head.weight.device  # could be any
+        avg_mtp_losses = torch.tensor(losses, device=device).mean(dim=0)
+        if dist.is_initialized():
+            dist.all_reduce(avg_mtp_losses, op=dist.ReduceOp.SUM)
+
+        return avg_mtp_losses / float(os.environ["WORLD_SIZE"])
+
+    def eval(self):
+        self.model.eval()
+        self.metric_logger.set_step(None)  # disables heavy logging
+        losses = []
+        with torch.no_grad():
+            for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
+                batch = batch.to(self.device)
+                mtp_losses = self.calculate_loss(batch, 1)
+                losses.append(mtp_losses)
+                self.metric_logger.flush_accumulated_metrics(self.step)
+            avg_loss = torch.stack(losses).mean(dim=0)
+            self.metric_logger.log("steps/eval/loss", self.step, avg_loss[0].item())
+            self.metric_logger.log(
+                "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
+            )
+
+    def log_metrics(self, mtp_losses, grad_norm):
+        self.metric_logger.log("step", self.step, self.step)
+        self.metric_logger.log("steps/train/loss", self.step, mtp_losses[0].item())
+
+        self.metric_logger.log(
+            "steps/train/lr", self.step, (self.scheduler.get_last_lr()[0])
+        )
+        self.metric_logger.log("steps/train/grad_norm", self.step, grad_norm.item())
+        self.metric_logger.log(
+            "steps/train/processed_tokens", self.step, self.processed_tokens
+        )
+        self.metric_logger.log(
+            "tokens/train/loss", self.processed_tokens, mtp_losses[0].item()
+        )
+        self.metric_logger.log(
+            "tokens/lr", self.processed_tokens, (self.scheduler.get_last_lr()[0])
+        )
+        self.metric_logger.log(
+            "tokens/train/grad_norm", self.processed_tokens, grad_norm.item()
+        )
+        for i, mtp_loss in enumerate(mtp_losses):
+            self.metric_logger.log(
+                f"steps/train/mtp_loss_{i}", self.step, mtp_loss.item()
+            )
+            self.metric_logger.log(
+                f"tokens/train/mtp_loss_{i}", self.processed_tokens, mtp_loss.item()
+            )
+
+        self.metric_logger.flush_accumulated_metrics(self.step)
+        # log average loss per 100 steps
+        if self.step > 0:
+            self.loss_interval_100 += mtp_losses[0].item()
+            if self.step % 100 == 0:
+                self.metric_logger.log(
+                    "steps/train/loss_100", self.step, self.loss_interval_100 / 100.0
+                )
+                self.loss_interval_100 = 0.0
+
+    def get_n_mtp(self):
+        if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
+            n_mtp = len(self.model.module.mtp_modules)
+        else:
+            n_mtp = len(self.model.mtp_modules)
+        return n_mtp
+
+
+def get_extra_dataloaders(
+    dataloader_config: dict,
+    sequence_length: int,
+    n_mtp: int,
+    dropped_tokens: int,
+    train_seed: int,
+    eval_seed: int,
+):
+
+    world_size = int(os.environ["WORLD_SIZE"])
+    batch_size_per_device = dataloader_config.total_batch_size // world_size
+    logger.debug(f"Batch size per device: {batch_size_per_device}")
+    logger.debug(f"Total: {dataloader_config.total_batch_size}")
+
+    train_dataloader = get_extra_dataloader(
+        dataloader_config=dataloader_config,
+        batch_size_per_device=batch_size_per_device,
+        sequence_length=sequence_length,
+        n_mtp=n_mtp,
+        dropped_tokens=dropped_tokens,
+        seed=train_seed,
+        dataset_split="train",
+    )
+
+    eval_dataloader = get_dataloader(
+        dataloader_config=dataloader_config,
+        batch_size_per_device=batch_size_per_device,
+        sequence_length=sequence_length,
+        seed=eval_seed,
+        dataset_split="validation",
+    )
+
+    return train_dataloader, eval_dataloader
+
+
+def get_extra_dataloader(
+    dataloader_config: dict,
+    batch_size_per_device: int,
+    sequence_length: int,
+    n_mtp: int,
+    dropped_tokens: int,
+    seed: int,
+    dataset_split: str,
+):
+    if dataloader_config.dataset == "c4":
+        path = (
+            dataloader_config.training_dataset_path
+            if dataset_split == "train"
+            else dataloader_config.eval_dataset_path
+        )
+        dataset = C4Dataset(
+            sequence_length=sequence_length + n_mtp + dropped_tokens,
+            path=path,
+            seed=seed,
+            use_new_sampling_method=dataloader_config.use_new_sampling_method,
+            shuffle=dataloader_config.shuffle,
+            world_size_independent=dataloader_config.world_size_independent,
+        )
+        dataloader = StatefulDataLoader(
+            dataset,
+            batch_size=batch_size_per_device,
+            collate_fn=partial(collate_reduction, sequence_length, dropped_tokens),
+            pin_memory=True,
+            num_workers=dataloader_config.num_workers,
+        )
+    else:
+        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
+
+    return dataloader

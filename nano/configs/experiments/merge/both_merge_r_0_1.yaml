@@ -1,0 +1,9 @@
+defaults:
+  - merge_common
+  - _self_
+
+model:
+  embedding:
+      _target_: token_reduction.model.TokenMergingEmbeddingBothTokens
+  common:
+    dropped_tokens: 26
