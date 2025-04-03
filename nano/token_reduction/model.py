@@ -916,13 +916,6 @@ def get_extra_dataloader(
             shuffle=dataloader_config.shuffle,
             world_size_independent=dataloader_config.world_size_independent,
         )
-        # dataloader = StatefulDataLoader(
-        #     dataset,
-        #     batch_size=batch_size_per_device,
-        #     collate_fn=collate_wrapper,
-        #     pin_memory=True,
-        #     num_workers=dataloader_config.num_workers,
-        # )
         dataloader = StatefulDataLoader(
             dataset,
             batch_size=batch_size_per_device,
