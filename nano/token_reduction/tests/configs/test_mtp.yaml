@@ -51,6 +51,7 @@ training:
 metric_logger:
     _target_: model.MetricLoggerConfig
     type: "stdout"
+    name: "test_mtp"
     tags: []
     project_name: null
     heavy_metrics_calculation_interval: -1

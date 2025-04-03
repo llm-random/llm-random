@@ -54,7 +54,6 @@ class TestTrainerMTP(unittest.TestCase):
             eval_dataloader=eval_dataloader,
             metric_logger=metric_logger,
         )
-        print("ok")
         mtp_trainer.train()
 
 
