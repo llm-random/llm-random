@@ -1025,7 +1025,7 @@ def get_metric_logger(
                         project=metric_logger_config.project_name,
                         with_id=neptune_run_id,
                         monitoring_namespace=f"monitoring/gpu_{rank}",
-                        name=metric_logger_config,
+                        name=metric_logger_config.name,
                         tags=metric_logger_config.tags,
                     )
                     if neptune_run_id is None:
