@@ -1277,7 +1277,7 @@ class Trainer:
         losses = []
         eval_fingerprint = []
         with torch.no_grad():
-            for eval_step in range(self.n_eval_steps):
+            for _ in range(self.n_eval_steps):
                 batch = next(self.eval_iterator)
                 batch_fingerprint = create_batch_fingerprint(batch)
                 eval_fingerprint.extend(batch_fingerprint)

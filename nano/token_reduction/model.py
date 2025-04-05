@@ -21,6 +21,7 @@ from model import (
     PositionalEmbedding,
     TokenEmbedding,
     Trainer,
+    create_batch_fingerprint,
     get_dataloader,
     collate_wrapper,
     TowerConfig,
@@ -447,8 +448,12 @@ class TrainerMTP(Trainer):
         self.metric_logger.set_step(None)  # disables heavy logging
         n_mtp = 1   # on eval the model doesn't use MTP modules for further tokens
         losses = []
+        eval_fingerprint = []
         with torch.no_grad():
-            for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
+            for _ in range(self.n_eval_steps):
+                batch = next(self.eval_iterator)
+                batch_fingerprint = create_batch_fingerprint(batch)
+                eval_fingerprint.extend(batch_fingerprint)    
                 batch = batch.to(self.device)
                 mtp_losses = self.calculate_loss(batch, n_mtp).float()
                 losses.append(mtp_losses)
@@ -458,6 +463,9 @@ class TrainerMTP(Trainer):
             self.metric_logger.log(
                 "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
             )
+
+        if self._should_log_eval_input:
+            self.metric_logger.log(f"steps/eval/batch", self.step, str(eval_fingerprint))
 
     def log_metrics(self, mtp_losses, grad_norm):
         self.metric_logger.log("step", self.step, self.step)
@@ -786,8 +794,12 @@ class TrainerMTPWithMerging(Trainer):
         self.model.eval()
         self.metric_logger.set_step(None)  # disables heavy logging
         losses = []
+        eval_fingerprint = []
         with torch.no_grad():
-            for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
+            for _ in range(self.n_eval_steps):
+                batch = next(self.eval_iterator)
+                batch_fingerprint = create_batch_fingerprint(batch)
+                eval_fingerprint.extend(batch_fingerprint)    
                 batch = batch.to(self.device)
                 mtp_losses = self.calculate_loss(batch, 1)
                 losses.append(mtp_losses)
@@ -797,6 +809,9 @@ class TrainerMTPWithMerging(Trainer):
             self.metric_logger.log(
                 "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
             )
+
+        if self._should_log_eval_input:
+            self.metric_logger.log(f"steps/eval/batch", self.step, str(eval_fingerprint))
 
     def log_metrics(self, mtp_losses, grad_norm):
         self.metric_logger.log("step", self.step, self.step)
