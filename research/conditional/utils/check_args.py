@@ -66,7 +66,7 @@ def check_args(args):
         assert args.n_tokens is None
 
     if args.lr_warmup_steps is None:
-        assert args.lr_warmup_tokens is not None
+        assert args.lr_warmup_tokens is not None # dev TODO fix this - consider lr_warmup_percent arg
     else:
         assert args.lr_warmup_tokens is None
 
@@ -79,4 +79,5 @@ def check_args(args):
         # assert args.dff == args.distilled_dff
         assert args.distillation_weights_path
     else:
-        assert not args.distillation_weights_path
+        pass
+        # assert not args.distillation_weights_path

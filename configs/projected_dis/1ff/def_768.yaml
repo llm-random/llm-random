@@ -1,13 +1,14 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 5b270cc58e274afa4420c121b7fb69dc
+md5_parent_hash: 41ba87a56e92ea289913b5a7ffea8f9b
 time: 0-05:00:00
 n_gpus: 4
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm768", "range"]
+  # tags: ["projected_dis", "1ff", "dm768", "range"]
+  tags: ["projected_dis", "1ff", "dm768", "COMP"]
 
   # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
   # ^learning_rate: [0.002, 0.0015]
@@ -17,8 +18,8 @@ params:
   dff: 768
   # n_steps: 10_179
   # ^n_steps: [1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
-  ^n_steps: [509, 764]
-  # n_steps: 10_179
+  # ^n_steps: [509, 764]
+  n_steps: 10_179
 
   fsdp_use_orig_params: True
   fsdp_enabled: True

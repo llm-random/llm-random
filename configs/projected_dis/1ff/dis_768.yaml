@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 5b270cc58e274afa4420c121b7fb69dc
+md5_parent_hash: 41ba87a56e92ea289913b5a7ffea8f9b
 time: 0-10:00:00
 n_gpus: 4
 cpus_per_gpu: 16
@@ -14,17 +14,18 @@ params:
   dff: 768
   distilled_dmodel: 1024
   distilled_dff: 1024
+
+  # ^learning_rate: [asd, asd, asd, asd, asd]
+  # ^learning_rate: [0.00075, 0.001, 0.0015]
+  # learning_rate: 0.0015
+
+  scheduler: cosine
+  lr_warmup_percent: 0.01
+  final_lr_fraction: 0.03
   
   n_steps: 10_179
   # n_steps: 81432
   # n_steps: 651456
-
-  scheduler: cosine
-  # ^learning_rate: [asd, asd, asd, asd, asd]
-  # ^learning_rate: [0.00075, 0.001, 0.0015]
-  # learning_rate: 0.0015
-  lr_warmup_percent: 0.01
-  final_lr_fraction: 0.03
 
   # [("sfkl", 0.1), ("srkl", 0.1), ("jsd", 0.9), ("tvd", None), ("fkl", None), ("rkl", None), ("skl", 0.9)]
   distillation: True

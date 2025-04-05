@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 5b270cc58e274afa4420c121b7fb69dc
+md5_parent_hash: 41ba87a56e92ea289913b5a7ffea8f9b
 time: 0-05:00:00
 n_gpus: 4
 cpus_per_gpu: 16
@@ -41,16 +41,20 @@ params:
   # ^method_lam: [0.2]
 
   ^distill_loss_type: [distilgpt] 
+  distilgpt_alpha: 5.0 #sa
+  distilgpt_beta: 1.0 #sa
+  distilgpt_gamma: 2.0 #sa
+
   # ^distilgpt_alpha: [5.0]
-  ^distilgpt_alpha: [0.0, 2.5, 5.0, 10.0]
+  # ^distilgpt_alpha: [0.0, 2.5, 5.0, 10.0]
   # # ^distilgpt_alpha: [0.0, 3.33, 5.0, 7.5]
-  ^distilgpt_beta: [1.0]
+  # ^distilgpt_beta: [1.0]
   # ^distilgpt_beta: [0.0, 0.5, 2.0]
   # # ^distilgpt_beta: [0.0, 0.75, 1.5]
-  ^distilgpt_gamma: [2.0]
+  # ^distilgpt_gamma: [2.0]
   # ^distilgpt_gamma: [0.0, 1.0, 4.0]
   # # ^distilgpt_gamma: [0.0, 1.33, 3.0]
-  ^distillation_temperature: [2.0]
+  # ^distillation_temperature: [2.0]
   # ^distillation_temperature: [1.0, 4.0]
   # # ^distillation_temperature: [1.33, 3.0]
 

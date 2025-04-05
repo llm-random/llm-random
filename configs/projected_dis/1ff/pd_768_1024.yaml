@@ -1,6 +1,6 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 5b270cc58e274afa4420c121b7fb69dc
+md5_parent_hash: 41ba87a56e92ea289913b5a7ffea8f9b
 time: 0-10:00:00
 # time: 0-00:50:00
 n_gpus: 4
@@ -18,17 +18,17 @@ params:
   dff: 768
   projected_dmodel: 1024
   projected_dff: 1024
-  ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
-  # n_steps: 10179
   
-  scheduler: cosine
   # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
   # ^learning_rate: [0.00025, 0.0005, 0.00075]
   learning_rate: 0.00025
 
-  lr_warmup_percent: 0.1
-  final_lr_fraction: 0.01
+  scheduler: cosine
+  lr_warmup_percent: 0.1 #compression
+  final_lr_fraction: 0.01 #compression
 
+  ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
+  # n_steps: 10179
 
   attention_mode: projected_vanilla_res
   ff_mode: projected_vanilla_res
