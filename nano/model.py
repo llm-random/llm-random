@@ -252,9 +252,17 @@ class C4Dataset(IterableDataset):
             fn_kwargs={"encode_fn": tokenizer.encode, "eot_str": eot_str},
         )
 
+    def get_infinite_sampler(self):
+        epoch = 0 
+        while True:
+            self.data_generator.set_epoch(epoch)
+            for next_sample in self.data_generator:
+                yield next_sample
+            epoch += 1
+
     def sample_packer(self):
         buffer: List[int] = []
-        sampler = iter(self.data_generator)
+        sampler = iter(self.get_infinite_sampler())
         if self.use_new_sampling_method:
 
             while True:
