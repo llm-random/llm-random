@@ -118,6 +118,7 @@ class LLM_MTP(nn.Module):
 
         self.embedding_layer = embedding
 
+        tower_config.n_blocks -= 1  # MTP heads are de facto last encoder layer.
         self.encoder = TransformerTower(
             common=common,
             tower_config=tower_config,
