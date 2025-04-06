@@ -1133,6 +1133,19 @@ class TrapezoidalLR(SequentialLR):
         while loaded_state["last_epoch"] > self.last_epoch:
             self.step()
 
+def create_batch_fingerprint(batch):
+    def prefix_suffix_only(array, prefix=3, suffix=3):
+        prefix_part = array[:prefix]
+        suffix_part = array[-suffix:]
+        result = prefix_part + suffix_part
+        return result
+    
+    first_row  = prefix_suffix_only(batch[0]).numpy().tolist()
+    middle_row = prefix_suffix_only(batch[len(batch) // 2]).numpy().tolist()
+    last_row   = prefix_suffix_only(batch[-1]).numpy().tolist()
+
+    return first_row + middle_row + last_row
+
 
 @define(slots=False)
 class Trainer:
@@ -1155,6 +1168,7 @@ class Trainer:
         self.start_step = self.training_state["next_step"]
         self.device = next(self.model.parameters()).device
         self.loss_interval_100 = 0.0
+        self.eval_iterator = iter(self.eval_dataloader)
 
     @property
     def _should_evaluate(self) -> bool:
@@ -1163,6 +1177,10 @@ class Trainer:
             and self.step % self.eval_interval == 0
             and self.step != 0
         )
+
+    @property
+    def _should_log_eval_input(self) -> bool:
+        return self.step % ( self.eval_interval * 1000 ) == 0 
 
     @property
     def _should_save_checkpoint(self) -> bool:
@@ -1264,8 +1282,12 @@ class Trainer:
         self.model.eval()
         self.metric_logger.set_step(None)  # disables heavy logging
         losses = []
+        eval_fingerprint = []
         with torch.no_grad():
-            for _, batch in zip(range(self.n_eval_steps), self.eval_dataloader):
+            for _ in range(self.n_eval_steps):
+                batch = next(self.eval_iterator)
+                batch_fingerprint = create_batch_fingerprint(batch)
+                eval_fingerprint.extend(batch_fingerprint)
                 batch = batch.to(self.device)
                 loss = self.calculate_loss(batch)
                 losses.append(loss.item())
@@ -1275,6 +1297,9 @@ class Trainer:
             self.metric_logger.log(
                 "tokens/eval/loss", self.processed_tokens, avg_loss.item()
             )
+
+        if self._should_log_eval_input:
+            self.metric_logger.log(f"steps/eval/batch", self.step, str(eval_fingerprint))
 
     def clip_gradient(self):
         if self.gradient_clipping is not None:
@@ -1307,6 +1332,7 @@ class Trainer:
             "tokens/train/grad_norm", self.processed_tokens, grad_norm.item()
         )
         self.metric_logger.flush_accumulated_metrics(self.step)
+
 
     def save_checkpoint(self):
         if isinstance(self.model, FSDP):
