@@ -118,6 +118,7 @@ class LLM_MTP(nn.Module):
 
         self.embedding_layer = embedding
 
+        tower_config.n_blocks -= 1  # MTP heads are de facto last encoder layer.
         self.encoder = TransformerTower(
             common=common,
             tower_config=tower_config,
@@ -360,7 +361,7 @@ class TrainerMTP(Trainer):
 
     def train(self):
         for step, batch in zip(
-            range(self.start_step, self.n_steps + 1), self.train_dataloader
+            range(self.start_step, self.n_steps), self.train_dataloader
         ):
             self.step = step
             self.metric_logger.set_step(step)
