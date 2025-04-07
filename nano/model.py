@@ -1188,7 +1188,7 @@ class Trainer:
 
     @property
     def _should_log_eval_input(self) -> bool:
-        return self.step % ( self.eval_interval * 1000 ) == 0 
+        return self.step % ( self.eval_interval * 100 ) == 0 
 
     @property
     def _should_save_checkpoint(self) -> bool:
