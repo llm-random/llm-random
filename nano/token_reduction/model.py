@@ -104,8 +104,62 @@ def create_token_dropping_function(config, common: CommonDroppingConfig):
 @dataclass
 class MTPConfig:
     n_mtp: int
-    mode: str  # paralel or (recurrent/deepseek)
     mtp_block_config: BlockConfig
+
+
+class LLM_MTP(nn.Module):
+    def __init__(
+        self,
+        embedding,
+        common: Common,
+        tower_config: TowerConfig,
+        mtp_config: MTPConfig,
+    ):
+        super(LLM_MTP, self).__init__()
+
+        self.embedding_layer = embedding
+
+        tower_config.n_blocks -= 1  # MTP heads are de facto last encoder layer.
+
+        self.encoder = TransformerTower(
+            common=common,
+            tower_config=tower_config,
+        )
+
+        self.mtp_modules = nn.ModuleList(
+            [
+                TransformerBlock(common, mtp_config.mtp_block_config)
+                for _ in range(mtp_config.n_mtp)
+            ]
+        )
+
+        self.head = PredictionHead(
+            common.dmodel,
+            common.vocab_size,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        )
+
+        self._add_metric_log_names()
+
+    def _add_metric_log_names(self):
+        def _get_metric_log_name(name: str):
+            meaningful_regex = ["block_\\d+", "attention", "feedforward", "residual"]
+            module_names = name.split(".")
+            meaningful_names = [
+                module_name
+                for module_name in module_names
+                if any(re.search(pattern, module_name) for pattern in meaningful_regex)
+            ]
+            return "/".join(meaningful_names)
+
+        for name, model in self.named_modules():
+            model.log_name = _get_metric_log_name(name)
+
+    def forward(self, *args, **kwargs):
+        x = self.embedding_layer(*args, **kwargs)
+        x = self.encoder(x)
+        return x
 
 
 class RecurrentMTPHead(nn.Module):
@@ -138,7 +192,7 @@ class RecurrentMTPHead(nn.Module):
         return out
 
 
-class LLM_MTP(nn.Module):
+class LLMrecurrentMTP(LLM_MTP):
     def __init__(
         self,
         embedding,
@@ -150,28 +204,17 @@ class LLM_MTP(nn.Module):
 
         self.embedding_layer = embedding
 
-        if mtp_config.mode == "paralel":
-            tower_config.n_blocks -= 1  # MTP heads are de facto last encoder layer.
-
         self.encoder = TransformerTower(
             common=common,
             tower_config=tower_config,
         )
 
-        if mtp_config.mode == "paralel":
-            self.mtp_modules = nn.ModuleList(
-                [
-                    TransformerBlock(common, mtp_config.mtp_block_config)
-                    for _ in range(mtp_config.n_mtp)
-                ]
-            )
-        elif mtp_config.mode in ["recurrent", "deepseek"]:
-            self.mtp_modules = nn.ModuleList(
-                [
-                    RecurrentMTPHead(common, mtp_config.mtp_block_config)
-                    for _ in range(mtp_config.n_mtp - 1)
-                ]
-            )
+        self.mtp_modules = nn.ModuleList(
+            [
+                RecurrentMTPHead(common, mtp_config.mtp_block_config)
+                for _ in range(mtp_config.n_mtp - 1)
+            ]
+        )
 
         self.head = PredictionHead(
             common.dmodel,
@@ -182,23 +225,10 @@ class LLM_MTP(nn.Module):
 
         self._add_metric_log_names()
 
-    def _add_metric_log_names(self):
-        def _get_metric_log_name(name: str):
-            meaningful_regex = ["block_\\d+", "attention", "feedforward", "residual"]
-            module_names = name.split(".")
-            meaningful_names = [
-                module_name
-                for module_name in module_names
-                if any(re.search(pattern, module_name) for pattern in meaningful_regex)
-            ]
-            return "/".join(meaningful_names)
-
-        for name, model in self.named_modules():
-            model.log_name = _get_metric_log_name(name)
-
-    def forward(self, *args, **kwargs):
-        x = self.embedding_layer(*args, **kwargs)
-        x = self.encoder(x)
+    def forward(self, x):
+        x = self.encoder(
+            x
+        )  # skip embedding layer, because it's logits will be needed for recurrent mtp
         return x
 
 
@@ -401,7 +431,7 @@ class TrainerMTP(Trainer):
 
         return input_ids, target_ids
 
-    def train(self, mtp_mode):  #change mtp_mode to sth reasonable
+    def train(self):
         for step, batch in zip(
             range(self.start_step, self.n_steps), self.train_dataloader
         ):
@@ -409,7 +439,7 @@ class TrainerMTP(Trainer):
             self.metric_logger.set_step(step)
             self.model.train()
             n_mtp = self.get_n_mtp()
-            mtp_losses = self.calculate_loss(batch, n_mtp, mtp_mode)
+            mtp_losses = self.calculate_loss(batch, n_mtp)
 
             grad_norm = self.clip_gradient()
 
@@ -425,21 +455,14 @@ class TrainerMTP(Trainer):
             if self._should_evaluate:
                 self.eval()
 
-    def mtp_loop(self, tower_outputs_detatched, target_ids, n_mtp, mtp_mode):
+    def mtp_loop(self, tower_outputs_detatched, target_ids, n_mtp):
         target_len = target_ids.shape[-1]
         mtp_losses = []
         for i in range(n_mtp):
-            if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-                mtp_module_output = self.model.module.mtp_modules[i](
-                    tower_outputs_detatched
-                )
-                predicted_ids = self.model.module.head(mtp_module_output)
-            else:
-                mtp_module_output = self.model.mtp_modules[i](
-                    tower_outputs_detatched
-                )
-                predicted_ids = self.model.head(mtp_module_output)
+            mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
+            predicted_ids = self.model.head(mtp_module_output)
             mtp_target_ids = target_ids[:, i : target_len + i - n_mtp + 1].detach()
+
             mtp_loss = F.cross_entropy(
                 predicted_ids.flatten(0, -2),
                 mtp_target_ids.reshape(-1).long(),
@@ -451,7 +474,7 @@ class TrainerMTP(Trainer):
             mtp_losses.append(mtp_loss)
         return mtp_losses
 
-    def hack_for_python_garbage_collection(self, input_ids, target_ids, n_mtp, mtp_mode):
+    def hack_for_python_garbage_collection(self, input_ids, target_ids, n_mtp):
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
         so we wrap loss calculation in a function"""
         tower_outputs = self.model(input_ids)
@@ -461,7 +484,7 @@ class TrainerMTP(Trainer):
         # Tensors should be on the same device for loss calculation #TODO check
         target_ids = target_ids.to(tower_outputs.device)
 
-        mtp_losses = self.mtp_loop(tower_outputs_detatched, target_ids, n_mtp, mtp_mode)
+        mtp_losses = self.mtp_loop(tower_outputs_detatched, target_ids, n_mtp)
 
         if self.model.training:
             mtp_grad = tower_outputs_detatched.grad
@@ -469,7 +492,7 @@ class TrainerMTP(Trainer):
         else:
             return mtp_losses, None, None
 
-    def calculate_loss(self, batch, n_mtp, mtp_mode):
+    def calculate_loss(self, batch, n_mtp):
         losses = []
         for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
             input_ids, target_ids = self._preprocess_input_mtp(batch_chunk, n_mtp)
@@ -477,9 +500,11 @@ class TrainerMTP(Trainer):
             if self.model.training:
                 self._update_processed_tokens(input_ids)
 
-            mtp_losses, tower_outputs, mtp_grad = self.hack_for_python_garbage_collection(
-                input_ids, target_ids, n_mtp, mtp_mode
-            )
+            (
+                mtp_losses,
+                tower_outputs,
+                mtp_grad,
+            ) = self.hack_for_python_garbage_collection(input_ids, target_ids, n_mtp)
             if self.model.training:
                 tower_outputs.backward(gradient=mtp_grad)
             losses.append(mtp_losses)  # TODO handle other mtp losses
@@ -561,6 +586,120 @@ class TrainerMTP(Trainer):
         else:
             n_mtp = len(self.model.mtp_modules)
         return n_mtp
+
+
+class TrainerRecurrentMTP(TrainerMTP):
+    def train(self):
+        for step, batch in zip(
+            range(self.start_step, self.n_steps), self.train_dataloader
+        ):
+            self.step = step
+            self.metric_logger.set_step(step)
+            self.model.train()
+            n_mtp = self.get_n_mtp()
+            mtp_losses = self.calculate_loss(batch, n_mtp)
+
+            grad_norm = self.clip_gradient()
+
+            self.log_metrics(mtp_losses, grad_norm)
+
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            self.scheduler.step()
+
+            if self._should_save_checkpoint:
+                self.save_checkpoint()
+
+            if self._should_evaluate:
+                self.eval()
+
+    def mtp_loop(self, tower_outputs_detatched, target_ids, n_mtp):
+        target_len = target_ids.shape[-1]
+        mtp_losses = []
+        for i in range(n_mtp):
+            mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
+            predicted_ids = self.model.head(mtp_module_output)
+            mtp_target_ids = target_ids[:, i : target_len + i - n_mtp + 1].detach()
+
+            mtp_loss = F.cross_entropy(
+                predicted_ids.flatten(0, -2),
+                mtp_target_ids.reshape(-1).long(),
+                reduction="none",
+            )
+            mtp_loss = mtp_loss.mean() / self.gradient_accumulation_steps
+            if self.model.training:
+                mtp_loss.backward()
+            mtp_losses.append(mtp_loss)
+        return mtp_losses
+
+    def hack_for_python_garbage_collection(self, input_ids, target_ids, n_mtp):
+        """we want to have no reference to model output while backpropagating to allow torch to free memory,
+        so we wrap loss calculation in a function"""
+
+        embedding_outputs = self.model.embedding_layer(input_ids)
+        embedding_outputs_detatched = embedding_outputs.detach()
+        embedding_outputs_detatched.requires_grad = True
+
+        # Tensors should be on the same device for loss calculation #TODO check
+        target_ids = target_ids.to(tower_outputs.device)
+
+        mtp_losses = self.mtp_loop(tower_outputs_detatched, target_ids, n_mtp)
+
+        if self.model.training:
+            mtp_grad = tower_outputs_detatched.grad
+            return mtp_losses, tower_outputs, mtp_grad
+        else:
+            return mtp_losses, None, None
+
+    def calculate_loss(self, batch, n_mtp):
+        losses = []
+        for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
+            input_ids, target_ids = self._preprocess_input_mtp(batch_chunk, n_mtp)
+            input_ids = input_ids.to(self.device)
+            if self.model.training:
+                self._update_processed_tokens(input_ids)
+
+            (
+                mtp_losses,
+                tower_outputs,
+                mtp_grad,
+            ) = self.hack_for_python_garbage_collection(input_ids, target_ids, n_mtp)
+            if self.model.training:
+                tower_outputs.backward(gradient=mtp_grad)
+            losses.append(mtp_losses)  # TODO handle other mtp losses
+
+        # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
+        avg_mtp_losses = torch.tensor(losses, device=mtp_losses[0].device).sum(dim=0)
+        if dist.is_initialized():
+            dist.all_reduce(avg_mtp_losses, op=dist.ReduceOp.SUM)
+
+        return avg_mtp_losses / float(os.environ["WORLD_SIZE"])
+
+    def eval(self):
+        self.model.eval()
+        self.metric_logger.set_step(None)  # disables heavy logging
+        n_mtp = 1  # on eval the model doesn't use MTP modules for further tokens
+        losses = []
+        eval_fingerprint = []
+        with torch.no_grad():
+            for _ in range(self.n_eval_steps):
+                batch = next(self.eval_iterator)
+                batch_fingerprint = create_batch_fingerprint(batch)
+                eval_fingerprint.extend(batch_fingerprint)
+                batch = batch.to(self.device)
+                mtp_losses = self.calculate_loss(batch, n_mtp).float()
+                losses.append(mtp_losses)
+                self.metric_logger.flush_accumulated_metrics(self.step)
+            avg_loss = torch.stack(losses).mean(dim=0)
+            self.metric_logger.log("steps/eval/loss", self.step, avg_loss[0].item())
+            self.metric_logger.log(
+                "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
+            )
+
+        if self._should_log_eval_input:
+            self.metric_logger.log(
+                f"steps/eval/batch", self.step, str(eval_fingerprint)
+            )
 
 
 class TrainerMTPWithMerging(Trainer):
