@@ -97,6 +97,8 @@ class AdapterDifferentialAttention(LoggingLayer):
                 output_dim=k_proj_out_dim,
                 dtype=lowrank_dtype,
             )
+        elif self.adapter_type == "identity":
+            pass
         else:
             raise ValueError(f"Adapter type {self.adapter_type} not supported")
 
@@ -185,6 +187,16 @@ class AdapterDifferentialAttention(LoggingLayer):
                 bsz, self.seq_len, self.n_positive_heads, self.dhead
             )
             k_negative = (k + self.lowrank_k(x)).view(
+                bsz, self.seq_len, self.n_positive_kv_heads, self.dhead
+            )
+            q = q.view(bsz, self.seq_len, self.n_positive_heads, self.dhead)
+            k = k.view(bsz, self.seq_len, self.n_positive_kv_heads, self.dhead)
+            v = v.view(bsz, self.seq_len, self.n_positive_kv_heads, self.v_dim)
+        elif self.adapter_type == "identity":
+            q_negative = q.view(
+                bsz, self.seq_len, self.n_positive_heads, self.dhead
+            )
+            k_negative = k.view(
                 bsz, self.seq_len, self.n_positive_kv_heads, self.dhead
             )
             q = q.view(bsz, self.seq_len, self.n_positive_heads, self.dhead)

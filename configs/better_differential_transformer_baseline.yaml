@@ -1,12 +1,12 @@
 runner: "research.attention_moe.train.train"
-time: "06:00:00"
+time: "12:00:00"
 n_gpus: 4
 interactive_debug: false
 backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_baseline_adam_beta"
+  name: "diff_baseline_fixed_config"
 
   # base bass
   mixed_precision: true
@@ -20,15 +20,15 @@ params:
   logging_interval_loss: 1000
   # save_weights_path: "model_ckpt"
   save_weights_interval: 15000
-  tags: ["diff_neurips", "diff_baseline_adam_beta"]
+  tags: ["diff_neurips", "diff_baseline_fixed_config"]
 
 
   cutoff: 2048
-  batch_size: 64
-  n_steps: 45_000
-  final_lr_step: 45_000
+  batch_size: 128
+  n_steps: 22_500
+  final_lr_step: 22_500
   scheduler: cosine
-  lr_warmup_steps: 4500
+  lr_warmup_steps: 225
   final_lr_fraction: 0.1
 
   model_type: gpt
@@ -41,7 +41,7 @@ params:
   # lowrank_dtype: float32
   ^dmodel: [768]
   n_blocks: 12
-  ^n_att_heads: [12]
+  n_att_heads: [12]
   data_seed: 42
   init_type: truncated_normal
   init_scale: 0.1
@@ -52,7 +52,7 @@ params:
 
   adam_beta1: 0.9
   adam_beta2: 0.999
-  grad_clip: Null
+  grad_clip: 1.0
   weight_decay: 0.1
   rms_norm_eps: 0.000001
   norm_class: rms_norm
@@ -66,7 +66,7 @@ params:
   ^learning_rate: [1e-3, 2e-3]
 #  ^diff_transformer_adapter_type: [identity]
 #  ^dff: [2048]
-  ^dff: [1856]
+  ^dff: [2048]
 
 
 
