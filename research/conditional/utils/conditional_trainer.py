@@ -237,6 +237,7 @@ class ConditionalTrainer:
             with_flops=True,
             with_modules=True,
         ) as p:
+            print("STARTING Training LOOP #dev ------------------------------------------------") #dev
             for step in range(self.start_step, n_steps + 1):
                 self.current_step = step
                 self._train_step(step)

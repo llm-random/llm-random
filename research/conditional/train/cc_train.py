@@ -708,7 +708,7 @@ def main(
     # kd_ratio: float = None,
     # distillation_temperature: float = None,
     # method_lam: float = None,
-
+    print("STARTING Training #dev ------------------------------------------------") #dev
     trainer.train(args.n_steps)
 
     if global_rank is not None:
