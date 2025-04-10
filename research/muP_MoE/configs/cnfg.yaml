@@ -1,8 +1,8 @@
 runner: "research.muP_MoE.train.train"
 
-time: '00:05:00'
+time: '00:10:00'
 
-n_gpus: 4
+n_gpus: 1
 cpus_per_gpu: 16
 
 interactive_debug: false
@@ -49,11 +49,11 @@ params:
   init_scale: 0.1
   init_type: normal
 
-  # FSDP
-  fsdp_enabled: true
-  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
-  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
-  fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+  # # FSDP
+  # fsdp_enabled: true
+  # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
 
   dataset_type: c4
   mixed_precision: true

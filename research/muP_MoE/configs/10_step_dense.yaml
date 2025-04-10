@@ -1,7 +1,7 @@
 runner: "research.muP_MoE.train.train"
 
 # time: "05:00:00"
-time: "02:00:00"
+time: "10:00:00"
 
 n_gpus: 2
 cpus_per_gpu: 16
@@ -9,9 +9,9 @@ cpus_per_gpu: 16
 interactive_debug: false
 
 params:
-  name: "muP_MoE_10_step_gya"
-  # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "10k_step_kc_fix", "fsdp", "ato_remove_after_fix"]
+  name: "muP_MoE_10k_step_0704"
+  tags: ["muP_MoE", "muTransfer", "10k_step_0704"]
+  # tags: ["muP_MoE", "muTransfer", "10k_step_0704_lr2e-3", "fsdp"]
 
   mup_params:
     ^alpha_in: [1.0]
@@ -22,7 +22,7 @@ params:
 
   # training
   n_steps: 10000
-  lr_warmup_steps: 0
+  lr_warmup_steps: 100
   batch_size: 128
   cutoff: 128
 
@@ -32,7 +32,7 @@ params:
   # ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]
   ^dmodel: [256, 512, 1024, 2048]
   # ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048]
-  n_blocks: 2
+  n_blocks: 4
   dhead: 64
   attention_mode: 'vanilla'
   attention_normalization: 'dhead'
@@ -43,15 +43,15 @@ params:
 
   # learning
   optimizer: adamw # we have adamW
-  scheduler: constant
-  learning_rate: 1e-2
-  grad_clip: 0.1
+  scheduler: cosine
+  final_lr_fraction: 1.0
+  learning_rate: 5e-3
+  grad_clip: 1.0
   weight_decay: 0.1
   init_scale: 0.1
   init_type: truncated_normal
-  capacity_factor: 1.0
   adam_beta1: 0.9
-  adam_beta2: 0.95
+  adam_beta2: 0.99
 
   # FSDP
   fsdp_enabled: true
@@ -65,12 +65,13 @@ params:
   flash_attention: true
   mixed_precision_dtype: bfloat16
   # ^data_seed: [1000, 1001, 1002, 1003, 1004]
-  ^data_seed: [102, 103, 104]
+  ^data_seed: [12, 13, 14]
 
   # logging etc.
   logger_types: "neptune"
   project_name: "pmtest/llm-random"
   logging_interval_heavy: 1000
+  log_gradients_and_weights: true
   # logging_interval_light: 50
   # logging_interval_loss: 20
   # save_weights_interval: null

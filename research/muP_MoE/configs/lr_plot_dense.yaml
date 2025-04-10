@@ -1,15 +1,15 @@
 runner: "research.muP_MoE.train.train"
 
-time: '2-00:00:00'
+time: '1-00:00:00'
 
-n_gpus: 2
+n_gpus: 1
 cpus_per_gpu: 16
 
 interactive_debug: false
 
 params:
-  name: muP_MoE_lr_grid_dense_fixed
-  tags: ["muP_MoE", "muTransfer", "lr_grid_dense_fixed_kc", "with_mup"]
+  name: muP_MoE_lr_grid_dense_0704_rerun
+  tags: ["muP_MoE", "muTransfer", "lr_grid_dense_0704_rerun_failed", "with_mup"]
 
   mup_params:
     # alpha_in: 10.0
@@ -17,7 +17,7 @@ params:
 
     alpha_in: 1.0
     alpha_out: 1.0
-    base_dmodel: 64
+    base_dmodel: 128
 
   # training
   n_steps: 60000
@@ -29,7 +29,7 @@ params:
   # model
   model_type: gpt
   # ^dmodel: [64, 128, 256, 512, 768, 1024, 1536]
-  ^dmodel: [64]
+  ^dmodel: [128]
   n_blocks: 24
   dhead: 64
   attention_mode: 'vanilla'
@@ -42,7 +42,8 @@ params:
 
   # learning
   scheduler: cosine
-  ^learning_rate: [1e-2, 5e-3, 2e-3, 1e-3, 5e-4]
+  # ^learning_rate: [1e-2, 5e-3, 2e-3, 1e-3, 5e-4]
+  ^learning_rate: [2e-3]
   final_lr_fraction: 0.1
   grad_clip: 1.0
   weight_decay: 0.1
@@ -65,6 +66,7 @@ params:
   logger_types: neptune
   project_name: "pmtest/llm-random"
   logging_interval_heavy: 3000
+  log_gradients_and_weights: true
 
   # debug
   # logger_types: "stdout"

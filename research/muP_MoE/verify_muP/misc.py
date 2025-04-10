@@ -281,6 +281,16 @@ def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6), ax=None)
     Returns:
     - None
     """
+    color_dict = {
+        64: "#7B68EE",  # MediumSlateBlue (soft violet)
+        128: "#4682B4",  # SteelBlue
+        256: "#3CB371",  # MediumSeaGreen
+        512: "#DAA520",  # GoldenRod
+        768: "#FF8C00",  # DarkOrange
+        1024: "#CD5C5C",  # IndianRed
+        1536: "#C71585",  # MediumVioletRed
+    }
+
     # Ensure required columns are present in runs_table
     required_columns = ["sys/id", "args/dmodel", "args/learning_rate"]
     for col in required_columns:
@@ -303,31 +313,18 @@ def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6), ax=None)
         df_subset = df_subset.sort_values("lr")
         # take the mean of final loss values for each lr
         means = df_subset.groupby("lr")["final_loss"].mean()
-        stds = df_subset.groupby("lr")["final_loss"].std()
         lrs = means.index.to_numpy()
         losses = means.values
-        loss_stds = stds.values
 
+        color = color_dict.get(model_width, None)
         if ax is None:
-            plt.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
-            # plt.errorbar(
-            #     lrs,
-            #     losses,
-            #     yerr=loss_stds,
-            #     marker="o",
-            #     label=f"Model width {model_width}",
-            #     capsize=3,
-            # )
+            plt.plot(
+                lrs, losses, marker="o", label=f"Model width {model_width}", color=color
+            )
         else:
-            ax.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
-            # ax.errorbar(
-            #     lrs,
-            #     losses,
-            #     yerr=loss_stds,
-            #     marker="o",
-            #     label=f"Model width {model_width}",
-            #     capsize=3,
-            # )
+            ax.plot(
+                lrs, losses, marker="o", label=f"Model width {model_width}", color=color
+            )
 
     if ax is None:
         plt.xlabel("Learning Rate (lr)")
