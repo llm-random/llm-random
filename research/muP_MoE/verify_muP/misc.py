@@ -222,6 +222,7 @@ def plot_multiple_modules(
     step_interval=100,
     figsize=(15, 10),
     subplots=None,
+    average_blocks=False,
 ):
     """
     Creates a grid of subplots, each plotting the activation values for a specified module and layer combination.
@@ -239,7 +240,10 @@ def plot_multiple_modules(
 
     # Determine the number of rows and columns in the grid
     n_rows = len(module_keywords)
-    n_cols = len(layer_nums)
+    if average_blocks:
+        n_cols = 1
+    else:
+        n_cols = len(layer_nums)
     steps = get_steps_from_first_run(activations_dict)
 
     if subplots is None:
@@ -248,6 +252,7 @@ def plot_multiple_modules(
         fig, axs, i_start, j_start = subplots
 
     for i, mk in enumerate(module_keywords):
+        pivot_dict_aggregate = None
         for j, ln in enumerate(layer_nums):
             pivoted_dict = pivot_dict(
                 activations_dict=activations_dict,
@@ -256,15 +261,39 @@ def plot_multiple_modules(
                 layer_num=ln,
                 module=mk,
             )
-            # Use the plot_module function to plot on the given Axes object
-            plot_module_grid(
-                pivoted_dict=pivoted_dict,
-                module_keyword=mk,
-                layer_num=ln,
-                step_interval=step_interval,
-                fig=fig,
-                ax=axs[i_start + i, j_start + j],
-            )
+            if not average_blocks:
+                plot_module_grid(
+                    pivoted_dict=pivot_dict_aggregate,
+                    module_keyword=mk,
+                    layer_num=ln,
+                    step_interval=step_interval,
+                    fig=fig,
+                    ax=axs[i_start + i, j_start],
+                )
+            else:
+                if pivot_dict_aggregate is None:
+                    pivot_dict_aggregate = pivoted_dict
+                else:
+                    for step, dmodels_dict in pivoted_dict.items():
+                        for dmodel, vals_list in dmodels_dict.items():
+                            pivot_dict_aggregate[step][dmodel] = np.array(
+                                pivot_dict_aggregate[step][dmodel]
+                            ) + np.array(vals_list)
+                # Use the plot_module function to plot on the given Axes object
+
+        for step, dmodels_dict in pivoted_dict.items():
+            for dmodel, vals_list in dmodels_dict.items():
+                pivot_dict_aggregate[step][dmodel] = list(
+                    np.array(vals_list) / len(layer_nums)
+                )
+        plot_module_grid(
+            pivoted_dict=pivot_dict_aggregate,
+            module_keyword=mk,
+            layer_num=ln,
+            step_interval=step_interval,
+            fig=fig,
+            ax=axs[i_start + i, j_start],
+        )
 
     if subplots is None:
         plt.show()
