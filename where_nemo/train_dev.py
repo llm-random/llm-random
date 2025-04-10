@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # Configure the trainer
     trainer = nl.Trainer(
-        devices=1,  # Adjust based on your hardware setup
+        devices=4,  # Adjust based on your hardware setup
         max_steps=500,  # Total training steps
         accelerator="gpu",
         strategy=strategy,
