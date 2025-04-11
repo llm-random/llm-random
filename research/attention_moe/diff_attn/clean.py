@@ -647,12 +647,12 @@ class GroupedDifferentialAttention(LoggingLayer):
         )
 
         if self.adapter_type == "lora":
-            q_negative = (q + (self.lowrank_q(x)).view(bsz, self.seq_len, self.n_positive_heads, self.dhead) ).view(
-                bsz, self.seq_len, self.n_positive_heads, self.dhead
-            )[:, :, :self.n_negative_heads]
-            k_negative = (k + (self.lowrank_k(x)).view(bsz, self.seq_len, self.n_positive_kv_heads, self.dhead) ).view(
-                bsz, self.seq_len, self.n_positive_kv_heads, self.dhead
-            )[:, :, :self.n_negative_heads]
+            q_negative = (q[:, :, :self.n_negative_heads] + (self.lowrank_q(x)).view(bsz, self.seq_len, self.n_negative_heads, self.dhead) ).view(
+                bsz, self.seq_len, self.n_negative_heads, self.dhead
+            )
+            k_negative = (k[:, :, :self.n_negative_heads] + (self.lowrank_k(x)).view(bsz, self.seq_len, self.n_negative_heads, self.dhead) ).view(
+                bsz, self.seq_len, self.n_negative_heads, self.dhead
+            )
         elif self.adapter_type == "identity":
             q_negative = q[:, :, :self.n_negative_heads]
             k_negative = k[:, :, :self.n_negative_heads]
