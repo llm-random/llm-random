@@ -140,7 +140,7 @@ runs/
 .vscode/
 
 # slurm stuff
-slurm*
+# slurm*
 
 # temporary scripts
 research/reinitialization/scripts/jk_scripts
