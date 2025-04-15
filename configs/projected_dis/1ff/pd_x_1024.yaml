@@ -24,7 +24,7 @@ params:
   
   
   # ^learning_rate: [0.0000625, 0.000125, 0.00025, 0.0005]
-  # ^learning_rate: [0.000125, 0.00025, 0.0005]
+  # ^learning_rate: [0.000125, 0.0005]
   ^learning_rate: [0.00025]
 
   scheduler: cosine
@@ -35,10 +35,10 @@ params:
   # lr_trapezoidal_decay_fraction: 0.9 #trapezoidal
   # lr_warmup_percent: 0.02 #trapezoidal
   
-  # ^weight_decay: [0.01, 0.05, 0.1, 0.15] # prop 10 out of
-  ^weight_decay: [0.15]
-  # ^grad_clip: [0.25, 0.5, 0.75, 1]
-  ^grad_clip: [0.25]
+  ^weight_decay: [0.01, 0.05, 0.1] # prop 10 out of
+  # ^weight_decay: [0.15]
+  ^grad_clip: [0.25, 0.5, 0.75, 1]
+  # ^grad_clip: [0.25]
 
 
   attention_mode: projected_vanilla_res

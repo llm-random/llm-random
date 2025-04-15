@@ -93,6 +93,7 @@ def log_batch(
             value=hf_tokenizer.decode(batch.target_ids[i]),
             iteration=0,
         )
+    print("pre after log batch #dev ------------------------------------------------") #dev
 
     print("Logged example batch.")
 
@@ -627,6 +628,7 @@ def main(
                 else tokenizers.BertTokenizer
             ),
         )
+    print("after log batch #dev ------------------------------------------------") #dev
 
     profiler_schedule = (
         torch.profiler.schedule(
@@ -640,6 +642,7 @@ def main(
         else disable_profile_schedule_fn
     )
 
+    print("INIT Trainer #dev ------------------------------------------------") #dev
     trainer = ConditionalTrainer(
         model=model,
         optimizer=optimizer,
