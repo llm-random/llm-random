@@ -353,6 +353,8 @@ def get_ff_layer(args):
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
+            mup_config=args.mup_params,
+            use_mup_router=args.use_mup_router,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
@@ -470,6 +472,7 @@ def get_model(
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
     mup_config: dict = None,
+    use_mup_router: bool = False,
     dff_ratio: int = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
@@ -533,6 +536,8 @@ def get_model(
             "pre_relu": (1 / mup_config["m_d"]),  # FF in, ver2
             "post_relu": (1 / (mup_config["m_d"] * lin2_factor)),  # FF out, ver2
         }
+        if use_mup_router:
+            transformer_init_dict["gating"] = 1.0
         for name, param in transformer_tower.named_parameters():
             for keyword, value in transformer_init_dict.items():
                 if keyword in name:

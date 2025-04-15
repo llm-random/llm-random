@@ -128,46 +128,6 @@ def get_muP_learning_rates(args, model, m_d=1.0):
     return param_groups
 
 
-# TODO change init to be applied on module initialization
-def apply_muP_init(args, model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
-    pass
-    # check if the model isn't loaded from checkpoint
-    # if args.load_weights_path is not None:
-    #     return
-
-    # key_init_dict = {
-    #     "embedding_layer": 1.0,
-    #     "input_projection": (1 / m_d),
-    #     "output_projection": (1 / (m_d * 2 * n_blocks)),
-    #     "lin1_weight": (1 / m_d),
-    #     "lin2_weight": (1 / (m_d * 2 * n_blocks)),
-    #     "pre_relu": (1 / m_d),  # FF in, ver2
-    #     "post_relu": (1 / (m_d * 2 * n_blocks)),  # FF out, ver2
-    #     "head": 1.0,
-    #     "gating": 1,
-    # }
-    # for name, param in model.named_parameters():
-    # #     # check for not implemented FFs
-    # #     if "expert_inner_function" in name:
-    # #         assert any(
-    # #             substring in name
-    # #             for substring in {"lin1_weight", "lin2_weight", "gate_weight"}
-    # #         )
-
-    #     scale = 1.0
-    #     for keyword in key_init_dict.keys():
-    #         if keyword in name:
-    #             scale = key_init_dict[keyword]
-    #             break
-    #     # we don't want to initialize normalization layers, those have their own initialization
-    #     if "norm" not in name:
-    #         print(f"Initializing {name} with scale {scale}")
-    #         print(f"Resulting std: {(init_base_value * scale) ** 0.5}")
-    #         torch.nn.init.normal_(
-    #             param.data, mean=0.0, std=(init_base_value * scale) ** 0.5
-    #         )
-
-
 def main(
     rank: Optional[int],
     data_seeds: Optional[list[int]] = None,
@@ -305,6 +265,7 @@ def main(
         and (args.attention_mode != "rope"),
         checkpoint=checkpoint,
         mup_config=args.mup_params,
+        use_mup_router=args.use_mup_router,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)

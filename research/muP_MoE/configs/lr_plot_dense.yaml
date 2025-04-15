@@ -2,22 +2,23 @@ runner: "research.muP_MoE.train.train"
 
 time: '1-00:00:00'
 
-n_gpus: 1
+n_gpus: 4
 cpus_per_gpu: 16
 
 interactive_debug: false
+backends_module: research.muP_MoE.utils.backends
 
 params:
   name: muP_MoE_lr_grid_dense_0704_rerun
-  tags: ["muP_MoE", "muTransfer", "lr_grid_dense_0704_rerun_failed", "with_mup"]
+  tags: ["muP_MoE", "muTransfer", "lr_grid_dense_0704_rerun_failed", "SP"]
 
-  mup_params:
-    # alpha_in: 10.0
-    # alpha_out: 0.1
+  # mup_params:
+  #   # alpha_in: 10.0
+  #   # alpha_out: 0.1
 
-    alpha_in: 1.0
-    alpha_out: 1.0
-    base_dmodel: 128
+  #   alpha_in: 1.0
+  #   alpha_out: 1.0
+  #   base_dmodel: 128
 
   # training
   n_steps: 60000
@@ -28,8 +29,8 @@ params:
 
   # model
   model_type: gpt
-  # ^dmodel: [64, 128, 256, 512, 768, 1024, 1536]
-  ^dmodel: [128]
+  # ^dmodel: [128, 256, 512, 768, 1024, 1536]
+  ^dmodel: [1536]
   n_blocks: 24
   dhead: 64
   attention_mode: 'vanilla'
@@ -42,8 +43,7 @@ params:
 
   # learning
   scheduler: cosine
-  # ^learning_rate: [1e-2, 5e-3, 2e-3, 1e-3, 5e-4]
-  ^learning_rate: [2e-3]
+  ^learning_rate: [5e-4, 2e-4, 1e-4, 5e-5, 2e-5]
   final_lr_fraction: 0.1
   grad_clip: 1.0
   weight_decay: 0.1
