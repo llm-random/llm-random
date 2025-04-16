@@ -14,6 +14,7 @@ from torch.profiler import ProfilerAction
 from lizrd.core import llm
 from lizrd.text.data import LLMBatch
 from lizrd.core.llm import Parallel
+from research.attention_moe import ffs
 from research.attention_moe.diff_attn.clean import (
     AdapterDifferentialAttention,
     DifferentialAttention,
@@ -718,165 +719,13 @@ def get_ff_layer(args):
         return_fn = lambda: llm.SwiGLUFeedForward(
             args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
         )
-    elif args.ff_mode == "vanilla_timed":
-        return_fn = lambda: FeedForwardTimed(
-            args.dmodel, args.dff, args.activation_type, args.no_ff
-        )
-    elif args.ff_mode == "cont_moe" or args.ff_mode == "cont_moe_quick":
-        return_fn = lambda: ContinuousMoE(**get_common_mot_kwargs(args))
-    elif args.ff_mode == "cont_moe_merge_diff_simple":
-        return_fn = lambda: ContinuousMoEMergeDifferentlySimple(
-            **get_common_mot_kwargs(args)
-        )
-    elif args.ff_mode == "cont_moe_merge_diff_comm_base":
-        return_fn = lambda: ContinuousMoEMergeDifferentlyCommonBase(
-            **get_common_mot_kwargs(args)
-        )
-    elif args.ff_mode == "cont_moe_rawmerge":
-        return_fn = lambda: ContinuousMoERawmerge(**get_common_mot_kwargs(args))
-    elif args.ff_mode == "cont_moe_topmerge":
-        return_fn = lambda: ContinuousMoETopmerge(**get_common_mot_kwargs(args))
-    elif args.ff_mode == "cont_moe_nosoft":
-        return_fn = lambda: ContinuousMoENosoftmax(**get_common_mot_kwargs(args))
-    elif args.ff_mode == "cont_moe_adatemp":
-        return_fn = lambda: ContinuousMoEAdaTemp(
-            **get_common_mot_kwargs(args),
-            share_by_experts=args.share_by_experts,
-            share_by_emit_merge=args.share_by_emit_merge,
-        )
-    elif args.ff_mode == "cont_moe_adatemp_positive":
-        return_fn = lambda: ContinuousMoEAdaTempPositive(
-            **get_common_mot_kwargs(args),
-            share_by_experts=args.share_by_experts,
-            share_by_emit_merge=args.share_by_emit_merge,
-        )
-    elif args.ff_mode == "cont_moe_ln":
-        return_fn = lambda: ContinuousMoELayernorm(**get_common_mot_kwargs(args))
-    elif args.ff_mode == "cont_moe_final":
-        return_fn = lambda: ContinuousMoEFinal(**get_common_mot_kwargs(args))
-    elif args.ff_mode == "cont_moe_random_groups":
-        return_fn = lambda: ContinuousMoERandomGroups(
-            **get_common_mot_kwargs(args),
-            batch_size=args.batch_size,
-            seqlen=args.cutoff,
-            mix_whole_batch=args.mix_whole_batch,
-        )
-    elif args.ff_mode == "cont_moe_common_weighted_parameters":
-        return_fn = lambda: ContinuousMoECommonWeightedParameters(
-            **get_common_mot_kwargs(args)
-        )
-    elif args.ff_mode == "cont_moe_separate_weighted_parameters":
-        return_fn = lambda: ContinuousMoESeparateWeightedParameters(
-            **get_common_mot_kwargs(args)
-        )
-    elif args.ff_mode == "cont_moe_legacy":
-        return_fn = lambda: LegacyContinuousMoE(**get_common_mot_kwargs(args))
-    elif args.ff_mode == "expert_choice_old":
-        args = determine_moe_args(args)
-        ff_args = get_expert_choice_args_old(args)
-        return_fn = partial(ExpertChoiceFFOld, **ff_args)
-    elif args.ff_mode == "expert_choice":
-        args = determine_moe_args(args)
-        ff_args, make_expert_inner_function = get_expert_choice_args(args)
-        return_fn = lambda: ExpertChoiceFF(
-            **ff_args,
-            expert_inner_function=make_expert_inner_function(),
-            zloss_weight=args.zloss_weight,
-        )
-    elif args.ff_mode == "expert_choice_with_parallel_ff":
-        expert_choice_kwargs = get_expert_choice_with_parallel_ff_args(args)[
-            "expert_choice_kwargs"
-        ]
-        parallel_ff_args = get_expert_choice_with_parallel_ff_args(args)[
-            "parallel_ff_args"
-        ]
-        return_fn = lambda: Parallel(
-            ExpertChoiceFFOld(**expert_choice_kwargs),
-            llm.FeedForward(*parallel_ff_args),
-        )
-    elif args.ff_mode == "token_choice":
-        args = determine_moe_args(args)
-        make_expert_inner_function = get_inner_expert(args)
-        use_topk_initialization = get_expert_init(
-            args.expert_use_topk_initialization, default=False
-        )
-        make_expert_inner_function = partial(
-            make_expert_inner_function, use_topk_initialization=use_topk_initialization
-        )
-        return_fn = lambda: TokenChoiceFF(
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            capacity_factor=args.capacity_factor,
-            expert_inner_function=make_expert_inner_function(),
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
-            zloss_weight=args.zloss_weight,
-            routing_top_k=args.routing_top_k,
-            init_scale=args.init_scale,
+    elif args.ff_mode == "generalized_relu":
+        return_fn = lambda: ffs.GeneralizedRelu(
+            args.dmodel,
+            args.dff,
+            polynomial_config=args.generalized_relu_config,
             init_type=args.init_type,
-            **get_weightless_args(args),
-        )
-    elif args.ff_mode == "token_choice_old":
-        args = determine_moe_args(args)
-        if args.moe_inner_expert == "relu":
-            expert_inner_class = ExpertReluOld
-        elif args.moe_inner_expert == "swi_glu":
-            expert_inner_class = ExpertSwiGLUOld
-        else:
-            raise NotImplementedError(
-                f"Token choice logic {args.moe_inner_expert} not implemented"
-            )
-        make_expert_inner_function = partial(
-            expert_inner_class,
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            expert_size=args.expert_size,
             init_scale=args.init_scale,
-            init_type=args.init_type,
-        )
-        return_fn = lambda: TokenChoiceFFOld(
-            dmodel=args.dmodel,
-            n_experts=args.n_experts,
-            capacity_factor=args.capacity_factor,
-            expert_inner_function=make_expert_inner_function(),
-            load_balancing_loss_weight=args.load_balancing_loss_weight,
-            routing_top_k=args.routing_top_k,
-            init_scale=args.init_scale,
-            init_type=args.init_type,
-            vectorize=(not args.dont_vectorize_switch),
-        )
-    elif args.ff_mode == "double_choice":
-        args = determine_moe_args(args)
-        ff_args = get_expert_choice_args_old(args)
-
-        use_topk_initialization = get_expert_init(
-            args.expert_use_topk_initialization,
-            default=args.dr_routing_type == "expert_choice",
-        )
-        ff_args = {
-            **ff_args,
-            "routing_type": args.dr_routing_type,
-            "linear_first": args.dr_linear_first,
-            "relu_with_first": args.dr_relu_with_first,
-            "init_topk": use_topk_initialization,
-            "activation_type": args.activation_type,
-            "routing_top_k": args.routing_top_k,
-            "capacity_factor": args.capacity_factor,
-            "load_balancing_loss_weight": args.load_balancing_loss_weight,
-        }
-        return_fn = partial(DoubleChoiceFF, **ff_args)
-    elif args.ff_mode == "kernelized_fc":
-        # from research.conditional.moe_layers.kernelized import FCKernelized
-
-        return_fn = lambda: FCKernelized(
-            dmodel=args.dmodel,
-            dff=args.dff,
-            kernel_r=args.kernel_r,
-            kernel_type=args.kernel_type,
-            redraw_projections_interval=args.redraw_projections_interval,
-            no_kernel_norm=args.no_kernel_norm,
-            no_average_attn=args.no_average_attn,
-            nystrom=args.nystrom,
-            xfavor=args.xfavor,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

@@ -21,6 +21,7 @@ def introduce_parser_arguments(
         "--model_type", type=str, choices=["gpt", "bert"], required=True
     )
     parser.add_argument("--ff_mode", type=str, default="vanilla")
+    parser.add_argument("--generalized_relu_config", type=str, default=None)
     parser.add_argument("--attention_mode", type=str, default="vanilla")
     parser.add_argument("--parallel_blocks", action="store_true")
     parser.add_argument("--n_blocks", type=int, required=True)
@@ -424,8 +425,12 @@ def introduce_parser_arguments(
     parser.add_argument("--diff_transformer_roll_negative_heads", action="store_true")
     parser.add_argument("--diff_transformer_adapter_type", type=str, default="none")
     parser.add_argument("--diff_transformer_reuse_positive_k", action="store_true")
-    parser.add_argument("--diff_transformer_repeat_or_interleave", type=str, default="interleave")
-    parser.add_argument("--diff_transformer_negative_heads_permutation", type=str, default="none")
+    parser.add_argument(
+        "--diff_transformer_repeat_or_interleave", type=str, default="interleave"
+    )
+    parser.add_argument(
+        "--diff_transformer_negative_heads_permutation", type=str, default="none"
+    )
     parser.add_argument("--diff_transformer_lowrank_scaling", type=float, default=1.0)
     parser.add_argument("--diff_transformer_lowrank_bias", action="store_true")
     parser.add_argument("--diff_transformer_double_kv_cache", action="store_true")
