@@ -6,7 +6,7 @@ backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_baseline_fixed_config"
+  name: "diff_fixed_config_lora_gda"
 
   # base bass
   mixed_precision: true
@@ -20,15 +20,15 @@ params:
   logging_interval_loss: 1000
   # save_weights_path: "model_ckpt"
   save_weights_interval: 15000
-  tags: ["diff_neurips", "diff_baseline_fixed_config"]
+  tags: ["diff_neurips", "diff_fixed_config_lora_gda"]
 
 
   cutoff: 2048
-  batch_size: 128
-  n_steps: 22_500
-  final_lr_step: 22_500
+  batch_size: 64
+  n_steps: 45_000
+  final_lr_step: 45_000
   scheduler: cosine
-  lr_warmup_steps: 225
+  lr_warmup_steps: 450
   final_lr_fraction: 0.1
 
   model_type: gpt
@@ -41,7 +41,7 @@ params:
   # lowrank_dtype: float32
   ^dmodel: [768]
   n_blocks: 12
-  n_att_heads: [12]
+  n_att_heads: 12
   data_seed: 42
   init_type: truncated_normal
   init_scale: 0.1
@@ -60,13 +60,18 @@ params:
   ff_mode: swi_glu
   use_final_norm: true
 
-  ^attention_mode: [differential]
-#  ^diff_transformer_n_negative_heads: [1, 2, 3, 6]
+  ^attention_mode: [gda]
+  ^diff_transformer_n_negative_heads: [6]
 #  ^diff_transformer_negative_heads_permutation: [repeat, interleave, flip_repeat, flip_interleave, roll_repeat, repeat_roll, roll_interleave]
-  ^learning_rate: [1e-3, 2e-3]
-#  ^diff_transformer_adapter_type: [identity]
-#  ^dff: [2048]
-  ^dff: [2048]
+  ^learning_rate: [1e-3]
+  ^diff_transformer_adapter_type: [lora]
+  ^diff_transformer_lowrank_dim: [64]
+  ^dff: [2241]
+#  ^dff: [1814]
+#  ^diff_transformer_lowrank_scaling: [0.5, 1.0, 2.0, 4.0]
+  ^diff_transformer_lowrank_scaling: [1.0, 2.0]
+  ^diff_transformer_lowrank_bias: [false]
+  ^diff_transformer_double_kv_cache: [false]
 
 
 

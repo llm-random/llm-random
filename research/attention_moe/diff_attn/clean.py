@@ -97,6 +97,8 @@ class AdapterDifferentialAttention(LoggingLayer):
                 output_dim=k_proj_out_dim,
                 dtype=lowrank_dtype,
             )
+        elif self.adapter_type == "identity":
+            pass
         else:
             raise ValueError(f"Adapter type {self.adapter_type} not supported")
 
@@ -185,6 +187,16 @@ class AdapterDifferentialAttention(LoggingLayer):
                 bsz, self.seq_len, self.n_positive_heads, self.dhead
             )
             k_negative = (k + self.lowrank_k(x)).view(
+                bsz, self.seq_len, self.n_positive_kv_heads, self.dhead
+            )
+            q = q.view(bsz, self.seq_len, self.n_positive_heads, self.dhead)
+            k = k.view(bsz, self.seq_len, self.n_positive_kv_heads, self.dhead)
+            v = v.view(bsz, self.seq_len, self.n_positive_kv_heads, self.v_dim)
+        elif self.adapter_type == "identity":
+            q_negative = q.view(
+                bsz, self.seq_len, self.n_positive_heads, self.dhead
+            )
+            k_negative = k.view(
                 bsz, self.seq_len, self.n_positive_kv_heads, self.dhead
             )
             q = q.view(bsz, self.seq_len, self.n_positive_heads, self.dhead)
@@ -486,9 +498,13 @@ class GroupedDifferentialAttention(LoggingLayer):
         seq_len,
         init_type,
         init_scale,
-        # repeat_or_interleave: str,
+        lowrank_scaling,
+        lowrank_bias,
+        double_kv_cache,
+        lowrank_inner_dim,
         negative_heads_permutation: str,
         adapter_type: str,
+        lowrank_dtype,
         n_kv_heads=None,
         n_negative_heads=None,
         use_qk_norm: bool = False,
@@ -501,11 +517,10 @@ class GroupedDifferentialAttention(LoggingLayer):
         self.dmodel = dmodel
         self.save_attention_weights = False
         self.attention_weights = None
-        self.n_positive_heads = n_heads // 2
-        # self.repeat_or_interleave = repeat_or_interleave
+        self.n_positive_heads = n_heads if double_kv_cache else n_heads // 2
         self.negative_heads_permutation = negative_heads_permutation
 
-        self.n_positive_kv_heads = (n_kv_heads or n_heads) // 2
+        self.n_positive_kv_heads = (n_kv_heads or n_heads) if double_kv_cache else (n_kv_heads or n_heads) // 2
         assert n_negative_heads <= self.n_positive_kv_heads
         self.n_negative_heads = n_negative_heads
         self.n_rep_kv = self.n_positive_heads // self.n_positive_kv_heads
@@ -513,13 +528,39 @@ class GroupedDifferentialAttention(LoggingLayer):
 
         self.dhead = dmodel // n_heads if adapter_type != "identity" else 2 * dmodel // n_heads
 
-        plus_q_proj_out_dim = self.dhead * self.n_positive_heads
-        plus_k_proj_out_dim = self.dhead * self.n_positive_kv_heads
-        minus_qk_proj_out_dim = self.dhead * n_negative_heads if adapter_type != "identity" else 0
+        self.plus_q_proj_out_dim = self.dhead * self.n_positive_heads
+        self.plus_k_proj_out_dim = self.dhead * self.n_positive_kv_heads
+        minus_qk_proj_out_dim = self.dhead * n_negative_heads if adapter_type == "none" else 0
+
+        if self.adapter_type == "lora" and lowrank_inner_dim > 0:
+            self.lowrank_q = Lowrank(
+                dmodel,
+                lowrank_inner_dim,
+                init_type,
+                init_scale,
+                lowrank_scaling=lowrank_scaling,
+                lowrank_bias=lowrank_bias,
+                output_dim=self.dhead * self.n_negative_heads,
+                dtype=lowrank_dtype,
+            )
+            self.lowrank_k = Lowrank(
+                dmodel,
+                lowrank_inner_dim,
+                init_type,
+                init_scale,
+                lowrank_scaling=lowrank_scaling,
+                lowrank_bias=lowrank_bias,
+                output_dim=self.dhead * self.n_negative_heads,
+                dtype=lowrank_dtype,
+            )
+        elif self.adapter_type == "identity":
+            pass
+        else:
+            raise ValueError(f"Adapter type {self.adapter_type} not supported")
 
         self.q_proj = Linear(
             dmodel,
-            plus_q_proj_out_dim + minus_qk_proj_out_dim,
+            self.plus_q_proj_out_dim + minus_qk_proj_out_dim,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
@@ -527,7 +568,7 @@ class GroupedDifferentialAttention(LoggingLayer):
 
         self.k_proj = Linear(
             dmodel,
-            plus_k_proj_out_dim + minus_qk_proj_out_dim,
+            self.plus_k_proj_out_dim + minus_qk_proj_out_dim,
             bias=True,
             init_type=init_type,
             init_scale=init_scale,
@@ -595,17 +636,27 @@ class GroupedDifferentialAttention(LoggingLayer):
         q = self.q_proj(x).view(
             bsz,
             self.seq_len,
-            self.n_positive_heads + self.n_negative_heads if self.adapter_type != "identity" else self.n_positive_heads,
+            self.n_positive_heads + self.n_negative_heads if self.adapter_type == "none" else self.n_positive_heads,
             self.dhead,
         )
         k = self.k_proj(x).view(
             bsz,
             self.seq_len,
-            self.n_positive_kv_heads + self.n_negative_heads if self.adapter_type != "identity" else self.n_positive_kv_heads,
+            self.n_positive_kv_heads + self.n_negative_heads if self.adapter_type == "none" else self.n_positive_kv_heads,
             self.dhead,
         )
 
-        if self.adapter_type != "identity":
+        if self.adapter_type == "lora":
+            q_negative = (q[:, :, :self.n_negative_heads] + (self.lowrank_q(x)).view(bsz, self.seq_len, self.n_negative_heads, self.dhead) ).view(
+                bsz, self.seq_len, self.n_negative_heads, self.dhead
+            )
+            k_negative = (k[:, :, :self.n_negative_heads] + (self.lowrank_k(x)).view(bsz, self.seq_len, self.n_negative_heads, self.dhead) ).view(
+                bsz, self.seq_len, self.n_negative_heads, self.dhead
+            )
+        elif self.adapter_type == "identity":
+            q_negative = q[:, :, :self.n_negative_heads]
+            k_negative = k[:, :, :self.n_negative_heads]
+        else:
             q, q_negative = (
                 q[:, :, : self.n_positive_heads],
                 q[:, :, self.n_positive_heads:],
@@ -614,9 +665,6 @@ class GroupedDifferentialAttention(LoggingLayer):
                 k[:, :, : self.n_positive_kv_heads],
                 k[:, :, self.n_positive_kv_heads:],
             )
-        else:
-            q_negative = q[:, :, :self.n_negative_heads]
-            k_negative = k[:, :, :self.n_negative_heads]
         v = self.v_proj(x).view(bsz, self.seq_len, self.n_positive_kv_heads, self.v_dim)
 
         if self.use_qk_norm:

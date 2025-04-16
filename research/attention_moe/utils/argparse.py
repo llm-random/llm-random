@@ -429,7 +429,7 @@ def introduce_parser_arguments(
         "--diff_transformer_repeat_or_interleave", type=str, default="interleave"
     )
     parser.add_argument(
-        "--diff_transformer_negative_heads_permutation", type=str, default="none"
+        "--diff_transformer_negative_heads_permutation", type=str, default="repeat"
     )
     parser.add_argument("--diff_transformer_lowrank_scaling", type=float, default=1.0)
     parser.add_argument("--diff_transformer_lowrank_bias", action="store_true")
