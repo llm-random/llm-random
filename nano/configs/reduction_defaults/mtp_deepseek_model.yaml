@@ -1,6 +1,6 @@
 # @package _global_
 model:
-    _target_: token_reduction.model.LLM_MTP    
+    _target_: token_reduction.model.LLM_DeepSeekMTP    
 
     embedding:
         _target_: model.get_vanilla_embedding

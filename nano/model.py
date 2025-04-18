@@ -103,11 +103,14 @@ def distributed_setup():
         logger.warning("CUDA is not available. Running on CPU and 'gloo' backend.")
         dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
 
+
 def upload_config_file(metric_logger):
     slurm_array_task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
     file_path = f"generated_configs/config_{slurm_array_task_id}.yaml"
     if slurm_array_task_id is not None and os.path.exists(file_path):
-        metric_logger.run["yaml_config"].upload(f"generated_configs/config_{slurm_array_task_id}.yaml")
+        metric_logger.run["yaml_config"].upload(
+            f"generated_configs/config_{slurm_array_task_id}.yaml"
+        )
 
 
 def cleanup():
@@ -253,7 +256,7 @@ class C4Dataset(IterableDataset):
         )
 
     def get_infinite_sampler(self):
-        epoch = 0 
+        epoch = 0
         while True:
             self.data_generator.set_epoch(epoch)
             for next_sample in self.data_generator:
@@ -671,22 +674,6 @@ class TransformerTower(nn.Module):
 
 
 class Aggregate(nn.Module):
-    def __init__(self, function, *layers):
-        super(Aggregate, self).__init__()
-        self.function = function
-        self.layers = nn.ModuleList(layers)
-
-    def forward(self, x):
-        result = None
-        for layer in self.layers:
-            if result is None:
-                result = layer(x)
-            else:
-                result = self.function(result, layer(x))
-        return result
-
-
-class Aggregate(nn.Module):
     def __init__(
         self,
         function: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
@@ -790,7 +777,7 @@ def FeedForward(
                     Linear(
                         dmodel,
                         dff,
-                        bias=True,
+                        bias=False,  # why true?
                         init_type=init_type,
                         init_scale=init_scale,
                     ),
@@ -801,7 +788,7 @@ def FeedForward(
                     Linear(
                         dff,
                         dmodel,
-                        bias=True,
+                        bias=False,  # why true?
                         init_type=init_type,
                         init_scale=init_scale,
                     ),
@@ -1141,16 +1128,17 @@ class TrapezoidalLR(SequentialLR):
         while loaded_state["last_epoch"] > self.last_epoch:
             self.step()
 
+
 def create_batch_fingerprint(batch):
     def prefix_suffix_only(array, prefix=3, suffix=3):
         prefix_part = array[:prefix]
         suffix_part = array[-suffix:]
         result = prefix_part + suffix_part
         return result
-    
-    first_row  = prefix_suffix_only(batch[0]).numpy().tolist()
+
+    first_row = prefix_suffix_only(batch[0]).numpy().tolist()
     middle_row = prefix_suffix_only(batch[len(batch) // 2]).numpy().tolist()
-    last_row   = prefix_suffix_only(batch[-1]).numpy().tolist()
+    last_row = prefix_suffix_only(batch[-1]).numpy().tolist()
 
     return first_row + middle_row + last_row
 
@@ -1188,7 +1176,7 @@ class Trainer:
 
     @property
     def _should_log_eval_input(self) -> bool:
-        return self.step % ( self.eval_interval * 100 ) == 0 
+        return self.step % (self.eval_interval * 100) == 0
 
     @property
     def _should_save_checkpoint(self) -> bool:
@@ -1307,7 +1295,9 @@ class Trainer:
             )
 
         if self._should_log_eval_input:
-            self.metric_logger.log(f"steps/eval/batch", self.step, str(eval_fingerprint))
+            self.metric_logger.log(
+                f"steps/eval/batch", self.step, str(eval_fingerprint)
+            )
 
     def clip_gradient(self):
         if self.gradient_clipping is not None:
@@ -1340,7 +1330,6 @@ class Trainer:
             "tokens/train/grad_norm", self.processed_tokens, grad_norm.item()
         )
         self.metric_logger.flush_accumulated_metrics(self.step)
-
 
     def save_checkpoint(self):
         if isinstance(self.model, FSDP):
@@ -1510,6 +1499,23 @@ def get_vanilla_embedding(common):
         ),
         PositionalEmbedding(
             common.sequence_length,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+    )
+
+
+def get_deepseek_embedding(common, n_mtp):
+    return EmbeddingLayer(
+        TokenEmbedding(
+            common.vocab_size,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+        PositionalEmbedding(
+            common.sequence_length + n_mtp - 1,
             common.dmodel,
             init_type=common.init_type,
             init_scale=common.init_scale,
