@@ -1168,8 +1168,8 @@ class Trainer:
     metric_logger: MetricLogger
     eval_interval: int
     n_eval_steps: int
-    gradient_clipping: Optional[float] = None
-    checkpoint_config: Optional[dict] = None
+    gradient_clipping: Optional[float]
+    checkpoint_config: Optional[dict]
 
     def __attrs_post_init__(self):
         self.processed_tokens = self.training_state["processed_tokens"]
