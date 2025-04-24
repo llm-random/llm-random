@@ -43,8 +43,9 @@ def main(config):
     output_folder = "generated_configs"  # TODO parametrize
     dump_grid_configs(configs_grid, output_folder)
 
+    modules_to_add = config.get("modules_to_add", None)
     generate_sbatch_script(
-        config.slurm, output_folder, len(configs_grid), config.venv_path
+        config.slurm, output_folder, len(configs_grid), config.venv_path, modules_to_add
     )
 
     if config.get("_debug_"):
