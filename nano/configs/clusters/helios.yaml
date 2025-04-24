@@ -1,0 +1,23 @@
+# @package _global_
+cluster_name: "helios"
+
+training:
+  dataloader:
+    training_dataset_path: "/net/scratch/hscra/plgrid/plgmaciejpioro/c4/train"
+    eval_dataset_path: "/net/scratch/hscra/plgrid/plgmaciejpioro/c4/validation"
+
+
+slurm:
+  gres: gpu:4
+  time: "2-00:00:00"
+  partition: "plgrid-gpu-gh200"
+  cpus-per-gpu: "72"
+  mem-per-gpu: "100G"
+  account: "plgllmefficont2-gpu-gh200"
+  nodes: 1
+  ntasks-per-node: 4
+
+cemetery_experiments_dir:  "/net/storage/pr3/plgrid/plggllmeffi/tr_proba/cemetery"
+
+modules_to_add: 
+  - "ML-bundle/24.06a"
