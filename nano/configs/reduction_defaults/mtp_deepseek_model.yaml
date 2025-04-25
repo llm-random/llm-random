@@ -1,10 +1,11 @@
 # @package _global_
 model:
     _target_: token_reduction.model.LLM_DeepSeekMTP    
-
+ 
     embedding:
-        _target_: model.get_vanilla_embedding
+        _target_: model.get_deepseek_embedding
         common: ${model.common}
+        n_mtp: ${model.mtp_config.n_mtp}
 
     tower_config:
         _target_: model.TowerConfig

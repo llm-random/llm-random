@@ -12,6 +12,6 @@ git:
   remote_url: git@github.com:llm-random/llm-random-cemetery.git
 
 slurm:
-  job-name: "sotamodel_training"
+  job-name: "nano"
 
 venv_path: "venv/bin/activate"
