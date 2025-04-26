@@ -1,2 +1,0 @@
-#!/bin/bash
-python3 -m lizrd.grid --config_path=configs/better_differential_transformer_lora3.yaml --git_branch=diff_fixed_config_lora_gda_2025-04-11_20-42-29 --skip_copy_code --custom_backends_module=research.attention_moe.backends

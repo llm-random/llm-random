@@ -434,6 +434,7 @@ def introduce_parser_arguments(
     parser.add_argument("--diff_transformer_lowrank_scaling", type=float, default=1.0)
     parser.add_argument("--diff_transformer_lowrank_bias", action="store_true")
     parser.add_argument("--diff_transformer_double_kv_cache", action="store_true")
+    parser.add_argument("--diff_transformer_share_q_or_k", type=str, default=None)
     parser.add_argument("--use_final_norm", action="store_true")
     parser.add_argument(
         "--evaluate_attention_relevancy_interval", type=int, default=500
