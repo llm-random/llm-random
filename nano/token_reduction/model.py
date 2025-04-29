@@ -192,7 +192,7 @@ class DeepSeekMTPHead(nn.Module):
         return out
 
 
-class LLM_DeepSeekMTP(LLM_MTP):
+class LLM_DeepSeekMTP(nn.Module):
     def __init__(
         self,
         embedding,
@@ -200,7 +200,8 @@ class LLM_DeepSeekMTP(LLM_MTP):
         tower_config: TowerConfig,
         mtp_config: MTPConfig,
     ):
-        super(LLM_MTP, self).__init__()
+        super(LLM_DeepSeekMTP, self).__init__()
+        self.n_mtp = mtp_config.n_mtp
 
         self.embedding_layer = embedding
 
@@ -225,11 +226,42 @@ class LLM_DeepSeekMTP(LLM_MTP):
 
         self._add_metric_log_names()
 
+    def _add_metric_log_names(self):
+        def _get_metric_log_name(name: str):
+            meaningful_regex = ["block_\\d+", "attention", "feedforward", "residual"]
+            module_names = name.split(".")
+            meaningful_names = [
+                module_name
+                for module_name in module_names
+                if any(re.search(pattern, module_name) for pattern in meaningful_regex)
+            ]
+            return "/".join(meaningful_names)
+
+        for name, model in self.named_modules():
+            model.log_name = _get_metric_log_name(name)
+
     def forward(self, x):
-        x = self.encoder(
-            x
-        )  # skip embedding layer, because it's logits will be needed for deepseek mtp
-        return x
+        embedding_out = self.embedding_layer(x)
+        if self.training:
+            embedding_out_tt = embedding_out[:, : 1 - self.n_mtp]
+        else:
+            embedding_out_tt = embedding_out
+        tt_out = self.encoder(embedding_out_tt)
+        main_head_logits = self.head(tt_out)
+        logits_list = [main_head_logits]
+        if self.training:
+            mtp_total_seq_len = x.shape[1]  # x.shape = (bs, sl, dmodel)?
+            for i in range(self.n_mtp - 1):
+                embedding_out_mtp = embedding_out[
+                    :, (i + 1) : (mtp_total_seq_len + i + 2 - self.n_mtp)
+                ]
+                tt_out = self.mtp_modules[i](
+                    embedding_out_mtp,
+                    tt_out,
+                )
+                mtp_logits = self.head(tt_out)
+                logits_list.append(mtp_logits)
+        return logits_list
 
 
 class TokenMergingEmbedding(torch.nn.Module):
@@ -613,123 +645,29 @@ class TrainerDeepSeekMTP(TrainerMTP):
             if self._should_evaluate:
                 self.eval()
 
-    def mtp_recursive(
-        self,
-        prev_block_out: torch.tensor,
-        embedding_outputs: torch.tensor,
-        target_ids: torch.tensor,
-        n_mtp: int,
-        mtp_losses: list,
-    ):
-        n_mtp -= 1  # recursion counter
-        seq_len_with_mtp = target_ids.shape[-1]
-
-        # detach and forward through MTP block
-        mtp_head_num = self.get_n_mtp() - 1 - n_mtp
-        prev_block_out_detached = prev_block_out.detach()
-        prev_block_out_detached.requires_grad = True
-        embedding_outputs_mtp = embedding_outputs[
-            :, mtp_head_num + 1 : seq_len_with_mtp - n_mtp
-        ]
-        block_out = self.model.mtp_modules[mtp_head_num - 1](
-            embedding_outputs_mtp, prev_block_out_detached
-        )
-
-        mtp_grad = None
-        if n_mtp > 0:
-            mtp_losses, mtp_grad = self.mtp_recursive(
-                prev_block_out=block_out,
-                embedding_outputs=embedding_outputs,
-                target_ids=target_ids,
-                n_mtp=n_mtp,
-                mtp_losses=mtp_losses,
-            )  # this function will run backward
-
-        # go through head
-        predicted_ids = self.model.head(block_out)
-        mtp_target_ids = target_ids[
-            :, mtp_head_num + 1 : seq_len_with_mtp - n_mtp
-        ].detach()
-
-        # calculate loss
-        loss = F.cross_entropy(
-            predicted_ids.flatten(0, -2),
-            mtp_target_ids.reshape(-1).long(),
-            reduction="none",
-        )
-        loss = loss.mean() / self.gradient_accumulation_steps
-
-        # backward on head
-        if self.model.training:
-            loss.backward()
-        mtp_losses.append(loss)
-
-        # return loss and gradient on detached
-        if mtp_grad is None:
-            mtp_grad = prev_block_out_detached.grad
-        else:
-            mtp_grad = prev_block_out_detached.grad + mtp_grad
-        return mtp_losses, mtp_grad
-
-    def mtp_loop(self, tower_outputs, embedding_outputs, target_ids, n_mtp):
-        mtp_losses = []
-        tower_outputs_detached = tower_outputs.detach()
-        tower_outputs_detached.requires_grad = True
-
-        if n_mtp > 0:
-            mtp_losses, mtp_grad = self.mtp_recursive(
-                prev_block_out=tower_outputs_detached,
-                embedding_outputs=embedding_outputs.detach(),
-                target_ids=target_ids,
-                n_mtp=n_mtp,
-                mtp_losses=mtp_losses,
-            )
-
-        seq_len_with_mtp = target_ids.shape[-1]
-        predicted_ids = self.model.head(tower_outputs_detached)
-        mtp_target_ids = target_ids[:, : seq_len_with_mtp - n_mtp].detach()
-
-        # print(f"predicted_ids: {predicted_ids.shape}")
-        # print(f"target_ids: {target_ids.shape}")
-        # print(f"mtp_target_ids: {mtp_target_ids.shape}")
-
-        loss = F.cross_entropy(
-            predicted_ids.flatten(0, -2),
-            mtp_target_ids.reshape(-1).long(),
-            reduction="none",
-        )
-        loss = loss.mean() / self.gradient_accumulation_steps
-        if self.model.training:
-            loss.backward()
-        mtp_losses.append(loss)
-
-        if self.model.training:
-            return mtp_losses, tower_outputs_detached.grad + mtp_grad
-        else:
-            return mtp_losses, None
-
     def hack_for_python_garbage_collection(self, input_ids, target_ids, n_mtp):
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
         so we wrap loss calculation in a function"""
 
-        seq_len_with_mtp = target_ids.shape[-1]
-        embedding_outputs = self.model.embedding_layer(input_ids)
-        embedding_outputs_tt = embedding_outputs[:, : seq_len_with_mtp - n_mtp]
-        tower_outputs = self.model(embedding_outputs_tt)
-        tower_outputs_detatched = tower_outputs.detach()
-        tower_outputs_detatched.requires_grad = True
+        mtp_losses = []
+        logits_list = self.model(input_ids)
+        target_ids = target_ids.to(logits_list[0].device)
+        seq_len_with_mtp = target_ids.shape[1]
 
-        # Tensors should be on the same device for loss calculation #TODO check
-        target_ids = target_ids.to(tower_outputs.device)
-
-        mtp_losses, mtp_grad = self.mtp_loop(
-            tower_outputs_detatched, embedding_outputs, target_ids, n_mtp
-        )
+        for i, predicted_ids in enumerate(logits_list):
+            mtp_target_ids = target_ids[:, i : (seq_len_with_mtp - n_mtp + i)]
+            mask_loss = F.cross_entropy(
+                predicted_ids.flatten(0, -2),
+                mtp_target_ids.reshape(-1).long(),
+                reduction="none",
+            )
+            loss = mask_loss.mean() / self.gradient_accumulation_steps
+            mtp_losses.append(loss)
 
         if self.model.training:
-            return mtp_losses, tower_outputs, mtp_grad
+            return mtp_losses
         else:
-            return mtp_losses, None, None
+            return mtp_losses
 
     def calculate_loss(self, batch, n_mtp):
         losses = []
@@ -743,14 +681,13 @@ class TrainerDeepSeekMTP(TrainerMTP):
                     input_ids
                 )  # count all, or only tokens used by TT?
 
-            (
-                mtp_losses,
-                tower_outputs,
-                mtp_grad,
-            ) = self.hack_for_python_garbage_collection(input_ids, target_ids, n_mtp)
+            mtp_losses = self.hack_for_python_garbage_collection(
+                input_ids, target_ids, n_mtp
+            )
             if self.model.training:
-                tower_outputs.backward(gradient=mtp_grad)
-            losses.append(mtp_losses)  # TODO handle other mtp losses
+                loss = torch.stack(mtp_losses).sum()
+                loss.backward()
+            losses.append(mtp_losses)
 
         # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
         avg_mtp_losses = torch.tensor(losses, device=mtp_losses[0].device).sum(dim=0)
