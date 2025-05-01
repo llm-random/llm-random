@@ -6,7 +6,7 @@ training:
     weight_decay: 0.1
     gradient_accumulation_steps: 1
     seed: ${random_seed:}
-    gradient_clipping: 0.1
+    gradient_clipping: 1.0
 
     scheduler: 
         _target_: model.get_cosine_scheduler_with_warmup
