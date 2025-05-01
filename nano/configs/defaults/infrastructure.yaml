@@ -15,3 +15,4 @@ slurm:
   job-name: "nano"
 
 venv_path: "venv/bin/activate"
+experiment_prepare_venv_path: ${venv_path}

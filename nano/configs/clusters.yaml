@@ -1,6 +1,6 @@
 - name: "dgx"
   hosts: 
-    - "login01"
+    - "^login01$"
     - "gpu01"
 
 - name: "entropia"
@@ -11,3 +11,8 @@
 - name: "athena"
   hosts: 
     - "t00*"
+
+- name: "helios"
+  hosts: 
+    - "login01.helios*"
+    - "x100*"

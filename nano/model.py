@@ -25,7 +25,7 @@ import itertools
 import numpy as np
 from abc import ABC, abstractmethod
 import random
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, DataLoader
 from transformers import GPT2TokenizerFast, PreTrainedTokenizerBase
 from abc import ABC, abstractmethod
 import torch.distributed as dist
@@ -44,7 +44,6 @@ from torch.distributed.checkpoint.stateful import Stateful
 from torch.distributed.checkpoint.state_dict import get_state_dict, set_state_dict
 import torch.distributed.checkpoint as dcp
 from datasets.distributed import split_dataset_by_node
-from torchdata.stateful_dataloader import StatefulDataLoader
 from hydra.utils import instantiate
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, ConstantLR
@@ -158,9 +157,7 @@ def run(cfg):
     dataloaders_factory = instantiate(cfg.dataloaders_factory)
     train_dataloader, eval_dataloader = dataloaders_factory()
 
-    load_checkpoint(
-        cfg.checkpoint_config, model, optimizer, scheduler, train_dataloader
-    )
+    load_checkpoint(cfg.checkpoint_config, model, optimizer, scheduler)
     trainer_factory = instantiate(cfg.trainer_factory)
     trainer_factory(
         model=model,
@@ -361,7 +358,7 @@ def get_dataloader(
             shuffle=dataloader_config.shuffle,
             world_size_independent=dataloader_config.world_size_independent,
         )
-        dataloader = StatefulDataLoader(
+        dataloader = DataLoader(
             dataset,
             batch_size=batch_size_per_device,
             collate_fn=collate_wrapper,
@@ -1156,8 +1153,8 @@ class Trainer:
     metric_logger: MetricLogger
     eval_interval: int
     n_eval_steps: int
-    gradient_clipping: Optional[float] = None
-    checkpoint_config: Optional[dict] = None
+    gradient_clipping: Optional[float]
+    checkpoint_config: Optional[dict]
 
     def __attrs_post_init__(self):
         self.processed_tokens = self.training_state["processed_tokens"]
@@ -1165,6 +1162,14 @@ class Trainer:
         self.device = next(self.model.parameters()).device
         self.loss_interval_100 = 0.0
         self.eval_iterator = iter(self.eval_dataloader)
+
+        if self.start_step > 0:
+            n_skip_eval_batches = (
+                (self.start_step - 1) // self.eval_interval * self.n_eval_steps
+            )
+            logger.debug(f"Skipping {n_skip_eval_batches} eval batches")
+            for _ in range(n_skip_eval_batches):
+                next(self.eval_iterator)
 
     @property
     def _should_evaluate(self) -> bool:
@@ -1336,9 +1341,7 @@ class Trainer:
             # Sharded save
             checkpoint_folder = step_checkpoint_path(self.checkpoint_config, self.step)
             state_dict = {
-                "app": TrainingState(
-                    self.model, self.optimizer, self.scheduler, self.train_dataloader
-                )
+                "app": TrainingState(self.model, self.optimizer, self.scheduler)
             }
             dcp.save(state_dict, checkpoint_id=checkpoint_folder)
             logger.info(f"Saved sharded model checkpoint in {checkpoint_folder}")
@@ -1358,7 +1361,6 @@ class Trainer:
                     ),
                     "optim": self.optimizer.state_dict(),
                     "scheduler": self.scheduler.state_dict(),
-                    "train_dataloader": self.train_dataloader.state_dict(),
                 }
                 torch.save(state_to_save, checkpoint_path)
                 logger.info(
@@ -1582,11 +1584,10 @@ def wrap_model(model, fsdp_config):
 
 
 class TrainingState(Stateful):
-    def __init__(self, model, optimizer, scheduler, train_dataloader):
+    def __init__(self, model, optimizer, scheduler):
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.train_dataloader = train_dataloader
 
     def state_dict(self):
         # this line automatically manages FSDP FQN's, as well as sets the default state dict type to FSDP.SHARDED_STATE_DICT
@@ -1597,7 +1598,6 @@ class TrainingState(Stateful):
             "model": model_state_dict,
             "optim": optimizer_state_dict,
             "scheduler": self.scheduler.state_dict(),
-            "train_dataloader": self.train_dataloader.state_dict(),
         }
 
     def load_state_dict(self, state_dict):
@@ -1608,7 +1608,6 @@ class TrainingState(Stateful):
             optim_state_dict=state_dict["optim"],
         )
         self.scheduler.load_state_dict(state_dict["scheduler"])
-        self.train_dataloader.load_state_dict(state_dict["train_dataloader"])
 
 
 def broadcast_message(rank, message=None):
@@ -1706,7 +1705,7 @@ def _find_latest_checkpoint(path: str) -> str:
     return max(files, key=os.path.getmtime)
 
 
-def load_checkpoint(checkpoint_config, model, optimizer, scheduler, train_dataloader):
+def load_checkpoint(checkpoint_config, model, optimizer, scheduler):
     if checkpoint_config.path is None:
         return
 
@@ -1735,7 +1734,6 @@ def load_checkpoint(checkpoint_config, model, optimizer, scheduler, train_datalo
             logger.info(
                 f"Loaded non-sharded sheduler from '{latest_checkpoint_folder}'"
             )
-            train_dataloader.load_state_dict(checkpoint["train_dataloader"])
             logger.debug(
                 f"Loaded non-sharded checkpoint from '{latest_checkpoint_folder}'"
             )

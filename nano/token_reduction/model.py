@@ -1427,7 +1427,6 @@ def get_ultimate_dataloader(
             shuffle=dataloader_config.shuffle,
             world_size_independent=dataloader_config.world_size_independent,
         )
-
         dataloader = DataLoader(
             dataset,
             batch_size=batch_size_per_device,
