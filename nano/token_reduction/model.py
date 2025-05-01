@@ -265,6 +265,23 @@ class LLM_DeepSeekMTP(nn.Module):
         return logits_list
 
 
+def get_deepseek_embedding(common, n_mtp):
+    return EmbeddingLayer(
+        TokenEmbedding(
+            common.vocab_size,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+        PositionalEmbedding(
+            common.sequence_length + n_mtp - 1,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+    )
+
+
 class TokenMergingEmbedding(torch.nn.Module):
     def __init__(self, normal_embedding, common: CommonDroppingConfig):
         super().__init__()
