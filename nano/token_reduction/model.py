@@ -31,6 +31,7 @@ from model import (
     BlockConfig,
     TransformerBlock,
     PredictionHead,
+    RMSNorm,
 )
 
 logger = logging.getLogger(__name__)
@@ -160,6 +161,125 @@ class LLM_MTP(nn.Module):
         x = self.embedding_layer(*args, **kwargs)
         x = self.encoder(x)
         return x
+
+
+class DeepSeekMTPHead(nn.Module):
+    def __init__(
+        self,
+        common: Common,
+        block_config: BlockConfig,
+    ):
+        super().__init__()
+        self.norm_embedding = RMSNorm(dmodel=common.dmodel)
+        self.norm_tt = RMSNorm(dmodel=common.dmodel)
+        self.proj = Linear(
+            in_features=2 * common.dmodel,
+            out_features=common.dmodel,
+            bias=False,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        )
+        self.mtp_block = TransformerBlock(
+            common=common,
+            block_config=block_config,
+        )
+
+    def forward(self, embedding_out, tt_out):
+        embedding_out = self.norm_embedding(embedding_out)
+        tt_out = self.norm_tt(tt_out)
+        out = torch.concat((tt_out, embedding_out), dim=-1)
+        out = self.proj(out)
+        out = self.mtp_block(out)
+        return out
+
+
+class LLM_DeepSeekMTP(nn.Module):
+    def __init__(
+        self,
+        embedding,
+        common: Common,
+        tower_config: TowerConfig,
+        mtp_config: MTPConfig,
+    ):
+        super(LLM_DeepSeekMTP, self).__init__()
+        self.n_mtp = mtp_config.n_mtp
+
+        self.embedding_layer = embedding
+
+        self.encoder = TransformerTower(
+            common=common,
+            tower_config=tower_config,
+        )
+
+        self.mtp_modules = nn.ModuleList(
+            [
+                DeepSeekMTPHead(common, mtp_config.mtp_block_config)
+                for _ in range(mtp_config.n_mtp - 1)
+            ]
+        )
+
+        self.head = PredictionHead(
+            common.dmodel,
+            common.vocab_size,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        )
+
+        self._add_metric_log_names()
+
+    def _add_metric_log_names(self):
+        def _get_metric_log_name(name: str):
+            meaningful_regex = ["block_\\d+", "attention", "feedforward", "residual"]
+            module_names = name.split(".")
+            meaningful_names = [
+                module_name
+                for module_name in module_names
+                if any(re.search(pattern, module_name) for pattern in meaningful_regex)
+            ]
+            return "/".join(meaningful_names)
+
+        for name, model in self.named_modules():
+            model.log_name = _get_metric_log_name(name)
+
+    def forward(self, x):
+        embedding_out = self.embedding_layer(x)
+        if self.training:
+            embedding_out_tt = embedding_out[:, : 1 - self.n_mtp]
+        else:
+            embedding_out_tt = embedding_out
+        tt_out = self.encoder(embedding_out_tt)
+        main_head_logits = self.head(tt_out)
+        logits_list = [main_head_logits]
+        if self.training:
+            mtp_total_seq_len = x.shape[1]  # x.shape = (bs, sl, dmodel)?
+            for i in range(self.n_mtp - 1):
+                embedding_out_mtp = embedding_out[
+                    :, (i + 1) : (mtp_total_seq_len + i + 2 - self.n_mtp)
+                ]
+                tt_out = self.mtp_modules[i](
+                    embedding_out_mtp,
+                    tt_out,
+                )
+                mtp_logits = self.head(tt_out)
+                logits_list.append(mtp_logits)
+        return logits_list
+
+
+def get_deepseek_embedding(common, n_mtp):
+    return EmbeddingLayer(
+        TokenEmbedding(
+            common.vocab_size,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+        PositionalEmbedding(
+            common.sequence_length + n_mtp - 1,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+    )
 
 
 class TokenMergingEmbedding(torch.nn.Module):
@@ -518,165 +638,107 @@ class TrainerMTP(Trainer):
         return n_mtp
 
 
-def collate_reduction(result_seq_len, n_dropped_tokens, batch):
-    batch = torch.tensor(batch)
-    batch_size, seq_len = batch.shape
-    return (
-        batch,
-        batched_split_indexes(batch_size, seq_len, result_seq_len, n_dropped_tokens),
-    )
+class TrainerDeepSeekMTP(TrainerMTP):
+    def train(self):
+        for step, batch in zip(
+            range(self.start_step, self.n_steps), self.train_dataloader
+        ):
+            self.step = step
+            self.metric_logger.set_step(step)
+            self.model.train()
+            n_mtp = self.get_n_mtp()
+            mtp_losses = self.calculate_loss(batch, n_mtp)
 
+            grad_norm = self.clip_gradient()
 
-def get_dropping_dataloader(
-    dataloader_config: dict,
-    batch_size_per_device: int,
-    sequence_length: int,
-    dropped_tokens: int,
-    seed: int,
-    dataset_split: str,
-):
-    if dataloader_config.dataset == "c4":
-        path = (
-            dataloader_config.training_dataset_path
-            if dataset_split == "train"
-            else dataloader_config.eval_dataset_path
-        )
-        dataset = C4Dataset(
-            sequence_length=sequence_length + dropped_tokens + 1,
-            path=path,
-            seed=seed,
-            use_new_sampling_method=dataloader_config.use_new_sampling_method,
-            shuffle=dataloader_config.shuffle,
-            world_size_independent=dataloader_config.world_size_independent,
-        )
-        dataloader = DataLoader(
-            dataset,
-            batch_size=batch_size_per_device,
-            collate_fn=partial(collate_reduction, sequence_length, dropped_tokens),
-            pin_memory=True,
-            num_workers=dataloader_config.num_workers,
-        )
-    else:
-        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
+            self.log_metrics(mtp_losses, grad_norm)
 
-    return dataloader
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            self.scheduler.step()
 
+            if self._should_save_checkpoint:
+                self.save_checkpoint()
 
-def get_reduction_dataloaders(
-    dataloader_config,
-    sequence_length,
-    train_seed,
-    eval_seed,
-    dropped_tokens,
-):
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
+            if self._should_evaluate:
+                self.eval()
 
-    train_dataloader = get_dropping_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=train_seed,
-        dropped_tokens=dropped_tokens,
-        dataset_split="train",
-    )
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-    return train_dataloader, eval_dataloader
+    def hack_for_python_garbage_collection(self, input_ids, target_ids, n_mtp):
+        """we want to have no reference to model output while backpropagating to allow torch to free memory,
+        so we wrap loss calculation in a function"""
 
+        mtp_losses = []
+        logits_list = self.model(input_ids)
+        target_ids = target_ids.to(logits_list[0].device)
+        seq_len_with_mtp = target_ids.shape[1]
 
-def get_dropping_standard_embedding(
-    vocab_size, dmodel, init_type, init_scale, sequence_length, reduction_tokens
-):
-    return EmbeddingLayer(
-        TokenEmbedding(
-            vocab_size,
-            dmodel,
-            init_type,
-            init_scale,
-        ),
-        PositionalEmbedding(
-            sequence_length + reduction_tokens,
-            dmodel,
-            init_type,
-            init_scale,
-        ),
-    )
+        for i, predicted_ids in enumerate(logits_list):
+            mtp_target_ids = target_ids[:, i : (seq_len_with_mtp - n_mtp + i)]
+            mask_loss = F.cross_entropy(
+                predicted_ids.flatten(0, -2),
+                mtp_target_ids.reshape(-1).long(),
+                reduction="none",
+            )
+            loss = mask_loss.mean() / self.gradient_accumulation_steps
+            mtp_losses.append(loss)
 
+        if self.model.training:
+            return mtp_losses
+        else:
+            return mtp_losses
 
-def get_mtp_dataloaders(
-    dataloader_config: dict,
-    sequence_length: int,
-    n_mtp: int,
-    train_seed: int,
-    eval_seed: int,
-):
+    def calculate_loss(self, batch, n_mtp):
+        losses = []
+        for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
+            input_ids, target_ids = self._preprocess_input(
+                batch_chunk
+            )  # using _preprocess_input instead of _preprocess_input_mtp.
+            input_ids = input_ids.to(self.device)
+            if self.model.training:
+                self._update_processed_tokens(
+                    input_ids
+                )  # count all, or only tokens used by TT?
 
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
+            mtp_losses = self.hack_for_python_garbage_collection(
+                input_ids, target_ids, n_mtp
+            )
+            if self.model.training:
+                loss = torch.stack(mtp_losses).sum()
+                loss.backward()
+            losses.append(mtp_losses)
 
-    train_dataloader = get_mtp_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        n_mtp=n_mtp,
-        seed=train_seed,
-        dataset_split="train",
-    )
+        # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
+        avg_mtp_losses = torch.tensor(losses, device=mtp_losses[0].device).sum(dim=0)
+        if dist.is_initialized():
+            dist.all_reduce(avg_mtp_losses, op=dist.ReduceOp.SUM)
 
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
+        return avg_mtp_losses / float(os.environ["WORLD_SIZE"])
 
-    return train_dataloader, eval_dataloader
+    def eval(self):
+        self.model.eval()
+        self.metric_logger.set_step(None)  # disables heavy logging
+        n_mtp = 0  # on eval the model doesn't use MTP modules for further tokens
+        losses = []
+        eval_fingerprint = []
+        with torch.no_grad():
+            for _ in range(self.n_eval_steps):
+                batch = next(self.eval_iterator)
+                batch_fingerprint = create_batch_fingerprint(batch)
+                eval_fingerprint.extend(batch_fingerprint)
+                batch = batch.to(self.device)
+                mtp_losses = self.calculate_loss(batch, n_mtp).float()
+                losses.append(mtp_losses)
+                self.metric_logger.flush_accumulated_metrics(self.step)
+            avg_loss = torch.stack(losses).mean(dim=0)
+            self.metric_logger.log("steps/eval/loss", self.step, avg_loss[0].item())
+            self.metric_logger.log(
+                "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
+            )
 
-
-def get_mtp_dataloader(
-    dataloader_config: dict,
-    batch_size_per_device: int,
-    sequence_length: int,
-    n_mtp: int,
-    seed: int,
-    dataset_split: str,
-):
-    if dataloader_config.dataset == "c4":
-        path = (
-            dataloader_config.training_dataset_path
-            if dataset_split == "train"
-            else dataloader_config.eval_dataset_path
-        )
-        dataset = C4Dataset(
-            sequence_length=sequence_length + n_mtp,
-            path=path,
-            seed=seed,
-            use_new_sampling_method=dataloader_config.use_new_sampling_method,
-            shuffle=dataloader_config.shuffle,
-            world_size_independent=dataloader_config.world_size_independent,
-        )
-        dataloader = DataLoader(
-            dataset,
-            batch_size=batch_size_per_device,
-            collate_fn=collate_wrapper,
-            pin_memory=True,
-            num_workers=dataloader_config.num_workers,
-        )
-    else:
-        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
-
-    return dataloader
+        if self._should_log_eval_input:
+            self.metric_logger.log(
+                f"steps/eval/batch", self.step, str(eval_fingerprint)
+            )
 
 
 class TrainerMTPWithMerging(Trainer):
@@ -866,6 +928,167 @@ class TrainerMTPWithMerging(Trainer):
         else:
             n_mtp = len(self.model.mtp_modules)
         return n_mtp
+
+
+def collate_reduction(result_seq_len, n_dropped_tokens, batch):
+    batch = torch.tensor(batch)
+    batch_size, seq_len = batch.shape
+    return (
+        batch,
+        batched_split_indexes(batch_size, seq_len, result_seq_len, n_dropped_tokens),
+    )
+
+
+def get_dropping_dataloader(
+    dataloader_config: dict,
+    batch_size_per_device: int,
+    sequence_length: int,
+    dropped_tokens: int,
+    seed: int,
+    dataset_split: str,
+):
+    if dataloader_config.dataset == "c4":
+        path = (
+            dataloader_config.training_dataset_path
+            if dataset_split == "train"
+            else dataloader_config.eval_dataset_path
+        )
+        dataset = C4Dataset(
+            sequence_length=sequence_length + dropped_tokens + 1,
+            path=path,
+            seed=seed,
+            use_new_sampling_method=dataloader_config.use_new_sampling_method,
+            shuffle=dataloader_config.shuffle,
+            world_size_independent=dataloader_config.world_size_independent,
+        )
+        dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size_per_device,
+            collate_fn=partial(collate_reduction, sequence_length, dropped_tokens),
+            pin_memory=True,
+            num_workers=dataloader_config.num_workers,
+        )
+    else:
+        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
+
+    return dataloader
+
+
+def get_reduction_dataloaders(
+    dataloader_config,
+    sequence_length,
+    train_seed,
+    eval_seed,
+    dropped_tokens,
+):
+    world_size = int(os.environ["WORLD_SIZE"])
+    batch_size_per_device = dataloader_config.total_batch_size // world_size
+    logger.debug(f"Batch size per device: {batch_size_per_device}")
+    logger.debug(f"Total: {dataloader_config.total_batch_size}")
+
+    train_dataloader = get_dropping_dataloader(
+        dataloader_config=dataloader_config,
+        batch_size_per_device=batch_size_per_device,
+        sequence_length=sequence_length,
+        seed=train_seed,
+        dropped_tokens=dropped_tokens,
+        dataset_split="train",
+    )
+    eval_dataloader = get_dataloader(
+        dataloader_config=dataloader_config,
+        batch_size_per_device=batch_size_per_device,
+        sequence_length=sequence_length,
+        seed=eval_seed,
+        dataset_split="validation",
+    )
+    return train_dataloader, eval_dataloader
+
+
+def get_dropping_standard_embedding(
+    vocab_size, dmodel, init_type, init_scale, sequence_length, reduction_tokens
+):
+    return EmbeddingLayer(
+        TokenEmbedding(
+            vocab_size,
+            dmodel,
+            init_type,
+            init_scale,
+        ),
+        PositionalEmbedding(
+            sequence_length + reduction_tokens,
+            dmodel,
+            init_type,
+            init_scale,
+        ),
+    )
+
+
+def get_mtp_dataloaders(
+    dataloader_config: dict,
+    sequence_length: int,
+    n_mtp: int,
+    train_seed: int,
+    eval_seed: int,
+):
+
+    world_size = int(os.environ["WORLD_SIZE"])
+    batch_size_per_device = dataloader_config.total_batch_size // world_size
+    logger.debug(f"Batch size per device: {batch_size_per_device}")
+    logger.debug(f"Total: {dataloader_config.total_batch_size}")
+
+    train_dataloader = get_mtp_dataloader(
+        dataloader_config=dataloader_config,
+        batch_size_per_device=batch_size_per_device,
+        sequence_length=sequence_length,
+        n_mtp=n_mtp,
+        seed=train_seed,
+        dataset_split="train",
+    )
+
+    eval_dataloader = get_dataloader(
+        dataloader_config=dataloader_config,
+        batch_size_per_device=batch_size_per_device,
+        sequence_length=sequence_length,
+        seed=eval_seed,
+        dataset_split="validation",
+    )
+
+    return train_dataloader, eval_dataloader
+
+
+def get_mtp_dataloader(
+    dataloader_config: dict,
+    batch_size_per_device: int,
+    sequence_length: int,
+    n_mtp: int,
+    seed: int,
+    dataset_split: str,
+):
+    if dataloader_config.dataset == "c4":
+        path = (
+            dataloader_config.training_dataset_path
+            if dataset_split == "train"
+            else dataloader_config.eval_dataset_path
+        )
+        dataset = C4Dataset(
+            sequence_length=sequence_length + n_mtp,
+            path=path,
+            seed=seed,
+            use_new_sampling_method=dataloader_config.use_new_sampling_method,
+            shuffle=dataloader_config.shuffle,
+            world_size_independent=dataloader_config.world_size_independent,
+        )
+        dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size_per_device,
+            collate_fn=collate_wrapper,
+            pin_memory=True,
+            num_workers=dataloader_config.num_workers,
+        )
+    else:
+        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
+
+    return dataloader
 
 
 def get_extra_dataloaders(
@@ -1221,7 +1444,6 @@ def get_ultimate_dataloader(
             shuffle=dataloader_config.shuffle,
             world_size_independent=dataloader_config.world_size_independent,
         )
-
         dataloader = DataLoader(
             dataset,
             batch_size=batch_size_per_device,
