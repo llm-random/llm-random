@@ -53,6 +53,8 @@ grad_norms = [
     (1.9894421100616455, 11),
 ]
 eval_losses = [(11.717543601989746, 5), (11.743537902832031, 10)]
+
+
 class TestMTPWithMerge(unittest.TestCase):
     def patch_randint_in_get_document(self, dataset):
         original_get_document = dataset.get_document
@@ -100,6 +102,7 @@ class TestMTPWithMerge(unittest.TestCase):
         )
         compare_lists(eval_losses, metric_logger.data["steps/eval/loss"], "eval/loss")
 
+
 class TestMTPWithMergeDifferentDataloader(unittest.TestCase):
     def patch_randint_in_get_document(self, dataset):
         original_get_document = dataset.get_document
@@ -130,7 +133,7 @@ class TestMTPWithMergeDifferentDataloader(unittest.TestCase):
             neptune_run_id=training_state["run_id"],
         )
         metric_logger.clear()
-        
+
         run(cfg)
 
         def compare_lists(list1, list2, key):

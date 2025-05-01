@@ -212,9 +212,9 @@ class TokenMergingEmbeddingBothTokens(torch.nn.Module):
             merge_tokens = torch.cat((merge_tokens_a, merge_tokens_b), dim=-1)
 
             merge_tokens = self.linear(merge_tokens)
-            x[torch.arange(merge_indexes.size(0)).unsqueeze(-1), merge_indexes + 1] = (
-                merge_tokens
-            )
+            x[
+                torch.arange(merge_indexes.size(0)).unsqueeze(-1), merge_indexes + 1
+            ] = merge_tokens
 
             x = batch_index_select(x, keep_indexes)
         return x
@@ -449,14 +449,14 @@ class TrainerMTP(Trainer):
     def eval(self):
         self.model.eval()
         self.metric_logger.set_step(None)  # disables heavy logging
-        n_mtp = 1   # on eval the model doesn't use MTP modules for further tokens
+        n_mtp = 1  # on eval the model doesn't use MTP modules for further tokens
         losses = []
         eval_fingerprint = []
         with torch.no_grad():
             for _ in range(self.n_eval_steps):
                 batch = next(self.eval_iterator)
                 batch_fingerprint = create_batch_fingerprint(batch)
-                eval_fingerprint.extend(batch_fingerprint)    
+                eval_fingerprint.extend(batch_fingerprint)
                 batch = batch.to(self.device)
                 mtp_losses = self.calculate_loss(batch, n_mtp).float()
                 losses.append(mtp_losses)
@@ -468,7 +468,9 @@ class TrainerMTP(Trainer):
             )
 
         if self._should_log_eval_input:
-            self.metric_logger.log(f"steps/eval/batch", self.step, str(eval_fingerprint))
+            self.metric_logger.log(
+                f"steps/eval/batch", self.step, str(eval_fingerprint)
+            )
 
     def log_metrics(self, mtp_losses, grad_norm):
         self.metric_logger.log("step", self.step, self.step)
@@ -757,10 +759,12 @@ class TrainerMTPWithMerging(Trainer):
             input_ids, target_ids = self._preprocess_input_mtp(batch_chunk, n_mtp)
             self._update_processed_tokens(input_ids)
 
-            mtp_losses, tower_outputs, mtp_grad = (
-                self._hack_for_python_garbage_collection(
-                    input_ids, target_ids, n_mtp, keep_indexes_chunk, drop_indexes_chunk
-                )
+            (
+                mtp_losses,
+                tower_outputs,
+                mtp_grad,
+            ) = self._hack_for_python_garbage_collection(
+                input_ids, target_ids, n_mtp, keep_indexes_chunk, drop_indexes_chunk
             )
             tower_outputs.backward(gradient=mtp_grad)
 
@@ -802,7 +806,7 @@ class TrainerMTPWithMerging(Trainer):
             for _ in range(self.n_eval_steps):
                 batch = next(self.eval_iterator)
                 batch_fingerprint = create_batch_fingerprint(batch)
-                eval_fingerprint.extend(batch_fingerprint)    
+                eval_fingerprint.extend(batch_fingerprint)
                 batch = batch.to(self.device)
                 mtp_losses = self.calculate_loss(batch, 1)
                 losses.append(mtp_losses)
@@ -814,7 +818,9 @@ class TrainerMTPWithMerging(Trainer):
             )
 
         if self._should_log_eval_input:
-            self.metric_logger.log(f"steps/eval/batch", self.step, str(eval_fingerprint))
+            self.metric_logger.log(
+                f"steps/eval/batch", self.step, str(eval_fingerprint)
+            )
 
     def log_metrics(self, mtp_losses, grad_norm):
         self.metric_logger.log("step", self.step, self.step)
@@ -1077,15 +1083,20 @@ class TrainerMTPWithMergingUltimate(Trainer):
         scaled_n_reduced_tokens = self._get_reduced_tokens()
         for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
 
-            input_ids, target_ids, keep_pos_ids, drop_pos_ids = (
-                self._prepare_model_input(batch_chunk, n_mtp, scaled_n_reduced_tokens)
-            )
+            (
+                input_ids,
+                target_ids,
+                keep_pos_ids,
+                drop_pos_ids,
+            ) = self._prepare_model_input(batch_chunk, n_mtp, scaled_n_reduced_tokens)
             self._update_processed_tokens(input_ids)
 
-            mtp_losses, tower_outputs, mtp_grad = (
-                self._hack_for_python_garbage_collection(
-                    input_ids, target_ids, n_mtp, keep_pos_ids, drop_pos_ids
-                )
+            (
+                mtp_losses,
+                tower_outputs,
+                mtp_grad,
+            ) = self._hack_for_python_garbage_collection(
+                input_ids, target_ids, n_mtp, keep_pos_ids, drop_pos_ids
             )
             tower_outputs.backward(gradient=mtp_grad)
 
