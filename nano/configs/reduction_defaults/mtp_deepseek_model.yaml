@@ -3,7 +3,7 @@ model:
     _target_: token_reduction.model.LLM_DeepSeekMTP    
  
     embedding:
-        _target_: model.get_deepseek_embedding
+        _target_: token_reduction.model.get_deepseek_embedding
         common: ${model.common}
         n_mtp: ${model.mtp_config.n_mtp}
 
