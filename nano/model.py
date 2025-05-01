@@ -465,7 +465,7 @@ class RMSNorm(nn.Module):
         self.b = nn.Parameter(torch.zeros(dmodel))
 
     def forward(self, x):
-        norm = torch.mean(x ** 2, dim=-1, keepdim=True)
+        norm = torch.mean(x**2, dim=-1, keepdim=True)
         x = x * torch.rsqrt(norm + self.eps)
         return x * self.g + self.b
 

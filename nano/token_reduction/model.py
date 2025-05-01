@@ -212,9 +212,9 @@ class TokenMergingEmbeddingBothTokens(torch.nn.Module):
             merge_tokens = torch.cat((merge_tokens_a, merge_tokens_b), dim=-1)
 
             merge_tokens = self.linear(merge_tokens)
-            x[
-                torch.arange(merge_indexes.size(0)).unsqueeze(-1), merge_indexes + 1
-            ] = merge_tokens
+            x[torch.arange(merge_indexes.size(0)).unsqueeze(-1), merge_indexes + 1] = (
+                merge_tokens
+            )
 
             x = batch_index_select(x, keep_indexes)
         return x
