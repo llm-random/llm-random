@@ -43,6 +43,7 @@ model:
         init_scale: 0.1
         vocab_size: 50257
         dropped_tokens: ???
+        head_norm: ???
 
     mtp_config:
         _target_: token_reduction.model.MTPConfig
