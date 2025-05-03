@@ -35,7 +35,6 @@ model:
         init_scale: 1
         vocab_size: 50257
         dropped_tokens: 7
-        head_norm: true
 
 
 metric_logger:
