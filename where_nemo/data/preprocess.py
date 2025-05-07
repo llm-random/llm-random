@@ -67,13 +67,14 @@ def preprocess_data(
         else:
             num_tasks = 1
             task_id = 0
-    shards_to_extract = _get_shard_list(data_dir, num_tasks, extension="*")
+    shards_to_extract = _get_shard_list(data_dir, num_tasks, extension="c4_en_train_part_00.jsonl") # *
     print(f"shards_to_extract {shards_to_extract}")
     shard_files = shards_to_extract[task_id]
     print(f"shard_files {shard_files}")
     cmd = [
         "python",
-        "/opt/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py",
+        # "/opt/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py",
+        "./data/preprocess_data_for_megatron.py",
     ]
 
     os.makedirs(output_dir, exist_ok=True)
@@ -91,9 +92,13 @@ def preprocess_data(
             f"--tokenizer-library={tokenizer_library}",
             f"--tokenizer-type={tokenizer_type}" if tokenizer_type else f"--tokenizer-model={tokenizer_model}",
             # f"--workers={multiprocessing.cpu_count()}",
-            f"--workers=144",
+            f"--workers=64",
             "--log-interval=100000",
-            "--apply-ftfy",
+            "--append-eod", #dev SWITCH
+            # "--apply-ftfy", #dev SWITCH
+            '--need-pad-id', #dev SWITCH
+            # "--asd", #dev SWITCH
+            # "--asd", #dev SWITCH
         ]
 
         if dataset_impl:
@@ -102,11 +107,10 @@ def preprocess_data(
         if vocab_file_path:
             flags += [
                 f"--vocab-file={vocab_file_path}",
-                "--append-eod",
             ]
 
             if merges_file_path:
-                flags += [f"--merges-file={merges_file_path}"]
+                flags += [f"--merge-file={merges_file_path}"]
 
         final_cmd = cmd + flags
         if extra_args:

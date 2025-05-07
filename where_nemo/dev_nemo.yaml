@@ -1,0 +1,58 @@
+# # NOT INCUDED
+# technical/common params
+# use_torch_bmm: true
+# torch_compile: false
+# mixed_precision: True
+# loss_checkpoint_chungs: 0
+# fsdp_enabled: false
+
+# # logging etc.
+# log_gradients_and_weights: true
+# logging_interval_heavy: 100
+# logging_interval_loss: 100
+# save_weights_path: None
+# save_weights_interval: 0
+# dont_save_final_model: True
+
+# activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+
+
+
+# LEFT DEFAULT MEGATRON
+init_type: truncated_normal #
+init_scale: 0.15 #
+flash_attention: true #
+no_layer_norm: True #
+
+# APPLIED
+# MODEL
+dmodel: 1024
+dff: 1024
+n_blocks: 16
+n_att_heads: 16
+ff_mode: vanilla
+attention_mode: vanilla
+model_type: gpt
+tags: ["projected_dis", "1ff", "dm1024", "doner"]
+name: "PD"
+data_seed: 27
+activation_type: silu
+
+mixed_precision_dtype: bfloat16
+
+dataset_type: c4
+batch_size: 512
+cutoff: 512
+n_steps: 15_533
+weight_decay: 0.1
+grad_clip: 0.5
+
+learning_rate: 0.001
+scheduler: cosine
+lr_warmup_percent: 0.01 #default
+final_lr_fraction: 0.03 #default
+
+
+# ---------------------------------------------------------------------------------------------------------------
+
+residual_mode: pre_norm_no_bias
