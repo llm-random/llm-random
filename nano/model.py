@@ -725,11 +725,11 @@ class EmbeddingLayer(Aggregate):
 
 
 class PredictionHead(nn.Module):
-    def __init__(self, embedding_dim, output_size, init_type, init_scale, ln=False):
+    def __init__(self, embedding_dim, output_size, init_type, init_scale, use_layer_norm=False):
         super(PredictionHead, self).__init__()
 
         layers = OrderedDict()
-        if ln:
+        if use_layer_norm:
             layers["head_norm"] = nn.LayerNorm(embedding_dim)
         layers["head"] = Linear(
             embedding_dim, output_size, init_type=init_type, init_scale=init_scale
