@@ -34,3 +34,4 @@ model:
         init_type: truncated_normal_fixed
         init_scale: 0.1
         vocab_size: 50257
+        head_norm: true

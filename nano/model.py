@@ -410,6 +410,7 @@ class Common(BaseModel):
     init_type: str
     init_scale: float
     vocab_size: int
+    head_norm: bool
 
 
 class SchedulerConfig(BaseModel):
@@ -465,7 +466,7 @@ class RMSNorm(nn.Module):
         self.b = nn.Parameter(torch.zeros(dmodel))
 
     def forward(self, x):
-        norm = torch.mean(x**2, dim=-1, keepdim=True)
+        norm = torch.mean(x ** 2, dim=-1, keepdim=True)
         x = x * torch.rsqrt(norm + self.eps)
         return x * self.g + self.b
 
@@ -723,11 +724,21 @@ class EmbeddingLayer(Aggregate):
         super(EmbeddingLayer, self).__init__((lambda x, y: x + y), *layers)
 
 
-class PredictionHead(Linear):
-    def __init__(self, embedding_dim, output_size, init_type, init_scale):
-        super(PredictionHead, self).__init__(
+class PredictionHead(nn.Module):
+    def __init__(self, embedding_dim, output_size, init_type, init_scale, use_layer_norm=False):
+        super(PredictionHead, self).__init__()
+
+        layers = OrderedDict()
+        if use_layer_norm:
+            layers["head_norm"] = nn.LayerNorm(embedding_dim)
+        layers["head"] = Linear(
             embedding_dim, output_size, init_type=init_type, init_scale=init_scale
         )
+
+        self.unembedding = nn.Sequential(layers)
+
+    def forward(self, x):
+        return self.unembedding(x)
 
 
 class LLM(nn.Module):
@@ -751,6 +762,7 @@ class LLM(nn.Module):
             common.vocab_size,
             init_type=common.init_type,
             init_scale=common.init_scale,
+            ln=common.head_norm,
         )
 
         self._add_metric_log_names()

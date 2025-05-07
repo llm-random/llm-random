@@ -69,4 +69,5 @@ model:
         dmodel: 64             
         dff: 256
         dropped_tokens: 2      
+        head_norm: true
 
