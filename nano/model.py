@@ -762,7 +762,7 @@ class LLM(nn.Module):
             common.vocab_size,
             init_type=common.init_type,
             init_scale=common.init_scale,
-            ln=common.head_norm,
+            use_layer_norm=common.head_norm,
         )
 
         self._add_metric_log_names()
