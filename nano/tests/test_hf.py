@@ -12,7 +12,7 @@ from model import get_dataloader, get_metric_logger
 
 import os
 
-TOLERANCE = 1e-5
+TOLERANCE = 1e-6
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
@@ -70,7 +70,7 @@ def copy_weights_between_models(model, hf_model):
             block.block.residual_feedforward.layer.feedforward.logging_ff_post_relu
         )
 
-    hf_transformer.ln_f = torch.nn.Identity()
+    # hf_transformer.ln_f = torch.nn.Identity() # Without head_norm: true we need to turn off the layer norm in hf model
 
     hf_model.lm_head.weight.data.copy_(model.head.unembedding.head.weight)
 
