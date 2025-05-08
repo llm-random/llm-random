@@ -85,6 +85,17 @@ dataset_path = [
 #     f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 1)
 # ] 
 
+# FINAL DATASETS
+
+# HELIOS
+# "--append-eod", #dev yes
+# # "--apply-ftfy", #dev no
+# '--need-pad-id', #dev yes
+# dsp_preambule = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1746711699/training/code/results_preprocessing/" #dev test
+# dataset_path = [
+#     f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 1)
+# ] 
+
 
 num_layers=16
 num_attention_heads=16
