@@ -217,7 +217,7 @@ class TestSimpleRun(unittest.TestCase):
         #     (11.756917953491211, 7),
         #     (11.757512092590332, 8),
         #     (11.67790412902832, 9),
-        # ] 
+        # ]
         #  Note: not sure why the target losses have changed overtime.
 
         target_losses_dropping = [

@@ -466,7 +466,7 @@ class RMSNorm(nn.Module):
         self.b = nn.Parameter(torch.zeros(dmodel))
 
     def forward(self, x):
-        norm = torch.mean(x ** 2, dim=-1, keepdim=True)
+        norm = torch.mean(x**2, dim=-1, keepdim=True)
         x = x * torch.rsqrt(norm + self.eps)
         return x * self.g + self.b
 
@@ -725,7 +725,9 @@ class EmbeddingLayer(Aggregate):
 
 
 class PredictionHead(nn.Module):
-    def __init__(self, embedding_dim, output_size, init_type, init_scale, use_layer_norm=False):
+    def __init__(
+        self, embedding_dim, output_size, init_type, init_scale, use_layer_norm=False
+    ):
         super(PredictionHead, self).__init__()
 
         layers = OrderedDict()
