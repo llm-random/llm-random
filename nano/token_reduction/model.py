@@ -130,7 +130,7 @@ class LLM_MTP(nn.Module):
         self.mtp_modules = nn.ModuleList(
             [
                 TransformerBlock(common, mtp_config.mtp_block_config)
-                for _ in range(mtp_config.n_mtp)
+                for _ in range(mtp_config.n_mtp + 1)
             ]
         )
 
@@ -215,7 +215,7 @@ class LLM_DeepSeekMTP(nn.Module):
         self.mtp_modules = nn.ModuleList(
             [
                 DeepSeekMTPHead(common, mtp_config.mtp_block_config)
-                for _ in range(mtp_config.n_mtp - 1)
+                for _ in range(mtp_config.n_mtp)
             ]
         )
 
@@ -244,25 +244,25 @@ class LLM_DeepSeekMTP(nn.Module):
             model.log_name = _get_metric_log_name(name)
 
     def forward(self, x):
+        seq_len = x.shape[1] - self.n_mtp
         embedding_out = self.embedding_layer(x)
         if self.training:
-            embedding_out_tt = embedding_out[:, : 1 - self.n_mtp]
+            transformer_tower_input = embedding_out[:, : seq_len]
         else:
-            embedding_out_tt = embedding_out
-        tt_out = self.encoder(embedding_out_tt)
-        main_head_logits = self.head(tt_out)
+            transformer_tower_input = embedding_out
+        transformer_tower_out = self.encoder(transformer_tower_input)
+        main_head_logits = self.head(transformer_tower_out)
         logits_list = [main_head_logits]
         if self.training:
-            mtp_total_seq_len = x.shape[1]  # x.shape = (bs, sl, dmodel)?
-            for i in range(self.n_mtp - 1):
-                embedding_out_mtp = embedding_out[
-                    :, (i + 1) : (mtp_total_seq_len + i + 2 - self.n_mtp)
+            for i in range(self.n_mtp):
+                mtp_embedding_input = embedding_out[
+                    :, (i + 1) : ((i + 1) + seq_len)
                 ]
-                tt_out = self.mtp_modules[i](
-                    embedding_out_mtp,
-                    tt_out,
+                transformer_tower_out = self.mtp_modules[i](
+                    mtp_embedding_input,
+                    transformer_tower_out,
                 )
-                mtp_logits = self.head(tt_out)
+                mtp_logits = self.head(transformer_tower_out)
                 logits_list.append(mtp_logits)
         return logits_list
 
@@ -276,7 +276,7 @@ def get_deepseek_embedding(common, n_mtp):
             init_scale=common.init_scale,
         ),
         PositionalEmbedding(
-            common.sequence_length + n_mtp - 1,
+            common.sequence_length + n_mtp,
             common.dmodel,
             init_type=common.init_type,
             init_scale=common.init_scale,
@@ -478,7 +478,7 @@ class MergingTrainer(Trainer):
 
 class TrainerMTP(Trainer):
     def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
-        input_ids = batch[:, :-n_mtp].contiguous()
+        input_ids = batch[:, :-n_mtp - 1].contiguous()
         target_ids = batch[:, 1:].contiguous()
 
         return input_ids, target_ids
@@ -511,15 +511,15 @@ class TrainerMTP(Trainer):
         def _hack_for_python_garbage_collection(input_ids, target_ids, n_mtp):
             """we want to have no reference to model output while backpropagating to allow torch to free memory,
             so we wrap loss calculation in a function"""
+            seq_len = input_ids.shape[-1]
             tower_outputs = self.model(input_ids)
             tower_outputs_detatched = tower_outputs.detach()
             tower_outputs_detatched.requires_grad = True
 
             # Tensors should be on the same device for loss calculation #TODO check
             target_ids = target_ids.to(tower_outputs.device)
-            target_len = target_ids.shape[-1]
             mtp_losses = []
-            for i in range(n_mtp):
+            for i in range(n_mtp + 1):
                 if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
                     mtp_module_output = self.model.module.mtp_modules[i](
                         tower_outputs_detatched
@@ -530,7 +530,7 @@ class TrainerMTP(Trainer):
                         tower_outputs_detatched
                     )
                     predicted_ids = self.model.head(mtp_module_output)
-                mtp_target_ids = target_ids[:, i : target_len + i - n_mtp + 1].detach()
+                mtp_target_ids = target_ids[:, i : i + seq_len].detach()
                 mtp_loss = F.cross_entropy(
                     predicted_ids.flatten(0, -2),
                     mtp_target_ids.reshape(-1).long(),
@@ -571,7 +571,7 @@ class TrainerMTP(Trainer):
     def eval(self):
         self.model.eval()
         self.metric_logger.set_step(None)  # disables heavy logging
-        n_mtp = 1  # on eval the model doesn't use MTP modules for further tokens
+        n_mtp = 0   # on eval the model doesn't use MTP modules for further tokens
         losses = []
         eval_fingerprint = []
         with torch.no_grad():
@@ -633,10 +633,7 @@ class TrainerMTP(Trainer):
                 self.loss_interval_100 = 0.0
 
     def get_n_mtp(self):
-        if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-            n_mtp = len(self.model.module.mtp_modules)
-        else:
-            n_mtp = len(self.model.mtp_modules)
+        n_mtp = len(self.model.mtp_modules)
         return n_mtp
 
 
@@ -672,10 +669,10 @@ class TrainerDeepSeekMTP(TrainerMTP):
         mtp_losses = []
         logits_list = self.model(input_ids)
         target_ids = target_ids.to(logits_list[0].device)
-        seq_len_with_mtp = target_ids.shape[1]
+        seq_len = target_ids.shape[1] - n_mtp
 
         for i, predicted_ids in enumerate(logits_list):
-            mtp_target_ids = target_ids[:, i : (seq_len_with_mtp - n_mtp + i)]
+            mtp_target_ids = target_ids[:, i : i + seq_len]
             mask_loss = F.cross_entropy(
                 predicted_ids.flatten(0, -2),
                 mtp_target_ids.reshape(-1).long(),
@@ -684,10 +681,7 @@ class TrainerDeepSeekMTP(TrainerMTP):
             loss = mask_loss.mean() / self.gradient_accumulation_steps
             mtp_losses.append(loss)
 
-        if self.model.training:
-            return mtp_losses
-        else:
-            return mtp_losses
+        return mtp_losses
 
     def calculate_loss(self, batch, n_mtp):
         losses = []
@@ -699,7 +693,7 @@ class TrainerDeepSeekMTP(TrainerMTP):
             if self.model.training:
                 self._update_processed_tokens(
                     input_ids
-                )  # count all, or only tokens used by TT?
+                )
 
             mtp_losses = self.hack_for_python_garbage_collection(
                 input_ids, target_ids, n_mtp
@@ -716,36 +710,10 @@ class TrainerDeepSeekMTP(TrainerMTP):
 
         return avg_mtp_losses / float(os.environ["WORLD_SIZE"])
 
-    def eval(self):
-        self.model.eval()
-        self.metric_logger.set_step(None)  # disables heavy logging
-        n_mtp = 0  # on eval the model doesn't use MTP modules for further tokens
-        losses = []
-        eval_fingerprint = []
-        with torch.no_grad():
-            for _ in range(self.n_eval_steps):
-                batch = next(self.eval_iterator)
-                batch_fingerprint = create_batch_fingerprint(batch)
-                eval_fingerprint.extend(batch_fingerprint)
-                batch = batch.to(self.device)
-                mtp_losses = self.calculate_loss(batch, n_mtp).float()
-                losses.append(mtp_losses)
-                self.metric_logger.flush_accumulated_metrics(self.step)
-            avg_loss = torch.stack(losses).mean(dim=0)
-            self.metric_logger.log("steps/eval/loss", self.step, avg_loss[0].item())
-            self.metric_logger.log(
-                "tokens/eval/loss", self.processed_tokens, avg_loss[0].item()
-            )
-
-        if self._should_log_eval_input:
-            self.metric_logger.log(
-                f"steps/eval/batch", self.step, str(eval_fingerprint)
-            )
-
 
 class TrainerMTPWithMerging(Trainer):
     def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
-        input_ids = batch[:, :-n_mtp].contiguous()
+        input_ids = batch[:, :-n_mtp - 1].contiguous()
         target_ids = batch[:, 1:].contiguous()
 
         return input_ids, target_ids
@@ -787,7 +755,7 @@ class TrainerMTPWithMerging(Trainer):
         target_ids = target_ids.to(tower_outputs.device)
 
         mtp_losses = []
-        for i in range(n_mtp):
+        for i in range(n_mtp + 1):
             mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
             predicted_ids = self.model.head(mtp_module_output)
 
@@ -925,10 +893,7 @@ class TrainerMTPWithMerging(Trainer):
                 self.loss_interval_100 = 0.0
 
     def get_n_mtp(self):
-        if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-            n_mtp = len(self.model.module.mtp_modules)
-        else:
-            n_mtp = len(self.model.mtp_modules)
+        n_mtp = len(self.model.mtp_modules)
         return n_mtp
 
 
@@ -1073,7 +1038,7 @@ def get_mtp_dataloader(
             else dataloader_config.eval_dataset_path
         )
         dataset = C4Dataset(
-            sequence_length=sequence_length + n_mtp,
+            sequence_length=sequence_length + n_mtp + 1,
             path=path,
             seed=seed,
             use_new_sampling_method=dataloader_config.use_new_sampling_method,
@@ -1144,7 +1109,7 @@ def get_extra_dataloader(
             else dataloader_config.eval_dataset_path
         )
         dataset = C4Dataset(
-            sequence_length=sequence_length + n_mtp + dropped_tokens,
+            sequence_length=sequence_length + n_mtp + dropped_tokens + 1,
             path=path,
             seed=seed,
             use_new_sampling_method=dataloader_config.use_new_sampling_method,
@@ -1256,7 +1221,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
         target_ids = target_ids.to(tower_outputs.device)
 
         mtp_losses = []
-        for i in range(n_mtp):
+        for i in range(n_mtp + 1):
             mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
             predicted_ids = self.model.head(mtp_module_output)
 
@@ -1292,7 +1257,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
         return result
 
     def _prepare_model_input(self, batch, n_mtp, n_reduced_tokens):
-        input_ids = batch[:, :-n_mtp]
+        input_ids = batch[:, :-n_mtp - 1]
         target_ids = batch[:, 1:]
 
         batch_size, dataloader_seq_len = batch.shape
@@ -1418,10 +1383,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
                 self.loss_interval_100 = 0.0
 
     def get_n_mtp(self):
-        if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-            n_mtp = len(self.model.module.mtp_modules)
-        else:
-            n_mtp = len(self.model.mtp_modules)
+        n_mtp = len(self.model.mtp_modules)
         return n_mtp
 
 

@@ -46,7 +46,7 @@ model:
         n_heads: 8
   mtp_config:
     _target_: token_reduction.model.MTPConfig
-    n_mtp: 2
+    n_mtp: 1
 
 slurm:
   gres: gpu:1
