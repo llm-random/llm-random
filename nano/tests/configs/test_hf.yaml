@@ -37,6 +37,7 @@ model:
         init_type: truncated_normal_fixed
         init_scale: 1
         vocab_size: 50257
+        head_norm: false
 
 
 training:
@@ -64,6 +65,7 @@ metric_logger:
     tags: []
     project_name: null
     heavy_metrics_calculation_interval: -1
+    name: "dummy_test"
 
 checkpoint_config:
     interval: 0

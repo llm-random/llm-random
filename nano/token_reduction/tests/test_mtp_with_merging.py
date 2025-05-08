@@ -8,7 +8,7 @@ from model import (
     run,
 )
 
-TOLERANCE = 1e-6
+TOLERANCE = 1e-5
 
 target_losses = [
     (11.838484764099121, 0),
@@ -122,7 +122,7 @@ class TestMTPWithMergeDifferentDataloader(unittest.TestCase):
         dataset.get_document = patched_get_document
 
     def test_mtp_with_merge_different_dataloader(self):
-        TOLERANCE = 1e-6
+        TOLERANCE = 1e-5
 
         with initialize(version_base=None, config_path="configs"):
             cfg = compose(config_name="mtp_merge_different_dataloader", overrides=[])

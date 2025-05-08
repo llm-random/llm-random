@@ -790,7 +790,7 @@ class TrainerMTPWithMerging(Trainer):
             losses = self.calculate_loss_eval(batch)
 
         # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
-        device = self.model.head.weight.device  # could be any
+        device = next(self.model.parameters()).device  # could be any
         avg_mtp_losses = torch.tensor(losses, device=device).sum(dim=0)
         if dist.is_initialized():
             dist.all_reduce(avg_mtp_losses, op=dist.ReduceOp.SUM)
@@ -1122,7 +1122,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
             losses = self.calculate_loss_eval(batch)
 
         # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
-        device = self.model.head.weight.device  # could be any
+        device = next(self.model.parameters()).device  # could be any
         avg_mtp_losses = torch.tensor(losses, device=device).sum(dim=0)
         if dist.is_initialized():
             dist.all_reduce(avg_mtp_losses, op=dist.ReduceOp.SUM)
