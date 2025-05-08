@@ -18,6 +18,7 @@ from model import (
     run,
 )
 
+
 class TestSimpleRun(unittest.TestCase):
     @patch("model.get_metric_logger", return_value=RecorderLogger())
     def test_simple_mtp_deepseek(self, get_metric_logger):
@@ -31,7 +32,7 @@ class TestSimpleRun(unittest.TestCase):
             (10.860404968261719, 6),
             (10.825983047485352, 7),
             (10.828263282775879, 8),
-            (10.803018569946289, 9)
+            (10.803018569946289, 9),
         ]
         with initialize(version_base=None, config_path="configs"):
             cfg = compose(config_name="test_mtp_deepseek", overrides=[])

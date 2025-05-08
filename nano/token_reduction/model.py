@@ -118,6 +118,7 @@ class LLM_MTP(nn.Module):
         mtp_config: MTPConfig,
     ):
         super(LLM_MTP, self).__init__()
+        self.n_mtp = mtp_config.n_mtp
 
         self.embedding_layer = embedding
 
@@ -247,7 +248,7 @@ class LLM_DeepSeekMTP(nn.Module):
         seq_len = x.shape[1] - self.n_mtp
         embedding_out = self.embedding_layer(x)
         if self.training:
-            transformer_tower_input = embedding_out[:, : seq_len]
+            transformer_tower_input = embedding_out[:, :seq_len]
         else:
             transformer_tower_input = embedding_out
         transformer_tower_out = self.encoder(transformer_tower_input)
@@ -255,9 +256,7 @@ class LLM_DeepSeekMTP(nn.Module):
         logits_list = [main_head_logits]
         if self.training:
             for i in range(self.n_mtp):
-                mtp_embedding_input = embedding_out[
-                    :, (i + 1) : ((i + 1) + seq_len)
-                ]
+                mtp_embedding_input = embedding_out[:, (i + 1) : ((i + 1) + seq_len)]
                 transformer_tower_out = self.mtp_modules[i](
                     mtp_embedding_input,
                     transformer_tower_out,
@@ -478,7 +477,7 @@ class MergingTrainer(Trainer):
 
 class TrainerMTP(Trainer):
     def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
-        input_ids = batch[:, :-n_mtp - 1].contiguous()
+        input_ids = batch[:, : -n_mtp - 1].contiguous()
         target_ids = batch[:, 1:].contiguous()
 
         return input_ids, target_ids
@@ -490,7 +489,7 @@ class TrainerMTP(Trainer):
             self.step = step
             self.metric_logger.set_step(step)
             self.model.train()
-            n_mtp = self.get_n_mtp()
+            n_mtp = self.model.n_mtp
             mtp_losses = self.calculate_loss(batch, n_mtp)
 
             grad_norm = self.clip_gradient()
@@ -520,16 +519,8 @@ class TrainerMTP(Trainer):
             target_ids = target_ids.to(tower_outputs.device)
             mtp_losses = []
             for i in range(n_mtp + 1):
-                if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-                    mtp_module_output = self.model.module.mtp_modules[i](
-                        tower_outputs_detatched
-                    )
-                    predicted_ids = self.model.module.head(mtp_module_output)
-                else:
-                    mtp_module_output = self.model.mtp_modules[i](
-                        tower_outputs_detatched
-                    )
-                    predicted_ids = self.model.head(mtp_module_output)
+                mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
+                predicted_ids = self.model.head(mtp_module_output)
                 mtp_target_ids = target_ids[:, i : i + seq_len].detach()
                 mtp_loss = F.cross_entropy(
                     predicted_ids.flatten(0, -2),
@@ -571,7 +562,7 @@ class TrainerMTP(Trainer):
     def eval(self):
         self.model.eval()
         self.metric_logger.set_step(None)  # disables heavy logging
-        n_mtp = 0   # on eval the model doesn't use MTP modules for further tokens
+        n_mtp = 0  # on eval the model doesn't use MTP modules for further tokens
         losses = []
         eval_fingerprint = []
         with torch.no_grad():
@@ -632,10 +623,6 @@ class TrainerMTP(Trainer):
                 )
                 self.loss_interval_100 = 0.0
 
-    def get_n_mtp(self):
-        n_mtp = len(self.model.mtp_modules)
-        return n_mtp
-
 
 class TrainerDeepSeekMTP(TrainerMTP):
     def train(self):
@@ -645,7 +632,7 @@ class TrainerDeepSeekMTP(TrainerMTP):
             self.step = step
             self.metric_logger.set_step(step)
             self.model.train()
-            n_mtp = self.get_n_mtp()
+            n_mtp = self.model.n_mtp
             mtp_losses = self.calculate_loss(batch, n_mtp)
 
             grad_norm = self.clip_gradient()
@@ -691,9 +678,7 @@ class TrainerDeepSeekMTP(TrainerMTP):
             )  # using _preprocess_input instead of _preprocess_input_mtp.
             input_ids = input_ids.to(self.device)
             if self.model.training:
-                self._update_processed_tokens(
-                    input_ids
-                )
+                self._update_processed_tokens(input_ids)
 
             mtp_losses = self.hack_for_python_garbage_collection(
                 input_ids, target_ids, n_mtp
@@ -713,7 +698,7 @@ class TrainerDeepSeekMTP(TrainerMTP):
 
 class TrainerMTPWithMerging(Trainer):
     def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
-        input_ids = batch[:, :-n_mtp - 1].contiguous()
+        input_ids = batch[:, : -n_mtp - 1].contiguous()
         target_ids = batch[:, 1:].contiguous()
 
         return input_ids, target_ids
@@ -725,7 +710,7 @@ class TrainerMTPWithMerging(Trainer):
             self.step = step
             self.metric_logger.set_step(step)
             self.model.train()
-            n_mtp = self.get_n_mtp()
+            n_mtp = self.model.n_mtp
             mtp_losses = self.calculate_loss(batch, n_mtp)
 
             grad_norm = self.clip_gradient()
@@ -891,10 +876,6 @@ class TrainerMTPWithMerging(Trainer):
                     "steps/train/loss_100", self.step, self.loss_interval_100 / 100.0
                 )
                 self.loss_interval_100 = 0.0
-
-    def get_n_mtp(self):
-        n_mtp = len(self.model.mtp_modules)
-        return n_mtp
 
 
 def collate_reduction(result_seq_len, n_dropped_tokens, batch):
@@ -1191,7 +1172,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
             self.step = step
             self.metric_logger.set_step(step)
             self.model.train()
-            n_mtp = self.get_n_mtp()
+            n_mtp = self.model.n_mtp
             mtp_losses = self.calculate_loss(batch, n_mtp)
 
             grad_norm = self.clip_gradient()
@@ -1257,7 +1238,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
         return result
 
     def _prepare_model_input(self, batch, n_mtp, n_reduced_tokens):
-        input_ids = batch[:, :-n_mtp - 1]
+        input_ids = batch[:, : -n_mtp - 1]
         target_ids = batch[:, 1:]
 
         batch_size, dataloader_seq_len = batch.shape
@@ -1381,10 +1362,6 @@ class TrainerMTPWithMergingUltimate(Trainer):
                     "steps/train/loss_100", self.step, self.loss_interval_100 / 100.0
                 )
                 self.loss_interval_100 = 0.0
-
-    def get_n_mtp(self):
-        n_mtp = len(self.model.mtp_modules)
-        return n_mtp
 
 
 def get_ultimate_dataloader(
