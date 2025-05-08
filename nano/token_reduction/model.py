@@ -139,6 +139,7 @@ class LLM_MTP(nn.Module):
             common.vocab_size,
             init_type=common.init_type,
             init_scale=common.init_scale,
+            use_layer_norm=common.head_norm,
         )
 
         self._add_metric_log_names()
@@ -223,6 +224,7 @@ class LLM_DeepSeekMTP(nn.Module):
             common.vocab_size,
             init_type=common.init_type,
             init_scale=common.init_scale,
+            use_layer_norm=common.head_norm,
         )
 
         self._add_metric_log_names()
