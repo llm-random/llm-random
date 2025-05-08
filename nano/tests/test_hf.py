@@ -72,7 +72,7 @@ def copy_weights_between_models(model, hf_model):
 
     hf_transformer.ln_f = torch.nn.Identity()
 
-    hf_model.lm_head.weight.data.copy_(model.head.weight)
+    hf_model.lm_head.weight.data.copy_(model.head.unembedding.head.weight)
 
 
 class TestHFModel(unittest.TestCase):

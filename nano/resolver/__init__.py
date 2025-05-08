@@ -26,3 +26,5 @@ def get_cluster_name(hostname=None, username=None) -> str:
 OmegaConf.register_new_resolver("__llmrandom_cluster_config", get_cluster_name)
 
 OmegaConf.register_new_resolver("random_seed", lambda: random.randint(0, 100000))
+
+OmegaConf.register_new_resolver("eval", eval)
