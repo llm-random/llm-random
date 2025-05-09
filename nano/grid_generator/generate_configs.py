@@ -16,7 +16,7 @@ def create_grid_config(cfg: DictConfig, path: str = ""):
       ]
     """
     if isinstance(cfg, DictConfig):
-        cfg = OmegaConf.to_container(cfg, resolve=True)
+        cfg = OmegaConf.to_container(cfg, resolve=False)
 
     if not isinstance(cfg, dict):
         # If it's a scalar or list at the top, return it as a single expansion
@@ -108,6 +108,8 @@ def expand_value(value, path):
     # If it's a dict, recursively expand
     if isinstance(value, dict):
         return create_grid_config(OmegaConf.create(value), path=path)
+    
+
     # If it's a list, treat it as a single item (unless it's ^-prefixed outside)
     # Because a normal list that isn't ^ doesn't produce multiple expansions.
     return [(value, [])]
