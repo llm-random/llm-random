@@ -86,7 +86,7 @@ class TestDense(unittest.TestCase):
             metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
             neptune_run_id=training_state["run_id"],
         )
-        run(cfg)
+        run(cfg, metric_logger)
 
         target_tuple_lrs = list(zip(target_lrs, range(cfg.training.n_steps)))
 
