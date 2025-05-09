@@ -96,6 +96,7 @@ trainer_factory:
     n_eval_steps: ${training.evaluation.n_eval_steps}
     gradient_clipping: ${training.gradient_clipping}
     checkpoint_config: ${checkpoint_config}
+    mtp_lambda: 1.0
 
 
 metric_logger:
