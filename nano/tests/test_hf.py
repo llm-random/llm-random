@@ -81,7 +81,7 @@ class TestHFModel(unittest.TestCase):
         with initialize(version_base=None, config_path="configs"):
             cfg = compose(config_name="test_hf", overrides=[])
 
-        torch.manual_seed(cfg.training.seed)
+        torch.manual_seed(cfg.train_dataloader.seed)
         metric_logger_config = instantiate(cfg.metric_logger, _convert_="all")
         _ = get_metric_logger(metric_logger_config)  # for early initialization
         model = instantiate(cfg.model, _convert_="all")
@@ -100,13 +100,7 @@ class TestHFModel(unittest.TestCase):
         hf_model = GPT2LMHeadModel(config=hf_config)
         copy_weights_between_models(model, hf_model)
         with patch.dict("os.environ", {"WORLD_SIZE": "1", "RANK": "0"}):
-            train_dataloader = get_dataloader(
-                dataloader_config=cfg.training.dataloader,
-                batch_size_per_device=cfg.training.dataloader.total_batch_size,
-                sequence_length=cfg.model.common.sequence_length - 1,
-                seed=cfg.training.seed,
-                dataset_split="train",
-            )
+            train_dataloader = instantiate(cfg.train_dataloader, _convert_="all")
 
         optimizer = torch.optim.AdamW(
             model.parameters(),

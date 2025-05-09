@@ -518,7 +518,7 @@ class TrainerMTP(Trainer):
         return n_mtp
 
 
-def collate_reduction(result_seq_len, n_dropped_tokens, batch):
+def collate_reduction(batch, result_seq_len, n_dropped_tokens):
     batch = torch.tensor(batch)
     batch_size, seq_len = batch.shape
     return (
@@ -562,36 +562,6 @@ def get_dropping_dataloader(
     return dataloader
 
 
-def get_reduction_dataloaders(
-    dataloader_config,
-    sequence_length,
-    train_seed,
-    eval_seed,
-    dropped_tokens,
-):
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_dropping_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=train_seed,
-        dropped_tokens=dropped_tokens,
-        dataset_split="train",
-    )
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-    return train_dataloader, eval_dataloader
-
-
 def get_dropping_standard_embedding(
     vocab_size, dmodel, init_type, init_scale, sequence_length, reduction_tokens
 ):
@@ -609,39 +579,6 @@ def get_dropping_standard_embedding(
             init_scale,
         ),
     )
-
-
-def get_mtp_dataloaders(
-    dataloader_config: dict,
-    sequence_length: int,
-    n_mtp: int,
-    train_seed: int,
-    eval_seed: int,
-):
-
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_mtp_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        n_mtp=n_mtp,
-        seed=train_seed,
-        dataset_split="train",
-    )
-
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-
-    return train_dataloader, eval_dataloader
 
 
 def get_mtp_dataloader(
@@ -866,41 +803,6 @@ class TrainerMTPWithMerging(Trainer):
         else:
             n_mtp = len(self.model.mtp_modules)
         return n_mtp
-
-
-def get_extra_dataloaders(
-    dataloader_config: dict,
-    sequence_length: int,
-    n_mtp: int,
-    dropped_tokens: int,
-    train_seed: int,
-    eval_seed: int,
-):
-
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_extra_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        n_mtp=n_mtp,
-        dropped_tokens=dropped_tokens,
-        seed=train_seed,
-        dataset_split="train",
-    )
-
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-
-    return train_dataloader, eval_dataloader
 
 
 def get_extra_dataloader(
@@ -1233,35 +1135,3 @@ def get_ultimate_dataloader(
         raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
 
     return dataloader
-
-
-def get_ultimate_dataloaders(
-    dataloader_config: dict,
-    train_sequence_length: int,
-    eval_sequence_length: int,
-    train_seed: int,
-    eval_seed: int,
-):
-
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_ultimate_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=train_sequence_length,
-        seed=train_seed,
-        dataset_split="train",
-    )
-
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=eval_sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-
-    return train_dataloader, eval_dataloader

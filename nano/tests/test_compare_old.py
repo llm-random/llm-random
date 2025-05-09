@@ -49,22 +49,17 @@ class TestComparison(unittest.TestCase):
                 use_new_sampling_method: bool
                 shuffle: bool
 
-            config = Config(
-                num_workers=0,
-                dataset="c4",
+            train_dataloader = get_dataloader(
+                dataset_type="c4",
+                dataset_path="data",
+                dataset_split="train",
                 total_batch_size=10,
-                training_dataset_path="data",
-                eval_dataset_path="data",
+                sequence_length=32,
+                num_workers=0,
+                seed=2311,
                 world_size_independent=False,
                 use_new_sampling_method=False,
                 shuffle=False,
-            )
-            train_dataloader = get_dataloader(
-                dataloader_config=config,
-                batch_size_per_device=10,
-                sequence_length=32,
-                seed=2311,
-                dataset_split="train",
             )
 
             old_train_dataset = get_processed_dataset(

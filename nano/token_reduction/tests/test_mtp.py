@@ -26,7 +26,7 @@ class TestTrainerMTP(unittest.TestCase):
         metric_logger = get_metric_logger(
             metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
         )
-        torch.manual_seed(cfg.training.seed)
+        torch.manual_seed(cfg.trainer_factory.train_dataloader.seed)
         device = torch.device("cpu")
 
         model = instantiate(cfg.model, _convert_="all").to(device)
@@ -39,9 +39,6 @@ class TestTrainerMTP(unittest.TestCase):
 
         scheduler = instantiate(cfg.training.scheduler)(optimizer=optimizer)
 
-        dataloaders_factory = instantiate(cfg.dataloaders_factory)
-        train_dataloader, eval_dataloader = dataloaders_factory()
-
         training_state = {"next_step": 0, "run_id": None, "processed_tokens": 0}
 
         trainer_factory = instantiate(cfg.trainer_factory)
@@ -50,8 +47,6 @@ class TestTrainerMTP(unittest.TestCase):
             optimizer=optimizer,
             scheduler=scheduler,
             training_state=training_state,
-            train_dataloader=train_dataloader,
-            eval_dataloader=eval_dataloader,
             metric_logger=metric_logger,
         )
         mtp_trainer.train()

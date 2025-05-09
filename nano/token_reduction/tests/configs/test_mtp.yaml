@@ -4,7 +4,6 @@ defaults:
     - configs/defaults:
       - checkpoints
       - distributed
-      - factories
       - infrastructure
     - configs/reduction_defaults:
       - mtp_model
@@ -21,7 +20,6 @@ training:
     learning_rate: 2e-4
     weight_decay: 0.1
     gradient_accumulation_steps: 1
-    seed: 11
     gradient_clipping: 0.1
 
     scheduler: 
@@ -33,19 +31,10 @@ training:
             final_lr_fraction: 1.0
             type: "cosine"
 
-    dataloader:
-        num_workers: 4
-        dataset: "c4"
-        split: "train"
-        total_batch_size: 8
-        use_new_sampling_method: true
-        shuffle: true
-        world_size_independent: true
 
     evaluation:
         eval_interval: 20
         n_eval_steps: 3
-        seed: 123
 
 
 metric_logger:
@@ -59,3 +48,30 @@ metric_logger:
 checkpoint_config:
     interval: 0
     path: null
+
+trainer_factory:
+    train_dataloader:
+        _target_: model.get_dataloader
+        dataset_type: "c4"
+        dataset_path: "data"
+        dataset_split: "train"
+        total_batch_size: 8
+        sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp} - 1'}
+        num_workers: 4
+        seed: 11
+        shuffle: true
+        use_new_sampling_method: true
+        world_size_independent: true
+
+    eval_dataloader:
+        _target_: model.get_dataloader
+        dataset_type: "c4"
+        dataset_path: "data_eval"
+        dataset_split: "validation"
+        total_batch_size: 8
+        sequence_length: ${model.common.sequence_length}
+        num_workers: 4
+        seed: 123
+        shuffle: true
+        use_new_sampling_method: true
+        world_size_independent: true
