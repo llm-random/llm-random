@@ -39,9 +39,7 @@ class TestTokenMergingEmbeddingBothTokens(unittest.TestCase):
 
         self.model = TokenMergingEmbeddingBothTokens(
             normal_embedding=self.normal_embedding,
-            dmodel=common.dmodel,
-            init_type=common.init_type,
-            init_scale=common.init_scale,
+            common=common,
         )
 
     def test_embedding_both_tokens_training(self):

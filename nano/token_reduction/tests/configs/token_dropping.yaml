@@ -1,9 +1,17 @@
 model:
     _target_: model.LLM
 
-    embedding_config:
-        _target_: model.EmbeddingConfig
-        mode: "token_dropping"
+    embedding:
+        _target_: token_reduction.model.TokenDroppingEmbedding
+        normal_embedding:
+            _target_: token_reduction.model.get_dropping_standard_embedding
+            sequence_length: ${model.common.sequence_length}
+            dmodel: ${model.common.dmodel}
+            init_type: ${model.common.init_type}
+            init_scale: ${model.common.init_scale}
+            vocab_size: ${model.common.vocab_size}
+            reduction_tokens: ${model.common.dropped_tokens}
+
 
     tower_config:  
         _target_: model.TowerConfig
@@ -35,6 +43,7 @@ model:
         init_scale: 1
         vocab_size: 50257
         dropped_tokens: 7
+        head_norm: false
 
 
 metric_logger:
@@ -43,6 +52,7 @@ metric_logger:
     type: "record"
     heavy_metrics_calculation_interval: -1
     tags: []
+    name: "dummy_test"
 
 training:
     _target_: model.TrainingConfig
@@ -64,12 +74,21 @@ training:
         training_dataset_path: "data"
         eval_dataset_path: "data_eval"
 
+    # scheduler: 
+    #     _target_: model.CosineSchedulerConfig
+    #     type: "cosine"
+    #     warmup_steps: 5
+    #     n_steps: ${training.n_steps}
+    #     final_lr_fraction: 0.1
+
     scheduler: 
-        _target_: model.CosineSchedulerConfig
-        type: "cosine"
-        warmup_steps: 5
-        n_steps: ${training.n_steps}
-        final_lr_fraction: 0.1
+        _target_: model.get_cosine_scheduler_with_warmup
+        _partial_: true
+        config:        
+            warmup_steps: 5
+            n_steps: ${training.n_steps}
+            final_lr_fraction: 0.1
+            type: "cosine"
 
 
     evaluation:
@@ -95,6 +114,7 @@ dataloaders_factory:
 
 trainer_factory: 
     _target_: token_reduction.model.DroppingTrainer
+    _partial_: true
     gradient_accumulation_steps: ${training.gradient_accumulation_steps}
     n_steps: ${training.n_steps}
     eval_interval: ${training.evaluation.eval_interval}

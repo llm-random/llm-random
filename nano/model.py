@@ -51,9 +51,6 @@ from torch.optim.lr_scheduler import SequentialLR, LinearLR, ConstantLR
 
 logger = logging.getLogger(__name__)
 
-_metric_logger = None
-
-
 def check_env_vars():
     assert int(os.environ["RANK"]) < int(os.environ["WORLD_SIZE"])
 
@@ -117,17 +114,19 @@ def cleanup():
         dist.destroy_process_group()
 
 
-def run(cfg):
+def run(cfg, metric_logger=None):
     instantiate(cfg.training, _convert_="all")  # Works as check
     setup_enviroment()
 
     if "distributed" in cfg and cfg.distributed is not None:
         distributed_setup()
     training_state = load_training_state(cfg.checkpoint_config)
-    metric_logger = get_metric_logger(
-        metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
-        neptune_run_id=training_state["run_id"],
-    )
+
+    if metric_logger is None:
+        metric_logger = get_metric_logger(
+            metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
+            neptune_run_id=training_state["run_id"],
+        )
 
     if isinstance(metric_logger, NeptuneLogger):
         metric_logger.run["job_config"] = cfg
@@ -138,6 +137,11 @@ def run(cfg):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = instantiate(cfg.model, _convert_="all").to(device)
+
+    # Residual layers needs metric_logger for logging update norms
+    for _, module in model.named_modules():
+        if isinstance(module, Residual):
+            module.set_metric_logger(metric_logger)
 
     if "distributed" in cfg and cfg.distributed is not None:
         if torch.cuda.is_available():
@@ -466,7 +470,7 @@ class RMSNorm(nn.Module):
         self.b = nn.Parameter(torch.zeros(dmodel))
 
     def forward(self, x):
-        norm = torch.mean(x ** 2, dim=-1, keepdim=True)
+        norm = torch.mean(x**2, dim=-1, keepdim=True)
         x = x * torch.rsqrt(norm + self.eps)
         return x * self.g + self.b
 
@@ -475,19 +479,23 @@ class Residual(nn.Module):
     def __init__(self, layer):
         super(Residual, self).__init__()
         self.layer = layer
-        self.metric_logger = get_metric_logger()
+        self.metric_logger = None
+
+    def set_metric_logger(self, metric_logger):
+        self.metric_logger = metric_logger
 
     def forward(self, x):
         out = self.layer(x)
-        self.metric_logger.accumulate_metrics(
-            layer_name=f"{self.log_name}",
-            transform_fn=Residual.intermediate_norms,
-            calculate_fn=Residual.calculate_metrics,
-            metrics={
-                "residual_stream": x,
-                "updates": out,
-            },
-        )
+        if self.metric_logger is not None:
+            self.metric_logger.accumulate_metrics(
+                layer_name=f"{self.log_name}",
+                transform_fn=Residual.intermediate_norms,
+                calculate_fn=Residual.calculate_metrics,
+                metrics={
+                    "residual_stream": x,
+                    "updates": out,
+                },
+            )
         return out + x
 
     @staticmethod
@@ -725,7 +733,9 @@ class EmbeddingLayer(Aggregate):
 
 
 class PredictionHead(nn.Module):
-    def __init__(self, embedding_dim, output_size, init_type, init_scale, use_layer_norm=False):
+    def __init__(
+        self, embedding_dim, output_size, init_type, init_scale, use_layer_norm=False
+    ):
         super(PredictionHead, self).__init__()
 
         layers = OrderedDict()
@@ -1030,68 +1040,67 @@ def get_metric_logger(
     metric_logger_config: Optional[MetricLoggerConfig] = None,
     neptune_run_id: Optional[str] = None,
 ):
-    global _metric_logger
-    if _metric_logger is None:
-        if metric_logger_config.type == "neptune":
-            rank = int(os.environ["RANK"])
-            if int(os.environ["WORLD_SIZE"]) > 1:
+    _metric_logger = None
+    if metric_logger_config.type == "neptune":
+        rank = int(os.environ["RANK"])
+        if int(os.environ["WORLD_SIZE"]) > 1:
 
-                # As suggested here: https://docs.neptune.ai/tutorials/running_distributed_training/#tracking-a-multi-node-ddp-job
-                os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-                os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
+            # As suggested here: https://docs.neptune.ai/tutorials/running_distributed_training/#tracking-a-multi-node-ddp-job
+            os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
 
-                if rank == 0:
-                    neptune_logger = neptune.init_run(
-                        project=metric_logger_config.project_name,
-                        with_id=neptune_run_id,
-                        monitoring_namespace=f"monitoring/gpu_{rank}",
-                        name=metric_logger_config.name,
-                        tags=metric_logger_config.tags,
-                    )
-                    if neptune_run_id is None:
-                        neptune_run_id = neptune_logger["sys/id"].fetch()
-                        broadcast_message(rank, neptune_run_id)
-                    _metric_logger = NeptuneLogger(
-                        neptune_logger, rank, metric_logger_config
-                    )
-                else:
-                    if neptune_run_id is None:
-                        neptune_run_id = broadcast_message(rank)
-                    neptune_logger = neptune.init_run(
-                        project=metric_logger_config.project_name,
-                        with_id=neptune_run_id,
-                        monitoring_namespace=f"monitoring/gpu_{rank}",
-                        name=metric_logger_config.name,
-                        tags=metric_logger_config.tags,
-                    )
-                    _metric_logger = NeptuneLogger(
-                        neptune_logger, rank, metric_logger_config
-                    )
-
-            else:
+            if rank == 0:
                 neptune_logger = neptune.init_run(
                     project=metric_logger_config.project_name,
+                    with_id=neptune_run_id,
+                    monitoring_namespace=f"monitoring/gpu_{rank}",
                     name=metric_logger_config.name,
                     tags=metric_logger_config.tags,
+                )
+                if neptune_run_id is None:
+                    neptune_run_id = neptune_logger["sys/id"].fetch()
+                    broadcast_message(rank, neptune_run_id)
+                _metric_logger = NeptuneLogger(
+                    neptune_logger, rank, metric_logger_config
+                )
+            else:
+                if neptune_run_id is None:
+                    neptune_run_id = broadcast_message(rank)
+                neptune_logger = neptune.init_run(
+                    project=metric_logger_config.project_name,
                     with_id=neptune_run_id,
+                    monitoring_namespace=f"monitoring/gpu_{rank}",
+                    name=metric_logger_config.name,
+                    tags=metric_logger_config.tags,
                 )
                 _metric_logger = NeptuneLogger(
                     neptune_logger, rank, metric_logger_config
                 )
 
-            npt_handler = NeptuneHandler(run=_metric_logger.run)
-            logger.addHandler(npt_handler)
-
-        elif metric_logger_config.type == "stdout":
-            _metric_logger = StdoutLogger(metric_logger_config)
-        elif metric_logger_config.type == "record":
-            _metric_logger = RecorderLogger(metric_logger_config)
-        elif metric_logger_config.type == "dummy":
-            _metric_logger = DummyLogger(metric_logger_config)
-        elif metric_logger_config.type == None:
-            raise RuntimeError("Metric logger is not initialized yet.")
         else:
-            raise ValueError(f"Unknown logger type: { metric_logger_config.type}")
+            neptune_logger = neptune.init_run(
+                project=metric_logger_config.project_name,
+                name=metric_logger_config.name,
+                tags=metric_logger_config.tags,
+                with_id=neptune_run_id,
+            )
+            _metric_logger = NeptuneLogger(
+                neptune_logger, rank, metric_logger_config
+            )
+
+        npt_handler = NeptuneHandler(run=_metric_logger.run)
+        logger.addHandler(npt_handler)
+
+    elif metric_logger_config.type == "stdout":
+        _metric_logger = StdoutLogger(metric_logger_config)
+    elif metric_logger_config.type == "record":
+        _metric_logger = RecorderLogger(metric_logger_config)
+    elif metric_logger_config.type == "dummy":
+        _metric_logger = DummyLogger(metric_logger_config)
+    elif metric_logger_config.type == None:
+        raise RuntimeError("Metric logger is not initialized yet.")
+    else:
+        raise ValueError(f"Unknown logger type: { metric_logger_config.type}")
     return _metric_logger
 
 

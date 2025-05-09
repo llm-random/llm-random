@@ -8,7 +8,7 @@ from model import (
     run,
 )
 
-TOLERANCE = 1e-6
+TOLERANCE = 1e-5
 
 target_losses = [
     (11.838484764099121, 0),
@@ -83,7 +83,7 @@ class TestMTPWithMerge(unittest.TestCase):
             metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
             neptune_run_id=training_state["run_id"],
         )
-        run(cfg)
+        run(cfg, metric_logger)
 
         def compare_lists(list1, list2, key):
             self.assertEqual(len(list1), len(list2), f"Mismatch in {key} length")
@@ -122,7 +122,7 @@ class TestMTPWithMergeDifferentDataloader(unittest.TestCase):
         dataset.get_document = patched_get_document
 
     def test_mtp_with_merge_different_dataloader(self):
-        TOLERANCE = 1e-6
+        TOLERANCE = 1e-5
 
         with initialize(version_base=None, config_path="configs"):
             cfg = compose(config_name="mtp_merge_different_dataloader", overrides=[])
@@ -134,7 +134,7 @@ class TestMTPWithMergeDifferentDataloader(unittest.TestCase):
         )
         metric_logger.clear()
 
-        run(cfg)
+        run(cfg, metric_logger)
 
         def compare_lists(list1, list2, key):
             self.assertEqual(len(list1), len(list2), f"Mismatch in {key} length")

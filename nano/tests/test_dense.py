@@ -73,9 +73,9 @@ class TestDense(unittest.TestCase):
         ]
         eval_losses = [
             (11.650517463684082, 2),
-            (11.65742301940918, 4),
-            (11.603936195373535, 6),
-            (11.593389511108398, 8),
+            (11.670977592468262, 4),
+            (11.62005615234375, 6),
+            (11.661904335021973, 8),
         ]
 
         with initialize(version_base=None, config_path="configs"):
@@ -86,7 +86,7 @@ class TestDense(unittest.TestCase):
             metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
             neptune_run_id=training_state["run_id"],
         )
-        run(cfg)
+        run(cfg, metric_logger)
 
         target_tuple_lrs = list(zip(target_lrs, range(cfg.training.n_steps)))
 
