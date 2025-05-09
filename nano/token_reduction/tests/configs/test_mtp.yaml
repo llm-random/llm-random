@@ -1,61 +1,107 @@
-defaults:
-    - configs/clusters:
-      - default
-    - configs/defaults:
-      - checkpoints
-      - distributed
-      - factories
-      - infrastructure
-    - configs/reduction_defaults:
-      - mtp_model
-      - mtp_factories
-    - _self_
-
 model:
+    _target_: token_reduction.model.LLM_MTP    
+
+    embedding:
+        _target_: model.get_vanilla_embedding
+        common: ${model.common}
+
+    tower_config:
+        _target_: model.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 2
+
+        block_config:
+            _target_: model.BlockConfig
+            attention:
+                _target_: model.AttentionConfig
+                mode: "vanilla"
+                n_heads: 4
+
+            feedforward:
+                _target_: model.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
     common: 
-        sequence_length: 8
+        _target_: model.Common
+        model_type: "gpt"
+        sequence_length: 16
+        dmodel: 16
+        dff: 64
+        init_type: truncated_normal_fixed
+        init_scale: 0.5
+        vocab_size: 50257
+        head_norm: true
+
+    mtp_config:
+        _target_: token_reduction.model.MTPConfig
+        n_mtp: 1
+        mtp_block_config: ${model.tower_config.block_config}
 
 training:
     _target_: model.TrainingConfig
-    n_steps: 20
-    learning_rate: 2e-4
+    learning_rate: 2e-3
     weight_decay: 0.1
-    gradient_accumulation_steps: 1
-    seed: 11
-    gradient_clipping: 0.1
+    gradient_accumulation_steps: 2
+    n_steps: 10
+    seed: 2311
+    gradient_clipping: 1.0
+    dataloader:
+        num_workers: 0 # it is important to keep it 0, as it is hard to mock new processes in tests
+        dataset: "c4"
+        split: "train"
+        total_batch_size: 32
+        use_new_sampling_method: false
+        shuffle: false
+        world_size_independent: true
+        training_dataset_path: "data"
+        eval_dataset_path: "data_eval"
 
     scheduler: 
         _target_: model.get_cosine_scheduler_with_warmup
         _partial_: true
         config:        
-            warmup_steps: 0
+            warmup_steps: 5
             n_steps: ${training.n_steps}
-            final_lr_fraction: 1.0
+            final_lr_fraction: 0.1
             type: "cosine"
 
-    dataloader:
-        num_workers: 4
-        dataset: "c4"
-        split: "train"
-        total_batch_size: 8
-        use_new_sampling_method: true
-        shuffle: true
-        world_size_independent: true
-
     evaluation:
-        eval_interval: 20
-        n_eval_steps: 3
+        eval_interval: 0
+        n_eval_steps: 5
         seed: 123
-
-
-metric_logger:
-    _target_: model.MetricLoggerConfig
-    type: "stdout"
-    name: "test_mtp"
-    tags: []
-    project_name: null
-    heavy_metrics_calculation_interval: -1
 
 checkpoint_config:
     interval: 0
     path: null
+
+dataloaders_factory:
+    _target_: token_reduction.model.get_mtp_dataloaders
+    _partial_: true
+    dataloader_config: ${training.dataloader}
+    sequence_length: ${model.common.sequence_length}
+    n_mtp: ${model.mtp_config.n_mtp}
+    train_seed: ${training.seed}
+    eval_seed: ${training.evaluation.seed}
+
+trainer_factory: 
+    _target_: token_reduction.model.TrainerMTP
+    _partial_: true
+    gradient_accumulation_steps: ${training.gradient_accumulation_steps}
+    n_steps: ${training.n_steps}
+    eval_interval: ${training.evaluation.eval_interval}
+    n_eval_steps: ${training.evaluation.n_eval_steps}
+    gradient_clipping: ${training.gradient_clipping}
+    checkpoint_config: ${checkpoint_config}
+    # mtp_lambda: 1.0
+
+
+metric_logger:
+    _target_: model.MetricLoggerConfig
+    project_name: None
+    type: "record"
+    heavy_metrics_calculation_interval: -1
+    tags: ["test", "mtp_meta"]
+    name: test_mtp_meta
