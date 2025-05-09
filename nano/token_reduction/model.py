@@ -623,8 +623,16 @@ class TrainerMTP(Trainer):
                 )
                 self.loss_interval_100 = 0.0
 
-
+@define(slots=False)
 class TrainerDeepSeekMTP(TrainerMTP):
+    mtp_lambda: float = 0.6
+
+    def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
+        input_ids = batch[:, : -n_mtp - 1].contiguous()
+        target_ids = batch[:, 1:].contiguous()
+
+        return input_ids, target_ids
+
     def train(self):
         for step, batch in zip(
             range(self.start_step, self.n_steps), self.train_dataloader
@@ -655,7 +663,7 @@ class TrainerDeepSeekMTP(TrainerMTP):
 
         mtp_losses = []
         logits_list = self.model(input_ids)
-        target_ids = target_ids.to(logits_list[0].device)
+        target_ids = target_ids.to(self.device)
         seq_len = target_ids.shape[1] - n_mtp
 
         for i, predicted_ids in enumerate(logits_list):
@@ -683,8 +691,12 @@ class TrainerDeepSeekMTP(TrainerMTP):
             mtp_losses = self.hack_for_python_garbage_collection(
                 input_ids, target_ids, n_mtp
             )
+            mtp_loss_weight = self.mtp_lambda / (len(mtp_losses) - 1)
+            loss_multiplier = torch.tensor(
+                [1.0] + [mtp_loss_weight] * (len(mtp_losses) - 1), device=self.device
+            )
             if self.model.training:
-                loss = torch.stack(mtp_losses).sum()
+                loss = (torch.stack(mtp_losses) * loss_multiplier).sum()
                 loss.backward()
             losses.append(mtp_losses)
 
