@@ -1,0 +1,68 @@
+defaults:
+  - configs/clusters: ${__llmrandom_cluster_config:}
+  - configs/defaults:
+    - checkpoints
+    - distributed
+    - factories
+    - infrastructure
+    - metric_logger
+    - training
+  - configs/reduction_defaults:
+    - mtp_deepseek_model
+    - mtp_deepseek_factories
+  - _self_
+
+training:
+  _target_: model.TrainingConfig
+  n_steps: 50000
+  ^learning_rate: [2e-3]
+  weight_decay: 0.1
+  gradient_accumulation_steps: 1
+  seed: 46768
+  gradient_clipping: 1.0
+
+  scheduler: 
+    _target_: model.get_cosine_scheduler_with_warmup
+    _partial_: true
+    config:        
+      warmup_steps: 500
+      n_steps: ${training.n_steps}
+      final_lr_fraction: 0.1
+      type: "cosine"
+
+  dataloader:
+    training_dataset_path: "/storage_nvme_1/llm-random/datasets/c4/train"
+    eval_dataset_path: "/storage_nvme_1/llm-random/datasets/c4/validation"
+
+model:
+  common:
+    sequence_length: 256
+    dff: 2048
+    dmodel: 512
+  tower_config:
+    n_blocks: 8
+    block_config:
+      attention:
+        n_heads: 8
+  mtp_config:
+    _target_: token_reduction.model.MTPConfig
+    n_mtp: 1
+
+slurm:
+  gres: gpu:1
+  time: "20:00:00"
+  partition: a100
+
+checkpoint_config:
+  interval: 0
+  path: null
+
+metric_logger:
+  type: "neptune"
+  heavy_metrics_calculation_interval: 1000
+  project_name: "pmtest/llm-random"
+  name: "mtp_deepseek"
+  tags: ["nano", "remove", "jm_debug", "mtp_deepseek"]
+
+venv_path: '$HOME/llm-random/nano/venv/bin/activate' 
+server: entropy

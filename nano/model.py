@@ -50,6 +50,7 @@ from torch.optim.lr_scheduler import SequentialLR, LinearLR, ConstantLR
 
 logger = logging.getLogger(__name__)
 
+
 def check_env_vars():
     assert int(os.environ["RANK"]) < int(os.environ["WORLD_SIZE"])
 
@@ -1047,9 +1048,7 @@ def get_metric_logger(
                 tags=metric_logger_config.tags,
                 with_id=neptune_run_id,
             )
-            _metric_logger = NeptuneLogger(
-                neptune_logger, rank, metric_logger_config
-            )
+            _metric_logger = NeptuneLogger(neptune_logger, rank, metric_logger_config)
 
         npt_handler = NeptuneHandler(run=_metric_logger.run)
         logger.addHandler(npt_handler)

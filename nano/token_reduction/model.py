@@ -26,6 +26,7 @@ from model import (
     BlockConfig,
     TransformerBlock,
     PredictionHead,
+    RMSNorm,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ class LLM_MTP(nn.Module):
         mtp_config: MTPConfig,
     ):
         super(LLM_MTP, self).__init__()
+        self.n_mtp = mtp_config.n_mtp
 
         self.embedding_layer = embedding
 
@@ -124,7 +126,7 @@ class LLM_MTP(nn.Module):
         self.mtp_modules = nn.ModuleList(
             [
                 TransformerBlock(common, mtp_config.mtp_block_config)
-                for _ in range(mtp_config.n_mtp)
+                for _ in range(mtp_config.n_mtp + 1)
             ]
         )
 
@@ -133,6 +135,7 @@ class LLM_MTP(nn.Module):
             common.vocab_size,
             init_type=common.init_type,
             init_scale=common.init_scale,
+            use_layer_norm=common.head_norm,
         )
 
         self._add_metric_log_names()
@@ -155,6 +158,124 @@ class LLM_MTP(nn.Module):
         x = self.embedding_layer(*args, **kwargs)
         x = self.encoder(x)
         return x
+
+
+class DeepSeekMTPHead(nn.Module):
+    def __init__(
+        self,
+        common: Common,
+        block_config: BlockConfig,
+    ):
+        super().__init__()
+        self.norm_embedding = RMSNorm(dmodel=common.dmodel)
+        self.norm_tt = RMSNorm(dmodel=common.dmodel)
+        self.proj = Linear(
+            in_features=2 * common.dmodel,
+            out_features=common.dmodel,
+            bias=False,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        )
+        self.mtp_block = TransformerBlock(
+            common=common,
+            block_config=block_config,
+        )
+
+    def forward(self, embedding_out, tt_out):
+        embedding_out = self.norm_embedding(embedding_out)
+        tt_out = self.norm_tt(tt_out)
+        out = torch.concat((tt_out, embedding_out), dim=-1)
+        out = self.proj(out)
+        out = self.mtp_block(out)
+        return out
+
+
+class LLM_DeepSeekMTP(nn.Module):
+    def __init__(
+        self,
+        embedding,
+        common: Common,
+        tower_config: TowerConfig,
+        mtp_config: MTPConfig,
+    ):
+        super(LLM_DeepSeekMTP, self).__init__()
+        self.n_mtp = mtp_config.n_mtp
+
+        self.embedding_layer = embedding
+
+        self.encoder = TransformerTower(
+            common=common,
+            tower_config=tower_config,
+        )
+
+        self.mtp_modules = nn.ModuleList(
+            [
+                DeepSeekMTPHead(common, mtp_config.mtp_block_config)
+                for _ in range(mtp_config.n_mtp)
+            ]
+        )
+
+        self.head = PredictionHead(
+            common.dmodel,
+            common.vocab_size,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+            use_layer_norm=common.head_norm,
+        )
+
+        self._add_metric_log_names()
+
+    def _add_metric_log_names(self):
+        def _get_metric_log_name(name: str):
+            meaningful_regex = ["block_\\d+", "attention", "feedforward", "residual"]
+            module_names = name.split(".")
+            meaningful_names = [
+                module_name
+                for module_name in module_names
+                if any(re.search(pattern, module_name) for pattern in meaningful_regex)
+            ]
+            return "/".join(meaningful_names)
+
+        for name, model in self.named_modules():
+            model.log_name = _get_metric_log_name(name)
+
+    def forward(self, x):
+        seq_len = x.shape[1] - self.n_mtp
+        embedding_out = self.embedding_layer(x)
+        if self.training:
+            transformer_tower_input = embedding_out[:, :seq_len]
+        else:
+            transformer_tower_input = embedding_out
+        transformer_tower_out = self.encoder(transformer_tower_input)
+        main_head_logits = self.head(transformer_tower_out)
+        logits_list = [main_head_logits]
+        if self.training:
+            for i in range(self.n_mtp):
+                mtp_embedding_input = embedding_out[:, (i + 1) : ((i + 1) + seq_len)]
+                transformer_tower_out = self.mtp_modules[i](
+                    mtp_embedding_input,
+                    transformer_tower_out,
+                )
+                mtp_logits = self.head(transformer_tower_out)
+                logits_list.append(mtp_logits)
+        return logits_list
+
+
+def get_deepseek_embedding(common, n_mtp):
+    return EmbeddingLayer(
+        TokenEmbedding(
+            common.vocab_size,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+        PositionalEmbedding(
+            common.sequence_length + n_mtp,
+            common.dmodel,
+            init_type=common.init_type,
+            init_scale=common.init_scale,
+        ),
+    )
 
 
 class TokenMergingEmbedding(torch.nn.Module):
@@ -351,7 +472,7 @@ class MergingTrainer(Trainer):
 
 class TrainerMTP(Trainer):
     def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
-        input_ids = batch[:, :-n_mtp].contiguous()
+        input_ids = batch[:, : -n_mtp - 1].contiguous()
         target_ids = batch[:, 1:].contiguous()
 
         return input_ids, target_ids
@@ -363,7 +484,7 @@ class TrainerMTP(Trainer):
             self.step = step
             self.metric_logger.set_step(step)
             self.model.train()
-            n_mtp = self.get_n_mtp()
+            n_mtp = self.model.n_mtp
             mtp_losses = self.calculate_loss(batch, n_mtp)
 
             grad_norm = self.clip_gradient()
@@ -384,26 +505,18 @@ class TrainerMTP(Trainer):
         def _hack_for_python_garbage_collection(input_ids, target_ids, n_mtp):
             """we want to have no reference to model output while backpropagating to allow torch to free memory,
             so we wrap loss calculation in a function"""
+            seq_len = input_ids.shape[-1]
             tower_outputs = self.model(input_ids)
             tower_outputs_detatched = tower_outputs.detach()
             tower_outputs_detatched.requires_grad = True
 
             # Tensors should be on the same device for loss calculation #TODO check
             target_ids = target_ids.to(tower_outputs.device)
-            target_len = target_ids.shape[-1]
             mtp_losses = []
-            for i in range(n_mtp):
-                if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-                    mtp_module_output = self.model.module.mtp_modules[i](
-                        tower_outputs_detatched
-                    )
-                    predicted_ids = self.model.module.head(mtp_module_output)
-                else:
-                    mtp_module_output = self.model.mtp_modules[i](
-                        tower_outputs_detatched
-                    )
-                    predicted_ids = self.model.head(mtp_module_output)
-                mtp_target_ids = target_ids[:, i : target_len + i - n_mtp + 1].detach()
+            for i in range(n_mtp + 1):
+                mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
+                predicted_ids = self.model.head(mtp_module_output)
+                mtp_target_ids = target_ids[:, i : i + seq_len].detach()
                 mtp_loss = F.cross_entropy(
                     predicted_ids.flatten(0, -2),
                     mtp_target_ids.reshape(-1).long(),
@@ -444,7 +557,7 @@ class TrainerMTP(Trainer):
     def eval(self):
         self.model.eval()
         self.metric_logger.set_step(None)  # disables heavy logging
-        n_mtp = 1  # on eval the model doesn't use MTP modules for further tokens
+        n_mtp = 0  # on eval the model doesn't use MTP modules for further tokens
         losses = []
         eval_fingerprint = []
         with torch.no_grad():
@@ -505,45 +618,95 @@ class TrainerMTP(Trainer):
                 )
                 self.loss_interval_100 = 0.0
 
-    def get_n_mtp(self):
-        if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-            n_mtp = len(self.model.module.mtp_modules)
-        else:
-            n_mtp = len(self.model.mtp_modules)
-        return n_mtp
 
+@define(slots=False)
+class TrainerDeepSeekMTP(TrainerMTP):
+    mtp_lambda: float = 0.6
 
-def collate_reduction(batch, result_seq_len, n_dropped_tokens):
-    batch = torch.tensor(batch)
-    batch_size, seq_len = batch.shape
-    return (
-        batch,
-        batched_split_indexes(batch_size, seq_len, result_seq_len, n_dropped_tokens),
-    )
+    def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
+        input_ids = batch[:, : -n_mtp - 1].contiguous()
+        target_ids = batch[:, 1:].contiguous()
 
+        return input_ids, target_ids
 
-def get_dropping_standard_embedding(
-    vocab_size, dmodel, init_type, init_scale, sequence_length, reduction_tokens
-):
-    return EmbeddingLayer(
-        TokenEmbedding(
-            vocab_size,
-            dmodel,
-            init_type,
-            init_scale,
-        ),
-        PositionalEmbedding(
-            sequence_length + reduction_tokens,
-            dmodel,
-            init_type,
-            init_scale,
-        ),
-    )
+    def train(self):
+        for step, batch in zip(
+            range(self.start_step, self.n_steps), self.train_dataloader
+        ):
+            self.step = step
+            self.metric_logger.set_step(step)
+            self.model.train()
+            n_mtp = self.model.n_mtp
+            mtp_losses = self.calculate_loss(batch, n_mtp)
+
+            grad_norm = self.clip_gradient()
+
+            self.log_metrics(mtp_losses, grad_norm)
+
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            self.scheduler.step()
+
+            if self._should_save_checkpoint:
+                self.save_checkpoint()
+
+            if self._should_evaluate:
+                self.eval()
+
+    def hack_for_python_garbage_collection(self, input_ids, target_ids, n_mtp):
+        """we want to have no reference to model output while backpropagating to allow torch to free memory,
+        so we wrap loss calculation in a function"""
+
+        mtp_losses = []
+        logits_list = self.model(input_ids)
+        target_ids = target_ids.to(self.device)
+        seq_len = target_ids.shape[1] - n_mtp
+
+        for i, predicted_ids in enumerate(logits_list):
+            mtp_target_ids = target_ids[:, i : i + seq_len]
+            mask_loss = F.cross_entropy(
+                predicted_ids.flatten(0, -2),
+                mtp_target_ids.reshape(-1).long(),
+                reduction="none",
+            )
+            loss = mask_loss.mean() / self.gradient_accumulation_steps
+            mtp_losses.append(loss)
+
+        return mtp_losses
+
+    def calculate_loss(self, batch, n_mtp):
+        losses = []
+        for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
+            input_ids, target_ids = self._preprocess_input(
+                batch_chunk
+            )  # using _preprocess_input instead of _preprocess_input_mtp.
+            input_ids = input_ids.to(self.device)
+            if self.model.training:
+                self._update_processed_tokens(input_ids)
+
+            mtp_losses = self.hack_for_python_garbage_collection(
+                input_ids, target_ids, n_mtp
+            )
+            mtp_loss_weight = self.mtp_lambda / (len(mtp_losses) - 1)
+            loss_multiplier = torch.tensor(
+                [1.0] + [mtp_loss_weight] * (len(mtp_losses) - 1), device=self.device
+            )
+            if self.model.training:
+                loss = (torch.stack(mtp_losses) * loss_multiplier).sum()
+                loss.backward()
+            losses.append(mtp_losses)
+
+        # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
+        avg_mtp_losses = torch.tensor(losses, device=mtp_losses[0].device).sum(dim=0)
+        if dist.is_initialized():
+            dist.all_reduce(avg_mtp_losses, op=dist.ReduceOp.SUM)
+
+        return avg_mtp_losses / float(os.environ["WORLD_SIZE"])
 
 
 class TrainerMTPWithMerging(Trainer):
     def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
-        input_ids = batch[:, :-n_mtp].contiguous()
+        input_ids = batch[:, : -n_mtp - 1].contiguous()
         target_ids = batch[:, 1:].contiguous()
 
         return input_ids, target_ids
@@ -555,7 +718,7 @@ class TrainerMTPWithMerging(Trainer):
             self.step = step
             self.metric_logger.set_step(step)
             self.model.train()
-            n_mtp = self.get_n_mtp()
+            n_mtp = self.model.n_mtp
             mtp_losses = self.calculate_loss(batch, n_mtp)
 
             grad_norm = self.clip_gradient()
@@ -585,7 +748,7 @@ class TrainerMTPWithMerging(Trainer):
         target_ids = target_ids.to(tower_outputs.device)
 
         mtp_losses = []
-        for i in range(n_mtp):
+        for i in range(n_mtp + 1):
             mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
             predicted_ids = self.model.head(mtp_module_output)
 
@@ -722,12 +885,34 @@ class TrainerMTPWithMerging(Trainer):
                 )
                 self.loss_interval_100 = 0.0
 
-    def get_n_mtp(self):
-        if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-            n_mtp = len(self.model.module.mtp_modules)
-        else:
-            n_mtp = len(self.model.mtp_modules)
-        return n_mtp
+
+def collate_reduction(batch, result_seq_len, n_dropped_tokens):
+    batch = torch.tensor(batch)
+    batch_size, seq_len = batch.shape
+    return (
+        batch,
+        batched_split_indexes(batch_size, seq_len, result_seq_len, n_dropped_tokens),
+    )
+
+
+def get_dropping_standard_embedding(
+    vocab_size, dmodel, init_type, init_scale, sequence_length, reduction_tokens
+):
+    return EmbeddingLayer(
+        TokenEmbedding(
+            vocab_size,
+            dmodel,
+            init_type,
+            init_scale,
+        ),
+        PositionalEmbedding(
+            sequence_length + reduction_tokens,
+            dmodel,
+            init_type,
+            init_scale,
+        ),
+    )
+
 
 class ReductionScheduler:
     def __init__(self, schedule_config, total_steps):
@@ -791,7 +976,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
             self.step = step
             self.metric_logger.set_step(step)
             self.model.train()
-            n_mtp = self.get_n_mtp()
+            n_mtp = self.model.n_mtp
             mtp_losses = self.calculate_loss(batch, n_mtp)
 
             grad_norm = self.clip_gradient()
@@ -821,7 +1006,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
         target_ids = target_ids.to(tower_outputs.device)
 
         mtp_losses = []
-        for i in range(n_mtp):
+        for i in range(n_mtp + 1):
             mtp_module_output = self.model.mtp_modules[i](tower_outputs_detatched)
             predicted_ids = self.model.head(mtp_module_output)
 
@@ -857,7 +1042,7 @@ class TrainerMTPWithMergingUltimate(Trainer):
         return result
 
     def _prepare_model_input(self, batch, n_mtp, n_reduced_tokens):
-        input_ids = batch[:, :-n_mtp]
+        input_ids = batch[:, : -n_mtp - 1]
         target_ids = batch[:, 1:]
 
         batch_size, dataloader_seq_len = batch.shape
@@ -981,10 +1166,3 @@ class TrainerMTPWithMergingUltimate(Trainer):
                     "steps/train/loss_100", self.step, self.loss_interval_100 / 100.0
                 )
                 self.loss_interval_100 = 0.0
-
-    def get_n_mtp(self):
-        if isinstance(self.model, dist.fsdp.FullyShardedDataParallel):
-            n_mtp = len(self.model.module.mtp_modules)
-        else:
-            n_mtp = len(self.model.mtp_modules)
-        return n_mtp
