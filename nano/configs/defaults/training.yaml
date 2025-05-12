@@ -5,7 +5,6 @@ training:
     learning_rate: 1e-4
     weight_decay: 0.1
     gradient_accumulation_steps: 1
-    seed: ${random_seed:}
     gradient_clipping: 1.0
 
     scheduler: 
@@ -17,17 +16,7 @@ training:
             final_lr_fraction: 0.1
             type: "cosine"
 
-    dataloader:
-        num_workers: 4
-        dataset: "c4"
-        split: "train"
-        total_batch_size: 256
-        use_new_sampling_method: true
-        shuffle: true
-        world_size_independent: true
-
 
     evaluation:
         eval_interval: 100
         n_eval_steps: 5
-        seed: 123

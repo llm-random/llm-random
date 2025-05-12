@@ -1,14 +1,5 @@
 
 # @package _global_
-dataloaders_factory:
-    _target_: token_reduction.model.get_reduction_dataloaders
-    _partial_: true
-    dataloader_config: ${training.dataloader}
-    sequence_length: ${model.common.sequence_length}
-    train_seed: ${training.seed}
-    eval_seed: ${training.evaluation.seed}
-    dropped_tokens: ${model.common.dropped_tokens}
-
 
 trainer_factory: 
     _target_: token_reduction.model.MergingTrainer

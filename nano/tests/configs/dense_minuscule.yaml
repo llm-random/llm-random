@@ -53,24 +53,10 @@ training:
         
     gradient_accumulation_steps: 2
     n_steps: 10
-    seed: 2311
     gradient_clipping: 0.1
-    dataloader:
-        num_workers: 0 # it is important to keep it 0, as it is hard to mock new processes in tests
-        dataset: "c4"
-        split: "train"
-        total_batch_size: 10
-        use_new_sampling_method: false
-        shuffle: false
-        world_size_independent: true
-
-        training_dataset_path: "data"
-        eval_dataset_path: "data_eval"
-
     evaluation:
         eval_interval: 2
         n_eval_steps: 5
-        seed: 2311
 
 checkpoint_config:
     interval: 0
@@ -86,15 +72,6 @@ metric_logger:
     name: "dummy_test"
 
 
-dataloaders_factory:
-    _target_: model.get_dataloaders
-    _partial_: true
-    dataloader_config: ${training.dataloader}
-    sequence_length: ${model.common.sequence_length}
-    train_seed: ${training.seed}
-    eval_seed: ${training.evaluation.seed}
-
-
 trainer_factory: 
     _target_: model.Trainer
     _partial_: true
@@ -104,3 +81,29 @@ trainer_factory:
     n_eval_steps: ${training.evaluation.n_eval_steps}
     gradient_clipping: ${training.gradient_clipping}
     checkpoint_config: ${checkpoint_config}
+
+    train_dataloader:
+        _target_: model.get_dataloader
+        dataset_type: "c4"
+        dataset_path: "data"
+        dataset_split: "train"
+        total_batch_size: 10
+        sequence_length: ${model.common.sequence_length}
+        num_workers: 0
+        seed: 2311
+        shuffle: false
+        use_new_sampling_method: false
+        world_size_independent: true
+
+    eval_dataloader:
+        _target_: model.get_dataloader
+        dataset_type: "c4"
+        dataset_path: "data_eval"
+        dataset_split: "validation"
+        total_batch_size: 10
+        sequence_length: ${model.common.sequence_length}
+        num_workers: 0
+        seed: 2311
+        shuffle: false
+        use_new_sampling_method: false
+        world_size_independent: true

@@ -1,4 +1,3 @@
-from functools import partial
 import math
 import os
 import re
@@ -9,14 +8,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import logging
 from attr import define
-from torch.utils.data import DataLoader
 from torch.nn import (
     LayerNorm as LayerNorm,
 )  # used by FSDP, but it keeps getting removed during file formatting
 import torch.distributed as dist
 from dataclasses import dataclass
 from model import (
-    C4Dataset,
     Common,
     EmbeddingLayer,
     Linear,
@@ -24,8 +21,6 @@ from model import (
     TokenEmbedding,
     Trainer,
     create_batch_fingerprint,
-    get_dataloader,
-    collate_wrapper,
     TowerConfig,
     TransformerTower,
     BlockConfig,
@@ -518,78 +513,13 @@ class TrainerMTP(Trainer):
         return n_mtp
 
 
-def collate_reduction(result_seq_len, n_dropped_tokens, batch):
+def collate_reduction(batch, result_seq_len, n_dropped_tokens):
     batch = torch.tensor(batch)
     batch_size, seq_len = batch.shape
     return (
         batch,
         batched_split_indexes(batch_size, seq_len, result_seq_len, n_dropped_tokens),
     )
-
-
-def get_dropping_dataloader(
-    dataloader_config: dict,
-    batch_size_per_device: int,
-    sequence_length: int,
-    dropped_tokens: int,
-    seed: int,
-    dataset_split: str,
-):
-    if dataloader_config.dataset == "c4":
-        path = (
-            dataloader_config.training_dataset_path
-            if dataset_split == "train"
-            else dataloader_config.eval_dataset_path
-        )
-        dataset = C4Dataset(
-            sequence_length=sequence_length + dropped_tokens + 1,
-            path=path,
-            seed=seed,
-            use_new_sampling_method=dataloader_config.use_new_sampling_method,
-            shuffle=dataloader_config.shuffle,
-            world_size_independent=dataloader_config.world_size_independent,
-        )
-        dataloader = DataLoader(
-            dataset,
-            batch_size=batch_size_per_device,
-            collate_fn=partial(collate_reduction, sequence_length, dropped_tokens),
-            pin_memory=True,
-            num_workers=dataloader_config.num_workers,
-        )
-    else:
-        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
-
-    return dataloader
-
-
-def get_reduction_dataloaders(
-    dataloader_config,
-    sequence_length,
-    train_seed,
-    eval_seed,
-    dropped_tokens,
-):
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_dropping_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=train_seed,
-        dropped_tokens=dropped_tokens,
-        dataset_split="train",
-    )
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-    return train_dataloader, eval_dataloader
 
 
 def get_dropping_standard_embedding(
@@ -609,74 +539,6 @@ def get_dropping_standard_embedding(
             init_scale,
         ),
     )
-
-
-def get_mtp_dataloaders(
-    dataloader_config: dict,
-    sequence_length: int,
-    n_mtp: int,
-    train_seed: int,
-    eval_seed: int,
-):
-
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_mtp_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        n_mtp=n_mtp,
-        seed=train_seed,
-        dataset_split="train",
-    )
-
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-
-    return train_dataloader, eval_dataloader
-
-
-def get_mtp_dataloader(
-    dataloader_config: dict,
-    batch_size_per_device: int,
-    sequence_length: int,
-    n_mtp: int,
-    seed: int,
-    dataset_split: str,
-):
-    if dataloader_config.dataset == "c4":
-        path = (
-            dataloader_config.training_dataset_path
-            if dataset_split == "train"
-            else dataloader_config.eval_dataset_path
-        )
-        dataset = C4Dataset(
-            sequence_length=sequence_length + n_mtp,
-            path=path,
-            seed=seed,
-            use_new_sampling_method=dataloader_config.use_new_sampling_method,
-            shuffle=dataloader_config.shuffle,
-            world_size_independent=dataloader_config.world_size_independent,
-        )
-        dataloader = DataLoader(
-            dataset,
-            batch_size=batch_size_per_device,
-            collate_fn=collate_wrapper,
-            pin_memory=True,
-            num_workers=dataloader_config.num_workers,
-        )
-    else:
-        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
-
-    return dataloader
 
 
 class TrainerMTPWithMerging(Trainer):
@@ -866,78 +728,6 @@ class TrainerMTPWithMerging(Trainer):
         else:
             n_mtp = len(self.model.mtp_modules)
         return n_mtp
-
-
-def get_extra_dataloaders(
-    dataloader_config: dict,
-    sequence_length: int,
-    n_mtp: int,
-    dropped_tokens: int,
-    train_seed: int,
-    eval_seed: int,
-):
-
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_extra_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        n_mtp=n_mtp,
-        dropped_tokens=dropped_tokens,
-        seed=train_seed,
-        dataset_split="train",
-    )
-
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-
-    return train_dataloader, eval_dataloader
-
-
-def get_extra_dataloader(
-    dataloader_config: dict,
-    batch_size_per_device: int,
-    sequence_length: int,
-    n_mtp: int,
-    dropped_tokens: int,
-    seed: int,
-    dataset_split: str,
-):
-    if dataloader_config.dataset == "c4":
-        path = (
-            dataloader_config.training_dataset_path
-            if dataset_split == "train"
-            else dataloader_config.eval_dataset_path
-        )
-        dataset = C4Dataset(
-            sequence_length=sequence_length + n_mtp + dropped_tokens,
-            path=path,
-            seed=seed,
-            use_new_sampling_method=dataloader_config.use_new_sampling_method,
-            shuffle=dataloader_config.shuffle,
-            world_size_independent=dataloader_config.world_size_independent,
-        )
-        dataloader = DataLoader(
-            dataset,
-            batch_size=batch_size_per_device,
-            collate_fn=partial(collate_reduction, sequence_length, dropped_tokens),
-            pin_memory=True,
-            num_workers=dataloader_config.num_workers,
-        )
-    else:
-        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
-
-    return dataloader
-
 
 class ReductionScheduler:
     def __init__(self, schedule_config, total_steps):
@@ -1198,70 +988,3 @@ class TrainerMTPWithMergingUltimate(Trainer):
         else:
             n_mtp = len(self.model.mtp_modules)
         return n_mtp
-
-
-def get_ultimate_dataloader(
-    dataloader_config: dict,
-    batch_size_per_device: int,
-    sequence_length: int,
-    seed: int,
-    dataset_split: str,
-):
-    if dataloader_config.dataset == "c4":
-        path = (
-            dataloader_config.training_dataset_path
-            if dataset_split == "train"
-            else dataloader_config.eval_dataset_path
-        )
-        dataset = C4Dataset(
-            sequence_length=sequence_length,
-            path=path,
-            seed=seed,
-            use_new_sampling_method=dataloader_config.use_new_sampling_method,
-            shuffle=dataloader_config.shuffle,
-            world_size_independent=dataloader_config.world_size_independent,
-        )
-
-        dataloader = DataLoader(
-            dataset,
-            batch_size=batch_size_per_device,
-            collate_fn=collate_wrapper,
-            pin_memory=True,
-            num_workers=dataloader_config.num_workers,
-        )
-    else:
-        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
-
-    return dataloader
-
-
-def get_ultimate_dataloaders(
-    dataloader_config: dict,
-    train_sequence_length: int,
-    eval_sequence_length: int,
-    train_seed: int,
-    eval_seed: int,
-):
-
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_ultimate_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=train_sequence_length,
-        seed=train_seed,
-        dataset_split="train",
-    )
-
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=eval_sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-
-    return train_dataloader, eval_dataloader
