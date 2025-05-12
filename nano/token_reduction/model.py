@@ -1,4 +1,3 @@
-from functools import partial
 import math
 import os
 import re
@@ -9,14 +8,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import logging
 from attr import define
-from torch.utils.data import DataLoader
 from torch.nn import (
     LayerNorm as LayerNorm,
 )  # used by FSDP, but it keeps getting removed during file formatting
 import torch.distributed as dist
 from dataclasses import dataclass
 from model import (
-    C4Dataset,
     Common,
     EmbeddingLayer,
     Linear,
@@ -24,8 +21,6 @@ from model import (
     TokenEmbedding,
     Trainer,
     create_batch_fingerprint,
-    get_dataloader,
-    collate_wrapper,
     TowerConfig,
     TransformerTower,
     BlockConfig,

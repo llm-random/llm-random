@@ -1,9 +1,12 @@
 # @package _global_
 cluster_name: "local"
 
-training:
-  dataloader:
-    training_dataset_path: "data"
-    eval_dataset_path: "data_eval"
+
+trainer_factory:
+  train_dataloader:
+    dataset_path: "data"
+
+  eval_dataloader:
+    dataset_path: "data_eval"
 
 cemetery_experiments_dir: "~/llmrandom_cemetery"

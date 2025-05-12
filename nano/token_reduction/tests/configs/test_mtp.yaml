@@ -46,18 +46,7 @@ training:
     weight_decay: 0.1
     gradient_accumulation_steps: 2
     n_steps: 10
-    seed: 2311
     gradient_clipping: 1.0
-    dataloader:
-        num_workers: 0 # it is important to keep it 0, as it is hard to mock new processes in tests
-        dataset: "c4"
-        split: "train"
-        total_batch_size: 32
-        use_new_sampling_method: false
-        shuffle: false
-        world_size_independent: true
-        training_dataset_path: "data"
-        eval_dataset_path: "data_eval"
 
     scheduler: 
         _target_: model.get_cosine_scheduler_with_warmup
@@ -77,15 +66,6 @@ checkpoint_config:
     interval: 0
     path: null
 
-dataloaders_factory:
-    _target_: token_reduction.model.get_mtp_dataloaders
-    _partial_: true
-    dataloader_config: ${training.dataloader}
-    sequence_length: ${model.common.sequence_length}
-    n_mtp: ${model.mtp_config.n_mtp}
-    train_seed: ${training.seed}
-    eval_seed: ${training.evaluation.seed}
-
 trainer_factory: 
     _target_: token_reduction.model.TrainerMTP
     _partial_: true
@@ -96,6 +76,32 @@ trainer_factory:
     gradient_clipping: ${training.gradient_clipping}
     checkpoint_config: ${checkpoint_config}
     # mtp_lambda: 1.0
+
+    train_dataloader:
+        _target_: model.get_dataloader
+        dataset_type: "c4"
+        dataset_path: "data"
+        dataset_split: "train"
+        total_batch_size: 32
+        sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp}'}
+        num_workers: 0
+        seed: 2311
+        shuffle: false
+        use_new_sampling_method: false
+        world_size_independent: true
+
+    eval_dataloader:
+        _target_: model.get_dataloader
+        dataset_type: "c4"
+        dataset_path: "data_eval"
+        dataset_split: "validation"
+        total_batch_size: 10
+        sequence_length: ${model.common.sequence_length}
+        num_workers: 0
+        seed: 123
+        shuffle: false
+        use_new_sampling_method: false
+        world_size_independent: true
 
 
 metric_logger:

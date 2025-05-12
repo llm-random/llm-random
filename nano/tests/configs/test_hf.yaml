@@ -37,7 +37,7 @@ model:
         init_type: truncated_normal_fixed
         init_scale: 1
         vocab_size: 50257
-        head_norm: false
+        head_norm: true
 
 
 training:
@@ -48,16 +48,7 @@ training:
     gradient_accumulation_steps: 2
     n_steps: 100
     warmup_steps: 9
-    seed: 44
-    dataloader:
-        num_workers: 0
-        dataset: "c4"
-        split: "train"
-        total_batch_size: 10
-        training_dataset_path: "data"
-        use_new_sampling_method: false
-        shuffle: false
-        world_size_independent: true
+
 
 metric_logger:
     _target_: model.MetricLoggerConfig
@@ -70,3 +61,17 @@ metric_logger:
 checkpoint_config:
     interval: 0
     path: null
+
+train_dataloader:
+    _target_: model.get_dataloader
+    dataset_type: "c4"
+    dataset_path: "data"
+    dataset_split: "train"
+    total_batch_size: 10
+    sequence_length: ${eval:'${model.common.sequence_length} - 1' }
+    num_workers: 0
+    seed: 44
+
+    shuffle: false
+    use_new_sampling_method: false
+    world_size_independent: true

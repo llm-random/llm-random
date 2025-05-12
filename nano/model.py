@@ -9,7 +9,6 @@ from pydantic import (
     NonNegativeInt,
     PositiveFloat,
     PositiveInt,
-    model_validator,
 )
 import torch.nn as nn
 from dataclasses import dataclass
@@ -133,7 +132,7 @@ def run(cfg, metric_logger=None):
         metric_logger.run["job_config"] = cfg
         upload_config_file(metric_logger)
 
-    torch.manual_seed(cfg.training.seed)
+    torch.manual_seed(cfg.trainer_factory.train_dataloader.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -159,9 +158,6 @@ def run(cfg, metric_logger=None):
 
     scheduler = instantiate(cfg.training.scheduler)(optimizer=optimizer)
 
-    dataloaders_factory = instantiate(cfg.dataloaders_factory)
-    train_dataloader, eval_dataloader = dataloaders_factory()
-
     load_checkpoint(cfg.checkpoint_config, model, optimizer, scheduler)
     trainer_factory = instantiate(cfg.trainer_factory)
     trainer_factory(
@@ -169,8 +165,6 @@ def run(cfg, metric_logger=None):
         optimizer=optimizer,
         scheduler=scheduler,
         training_state=training_state,
-        train_dataloader=train_dataloader,
-        eval_dataloader=eval_dataloader,
         metric_logger=metric_logger,
     ).train()
 
@@ -212,6 +206,7 @@ class C4Dataset(IterableDataset):
         self,
         sequence_length,
         path: Optional[str] = None,
+        split: Optional[str] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         seed: Optional[int] = None,
         eot_str: str = "<|endoftext|>",
@@ -225,17 +220,19 @@ class C4Dataset(IterableDataset):
         self.world_size_independent = world_size_independent
         if tokenizer is None:
             tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
-        self._load_dataset(path, seed, tokenizer, eot_str, shuffle)
+        self._load_dataset(path, split, seed, tokenizer, eot_str, shuffle)
         self.sequence_length = sequence_length
         self.rng = random.Random(seed)
 
-    def _load_dataset(self, path, seed, tokenizer, eot_str, shuffle: bool):
+    def _load_dataset(self, path, split, seed, tokenizer, eot_str, shuffle: bool):
         if path is None:
-            logger.debug("Loading dataset from HuggingFace")
+            logger.debug(
+                f"Loading 'allenai/c4' dataset from HuggingFace with split={split}"
+            )
             hf_dataset = load_dataset(
                 "allenai/c4",
                 "en",
-                split="train",
+                split=split,
                 streaming=True,
                 trust_remote_code=True,
             )
@@ -311,67 +308,42 @@ def collate_wrapper(examples):
     return torch.from_numpy(np.array(examples))
 
 
-def get_dataloaders(
-    dataloader_config: dict,
-    sequence_length: int,
-    train_seed: int,
-    eval_seed: int,
-):
-
-    world_size = int(os.environ["WORLD_SIZE"])
-    batch_size_per_device = dataloader_config.total_batch_size // world_size
-    logger.debug(f"Batch size per device: {batch_size_per_device}")
-    logger.debug(f"Total: {dataloader_config.total_batch_size}")
-
-    train_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=train_seed,
-        dataset_split="train",
-    )
-
-    eval_dataloader = get_dataloader(
-        dataloader_config=dataloader_config,
-        batch_size_per_device=batch_size_per_device,
-        sequence_length=sequence_length,
-        seed=eval_seed,
-        dataset_split="validation",
-    )
-
-    return train_dataloader, eval_dataloader
-
-
 def get_dataloader(
-    dataloader_config: dict,
-    batch_size_per_device: int,
-    sequence_length: int,
-    seed: int,
+    dataset_type: str,
+    dataset_path: str,
     dataset_split: str,
+    total_batch_size: int,
+    sequence_length: int,
+    num_workers: int,
+    seed: int,
+    shuffle: bool,
+    use_new_sampling_method: bool,
+    world_size_independent: bool,
+    collate_fn: Callable = collate_wrapper,
 ):
-    if dataloader_config.dataset == "c4":
-        path = (
-            dataloader_config.training_dataset_path
-            if dataset_split == "train"
-            else dataloader_config.eval_dataset_path
-        )
+    world_size = int(os.environ["WORLD_SIZE"])
+    batch_size_per_device = total_batch_size // world_size
+    logger.debug(f"Batch size per device: {batch_size_per_device}")
+    logger.debug(f"Total: {total_batch_size}")
+    if dataset_type == "c4":
         dataset = C4Dataset(
             sequence_length=sequence_length + 1,
-            path=path,
+            split=dataset_split,
+            path=dataset_path,
             seed=seed,
-            use_new_sampling_method=dataloader_config.use_new_sampling_method,
-            shuffle=dataloader_config.shuffle,
-            world_size_independent=dataloader_config.world_size_independent,
+            use_new_sampling_method=use_new_sampling_method,
+            shuffle=shuffle,
+            world_size_independent=world_size_independent,
         )
         dataloader = DataLoader(
             dataset,
             batch_size=batch_size_per_device,
-            collate_fn=collate_wrapper,
+            collate_fn=collate_fn,
             pin_memory=True,
-            num_workers=dataloader_config.num_workers,
+            num_workers=num_workers,
         )
     else:
-        raise ValueError(f"Unsupported model type: '{dataloader_config.dataset}'")
+        raise ValueError(f"Unsupported dataset type: '{dataset_type}'")
 
     return dataloader
 
@@ -441,17 +413,8 @@ class TrainingConfig(BaseModel):
     scheduler: object
     gradient_accumulation_steps: PositiveInt
     n_steps: PositiveInt
-    seed: int
     gradient_clipping: PositiveFloat
-    dataloader: dict
     evaluation: dict
-
-    @model_validator(mode="after")
-    def validate_inter(self):
-        if self.dataloader["total_batch_size"] % self.gradient_accumulation_steps != 0:
-            raise ValueError(
-                "total_batch_size must be divisible by gradient_accumulation_steps"
-            )
 
 
 class MetricLoggerConfig(BaseModel):
