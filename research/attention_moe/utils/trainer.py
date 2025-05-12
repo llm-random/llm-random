@@ -83,6 +83,7 @@ class Trainer:
     start_step: int = 0
     checkpoint: Optional[dict[str, torch.Tensor]] = None
     evaluate_attention_relevancy_interval: int = -1
+    co_occurrence_loss_weight: float = 0.0
 
     def __attrs_post_init__(self):
         if self.mixed_precision_dtype == torch.float16:
@@ -398,6 +399,7 @@ class Trainer:
                 mixed_precision_dtype=self.mixed_precision_dtype,
                 num_checkpoint_accumulation_steps=self.gradient_accumulation_steps,
                 scaler=self.scaler,
+                loss_multipliers={"co_occurrence_loss": self.co_occurrence_loss_weight},
             )
 
             total_cross_entropy_loss += cross_entropy_loss

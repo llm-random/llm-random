@@ -292,6 +292,11 @@ class TokenGating(MoeGating):
 
         gate_out = self.calculate_gate(x, batch_size, seq_len).T
         assert gate_out.shape == (n_tokens, self.n_experts)
+        softmaxed_gate_out = gate_out.softmax(dim=1)
+        if "gate" not in self.forward_pass_cache:
+            self.forward_pass_cache["gate"] = [softmaxed_gate_out]
+        else:
+            self.forward_pass_cache["gate"].append(softmaxed_gate_out)
 
         with measure_time(self, "choose_expert"):
             expert_index, expert_gate = self.calculate_topk(

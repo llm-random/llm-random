@@ -270,6 +270,7 @@ def main(
         checkpoint=checkpoint,
         use_final_norm=args.use_final_norm,
         norm_fn=norm_fn,
+        params_to_freeze=args.params_to_freeze,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
@@ -420,6 +421,7 @@ def main(
         else None,
         evaluate_attention_relevancy_interval=args.evaluate_attention_relevancy_interval,
         should_log_update_norm=args.should_log_update_norm,
+        co_occurrence_loss_weight=args.co_occurrence_loss_weight,
     )
     trainer.train(args.n_steps)
 

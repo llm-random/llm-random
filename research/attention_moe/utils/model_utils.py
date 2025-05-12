@@ -39,7 +39,9 @@ from research.attention_moe.moe_layers.baseline_attentions_cc import (
     # VanillaAttention,
 )
 from research.attention_moe.moe_layers.baseline_attentions_cc import MQA
+from research.attention_moe.moe_layers_cc.expert_types import ExpertFF
 from research.attention_moe.moe_layers_cc.moe_gating import TokenGating
+from research.attention_moe.moe_layers_cc.token_choice import TokenChoiceFF
 
 # from research.conditional.moe_layers.cont_moe_designs.common_weighted_parameter_matrices import (
 #     ContinuousMoECommonWeightedParameters,
@@ -233,6 +235,7 @@ def calculate_llm_loss_and_gradient(
     mixed_precision_dtype: torch.dtype,
     num_checkpoint_accumulation_steps: int,
     scaler: Optional[torch.cuda.amp.GradScaler] = None,
+    loss_multipliers: Optional[dict] = None,
 ) -> tuple[float, dict]:
     def hack_for_python_garbage_collection():
         """we want to have no reference to model output while backpropagating to allow torch to free memory,
@@ -275,7 +278,9 @@ def calculate_llm_loss_and_gradient(
         aux_info["losses"][key] = value / num_checkpoint_accumulation_steps
     if model.training:
         loss_to_optimize = loss.clone()
-        for value in aux_info["losses"].values():
+        for key, value in aux_info["losses"].items():
+            if loss_multipliers is not None and key in loss_multipliers:
+                value = value * loss_multipliers[key]
             loss_to_optimize += value
         run_backward(loss_to_optimize, mixed_precision_dtype, scaler)
 
@@ -665,10 +670,100 @@ def get_expert_choice_with_parallel_ff_args(args):
     }
 
 
+# def independence_loss(
+#     p1: torch.Tensor, p2: torch.Tensor, eps: float = 1e-8
+# ) -> torch.Tensor:
+#     """
+#     Compute KL(P12 || p1_bar p2_bar) to penalize dependence
+#     between two soft‐expert assignments p1, p2.
+
+#     Args:
+#       p1, p2: float[B, E] tensors of probabilities over E experts.
+#       eps: small constant for numerical stability.
+
+#     Returns:
+#       scalar tensor = mutual information I(p1; p2).
+#     """
+#     print("p1", p1.shape, "p2", p2.shape)
+#     # compute marginals
+#     p1_bar = p1.mean(dim=0)  # [E]
+#     p2_bar = p2.mean(dim=0)  # [E]
+
+#     # compute joint
+#     # outer‐product for each t: [B, E, 1] * [B, 1, E] -> [B, E, E]
+#     P12 = (p1.unsqueeze(2) * p2.unsqueeze(1)).mean(dim=0)  # [E, E]
+
+#     # avoid zeros
+#     P12_safe = P12 + eps
+#     marg_prod = (p1_bar.unsqueeze(1) * p2_bar.unsqueeze(0)) + eps
+
+#     # KL divergence = sum P12 * (log P12 - log (p1_bar p2_bar))
+#     loss = (P12_safe * (torch.log(P12_safe) - torch.log(marg_prod))).sum()
+#     return loss
+
+
+def dist_to_onehot(p: torch.Tensor) -> torch.Tensor:
+    max_idx = torch.argmax(
+        p, dim=1, keepdim=True
+    )  # indices of row-wise maxima, shape [B, 1]
+    one_hot = torch.zeros_like(p).scatter_(
+        1, max_idx, 1.0
+    )  # put 1 at the max positions, 0 elsewhere
+    return one_hot
+
+
+def independence_loss(p1: torch.Tensor, p2: torch.Tensor) -> torch.Tensor:
+    n_tokens = p1.shape[0]
+    n_experts = p1.shape[1]
+    n_combined_experts = n_experts**2
+
+    oh1 = dist_to_onehot(p1)
+    oh2 = dist_to_onehot(p2)
+
+    joint_oh = torch.einsum("bi,bj->bij", [oh1, oh2]).flatten(1, 2)
+    joint_dist = torch.einsum("bi,bj->bij", [p1, p2]).flatten(1, 2)
+
+    f = joint_oh.sum(0) / n_tokens
+    p = joint_dist.sum(0) / n_tokens
+
+    loss = n_combined_experts * (f * p).sum()
+    return loss
+
+    # """
+    # Compute KL(P12 || p1_bar p2_bar) to penalize dependence
+    # between two soft‐expert assignments p1, p2.
+
+    # Args:
+    #   p1, p2: float[B, E] tensors of probabilities over E experts.
+    #   eps: small constant for numerical stability.
+
+    # Returns:
+    #   scalar tensor = mutual information I(p1; p2).
+    # """
+    # print("p1", p1.shape, "p2", p2.shape)
+    # # compute marginals
+    # p1_bar = p1.mean(dim=0)  # [E]
+    # p2_bar = p2.mean(dim=0)  # [E]
+
+    # # compute joint
+    # # outer‐product for each t: [B, E, 1] * [B, 1, E] -> [B, E, E]
+    # P12 = (p1.unsqueeze(2) * p2.unsqueeze(1)).mean(dim=0)  # [E, E]
+
+    # # avoid zeros
+    # P12_safe = P12 + eps
+    # marg_prod = (p1_bar.unsqueeze(1) * p2_bar.unsqueeze(0)) + eps
+
+    # # KL divergence = sum P12 * (log P12 - log (p1_bar p2_bar))
+    # loss = (P12_safe * (torch.log(P12_safe) - torch.log(marg_prod))).sum()
+    # return loss
+
+
 def retrieve_additional_losses(model: torch.nn.Module):
     losses = {}
     if not hasattr(model, "forward_pass_cache"):
         return losses
+
+    print("forward_pass_cache", model.forward_pass_cache)
 
     if "load_balancing_losses" in model.forward_pass_cache:
         load_balancing_losses = model.forward_pass_cache.get(
@@ -684,6 +779,23 @@ def retrieve_additional_losses(model: torch.nn.Module):
         z_loss = torch.sum(z_losses)
         losses["z_loss"] = z_loss
 
+    if "gate" in model.forward_pass_cache:
+        gates = model.forward_pass_cache.get("gate", [])
+        co_occurrence_losses = []
+        for gate, next_gate in zip(gates[:-1], gates[1:]):
+            # n_experts = gate.shape[1]
+            # prob_target = 1 / (n_experts**2)
+            # co_probability_matrix = torch.einsum("bi,bj->bij", (gate, next_gate))
+            # co_occurrence_loss = (
+            #     (co_probability_matrix.flatten() - prob_target) ** 2
+            # ).mean()
+            if gate.grad_fn is None or next_gate.grad_fn is None:
+                continue
+            co_occurrence_losses.append(independence_loss(gate, next_gate))
+
+        if len(co_occurrence_losses) > 0:
+            losses["co_occurrence_loss"] = torch.sum(torch.stack(co_occurrence_losses))
+
     return losses
 
 
@@ -696,6 +808,9 @@ def clear_additional_losses(model: torch.nn.Module):
 
     if "z_losses" in model.forward_pass_cache:
         model.forward_pass_cache.pop("z_losses", None)
+
+    if "gate" in model.forward_pass_cache:
+        model.forward_pass_cache.pop("gate", None)
 
 
 def get_common_mot_kwargs(args):
@@ -731,6 +846,27 @@ def get_ff_layer(args):
             polynomial_config=args.generalized_relu_config,
             init_type=args.init_type,
             init_scale=args.init_scale,
+        )
+    elif args.ff_mode == "token_choice":
+        args = determine_moe_args(args)
+        make_expert_inner_function = get_inner_expert(args)
+        use_topk_initialization = get_expert_init(
+            args.expert_use_topk_initialization, default=False
+        )
+        make_expert_inner_function = partial(
+            make_expert_inner_function, use_topk_initialization=use_topk_initialization
+        )
+        return_fn = lambda: TokenChoiceFF(
+            dmodel=args.dmodel,
+            n_experts=args.n_experts,
+            capacity_factor=args.capacity_factor,
+            expert_inner_function=make_expert_inner_function(),
+            load_balancing_loss_weight=args.load_balancing_loss_weight,
+            zloss_weight=args.zloss_weight,
+            routing_top_k=args.routing_top_k,
+            init_scale=args.init_scale,
+            init_type=args.init_type,
+            **get_weightless_args(args),
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")

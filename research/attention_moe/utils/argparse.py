@@ -215,6 +215,12 @@ def introduce_parser_arguments(
         type=float,
         help="zloss_weight, if 0 zloss won't be computed",
     )
+    parser.add_argument(
+        "--co_occurrence_loss_weight",
+        default=0.0,
+        type=float,
+        help="co_occurrence_loss_weight - encourage using all routes through the model",
+    )
     parser.add_argument("--topk_fraction", type=float)
     parser.add_argument("--expert_random_perm", action="store_true")
     parser.add_argument(
@@ -436,6 +442,7 @@ def introduce_parser_arguments(
     parser.add_argument("--diff_transformer_double_kv_cache", action="store_true")
     parser.add_argument("--diff_transformer_share_q_or_k", type=str, default=None)
     parser.add_argument("--use_final_norm", action="store_true")
+    parser.add_argument("--params_to_freeze", type=str, default=None, nargs="+")
     parser.add_argument(
         "--evaluate_attention_relevancy_interval", type=int, default=500
     )

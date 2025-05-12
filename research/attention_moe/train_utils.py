@@ -38,6 +38,7 @@ def get_model(
     norm_fn: Callable[[int], torch.nn.Module] = None,
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
+    params_to_freeze: Optional[list[str]] = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -82,6 +83,16 @@ def get_model(
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
+
+    print("Model parameters:")
+    for name, param in model.named_parameters():
+        print(f"  {name}: {param.shape}")
+    if params_to_freeze is not None:
+        for name, param in model.named_parameters():
+            for param_name in params_to_freeze:
+                if param_name in name:
+                    print(f"Freezing parameter: {name}")
+                    param.requires_grad = False
 
     if ddp_enabled:
         model = wrap_in_ddp(module=model, rank=rank)
