@@ -38,5 +38,5 @@ model:
 
     mtp_config:
         _target_: token_reduction.model.MTPConfig
-        n_mtp: 3
+        n_mtp: 2
         mtp_block_config: ${model.tower_config.block_config}
