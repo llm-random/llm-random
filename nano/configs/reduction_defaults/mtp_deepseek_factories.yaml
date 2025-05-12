@@ -1,14 +1,4 @@
 # @package _global_
-dataloaders_factory:
-    _target_: token_reduction.model.get_mtp_dataloaders
-    _partial_: true
-    dataloader_config: ${training.dataloader}
-    sequence_length: ${model.common.sequence_length}
-    n_mtp: ${model.mtp_config.n_mtp}
-    train_seed: ${training.seed}
-    eval_seed: ${training.evaluation.seed}
-
-
 trainer_factory: 
     _target_: token_reduction.model.TrainerDeepSeekMTP
     _partial_: true

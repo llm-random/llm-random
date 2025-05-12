@@ -623,6 +623,7 @@ class TrainerMTP(Trainer):
                 )
                 self.loss_interval_100 = 0.0
 
+
 @define(slots=False)
 class TrainerDeepSeekMTP(TrainerMTP):
     mtp_lambda: float = 0.6

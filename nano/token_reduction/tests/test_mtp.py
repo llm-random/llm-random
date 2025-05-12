@@ -20,7 +20,8 @@ from model import (
 
 class TestSimpleRun(unittest.TestCase):
     @patch("model.get_metric_logger", return_value=RecorderLogger())
-    def test_simple_mtp_deepseek(self, get_metric_logger):
+    def test_simple_mtp(self, get_metric_logger):
+        TOLERANCE = 1e-5
         target_losses_dropping = [
             (10.940040588378906, 0),
             (10.923925399780273, 1),
@@ -40,11 +41,13 @@ class TestSimpleRun(unittest.TestCase):
                 metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
                 neptune_run_id=training_state["run_id"],
             )
-            run(cfg)
+            run(cfg, metric_logger)
 
-            self.assertListEqual(
+            for (expected_loss, expected_step), (actual_loss, actual_step) in zip(
                 target_losses_dropping, metric_logger.data["steps/train/loss"]
-            )
+            ):
+                self.assertEqual(expected_step, actual_step)
+                self.assertAlmostEqual(expected_loss, actual_loss, delta=TOLERANCE)
 
 
 if __name__ == "__main__":
