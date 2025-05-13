@@ -58,7 +58,8 @@ def get_model(
     unprojected_attention:bool = False,
     unprojected_ff:bool = False,
     n_att_heads:int=None,
-    distillation_type:Optional[str]=None
+    distillation_type:Optional[str]=None,
+    head_layer_norm:Optional[bool]=False,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -135,7 +136,7 @@ def get_model(
         ).to(last_gpu)
     else:
         head = llm.PredictionHead(
-            dm, vocab_size, init_type=init_type, init_scale=init_scale
+            dm, vocab_size, init_type=init_type, init_scale=init_scale, ln=head_layer_norm
         ).to(last_gpu)
 
 

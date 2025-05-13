@@ -21,8 +21,6 @@ params:
   attention_mode: vanilla
 
   model_type: gpt
-  softmax_over: experts
-  activation_type: silu
   init_type: truncated_normal
   init_scale: 0.15
 

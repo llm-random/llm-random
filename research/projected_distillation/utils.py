@@ -53,6 +53,7 @@ def freeze_projected_params(model, unprojected_ff):
 
 FREEZE_LN_REGULES = [
     ".pre_norm.", # Layer norm
+    ".unembedding.head_norm.weight", # Pre head ayer norm
 ]
 
 def freeze_ln_params(model):

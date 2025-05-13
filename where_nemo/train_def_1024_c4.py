@@ -93,7 +93,7 @@ dataset_path = [
 # '--need-pad-id', #dev yes
 # dsp_preambule = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1746711699/training/code/results_preprocessing/" #dev test
 # dataset_path = [
-#     f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 1)
+#     f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 10)
 # ] 
 
 
@@ -108,17 +108,17 @@ hidden_dropout=0.0
 attention_dropout=0.0
 layernorm_epsilon=1e-5
 make_vocab_size_divisible_by=128
-tags = ["projected_dis", "1ff", "nemo", "dm1024"] + ["test_dataset_prep", "append_eod"] # + ["long"] #SWITCH need_pad_id apply_ftfy
+tags = ["projected_dis", "1ff", "nemo", "dm1024"] + ["test_dataset_prep", "append_eod", "need_pad_id", "relu", "no_head_ln"] # + ["long"] #SWITCH need_pad_id apply_ftfy no_head_ln
 # tags = ["projected_dis", "1ff", "nemo", "dm768"] #SWITCH
 seed = 27 
 base_lr = 0.001 #SWITCH
 # base_lr = 0.0005 #SWITCH
 final_lr_fraction = 0.03
 warmup_percent = 0.01
-activation_func = F.silu
+activation_func = F.relu # F.silu   
 weight_decay = 0.1
 clip_grad = 0.5
-position_embedding_type = "learned_absolute" # rope ; learned_absolute
+position_embedding_type = "rope" # rope ; learned_absolute
 mm_precision="bf16-mixed" 
 # mm_precision="32"
 tensor_model_parallel_size = 1

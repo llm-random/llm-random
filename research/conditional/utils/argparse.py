@@ -542,5 +542,6 @@ def introduce_parser_arguments(
     parser.add_argument("--distilgpt_alpha", type=float, required=False, default=None)
     parser.add_argument("--distilgpt_beta", type=float, required=False, default=None)
     parser.add_argument("--distilgpt_gamma", type=float, required=False, default=None)
+    parser.add_argument("--head_layer_norm", action="store_true")
 
     return parser

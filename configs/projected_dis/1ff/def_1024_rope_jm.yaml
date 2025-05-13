@@ -1,0 +1,40 @@
+
+parent: configs/projected_dis/1ff/common.yaml
+md5_parent_hash: 41ba87a56e92ea289913b5a7ffea8f9b
+time: 2-00:00:00
+n_gpus: 4
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  tags: ["projected_dis", "1ff", "dm1024", "doner", "COMP2", "COMP", "jm_comp"] # , "all_head_ln", "head_ln", "rope"
+
+  learning_rate: 0.0005
+  final_lr_fraction: 0.1
+  lr_warmup_percent: 0.01
+
+  dmodel: 1024
+  dff: 4096
+  # n_steps: 15_533
+  n_steps: 40_000
+
+  # attention_mode: "rope"
+  # no_positional_embedding: True
+  head_layer_norm: True
+  # ^head_layer_norm: [True, False]
+  no_layer_norm: False
+
+  # dont_save_final_model: False 
+  dont_save_final_model: True
+  init_scale: 0.1
+  grad_clip: 1.0
+  residual_mode: pre_norm
+
+
+  # save_weights_path: /local_storage_1/ms_tmp/models/ #dev entropy models dir
+
+  fsdp_use_orig_params: True
+  # fsdp_enabled: False #dev
+  fsdp_enabled: True #dev
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"

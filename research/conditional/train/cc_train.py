@@ -450,7 +450,8 @@ def main(
         unprojected_attention = args.unprojected_attention,
         unprojected_ff = args.unprojected_ff,
         n_att_heads = args.n_att_heads,
-        distillation_type = args.distillation_type
+        distillation_type = args.distillation_type,
+        head_layer_norm = args.head_layer_norm,
     ) 
 
     if args.distillation:
@@ -500,6 +501,7 @@ def main(
             and (args.attention_mode != "rope"),
             checkpoint=get_checkpoint_from_path(args.distillation_weights_path),
             fsdp_use_orig_params = args.fsdp_use_orig_params,
+            head_layer_norm = args.head_layer_norm,
         )
     else:
         distilled_model = None

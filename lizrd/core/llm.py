@@ -377,9 +377,30 @@ class AttentionRoPE(LoggingLayer):
         self.causal = causal
         self.flash = flash
 
-        self.input_projection = Linear(
+        # self.input_projection = Linear(
+        #     dmodel,
+        #     3 * heads * dhead,
+        #     bias=False,
+        #     init_type=init_type,
+        #     init_scale=init_scale,
+        # )
+        self.input_projection_q = Linear(
             dmodel,
-            3 * heads * dhead,
+            heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.input_projection_k = Linear(
+            dmodel,
+            heads * dhead,
+            bias=False,
+            init_type=init_type,
+            init_scale=init_scale,
+        )
+        self.input_projection_v = Linear(
+            dmodel,
+            heads * dhead,
             bias=False,
             init_type=init_type,
             init_scale=init_scale,
@@ -395,8 +416,20 @@ class AttentionRoPE(LoggingLayer):
         self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
 
     def forward(self, x):
-        projected = self.input_projection(x)
+        # projected = self.input_projection(x)
+        
 
+        # batch, seq_len = x.shape[:-1]
+        # projected = projected.view(
+        #     batch, seq_len, self.heads, 3 * self.dhead
+        # ).transpose(1, 2)
+        # q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+
+        q = self.input_projection_q(x)
+        k = self.input_projection_k(x)
+        v = self.input_projection_v(x)
+
+        projected = torch.concat((q,k,v), dim=-1)
         batch, seq_len = x.shape[:-1]
         projected = projected.view(
             batch, seq_len, self.heads, 3 * self.dhead
@@ -404,6 +437,12 @@ class AttentionRoPE(LoggingLayer):
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
         q = self.rope(q)
         k = self.rope(k)
+
+        common_device = v.dtype #dev
+        q = q.to(common_device) #dev
+        k = k.to(common_device) #dev
+
+        # print(f"dtypes: q {q.dtype} k {k.dtype} v {v.dtype} -----------------") #dev
 
         attention_output = self.attention_mechanism(
             query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
@@ -623,11 +662,26 @@ class EmbeddingLayer(Aggregate):
         super(EmbeddingLayer, self).__init__((lambda x, y: x + y), *layers)
 
 
-class PredictionHead(Linear):
-    def __init__(self, embedding_dim, output_size, init_type, init_scale):
-        super(PredictionHead, self).__init__(
+# class PredictionHead(Linear):
+#     def __init__(self, embedding_dim, output_size, init_type, init_scale, ln=False):
+#         super(PredictionHead, self).__init__(
+#             embedding_dim, output_size, init_type=init_type, init_scale=init_scale
+#         )
+
+class PredictionHead(nn.Module): #dev
+    def __init__(self, embedding_dim, output_size, init_type, init_scale, ln=False):
+        super(PredictionHead, self).__init__()
+        layers = OrderedDict()
+        if ln:
+            layers["head_norm"] = nn.LayerNorm(embedding_dim)
+            # layers["head_norm"] = nn.RMSNorm(embedding_dim)
+        layers["head"] = Linear(
             embedding_dim, output_size, init_type=init_type, init_scale=init_scale
         )
+        self.unembedding = nn.Sequential(layers)
+
+    def forward(self, x):
+        return self.unembedding(x)
 
 
 # class LLM(nn.Module):
