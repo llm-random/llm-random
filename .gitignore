@@ -156,7 +156,7 @@ jk_train/
 tmp_plots/
 
 # models saved locally
-models/
+# models/
 model_ckpt/
 full_config*.yaml
 
