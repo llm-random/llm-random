@@ -27,6 +27,7 @@ from model import (
     TransformerBlock,
     PredictionHead,
 )
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -729,6 +730,7 @@ class TrainerMTPWithMerging(Trainer):
             n_mtp = len(self.model.mtp_modules)
         return n_mtp
 
+
 class ReductionScheduler:
     def __init__(self, schedule_config, total_steps):
         self.schedule_config = schedule_config
@@ -988,3 +990,8 @@ class TrainerMTPWithMergingUltimate(Trainer):
         else:
             n_mtp = len(self.model.mtp_modules)
         return n_mtp
+
+
+def trunc_collate(batch, seq_len=None, batch_size=None):
+    truncated = [sequence[:seq_len] for sequence in batch[:batch_size]]
+    return torch.from_numpy(np.array(truncated))

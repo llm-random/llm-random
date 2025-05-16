@@ -108,7 +108,6 @@ def expand_value(value, path):
     # If it's a dict, recursively expand
     if isinstance(value, dict):
         return create_grid_config(OmegaConf.create(value), path=path)
-    
 
     # If it's a list, treat it as a single item (unless it's ^-prefixed outside)
     # Because a normal list that isn't ^ doesn't produce multiple expansions.
