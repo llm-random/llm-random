@@ -393,56 +393,6 @@ class HeliosBackend(MachineBackend):
         ]
 
 
-class AWS1Backend(MachineBackend):
-    def get_common_directory(self) -> str:
-        return "/home/ubuntu/"
-
-    def get_cache_path(self) -> str:
-        return "/home/ubuntu/.cache"
-
-    def get_grid_entrypoint(self) -> str:
-        return "lizrd/grid/grid_entrypoint.sh"
-
-    def get_default_train_dataset_path(self, dataset_type: str):
-        if dataset_type == "c4":
-            return "/data/datasets/data/train"
-        return super().get_default_train_dataset_path(dataset_type)
-
-    def get_default_validation_dataset_path(self, dataset_type: str):
-        if dataset_type == "c4":
-            return "/data/datasets/data/validation"
-        return super().get_default_train_dataset_path(dataset_type)
-
-    def get_cemetery_directory(self):
-        return "/home/ubuntu/llm-random-cemetery"
-
-    def get_singularity_image(self) -> str:
-        return "/data/sparsity_2024.02.06_16.14.02.sif"
-
-    def get_subprocess_args(
-        self,
-        slurm_command,
-        setup_args,
-        training_args,
-        singularity_env_arguments,
-        runner_params,
-        n_consecutive: int = 1,
-    ):
-        if n_consecutive != 1:
-            raise Exception(
-                "You are trying to on the repeater mode on a cluster that do not not support that option."
-            )
-        return [
-            "singularity",
-            "run",
-            *singularity_env_arguments,
-            make_singularity_mount_paths(setup_args, training_args),
-            "--nv",
-            setup_args["singularity_image"],
-            *self.get_runner_command(setup_args["runner"], runner_params),
-        ]
-
-
 class LocalBackend(MachineBackend):
     def get_common_directory(self) -> str:
         return os.getenv("HOME")
