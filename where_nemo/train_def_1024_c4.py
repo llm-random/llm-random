@@ -41,13 +41,14 @@ max_steps = 15_533*accumulate_grad_batches #SWITCH
 # dataset_path = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1744843405/training/code/results_preprocessing/c4_en_train_part_00.jsonl_text_document" # megatron auto
 # dataset_path = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1744842905/training/code/results_preprocessing/c4_en_train_part_00.jsonl_text_document" # hf auto 
 
-# dsp_preambule = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1744842905/training/code/results_preprocessing/"
-# dataset_path = [
-#     f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 10)
-# ] 
+dsp_preambule = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1744842905/training/code/results_preprocessing/"
+dataset_path = [
+    f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 10)
+] 
 
 # DEV datasets:
 # --append-eod: #dev yes
+# "--apply-ftfy", #dev yes
 # dsp_preambule = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1746191063/training/code/results_preprocessing/"
 # dataset_path = [
 #     f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 1)
@@ -72,10 +73,10 @@ max_steps = 15_533*accumulate_grad_batches #SWITCH
 # "--append-eod", #dev yes
 # # "--apply-ftfy", #dev no
 # '--need-pad-id', #dev yes
-dsp_preambule = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1746522127/training/code/results_preprocessing/" #dev test
-dataset_path = [
-    f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 1)
-] 
+# dsp_preambule = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1746522127/training/code/results_preprocessing/" #dev test
+# dataset_path = [
+#     f"{dsp_preambule}c4_en_train_part_0{i}.jsonl_text_document" for i in range(0, 1)
+# ] 
 
 # ENTROPY
 # "--append-eod", #dev yes
@@ -108,7 +109,7 @@ hidden_dropout=0.0
 attention_dropout=0.0
 layernorm_epsilon=1e-5
 make_vocab_size_divisible_by=128
-tags = ["projected_dis", "1ff", "nemo", "dm1024"] + ["test_dataset_prep", "append_eod", "need_pad_id", "relu", "no_head_ln"] # + ["long"] #SWITCH need_pad_id apply_ftfy no_head_ln
+tags = ["projected_dis", "1ff", "nemo", "dm1024"] + ["test_dataset_prep", "append_eod", "apply_ftfy", "relu", "old_data"] # + ["long"] #SWITCH need_pad_id apply_ftfy no_head_ln
 # tags = ["projected_dis", "1ff", "nemo", "dm768"] #SWITCH
 seed = 27 
 base_lr = 0.001 #SWITCH

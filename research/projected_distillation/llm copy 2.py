@@ -724,226 +724,7 @@ class ProjectedAttentionRes(LoggingLayer):
         k = self.input_projection_k(x) + self.input_projection_k_res(x)
         v = self.input_projection_v(x) + self.input_projection_v_res(x)
 
-        projected = torch.concat((q,k,v), dim=-1)
-
-        batch, seq_len = x.shape[:-1]
-        projected = projected.view(
-            batch, seq_len, self.heads, 3 * self.dhead
-        ).transpose(1, 2)
-        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
-
-        attention_output = self.attention_mechanism(
-            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
-        )
-
-        to_output = attention_output.transpose(1, 2).flatten(-2)
-        output = self.output_projection(to_output) + self.output_projection_res(to_output)
-
-        return output
-
-
-class RoPE(nn.Module):
-    # features are paired x_i, x_{i + d_head/2}
-    def __init__(self, dhead, length):
-        super().__init__()
-        self.dhead = dhead
-        self.length = length
-        angle_exponents = torch.arange(0, dhead, 2) / dhead
-        angles = torch.pow(1 / 10000, angle_exponents).reshape(1, -1)
-        angle_per_token = angles * torch.arange(0, length).reshape(-1, 1)
-        self.register_buffer("sin", torch.sin(angle_per_token).repeat(1, 2))
-        self.register_buffer("cos", torch.cos(angle_per_token).repeat(1, 2))
-
-    def forward(self, x):
-        [y1, y2] = torch.chunk(x, chunks=2, dim=-1)
-        x_rotated = torch.cat([-y2, y1], dim=-1)
-        return x * self.cos + x_rotated * self.sin
-
-
-class ProjectedAttentionRopeRes(LoggingLayer):
-    def __init__(
-        self,
-        dmodel, # xs
-        projected_dmodel, # xb
-        heads,
-        causal,
-        init_type: str,
-        init_scale: float,
-        length:int,
-        dhead=None,
-        flash=False,
-    ):
-        """
-            P1 = torch.rand(xs, xb)
-            W = torch.rand(xb, yb)  
-            P2 = torch.rand(yb, ys)
-            P1@W@P2 = (xs, ys)
-        """
-        super(ProjectedAttentionRopeRes, self).__init__()
-        assert dhead is None
-        if dhead is None:
-            assert projected_dmodel % heads == 0
-            assert dmodel % heads == 0
-            projected_dhead = projected_dmodel // heads
-            dhead = dmodel // heads
-
-        self.heads = heads
-        self.dhead = dhead
-        self.causal = causal
-        self.flash = flash
-        self.projected_dhead = projected_dhead
         
-        self.input_projection_q = nn.Sequential(
-            OrderedDict([
-                ("input_projection",
-                Linear(
-                    dmodel, # xs
-                    heads * projected_dhead, # xb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("projected_weight",
-                Linear(
-                    projected_dmodel, # xb
-                    heads * projected_dhead, # yb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("output_projection",
-                Linear(
-                    projected_dmodel, # xb
-                    dmodel, # xs
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                ))
-            ])
-        )
-        
-        self.input_projection_k = nn.Sequential(
-            OrderedDict([
-                ("input_projection",
-                Linear(
-                    dmodel, # xs
-                    heads * projected_dhead, # xb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("projected_weight",
-                Linear(
-                    projected_dmodel, # xb
-                    heads * projected_dhead, # yb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("output_projection",
-                Linear(
-                    projected_dmodel, # xb
-                    dmodel, # xs
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                ))
-            ])
-        )
-
-        self.input_projection_v = nn.Sequential(
-            OrderedDict([
-                ("input_projection",
-                Linear(
-                    dmodel, # xs
-                    heads * projected_dhead, # xb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("projected_weight",
-                Linear(
-                    projected_dmodel, # xb
-                    heads * projected_dhead, # yb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("output_projection",
-                Linear(
-                    projected_dmodel, # xb
-                    dmodel, # xs
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                ))
-            ])
-        )
-        self.input_projection_q_res = Linear(
-            dmodel, # xs
-            heads * dhead, # ys
-            bias=False,
-            init_type="zeros",
-            init_scale=None,
-        )
-        self.input_projection_k_res = Linear(
-            dmodel, # xs
-            heads * dhead, # ys
-            bias=False,
-            init_type="zeros",
-            init_scale=None,
-        )
-        self.input_projection_v_res = Linear(
-            dmodel, # xs
-            heads * dhead, # ys
-            bias=False,
-            init_type="zeros",
-            init_scale=None,
-        )
-
-        self.output_projection = nn.Sequential(
-            OrderedDict([
-                ("output_projection_p21",
-                Linear(
-                    heads * dhead, # xs
-                    heads * projected_dhead, # xb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("output_projection",
-                Linear(
-                    heads * projected_dhead, # xb
-                    projected_dmodel, # yb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("output_projection_p22",
-                Linear(
-                    projected_dmodel, # yb
-                    dmodel, # ys
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-            ])
-        )
-        self.output_projection_res = Linear(
-            heads * dhead, # xs
-            dmodel, # ys
-            bias=False,
-            init_type="zeros",
-            init_scale=None,
-        )
-
-        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-        self.rope = RoPE(dhead, length=length)
-
-    def forward(self, x):
-        q = self.input_projection_q(x) + self.input_projection_q_res(x)
-        k = self.input_projection_k(x) + self.input_projection_k_res(x)
-        v = self.input_projection_v(x) + self.input_projection_v_res(x)
 
         projected = torch.concat((q,k,v), dim=-1)
 
@@ -952,13 +733,6 @@ class ProjectedAttentionRopeRes(LoggingLayer):
             batch, seq_len, self.heads, 3 * self.dhead
         ).transpose(1, 2)
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
-
-        q = self.rope(q)
-        k = self.rope(k)
-
-        common_device = v.dtype #dev
-        q = q.to(common_device) #dev
-        k = k.to(common_device) #dev
 
         attention_output = self.attention_mechanism(
             query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
@@ -1110,61 +884,33 @@ def ProjectedFeedForwardRes( #dev
     bias_first, bias_second = decode_bias_string(bias)
     return ClassProejectedFeedForwardRes(dmodel, dff, projected_dmodel, projected_dff, init_type, init_scale,bias_first, bias_second)
 
+
 class PredictionHeadRes(nn.Module):
-    def __init__(self, projected_dmodel, vocab_size, dm, init_type, init_scale, ln=False, *args, **kwargs):
+    def __init__(self, projected_dmodel, vocab_size, dm, init_type, init_scale, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if ln:
-            self.head = torch.nn.Sequential(
-                OrderedDict([
-                    (
-                        "head_norm",
-                        nn.LayerNorm(dm, bias=False)
+        self.head = torch.nn.Sequential(
+            OrderedDict([
+                (
+                    "head_p",
+                    Linear(
+                        dm, #xs
+                        projected_dmodel, #xb
+                        bias=False,
+                        init_type=init_type,
+                        init_scale=init_scale,
                     ),
-                    (
-                        "head_p",
-                        Linear(
-                            dm, #xs
-                            projected_dmodel, #xb
-                            bias=False,
-                            init_type=init_type,
-                            init_scale=init_scale,
-                        ),
+                ),
+                (
+                    "head",
+                    Linear( 
+                        projected_dmodel, 
+                        vocab_size, 
+                        init_type=init_type, 
+                        init_scale=init_scale
                     ),
-                    (
-                        "head",
-                        Linear( 
-                            projected_dmodel, 
-                            vocab_size, 
-                            init_type=init_type, 
-                            init_scale=init_scale
-                        ),
-                    )
-                ])
-            )
-        else:
-            self.head = torch.nn.Sequential(
-                OrderedDict([
-                    (
-                        "head_p",
-                        Linear(
-                            dm, #xs
-                            projected_dmodel, #xb
-                            bias=False,
-                            init_type=init_type,
-                            init_scale=init_scale,
-                        ),
-                    ),
-                    (
-                        "head",
-                        Linear( 
-                            projected_dmodel, 
-                            vocab_size, 
-                            init_type=init_type, 
-                            init_scale=init_scale
-                        ),
-                    )
-                ])
-            )
+                )
+            ])
+        )
 
         self.head_res = Linear(
             dm, # xs
@@ -1176,3 +922,5 @@ class PredictionHeadRes(nn.Module):
     
     def forward(self, x):
         return self.head(x) + self.head_res(x)
+
+

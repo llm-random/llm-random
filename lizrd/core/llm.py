@@ -673,7 +673,7 @@ class PredictionHead(nn.Module): #dev
         super(PredictionHead, self).__init__()
         layers = OrderedDict()
         if ln:
-            layers["head_norm"] = nn.LayerNorm(embedding_dim)
+            layers["head_norm"] = nn.LayerNorm(embedding_dim, bias=False)
             # layers["head_norm"] = nn.RMSNorm(embedding_dim)
         layers["head"] = Linear(
             embedding_dim, output_size, init_type=init_type, init_scale=init_scale

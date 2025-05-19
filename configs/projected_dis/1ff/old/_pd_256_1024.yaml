@@ -1,21 +1,21 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 41ba87a56e92ea289913b5a7ffea8f9b
-time: 0-16:00:00
+md5_parent_hash: 4d1860c5708ef64ac6b7d7ba7cf6b8f2
+time: 0-04:00:00
 n_gpus: 2
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "compression", "dm256"]
+  tags: ["projected_dis", "1ff", "compression", "dm256_1024"]
 
   dmodel: 256
   dff: 256
-  projected_dmodel: 2048
-  projected_dff: 2048
+  projected_dmodel: 1024
+  projected_dff: 1024
   n_steps: 8812 # same as dmodel
-  # learning_rate: 0.0005 # same as dmodel
-  ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001] # half+orthogonal - 0.0005 - LLMRANDOM-29377
+  # learning_rate: 0.001 # same as dmodel
+  ^learning_rate: [0.00025, 0.0005, 0.001] # 0.0005 - LLMRANDOM-29370
 
   attention_mode: projected_vanilla
   ff_mode: projected_vanilla
@@ -25,7 +25,7 @@ params:
   # ^projection_init_type: [half]
  
   projected_distillation: True
-  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-29_12-07-37/None/1181033/124261.pt
+  projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-01-24_18-15-38/None/1171835/46770.pt
   
   fsdp_use_orig_params: True
   fsdp_enabled: True

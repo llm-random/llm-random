@@ -1,31 +1,24 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 41ba87a56e92ea289913b5a7ffea8f9b
-time: 8-00:00:00
+md5_parent_hash: 4d1860c5708ef64ac6b7d7ba7cf6b8f2
+time: 4-00:00:00
 n_gpus: 4
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm1024", "doner", "COMP2"]
+  tags: ["projected_dis", "1ff", "dm1024", "doner", "COMP"]
 
-  # ^learning_rate: [0.0000625, 0.000125, 0.00025, 0.0005] #+
-  # ^learning_rate: [0.00075, 0.001, 0.002] # 0.0005
-  # ^learning_rate: [0.00025, 0.0005, 0.001]
-  ^learning_rate: [0.001]
-  # ^learning_rate: [0.0005, 0.00075]
-  # learning_rate: 0.001
-  # ^final_lr_fraction: [0.03]
+  learning_rate: 0.001
   final_lr_fraction: 0.03
-  # ^lr_warmup_percent: [0.02, 0.04, 0.06]
   lr_warmup_percent: 0.01
 
   dmodel: 1024
   dff: 1024
   # ^n_steps: [15_533, 31_066, 62_132]  # 20T/ap
-  # ^n_steps: [31_066, 62_132]
-  ^n_steps: [124_264]
+  # ^n_steps: [15_533, 62_132]
   # n_steps: 15_533
+  ^n_steps: [62_132]
 
   dont_save_final_model: False
   # save_weights_path: /local_storage_1/ms_tmp/models/ #dev entropy models dir

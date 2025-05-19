@@ -60,6 +60,7 @@ def get_model(
     n_att_heads:int=None,
     distillation_type:Optional[str]=None,
     head_layer_norm:Optional[bool]=False,
+    head_ln=True #dev - add param to config connection
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -131,9 +132,12 @@ def get_model(
         #         )
         #     ])
         # ) #dev switch weights residuals
+
         head = PredictionHeadRes( #dev
-            projected_dmodel, vocab_size, dm, init_type=init_type, init_scale=init_scale
+            projected_dmodel, vocab_size, dm, init_type=init_type, init_scale=init_scale, ln=head_ln
         ).to(last_gpu)
+
+
     else:
         head = llm.PredictionHead(
             dm, vocab_size, init_type=init_type, init_scale=init_scale, ln=head_layer_norm

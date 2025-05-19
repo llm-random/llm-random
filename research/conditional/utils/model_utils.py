@@ -4,7 +4,7 @@ from functools import partial
 # from diskcache import Cache
 from typing import Optional, Type, Union, Callable
 from research.conditional.utils.distillation_losses import distilbert, distilbert_loss, get_distill_loss
-from research.projected_distillation.llm import PreNormNoBiasBlock, ProjectedAttention, ProjectedAttentionRes, ProjectedFeedForward, ProjectedFeedForwardRes
+from research.projected_distillation.llm import PreNormNoBiasBlock, ProjectedAttention, ProjectedAttentionRes, ProjectedAttentionRopeRes, ProjectedFeedForward, ProjectedFeedForwardRes
 import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
@@ -437,7 +437,19 @@ def get_attention_layer(args):
             init_scale=args.init_scale,
         )
     elif args.attention_mode == "projected_vanilla_res": #dev
-        attention_layer_fun = lambda: ProjectedAttentionRes(
+        raise Exception()
+        # attention_layer_fun = lambda: ProjectedAttentionRes(
+        #     dmodel=args.dmodel,
+        #     projected_dmodel=args.projected_dmodel,
+        #     heads=args.n_att_heads,
+        #     causal=causal,
+        #     dhead=args.dhead,
+        #     flash=args.flash_attention,
+        #     init_type=args.init_type,
+        #     init_scale=args.init_scale,
+        # )
+    elif args.attention_mode == "projected_vanilla_rope_res": #dev
+        attention_layer_fun = lambda: ProjectedAttentionRopeRes(
             dmodel=args.dmodel,
             projected_dmodel=args.projected_dmodel,
             heads=args.n_att_heads,
@@ -446,6 +458,7 @@ def get_attention_layer(args):
             flash=args.flash_attention,
             init_type=args.init_type,
             init_scale=args.init_scale,
+            length=args.cutoff
         )
     else:
         raise NotImplementedError(

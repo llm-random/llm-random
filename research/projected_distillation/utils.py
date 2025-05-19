@@ -106,7 +106,9 @@ def add_projections(parameters:dict[str, torch.Tensor], projection, projection_t
             print(f"Not projection: {name}, {params.shape}, {params.requires_grad}")
 
 def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:int, projected_dmodel:int, n_att_heads:int, projection:Union[torch.Tensor, str], projection_mask:torch.Tensor):
+    print("Projected model (doner) params ------------------------------------------------------------------------------------------------------------------------")
     print(list(projected_weights.keys()))
+    print("end doner ---------------------------------------------------------------------------------------------------------------------------------------------------")
 
     weight_dependent_projections = None
 
@@ -142,7 +144,7 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
                 model_grouped[encode_block_tag][str(block_number)] = {}
             model_grouped[encode_block_tag][str(block_number)][block_component_name] = params
             continue
-        raise Exception(f"Could not parse model into expected template, unexpected name: name")
+        raise Exception(f"Could not parse model into expected template, unexpected name: {name}")
         
     print_dict_hierarchy(model_grouped, 3) #dev
 
@@ -334,11 +336,11 @@ def initialize_compressor(model:torch.nn.Module, projected_weights:dict, dmodel:
     print("------------------------------init projections end------------------------") #dev
     print("------------------------------copy weights start------------------------") #dev
 
-    # "{partial_name_of_compressor_weight}": {transformations}
+    # "{partial_name_of_compressor_weight}": {transformations (projected, doner)}
     EMBEDDING_TRANSFER = {
         "layers.0.embedding.embedding.weight": [("layers.0.embedding.embedding.weight", "embedding_layer.layers.0.weight")],
         "layers.1.projected_layer.pe_layer.weight": [("layers.1.projected_layer.pe_layer.weight", "embedding_layer.layers.1.layer.weight")],
-        "head.head.weight": [("head.head.weight","head.weight")],
+        "head.head.weight": [("head.head.weight","head.unembedding.head.weight")],
     }
 
     embedding_params = {}

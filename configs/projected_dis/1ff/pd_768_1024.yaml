@@ -1,16 +1,16 @@
 
 parent: configs/projected_dis/1ff/common.yaml
-md5_parent_hash: 41ba87a56e92ea289913b5a7ffea8f9b
-time: 0-10:00:00
+md5_parent_hash: 4d1860c5708ef64ac6b7d7ba7cf6b8f2
+time: 2-00:00:00
 # time: 0-00:50:00
 n_gpus: 4
+# n_gpus: 1
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  # tags: ["projected_dis", "1ff", "compression", "dm256", "trapezoidal", "tune_08", "v3", "cosine"]
-  # tags: ["projected_dis", "1ff", "compression", "dm768_1024", "test"] 
-  tags: ["projected_dis", "1ff", "compression", "dm768_1024", "range", "20_doner"] 
+  tags: ["projected_dis", "1ff", "compression", "dm768_1024", "COMP"] 
+  # tags: ["projected_dis", "1ff", "compression", "dm768_1024", "range", "20_doner"] 
 
   batch_size: 512
 
@@ -27,20 +27,20 @@ params:
   lr_warmup_percent: 0.1 #compression
   final_lr_fraction: 0.01 #compression
 
-  ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
+  # ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
+  ^n_steps: [10179, 20358, 30537, 40716]
   # n_steps: 10179
 
-  attention_mode: projected_vanilla_res
+  attention_mode: projected_vanilla_rope_res
   ff_mode: projected_vanilla_res
 
   projection_init_type: head_half
  
   projected_distillation: True
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-03-24_12-19-09/None/125762/15533.pt # 20
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118537/31066.pt # 40
-  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # 80 helios
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # 80 helios
   # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt
-  # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_20.pt
+  projected_weights_path: /home/ubuntu/llm-random-group/llm-random-cemetery/PD_2025-05-16_11-35-31/None/10656/62132.pt # writer 80
+
 
   fsdp_use_orig_params: True
   fsdp_enabled: True
