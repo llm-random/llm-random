@@ -700,7 +700,7 @@ class EmbeddingLayer(Aggregate):
 
 class PredictionHead(nn.Module):
     def __init__(
-        self, embedding_dim, output_size, init_type, init_scale, use_layer_norm=False
+        self, embedding_dim, output_size, init_type, init_scale, use_layer_norm: bool
     ):
         super(PredictionHead, self).__init__()
 
