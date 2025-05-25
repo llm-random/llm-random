@@ -1,0 +1,230 @@
+model:
+    _target_: token_reduction.model.LLM_MTPNoBackwardInTheMiddle    
+
+    embedding:
+        _target_: model.get_vanilla_embedding
+        common: ${model.common}
+
+    tower_config:
+        _target_: model.TowerConfig
+        mode: "same" # is every block in tower the same
+        n_blocks: 2
+
+        block_config:
+            _target_: model.BlockConfig
+            attention:
+                _target_: model.AttentionConfig
+                mode: "vanilla"
+                n_heads: 4
+
+            feedforward:
+                _target_: model.FeedForwardConfig
+                mode: vanilla
+
+            residual_mode: "pre_norm"
+            norm_class_mode: "layer_norm"
+
+    common: 
+        _target_: model.Common
+        model_type: "gpt"
+        sequence_length: 16
+        dmodel: 16
+        dff: 64
+        init_type: truncated_normal_fixed
+        init_scale: 0.5
+        vocab_size: 50257
+        head_norm: true
+
+    mtp_config:
+        _target_: token_reduction.model.MTPConfig
+        n_mtp: 1
+        mtp_block_config: ${model.tower_config.block_config}
+
+training:
+    _target_: model.TrainingConfig
+    learning_rate: 2e-3
+    weight_decay: 0.1
+    gradient_accumulation_steps: 2
+    n_steps: 10
+    gradient_clipping: 1.0
+
+    scheduler: 
+        _target_: model.get_cosine_scheduler_with_warmup
+        _partial_: true
+        config:        
+            warmup_steps: 5
+            n_steps: ${training.n_steps}
+            final_lr_fraction: 0.1
+            type: "cosine"
+
+    evaluation:
+        eval_interval: 3
+        n_eval_steps: 5
+        seed: 123
+
+checkpoint_config:
+    interval: 0
+    path: null
+
+trainer_factory: 
+    _target_: token_reduction.model.TrainerMTPNoBackwardInTheMiddle
+    _partial_: true
+    gradient_accumulation_steps: ${training.gradient_accumulation_steps}
+    n_steps: ${training.n_steps}
+    eval_interval: ${training.evaluation.eval_interval}
+    n_eval_steps: ${training.evaluation.n_eval_steps}
+    gradient_clipping: ${training.gradient_clipping}
+    checkpoint_config: ${checkpoint_config}
+    # mtp_lambda: 1.0
+
+    train_dataloader:
+        _target_: model.get_dataloader
+        dataset_type: "c4"
+        dataset_path: "data"
+        dataset_split: "train"
+        total_batch_size: 32
+        sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp}'}
+        num_workers: 0
+        seed: 2311
+        shuffle: false
+        use_new_sampling_method: false
+        world_size_independent: true
+
+    eval_dataloader:
+        _target_: model.get_dataloader
+        dataset_type: "c4"
+        dataset_path: "data_eval"
+        dataset_split: "validation"
+        total_batch_size: 10
+        sequence_length: ${model.common.sequence_length}
+        num_workers: 0
+        seed: 123
+        shuffle: false
+        use_new_sampling_method: false
+        world_size_independent: true
+
+
+metric_logger:
+    _target_: model.MetricLoggerConfig
+    project_name: None
+    type: "record"
+    heavy_metrics_calculation_interval: -1
+    tags: ["test", "mtp_meta"]
+    name: test_mtp_meta
+
+
+######################################################################################################################################
+# model:
+#     _target_: token_reduction.model.LLM_MTPNoBackwardInTheMiddleELO
+
+#     embedding:
+#         _target_: model.get_vanilla_embedding
+#         common: ${model.common}
+
+#     tower_config:
+#         _target_: model.TowerConfig
+#         mode: "same" # is every block in tower the same
+#         n_blocks: 2
+
+#         block_config:
+#             _target_: model.BlockConfig
+#             attention:
+#                 _target_: model.AttentionConfig
+#                 mode: "vanilla"
+#                 n_heads: 4
+
+#             feedforward:
+#                 _target_: model.FeedForwardConfig
+#                 mode: vanilla
+
+#             residual_mode: "pre_norm"
+#             norm_class_mode: "layer_norm"
+
+#     common: 
+#         _target_: model.Common
+#         model_type: "gpt"
+#         sequence_length: 16
+#         dmodel: 16
+#         dff: 64
+#         init_type: truncated_normal_fixed
+#         init_scale: 0.5
+#         vocab_size: 50257
+#         head_norm: true
+
+#     mtp_config:
+#         _target_: token_reduction.model.MTPConfig
+#         n_mtp: 1
+#         mtp_block_config: ${model.tower_config.block_config}
+
+# training:
+#     _target_: model.TrainingConfig
+#     learning_rate: 2e-3
+#     weight_decay: 0.1
+#     gradient_accumulation_steps: 2
+#     n_steps: 10
+#     gradient_clipping: 1.0
+
+#     scheduler: 
+#         _target_: model.get_cosine_scheduler_with_warmup
+#         _partial_: true
+#         config:        
+#             warmup_steps: 5
+#             n_steps: ${training.n_steps}
+#             final_lr_fraction: 0.1
+#             type: "cosine"
+
+#     evaluation:
+#         eval_interval: 3
+#         n_eval_steps: 5
+#         seed: 123
+
+# checkpoint_config:
+#     interval: 0
+#     path: null
+
+# trainer_factory: 
+#     _target_: token_reduction.model.TrainerMTPNoBackwardInTheMiddleELO
+#     _partial_: true
+#     gradient_accumulation_steps: ${training.gradient_accumulation_steps}
+#     n_steps: ${training.n_steps}
+#     eval_interval: ${training.evaluation.eval_interval}
+#     n_eval_steps: ${training.evaluation.n_eval_steps}
+#     gradient_clipping: ${training.gradient_clipping}
+#     checkpoint_config: ${checkpoint_config}
+#     # mtp_lambda: 1.0
+
+#     train_dataloader:
+#         _target_: model.get_dataloader
+#         dataset_type: "c4"
+#         dataset_path: "data"
+#         dataset_split: "train"
+#         total_batch_size: 32
+#         sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp}'}
+#         num_workers: 0
+#         seed: 2311
+#         shuffle: false
+#         use_new_sampling_method: false
+#         world_size_independent: true
+
+#     eval_dataloader:
+#         _target_: model.get_dataloader
+#         dataset_type: "c4"
+#         dataset_path: "data_eval"
+#         dataset_split: "validation"
+#         total_batch_size: 10
+#         sequence_length: ${model.common.sequence_length}
+#         num_workers: 0
+#         seed: 123
+#         shuffle: false
+#         use_new_sampling_method: false
+#         world_size_independent: true
+
+
+# metric_logger:
+#     _target_: model.MetricLoggerConfig
+#     project_name: None
+#     type: "record"
+#     heavy_metrics_calculation_interval: -1
+#     tags: ["test", "mtp_meta"]
+#     name: test_mtp_meta
+
