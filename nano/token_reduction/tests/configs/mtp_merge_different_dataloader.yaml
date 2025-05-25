@@ -114,7 +114,7 @@ trainer_factory:
         dataset_path: "data"
         dataset_split: "train"
         total_batch_size: 10
-        sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp} + ${model.common.dropped_tokens} - 1'}
+        sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp} + ${model.common.dropped_tokens}'}
         num_workers: 0
         seed: 2311
         shuffle: false
