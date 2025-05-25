@@ -222,6 +222,7 @@ class C4Dataset(IterableDataset):
             tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
         self._load_dataset(path, split, seed, tokenizer, eot_str, shuffle)
         self.sequence_length = sequence_length
+        self.seed = seed
         self.rng = random.Random(seed)
 
     def _load_dataset(self, path, split, seed, tokenizer, eot_str, shuffle: bool):
@@ -296,6 +297,7 @@ class C4Dataset(IterableDataset):
                     buffer, document_lengths = [], []
 
     def __iter__(self):
+        self.rng.seed(self.seed)
         if self.world_size_independent:
             return itertools.islice(
                 self.sample_packer(), self.rank, None, self.world_size
