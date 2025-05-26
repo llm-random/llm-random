@@ -490,7 +490,7 @@ class TrainerMTP(Trainer):
 
     def prepare_input_output(self, batch):
         if self.model.training:
-            input_ids = [batch[:, : -(self.model.n_mtp + 1)]]
+            input_ids = [batch[:, : -(self.model.n_mtp + 1)].to(self.device)]
             mtp_target_ids = [
                 batch[
                     :,
@@ -514,6 +514,7 @@ class TrainerMTP(Trainer):
 
         mtp_losses = []
         for predicted_ids, target_ids in zip(mtp_outputs, mtp_target_ids):
+            target_ids = target_ids.to(self.device)
             mask_loss = F.cross_entropy(
                 predicted_ids.flatten(0, -2),
                 target_ids.reshape(-1).long(),
@@ -756,7 +757,7 @@ class TrainerMTPMerge(TrainerMTP):
 
     def prepare_input_output(self, batch):
         if self.model.training:
-            input_ids = [batch[:, : -(self.model.n_mtp + 1)]]
+            input_ids = [batch[:, : -(self.model.n_mtp + 1)].to(self.device)]
             keep_pos_ids, reduce_pos_ids = batched_split_indexes(
                 batch.shape[0], None, self.sequence_length, self.n_reduced_tokens
             )
