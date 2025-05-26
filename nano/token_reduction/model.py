@@ -591,76 +591,33 @@ class TrainerMTP(Trainer):
 class TrainerDeepSeekMTP(TrainerMTP):
     mtp_lambda: float = 0.6
 
-    def _preprocess_input_mtp(self, batch, n_mtp):  # TODO test it
-        input_ids = batch[:, : -n_mtp - 1].contiguous()
-        target_ids = batch[:, 1:].contiguous()
+    def prepare_input_output(self, batch):
+        if self.model.training:
+            input_ids = [batch[:, :-1].to(self.device)]
+            mtp_target_ids = [
+                batch[
+                    :,
+                    (i + 1) : (-self.model.n_mtp + i if i < self.model.n_mtp else None),
+                ]
+                for i in range(self.model.n_mtp + 1)
+            ]
+        else:
+            input_ids = [batch[:, :-1]]
+            mtp_target_ids = [batch[:, 1:]]
+        return input_ids, mtp_target_ids
 
-        return input_ids, target_ids
-
-    def train(self):
-        for step, batch in zip(
-            range(self.start_step, self.n_steps), self.train_dataloader
-        ):
-            self.step = step
-            self.metric_logger.set_step(step)
-            self.model.train()
-            n_mtp = self.model.n_mtp
-            mtp_losses = self.calculate_loss(batch, n_mtp)
-
-            grad_norm = self.clip_gradient()
-
-            self.log_metrics(mtp_losses, grad_norm)
-
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-            self.scheduler.step()
-
-            if self._should_save_checkpoint:
-                self.save_checkpoint()
-
-            if self._should_evaluate:
-                self.eval()
-
-    def hack_for_python_garbage_collection(self, input_ids, target_ids, n_mtp):
-        """we want to have no reference to model output while backpropagating to allow torch to free memory,
-        so we wrap loss calculation in a function"""
-
-        mtp_losses = []
-        logits_list = self.model(input_ids)
-        target_ids = target_ids.to(self.device)
-        seq_len = target_ids.shape[1] - n_mtp
-
-        for i, predicted_ids in enumerate(logits_list):
-            mtp_target_ids = target_ids[:, i : i + seq_len]
-            mask_loss = F.cross_entropy(
-                predicted_ids.flatten(0, -2),
-                mtp_target_ids.reshape(-1).long(),
-                reduction="none",
-            )
-            loss = mask_loss.mean() / self.gradient_accumulation_steps
-            mtp_losses.append(loss)
-
-        return mtp_losses
-
-    def calculate_loss(self, batch, n_mtp):
+    def calculate_loss(self, batch):
         losses = []
         for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
-            input_ids, target_ids = self._preprocess_input(
-                batch_chunk
-            )  # using _preprocess_input instead of _preprocess_input_mtp.
-            input_ids = input_ids.to(self.device)
-            if self.model.training:
-                self._update_processed_tokens(input_ids)
+            mtp_losses = self.hack_for_python_garbage_collection(batch_chunk)
 
-            mtp_losses = self.hack_for_python_garbage_collection(
-                input_ids, target_ids, n_mtp
-            )
             mtp_loss_weight = self.mtp_lambda / (len(mtp_losses) - 1)
             loss_multiplier = torch.tensor(
                 [1.0] + [mtp_loss_weight] * (len(mtp_losses) - 1), device=self.device
             )
+            mtp_losses_scaled = torch.stack(mtp_losses) * loss_multiplier
             if self.model.training:
-                loss = (torch.stack(mtp_losses) * loss_multiplier).sum()
+                loss = mtp_losses_scaled.sum()
                 loss.backward()
             losses.append(mtp_losses)
 
