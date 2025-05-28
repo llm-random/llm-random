@@ -2,9 +2,16 @@ model:
     _target_: token_reduction.model.LLM_DeepSeekMTP    
 
     embedding:
-        _target_: token_reduction.model.get_deepseek_embedding
+        _target_: token_reduction.model.TokenMergingEmbedding
+        normal_embedding:
+            _target_: token_reduction.model.get_dropping_standard_embedding
+            sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp}'}
+            dmodel: ${model.common.dmodel}
+            init_type: ${model.common.init_type}
+            init_scale: ${model.common.init_scale}
+            vocab_size: ${model.common.vocab_size}
+            reduction_tokens: ${model.common.dropped_tokens}
         common: ${model.common}
-        n_mtp: ${model.mtp_config.n_mtp}
 
     tower_config:
         _target_: model.TowerConfig
@@ -26,7 +33,7 @@ model:
             norm_class_mode: "layer_norm"
 
     common: 
-        _target_: model.Common
+        _target_: token_reduction.model.CommonDroppingConfig
         model_type: "gpt"
         sequence_length: 16
         dmodel: 16
@@ -34,6 +41,7 @@ model:
         init_type: truncated_normal_fixed
         init_scale: 0.5
         vocab_size: 50257
+        dropped_tokens: 7
         head_norm: true
 
     mtp_config:
@@ -68,7 +76,7 @@ checkpoint_config:
     path: null
 
 trainer_factory: 
-    _target_: token_reduction.model.TrainerDeepSeekMTP
+    _target_: token_reduction.model.TrainerDeepSeekMTPMerge
     _partial_: true
     gradient_accumulation_steps: ${training.gradient_accumulation_steps}
     n_steps: ${training.n_steps}
@@ -77,6 +85,8 @@ trainer_factory:
     gradient_clipping: ${training.gradient_clipping}
     checkpoint_config: ${checkpoint_config}
     mtp_lambda: 1.0
+    n_reduced_tokens: ${model.common.dropped_tokens}
+    sequence_length: ${model.common.sequence_length}
 
     train_dataloader:
         _target_: model.get_dataloader
@@ -84,7 +94,7 @@ trainer_factory:
         dataset_path: "data"
         dataset_split: "train"
         total_batch_size: 32
-        sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp}'}
+        sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp} + ${model.common.dropped_tokens}'}
         num_workers: 0
         seed: 2311
         shuffle: false
