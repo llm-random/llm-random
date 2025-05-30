@@ -59,7 +59,7 @@ training:
             type: "cosine"
 
     evaluation:
-        eval_interval: 0
+        eval_interval: 3
         n_eval_steps: 5
         seed: 123
 
