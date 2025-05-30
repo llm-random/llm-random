@@ -717,7 +717,7 @@ class ReductionScheduler:
 class TrainerMTPMerge(TrainerMTP):
     sequence_length: int
     n_reduced_tokens: int
-    # token_reducing_scheduler: ReductionScheduler = None
+    token_reducing_scheduler: ReductionScheduler = None
 
     def prepare_input_output(self, batch):
         if self.model.training:
@@ -740,20 +740,28 @@ class TrainerMTPMerge(TrainerMTP):
 class TrainerDeepSeekMTPMerge(TrainerDeepSeekMTP):
     sequence_length: int
     n_reduced_tokens: int
-    # token_reducing_scheduler: ReductionScheduxler = None
+    token_reducing_scheduler: ReductionScheduler = None
+
+    def _get_n_tokens_to_reduce(self):
+        if self.token_reducing_scheduler is not None:
+            scaler = self.token_reducing_scheduler.get_value(self.step)
+            return round(scaler * self.n_reduced_tokens)
+        return  self.n_reduced_tokens
 
     def prepare_input_output(self, batch):
         if self.model.training:
             input_ids = [batch[:, :-1].to(self.device)]
+            n_tokens_to_reduce = self._get_n_tokens_to_reduce()
+
             keep_pos_ids, reduce_pos_ids = batched_split_indexes(
-                batch.shape[0], None, self.sequence_length, self.n_reduced_tokens
+                batch.shape[0], None, self.sequence_length, n_tokens_to_reduce
             )
             mtp_target_ids = [
                 batch_index_select(batch, keep_pos_ids + 1 + i)
                 for i in range(self.model.n_mtp + 1)
             ]
 
-            start_mtp_indexes = self.sequence_length + self.n_reduced_tokens
+            start_mtp_indexes = self.sequence_length + n_tokens_to_reduce
             end_mtp_indexes = start_mtp_indexes + self.model.n_mtp
             mtp_indexes = torch.tensor(
                 range(start_mtp_indexes, end_mtp_indexes)
@@ -762,6 +770,10 @@ class TrainerDeepSeekMTPMerge(TrainerDeepSeekMTP):
             keep_pos_ids = torch.cat((keep_pos_ids, mtp_indexes), dim=1)
 
             input_ids.extend([keep_pos_ids, reduce_pos_ids])
+
+            self.metric_logger.log(
+                "steps/train/n_tokens_to_reduce", self.step, n_tokens_to_reduce
+            )
         else:
             input_ids = [batch[:, :-1]]
             mtp_target_ids = [batch[:, 1:]]
