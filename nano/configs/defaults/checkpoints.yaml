@@ -1,6 +1,9 @@
 # @package _global_
 checkpoint_config:
     interval: 5000
-    path: "checkpoints"
     training_state_filename: __training_state__.pt
     model_checkpoint_filename: __model_optim_scheduler__.pt
+
+    path: "checkpoints" # left for backward compatibility
+    load_path: null
+    save_path: ${checkpoint_config.path}
