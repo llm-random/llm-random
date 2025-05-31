@@ -719,17 +719,27 @@ class TrainerMTPMerge(TrainerMTP):
     n_reduced_tokens: int
     token_reducing_scheduler: ReductionScheduler = None
 
+    def _get_n_tokens_to_reduce(self):
+        if self.token_reducing_scheduler is not None:
+            scaler = self.token_reducing_scheduler.get_value(self.step)
+            return round(scaler * self.n_reduced_tokens)
+        return self.n_reduced_tokens
+
     def prepare_input_output(self, batch):
         if self.model.training:
             input_ids = [batch[:, : -(self.model.n_mtp + 1)].to(self.device)]
+            n_tokens_to_reduce = self._get_n_tokens_to_reduce()
             keep_pos_ids, reduce_pos_ids = batched_split_indexes(
-                batch.shape[0], None, self.sequence_length, self.n_reduced_tokens
+                batch.shape[0], None, self.sequence_length, n_tokens_to_reduce
             )
             mtp_target_ids = [
                 batch_index_select(batch, keep_pos_ids + 1 + i)
                 for i in range(self.model.n_mtp + 1)
             ]
             input_ids.extend([keep_pos_ids, reduce_pos_ids])
+            self.metric_logger.log(
+                "steps/train/n_reduced_tokens", self.step, n_tokens_to_reduce
+            )
         else:
             input_ids = [batch[:, :-1]]
             mtp_target_ids = [batch[:, 1:]]
@@ -746,7 +756,7 @@ class TrainerDeepSeekMTPMerge(TrainerDeepSeekMTP):
         if self.token_reducing_scheduler is not None:
             scaler = self.token_reducing_scheduler.get_value(self.step)
             return round(scaler * self.n_reduced_tokens)
-        return  self.n_reduced_tokens
+        return self.n_reduced_tokens
 
     def prepare_input_output(self, batch):
         if self.model.training:
@@ -772,11 +782,80 @@ class TrainerDeepSeekMTPMerge(TrainerDeepSeekMTP):
             input_ids.extend([keep_pos_ids, reduce_pos_ids])
 
             self.metric_logger.log(
-                "steps/train/n_tokens_to_reduce", self.step, n_tokens_to_reduce
+                "steps/train/n_reduced_tokens", self.step, n_tokens_to_reduce
             )
         else:
             input_ids = [batch[:, :-1]]
             mtp_target_ids = [batch[:, 1:]]
         return input_ids, mtp_target_ids
+
+
+@define(slots=False)
+class TrainerMerge(Trainer):
+    sequence_length: int
+    n_reduced_tokens: int
+    token_reducing_scheduler: ReductionScheduler = None
+
+    def _update_processed_tokens(self, batch, *_args):
+        self.processed_tokens += batch.numel() * int(os.environ["WORLD_SIZE"])
+
+    def _get_n_tokens_to_reduce(self):
+        if self.token_reducing_scheduler is not None:
+            scaler = self.token_reducing_scheduler.get_value(self.step)
+            return round(scaler * self.n_reduced_tokens)
+        return self.n_reduced_tokens
+
+    def prepare_input_output(self, batch):
+        if self.model.training:
+            input_ids = [batch[:, :-1].to(self.device)]
+            n_tokens_to_reduce = self._get_n_tokens_to_reduce()
+
+            keep_pos_ids, reduce_pos_ids = batched_split_indexes(
+                batch.shape[0], None, self.sequence_length, n_tokens_to_reduce
+            )
+            target_ids = batch_index_select(batch, keep_pos_ids + 1)
+            input_ids.extend([keep_pos_ids, reduce_pos_ids])
+
+            self.metric_logger.log(
+                "steps/train/n_reduced_tokens", self.step, n_tokens_to_reduce
+            )
+        else:
+            input_ids = [batch[:, :-1]]
+
+        return input_ids, target_ids
+
+    def hack_for_python_garbage_collection(self, batch):
+        """we want to have no reference to model output while backpropagating to allow torch to free memory,
+        so we wrap loss calculation in a function"""
+
+        (model_input, target_ids) = self.prepare_input_output(batch)
+        if self.model.training:
+            self._update_processed_tokens(*model_input)
+        predicted_ids = self.model(*model_input)
+
+        target_ids = target_ids.to(self.device)
+        mask_loss = F.cross_entropy(
+            predicted_ids.flatten(0, -2),
+            target_ids.reshape(-1).long(),
+            reduction="none",
+        )
+        loss = mask_loss.mean()
+
+        return loss
+
+    def calculate_loss(self, batch):
+        losses = []
+        for batch_chunk in batch.chunk(self.gradient_accumulation_steps):
+            loss = self.hack_for_python_garbage_collection(batch_chunk)
+            if self.model.training:
+                loss.backward()
+            losses.append(loss)
+
+        # gloo backend supports only sum reduce operation, therfore we first divide by world size and then sum
+        avg_mtp_losses = torch.tensor(losses, device=self.device).mean(dim=0)
+        if dist.is_initialized():
+            dist.all_reduce(avg_mtp_losses, op=dist.ReduceOp.SUM)
+
+        return avg_mtp_losses / float(os.environ["WORLD_SIZE"])
 
 

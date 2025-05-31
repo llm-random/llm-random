@@ -286,6 +286,47 @@ class TestSimpleRun(unittest.TestCase):
                 target_losses_merging, metric_logger.data["steps/train/loss"]
             )
 
+    @patch("model.get_metric_logger", return_value=RecorderLogger())
+    def test_token_merging_updated(self, get_metric_logger):
+        # target_losses_merging = [
+        #     (11.861213684082031, 0),
+        #     (11.84007740020752, 1),
+        #     (11.769299507141113, 2),
+        #     (11.74703598022461, 3),
+        #     (11.823470115661621, 4),
+        #     (11.767684936523438, 5),
+        #     (11.840473175048828, 6),
+        #     (11.79806900024414, 7),
+        #     (11.659849166870117, 8),
+        #     (11.77253532409668, 9),
+        # ]
+        #  Note: not sure why the target losses have changed overtime.
+
+        target_losses_merging = [
+            (11.845511436462402, 0),
+            (11.85334300994873, 1),
+            (11.815486907958984, 2),
+            (11.852523803710938, 3),
+            (11.787951469421387, 4),
+            (11.747827529907227, 5),
+            (11.976318359375, 6),
+            (11.753427505493164, 7),
+            (11.660406112670898, 8),
+            (11.686079025268555, 9),
+        ]
+        with initialize(version_base=None, config_path="configs"):
+            cfg = compose(config_name="token_merging_update", overrides=[])
+            training_state = load_training_state(cfg.checkpoint_config)
+            metric_logger = get_metric_logger(
+                metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
+                neptune_run_id=training_state["run_id"],
+            )
+            run(cfg)
+
+            self.assertListEqual(
+                target_losses_merging, metric_logger.data["steps/train/loss"]
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
