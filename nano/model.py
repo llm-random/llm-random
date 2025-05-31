@@ -1009,7 +1009,9 @@ def get_metric_logger(
 ):
     _metric_logger = None
     if metric_logger_config.type == "neptune":
-        neptune_run_id = None if metric_logger_config.new_neptune_job else neptune_run_id
+        neptune_run_id = (
+            None if metric_logger_config.new_neptune_job else neptune_run_id
+        )
         rank = int(os.environ["RANK"])
         if int(os.environ["WORLD_SIZE"]) > 1:
 
@@ -1673,7 +1675,9 @@ def load_training_state(checkpoint_config):
                 "Checkpoint save path is not set. Starting training from scratch."
             )
             return training_start_config
-        full_checkpoint_path = get_full_checkpoint_save_path(checkpoint_config.save_path)
+        full_checkpoint_path = get_full_checkpoint_save_path(
+            checkpoint_config.save_path
+        )
         os.makedirs(full_checkpoint_path, exist_ok=True)
         checkpoint_folder = _find_latest_checkpoint(full_checkpoint_path)
 
@@ -1709,7 +1713,9 @@ def load_checkpoint(checkpoint_config, model, optimizer, scheduler):
         checkpoint_path = checkpoint_config.get("save_path", None)
         if checkpoint_path is None:
             return
-        full_checkpoint_path = get_full_checkpoint_save_path(checkpoint_config.save_path)
+        full_checkpoint_path = get_full_checkpoint_save_path(
+            checkpoint_config.save_path
+        )
         checkpoint_folder = _find_latest_checkpoint(full_checkpoint_path)
 
     if checkpoint_folder is not None:
@@ -1720,7 +1726,9 @@ def load_checkpoint(checkpoint_config, model, optimizer, scheduler):
             logger.debug(f"Loaded sharded checkpoint from '{checkpoint_folder}'")
         else:
             # Non-sharded load
-            checkpoint_model = f"{checkpoint_folder}/{checkpoint_config.model_checkpoint_filename}"
+            checkpoint_model = (
+                f"{checkpoint_folder}/{checkpoint_config.model_checkpoint_filename}"
+            )
             checkpoint = torch.load(checkpoint_model)
             if type(model) is DDP:
                 logger.info(f"Loading DDP model from '{checkpoint_folder}'")
@@ -1730,9 +1738,5 @@ def load_checkpoint(checkpoint_config, model, optimizer, scheduler):
                 model.load_state_dict(checkpoint["model"])
             optimizer.load_state_dict(checkpoint["optim"])
             scheduler.load_state_dict(checkpoint["scheduler"])
-            logger.info(
-                f"Loaded non-sharded sheduler from '{checkpoint_folder}'"
-            )
-            logger.debug(
-                f"Loaded non-sharded checkpoint from '{checkpoint_folder}'"
-            )
+            logger.info(f"Loaded non-sharded sheduler from '{checkpoint_folder}'")
+            logger.debug(f"Loaded non-sharded checkpoint from '{checkpoint_folder}'")
