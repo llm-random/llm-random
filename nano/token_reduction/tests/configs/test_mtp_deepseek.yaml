@@ -65,7 +65,6 @@ training:
 
 checkpoint_config:
     interval: 0
-    path: null
 
 trainer_factory: 
     _target_: token_reduction.model.TrainerDeepSeekMTP
