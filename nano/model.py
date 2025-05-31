@@ -425,6 +425,7 @@ class MetricLoggerConfig(BaseModel):
     name: Optional[str]
     tags: Optional[List[str]]
     heavy_metrics_calculation_interval: Optional[int]
+    new_neptune_job: Optional[bool] = None
 
 
 class RMSNorm(nn.Module):
@@ -1008,6 +1009,9 @@ def get_metric_logger(
 ):
     _metric_logger = None
     if metric_logger_config.type == "neptune":
+        neptune_run_id = (
+            None if metric_logger_config.new_neptune_job else neptune_run_id
+        )
         rank = int(os.environ["RANK"])
         if int(os.environ["WORLD_SIZE"]) > 1:
 
@@ -1190,7 +1194,7 @@ class Trainer:
             self.checkpoint_config.interval > 0
             and (self.step) % self.checkpoint_config.interval == 0
             and self.step != 0
-            and self.checkpoint_config.path is not None
+            and self.checkpoint_config.save_path is not None
         )
 
     def train(self):
@@ -1624,7 +1628,7 @@ def broadcast_message(rank, message=None):
 
 
 def step_checkpoint_path(checkpoint_config, step):
-    full_config_path = get_full_checkpoint_path(checkpoint_config)
+    full_config_path = get_full_checkpoint_save_path(checkpoint_config.save_path)
     return f"{full_config_path}/step_{step}"
 
 
@@ -1647,35 +1651,49 @@ def save_training_state(
     )
 
     logger.info(
-        f"Saved training state in '{checkpoint_config.path}/{checkpoint_config.training_state_filename}'"
+        f"Saved training state in '{checkpoint_config.save_path}/{checkpoint_config.training_state_filename}'"
     )
 
 
-def get_full_checkpoint_path(checkpoint_config):
+def get_full_checkpoint_save_path(save_path):
     slurm_array_task_id = os.getenv("SLURM_ARRAY_TASK_ID")
     return (
-        f"{checkpoint_config.path}/{slurm_array_task_id}"
+        f"{save_path}/{slurm_array_task_id}"
         if slurm_array_task_id is not None
-        else checkpoint_config.path
+        else save_path
     )
 
 
 def load_training_state(checkpoint_config):
     training_start_config = {"next_step": 0, "run_id": None, "processed_tokens": 0}
-    if checkpoint_config.path is None:
-        return training_start_config
 
-    full_checkpoint_path = get_full_checkpoint_path(checkpoint_config)
-    os.makedirs(full_checkpoint_path, exist_ok=True)
-    latest_checkpoint = _find_latest_checkpoint(full_checkpoint_path)
-    if latest_checkpoint is None:
+    checkpoint_folder = checkpoint_config.get("load_path", None)
+    if checkpoint_folder is None:
+        checkpoint_path = checkpoint_config.get("save_path", None)
+        if checkpoint_path is None:
+            logger.warning(
+                "Checkpoint save path is not set. Starting training from scratch."
+            )
+            return training_start_config
+        full_checkpoint_path = get_full_checkpoint_save_path(
+            checkpoint_config.save_path
+        )
+        os.makedirs(full_checkpoint_path, exist_ok=True)
+        checkpoint_folder = _find_latest_checkpoint(full_checkpoint_path)
+
+    if checkpoint_folder is None:
         return training_start_config
 
     training_state_path = (
-        f"{latest_checkpoint}/{checkpoint_config.training_state_filename}"
+        f"{checkpoint_folder}/{checkpoint_config.training_state_filename}"
     )
     if os.path.isfile(training_state_path):
         return torch.load(training_state_path)
+    else:
+        logger.warning(
+            f"Training state file '{training_state_path}' not found. "
+            "Starting training from scratch."
+        )
 
     return training_start_config
 
@@ -1690,34 +1708,35 @@ def _find_latest_checkpoint(path: str) -> str:
 
 
 def load_checkpoint(checkpoint_config, model, optimizer, scheduler):
-    if checkpoint_config.path is None:
-        return
+    checkpoint_folder = checkpoint_config.get("load_path", None)
+    if checkpoint_folder is None:
+        checkpoint_path = checkpoint_config.get("save_path", None)
+        if checkpoint_path is None:
+            return
+        full_checkpoint_path = get_full_checkpoint_save_path(
+            checkpoint_config.save_path
+        )
+        checkpoint_folder = _find_latest_checkpoint(full_checkpoint_path)
 
-    full_checkpoint_path = get_full_checkpoint_path(checkpoint_config)
-    latest_checkpoint_folder = _find_latest_checkpoint(full_checkpoint_path)
-
-    if latest_checkpoint_folder is not None:
-
+    if checkpoint_folder is not None:
         if isinstance(model, FSDP):
             # Sharded load
             state_dict = {"app": TrainingState(model, optimizer, scheduler)}
-            dcp.load(state_dict=state_dict, checkpoint_id=latest_checkpoint_folder)
-            logger.debug(f"Loaded sharded checkpoint from '{latest_checkpoint_folder}'")
+            dcp.load(state_dict=state_dict, checkpoint_id=checkpoint_folder)
+            logger.debug(f"Loaded sharded checkpoint from '{checkpoint_folder}'")
         else:
             # Non-sharded load
-            checkpoint_model = f"{latest_checkpoint_folder}/{checkpoint_config.model_checkpoint_filename}"
+            checkpoint_model = (
+                f"{checkpoint_folder}/{checkpoint_config.model_checkpoint_filename}"
+            )
             checkpoint = torch.load(checkpoint_model)
             if type(model) is DDP:
-                logger.info("Loading DDP model")
+                logger.info(f"Loading DDP model from '{checkpoint_folder}'")
                 model.module.load_state_dict(checkpoint["model"])
             else:
-                logger.info("Loading non-DDP model")
+                logger.info(f"Loading non-DDP model from '{checkpoint_folder}'")
                 model.load_state_dict(checkpoint["model"])
             optimizer.load_state_dict(checkpoint["optim"])
             scheduler.load_state_dict(checkpoint["scheduler"])
-            logger.info(
-                f"Loaded non-sharded sheduler from '{latest_checkpoint_folder}'"
-            )
-            logger.debug(
-                f"Loaded non-sharded checkpoint from '{latest_checkpoint_folder}'"
-            )
+            logger.info(f"Loaded non-sharded sheduler from '{checkpoint_folder}'")
+            logger.debug(f"Loaded non-sharded checkpoint from '{checkpoint_folder}'")

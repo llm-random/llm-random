@@ -1,11 +1,11 @@
 model:
-    _target_: token_reduction.model.LLM_DeepSeekMTP    
+    _target_: model.LLM
 
     embedding:
         _target_: token_reduction.model.TokenMergingEmbedding
         normal_embedding:
             _target_: token_reduction.model.get_dropping_standard_embedding
-            sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp}'}
+            sequence_length: ${model.common.sequence_length}
             dmodel: ${model.common.dmodel}
             init_type: ${model.common.init_type}
             init_scale: ${model.common.init_scale}
@@ -13,17 +13,18 @@ model:
             reduction_tokens: ${model.common.dropped_tokens}
         common: ${model.common}
 
-    tower_config:
+    tower_config:  
         _target_: model.TowerConfig
         mode: "same" # is every block in tower the same
         n_blocks: 2
 
-        block_config:
+        block_config: 
             _target_: model.BlockConfig
             attention:
                 _target_: model.AttentionConfig
                 mode: "vanilla"
                 n_heads: 4
+
 
             feedforward:
                 _target_: model.FeedForwardConfig
@@ -32,30 +33,36 @@ model:
             residual_mode: "pre_norm"
             norm_class_mode: "layer_norm"
 
+
     common: 
         _target_: token_reduction.model.CommonDroppingConfig
         model_type: "gpt"
-        sequence_length: 16
-        dmodel: 16
-        dff: 64
+        sequence_length: 33
+        dmodel: 32
+        dff: 128
         init_type: truncated_normal_fixed
-        init_scale: 0.5
+        init_scale: 1
         vocab_size: 50257
         dropped_tokens: 7
-        head_norm: true
+        head_norm: false
 
-    mtp_config:
-        _target_: token_reduction.model.MTPConfig
-        n_mtp: 1
-        mtp_block_config: ${model.tower_config.block_config}
+
+metric_logger:
+    _target_: model.MetricLoggerConfig
+    project_name: None
+    type: "record"
+    heavy_metrics_calculation_interval: -1
+    tags: []
+    name: "dummy_test"
+    new_neptune_job: false
 
 training:
     _target_: model.TrainingConfig
-    learning_rate: 2e-3
+    learning_rate: 1e-4
     weight_decay: 0.1
     gradient_accumulation_steps: 2
     n_steps: 10
-    gradient_clipping: 1.0
+    gradient_clipping: 0.1
 
     scheduler: 
         _target_: model.get_cosine_scheduler_with_warmup
@@ -66,16 +73,17 @@ training:
             final_lr_fraction: 0.1
             type: "cosine"
 
+
     evaluation:
-        eval_interval: 3
+        eval_interval: 0
         n_eval_steps: 5
-        seed: 123
 
 checkpoint_config:
     interval: 0
 
+
 trainer_factory: 
-    _target_: token_reduction.model.TrainerDeepSeekMTPMerge
+    _target_: token_reduction.model.TrainerMerge
     _partial_: true
     gradient_accumulation_steps: ${training.gradient_accumulation_steps}
     n_steps: ${training.n_steps}
@@ -83,22 +91,27 @@ trainer_factory:
     n_eval_steps: ${training.evaluation.n_eval_steps}
     gradient_clipping: ${training.gradient_clipping}
     checkpoint_config: ${checkpoint_config}
-    mtp_lambda: 1.0
     n_reduced_tokens: ${model.common.dropped_tokens}
     sequence_length: ${model.common.sequence_length}
+
 
     train_dataloader:
         _target_: model.get_dataloader
         dataset_type: "c4"
         dataset_path: "data"
         dataset_split: "train"
-        total_batch_size: 32
-        sequence_length: ${eval:'${model.common.sequence_length} + ${model.mtp_config.n_mtp} + ${model.common.dropped_tokens}'}
+        total_batch_size: 10
+        sequence_length: ${eval:'${model.common.sequence_length} + ${model.common.dropped_tokens}'}
         num_workers: 0
         seed: 2311
         shuffle: false
         use_new_sampling_method: false
         world_size_independent: true
+        # collate_fn: 
+        #     _target_: token_reduction.model.collate_reduction
+        #     _partial_: true
+        #     result_seq_len: ${model.common.sequence_length}
+        #     n_dropped_tokens: ${model.common.dropped_tokens}
 
     eval_dataloader:
         _target_: model.get_dataloader
@@ -112,12 +125,3 @@ trainer_factory:
         shuffle: false
         use_new_sampling_method: false
         world_size_independent: true
-
-
-metric_logger:
-    _target_: model.MetricLoggerConfig
-    project_name: None
-    type: "record"
-    heavy_metrics_calculation_interval: -1
-    tags: ["test", "mtp_deepseek"]
-    name: test_mtp_deepseek
