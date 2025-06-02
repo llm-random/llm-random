@@ -737,13 +737,16 @@ class TrainerMTPMerge(TrainerMTP):
                 for i in range(self.model.n_mtp + 1)
             ]
             input_ids.extend([keep_pos_ids, reduce_pos_ids])
-            self.metric_logger.log(
-                "steps/train/n_reduced_tokens", self.step, n_tokens_to_reduce
-            )
         else:
             input_ids = [batch[:, :-1]]
             mtp_target_ids = [batch[:, 1:]]
         return input_ids, mtp_target_ids
+
+    def log_metrics(self, loss, grad_norm):
+        super().log_metrics(loss, grad_norm)
+        self.metric_logger.log(
+            "steps/train/n_reduced_tokens", self.step, self._get_n_tokens_to_reduce()
+        )
 
 
 @define(slots=False)
@@ -780,14 +783,17 @@ class TrainerDeepSeekMTPMerge(TrainerDeepSeekMTP):
             keep_pos_ids = torch.cat((keep_pos_ids, mtp_indexes), dim=1)
 
             input_ids.extend([keep_pos_ids, reduce_pos_ids])
-
-            self.metric_logger.log(
-                "steps/train/n_reduced_tokens", self.step, n_tokens_to_reduce
-            )
         else:
             input_ids = [batch[:, :-1]]
             mtp_target_ids = [batch[:, 1:]]
+
         return input_ids, mtp_target_ids
+
+    def log_metrics(self, loss, grad_norm):
+        super().log_metrics(loss, grad_norm)
+        self.metric_logger.log(
+            "steps/train/n_reduced_tokens", self.step, self._get_n_tokens_to_reduce()
+        )
 
 
 @define(slots=False)
@@ -815,14 +821,17 @@ class TrainerMerge(Trainer):
             )
             target_ids = batch_index_select(batch, keep_pos_ids + 1)
             input_ids.extend([keep_pos_ids, reduce_pos_ids])
-
-            self.metric_logger.log(
-                "steps/train/n_reduced_tokens", self.step, n_tokens_to_reduce
-            )
         else:
             input_ids = [batch[:, :-1]]
+            target_ids = batch[:, 1:]
 
         return input_ids, target_ids
+
+    def log_metrics(self, loss, grad_norm):
+        super().log_metrics(loss, grad_norm)
+        self.metric_logger.log(
+            "steps/train/n_reduced_tokens", self.step, self._get_n_tokens_to_reduce()
+        )
 
     def hack_for_python_garbage_collection(self, batch):
         """we want to have no reference to model output while backpropagating to allow torch to free memory,

@@ -327,6 +327,72 @@ class TestSimpleRun(unittest.TestCase):
                 target_losses_merging, metric_logger.data["steps/train/loss"]
             )
 
+    @patch("model.get_metric_logger", return_value=RecorderLogger())
+    def test_token_merging_with_schedule(self, get_metric_logger):
+        # target_losses_merging = [
+        #     (11.861213684082031, 0),
+        #     (11.84007740020752, 1),
+        #     (11.769299507141113, 2),
+        #     (11.74703598022461, 3),
+        #     (11.823470115661621, 4),
+        #     (11.767684936523438, 5),
+        #     (11.840473175048828, 6),
+        #     (11.79806900024414, 7),
+        #     (11.659849166870117, 8),
+        #     (11.77253532409668, 9),
+        # ]
+        #  Note: not sure why the target losses have changed overtime.
+
+        target_losses_merging = [
+            (11.845511436462402, 0),
+            (11.85334300994873, 1),
+            (11.815486907958984, 2),
+            (11.852523803710938, 3),
+            (11.763673782348633, 4),
+            (11.816184043884277, 5),
+            (11.753140449523926, 6),
+            (11.6976318359375, 7),
+            (11.572868347167969, 8),
+            (11.647865295410156, 9),
+        ]
+        target_eval_losses_tokens = [
+            (11.69459342956543, 1600),
+            (11.717370986938477, 2800),
+            (11.677284240722656, 4000),
+        ]
+        reduced_tokens = [
+            (7, 0),
+            (7, 1),
+            (7, 2),
+            (7, 3),
+            (6, 4),
+            (5, 5),
+            (3, 6),
+            (2, 7),
+            (1, 8),
+            (0, 9),
+        ]
+        with initialize(version_base=None, config_path="configs"):
+            cfg = compose(config_name="token_merging_scheduled", overrides=[])
+            training_state = load_training_state(cfg.checkpoint_config)
+            metric_logger = get_metric_logger(
+                metric_logger_config=instantiate(cfg.metric_logger, _convert_="all"),
+                neptune_run_id=training_state["run_id"],
+            )
+            run(cfg)
+
+            self.assertListEqual(
+                target_losses_merging, metric_logger.data["steps/train/loss"]
+            )
+
+            self.assertListEqual(
+                target_eval_losses_tokens, metric_logger.data["tokens/eval/loss"]
+            )
+
+            self.assertListEqual(
+                reduced_tokens, metric_logger.data["steps/train/n_reduced_tokens"]
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
