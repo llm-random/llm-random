@@ -165,7 +165,8 @@ class GPTModel(LanguageModule):
         # Cache for RoPE tensors which do not change between iterations.
         self.rotary_pos_emb_cache = {}
 
-        post_layer_norm=False #dev
+        # post_layer_norm=False #dev
+        post_layer_norm=True #dev
         print(f'------------ post_layer_norm: {post_layer_norm}')
         # Transformer.
         self.decoder = TransformerBlock(

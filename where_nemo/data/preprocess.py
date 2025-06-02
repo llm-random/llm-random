@@ -68,7 +68,7 @@ def preprocess_data(
             num_tasks = 1
             task_id = 0
     # shards_to_extract = _get_shard_list(data_dir, num_tasks, extension="c4_en_train_part_00.jsonl") # *
-    shards_to_extract = _get_shard_list(data_dir, num_tasks, extension="*.jsonl") # *
+    shards_to_extract = _get_shard_list(data_dir, num_tasks, extension="*.jsonl") #dev *
     print(f"shards_to_extract {shards_to_extract}")
     shard_files = shards_to_extract[task_id]
     print(f"shard_files {shard_files}")
@@ -96,7 +96,7 @@ def preprocess_data(
             f"--workers=48",
             "--log-interval=100000",
             "--append-eod", #dev SWITCH
-            # "--apply-ftfy", #dev SWITCH
+            "--apply-ftfy", #dev SWITCH
             '--need-pad-id', #dev SWITCH
             # "--asd", #dev SWITCH
             # "--asd", #dev SWITCH
