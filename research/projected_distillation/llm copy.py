@@ -9,7 +9,7 @@ from lizrd.core.initialization import ValidInitType
 from lizrd.core.llm import Residual, RoPE
 from lizrd.core.misc import Linear, LoggingLayer
 from lizrd.core.initialization import get_init_weight, ValidInitType
-    
+
 
 def ProjectedTokenEmbedding(
     vocab_size,
@@ -44,7 +44,53 @@ def ProjectedTokenEmbedding(
             ])
     )
 
-    # return nn.Embedding(vocab_size, embedding_dim, _weight=weight)
+class ProjectedTokenEmbeddingRes(nn.Module):
+    def __init__(
+        self,
+        vocab_size,
+        embedding_dim,
+        projected_embedding_dim,
+        init_type: ValidInitType,
+        init_scale: float,
+        *args, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        weight = get_init_weight(
+            shape=(vocab_size, projected_embedding_dim),
+            fan_in=1,  # fan_in=1 is also default in pytorch
+            init_type=init_type,
+            scale=init_scale,
+        )
+        self.embedding = nn.Sequential(
+            OrderedDict([
+                    (
+                        "embedding",
+                        nn.Embedding(vocab_size, projected_embedding_dim, _weight=weight)
+                    ),
+                    (
+                        "embedding_p",
+                        Linear(
+                            projected_embedding_dim, #yb
+                            embedding_dim, #ys
+                            bias=False,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    )
+                ])
+        )
+        weight_res = get_init_weight(
+            shape=(vocab_size, embedding_dim),
+            fan_in=None,  # fan_in=1 is also default in pytorch
+            init_type="zeros",
+            scale=None,
+        )
+        self.embedding_res = nn.Embedding(vocab_size, embedding_dim, _weight=weight_res)
+
+    def forward(self, x):
+        h1 = self.embedding(x)
+        h2 = self.embedding_res(x)
+        return h1 + h2
 
 
 class ProjectedPositionalEmbedding(nn.Module):
@@ -54,31 +100,18 @@ class ProjectedPositionalEmbedding(nn.Module):
         embedding_dim,
         projected_embedding_dim,
         init_type: ValidInitType,
-        init_scale: float,
+        init_scale: float, 
+        *args, **kwargs
     ):
-        super(ProjectedPositionalEmbedding, self).__init__()
-        # self.layer = nn.Embedding(max_length, projected_embedding_dim)
-        # default_weight = self.layer.weight.data
-        # self.layer.weight.data = get_init_weight(
-        #     shape=default_weight.shape,
-        #     fan_in=1,
-        #     init_type=init_type,
-        #     scale=init_scale,
-        #     dtype=default_weight.dtype,
-        # )
+        super().__init__(*args, **kwargs)
         weight = get_init_weight(
             shape=(max_length, projected_embedding_dim),
             fan_in=1,
             init_type=init_type,
             scale=init_scale,
         )
-
         self.projected_layer = nn.Sequential(
             OrderedDict([
-                    # (
-                    #     "pe_layer",
-                    #     self.layer,
-                    # ),
                     (
                         "pe_layer",
                         nn.Embedding(max_length, projected_embedding_dim, _weight=weight),
@@ -95,13 +128,63 @@ class ProjectedPositionalEmbedding(nn.Module):
                     )
                 ])
         )
-        # TODO(jaszczur): add initialization as positional encoding
 
     def forward(self, x):
         positions = torch.arange(0, x.shape[-1], device=x.device)
         positions = positions * torch.ones_like(x)
         embeddings = self.projected_layer(positions)
         return embeddings
+    
+
+class ProjectedPositionalEmbeddingRes(nn.Module):
+    def __init__(
+        self,
+        max_length,
+        embedding_dim,
+        projected_embedding_dim,
+        init_type: ValidInitType,
+        init_scale: float,
+        *args, **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        weight = get_init_weight(
+            shape=(max_length, projected_embedding_dim),
+            fan_in=1,
+            init_type=init_type,
+            scale=init_scale,
+        )
+        self.projected_layer = nn.Sequential(
+            OrderedDict([
+                    (
+                        "pe_layer",
+                        nn.Embedding(max_length, projected_embedding_dim, _weight=weight),
+                    ),
+                    (
+                        "pe_layer_p",
+                        Linear(
+                            projected_embedding_dim, #yb
+                            embedding_dim, #ys
+                            bias=False,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    )
+                ])
+        )
+        weight_res = get_init_weight(
+            shape=(max_length, embedding_dim),
+            fan_in=None,
+            init_type="zeros",
+            scale=None,
+        )
+        self.projected_layer_res = nn.Embedding(max_length, embedding_dim, _weight=weight_res)
+
+    def forward(self, x):
+        positions = torch.arange(0, x.shape[-1], device=x.device)
+        positions = positions * torch.ones_like(x)
+        embeddings = self.projected_layer(positions) + self.projected_layer_res(positions)
+        return embeddings
+
 
 def decode_bias_string(bias):
     assert bias in ["both", "first", "second", "none"]
@@ -116,7 +199,6 @@ def decode_bias_string(bias):
     else:
         bias_first = bias_second = False
     return bias_first, bias_second
-
 
 def ProjectedFeedForward( #dev
     dmodel,
@@ -212,7 +294,6 @@ def ProjectedFeedForward( #dev
         )
     )
 
-
 def attention_mechanism(
     query: torch.Tensor,
     key: torch.Tensor,
@@ -307,39 +388,55 @@ class ProjectedAttention(LoggingLayer):
         self.causal = causal
         self.flash = flash
         self.projected_dhead = projected_dhead
-
-        self.input_projection = nn.Sequential(
+        
+        self.input_projection_q = nn.Sequential(
             OrderedDict([
-                ("input_projection_p11",
-                Linear(
-                    dmodel, # xs
-                    projected_dmodel, # xb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
                 ("input_projection",
                 Linear(
-                    projected_dmodel, # xb
-                    3 * heads * projected_dhead, # yb
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
                     bias=False,
                     init_type=init_type,
                     init_scale=init_scale,
                 )),
-                # ("input_projection_p12",
-                # Linear(
-                #     3 * heads * projected_dhead, #yb
-                #     3 * heads * dhead, #ys
-                #     bias=False,
-                #     init_type=init_type,
-                #     init_scale=init_scale,
-                # )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    projected_dmodel, # xb
+                    dmodel, # xs
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
             ])
         )
 
-        self.input_projection_out_projection_q = nn.Sequential(
+        self.input_projection_k = nn.Sequential(
             OrderedDict([
-                ("input_projection_p12_q",
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
                 Linear(
                     projected_dmodel, # xb
                     dmodel, # xs
@@ -349,21 +446,26 @@ class ProjectedAttention(LoggingLayer):
                 ))
             ])
         )
-        self.input_projection_out_projection_k = nn.Sequential(
+
+        self.input_projection_v = nn.Sequential(
             OrderedDict([
-                ("input_projection_p12_k",
+                ("input_projection",
                 Linear(
-                    projected_dmodel, # xb
                     dmodel, # xs
+                    heads * projected_dhead, # xb
                     bias=False,
                     init_type=init_type,
                     init_scale=init_scale,
-                ))
-            ])
-        )
-        self.input_projection_out_projection_v = nn.Sequential(
-            OrderedDict([
-                ("input_projection_p12_v",
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
                 Linear(
                     projected_dmodel, # xb
                     dmodel, # xs
@@ -376,7 +478,7 @@ class ProjectedAttention(LoggingLayer):
 
         self.output_projection = nn.Sequential(
             OrderedDict([
-                ("output_projection_p21_add",
+                ("output_projection_p21",
                 Linear(
                     heads * dhead, # xs
                     heads * projected_dhead, # xb
@@ -406,13 +508,9 @@ class ProjectedAttention(LoggingLayer):
         self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
 
     def forward(self, x):
-        projected = self.input_projection(x)
-        # raise Exception(f"shape {projected.shape}")
-        q, k, v = torch.chunk(projected, 3, dim=-1)
-
-        q = self.input_projection_out_projection_q(q)
-        k = self.input_projection_out_projection_k(k)
-        v = self.input_projection_out_projection_v(v)
+        q = self.input_projection_q(x)
+        k = self.input_projection_k(x)
+        v = self.input_projection_v(x)
 
         projected = torch.concat((q,k,v), dim=-1)
 
@@ -430,67 +528,6 @@ class ProjectedAttention(LoggingLayer):
 
         return output
 
-
-
-class ProjectedAttentionRoPE(LoggingLayer): #dev TODO: implement, may not be better
-    def __init__(
-        self,
-        dmodel,
-        heads,
-        causal,
-        length,
-        init_type: str,
-        init_scale: float,
-        dhead=None,
-        flash=False,
-    ):
-        super(ProjectedAttentionRoPE, self).__init__()
-        if dhead is None:
-            assert dmodel % heads == 0
-            dhead = dmodel // heads
-
-        self.heads = heads
-        self.dhead = dhead
-        self.causal = causal
-        self.flash = flash
-
-        self.input_projection = Linear(
-            dmodel,
-            3 * heads * dhead,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.output_projection = Linear(
-            heads * dhead,
-            dmodel,
-            bias=False,
-            init_type=init_type,
-            init_scale=init_scale,
-        )
-        self.rope = RoPE(dhead, length=length)
-        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-
-    def forward(self, x):
-        projected = self.input_projection(x)
-
-        batch, seq_len = x.shape[:-1]
-        projected = projected.view(
-            batch, seq_len, self.heads, 3 * self.dhead
-        ).transpose(1, 2)
-        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
-        q = self.rope(q)
-        k = self.rope(k)
-
-        attention_output = self.attention_mechanism(
-            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
-        )
-
-        output = self.output_projection(attention_output.transpose(1, 2).flatten(-2))
-
-        return output
-
-
 def PreNormNoBiasBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
     return Residual(
         nn.Sequential(
@@ -502,3 +539,606 @@ def PreNormNoBiasBlock(dmodel, layer, name, norm_class=nn.LayerNorm):
             )
         )
     )
+
+
+class ProjectedAttentionRes(LoggingLayer):
+    def __init__(
+        self,
+        dmodel, # xs
+        projected_dmodel, # xb
+        heads,
+        causal,
+        init_type: str,
+        init_scale: float,
+        dhead=None,
+        flash=False,
+    ):
+        """
+            P1 = torch.rand(xs, xb)
+            W = torch.rand(xb, yb)  
+            P2 = torch.rand(yb, ys)
+            P1@W@P2 = (xs, ys)
+        """
+        super(ProjectedAttentionRes, self).__init__()
+        assert dhead is None
+        if dhead is None:
+            assert projected_dmodel % heads == 0
+            assert dmodel % heads == 0
+            projected_dhead = projected_dmodel // heads
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+        self.projected_dhead = projected_dhead
+        
+        self.input_projection_q = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    projected_dmodel, # xb
+                    dmodel, # xs
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+        
+        self.input_projection_k = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    projected_dmodel, # xb
+                    dmodel, # xs
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+
+        self.input_projection_v = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    projected_dmodel, # xb
+                    dmodel, # xs
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+        self.input_projection_q_res = Linear(
+            dmodel, # xs
+            heads * dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+        self.input_projection_k_res = Linear(
+            dmodel, # xs
+            heads * dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+        self.input_projection_v_res = Linear(
+            dmodel, # xs
+            heads * dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+        self.output_projection = nn.Sequential(
+            OrderedDict([
+                ("output_projection_p21",
+                Linear(
+                    heads * dhead, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection",
+                Linear(
+                    heads * projected_dhead, # xb
+                    projected_dmodel, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection_p22",
+                Linear(
+                    projected_dmodel, # yb
+                    dmodel, # ys
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+            ])
+        )
+        self.output_projection_res = Linear(
+            heads * dhead, # xs
+            dmodel, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
+
+    def forward(self, x):
+        q = self.input_projection_q(x) + self.input_projection_q_res(x)
+        k = self.input_projection_k(x) + self.input_projection_k_res(x)
+        v = self.input_projection_v(x) + self.input_projection_v_res(x)
+
+        projected = torch.concat((q,k,v), dim=-1)
+
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+        )
+
+        to_output = attention_output.transpose(1, 2).flatten(-2)
+        output = self.output_projection(to_output) + self.output_projection_res(to_output)
+
+        return output
+
+
+class RoPE(nn.Module):
+    # features are paired x_i, x_{i + d_head/2}
+    def __init__(self, dhead, length):
+        super().__init__()
+        self.dhead = dhead
+        self.length = length
+        angle_exponents = torch.arange(0, dhead, 2) / dhead
+        angles = torch.pow(1 / 10000, angle_exponents).reshape(1, -1)
+        angle_per_token = angles * torch.arange(0, length).reshape(-1, 1)
+        self.register_buffer("sin", torch.sin(angle_per_token).repeat(1, 2))
+        self.register_buffer("cos", torch.cos(angle_per_token).repeat(1, 2))
+
+    def forward(self, x):
+        [y1, y2] = torch.chunk(x, chunks=2, dim=-1)
+        x_rotated = torch.cat([-y2, y1], dim=-1)
+        return x * self.cos + x_rotated * self.sin
+
+
+class ProjectedAttentionRopeRes(LoggingLayer):
+    def __init__(
+        self,
+        dmodel, # xs
+        projected_dmodel, # xb
+        heads,
+        causal,
+        init_type: str,
+        init_scale: float,
+        length:int,
+        dhead=None,
+        flash=False,
+    ):
+        """
+            P1 = torch.rand(xs, xb)
+            W = torch.rand(xb, yb)  
+            P2 = torch.rand(yb, ys)
+            P1@W@P2 = (xs, ys)
+        """
+        super(ProjectedAttentionRopeRes, self).__init__()
+        assert dhead is None
+        if dhead is None:
+            assert projected_dmodel % heads == 0
+            assert dmodel % heads == 0
+            projected_dhead = projected_dmodel // heads
+            dhead = dmodel // heads
+
+        self.heads = heads
+        self.dhead = dhead
+        self.causal = causal
+        self.flash = flash
+        self.projected_dhead = projected_dhead
+        
+        self.input_projection_q = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+        
+        self.input_projection_k = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+
+        self.input_projection_v = nn.Sequential(
+            OrderedDict([
+                ("input_projection",
+                Linear(
+                    dmodel, # xs
+                    heads * projected_dhead, # xb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("projected_weight",
+                Linear(
+                    projected_dmodel, # xb
+                    heads * projected_dhead, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                ))
+            ])
+        )
+        self.input_projection_q_res = Linear(
+            dmodel, # xs
+            heads * projected_dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+        self.input_projection_k_res = Linear(
+            dmodel, # xs
+            heads * projected_dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+        self.input_projection_v_res = Linear(
+            dmodel, # xs
+            heads * projected_dhead, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+        self.output_projection = nn.Sequential(
+            OrderedDict([
+                ("output_projection",
+                Linear(
+                    heads * projected_dhead, # xb
+                    projected_dmodel, # yb
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+                ("output_projection_p22",
+                Linear(
+                    projected_dmodel, # yb
+                    dmodel, # ys
+                    bias=False,
+                    init_type=init_type,
+                    init_scale=init_scale,
+                )),
+            ])
+        )
+        self.output_projection_res = Linear(
+            heads * projected_dhead, # xs
+            dmodel, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+        self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
+        self.rope = RoPE(projected_dhead, length=length)
+
+    def forward(self, x):
+        q = self.input_projection_q(x) + self.input_projection_q_res(x)
+        k = self.input_projection_k(x) + self.input_projection_k_res(x)
+        v = self.input_projection_v(x) + self.input_projection_v_res(x)
+
+        projected = torch.concat((q,k,v), dim=-1)
+        batch, seq_len = x.shape[:-1]
+        projected = projected.view(
+            batch, seq_len, self.heads, 3 * self.projected_dhead
+        ).transpose(1, 2)
+        q, k, v = torch.chunk(projected, chunks=3, dim=-1)
+
+        q = self.rope(q)
+        k = self.rope(k)
+        common_device = v.dtype #dev
+        q = q.to(common_device) #dev
+        k = k.to(common_device) #dev
+
+        attention_output = self.attention_mechanism(
+            query=q, key=k, value=v, dhead=self.projected_dhead, causal=self.causal
+        )
+
+        to_output = attention_output.transpose(1, 2).flatten(-2)
+        output = self.output_projection(to_output) + self.output_projection_res(to_output)
+
+        return output
+    
+
+class ClassProejectedFeedForwardRes(nn.Module):
+    def __init__(
+        self,
+        dmodel,
+        dff,
+        projected_dmodel,
+        projected_dff,
+        init_type: ValidInitType,
+        init_scale: float,
+        bias_first,
+        bias_second, 
+        *args, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+
+        self.ff_in = nn.Sequential(
+            OrderedDict([
+                (
+                    "logging_ff_pre_relu_p11",
+                    Linear(
+                        dmodel, #xs
+                        projected_dmodel, #xb
+                        bias=bias_first,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
+                (
+                    "logging_ff_pre_relu",
+                    Linear(
+                        projected_dmodel, #xb
+                        projected_dff, #yb
+                        bias=bias_first,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                ),
+                (
+                    "logging_ff_pre_relu_p12",
+                    Linear(
+                        projected_dff, #yb
+                        dff, #ys
+                        bias=bias_first,
+                        init_type=init_type,
+                        init_scale=init_scale,
+                    ),
+                )
+            ])
+        )
+        self.act_fun = nn.ReLU()
+        self.ff_out = nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        "logging_ff_post_relu_p21",
+                        Linear(
+                            dff, #ys
+                            projected_dff, #yb
+                            bias=bias_second,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                    (
+                        "logging_ff_post_relu",
+                        Linear(
+                            projected_dff, #yb
+                            projected_dmodel, #xb
+                            bias=bias_second,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                    (
+                        "logging_ff_post_relu_p22",
+                        Linear(
+                            projected_dmodel, #xb
+                            dmodel, #xs
+                            bias=bias_second,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                ]
+            )
+        )
+
+        self.ff_in_res = Linear(
+            dmodel, # xs
+            dff, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+        self.ff_out_res = Linear(
+            dff, # xs
+            dmodel, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+
+    
+    def forward(self, x):
+        h = self.ff_in(x) + self.ff_in_res(x)
+        h = self.act_fun(h)
+        h = self.ff_out(h) + self.ff_out_res(h)
+        return h
+
+
+
+def ProjectedFeedForwardRes( #dev
+    dmodel,
+    dff,
+    projected_dmodel,
+    projected_dff,
+    init_type: ValidInitType,
+    init_scale: float,
+    bias: Literal["both", "first", "second", "none"] = "none",
+):
+    """
+    P1 = torch.rand(xs, xb)
+    W = torch.rand(xb, yb)
+    P2 = torch.rand(yb, ys)
+    P1@W@P2 = (xs, ys)
+
+    :param _type_ dmodel: _description_ #xb
+    :param _type_ dff: _description_ #yb
+    :param _type_ projected_dmodel: _description_ #xs
+    :param _type_ projected_dff: _description_ #ys
+    :param ValidInitType init_type: _description_
+    :param float init_scale: _description_
+    :param Literal[&quot;both&quot;, &quot;first&quot;, &quot;second&quot;, &quot;none&quot;] bias: _description_, defaults to "both"
+    :return _type_: _description_
+    """
+
+    bias_first, bias_second = decode_bias_string(bias)
+    return ClassProejectedFeedForwardRes(dmodel, dff, projected_dmodel, projected_dff, init_type, init_scale,bias_first, bias_second)
+
+class PredictionHeadRes(nn.Module):
+    def __init__(self, projected_dmodel, vocab_size, dm, init_type, init_scale, ln=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if ln:
+            self.head = torch.nn.Sequential(
+                OrderedDict([
+                    (
+                        "head_norm",
+                        nn.LayerNorm(dm, bias=False)
+                    ),
+                    (
+                        "head_p",
+                        Linear(
+                            dm, #xs
+                            projected_dmodel, #xb
+                            bias=False,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                    (
+                        "head",
+                        Linear( 
+                            projected_dmodel, 
+                            vocab_size, 
+                            init_type=init_type, 
+                            init_scale=init_scale
+                        ),
+                    )
+                ])
+            )
+        else:
+            self.head = torch.nn.Sequential(
+                OrderedDict([
+                    (
+                        "head_p",
+                        Linear(
+                            dm, #xs
+                            projected_dmodel, #xb
+                            bias=False,
+                            init_type=init_type,
+                            init_scale=init_scale,
+                        ),
+                    ),
+                    (
+                        "head",
+                        Linear( 
+                            projected_dmodel, 
+                            vocab_size, 
+                            init_type=init_type, 
+                            init_scale=init_scale
+                        ),
+                    )
+                ])
+            )
+
+        self.head_res = Linear(
+            dm, # xs
+            vocab_size, # ys
+            bias=False,
+            init_type="zeros",
+            init_scale=None,
+        )
+    
+    def forward(self, x):
+        return self.head(x) + self.head_res(x)

@@ -89,8 +89,9 @@ class ProjectedTokenEmbeddingRes(nn.Module):
 
     def forward(self, x):
         h1 = self.embedding(x)
-        h2 = self.embedding_res(x)
-        return h1 + h2
+        # h2 = self.embedding_res(x)
+        return h1 + self.embedding_res(x) #dev SWITCH RES
+
 
 
 class ProjectedPositionalEmbedding(nn.Module):
@@ -810,14 +811,6 @@ class ProjectedAttentionRopeRes(LoggingLayer):
                     bias=False,
                     init_type=init_type,
                     init_scale=init_scale,
-                )),
-                ("output_projection",
-                Linear(
-                    projected_dmodel, # xb
-                    dmodel, # xs
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
                 ))
             ])
         )
@@ -836,14 +829,6 @@ class ProjectedAttentionRopeRes(LoggingLayer):
                 Linear(
                     projected_dmodel, # xb
                     heads * projected_dhead, # yb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
-                ("output_projection",
-                Linear(
-                    projected_dmodel, # xb
-                    dmodel, # xs
                     bias=False,
                     init_type=init_type,
                     init_scale=init_scale,
@@ -868,34 +853,26 @@ class ProjectedAttentionRopeRes(LoggingLayer):
                     bias=False,
                     init_type=init_type,
                     init_scale=init_scale,
-                )),
-                ("output_projection",
-                Linear(
-                    projected_dmodel, # xb
-                    dmodel, # xs
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
                 ))
             ])
         )
         self.input_projection_q_res = Linear(
             dmodel, # xs
-            heads * dhead, # ys
+            heads * projected_dhead, # ys
             bias=False,
             init_type="zeros",
             init_scale=None,
         )
         self.input_projection_k_res = Linear(
             dmodel, # xs
-            heads * dhead, # ys
+            heads * projected_dhead, # ys
             bias=False,
             init_type="zeros",
             init_scale=None,
         )
         self.input_projection_v_res = Linear(
             dmodel, # xs
-            heads * dhead, # ys
+            heads * projected_dhead, # ys
             bias=False,
             init_type="zeros",
             init_scale=None,
@@ -903,14 +880,6 @@ class ProjectedAttentionRopeRes(LoggingLayer):
 
         self.output_projection = nn.Sequential(
             OrderedDict([
-                ("output_projection_p21",
-                Linear(
-                    heads * dhead, # xs
-                    heads * projected_dhead, # xb
-                    bias=False,
-                    init_type=init_type,
-                    init_scale=init_scale,
-                )),
                 ("output_projection",
                 Linear(
                     heads * projected_dhead, # xb
@@ -930,7 +899,7 @@ class ProjectedAttentionRopeRes(LoggingLayer):
             ])
         )
         self.output_projection_res = Linear(
-            heads * dhead, # xs
+            heads * projected_dhead, # xs
             dmodel, # ys
             bias=False,
             init_type="zeros",
@@ -938,34 +907,32 @@ class ProjectedAttentionRopeRes(LoggingLayer):
         )
 
         self.attention_mechanism = AttentionMechanism(use_flash_attention=flash)
-        self.rope = RoPE(dhead, length=length)
+        self.rope = RoPE(projected_dhead, length=length)
 
     def forward(self, x):
-        q = self.input_projection_q(x) + self.input_projection_q_res(x)
+        q = self.input_projection_q(x) + self.input_projection_q_res(x) #dev SWITCH RES
         k = self.input_projection_k(x) + self.input_projection_k_res(x)
         v = self.input_projection_v(x) + self.input_projection_v_res(x)
 
         projected = torch.concat((q,k,v), dim=-1)
-
         batch, seq_len = x.shape[:-1]
         projected = projected.view(
-            batch, seq_len, self.heads, 3 * self.dhead
+            batch, seq_len, self.heads, 3 * self.projected_dhead
         ).transpose(1, 2)
         q, k, v = torch.chunk(projected, chunks=3, dim=-1)
 
         q = self.rope(q)
         k = self.rope(k)
-
         common_device = v.dtype #dev
         q = q.to(common_device) #dev
         k = k.to(common_device) #dev
 
         attention_output = self.attention_mechanism(
-            query=q, key=k, value=v, dhead=self.dhead, causal=self.causal
+            query=q, key=k, value=v, dhead=self.projected_dhead, causal=self.causal
         )
 
         to_output = attention_output.transpose(1, 2).flatten(-2)
-        output = self.output_projection(to_output) + self.output_projection_res(to_output)
+        output = self.output_projection(to_output) + self.output_projection_res(to_output) #dev SWITCH RES
 
         return output
     
@@ -1075,9 +1042,9 @@ class ClassProejectedFeedForwardRes(nn.Module):
 
     
     def forward(self, x):
-        h = self.ff_in(x) + self.ff_in_res(x)
+        h = self.ff_in(x) + self.ff_in_res(x) #dev SWITCH RES
         h = self.act_fun(h)
-        h = self.ff_out(h) + self.ff_out_res(h)
+        h = self.ff_out(h) + self.ff_out_res(h) #dev SWITCH RES
         return h
 
 
@@ -1175,4 +1142,5 @@ class PredictionHeadRes(nn.Module):
         )
     
     def forward(self, x):
-        return self.head(x) + self.head_res(x)
+        return self.head(x) + self.head_res(x) #dev SWITCH RES
+

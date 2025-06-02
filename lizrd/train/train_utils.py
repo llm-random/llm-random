@@ -178,7 +178,6 @@ def get_model(
                 assert (dm/n_att_heads)%2 == 0
                 
                 projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
-                print(mask_1d)
             elif projection_init_type == "head_half":
                 print("Projection initialization: head_half")
                 assert (projected_dmodel/n_att_heads)%2 == 0
@@ -189,17 +188,46 @@ def get_model(
 
                 mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
                 mask_1d[int(dm/n_att_heads):] = False #dev
-                print(mask_1d) #dev
                 projection = projection[:, torch.concat([mask_1d]*n_att_heads)]
             elif projection_init_type == "svd_half":
                 print("Projection initialization: svd_half")
                 assert (projected_dmodel/n_att_heads)%2 == 0
                 
+                # mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
+                # mask_1d[int(dm):] = False #dev
+                # mask_1d = torch.concat([mask_1d]*n_att_heads)
+                projection = torch.zeros(projected_dmodel, projected_dmodel)
+                mask = torch.eye(projected_dmodel).bool()
+                projection = projection.masked_fill(mask, 1)
+
                 mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                mask_1d[int(len(mask_1d)/2):] = False #dev
+                mask_1d[int(dm/n_att_heads):] = False #dev
                 mask_1d = torch.concat([mask_1d]*n_att_heads)
-                print(mask_1d) #dev
                 projection = "svd"
+            elif projection_init_type == "magnitude":
+                print("Projection initialization: svd_half")
+                assert (projected_dmodel/n_att_heads)%2 == 0
+                
+                projection = torch.zeros(projected_dmodel, projected_dmodel)
+                mask = torch.eye(projected_dmodel).bool()
+                projection = projection.masked_fill(mask, 1)
+
+                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
+                mask_1d[int(dm/n_att_heads):] = False #dev
+                mask_1d = torch.concat([mask_1d]*n_att_heads)
+                projection = "magnitude"
+            elif projection_init_type == "magnitude_global":
+                print("Projection initialization: svd_half")
+                assert (projected_dmodel/n_att_heads)%2 == 0
+                
+                projection = torch.zeros(projected_dmodel, projected_dmodel)
+                mask = torch.eye(projected_dmodel).bool()
+                projection = projection.masked_fill(mask, 1)
+
+                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
+                mask_1d[int(dm/n_att_heads):] = False #dev
+                mask_1d = torch.concat([mask_1d]*n_att_heads)
+                projection = "magnitude_global"
             elif projection_init_type == "shared_block_half_var":
                 print("Projection initialization: shared_block_half_var")
                 assert (projected_dmodel/n_att_heads)%2 == 0
@@ -207,45 +235,23 @@ def get_model(
 
                 projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
                 projection = "shared_block"
-            elif projection_init_type == "shared_att_in_half":
-                print("Projection initialization: shared_att_in_half")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                
-                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                mask_1d[int(len(mask_1d)/2):] = False
-                mask_1d = torch.concat([mask_1d]*n_att_heads)
-                print(mask_1d) #dev
-                projection = "shared_att_in"
-            elif projection_init_type == "shared_att_out_half":
-                print("Projection initialization: shared_att_out_half")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                
-                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                mask_1d[int(len(mask_1d)/2):] = False
-                mask_1d = torch.concat([mask_1d]*n_att_heads)
-                print(mask_1d) #dev
-                projection = "shared_att_out"
-            elif projection_init_type == "shared_att_in_out_half":
-                print("Projection initialization: shared_att_in_out_half")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                
-                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                mask_1d[int(len(mask_1d)/2):] = False
-                mask_1d = torch.concat([mask_1d]*n_att_heads)
-                print(mask_1d) #dev
-                projection = "shared_att_in_out"
             else:
                 raise Exception("Wrong projection init type")
             
         if local_rank is not None:
             if local_rank == 0:
                 projection = [projection]
+                mask_1d = [mask_1d]
             else:
                 projection = [None]
+                mask_1d = [None]
             barrier()
             broadcast_object_list(projection, src=0)
             projection = projection[0]
+            broadcast_object_list(mask_1d, src=0)
+            mask_1d = mask_1d[0]
             print(f"rank: {local_rank} - {projection}") #dev
+            print(f"mask_1d: {local_rank} - {mask_1d}") #dev
 
         if isinstance(projection, torch.Tensor):
             projection = projection.to(device) #dev to device projection reference 

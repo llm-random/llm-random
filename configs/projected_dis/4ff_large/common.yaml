@@ -9,14 +9,14 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "medium", "common_config"]
+  tags: ["projected_dis", "4ff", "medium", "common_config"]
   data_seed: 27
 
   # MODEL
-  dmodel: 1024
-  dff: 1024
-  n_blocks: 16
-  n_att_heads: 16
+  dmodel: 1536
+  dff: 6144
+  n_blocks: 24
+  n_att_heads: 24
   ff_mode: vanilla
   attention_mode: vanilla
 
@@ -35,20 +35,15 @@ params:
   dataset_type: c4
   batch_size: 512
   cutoff: 512
-  n_steps: 15_533
+  n_steps: 63_559
   
   weight_decay: 0.1
   grad_clip: 0.5
 
-  learning_rate: 0.001
-  # scheduler: trapezoidal
-  # lr_trapezoidal_decay_fraction: 0.9 #trapezoidal
-  # lr_warmup_percent: 0.02 #trapezoidal
+  learning_rate: 0.001 #?
   scheduler: cosine
   lr_warmup_percent: 0.01 #default
   final_lr_fraction: 0.03 #default
-  # lr_warmup_percent: 0.1 #compression
-  # final_lr_fraction: 0.01 #compression
   lr_warmup_steps: 0 #dev xd arg
 
   attention_mode: "rope"
@@ -58,7 +53,7 @@ params:
   fsdp_enabled: false
   # fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   # fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
-  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  # activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
 
   print_parameter_names: true
 
