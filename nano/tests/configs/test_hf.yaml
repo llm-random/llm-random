@@ -60,7 +60,6 @@ metric_logger:
 
 checkpoint_config:
     interval: 0
-    path: null
 
 train_dataloader:
     _target_: model.get_dataloader

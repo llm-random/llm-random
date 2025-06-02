@@ -6,3 +6,4 @@ metric_logger:
     project_name: "pmtest/llm-random"
     name: "nano"
     tags: ["nano"]
+    new_neptune_job: false
