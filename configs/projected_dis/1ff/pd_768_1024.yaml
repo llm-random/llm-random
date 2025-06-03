@@ -40,7 +40,7 @@ params:
   ff_mode: projected_vanilla_res
 
   projection_init_type: head_half
-  # projection_init_type: magnitude_global
+  # projection_init_type: magnitude
  
   projected_distillation: True
   # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # 80 helios #old

@@ -34,3 +34,10 @@ def check_args(args):
 
     if not args.save_weights_path:
         assert args.save_weights_interval == -1
+
+    if args.pruning != None:
+        assert not ((args.pruned_dmodel is None) and (args.pruned_ff is None))
+        if args.pruned_dmodel * 4 != args.pruned_ff:
+            print(f"WARNING - not standard hidden dmodel/dff ratio: {args.pruned_dmodel}/{args.pruned_ff}")
+    else:
+        assert (args.pruned_dmodel is None) and (args.pruned_ff is None)

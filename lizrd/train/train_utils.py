@@ -18,6 +18,8 @@ from torch.distributed import (
     broadcast_object_list,
     barrier,
 )
+
+
 def prune_every_second_block(encoder_tower: torch.nn.Module):
     assert isinstance(encoder_tower.blocks, torch.nn.Sequential), "Expected nn.Sequential block container"
     pruned_blocks = OrderedDict(
@@ -60,7 +62,12 @@ def get_model(
     n_att_heads:int=None,
     distillation_type:Optional[str]=None,
     head_layer_norm:Optional[bool]=False,
-    head_ln=True #dev - add param to config connection
+    head_ln=True, #dev - add param to config connection
+    pruning=None,
+    pruned_dmodel=None,
+    pruned_dff=None,
+    dff=None,
+    projected_dff=None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -111,38 +118,13 @@ def get_model(
     )
 
     if projected_checkpoint and not no_projected_head and not unprojected_embeddings:
-        # head = llm.PredictionHead(
-        #     projected_dmodel, vocab_size, init_type=init_type, init_scale=init_scale
-        # ).to(last_gpu)
-        # head = torch.nn.Sequential(
-        #     OrderedDict([
-        #         (
-        #             "head_p",
-        #             Linear(
-        #                 dm, #xs
-        #                 projected_dmodel, #xb
-        #                 bias=False,
-        #                 init_type=init_type,
-        #                 init_scale=init_scale,
-        #             ).to(last_gpu),
-        #         ),
-        #         (
-        #             "head",
-        #             head,
-        #         )
-        #     ])
-        # ) #dev switch weights residuals
-
-        head = PredictionHeadRes( #dev
+        head = PredictionHeadRes(
             projected_dmodel, vocab_size, dm, init_type=init_type, init_scale=init_scale, ln=head_ln
         ).to(last_gpu)
-
-
     else:
         head = llm.PredictionHead(
             dm, vocab_size, init_type=init_type, init_scale=init_scale, ln=head_layer_norm
         ).to(last_gpu)
-
 
     model = llm.LLM(embedding_layer, encoder_tower, head)
 
@@ -164,20 +146,18 @@ def get_model(
                 print("No projection initialization")
             elif projection_init_type == "half":
                 print("Projection initialization: half")
-                projection = torch.zeros(projected_dmodel, projected_dmodel)
-                mask = torch.eye(projected_dmodel).bool()
-                projection = projection.masked_fill(mask, 1)
+                projection = torch.eye(projected_dmodel)
                 projection = projection[:, :int(dm)]
-            elif projection_init_type == "orthogonal":
-                print("Projection initialization: orthogonal")
-                projection = torch.empty(projected_dmodel, dm)
-                projection = torch.nn.init.orthogonal_(projection)
+                projection_ff = torch.eye(projected_dff)
+                projection_ff = projection_ff[:, :int(dff)]
+                # projection, projection_ff
             elif projection_init_type == "head_half_var":
                 print("Projection initialization: head_half_var")
                 assert (projected_dmodel/n_att_heads)%2 == 0
                 assert (dm/n_att_heads)%2 == 0
-                
+    
                 projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
+                raise Exception("No projection_ff")
             elif projection_init_type == "head_half":
                 print("Projection initialization: head_half")
                 assert (projected_dmodel/n_att_heads)%2 == 0
@@ -189,84 +169,51 @@ def get_model(
                 mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
                 mask_1d[int(dm/n_att_heads):] = False #dev
                 projection = projection[:, torch.concat([mask_1d]*n_att_heads)]
-            elif projection_init_type == "svd_half":
-                print("Projection initialization: svd_half")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                
-                # mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                # mask_1d[int(dm):] = False #dev
-                # mask_1d = torch.concat([mask_1d]*n_att_heads)
-                projection = torch.zeros(projected_dmodel, projected_dmodel)
-                mask = torch.eye(projected_dmodel).bool()
-                projection = projection.masked_fill(mask, 1)
-
-                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                mask_1d[int(dm/n_att_heads):] = False #dev
-                mask_1d = torch.concat([mask_1d]*n_att_heads)
-                projection = "svd"
+                raise Exception("No projection_ff")
             elif projection_init_type == "magnitude":
-                print("Projection initialization: svd_half")
+                print("Projection initialization: magnitude")
                 assert (projected_dmodel/n_att_heads)%2 == 0
-                
-                projection = torch.zeros(projected_dmodel, projected_dmodel)
-                mask = torch.eye(projected_dmodel).bool()
-                projection = projection.masked_fill(mask, 1)
-
-                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                mask_1d[int(dm/n_att_heads):] = False #dev
-                mask_1d = torch.concat([mask_1d]*n_att_heads)
+                                
                 projection = "magnitude"
-            elif projection_init_type == "magnitude_global":
-                print("Projection initialization: svd_half")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                
-                projection = torch.zeros(projected_dmodel, projected_dmodel)
-                mask = torch.eye(projected_dmodel).bool()
-                projection = projection.masked_fill(mask, 1)
-
-                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                mask_1d[int(dm/n_att_heads):] = False #dev
-                mask_1d = torch.concat([mask_1d]*n_att_heads)
-                projection = "magnitude_global"
-            elif projection_init_type == "shared_block_half_var":
-                print("Projection initialization: shared_block_half_var")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                assert (dm/n_att_heads)%2 == 0
-
-                projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
-                projection = "shared_block"
+                projection_ff = "projection_ff"
             else:
                 raise Exception("Wrong projection init type")
             
         if local_rank is not None:
             if local_rank == 0:
                 projection = [projection]
+                projection_ff = [projection_ff]
                 mask_1d = [mask_1d]
             else:
                 projection = [None]
+                projection_ff = [None]
                 mask_1d = [None]
             barrier()
             broadcast_object_list(projection, src=0)
+            broadcast_object_list(projection_ff, src=0)
             projection = projection[0]
+            projection_ff = projection_ff[0]
             broadcast_object_list(mask_1d, src=0)
             mask_1d = mask_1d[0]
-            print(f"rank: {local_rank} - {projection}") #dev
+            # print(f"rank: {local_rank} - {projection} - {projection_ff}") #dev
             print(f"mask_1d: {local_rank} - {mask_1d}") #dev
 
         if isinstance(projection, torch.Tensor):
             projection = projection.to(device) #dev to device projection reference 
+            projection_ff = projection_ff.to(device)
         # load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, unprojected_embeddings, unprojected_attention, unprojected_ff)
-        initialize_compressor(model, projected_checkpoint["model"], dm, projected_dmodel, n_att_heads, projection, mask_1d) #dev
+        initialize_compressor(model, projected_weights=projected_checkpoint["model"], dmodel=dm, dff=dff, projected_dmodel=projected_dmodel, projected_dff=projected_dff, n_att_heads=n_att_heads, projection=projection, projection_ff=projection_ff, is_logging_worker = (local_rank == 0)) #dev
         frozen_modules = freeze_projected_params(model, unprojected_ff)
 
-    
+
 
     if no_layer_norm:
         ln_frozen_modules = freeze_ln_params(model)
         frozen_modules = frozen_modules+ln_frozen_modules
         
-    for name, param in model.named_parameters(): #dev
-        print(f"{name}, shape: {param.shape} requires_grad: {param.requires_grad}, {param.device}")
+    if local_rank == 0:
+        for name, param in model.named_parameters(): #dev
+            print(f"{name}, shape: {param.shape} requires_grad: {param.requires_grad}, {param.device}")
         
     if ddp_enabled:
         model = wrap_in_ddp(module=model, local_rank=local_rank)

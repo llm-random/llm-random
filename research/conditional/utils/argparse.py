@@ -544,4 +544,11 @@ def introduce_parser_arguments(
     parser.add_argument("--distilgpt_gamma", type=float, required=False, default=None)
     parser.add_argument("--head_layer_norm", action="store_true")
 
+    parser.add_argument("--pruning", type=str, default=None, help="options: [random, magnitude]") #dev decide what is the best
+    parser.add_argument("--pruned_dmodel", type=int, required=False)
+    parser.add_argument("--pruned_dff", type=int, required=False)
+    # parser.add_argument("--pruned_att_heads", type=int, required=False) #dev TODO
+    # parser.add_argument("--pruned_n_layers", type=int, required=False)
+
+
     return parser

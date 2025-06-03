@@ -9,24 +9,20 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "compression", "dm768_1536", "COMP"] 
-  # tags: ["projected_dis", "4ff", "compression", "dm768_1536", "tune_lr"]
+  # tags: ["projected_dis", "4ff", "compression", "dm960_1536", "COMP"] 
+  tags: ["projected_dis", "4ff", "compression", "dm960_1536", "tune_lr"]
 
-  dmodel: 768
-  dff: 3072
+  dmodel: 960
+  dff: 3840
   projected_dmodel: 1536
   projected_dff: 6144
   
-  # ^learning_rate: [0.00003125, 0.0000625, 0.000125, 0.00025]
-  learning_rate: 0.000125 #best
+  # ^learning_rate: [0.00003125, 0.0000625, 0.000125]
+  ^learning_rate: [0.000015625]
+  # learning_rate: 0.0000625 #dev
 
-  scheduler: cosine
-
-
-  # ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
-  # ^n_steps: [10179, 20358, 30537, 40716]
-  ^n_steps: [20358, 30537, 40716]
-  # ^n_steps: [10179]
+  # ^n_steps: [31624, 63248, 94872, 126496]
+  ^n_steps: [31624]
 
   attention_mode: projected_vanilla_rope_res
   ff_mode: projected_vanilla_res
@@ -35,11 +31,10 @@ params:
   # projection_init_type: magnitude
  
   projected_distillation: True
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # 80 helios #old
-  # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt # ? #old
 
   projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
   # projected_weights_path: asd # writer 20
+
 
   gradient_accumulation_steps: 2
   fsdp_use_orig_params: True

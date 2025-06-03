@@ -16,7 +16,7 @@ params:
   dmodel: 1536
   dff: 6144
   n_blocks: 24
-  n_att_heads: 24
+  n_att_heads: 24 
   ff_mode: vanilla
   attention_mode: vanilla
 
