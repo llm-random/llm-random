@@ -16,16 +16,17 @@ seq_length = 512
 global_batch_size = 128
 # max_steps = 15_533
 
-# Not tig. emb.:
-# 1xPO:
-nemo_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1748604348/training/code/gimmi_checkpoint_pls"
-# 4xPO:
-# nemo_checkpoint = "asd"
+# erronous n_lauers = 32
+# nemo_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1748604348/training/code/gimmi_checkpoint_pls"
+# good
+nemo_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1748867261/training/code/gimmi_checkpoint_pls"
 
 target_hidden_size = 768
 target_ffn_hidden_size = 3072
-# target_ffn_hidden_size = 256
-# target_hidden_size = 256
+# target_hidden_size = 1152
+# target_ffn_hidden_size = 4608
+# target_hidden_size = 960
+# target_ffn_hidden_size = 3840
 
 target_num_attention_heads = 24
 save_path = "prrruned_nyan"
@@ -55,8 +56,6 @@ dataset_path = [
 ] 
 
 seed = 27
-
-
 pl.seed_everything(seed, workers=True)
 torch.manual_seed(seed)
 np.random.seed(seed)
@@ -86,8 +85,8 @@ if __name__ == "__main__":
         pruning_config=PruningConfig(
             target_ffn_hidden_size = target_ffn_hidden_size,
             target_hidden_size = target_hidden_size,
-            target_num_attention_heads=target_num_attention_heads,
-            target_num_query_groups=target_num_attention_heads,
+            # target_num_attention_heads=target_num_attention_heads,
+            # target_num_query_groups=target_num_attention_heads,
             # target_num_layers=14,
             # drop_layers=[1,3,5,7,9,11,13]
         ),

@@ -40,8 +40,8 @@ dataset_path = [
 ] 
 
 
-num_layers=32
-num_attention_heads=32
+num_layers=24
+num_attention_heads=24
 hidden_size=1536 #SWITCH
 ffn_hidden_size=6144 #SWITCH
 # hidden_size=asd #SWITCH

@@ -33,11 +33,7 @@ accumulate_grad_batches = 1
 seq_length = 512
 global_batch_size = 512
 micro_batch_size = 128
-max_steps = 10_179 #SWITCH
-# max_steps = 20_358 #SWITCH
-# max_steps = 40_716 #SWITCH
-# max_steps = 81_432 #SWITCH
-# max_steps = 1 
+
 
 dsp_preambule = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/datasets/c4/llm_reproduction/" #dev test
 dataset_path = [
@@ -46,45 +42,54 @@ dataset_path = [
 
 
 
-# 768_4PO:
-load_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1748812583/training/code/prrruned_nyan"
+# 768:
+# load_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1748812583/training/code/prrruned_nyan" # n_layers 32
+load_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1748952881/training/code/prrruned_nyan"
 hidden_size=768
 ffn_hidden_size=3072
-# 832_4PO:
+max_steps = 10_179 #SWITCH
+# max_steps = 20_358 #SWITCH
+# max_steps = 40_716 #SWITCH
+# max_steps = 81_432 #SWITCH
+base_lr = 0.0016
+# base_lr = 0.0008
+# base_lr = 0.0004
+# base_lr = 0.000125
+# base_lr = 0.0000625
+# base_lr = 0.00003125
+# base_lr = 0.000015625
+# base_lr = 0.0000078125
+tags = ["projected_dis", "nemo", "4ff", "dm768_1536", "pruned", "COMP", "24_layers"]
+
+# 1152:
+# load_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1748903765/training/code/prrruned_nyan" # n_layers 32
 # load_checkpoint = "asd"
-# hidden_size=832
-# ffn_hidden_size=832
-# 256_4PO
-# load_checkpoint = "asd"
-# hidden_size=256
-# ffn_hidden_size=256
-# Not tig. emb.:
-# 768_4PO:
-# load_checkpoint = "asd"
-# hidden_size=768
-# ffn_hidden_size=768
-# 832_4PO:
-# load_checkpoint = "asd"
-# hidden_size=832
-# ffn_hidden_size=832
+# hidden_size=1152
+# ffn_hidden_size=4608
+# max_steps = 41189 #SWITCH
+# base_lr = 0.0000625 #dev ?
+# tags = ["projected_dis", "nemo", "4ff", "dm1152_1536", "pruned", "COMP"]
+
+# 960:
+# load_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cementary/nemo_2_training_experiment/nemo_2_training_experiment_1748940954/training/code/prrruned_nyan" # n_layers 32
+# # load_checkpoint = "asd"
+# hidden_size=960
+# ffn_hidden_size=3840
+# max_steps = 31624 #SWITCH
+# # base_lr = 0.0000625 #dev ?
+# base_lr = 0.00003125 #dev ?
+# # base_lr = 0.000015625 #dev ?
+# tags = ["projected_dis", "nemo", "4ff", "dm960_1536", "pruned", "COMP"]
 
 
-num_layers=32
+num_layers=24
 num_attention_heads=num_layers
-
 init_method_std=0.02
 hidden_dropout=0.0
 attention_dropout=0.0
 layernorm_epsilon=1e-5
 make_vocab_size_divisible_by=64
-tags = ["projected_dis", "nemo", "4ff", "dm768_1536", "pruned", "COMP"]
-# tags = ["projected_dis", "nemo", "1ff", "dm832_1024", "pruned", "4xPO"]
-# tags = ["projected_dis", "nemo", "1ff", "dm256_1024", "pruned", "4xPO"]
 seed = 27
-base_lr = 0.0005 #dev
-# base_lr = 0.00025 #dev
-# base_lr = 0.000125 #dev
-# base_lr = 0.0000625 #dev
 final_lr_fraction = 0.03
 warmup_percent = 0.01
 activation_func = F.silu
@@ -93,7 +98,7 @@ clip_grad = 0.5
 position_embedding_type = "rope"
 devices = 4
 mm_precision="bf16-mixed" 
-tensor_model_parallel_size = 1
+tensor_model_parallel_size = 2
 pipeline_model_parallel_size = 1
 share_embeddings_and_output_weights = False
 

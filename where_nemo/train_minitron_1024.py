@@ -24,12 +24,12 @@ nemo_checkpoint = "/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/nemo_cement
 # 1xPO:
 # nemo_checkpoint = "asd"
 
-target_ffn_hidden_size = 768
-target_hidden_size = 768
-# target_ffn_hidden_size = 256
-# target_hidden_size = 256
+# target_ffn_hidden_size = 768
+# target_hidden_size = 768
+target_ffn_hidden_size = 1152
+target_hidden_size = 1152
 
-target_num_attention_heads = 12
+target_num_attention_heads = 24
 save_path = "prrruned_nyan"
 
 import torch
