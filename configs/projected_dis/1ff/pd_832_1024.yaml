@@ -2,44 +2,30 @@
 parent: configs/projected_dis/1ff/common.yaml
 md5_parent_hash: 3b35737a38c2db680bf1325d719b5504
 time: 0-10:00:00
-# time: 0-00:50:00
 n_gpus: 4
 cpus_per_gpu: 16
 
 params:
   name: "PD"
   tags: ["projected_dis", "1ff", "compression", "dm832_1024", "COMP"] 
-  # tags: ["projected_dis", "1ff", "compression", "dm832_1024", "range"] 
-
-  batch_size: 512
+  # tags: ["projected_dis", "1ff", "compression", "dm832_1024", "tune_lr"] 
 
   dmodel: 832
   dff: 832
   projected_dmodel: 1024
   projected_dff: 1024
   
-  # ^learning_rate: [0.000125, 0.00025, 0.0005, 0.001]
-  # ^learning_rate: [0.00025, 0.0005, 0.00075]
-  # ^learning_rate: [0.00025, 0.0002]
-  # ^learning_rate: [0.00015]
-  # ^learning_rate: [0.0001]
-  # ^learning_rate: [0.00005]
-  # ^learning_rate: [0.000025, 0.0000125]
-  # learning_rate: 0.00025
-  # learning_rate: 0.0002
-  learning_rate: 0.00015
+  # ^learning_rate: [0.0000625, 0.000125, 0.00025]
+  learning_rate: 0.000125
 
-  scheduler: cosine
-  lr_warmup_percent: 0.1 #compression
-  final_lr_fraction: 0.01 #compression
 
   # ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
   n_steps: 10179
 
-  attention_mode: projected_vanilla_res
+  attention_mode: projected_vanilla_rope_res
   ff_mode: projected_vanilla_res
 
-  projection_init_type: head_half
+  projection_init_type: half
  
   projected_distillation: True
   # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # 80

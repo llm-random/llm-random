@@ -453,8 +453,6 @@ def main(
         distillation_type = args.distillation_type,
         head_layer_norm = args.head_layer_norm,
         pruning = args.pruning,
-        pruned_dmodel = args.pruned_dmodel,
-        pruned_dff = args.pruned_dff,
         dff=args.dff,
         projected_dff=args.projected_dff,
     ) 

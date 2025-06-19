@@ -25,12 +25,6 @@ params:
   # ^learning_rate: [0.000125, 0.0005]
   learning_rate: 0.000125 #new best
 
-  scheduler: cosine
-  # lr_warmup_percent: 0.1 #compression
-  # final_lr_fraction: 0.01 #compression
-  # ^lr_warmup_percent: [0.01, 0.1] #compression
-  # ^final_lr_fraction: [0.01, 0.03] #compression
-
   # ^n_steps: [509, 764, 1018, 2036, 3054, 4072, 5090, 6107, 7125, 8143, 9161, 10179]
   # ^n_steps: [10179, 20358, 30537, 40716]
   ^n_steps: [20358, 30537, 40716]
@@ -39,7 +33,7 @@ params:
   attention_mode: projected_vanilla_rope_res
   ff_mode: projected_vanilla_res
 
-  projection_init_type: head_half
+  projection_init_type: half
   # projection_init_type: magnitude
  
   projected_distillation: True

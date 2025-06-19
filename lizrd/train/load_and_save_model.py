@@ -104,7 +104,7 @@ def save_checkpoint(
         # in FSDP. God help us.
         model.train()
         with torch.no_grad():
-            _ = model(torch.zeros((batch_size, cutoff), dtype=torch.int))
+            _ = model(torch.zeros((1, cutoff), dtype=torch.int)) #dev batch size to 1
     if global_rank == 0 or global_rank is None:
         print(f"Saving weights...")
     if isinstance(model, FSDP):

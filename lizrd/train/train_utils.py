@@ -4,7 +4,7 @@ from typing import Callable, Optional, Union, Type
 from lizrd.core.initialization import get_init_weight
 from lizrd.core.misc import Linear
 from research.projected_distillation.llm import PredictionHeadRes, ProjectedPositionalEmbedding, ProjectedPositionalEmbeddingRes, ProjectedTokenEmbedding, ProjectedTokenEmbeddingRes
-from research.projected_distillation.utils import freeze_ln_params, freeze_projected_params, get_var_head_projection, initialize_compressor
+from research.projected_distillation.utils import freeze_ln_params, freeze_projected_params, get_projection, get_var_head_projection, initialize_compressor, initialize_pruned
 import torch
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     apply_activation_checkpointing,
@@ -64,8 +64,6 @@ def get_model(
     head_layer_norm:Optional[bool]=False,
     head_ln=True, #dev - add param to config connection
     pruning=None,
-    pruned_dmodel=None,
-    pruned_dff=None,
     dff=None,
     projected_dff=None,
 ):
@@ -76,10 +74,7 @@ def get_model(
         first_gpu = torch.device("cuda:0")
         last_gpu = torch.device(f"cuda:{len(model_fragmentation)}")
 
-    if projected_checkpoint and not unprojected_embeddings:
-        # embedding_components = [
-        #     ProjectedTokenEmbedding(vocab_size, dm, projected_dmodel, init_type=init_type, init_scale=init_scale)
-        # ] #dev switch weights residuals
+    if projected_checkpoint and not unprojected_embeddings and projection_init_type:
         embedding_components = [
             ProjectedTokenEmbeddingRes(vocab_size, dm, projected_dmodel, init_type=init_type, init_scale=init_scale)
         ]
@@ -89,11 +84,8 @@ def get_model(
         ]
 
     if include_positional_embedding:
-        if projected_checkpoint and not unprojected_embeddings:
+        if projected_checkpoint and not unprojected_embeddings and projection_init_type:
             embedding_components.append(
-                # ProjectedPositionalEmbedding(
-                #     max_length, dm, projected_dmodel, init_type=init_type, init_scale=init_scale
-                # ) #dev switch weights residuals
                 ProjectedPositionalEmbeddingRes(
                     max_length, dm, projected_dmodel, init_type=init_type, init_scale=init_scale
                 )
@@ -117,7 +109,7 @@ def get_model(
         residual_fn=residual_fn,
     )
 
-    if projected_checkpoint and not no_projected_head and not unprojected_embeddings:
+    if projected_checkpoint and not no_projected_head and not unprojected_embeddings and projection_init_type:
         head = PredictionHeadRes(
             projected_dmodel, vocab_size, dm, init_type=init_type, init_scale=init_scale, ln=head_ln
         ).to(last_gpu)
@@ -138,46 +130,9 @@ def get_model(
 
 
     frozen_modules = []
-    mask_1d = None
-    if projected_checkpoint is not None:
+    if (projected_checkpoint is not None) and (projection_init_type is not None):
         if local_rank == 0 or local_rank is None:
-            if not projection_init_type:
-                projection = None
-                print("No projection initialization")
-            elif projection_init_type == "half":
-                print("Projection initialization: half")
-                projection = torch.eye(projected_dmodel)
-                projection = projection[:, :int(dm)]
-                projection_ff = torch.eye(projected_dff)
-                projection_ff = projection_ff[:, :int(dff)]
-                # projection, projection_ff
-            elif projection_init_type == "head_half_var":
-                print("Projection initialization: head_half_var")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                assert (dm/n_att_heads)%2 == 0
-    
-                projection, mask_1d = get_var_head_projection(dm, projected_dmodel, n_att_heads)
-                raise Exception("No projection_ff")
-            elif projection_init_type == "head_half":
-                print("Projection initialization: head_half")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                
-                projection = torch.zeros(projected_dmodel, projected_dmodel)
-                mask = torch.eye(projected_dmodel).bool()
-                projection = projection.masked_fill(mask, 1)
-
-                mask_1d = torch.ones(int(projected_dmodel/n_att_heads), dtype=torch.bool)
-                mask_1d[int(dm/n_att_heads):] = False #dev
-                projection = projection[:, torch.concat([mask_1d]*n_att_heads)]
-                raise Exception("No projection_ff")
-            elif projection_init_type == "magnitude":
-                print("Projection initialization: magnitude")
-                assert (projected_dmodel/n_att_heads)%2 == 0
-                                
-                projection = "magnitude"
-                projection_ff = "projection_ff"
-            else:
-                raise Exception("Wrong projection init type")
+            projection, projection_ff, mask_1d = get_projection(projection_init_type=projection_init_type, dm=dm, dff=dff, projected_dmodel=projected_dmodel, projected_dff=projected_dff, n_att_heads=n_att_heads)
             
         if local_rank is not None:
             if local_rank == 0:
@@ -196,7 +151,7 @@ def get_model(
             broadcast_object_list(mask_1d, src=0)
             mask_1d = mask_1d[0]
             # print(f"rank: {local_rank} - {projection} - {projection_ff}") #dev
-            print(f"mask_1d: {local_rank} - {mask_1d}") #dev
+            print(f"mask_1d rank {local_rank}: {mask_1d}") #dev
 
         if isinstance(projection, torch.Tensor):
             projection = projection.to(device) #dev to device projection reference 
@@ -204,8 +159,8 @@ def get_model(
         # load_projected_weights(model, projected_checkpoint["model"], projection, dm, projected_dmodel, init_scale, unprojected_embeddings, unprojected_attention, unprojected_ff)
         initialize_compressor(model, projected_weights=projected_checkpoint["model"], dmodel=dm, dff=dff, projected_dmodel=projected_dmodel, projected_dff=projected_dff, n_att_heads=n_att_heads, projection=projection, projection_ff=projection_ff, is_logging_worker = (local_rank == 0)) #dev
         frozen_modules = freeze_projected_params(model, unprojected_ff)
-
-
+    elif (projected_checkpoint is not None) and (pruning is not None):
+        initialize_pruned(pruning_method=pruning, model_weights=model.state_dict(), projected_weights=projected_checkpoint["model"], dmodel=dm, dff=dff, projected_dmodel=projected_dmodel, projected_dff=projected_dff, n_att_heads=n_att_heads, local_rank = local_rank)
 
     if no_layer_norm:
         ln_frozen_modules = freeze_ln_params(model)
