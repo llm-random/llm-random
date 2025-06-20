@@ -27,7 +27,7 @@ params:
 
   # ^n_steps: [10179, 20358, 30537, 40716, 81432]
   # ^n_steps: [20358, 30537, 40716]
-  ^n_steps: [10179] 
+  ^n_steps: [10179] # /home/ubuntu/llm-random-group/llm-random-cemetery/PD_2025-06-20_17-53-57
 
   attention_mode: projected_vanilla_rope_res
   ff_mode: projected_vanilla_res
