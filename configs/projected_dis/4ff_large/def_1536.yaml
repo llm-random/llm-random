@@ -10,7 +10,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "dm1536", "doner", "COMP", "ot6"]
+  tags: ["projected_dis", "4ff", "dm1536", "doner", "ot"]
 
   # learning_rate: 0.001 #dev
   # ^learning_rate: [0.0001, 0.0002, 0.0004] #dev
@@ -19,13 +19,8 @@ params:
 
   dmodel: 1536
   dff: 6144
-  # n_steps: 1_000 # dev
-  # n_steps: 63_559 # 20T/ap
-  # n_steps: 127_118 # 40T/ap 
-  # n_steps: 254_236 # 80T/ap
-  # ^n_steps: [127118, 254236] # 40T-80 T/ap
-  # ^n_steps: [381354] # 120 T/ap
-  ^n_steps: [508472] # 160 T/ap
+  # ^n_steps: [127118, 254236, 381354, 508472] # 2ot, 4ot, 6ot, 8ot
+  n_steps: 63_559 # 20T/ap
   
   # n_steps: 200 # #test /home/mstefaniak/llm_random_cemetery/PD_2025-06-13_15-49-52
 

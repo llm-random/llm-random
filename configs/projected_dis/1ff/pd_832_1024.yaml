@@ -31,6 +31,7 @@ params:
   # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-31-55/None/118538/62132.pt # 80
   # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1024_80.pt
   projected_weights_path: /home/ubuntu/llm-random-group/llm-random-cemetery/PD_2025-05-15_12-36-06/None/10649/62132.pt # writer 80
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-17_23-55-57/None/754882/124264.pt #helios 8ot
 
   fsdp_use_orig_params: True
   fsdp_enabled: True

@@ -7,9 +7,10 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "1ff", "dm1024", "doner", "COMP"]
+  tags: ["projected_dis", "1ff", "dm1024", "doner", "COMP", "small_lr"]
 
-  learning_rate: 0.001
+  # learning_rate: 0.001
+  learning_rate: 0.0005
 
   dmodel: 1024
   dff: 1024
@@ -17,7 +18,8 @@ params:
   # ^n_steps: [15_533, 62_132]
   # n_steps: 15_533
   # ^n_steps: [62_132]
-  ^n_steps: [124264]
+  # ^n_steps: [124264]
+  ^n_steps: [248528] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_00-59-51
 
   logging_interval_heavy: 1000
   logging_interval_loss: 1000

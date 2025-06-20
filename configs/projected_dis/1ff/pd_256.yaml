@@ -67,6 +67,7 @@ params:
   projected_distillation: True
   # projected_weights_path: /net/pr2/projects/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-02-10_12-54-15/None/1195464/19545.pt # ?cosine?
   projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmaciejpioro/llm_random_cemetery/PD_2025-03-20_14-21-44/None/118527/19545.pt #helios
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-17_23-55-57/None/754882/124264.pt #helios 8ot
 
   fsdp_use_orig_params: True
   fsdp_enabled: True
