@@ -35,6 +35,7 @@ params:
   projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80
 
 
+  dont_save_final_model: False
   gradient_accumulation_steps: 2 #dev
   fsdp_use_orig_params: True
   fsdp_enabled: True

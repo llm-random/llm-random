@@ -20,8 +20,8 @@ params:
   # ^learning_rate: [0.00003125, 0.0000625, 0.000125]
   learning_rate: 0.0000625 #best
 
-  ^n_steps: [10179, 20358, 30537, 40716] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_00-26-10
-  # ^n_steps: [10179, 20358] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_00-56-04
+  ^n_steps: [10179, 20358, 30537, 40716] # 
+  # ^n_steps: [10179, 20358] #
   # ^n_steps: [10179]
 
   attention_mode: projected_vanilla_rope_res
@@ -32,13 +32,14 @@ params:
  
   projected_distillation: True
 
+  dont_save_final_model: False
   gradient_accumulation_steps: 2
   fsdp_use_orig_params: True
   fsdp_enabled: True
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
   # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80
 
   # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1536_63559.pt # writer 20

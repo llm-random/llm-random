@@ -1,0 +1,48 @@
+
+parent: configs/projected_dis/4ff_large/common.yaml
+md5_parent_hash: 0f5bbfd1acb29b5088f1f320eda7bea6
+time: 2-00:00:00
+# time: 0-00:50:00
+n_gpus: 4
+# n_gpus: 1
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  # tags: ["projected_dis", "4ff", "compression", "dm640_1024", "1ot"] 
+  tags: ["projected_dis", "4ff", "compression", "dm640_1024", "tune_lr"]
+
+  n_blocks: 16
+  n_att_heads: 16 
+  dmodel: 640
+  dff: 2560
+  projected_dmodel: 1024
+  projected_dff: 4096
+  
+  ^learning_rate: [0.001, 0.0005, 0.002, 0.00025, 0.000125] # ?0.0015 ; 0.000125
+  # learning_rate: asd #dev
+
+  # scheduler: cosine
+
+
+  # ^n_steps: [10179, 20358, 30537, 40716, 81432]
+  # ^n_steps: [20358, 30537, 40716]
+  ^n_steps: [10179] 
+
+  attention_mode: projected_vanilla_rope_res
+  ff_mode: projected_vanilla_res
+
+  projection_init_type: half
+  # projection_init_type: magnitude
+ 
+  projected_distillation: True
+  projected_weights_path: /home/ubuntu/llm-random-group/llm-random-cemetery/PD_2025-06-19_18-19-07/None/10894/23172.pt # writer 20
+
+  
+  dont_save_final_model: False
+  gradient_accumulation_steps: 2
+  fsdp_use_orig_params: True
+  fsdp_enabled: True
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
+
