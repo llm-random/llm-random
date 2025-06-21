@@ -27,7 +27,8 @@ params:
   # ^n_steps: [10179, 20358, 30537, 40716, 81432]
   # ^n_steps: [20358, 30537, 40716] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_00-16-22
   # ^n_steps: [10179] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_00-14-21
-  ^n_steps: [10179, 20358] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_00-57-43
+  ^n_steps: [10179, 20358] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-21_11-57-10
+  # ^n_steps: [20358] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-21_11-50-57
 
   attention_mode: projected_vanilla_rope_res
   ff_mode: projected_vanilla_res
@@ -36,8 +37,8 @@ params:
   projection_init_type: magnitude
  
   projected_distillation: True
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
-  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80
 
   # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1536_63559.pt # writer 20
 

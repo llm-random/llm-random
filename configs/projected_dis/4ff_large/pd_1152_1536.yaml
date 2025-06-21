@@ -8,7 +8,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "compression", "dm1152_1536", "1ot"] 
+  tags: ["projected_dis", "4ff", "compression", "dm1152_1536", "4ot"] 
   # tags: ["projected_dis", "4ff", "compression", "dm1152_1536", "tune_lr"]
 
   dmodel: 1152
@@ -17,29 +17,30 @@ params:
   projected_dff: 6144
   
   # ^learning_rate: [0.000015625, 0.00003125, 0.0000625, 0.000125]
-  # ^learning_rate: [0.000015625, 0.00003125]
-  learning_rate: 0.0000625 #dev
+  learning_rate: 0.00003125 #best
 
-  ^n_steps: [10179, 20358, 30537, 40716]
+  # ^n_steps: [10179, 20358, 30537, 40716]
+  ^n_steps: [10179, 20358] #/net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-21_11-49-04
   # ^n_steps: [10179]
 
   attention_mode: projected_vanilla_rope_res
   ff_mode: projected_vanilla_res
 
-  projection_init_type: half
-  # projection_init_type: magnitude
+  # projection_init_type: half
+  projection_init_type: magnitude # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-21_11-47-06 ; /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-21_11-47-06
  
   projected_distillation: True
 
-  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20 # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_17-07-03
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80 # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_17-05-48
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80 
+  #
+  # ?? /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_13-47-18
 
   # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1536_63559.pt # writer 20
   # gradient_accumulation_steps: 4 #dev
 
   # projected_weights_path: /home/mstefaniak/llm_random_cemetery/PD_2025-06-13_16-04-41/None/52640/127118.pt # entropy 40
   
-
   dont_save_final_model: False
   gradient_accumulation_steps: 2
   fsdp_use_orig_params: True

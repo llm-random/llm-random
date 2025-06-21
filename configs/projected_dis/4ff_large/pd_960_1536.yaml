@@ -9,7 +9,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "compression", "dm960_1536", "1ot"] 
+  tags: ["projected_dis", "4ff", "compression", "dm960_1536", "4ot"] 
   # tags: ["projected_dis", "4ff", "compression", "dm960_1536", "tune_lr"]
 
   dmodel: 960
@@ -20,8 +20,8 @@ params:
   # ^learning_rate: [0.00003125, 0.0000625, 0.000125]
   learning_rate: 0.0000625 #best
 
-  ^n_steps: [10179, 20358, 30537, 40716] # 
-  # ^n_steps: [10179, 20358] #
+  # ^n_steps: [10179, 20358, 30537, 40716]
+  ^n_steps: [10179, 20358]
   # ^n_steps: [10179]
 
   attention_mode: projected_vanilla_rope_res
@@ -39,8 +39,8 @@ params:
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
 
-  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80
 
   # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1536_63559.pt # writer 20
   # gradient_accumulation_steps: 4 #dev

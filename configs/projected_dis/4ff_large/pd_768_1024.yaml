@@ -9,22 +9,22 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "compression", "dm640_1024", "1ot"] 
-  # tags: ["projected_dis", "4ff", "compression", "dm640_1024", "tune_lr"]
+  # tags: ["projected_dis", "4ff", "compression", "dm768_1024", "1ot"] 
+  tags: ["projected_dis", "4ff", "compression", "dm768_1024", "tune_lr"]
 
   n_blocks: 16
   n_att_heads: 16 
-  dmodel: 640
-  dff: 2560
+  dmodel: 768
+  dff: 3072
   projected_dmodel: 1024
   projected_dff: 4096
   
-  # ^learning_rate: [0.001, 0.0005, 0.00025, 0.000125] # ?0.0015 ; 0.000125
-  learning_rate: 0.00025 #best
+  ^learning_rate: [0.00025, 0.000125]
+  # learning_rate: asd #dev
 
-  # ^n_steps: [10179, 20358, 30537, 40716, 81432]
-  ^n_steps: [20358, 30537, 40716]
-  # ^n_steps: [10179]
+  # ^n_steps: [10179, 20358, 30537, 40716]
+  # ^n_steps: [20358, 30537, 40716]
+  ^n_steps: [10179] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-21_12-06-45
 
   attention_mode: projected_vanilla_rope_res
   ff_mode: projected_vanilla_res

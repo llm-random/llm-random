@@ -20,7 +20,7 @@ params:
   projected_dff: 6144
 
   # ^learning_rate: [0.0005, 0.00025, 0.000125, 0.001]
-  learning_rate: 0.00025
+  learning_rate: 0.00025 #best
 
   ^n_steps: [10179, 20358, 30537, 40716] # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_17-17-34
   # ^n_steps: [10179]
