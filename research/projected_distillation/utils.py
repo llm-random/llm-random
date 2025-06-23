@@ -492,71 +492,76 @@ def initialize_pruned(pruning_method:str, model_weights:torch.nn.Module, project
             # model_weights[ENCODE_BLOCK_TAG+block_id+"."+T_FF_OUT].data.copy_(projected_weights[ENCODE_BLOCK_TAG+block_id+"."+T_FF_OUT])
 
     elif pruning_method == "magnitude":
-        raise Exception
-        # dm_scores = []
-        # dm_scores.append(calculate_scores(model_grouped[EMBEDDING_LAYER_TAG].get(P_EMB).T, False), dmodel)
-        # dm_scores.append(calculate_scores(model_grouped[HEAD_TAG].get(P_HEAD), True), dmodel)
-        # ff_scores = []
-        # for block_id, block_params in model_grouped[ENCODE_BLOCK_TAG].items():
-        #     block_ff_scores = []
-        #     dm_scores.append(calculate_scores(block_params.get(P_ATT_Q), True), dmodel)
-        #     dm_scores.append(calculate_scores(block_params.get(P_ATT_K), True), dmodel)
-        #     dm_scores.append(calculate_scores(block_params.get(P_ATT_V), True), dmodel)
+        # raise Exception
+        dm_scores = []
+        dm_scores.append(calculate_scores(projected_weights[T_EMB].T, False, projected_dmodel))
+        dm_scores.append(calculate_scores(projected_weights[T_HEAD], True, projected_dmodel))
+        ff_scores = [] #dev
+        for i in range(n_layers):
+            bid = str(i)
+            block_ff_scores = [] #dev SWITCH
+            dm_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_ATT_Q), True, projected_dmodel))
+            dm_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_ATT_K), True, projected_dmodel))
+            dm_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_ATT_V), True, projected_dmodel))
+            dm_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_ATT_OUT), False, projected_dmodel))
 
-        #     dm_scores.append(calculate_scores(block_params.get(P_ATT_OUT), False), dmodel)
+            dm_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_FF_IN), True, projected_dmodel))
+            dm_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_FF_OUT), False, projected_dmodel))
 
-        #     dm_scores.append(calculate_scores(block_params.get(P_FF_IN), True), dmodel)
-        #     dm_scores.append(calculate_scores(block_params.get(P_FF_OUT), False), dmodel)
+            # # dm_scores.append(calculate_scores(block_params.get(P_FF_IN), False), projected_dmodel) #dev SWITCH
+            # # dm_scores.append(calculate_scores(block_params.get(P_FF_OUT), True), projected_dmodel) #dev SWITCH
 
-        #     # dm_scores.append(calculate_scores(block_params.get(P_FF_IN), False), dmodel) #dev SWITCH
-        #     # dm_scores.append(calculate_scores(block_params.get(P_FF_OUT), True), dmodel) #dev SWITCH
-
-        #     block_ff_scores.append(calculate_scores(block_params.get(P_FF_IN), False, projected_dff))
-        #     block_ff_scores.append(calculate_scores(block_params.get(P_FF_OUT), True, projected_dff))
-        #     ff_scores.append(block_ff_scores)
+            block_ff_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_FF_IN), False, projected_dff))  #dev SWITCH
+            block_ff_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_FF_OUT), True, projected_dff))  #dev SWITCH
+            ff_scores.append(block_ff_scores)  #dev SWITCH
 
         # projection = torch.eye(projected_dmodel)
-        # global_importance = torch.stack(dm_scores, dim=0).mean(dim=0)
-        
-        # # indices = topk_from_equal_subsets(global_importance, int(dmodel/n_att_heads), n_att_heads) #dev SWITCH granularity
-        # indices = topk_from_equal_subsets(global_importance, dmodel, 1)
-
+        global_importance = torch.stack(dm_scores, dim=0).mean(dim=0)
+        # indices = topk_from_equal_subsets(global_importance, int(dmodel/n_att_heads), n_att_heads) #dev SWITCH granularity
+        indices = topk_from_equal_subsets(global_importance, dmodel, 1)
         # projection = projection[:, indices]
-        # print(f"global indicies all ranks {indices}")#dev
 
-        # if local_rank==0:
-        #     print("global magnitude initialized projection -------------------") #dev
-        #     print(projection) #dev
-        # add_projections(model_grouped[EMBEDDING_LAYER_TAG], projection,  projection.T, EMBEDDING_P, EMBEDDING_P_T, local_rank==0)
-        # add_projections(model_grouped[HEAD_TAG], projection,  projection.T, DEEMBEDDING_P, DEEMBEDDING_P_T, local_rank==0)
+        # ff_scores = [] #dev SWITCH
+        # for i in range(n_layers):
+        #     block_ff_scores = []
+        #     block_ff_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_FF_IN)[:, indices], False, projected_dff))
+        #     block_ff_scores.append(calculate_scores(projected_weights.get(ENCODE_BLOCK_TAG+bid+"."+T_FF_OUT)[indices, :], True, projected_dff))
+        #     ff_scores.append(block_ff_scores)
 
-        # for (block_id, block_params), block_ff_scores in zip(model_grouped[ENCODE_BLOCK_TAG].items(), ff_scores):
-        #     block_params[P_ATT_Q_1].data.copy_(projection)
-        #     block_params[P_ATT_K_1].data.copy_(projection)
-        #     block_params[P_ATT_V_1].data.copy_(projection)
-        #     block_params[P_ATT_OUT_2].data.copy_(projection.T)
 
-        #     block_ff_projection = torch.eye(projected_dff)
-        #     block_ff_importance = torch.stack(block_ff_scores, dim=0).mean(dim=0)
-        #     # block_ff_indices = topk_from_equal_subsets(block_ff_importance, int(dff/n_att_heads), n_att_heads) #dev SWITCH granularity
-        #     block_ff_indices = topk_from_equal_subsets(block_ff_importance, dff, 1)
-        #     block_ff_projection = block_ff_projection[:, block_ff_indices]
+        if local_rank==0:
+            print("global magnitude initialized projection -------------------") #dev
+            print(f"global indicies all ranks {indices}")#dev
+            print(global_importance) #dev
 
-        #     if local_rank==0:
-        #         print(f"projection.shape {projection.shape}") #dev
-        #         print(f"block_ff_projection.shape {block_ff_projection.shape}") #dev
+        # copy_cropped(model_weights[T_HEAD], projected_weights[T_HEAD])
+        model_weights[T_EMB].data.copy_(projected_weights[T_EMB][: , indices])
+        model_weights[T_HEAD].data.copy_(projected_weights[T_HEAD][:, indices])
 
-        #         print(f"block_params[P_FF_IN_1].data.shape {block_params[P_FF_IN_1].data.shape}") #dev
-        #         print(f"block_params[P_FF_IN_2].data.shape {block_params[P_FF_IN_2].data.shape}") #dev
+        for i, ff_importance in zip(range(n_layers), ff_scores):
+            bid = str(i)
+            if local_rank==0:
+                print(f"INITIALIZING BLOCK {bid}")
 
-        #         print(f"block_params[P_FF_OUT_1].data.shape {block_params[P_FF_OUT_1].data.shape}") #dev
-        #         print(f"block_params[P_FF_OUT_2].data.shape {block_params[P_FF_OUT_2].data.shape}") #dev
+            
+            # copy_cropped(model_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_Q], projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_Q])
+            # copy_cropped(model_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_K], projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_K])
+            # copy_cropped(model_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_V], projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_V])
+            # copy_cropped(model_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_OUT], projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_OUT])
+            model_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_Q].data.copy_(projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_Q][:, indices])
+            model_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_K].data.copy_(projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_K][:, indices])
+            model_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_V].data.copy_(projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_V][:, indices])
+            model_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_OUT].data.copy_(projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_ATT_OUT][indices, : ])
 
-        #     block_params[P_FF_IN_1].data.copy_(projection)
-        #     block_params[P_FF_IN_2].data.copy_(block_ff_projection.T) #dev error
+            block_ff_importance = torch.stack(ff_importance, dim=0).mean(dim=0)
+            block_ff_indices = topk_from_equal_subsets(block_ff_importance, dff, 1)
+            
+            # copy_cropped(model_weights[ENCODE_BLOCK_TAG+bid+"."+T_FF_IN], projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_FF_IN])
+            # copy_cropped(model_weights[ENCODE_BLOCK_TAG+bid+"."+T_FF_OUT], projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_FF_OUT])
+            model_weights[ENCODE_BLOCK_TAG+bid+"."+T_FF_IN].data.copy_(projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_FF_IN][block_ff_indices, :][:, indices])
+            model_weights[ENCODE_BLOCK_TAG+bid+"."+T_FF_OUT].data.copy_(projected_weights[ENCODE_BLOCK_TAG+bid+"."+T_FF_OUT][:, block_ff_indices][indices, :])
 
-        #     block_params[P_FF_OUT_1].data.copy_(block_ff_projection)
-        #     block_params[P_FF_OUT_2].data.copy_(projection.T)
+        
 
     else:
         raise ValueError(f"Invalid `pruning_method` = {pruning_method}")

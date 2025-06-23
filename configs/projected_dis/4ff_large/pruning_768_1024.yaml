@@ -9,28 +9,33 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "compression", "pruning", "dm768_1024", "1ot"] 
+  tags: ["projected_dis", "4ff", "compression", "pruning", "dm768_1024", "4ot"] 
   # tags: ["projected_dis", "4ff", "compression", "pruning", "dm768_1024", "tune_lr"]
 
+  n_blocks: 16
+  n_att_heads: 16 
   dmodel: 768
   dff: 3072
   dhead: 64
   projected_dmodel: 1024
   projected_dff: 4096
 
-  ^learning_rate: [0.0005, 0.001, 0.002] # 
-  # learning_rate: asd #dev
+  # ^learning_rate: [0.0025, 0.0005, 0.001] # 
+  learning_rate: 0.0005 #best
 
-  # ^n_steps: [20358, 30537, 40716] # 
-  ^n_steps: [10179] # 
+  ^n_steps: [10179, 20358, 30537, 40716] # 
+  # ^n_steps: [10179] # 
 
   pruning: random
  
   projected_distillation: True
   # projected_weights_path: /home/ubuntu/llm-random-group/llm-random-cemetery/PD_2025-06-19_18-19-07/None/10894/23172.pt # writer 20
-  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_4ff_1024_23172.pt # helios 20
-  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_17-23-08/None/759700/92688.pt # helios 80
 
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_4ff_1024_23172.pt # helios 20
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-20_17-23-08/None/759700/92688.pt # helios 80
+
+  # projected_weights_path: /home/mstefaniak/checkpoints/def_4ff_1024_23172.pt # entropy 20
+  # projected_weights_path: /home/mstefaniak/checkpoints/def_4ff_1024_92688.pt # entropy 80
   
   dont_save_final_model: False
   fsdp_use_orig_params: True
