@@ -1,7 +1,7 @@
 runner: "research.muP_MoE.train.train"
 
 # time: "05:00:00"
-time: "20:00:00"
+time: "60:00:00"
 
 n_gpus: 2
 cpus_per_gpu: 16
@@ -44,7 +44,8 @@ params:
   ff_mode: token_choice
   effective_dff_x: 4  # went from 4 -> 3
   expansion_rate: 8
-  ^granularity: [1, 2, 4, 8, 16]
+  # ^granularity: [1, 2, 4, 8, 16]
+  ^granularity: [32, 64]
   moe_inner_expert: ff
   activation_type: relu
   softmax_over: experts
@@ -57,7 +58,8 @@ params:
 
   # learning
   scheduler: cosine
-  ^learning_rate: [2e-4, 5e-4, 1e-3, 5e-3, 1e-2, 2e-2, 5e-2]
+  # ^learning_rate: [2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2]
+  ^learning_rate: [2e-3]
   final_lr_fraction: 0.1
   grad_clip: 1.0
   weight_decay: 0.1

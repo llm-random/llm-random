@@ -2,29 +2,29 @@ runner: "research.muP_MoE.train.train"
 
 time: '00:10:00'
 
-n_gpus: 2
+n_gpus: 1
 cpus_per_gpu: 16
 
 interactive_debug: false
 backends_module: research.muP_MoE.utils.backends
 
 params:
-  name: muP_MoE_moe_debug
-  tags: ["muP_MoE", "muTransfer", "remove"]
+  name: wywlaszczanie
+  tags: ["wywlaszczanie", "remove"]
 
-  mup_params:
-    # alpha_in: 10.0
-    # alpha_out: 0.1
+  # mup_params:
+  #   # alpha_in: 10.0
+  #   # alpha_out: 0.1
 
-    alpha_in: 1.0
-    alpha_out: 1.0
-    base_dmodel: 64
+  #   alpha_in: 1.0
+  #   alpha_out: 1.0
+  #   base_dmodel: 64
 
-  use_mup_router: true
+  # use_mup_router: true
 
   # training
-  n_steps: 100
-  final_lr_step: 100
+  n_steps: 1000
+  final_lr_step: 1000
   lr_warmup_steps: 10
   batch_size: 128
   cutoff: 128
@@ -75,15 +75,15 @@ params:
   logging_interval_heavy: 10
   log_gradients_and_weights: true
 
-  # debug
-  logger_types: "stdout"
-  n_steps: 10
-  batch_size: 8
-  cutoff: 16
-  use_dummy_dataset: true
-  n_blocks: 2
-  dmodel: 16
-  n_att_heads: 2
-  logging_interval_heavy: 5
-  log_gradients_and_weights: true
-  print_parameter_names: true
+  # # debug
+  # logger_types: "stdout"
+  # n_steps: 10
+  # batch_size: 8
+  # cutoff: 16
+  # use_dummy_dataset: true
+  # n_blocks: 2
+  # dmodel: 16
+  # n_att_heads: 2
+  # logging_interval_heavy: 5
+  # log_gradients_and_weights: true
+  # print_parameter_names: true
