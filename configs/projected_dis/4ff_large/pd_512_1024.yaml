@@ -22,8 +22,8 @@ params:
   # ^learning_rate: [0.0005, 0.00025]
   learning_rate: 0.00025 #best
 
+  # ^n_steps: [10179, 20358, 30537, 40716]
   ^n_steps: [10179, 20358, 30537, 40716]
-  # ^n_steps: [20358, 30537, 40716]
   # ^n_steps: [10179] # 
 
   attention_mode: projected_vanilla_rope_res

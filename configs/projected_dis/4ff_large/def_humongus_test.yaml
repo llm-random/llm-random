@@ -1,36 +1,34 @@
 
 parent: configs/projected_dis/4ff_large/common.yaml
 md5_parent_hash: 0f5bbfd1acb29b5088f1f320eda7bea6
-# time: 0-01:00:00
-# time: 2-00:00:00
-time: 8-00:00:00
+time: 00-05:00:00
 n_gpus: 4
-# n_nodes: 2
 cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "dm1536", "doner", "ot"]
+  tags: ["projected_dis", "4ff", "1500M", "test"]
 
-  # learning_rate: 0.001 #dev
-  # ^learning_rate: [0.0001, 0.0002, 0.0004] #dev
-  # ^learning_rate: [0.0004, 0.0008] #dev
-  learning_rate: 0.0004 #dev
+  learning_rate: 0.00001 #dev
 
-  dmodel: 1536
-  dff: 6144
-  # ^n_steps: [127118, 254236, 381354, 508472] # 2ot, 4ot, 6ot, 8ot
-  ^n_steps: [508472] # 8ot
-  # n_steps: 63_559 # 20T/ap
-  
+  dmodel: 1920
+  dff: 7680
+  n_steps: 640
+  n_blocks: 30
+  n_att_heads: 30 
+  batch_size: 256
+  cutoff: 256
   # n_steps: 200 # #test /home/mstefaniak/llm_random_cemetery/PD_2025-06-13_15-49-52
 
   logging_interval_heavy: 1000
   logging_interval_loss: 1000
 
-  dont_save_final_model: False
+  dont_save_final_model: True
 
-  gradient_accumulation_steps: 2
+
+  # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-24_20-11-24
+  # /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-06-24_20-13-53 1step acc
+  gradient_accumulation_steps: 1 
   # fsdp_use_orig_params: True
   fsdp_enabled: True
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"

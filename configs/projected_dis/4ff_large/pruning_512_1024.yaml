@@ -9,7 +9,7 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "compression", "pruning", "dm512_1024", "4ot"] 
+  tags: ["projected_dis", "4ff", "compression", "pruning", "dm512_1024", "1ot", "alt_lr"] 
   # tags: ["projected_dis", "4ff", "compression", "pruning", "dm512_1024", "tune_lr"]
 
   n_blocks: 16
@@ -21,9 +21,11 @@ params:
   projected_dff: 4096
 
   # ^learning_rate: [0.001, 0.002, 0.004] # 
-  learning_rate: 0.002 #best
+  # learning_rate: 0.002 #best
+  learning_rate: 0.001 #alt
 
-  ^n_steps: [10179, 20358, 30537, 40716] # 
+  ^n_steps: [30537, 40716]
+  # ^n_steps: [5090, 10179, 20358] # 
   # ^n_steps: [10179] # 
 
   pruning: random

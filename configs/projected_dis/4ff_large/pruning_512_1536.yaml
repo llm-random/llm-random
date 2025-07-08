@@ -1,0 +1,47 @@
+
+parent: configs/projected_dis/4ff_large/common.yaml
+md5_parent_hash: 0f5bbfd1acb29b5088f1f320eda7bea6
+time: 2-00:00:00
+# time: 0-00:50:00
+n_gpus: 4
+# n_gpus: 1
+cpus_per_gpu: 16
+
+params:
+  name: "PD"
+  # tags: ["projected_dis", "4ff", "compression", "pruning", "dm768_1536"] 
+  tags: ["projected_dis", "4ff", "compression", "pruning", "dm768_1536", "tune_lr"]
+
+  dmodel: 512
+  dff: 2048
+  dhead: 64 #dev
+  projected_dmodel: 1536
+  projected_dff: 6144
+
+  ^learning_rate: [0.000125, 0.00025, 0.0005]
+  # learning_rate: 0.asd #asd
+
+  # ^n_steps: [20358, 30537, 40716]
+  # ^n_steps: [10179, 20358]
+  ^n_steps: [10179] 
+
+  pruning: random
+  # projection_init_type: magnitude
+ 
+  projected_distillation: True
+  projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/llm_random_cemetery/PD_2025-05-31_20-00-21/None/674845/63559.pt # helios 20
+  # projected_weights_path: /net/storage/pr3/plgrid/plggllmeffi/plgmstefaniak/checkpoints/def_1536_254236.pt # helios 80
+
+  # projected_weights_path: /home/mstefaniak/checkpoints/dm_1536_63559.pt # entropy 20
+  # projected_weights_path: /home/mstefaniak/llm_random_cemetery/PD_2025-06-13_16-04-41/None/52640/127118.pt # entropy 40
+
+  # projected_weights_path: /home/ubuntu/mstefaniak/checkpoints/dm_1536_63559.pt # writer 20
+
+
+  
+  dont_save_final_model: False
+  fsdp_use_orig_params: True
+  fsdp_enabled: True
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
+

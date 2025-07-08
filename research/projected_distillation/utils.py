@@ -446,8 +446,6 @@ def initialize_pruned(pruning_method:str, model_weights:torch.nn.Module, project
     # #     block_params.get(P_FF_IN).data.copy_(projected_weights[ENCODE_BLOCK_TAG+block_id+"."+T_FF_IN])
     # #     block_params.get(P_FF_OUT).data.copy_(projected_weights[ENCODE_BLOCK_TAG+block_id+"."+T_FF_OUT])
 
-
-
     if local_rank==0:
         print("------------------------------COPY WEIGHTS------------------------") #dev
 
@@ -536,7 +534,7 @@ def initialize_pruned(pruning_method:str, model_weights:torch.nn.Module, project
 
         # copy_cropped(model_weights[T_HEAD], projected_weights[T_HEAD])
         model_weights[T_EMB].data.copy_(projected_weights[T_EMB][: , indices])
-        model_weights[T_HEAD].data.copy_(projected_weights[T_HEAD][:, indices])
+        model_weights[T_HEAD].data.copy_(projected_weights[T_HEAD][: , indices])
 
         for i, ff_importance in zip(range(n_layers), ff_scores):
             bid = str(i)

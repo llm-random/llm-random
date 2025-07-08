@@ -26,6 +26,10 @@ params:
   
   dont_save_final_model: False
   # save_weights_path: /local_storage_1/ms_tmp/models/ #dev entropy models dir
+  # /home/mstefaniak/llm_random_cemetery
+  # /storage_nvme_1/mstefaniak/runs
+  # du -h --max-depth=1
+  
 
   # fsdp_use_orig_params: True
   fsdp_enabled: True

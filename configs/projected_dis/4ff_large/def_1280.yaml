@@ -7,26 +7,26 @@ cpus_per_gpu: 16
 
 params:
   name: "PD"
-  tags: ["projected_dis", "4ff", "dm1024", "doner"]
-  # tags: ["projected_dis", "4ff", "dm1024", "doner", "lr_tune"]
+  # tags: ["projected_dis", "4ff", "dm1280", "doner"]
+  tags: ["projected_dis", "4ff", "dm1280", "doner", "lr_tune"]
 
-  # ^learning_rate: [0.0016, 0.0008, 0.0004] #dev
-  learning_rate: 0.0008 #dev
+  ^learning_rate: [0.0008, 0.0004] #dev
+  # learning_rate: asd #dev
 
-  n_blocks: 16
-  n_att_heads: 16 
-  dmodel: 1024
-  dff: 4096
-  # n_steps: 23172 # 20T/ap
-  # ^n_steps: [46344, 92688, 185376] # 2ot, 4ot, 8ot
+  n_blocks: 20
+  n_att_heads: 20 
+  dmodel: 1280
+  dff: 5120
+  n_steps: 39765 # 1ot
+  # ^n_steps: [79530, 159060, 318120] # 2ot, 4ot, 8ot
+
   
-
   logging_interval_heavy: 1000
   logging_interval_loss: 1000
 
-
   dont_save_final_model: False
-  fsdp_use_orig_params: True
+
+  # fsdp_use_orig_params: True
   fsdp_enabled: True
   fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
   fsdp_selective_precision_modules: "AttentionMechanism,MoeGating,RoPE"
