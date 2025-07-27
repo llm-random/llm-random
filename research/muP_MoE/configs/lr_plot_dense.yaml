@@ -1,7 +1,6 @@
 runner: "research.muP_MoE.train.train"
 
-# time: "05:00:00"
-time: "02:00:00"
+time: '1-00:00:00'
 
 n_gpus: 4
 cpus_per_gpu: 16
@@ -10,54 +9,41 @@ interactive_debug: false
 backends_module: research.muP_MoE.utils.backends
 
 params:
-  name: "muP_MoE_lr_plot_moe_fast"
-  # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "lr_plot_moe_fast"]
+  name: muP_MoE_lr_grid_dense_0704_rerun
+  tags: ["muP_MoE", "muTransfer", "lr_grid_dense_0704_rerun_failed", "SP"]
 
-  mup_params:
-    alpha_in: 1.0
-    alpha_out: 1.0
-    # alpha_in: 5.0
-    # alpha_out: 0.2
-    base_dmodel: 64
-  ^use_mup_router: [true, false]
+  # mup_params:
+  #   # alpha_in: 10.0
+  #   # alpha_out: 0.1
+
+  #   alpha_in: 1.0
+  #   alpha_out: 1.0
+  #   base_dmodel: 128
 
   # training
-  n_steps: 15000
-  final_lr_step: 15000
-  lr_warmup_steps: 200
-  # n_steps: 4000
-  # final_lr_step: 4000
-  # lr_warmup_steps: 100
-  batch_size: 256
-  cutoff: 256
+  n_steps: 60000
+  final_lr_step: 60000
+  lr_warmup_steps: 600
+  batch_size: 512
+  cutoff: 512
 
   # model
   model_type: gpt
-  ^dmodel: [1024]
-  n_blocks: 8
+  # ^dmodel: [128, 256, 512, 768, 1024, 1536]
+  ^dmodel: [1536]
+  n_blocks: 24
   dhead: 64
   attention_mode: 'vanilla'
   attention_normalization: 'dhead'
   use_torch_bmm: true
 
-  ff_mode: token_choice
-  effective_dff_x: 4  # went from 4 -> 3
-  expansion_rate: 8
-  granularity: 1
-  moe_inner_expert: ff
+  ff_mode: vanilla
+  dff_ratio: 4
   activation_type: relu
-  softmax_over: experts
-  group_granular_moe_by_batch: true
-  granular_moe_one_hot_impl: true
-
-  # MoE aux losses
-  load_balancing_loss_weight: 0.01
-  zloss_weight: 0.001
 
   # learning
   scheduler: cosine
-  ^learning_rate: [2e-2, 5e-2]
+  ^learning_rate: [5e-4, 2e-4, 1e-4, 5e-5, 2e-5]
   final_lr_fraction: 0.1
   grad_clip: 1.0
   weight_decay: 0.1
@@ -70,17 +56,17 @@ params:
   activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
   fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
 
-  # other
   dataset_type: c4
   mixed_precision: true
   flash_attention: true
   mixed_precision_dtype: bfloat16
-  data_seed: 21
+  data_seed: 17
 
   # logging etc.
-  logger_types: "neptune"
+  logger_types: neptune
   project_name: "pmtest/llm-random"
-  logging_interval_heavy: 1000
+  logging_interval_heavy: 3000
+  log_gradients_and_weights: true
 
   # debug
   # logger_types: "stdout"

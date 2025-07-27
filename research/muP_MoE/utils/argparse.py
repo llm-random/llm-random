@@ -38,6 +38,7 @@ def introduce_parser_arguments(
         default=None,
         help="provide all 3 values: alpha_in: float, alpha_out: float, base_dmodel: int",
     )
+    parser.add_argument("--use_mup_router", action="store_true")
     parser.add_argument(
         "--attention_normalization",
         type=str,
@@ -49,6 +50,7 @@ def introduce_parser_arguments(
         defaults to None, which results in normalization by 1 / dhead**0.5""",
     )
 
+    parser.add_argument("--optimizer", type=str, default="adamw", help="adamw or adam")
     parser.add_argument("--n_steps", type=int, required=True)
     parser.add_argument("--learning_rate", type=float, required=True)
     parser.add_argument("--scheduler", type=str, required=True)
@@ -57,7 +59,12 @@ def introduce_parser_arguments(
     parser.add_argument(
         "--init_type",
         type=str,
-        choices=["kaiming_uniform", "truncated_normal", "truncated_normal_fixed"],
+        choices=[
+            "kaiming_uniform",
+            "truncated_normal",
+            "truncated_normal_fixed",
+            "normal",
+        ],
         required=True,
     )
     parser.add_argument("--init_scale", type=float, required=True)
@@ -66,7 +73,9 @@ def introduce_parser_arguments(
 
     parser.add_argument("--deterministic_experiment", action="store_true")
     parser.add_argument("--adam_beta1", type=float, default=0.9)
-    parser.add_argument("--adam_beta2", type=float, default=0.999)
+    parser.add_argument(
+        "--adam_beta2", type=float, default=0.95
+    )  # TODO check with gpt3 paper
     parser.add_argument("--grad_clip", type=float, default=None)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--lr_decay", type=float, default=None)
@@ -161,6 +170,7 @@ def introduce_parser_arguments(
     parser.add_argument("--tags", nargs="*", type=str, default=None)
     parser.add_argument("--logging_interval_light", type=int, default=1000000)
     parser.add_argument("--logging_interval_heavy", type=int, default=1000000)
+    parser.add_argument("--logging_spectral_norm", action="store_true")
     parser.add_argument("--logging_interval_loss", type=int, default=1000)
     parser.add_argument("--eval_interval", type=int, default=1000)
     parser.add_argument("--n_eval_batches", type=int, default=10)

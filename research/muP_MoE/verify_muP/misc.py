@@ -221,6 +221,8 @@ def plot_multiple_modules(
     dmodels,
     step_interval=100,
     figsize=(15, 10),
+    subplots=None,
+    average_blocks=False,
 ):
     """
     Creates a grid of subplots, each plotting the activation values for a specified module and layer combination.
@@ -238,12 +240,19 @@ def plot_multiple_modules(
 
     # Determine the number of rows and columns in the grid
     n_rows = len(module_keywords)
-    n_cols = len(layer_nums)
+    if average_blocks:
+        n_cols = 1
+    else:
+        n_cols = len(layer_nums)
     steps = get_steps_from_first_run(activations_dict)
 
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
+    if subplots is None:
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
+    else:
+        fig, axs, i_start, j_start = subplots
 
     for i, mk in enumerate(module_keywords):
+        pivot_dict_aggregate = None
         for j, ln in enumerate(layer_nums):
             pivoted_dict = pivot_dict(
                 activations_dict=activations_dict,
@@ -252,20 +261,45 @@ def plot_multiple_modules(
                 layer_num=ln,
                 module=mk,
             )
-            # Use the plot_module function to plot on the given Axes object
-            plot_module_grid(
-                pivoted_dict=pivoted_dict,
-                module_keyword=mk,
-                layer_num=ln,
-                step_interval=step_interval,
-                fig=fig,
-                ax=axs[i, j],
-            )
+            if not average_blocks:
+                plot_module_grid(
+                    pivoted_dict=pivot_dict_aggregate,
+                    module_keyword=mk,
+                    layer_num=ln,
+                    step_interval=step_interval,
+                    fig=fig,
+                    ax=axs[i_start + i, j_start],
+                )
+            else:
+                if pivot_dict_aggregate is None:
+                    pivot_dict_aggregate = pivoted_dict
+                else:
+                    for step, dmodels_dict in pivoted_dict.items():
+                        for dmodel, vals_list in dmodels_dict.items():
+                            pivot_dict_aggregate[step][dmodel] = np.array(
+                                pivot_dict_aggregate[step][dmodel]
+                            ) + np.array(vals_list)
+                # Use the plot_module function to plot on the given Axes object
 
-    plt.show()
+        for step, dmodels_dict in pivoted_dict.items():
+            for dmodel, vals_list in dmodels_dict.items():
+                pivot_dict_aggregate[step][dmodel] = list(
+                    np.array(vals_list) / len(layer_nums)
+                )
+        plot_module_grid(
+            pivoted_dict=pivot_dict_aggregate,
+            module_keyword=mk,
+            layer_num=ln,
+            step_interval=step_interval,
+            fig=fig,
+            ax=axs[i_start + i, j_start],
+        )
+
+    if subplots is None:
+        plt.show()
 
 
-def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6)):
+def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6), ax=None):
     """
     For each model width in the runs table, plots a line where the y-axis is the final loss value
     and the x-axis is the learning rate (lr).
@@ -276,6 +310,16 @@ def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6)):
     Returns:
     - None
     """
+    color_dict = {
+        64: "#7B68EE",  # MediumSlateBlue (soft violet)
+        128: "#4682B4",  # SteelBlue
+        256: "#3CB371",  # MediumSeaGreen
+        512: "#DAA520",  # GoldenRod
+        768: "#FF8C00",  # DarkOrange
+        1024: "#CD5C5C",  # IndianRed
+        1536: "#C71585",  # MediumVioletRed
+    }
+
     # Ensure required columns are present in runs_table
     required_columns = ["sys/id", "args/dmodel", "args/learning_rate"]
     for col in required_columns:
@@ -297,25 +341,45 @@ def plot_loss_vs_lr(runs_table, ylim=None, title=None, figsize=(10, 6)):
         df_subset = final_loss_df[final_loss_df["dmodel"] == model_width]
         df_subset = df_subset.sort_values("lr")
         # take the mean of final loss values for each lr
-        grouped = df_subset.groupby("lr")["final_loss"].mean()
-        lrs = grouped.index.to_numpy()
-        losses = grouped.values
-        print(losses)
-        plt.plot(lrs, losses, marker="o", label=f"Model width {model_width}")
+        means = df_subset.groupby("lr")["final_loss"].mean()
+        lrs = means.index.to_numpy()
+        losses = means.values
 
-    plt.xlabel("Learning Rate (lr)")
-    plt.ylabel("Final Loss Value")
-    if title is None:
-        title = "Final Loss vs Learning Rate for Different Model Widths"
-    plt.title(title)
-    plt.legend()
-    plt.grid(True)
-    plt.xscale(
-        "log"
-    )  # Set x-axis to logarithmic scale if learning rates vary exponentially
-    if ylim is not None:
-        plt.ylim(ylim)
-    plt.show()
+        color = color_dict.get(model_width, None)
+        if ax is None:
+            plt.plot(
+                lrs, losses, marker="o", label=f"Model width {model_width}", color=color
+            )
+        else:
+            ax.plot(
+                lrs, losses, marker="o", label=f"Model width {model_width}", color=color
+            )
+
+    if ax is None:
+        plt.xlabel("Learning Rate (lr)")
+        plt.ylabel("Final Loss Value")
+        if title is None:
+            title = "Final Loss vs Learning Rate for Different Model Widths"
+        plt.title(title)
+        plt.legend()
+        plt.grid(True)
+        plt.xscale(
+            "log"
+        )  # Set x-axis to logarithmic scale if learning rates vary exponentially
+        if ylim is not None:
+            plt.ylim(ylim)
+        plt.show()
+    else:
+        ax.set_xlabel("Learning Rate (lr)")
+        ax.set_ylabel("Final Loss Value")
+        ax.set_xscale("log")  # Set x-axis to logarithmic scale
+        if title is None:
+            title = "Final Loss vs Learning Rate"
+        ax.set_title(title)
+        ax.legend()
+        ax.grid(True)
+        if ylim is not None:
+            ax.set_ylim(ylim)
 
 
 def get_final_loss_values(runs_table):

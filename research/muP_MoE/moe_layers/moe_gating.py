@@ -30,6 +30,8 @@ class MoeGating(LoggingLayer):
         softmax_over: Literal["tokens", "experts"] = "tokens",
         use_torch_bmm: bool = False,
         zloss_weight: float = 0.0,
+        mup_config: dict = None,
+        use_mup_router: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -41,6 +43,8 @@ class MoeGating(LoggingLayer):
         self.use_torch_bmm = use_torch_bmm
         self.detach_gate = detach_gate
         self.zloss_weight = zloss_weight
+        self.mup_config = mup_config
+        self.use_mup_router = use_mup_router
         self.gate, self.get_gate = self.init_gate(
             expert_inner_function,
             get_router_values_from,
@@ -73,6 +77,15 @@ class MoeGating(LoggingLayer):
                     x,
                     self.get_gate(),
                 )
+
+        # ___muP___
+        if (self.mup_config is not None) and (self.use_mup_router):
+            gate_logits *= 1 / self.mup_config["m_d"]
+        # ___muP___
+
+        self.update_cache_for_logging(
+            "mean_abs_gate_logits", torch.mean(torch.abs(gate_logits))
+        )
         # each expert chooses k within dimension 1
         if not self.group_by_batch and not self.softmax_ungrouped:
             gate_logits = gate_logits.reshape(self.n_experts, batch_size * seq_len)
@@ -80,8 +93,10 @@ class MoeGating(LoggingLayer):
         with measure_time(self, "softmax"):
             if self.softmax_over == "tokens":
                 gate_out = torch.softmax(gate_logits, dim=1)
+                mean_max_gate_softmax = torch.mean(torch.max(gate_out, dim=1)[0])
             elif self.softmax_over == "experts":
                 gate_out = torch.softmax(gate_logits, dim=0)
+                mean_max_gate_softmax = torch.mean(torch.max(gate_out, dim=0)[0])
             else:
                 gate_out = gate_logits
         if self.softmax_ungrouped:
@@ -104,6 +119,7 @@ class MoeGating(LoggingLayer):
 
         self.update_cache_for_logging("z_loss", zloss)
         self.update_cache_for_logging("gate_softmax_all_values", gate_out)
+        self.update_cache_for_logging("mean_max_gate_softmax", mean_max_gate_softmax)
         return gate_out
 
     def calculate_topk(self, gate_out, topk):
@@ -285,6 +301,8 @@ class TokenGating(MoeGating):
             "dropped_tokens_ratio": self.logging_cache["dropped_tokens_ratio"],
             "load_balancing_loss": self.logging_cache["load_balancing_loss"],
             "z_loss": self.logging_cache["z_loss"],
+            "mean_max_gate_softmax": self.logging_cache["mean_max_gate_softmax"],
+            "mean_abs_gate_logits": self.logging_cache["mean_abs_gate_logits"],
         }
 
     def log_heavy(self):

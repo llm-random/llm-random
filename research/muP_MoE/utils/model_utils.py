@@ -22,6 +22,7 @@ from lizrd.core import llm
 from research.muP_MoE import mup_modules
 from research.muP_MoE.moe_layers.expert_types import ExpertFF, ExpertGated
 from research.muP_MoE.moe_layers.token_choice import TokenChoiceFF
+from research.muP_MoE.moe_layers.moe_gating import TokenGating
 
 
 def make_loss_and_gradient_function(
@@ -331,26 +332,17 @@ def get_inner_expert(args):
 
 def get_ff_layer(args):
     if args.ff_mode == "vanilla":
-        return_fn = lambda: llm.FeedForward(
+        return_fn = lambda: mup_modules.FeedForward(
             args.dmodel,
             args.dff,
             init_type=args.init_type,
             init_scale=args.init_scale,
             bias="none",
         )
-    elif args.ff_mode == "swi_glu":
-        return_fn = lambda: llm.SwiGLUFeedForward(
-            args.dmodel, args.dff, init_type=args.init_type, init_scale=args.init_scale
-        )
     elif args.ff_mode == "token_choice":
         args = determine_moe_args(args)
         make_expert_inner_function = get_inner_expert(args)
-        # use_topk_initialization = get_expert_init(
-        #     args.expert_use_topk_initialization, default=False
-        # )
-        # make_expert_inner_function = partial(
-        #     make_expert_inner_function, use_topk_initialization=use_topk_initialization
-        # )
+
         return_fn = lambda: TokenChoiceFF(
             dmodel=args.dmodel,
             n_experts=args.n_experts,
@@ -361,6 +353,8 @@ def get_ff_layer(args):
             routing_top_k=args.routing_top_k,
             init_scale=args.init_scale,
             init_type=args.init_type,
+            mup_config=args.mup_params,
+            use_mup_router=args.use_mup_router,
         )
     else:
         raise NotImplementedError(f"FF mode {args.ff_mode} not implemented")
@@ -384,7 +378,7 @@ def get_classes_from_module_names(
         elif name == "RoPE":
             classes.append(llm.RoPE)
         elif name == "FeedForward":
-            classes.append(llm.FeedForward)
+            classes.append(mup_modules.FeedForward)
         elif name == "Residual":
             classes.append(llm.Residual)
         elif name == "TransformerBlock":
@@ -399,6 +393,12 @@ def get_classes_from_module_names(
             classes.append(llm.PredictionHead)
         elif name == "Softmax":
             classes.append(torch.nn.Softmax)
+        elif name == "ExpertFF":
+            classes.append(ExpertFF)
+        elif name == "ExpertGated":
+            classes.append(ExpertGated)
+        elif name == "TokenGating":
+            classes.append(TokenGating)
         else:
             raise ValueError(f"Unknown name {name}")
     return tuple(classes)
@@ -472,6 +472,8 @@ def get_model(
     include_positional_embedding: bool = True,
     checkpoint: dict[str, torch.Tensor] = None,
     mup_config: dict = None,
+    use_mup_router: bool = False,
+    dff_ratio: int = None,
 ):
     if model_fragmentation is None or device == torch.device("cpu"):
         first_gpu = device
@@ -507,17 +509,61 @@ def get_model(
         dm, vocab_size, init_type=init_type, init_scale=init_scale
     ).to(last_gpu)
 
+    if mup_config is not None:
+        mup_base_variance = (init_scale**2) / mup_config[
+            "base_dmodel"
+        ]  # does it correspond to "standard" variance?
+        lin2_factor = 1.0
+        if dff_ratio is not None:
+            lin2_factor = dff_ratio
+        print("---Embedding init with muP---")
+        for name, param in embedding_layer.named_parameters():
+            # if "0" in name:
+            print(f"Initializing {name} with variance {mup_base_variance}")
+            torch.nn.init.normal_(param.data, mean=0.0, std=(mup_base_variance) ** 0.5)
+
+        print("---Unembedding init with muP---")
+        for name, param in head.named_parameters():
+            print(f"Initializing {name} with variance {mup_base_variance}")
+            torch.nn.init.normal_(param.data, mean=0.0, std=(mup_base_variance) ** 0.5)
+
+        print("---TransformerTower init with muP---")
+        transformer_init_dict = {
+            "input_projection": (1 / mup_config["m_d"]),
+            "output_projection": (1 / (mup_config["m_d"])),
+            "lin1_weight": (1 / mup_config["m_d"]),
+            "lin2_weight": (1 / (mup_config["m_d"] * lin2_factor)),
+            "pre_relu": (1 / mup_config["m_d"]),  # FF in, ver2
+            "post_relu": (1 / (mup_config["m_d"] * lin2_factor)),  # FF out, ver2
+        }
+        if use_mup_router:
+            transformer_init_dict["gating"] = 1.0
+        for name, param in transformer_tower.named_parameters():
+            for keyword, value in transformer_init_dict.items():
+                if keyword in name:
+                    print(
+                        f"Initializing {name} with variance {mup_base_variance * value}"
+                    )
+                    torch.nn.init.normal_(
+                        param.data, mean=0.0, std=(mup_base_variance * value) ** 0.5
+                    )
+                    break
+
     model = mup_modules.muP_LLM(embedding_layer, transformer_tower, head, mup_config)
+
+    # apply_muP_init(
+    #     model, init_base_value=init_scale, m_d=mup_config["m_d"], n_blocks=n_blocks
+    # )
 
     if checkpoint is not None:
         load_model_weights(model, checkpoint)
 
     if ddp_enabled:
-        model = wrap_in_ddp(module=model, rank=rank)
+        model = wrap_in_ddp(module=model, local_rank=rank)
     elif fsdp_enabled:
         model = wrap_in_fsdp(
             module=model,
-            rank=rank,
+            local_rank=rank,
             param_precision=fsdp_param_precision,
             cast_inputs=True,
             mixed_precision_ignored_classes=fsdp_mixed_precision_ignore_classes,
@@ -537,3 +583,31 @@ def get_model(
         )
 
     return model
+
+
+# def apply_muP_init(model, init_base_value=1.0, m_d=1.0, n_blocks=1.0):
+#     # pass
+#     key_init_dict = {
+#         "embedding_layer": 1.0,
+#         "input_projection": (1 / m_d),
+#         "output_projection": (1 / (m_d * 2 * n_blocks)),
+#         "lin1_weight": (1 / m_d),
+#         "lin2_weight": (1 / (m_d * 2 * n_blocks)),
+#         "pre_relu": (1 / m_d),  # FF in, ver2
+#         "post_relu": (1 / (m_d * 2 * n_blocks)),  # FF out, ver2
+#         "head": 1.0,
+#         "gating": 1,
+#     }
+#     for name, param in model.named_parameters():
+#         scale = 1.0
+#         for keyword in key_init_dict.keys():
+#             if keyword in name:
+#                 scale = key_init_dict[keyword]
+#                 break
+#         # we don't want to initialize normalization layers, those have their own initialization
+#         if "norm" not in name:
+#             print(f"Initializing {name} with scale {scale}")
+#             print(f"Resulting std: {(init_base_value * scale) ** 0.5}")
+#             torch.nn.init.normal_(
+#                 param.data, mean=0.0, std=(init_base_value * scale) ** 0.5
+#             )

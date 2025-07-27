@@ -5,6 +5,8 @@ from typing import Callable, Iterable, Optional, Literal
 
 import torch
 from torch.profiler import profile, ProfilerActivity
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+
 from attr import define
 from lizrd.core.misc import propagate_forward_pass_cache
 from lizrd.support.decoding import decode_single_example
@@ -38,6 +40,7 @@ class muP_Trainer:
     logging_interval_loss: int
     logging_interval_light: int
     logging_interval_heavy: int
+    logging_spectral_norm: bool
     eval_interval: int
     n_eval_batches: int
     max_sequence_length: int
@@ -174,12 +177,14 @@ class muP_Trainer:
 
         self.lr_scheduler.set_lr(step=step, optimizer=self.optimizer)
         loss, aux_info = self.calculate_loss_and_gradient(processed_batch)
+        # this function needs to check for logging_process itself
+        self._log_weights_and_gradients(step)
         self._apply_gradient()
+
         if self.is_logging_process:
             self._log_train_stats(loss, step)
             self._log_accuracy(aux_info, step)
             self.layer_manager.log(step)
-            self._log_weights_and_gradients(step)
             self._log_auxiliary_losses(aux_info["losses"], step)
         self._save_weights(step)
 
@@ -222,19 +227,21 @@ class muP_Trainer:
             "losses": losses,
         }
 
+    def clip_gradient(self):
+        if self.gradient_clipping is not None:
+            if isinstance(self.model, FSDP):
+                return self.model.clip_grad_norm_(self.gradient_clipping)
+            else:
+                return torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.gradient_clipping
+                )
+
     def _apply_gradient(self):
         if self.scaler is None:
-            if self.gradient_clipping is not None:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+            self.clip_gradient()
             self.optimizer.step()
         else:
-            if self.gradient_clipping is not None:
-                self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.gradient_clipping
-                )
+            self.clip_gradient()
             self.scaler.step(self.optimizer)
             self.scaler.update()
         self.optimizer.zero_grad()
@@ -312,6 +319,11 @@ class muP_Trainer:
         self.logger.report_scalar(
             title="lr", value=self.lr_scheduler.get_lr(step=step), iteration=step
         )
+        for i, param_group in enumerate(self.optimizer.param_groups):
+            name = param_group.get("name", f"Group {i}")  # Default to index if no name
+            self.logger.report_scalar(
+                title=f"param_groups_lr/{name}", value=param_group["lr"], iteration=step
+            )
         if self.dataset_type == "c4":
             self._log_fraction_dataset_processed(step)
         for name, stats in self.loss_accumulators.items():
@@ -324,29 +336,56 @@ class muP_Trainer:
                 )
                 stats.acc = 0.0
 
-    def _log_weights_and_gradients(self, step):
+    def _log_weights_and_gradients_loop(self, step):
         g_norms, w_norms = {}, {}
+        for name, value in self.model.named_parameters():
+            if value.grad is not None:
+                norm = torch.linalg.norm(value.grad)
+                g_norms[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
+                if (
+                    self.logging_spectral_norm and value.grad.dim() >= 2
+                ):  # Ensure it's at least 2D
+                    spectral_norm = torch.linalg.svdvals(value.grad.float()).max()
+                    g_norms[
+                        f"spectral_norms/{name.replace('.', '/')}/grad"
+                    ] = spectral_norm
+            if value.requires_grad:
+                norm = torch.linalg.norm(value)
+                variance = torch.var(value)
+                w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
+                w_norms[f"weight_variances/{name.replace('.', '/')}/weight"] = variance
+                if (
+                    self.logging_spectral_norm and value.dim() >= 2
+                ):  # Ensure it's at least 2D
+                    spectral_norm = torch.linalg.svdvals(value.float()).max()
+                    g_norms[
+                        f"spectral_norms/{name.replace('.', '/')}/weight"
+                    ] = spectral_norm
+        g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
+            torch.tensor(list(g_norms.values()))
+        )
+        w_norms[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
+            torch.tensor(list(w_norms.values()))
+        )
+        for name, value in {**g_norms, **w_norms}.items():
+            self.logger.report_scalar(title=name, value=value, iteration=step)
+
+    def _log_weights_and_gradients(self, step):
         if (
             self.logging_interval_heavy > 0
             and step % self.logging_interval_heavy == 0
-            and step > 0
             and self.log_gradients_and_weights
         ):
-            for name, value in self.model.named_parameters():
-                if value.grad is not None:
-                    norm = torch.linalg.norm(value.grad)
-                    g_norms[f"weight_norms/{name.replace('.', '/')}/grad"] = norm
-                if value.requires_grad:
-                    norm = torch.linalg.norm(value)
-                    w_norms[f"weight_norms/{name.replace('.', '/')}/weight"] = norm
-            g_norms[f"weight_norms/grad_norm_total"] = torch.linalg.norm(
-                torch.tensor(list(g_norms.values()))
-            )
-            w_norms[f"weight_norms/weight_norm_total"] = torch.linalg.norm(
-                torch.tensor(list(w_norms.values()))
-            )
-            for name, value in {**g_norms, **w_norms}.items():
-                self.logger.report_scalar(title=name, value=value, iteration=step)
+            if isinstance(self.model, FSDP):
+                # this needs to be called in all processes
+                with FSDP.summon_full_params(
+                    self.model, with_grads=True, rank0_only=True, writeback=False
+                ):
+                    if self.is_logging_process:
+                        self._log_weights_and_gradients_loop(step)
+            else:
+                if self.is_logging_process:
+                    self._log_weights_and_gradients_loop(step)
 
     def _log_fraction_dataset_processed(self, step):
         processed = step * self.batch_size * self.max_sequence_length
