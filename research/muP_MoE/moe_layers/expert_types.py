@@ -7,7 +7,6 @@ from lizrd.core.initialization import get_init_fun
 from lizrd.core.misc import resolve_activation_name
 from lizrd.core.misc import LoggingLayer, time_measured
 
-
 class ExpertFF(LoggingLayer):
     def __init__(
         self,
