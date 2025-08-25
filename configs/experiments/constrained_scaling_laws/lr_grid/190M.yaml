@@ -12,5 +12,5 @@ params:
   gradient_accumulation_steps: 2
   ^learning_rate_log2: [-8, -8.5, -9, -9.5, -10, -10.5, -11, -11.5, -12]
   use_lr_scaling: false
-  lr_warmup_percent: 0.01
+  lr_warmup_fraction: 0.01
   lr_warmup_steps: 0

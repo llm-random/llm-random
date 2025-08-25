@@ -1,3 +1,6 @@
+from research.conditional.utils.misc_tools import assert_only_one_not_none
+
+
 def check_args(args):
     if args.granularity_expert_config:
         print(
@@ -64,12 +67,8 @@ def check_args(args):
                 args.batch_size % size == 0
             ), "Currently, target batch size needs to be divisible by the rampup batch sizes"
 
-    if args.n_steps is None:
-        assert args.n_tokens is not None
-    else:
-        assert args.n_tokens is None
+    assert_only_one_not_none([args.n_steps, args.n_tokens])
 
-    if args.lr_warmup_steps is None:
-        assert args.lr_warmup_tokens is not None
-    else:
-        assert args.lr_warmup_tokens is None
+    assert_only_one_not_none(
+        [args.lr_warmup_steps, args.lr_warmup_tokens, args.lr_warmup_fraction]
+    )
