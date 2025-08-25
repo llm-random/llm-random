@@ -19,8 +19,6 @@ from lizrd.text.datasets import C4Dataset
 from transformers import GPT2Tokenizer
 from lizrd.train.load_and_save_model import load_scaler_state, save_checkpoint
 from research.token_reduction.layers import (
-    TokenDroppingLayer,
-    TokenMergingLayer,
     TokenReductionEmbedding,
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -181,27 +179,16 @@ def calculate_llm_loss_and_gradient(
         ):
             model_output = model(input_tokens)
 
-        if (
-            isinstance(model.embedding_layer, TokenReductionEmbedding)
-            or (
-                isinstance(model, FSDP)
-                and isinstance(
-                    model._fsdp_wrapped_module.embedding_layer, TokenReductionEmbedding
-                )
-            )
-        ) and model.training:
-            reduction_layer = (
-                model.embedding_layer.reduction_layer
-                if not isinstance(model, FSDP)
-                else model._fsdp_wrapped_module.embedding_layer.reduction_layer
-            )
-
-            if isinstance(reduction_layer, TokenDroppingLayer) or isinstance(
-                reduction_layer, TokenMergingLayer
-            ):
-                indices_to_keep = reduction_layer.indices_to_keep.to(mask.device)
-                mask = keep_given_indeces(mask, indices_to_keep)
-                gt_tokens = keep_given_indeces(gt_tokens, indices_to_keep)
+        layer = (
+            model.embedding_layer
+            if not isinstance(model, FSDP)
+            else model._fsdp_wrapped_module.embedding_layer
+        )
+        if isinstance(layer, TokenReductionEmbedding) and model.training:
+            indices_to_keep, _ = layer.save_reduce_split
+            indices_to_keep = indices_to_keep.to(mask.device)
+            mask = keep_given_indeces(mask, indices_to_keep)
+            gt_tokens = keep_given_indeces(gt_tokens, indices_to_keep)
 
         # move the gt tokens and mask to the same device as the model output - they should be on the same device for loss calculation
         gt_tokens = gt_tokens.to(model_output.device)

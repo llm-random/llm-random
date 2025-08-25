@@ -3,6 +3,8 @@ import torch.nn as nn
 
 from lizrd.core.misc import Linear, LoggingLayer
 
+GPT_EOT_ID = 50256
+
 
 def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_reduce):
     """
@@ -73,122 +75,149 @@ def choose_indeces_to_reduce(batch_size, seq_len, result_seq_len, n_tokens_to_re
     return indices_to_keep, indices_to_reduce
 
 
-class TokenDroppingLayer(LoggingLayer):
-    """
-    This function randomly selects a `result_seq_len` subset of tokens from the input
-    """
+def make_available_ids(unembedded_input, result_seq_len, n_tokens_to_reduce, eot_id):
+    _, train_seq_len = unembedded_input.shape
+    assert (
+        train_seq_len > result_seq_len + n_tokens_to_reduce
+    ), "Not enough tokens in the input sequence"
+    droppable_ids, saved_ids = [], []
+    for row_number, tokens in enumerate(unembedded_input):
+        droppable_tokens_mask = tokens[: result_seq_len + n_tokens_to_reduce] != eot_id
+        droppable_ids.append(
+            droppable_tokens_mask.nonzero(as_tuple=True)[0] + train_seq_len * row_number
+        )
+        saved_ids.append(
+            (~droppable_tokens_mask).nonzero(as_tuple=True)[0]
+            + train_seq_len * row_number
+        )
+    return droppable_ids, saved_ids
 
-    def __init__(self, result_seq_len, scheduler=None):
+
+def choose_ids_to_reduce(available_ids, prior_saved_ids, n_tokens_to_reduce):
+    permuted_ids = [ids[torch.randperm(len(ids))] for ids in available_ids]
+
+    split_pairs = [
+        (ids[:n_tokens_to_reduce], ids[n_tokens_to_reduce:]) for ids in permuted_ids
+    ]
+
+    sorted_results = [
+        (torch.cat((save_ids, prior_ids)).sort()[0], reduce_ids)
+        for ((reduce_ids, save_ids), prior_ids) in zip(split_pairs, prior_saved_ids)
+    ]
+
+    ids_to_save, ids_to_reduce = zip(*sorted_results)
+    ids_to_save, ids_to_reduce = (
+        torch.stack(ids_to_save).flatten(),
+        torch.stack(ids_to_reduce).flatten(),
+    )
+    return ids_to_save, ids_to_reduce
+
+
+def get_save_reduce_split(unembedded_input, result_seq_len, n_tokens_to_reduce, eot_id):
+    available_ids, prior_saved_ids = make_available_ids(
+        unembedded_input=unembedded_input,
+        result_seq_len=result_seq_len,
+        n_tokens_to_reduce=n_tokens_to_reduce,
+        eot_id=eot_id,
+    )
+
+    ids_to_save, ids_to_reduce = choose_ids_to_reduce(
+        available_ids, prior_saved_ids, n_tokens_to_reduce
+    )
+
+    ids_to_save = ids_to_save.to(unembedded_input.device)
+    ids_to_reduce = ids_to_reduce.to(unembedded_input.device)
+
+    return ids_to_save, ids_to_reduce
+
+
+class TokenDroppingLayer(nn.Module):
+    def __init__(self):
         super(TokenDroppingLayer, self).__init__()
-        self.result_seq_len = result_seq_len
-        self.scheduler = scheduler
 
-    def set_scheduler_step(self, step):
-        if self.scheduler is not None:
-            self.scheduler.set_step(step)
+    def forward(self, token_reduction_input):
+        x, (ids_to_save, _) = token_reduction_input
+        batch_size, _, dm = x.shape
 
-    def forward(self, x):
-        batch_size, seq_len, _ = x.shape
-        assert self.result_seq_len <= seq_len
-
-        n_tokens_to_reduce = (
-            seq_len - self.result_seq_len
-            if self.scheduler is None
-            else self.scheduler.value
-        )
-        self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
-
-        indices_to_keep, _ = choose_indeces_to_reduce(
-            batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
-        )
-        self.indices_to_keep = indices_to_keep
-        selected_tokens = x.view(batch_size * seq_len, -1).index_select(
-            0, indices_to_keep.to(x.device)
-        )
-        return selected_tokens.view(batch_size, self.result_seq_len, -1)
-
-    def log_light(self):
-        return {
-            "reduced_tokens": self.logging_cache["reduced_tokens"],
-        }
+        reduced_batch = x.view(-1, dm).index_select(0, ids_to_save)
+        return reduced_batch.view(batch_size, -1, dm)
 
 
-class TokenMergingLayer(LoggingLayer):
-    """
-    This function randomly selects a `result_seq_len` subset of tokens from the input
-    """
-
+class TokenMergingLayer(nn.Module):
     def __init__(
         self,
-        result_seq_len,
         dm,
-        scheduler=None,
         init_type="kaiming_uniform",
         init_scale=1.0,
     ):
         super(TokenMergingLayer, self).__init__()
-        self.result_seq_len = result_seq_len
-        self.scheduler = scheduler
 
         self.merge_linear_projection = Linear(
             dm, dm, init_type=init_type, init_scale=init_scale, bias=False
         )
 
+    def forward(self, token_reduction_input):
+        x, (ids_to_save, ids_to_reduce) = token_reduction_input
+        batch_size, _, dm = x.shape
+
+        x = x.view(-1, dm)
+        reduced_tokens = torch.index_select(x, 0, ids_to_reduce)
+        transformed_reduced_tokens = self.merge_linear_projection(
+            reduced_tokens
+        ).float()
+
+        x.index_add_(0, ids_to_reduce + 1, transformed_reduced_tokens)
+        reduced_batch = torch.index_select(x, 0, ids_to_save)
+
+        return reduced_batch.view(batch_size, -1, dm)
+
+
+class TokenReductionEmbedding(LoggingLayer):
+    def __init__(
+        self,
+        base_embedding_layer,
+        reduction_layer,
+        result_seq_len,
+        scheduler=None,
+        is_eot_id_reducible=False,
+    ):
+        super().__init__()
+        self.base_embedding_layer = base_embedding_layer
+        self.reduction_layer = reduction_layer
+        self.scheduler = scheduler
+        self.result_seq_len = result_seq_len
+        self.is_eot_id_reducible = is_eot_id_reducible
+
     def set_scheduler_step(self, step):
         if self.scheduler is not None:
             self.scheduler.set_step(step)
 
     def forward(self, x):
-        batch_size, seq_len, dm = x.shape
-        assert self.result_seq_len <= seq_len
+        if self.training:
+            _, seq_len = x.shape
+            assert self.result_seq_len <= seq_len
 
-        n_tokens_to_reduce = (
-            seq_len - self.result_seq_len
-            if self.scheduler is None
-            else self.scheduler.value
-        )
-        self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
+            n_tokens_to_reduce = (
+                seq_len - self.result_seq_len
+                if self.scheduler is None
+                else self.scheduler.value
+            )
+            self.update_cache_for_logging("reduced_tokens", n_tokens_to_reduce)
 
-        indices_to_keep, indices_to_reduce = choose_indeces_to_reduce(
-            batch_size, seq_len, self.result_seq_len, n_tokens_to_reduce
-        )
-        indices_to_keep, indices_to_reduce = indices_to_keep.to(
-            x.device
-        ), indices_to_reduce.to(x.device)
+            self.save_reduce_split = get_save_reduce_split(
+                unembedded_input=x,
+                result_seq_len=self.result_seq_len,
+                n_tokens_to_reduce=n_tokens_to_reduce,
+                eot_id=GPT_EOT_ID if self.is_eot_id_reducible else -1,
+            )
 
-        x = x.view(-1, dm)
-        reduced_tokens = torch.index_select(x, 0, indices_to_reduce)
-        transformed_reduced_tokens = self.merge_linear_projection(
-            reduced_tokens
-        ).float()
-
-        x.index_add_(0, indices_to_reduce + 1, transformed_reduced_tokens)
-        kept_tokens = torch.index_select(x, 0, indices_to_keep)
-
-        self.indices_to_keep, self.indices_to_reduce = (
-            indices_to_keep,
-            indices_to_reduce,
-        )
-        return kept_tokens.view(batch_size, self.result_seq_len, -1)
+            x = self.base_embedding_layer(x)
+            x = self.reduction_layer((x, self.save_reduce_split))
+        else:
+            x = self.base_embedding_layer(x)
+        return x
 
     def log_light(self):
         return {
             "reduced_tokens": self.logging_cache["reduced_tokens"],
         }
-
-
-class TokenReductionEmbedding(nn.Module):
-    def __init__(self, base_embedding_layer, reduction_layer):
-        super().__init__()
-        self.base_embedding_layer = base_embedding_layer
-        self.reduction_layer = reduction_layer
-
-    def set_scheduler_step(self, step):
-        if self.reduction_layer is not None:
-            self.reduction_layer.set_scheduler_step(step)
-
-    def forward(self, x):
-        x = self.base_embedding_layer(x)
-        if self.training:
-            x = self.reduction_layer(x)
-        return x

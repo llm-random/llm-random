@@ -180,6 +180,7 @@ def main(
         reduction_layer_type=args.reduction_layer_type,
         # sequence_length_multiplier=args.sequence_length_multiplier,
         scheduler_params=args.tr_schedule,
+        is_eot_id_reducible=args.tr_reducible_eot_token,
     )
 
     n_learnable_parameters = get_n_learnable_parameters(model)
