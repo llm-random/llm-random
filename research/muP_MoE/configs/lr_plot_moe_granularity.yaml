@@ -10,9 +10,9 @@ interactive_debug: false
 backends_module: research.muP_MoE.utils.backends
 
 params:
-  name: "muP_MoE_lr_plot_moe_exprate"
+  name: "muP_MoE_granularity"
   # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
-  tags: ["muP_MoE", "muTransfer", "lr_plot_moe_fast_granularity"]
+  tags: ["muP_MoE", "muTransfer", "lr_plot_moe_granularity_2"]
 
   mup_params:
     alpha_in: 1.0
@@ -20,7 +20,7 @@ params:
     # alpha_in: 5.0
     # alpha_out: 0.2
     base_dmodel: 256
-  ^use_mup_router: [false]
+  ^use_mup_router: [true]
 
   # training
   n_steps: 40000
@@ -44,8 +44,7 @@ params:
   ff_mode: token_choice
   effective_dff_x: 4  # went from 4 -> 3
   expansion_rate: 8
-  # ^granularity: [1, 2, 4, 8, 16]
-  ^granularity: [32, 64]
+  ^granularity: [1, 2, 4, 8, 16, 32, 64]
   moe_inner_expert: ff
   activation_type: relu
   softmax_over: experts
@@ -58,8 +57,7 @@ params:
 
   # learning
   scheduler: cosine
-  # ^learning_rate: [2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2]
-  ^learning_rate: [2e-3]
+  ^learning_rate: [2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2]
   final_lr_fraction: 0.1
   grad_clip: 1.0
   weight_decay: 0.1

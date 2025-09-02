@@ -85,22 +85,36 @@ def convert_args(args):
 
 
 def get_muP_learning_rates(args, model, m_d=1.0):
+
+    granularity = 1.0
+    if args.use_mup_router:
+        if args.ff_mode == "token_choice":
+            granularity = args.granularity
+
     lr = args.learning_rate
 
     key_lr_dict = {
         "embedding_layer": 1.0,
         "input_projection": (1 / m_d),  # Attn Q, K, V
         "output_projection": (1 / m_d),  # Attn O
-        "residual_attention.layer.attention": (1 / m_d),
-        "residual_feedforward.layer.feedforward": (1 / m_d),
         "lin1_weight": (1 / m_d),  # FF in
         "lin2_weight": (1 / m_d),  # FF out
         "pre_relu": (1 / m_d),  # FF in, ver2
         "post_relu": (1 / m_d),  # FF out, ver2
         "expert_inner_function": (1 / m_d),  # FF in MoE
         "head": 1,
-        "gating": 1,
+        "gating": granularity**0.5,
     }
+
+    # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_attention.layer.pre_norm._fsdp_wrapped_module.bias (Group: other)
+    # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_attention.layer.attention.input_projection.weight (Group: input_projection)
+    # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_attention.layer.attention.output_projection.weight (Group: output_projection)
+    # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_feedforward.layer.pre_norm._fsdp_wrapped_module.weight (Group: other)
+    # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_feedforward.layer.pre_norm._fsdp_wrapped_module.bias (Group: other)
+    # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_feedforward.layer.feedforward.expert_inner_function.lin1_weight (Group: residual_feedforward.layer.feedforward)
+    # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_feedforward.layer.feedforward.expert_inner_function.lin2_weight (Group: residual_feedforward.layer.feedforward)
+    # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_feedforward.layer.feedforward.gating.gate (Group: residual_feedforward.layer.feedforward)
+    # _fsdp_wrapped_module.head.layer._fsdp_wrapped_module._checkpoint_wrapped_module.weight (Group: head)
 
     ratio_to_params = defaultdict(lambda: {"params": [], "name": "other"})
 
