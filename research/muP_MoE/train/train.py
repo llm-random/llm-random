@@ -85,7 +85,6 @@ def convert_args(args):
 
 
 def get_muP_learning_rates(args, model, m_d=1.0):
-
     granularity = 1.0
     if args.use_mup_router:
         if args.ff_mode == "token_choice":
