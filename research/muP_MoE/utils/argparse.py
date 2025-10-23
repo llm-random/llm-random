@@ -39,6 +39,8 @@ def introduce_parser_arguments(
         help="provide all 3 values: alpha_in: float, alpha_out: float, base_dmodel: int",
     )
     parser.add_argument("--use_mup_router", action="store_true")
+    parser.add_argument("--use_independent_weight_decay", action="store_true")
+
     parser.add_argument(
         "--attention_normalization",
         type=str,

@@ -84,13 +84,14 @@ def convert_args(args):
         args.n_att_heads = args.dmodel // args.dhead
 
 
-def get_muP_learning_rates(args, model, m_d=1.0):
-    granularity = 1.0
-    if args.use_mup_router:
-        if args.ff_mode == "token_choice":
-            granularity = args.granularity
+def get_muP_learning_rates(args, model, m_d=1.0, use_independent_weight_decay=False):
+    # granularity = 1.0
+    # if args.use_mup_router:
+    #     if args.ff_mode == "token_choice":
+    #         granularity = args.granularity
 
     lr = args.learning_rate
+    weight_decay = args.weight_decay
 
     key_lr_dict = {
         "embedding_layer": 1.0,
@@ -102,7 +103,7 @@ def get_muP_learning_rates(args, model, m_d=1.0):
         "post_relu": (1 / m_d),  # FF out, ver2
         "expert_inner_function": (1 / m_d),  # FF in MoE
         "head": 1,
-        "gating": granularity**0.5,
+        # "gating": granularity**0.5,
     }
 
     # _fsdp_wrapped_module.encoder.blocks.block_11._fsdp_wrapped_module._checkpoint_wrapped_module.block.residual_attention.layer.pre_norm._fsdp_wrapped_module.bias (Group: other)
@@ -126,18 +127,26 @@ def get_muP_learning_rates(args, model, m_d=1.0):
                 group_name = keyword
                 break
         print(f"Assigning lr ratio {ratio} to {name} (Group: {group_name})")
+        if use_independent_weight_decay:
+            print(f"Assigning WD ratio {1 / ratio} to {name} (Group: {group_name})")
         ratio_to_params[ratio]["params"].append(param)
         ratio_to_params[ratio]["name"] = group_name
 
-    param_groups = [
-        {
-            "params": group["params"],
-            "lr": ratio * lr,
-            "lr_ratio": ratio,
-            "name": group["name"],
-        }
-        for ratio, group in ratio_to_params.items()
-    ]
+    param_groups = []
+    for ratio, group in ratio_to_params.items():
+        if use_independent_weight_decay:
+            wd_ratio = 1 / ratio
+        else:
+            wd_ratio = 1.0
+        param_groups.append(
+            {
+                "params": group["params"],
+                "lr": ratio * lr,
+                "lr_ratio": ratio,
+                "name": group["name"],
+                "weight_decay": wd_ratio * weight_decay,
+            }
+        )
     return param_groups
 
 
@@ -319,7 +328,12 @@ def main(
     #         m_d=m_d,
     #         n_blocks=args.n_blocks,
     #     )
-    param_groups = get_muP_learning_rates(args, model, m_d=m_d)
+    param_groups = get_muP_learning_rates(
+        args,
+        model,
+        m_d=m_d,
+        use_independent_weight_decay=args.use_independent_weight_decay,
+    )
 
     if args.optimizer == "adamw":
         optimizer = torch.optim.AdamW(
