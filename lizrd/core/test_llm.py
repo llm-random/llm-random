@@ -35,10 +35,11 @@ class ResidualTest(GeneralTestCase):
 class AttentionPPTest(GeneralTestCase):
     def test_basic(self):
         batch, seql, dm, heads = 16, 4, 64, 8
-        layer = llm.AttentionRoPE(
+        layer = llm.Attention(
             dmodel=dm,
             heads=heads,
-            length=seql,
+            rope=True,
+            seq_len=seql,
             causal=False,
             init_type="kaiming_uniform",
             init_scale=1.0,

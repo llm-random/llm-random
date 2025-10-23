@@ -1,0 +1,82 @@
+runner: "research.muP_MoE.train.train"
+
+time: "4-00:00:00"
+# n_gpus: 2
+# cpus_per_gpu: 16
+
+params:
+  # name: "test"
+  name: "muP_MoE_debug_mup"
+  # tags: ["aux_loss_fix", "old_implementation"]
+  tags: ["remove", "muP_MoE_debug"]
+
+  mup_params:
+    ^alpha_in: [10.0]
+    ^alpha_out: [0.1]
+    # alpha_in: 5.0
+    # alpha_out: 0.2
+    base_dmodel: 64
+
+  # training
+  n_steps: 7000
+  final_lr_step: 7000
+  lr_warmup_steps: 70
+  batch_size: 128
+  cutoff: 256
+
+  # model
+  model_type: gpt
+  dmodel: 512
+  n_att_heads: 8
+  n_blocks: 8
+  effective_dff_x: 3  # went from 4 -> 3
+  expansion_rate: 8
+  granularity: 1
+  ff_mode: token_choice
+  moe_inner_expert: ff
+  activation_type: relu
+  use_torch_bmm: true
+  softmax_over: experts
+  group_granular_moe_by_batch: true
+  granular_moe_one_hot_impl: true
+
+  # learning
+  scheduler: cosine
+  learning_rate: 2e-3
+  # ^learning_rate: [1e-3, 5e-4, 2e-4, 1e-4, 5e-5]
+  final_lr_fraction: 0.1
+  grad_clip: 0.5
+  weight_decay: 0.01
+  init_scale: 0.1
+  # ^init_scale: [1.0, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01]
+  init_type: truncated_normal
+  capacity_factor: 1.0
+
+  # aux losses
+  load_balancing_loss_weight: 0.01
+  zloss_weight: 0.001
+
+  # other
+  dataset_type: c4
+  mixed_precision: true
+  flash_attention: true
+  mixed_precision_dtype: bfloat16
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 5000
+  logging_interval_loss: 1000
+  save_weights_interval: -1
+
+  # debug
+  # logger_types: "stdout"
+  # n_steps: 100
+  # batch_size: 8
+  # cutoff: 16
+  # use_dummy_dataset: true
+  # n_blocks: 2
+  # dmodel: 16
+  # n_att_heads: 2
+
+  print_parameter_names: true

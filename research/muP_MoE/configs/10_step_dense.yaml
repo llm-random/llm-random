@@ -1,0 +1,88 @@
+runner: "research.muP_MoE.train.train"
+
+# time: "05:00:00"
+time: "10:00:00"
+
+n_gpus: 2
+cpus_per_gpu: 16
+
+interactive_debug: false
+
+params:
+  name: "muP_MoE_10k_step_0704"
+  tags: ["muP_MoE", "muTransfer", "10k_step_0704"]
+  # tags: ["muP_MoE", "muTransfer", "10k_step_0704_lr2e-3", "fsdp"]
+
+  mup_params:
+    ^alpha_in: [1.0]
+    ^alpha_out: [1.0]
+    # alpha_in: 5.0
+    # alpha_out: 0.2
+    base_dmodel: 256
+
+  # training
+  n_steps: 10000
+  lr_warmup_steps: 100
+  batch_size: 128
+  cutoff: 128
+
+  # model
+  model_type: gpt
+  # dmodel: 512
+  # ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]
+  ^dmodel: [256, 512, 1024, 2048]
+  # ^dmodel: [256, 384, 512, 768, 1024, 1536, 2048]
+  n_blocks: 4
+  dhead: 64
+  attention_mode: 'vanilla'
+  attention_normalization: 'dhead'
+  use_torch_bmm: true
+
+  ff_mode: vanilla
+  dff_ratio: 4
+
+  # learning
+  optimizer: adamw # we have adamW
+  scheduler: cosine
+  final_lr_fraction: 1.0
+  learning_rate: 5e-3
+  grad_clip: 1.0
+  weight_decay: 0.1
+  init_scale: 0.1
+  init_type: truncated_normal
+  adam_beta1: 0.9
+  adam_beta2: 0.99
+
+  # FSDP
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock,Attention,FeedForward"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+
+  # other
+  dataset_type: c4
+  mixed_precision: true
+  flash_attention: true
+  mixed_precision_dtype: bfloat16
+  # ^data_seed: [1000, 1001, 1002, 1003, 1004]
+  ^data_seed: [12, 13, 14]
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 1000
+  log_gradients_and_weights: true
+  # logging_interval_light: 50
+  # logging_interval_loss: 20
+  # save_weights_interval: null
+  print_parameter_names: true
+
+  # debug
+  # logger_types: "stdout"
+  # n_steps: 100
+  # batch_size: 8
+  # cutoff: 16
+  # use_dummy_dataset: true
+  # n_blocks: 2
+  # dmodel: 16
+  # n_att_heads: 2

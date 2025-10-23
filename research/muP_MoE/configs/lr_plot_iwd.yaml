@@ -1,0 +1,80 @@
+runner: "research.muP_MoE.train.train"
+
+time: '1-00:00:00'
+
+n_gpus: 2
+cpus_per_gpu: 16
+
+interactive_debug: false
+backends_module: research.muP_MoE.utils.backends
+
+params:
+  name: MoE_lr_grid_independent_wd
+  tags: ["muP_MoE", "muTransfer", "independent_wd", "IWD"]
+
+  ^use_independent_weight_decay: [true, false]
+  mup_params:
+    # alpha_in: 10.0
+    # alpha_out: 0.1
+
+    alpha_in: 1.0
+    alpha_out: 1.0
+    base_dmodel: 64
+
+  # training
+  n_steps: 50000
+  final_lr_step: 50000
+  lr_warmup_steps: 500
+  batch_size: 128
+  cutoff: 128
+
+  # model
+  model_type: gpt
+  ^dmodel: [64, 128, 256, 512, 768, 1024]
+  # ^dmodel: [1536]
+  n_blocks: 8
+  dhead: 64
+  attention_mode: 'vanilla'
+  attention_normalization: 'dhead'
+  use_torch_bmm: true
+
+  ff_mode: vanilla
+  dff_ratio: 4
+  activation_type: relu
+
+  # learning
+  scheduler: cosine
+  ^learning_rate: [1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2]
+  final_lr_fraction: 0.1
+  grad_clip: 1.0
+  weight_decay: 0.1
+  init_scale: 0.1
+  init_type: normal
+
+  # FSDP
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+
+  dataset_type: c4
+  mixed_precision: true
+  flash_attention: true
+  mixed_precision_dtype: bfloat16
+  data_seed: 17
+
+  # logging etc.
+  logger_types: neptune
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 3000
+  log_gradients_and_weights: true
+
+  # debug
+  # logger_types: "stdout"
+  # n_steps: 100
+  # batch_size: 8
+  # cutoff: 16
+  # use_dummy_dataset: true
+  # n_blocks: 2
+  # dmodel: 16
+  # n_att_heads: 2

@@ -1,0 +1,101 @@
+runner: "research.muP_MoE.train.train"
+
+# time: "05:00:00"
+time: "1-00:00:00"
+
+n_gpus: 4
+cpus_per_gpu: 16
+
+interactive_debug: false
+backends_module: research.muP_MoE.utils.backends
+
+params:
+  name: "muP_MoE_lr_plot_moe"
+  # tags: ["muP_MoE", "muTransfer", "norm_plot_3"]
+  tags: ["muP_MoE", "muTransfer", "lr_plot_moe_iclr"]
+
+  mup_params:
+    alpha_in: 1.0
+    alpha_out: 1.0
+    # alpha_in: 5.0
+    # alpha_out: 0.2
+    base_dmodel: 128
+  ^use_mup_router: [true, false]
+
+  # training
+  n_steps: 20000
+  final_lr_step: 20000
+  lr_warmup_steps: 200
+  # n_steps: 4000
+  # final_lr_step: 4000
+  # lr_warmup_steps: 100
+  gradient_accumulation_steps: 2  # use for dmodel 128, 256 with 1gpu, or 512, 768 with 2gpu
+  batch_size: 512
+  cutoff: 512
+
+  # model
+  model_type: gpt
+  ^dmodel: [1536]
+  n_blocks: 16
+  dhead: 64
+  attention_mode: 'vanilla'
+  attention_normalization: 'dhead'
+  use_torch_bmm: true
+
+  ff_mode: token_choice
+  effective_dff_x: 4  # went from 4 -> 3
+  expansion_rate: 8
+  granularity: 1
+  moe_inner_expert: ff
+  activation_type: relu
+  softmax_over: experts
+  group_granular_moe_by_batch: true
+  granular_moe_one_hot_impl: true
+
+  # MoE aux losses
+  load_balancing_loss_weight: 0.01
+  zloss_weight: 0.001
+
+  # learning
+  scheduler: cosine
+  ^learning_rate: [1e-2]
+  # ^learning_rate: [2e-3, 5e-3, 1e-2]  # muP
+  # ^learning_rate: [5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2]  # 128, 256
+  # ^learning_rate: [2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2]  # 512
+  # ^learning_rate: [1e-4, 2e-4, 5e-4, 1e-3, 2e-3]  # 768, 1024
+  # ^learning_rate: [5e-5, 1e-4, 2e-4, 5e-4, 1e-3]  # 1536
+  # ^learning_rate: [2e-5, 5e-5, 1e-4, 2e-4, 5e-4]  # 2048
+  # ^learning_rate: [1e-5, 2e-5, 5e-5, 1e-4, 2e-4]  # 3584
+  final_lr_fraction: 0.1
+  grad_clip: 1.0
+  weight_decay: 0.1
+  init_scale: 0.1
+  init_type: normal
+
+  # FSDP
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  activation_checkpointing_modules: "EmbeddingLayer,PredictionHead,TransformerBlock"
+  fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+
+  # other
+  dataset_type: c4
+  mixed_precision: true
+  flash_attention: true
+  mixed_precision_dtype: bfloat16
+  data_seed: 47
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 2000
+
+  # debug
+  # logger_types: "stdout"
+  # n_steps: 100
+  # batch_size: 8
+  # cutoff: 16
+  # use_dummy_dataset: true
+  # n_blocks: 2
+  # dmodel: 16
+  # n_att_heads: 2

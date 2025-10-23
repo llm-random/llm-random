@@ -1,10 +1,12 @@
 import torch
-from torch.nn.init import trunc_normal_
+from torch.nn.init import trunc_normal_, normal_
 from functools import partial
 import torch.nn as nn
 from typing import Literal
 
-ValidInitType = Literal["kaiming_uniform", "truncated_normal", "truncated_normal_fixed"]
+ValidInitType = Literal[
+    "kaiming_uniform", "truncated_normal", "truncated_normal_fixed", "normal"
+]
 
 
 def get_init_weight(
@@ -22,6 +24,8 @@ def get_init_weight(
         return init_truncated_normal_fixed(
             shape=shape, fan_in=fan_in, scale=scale, dtype=dtype
         )
+    elif init_type == "normal":
+        return init_normal_(shape=shape, fan_in=fan_in, scale=scale, dtype=dtype)
     else:
         raise ValueError(f"Unknown init_type: {init_type}")
 
@@ -50,6 +54,12 @@ def init_truncated_normal_fixed(shape, fan_in, scale, dtype=torch.float32):
     high = 2 * std
     t = torch.zeros(shape, dtype=dtype)
     return trunc_normal_(t, mean=0.0, std=std, a=low, b=high)
+
+
+def init_normal_(shape, fan_in, scale, dtype=torch.float32):
+    std = scale * (1 / fan_in) ** 0.5
+    t = torch.zeros(shape, dtype=dtype)
+    return normal_(t, mean=0.0, std=std)
 
 
 def get_init_bias(shape, fan_in=None, fan_out=None, dtype=torch.float32):

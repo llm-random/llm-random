@@ -1,0 +1,7 @@
+done - compare old vs new init without fsdp
+
+10_step dense fsdp - running
+10_step moe no-fsdp
+10_step moe fsdp
+10_step moe with 4/8 blocks
+run lr_plot with fixed init
