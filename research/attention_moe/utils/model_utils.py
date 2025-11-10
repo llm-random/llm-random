@@ -310,6 +310,7 @@ def get_attention_layer(args):
             n_kv_heads=args.n_kv_heads,
             rms_norm_eps=args.rms_norm_eps,
             rope_theta=args.rope_theta,
+            use_qk_norm=args.use_qk_norm,
         )
     elif args.attention_mode == "mqa":
         # attention_layer_fun = lambda: CausalMQA(
@@ -434,6 +435,7 @@ def get_attention_layer(args):
             rms_norm_eps=args.rms_norm_eps,
             rope_theta=args.rope_theta,
             share_q_or_k=args.diff_transformer_share_q_or_k,
+            use_qk_norm=args.use_qk_norm,
         )
     elif args.attention_mode == "gda":
         attention_layer_fun = lambda: GroupedDifferentialAttention(
@@ -935,7 +937,7 @@ def get_mixed_precision_ignored_classes(args) -> list[Type[torch.nn.Module]]:
         CausalMQA,
         MoMQA,
         TokenGating,
-        RMSNorm
+        RMSNorm,
         # TokenChoiceRouterOld,
         # TokenGating,
     ]
