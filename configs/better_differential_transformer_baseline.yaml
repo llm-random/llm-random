@@ -6,7 +6,7 @@ backends_module: research.attention_moe.backends
 
 # train params
 params:
-  name: "diff_baseline_fixed_config"
+  name: "diff_lora_confirmation"
 
   # base bass
   mixed_precision: true
@@ -20,7 +20,7 @@ params:
   logging_interval_loss: 1000
   # save_weights_path: "model_ckpt"
   save_weights_interval: 15000
-  tags: ["diff_neurips", "diff_baseline_fixed_config"]
+  tags: ["diff_neurips", "diff_lora_confirmation"]
 
 
   cutoff: 2048

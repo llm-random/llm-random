@@ -24,11 +24,11 @@ params:
 
 
   cutoff: 2048
-  batch_size: 64
-  n_steps: 45_000
-  final_lr_step: 45_000
+  batch_size: 128
+  n_steps: 22_500
+  final_lr_step: 22_500
   scheduler: cosine
-  lr_warmup_steps: 450
+  lr_warmup_steps: 225
   final_lr_fraction: 0.1
 
   model_type: gpt

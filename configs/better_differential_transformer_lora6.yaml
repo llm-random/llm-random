@@ -24,11 +24,11 @@ params:
 
 
   cutoff: 2048
-  batch_size: 64
-  n_steps: 45_000
-  final_lr_step: 45_000
+  batch_size: 128
+  n_steps: 22_500
+  final_lr_step: 22_500
   scheduler: cosine
-  lr_warmup_steps: 450
+  lr_warmup_steps: 225
   final_lr_fraction: 0.1
 
   model_type: gpt
@@ -66,7 +66,7 @@ params:
   ^learning_rate: [1e-3]
   ^diff_transformer_adapter_type: [lora]
   ^diff_transformer_lowrank_dim: [64]
-  ^dff: [2241]
+  ^dff: [2240]
 #  ^dff: [1814]
 #  ^diff_transformer_lowrank_scaling: [0.5, 1.0, 2.0, 4.0]
   ^diff_transformer_lowrank_scaling: [1.0, 2.0]
