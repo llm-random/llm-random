@@ -47,7 +47,7 @@ class AdapterDifferentialAttention(LoggingLayer):
         init_type,
         init_scale,
         lowrank_scaling,
-        lowrank_bias,
+        lowrank_dropout,
         double_kv_cache,
         n_kv_heads=None,
         adapter_type: str = "lora",
@@ -85,7 +85,7 @@ class AdapterDifferentialAttention(LoggingLayer):
                 init_type,
                 init_scale,
                 lowrank_scaling=lowrank_scaling,
-                lowrank_bias=lowrank_bias,
+                dropout=lowrank_dropout,
                 output_dim=q_proj_out_dim,
                 dtype=lowrank_dtype,
             )
@@ -95,7 +95,7 @@ class AdapterDifferentialAttention(LoggingLayer):
                 init_type,
                 init_scale,
                 lowrank_scaling=lowrank_scaling,
-                lowrank_bias=lowrank_bias,
+                dropout=lowrank_dropout,
                 output_dim=k_proj_out_dim,
                 dtype=lowrank_dtype,
             )

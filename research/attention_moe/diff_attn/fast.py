@@ -49,7 +49,7 @@ class Lowrank(nn.Module):
         init_type,
         init_scale,
         lowrank_scaling,
-        lowrank_bias,
+        dropout,
         output_dim=None,
         dtype=None,
     ):
@@ -58,6 +58,8 @@ class Lowrank(nn.Module):
         self.w1 = Linear(
             outer_dim, inner_dim, bias=False, init_type=init_type, init_scale=init_scale
         )
+        if dropout > 0.0:
+            self.dropout = nn.Dropout(dropout)
         self.w2 = Linear(
             inner_dim,
             output_dim or outer_dim,
@@ -67,13 +69,6 @@ class Lowrank(nn.Module):
         )
         self.dtype = dtype
         self.lowrank_scaling = lowrank_scaling
-        self.lowrank_bias = lowrank_bias
-        if lowrank_bias:
-            self.bias = nn.Parameter(
-                torch.zeros(outer_dim, dtype=torch.float32).normal_(
-                    mean=0, std=0.1
-                )
-            )
 
     def forward(self, x):
         if self.dtype is None:
@@ -82,8 +77,11 @@ class Lowrank(nn.Module):
             original_dtype = x.dtype
             forced_dtype = getattr(torch, self.dtype)
             x = x.to(forced_dtype)
-            res = self.w2(self.w1(x)) * self.lowrank_scaling
-            return res.to(original_dtype)
+            x = self.w1(x)
+            if hasattr(self, "dropout"):
+                x = self.dropout(x)
+            x = self.w2(x)
+            return x.to(original_dtype)
 
 
 def manual_attention(q, k, v, causal=True):
@@ -179,53 +177,45 @@ class MultiheadFlashDiff1(LoggingLayer):
             )
         elif self.adapter_type == "additive":
             self.k_delta = nn.Parameter(
-                torch.zeros(
-                    self.dhead * self.n_kv_heads, dtype=torch.float32
-                ).normal_(mean=0, std=0.1)
-            )
-            self.q_delta = nn.Parameter(
-                torch.zeros(self.dmodel, dtype=torch.float32).normal_(
+                torch.zeros(self.dhead * self.n_kv_heads, dtype=torch.float32).normal_(
                     mean=0, std=0.1
                 )
+            )
+            self.q_delta = nn.Parameter(
+                torch.zeros(self.dmodel, dtype=torch.float32).normal_(mean=0, std=0.1)
             )
         elif self.adapter_type == "multiplicative":
             self.k_delta = nn.Parameter(
-                torch.zeros(
-                    self.dhead * self.n_kv_heads, dtype=torch.float32
-                ).normal_(mean=1, std=0.1)
-            )
-            self.q_delta = nn.Parameter(
-                torch.zeros(self.dmodel, dtype=torch.float32).normal_(
+                torch.zeros(self.dhead * self.n_kv_heads, dtype=torch.float32).normal_(
                     mean=1, std=0.1
                 )
+            )
+            self.q_delta = nn.Parameter(
+                torch.zeros(self.dmodel, dtype=torch.float32).normal_(mean=1, std=0.1)
             )
         elif self.adapter_type == "multiadd":
             self.k_delta_mult = nn.Parameter(
-                torch.zeros(
-                    self.dhead * self.n_kv_heads, dtype=torch.float32
-                ).normal_(mean=1, std=0.1)
-            )
-            self.q_delta_mult = nn.Parameter(
-                torch.zeros(self.dmodel, dtype=torch.float32).normal_(
+                torch.zeros(self.dhead * self.n_kv_heads, dtype=torch.float32).normal_(
                     mean=1, std=0.1
                 )
             )
-            self.k_delta_add = nn.Parameter(
-                torch.zeros(
-                    self.dhead * self.n_kv_heads, dtype=torch.float32
-                ).normal_(mean=0, std=0.1)
+            self.q_delta_mult = nn.Parameter(
+                torch.zeros(self.dmodel, dtype=torch.float32).normal_(mean=1, std=0.1)
             )
-            self.q_delta_add = nn.Parameter(
-                torch.zeros(self.dmodel, dtype=torch.float32).normal_(
+            self.k_delta_add = nn.Parameter(
+                torch.zeros(self.dhead * self.n_kv_heads, dtype=torch.float32).normal_(
                     mean=0, std=0.1
                 )
+            )
+            self.q_delta_add = nn.Parameter(
+                torch.zeros(self.dmodel, dtype=torch.float32).normal_(mean=0, std=0.1)
             )
         elif self.adapter_type == "none" or self.adapter_type == "identity":
             pass
         else:
             raise NotImplementedError
 
-        self.scaling = self.dhead ** -0.5
+        self.scaling = self.dhead**-0.5
 
         self.q_proj = Linear(
             dmodel,
@@ -522,7 +512,7 @@ class VanillaFlashDiff1(nn.Module):
         self.attention_weights = None
 
         self.dhead = dmodel // n_heads
-        self.scaling = self.dhead ** -0.5
+        self.scaling = self.dhead**-0.5
         self.seq_len = seq_len
         self.use_rope = use_rope
         if self.use_rope:

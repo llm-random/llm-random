@@ -411,7 +411,7 @@ def get_attention_layer(args):
             init_type=args.init_type,
             init_scale=args.init_scale,
             lowrank_scaling=args.diff_transformer_lowrank_scaling,
-            lowrank_bias=args.diff_transformer_lowrank_bias,
+            lowrank_dropout=args.diff_transformer_lowrank_dropout,
             double_kv_cache=args.diff_transformer_double_kv_cache,
             lowrank_inner_dim=args.diff_transformer_lowrank_dim,
             flip_negative_heads=args.diff_transformer_flip_negative_heads,
