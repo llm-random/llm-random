@@ -432,6 +432,7 @@ def introduce_parser_arguments(
         "--diff_transformer_negative_heads_permutation", type=str, default="repeat"
     )
     parser.add_argument("--diff_transformer_lowrank_scaling", type=float, default=1.0)
+    parser.add_argument("--diff_transformer_lowrank_init_with_zeros", type=str, default="none")
     parser.add_argument("--diff_transformer_lowrank_dropout", type=float, default=0.0)
     parser.add_argument("--diff_transformer_double_kv_cache", action="store_true")
     parser.add_argument("--diff_transformer_share_q_or_k", type=str, default=None)

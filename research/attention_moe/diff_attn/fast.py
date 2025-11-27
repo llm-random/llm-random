@@ -48,6 +48,7 @@ class Lowrank(nn.Module):
         inner_dim,
         init_type,
         init_scale,
+        init_with_zeros: str,
         lowrank_scaling,
         dropout,
         output_dim=None,
@@ -55,8 +56,9 @@ class Lowrank(nn.Module):
     ):
         super().__init__()
         self.inner_dim = inner_dim
+        assert init_with_zeros in ['a', 'b', 'none']
         self.w1 = Linear(
-            outer_dim, inner_dim, bias=False, init_type=init_type, init_scale=init_scale
+            outer_dim, inner_dim, bias=False, init_type='zero' if init_with_zeros == 'a' else init_type, init_scale=init_scale
         )
         if dropout > 0.0:
             self.dropout = nn.Dropout(dropout)
@@ -64,7 +66,7 @@ class Lowrank(nn.Module):
             inner_dim,
             output_dim or outer_dim,
             bias=False,
-            init_type=init_type,
+            init_type='zero' if init_with_zeros == 'b' else init_type,
             init_scale=init_scale,
         )
         self.dtype = dtype
