@@ -118,10 +118,10 @@ class AthenaBackend(MachineBackend):
         return [
             slurm_command,
             f"--gres=gpu:{setup_args['n_gpus']}",
-            f"--array=0-{n_consecutive-1}%1",
+            f"--array=0-{n_consecutive - 1}%1",
             "--partition=plgrid-gpu-a100",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--mem={max(125, setup_args['mem_per_gpu'] * setup_args['n_gpus'])}G",
             "--account=plgllmefficont-gpu-a100",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
@@ -175,11 +175,11 @@ class IdeasBackend(MachineBackend):
         return [
             slurm_command,
             f"--gres=gpu:ampere:{setup_args['n_gpus']}",
-            f"--array=0-{n_consecutive-1}%1",
+            f"--array=0-{n_consecutive - 1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
-            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--mem={max(125, setup_args['mem_per_gpu'] * setup_args['n_gpus'])}G",
             setup_args["nodelist"],
             f"{setup_args['grid_entrypoint']}",
             "singularity",
@@ -230,9 +230,9 @@ class EntropyA100Backend(MachineBackend):
             slurm_command,
             "--partition=a100",
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
-            f"--array=0-{n_consecutive-1}%1",
+            f"--array=0-{n_consecutive - 1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--mem={max(125, setup_args['mem_per_gpu'] * setup_args['n_gpus'])}G",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
@@ -278,9 +278,9 @@ class EntropyH100Backend(MachineBackend):
             slurm_command,
             "--partition=h100",
             f"--gres=gpu:h100:{setup_args['n_gpus']}",
-            f"--array=0-{n_consecutive-1}%1",
+            f"--array=0-{n_consecutive - 1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--mem={max(125, setup_args['mem_per_gpu'] * setup_args['n_gpus'])}G",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
@@ -325,9 +325,9 @@ class WriterBackend(MachineBackend):
         return [
             slurm_command,
             f"--gres=gpu:a100:{setup_args['n_gpus']}",
-            f"--array=0-{n_consecutive-1}%1",
+            f"--array=0-{n_consecutive - 1}%1",
             f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
-            f"--mem={max(125, setup_args['mem_per_gpu']*setup_args['n_gpus'])}G",
+            f"--mem={max(125, setup_args['mem_per_gpu'] * setup_args['n_gpus'])}G",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
@@ -375,17 +375,72 @@ class HeliosBackend(MachineBackend):
         runner_params,
         n_consecutive: int = 1,
     ):
-        assert (
-            setup_args["n_gpus"] == 4
-        ), "Helios only supports using whole nodes (cf. https://docs.cyfronet.pl/display/~plgpawlik/Helios)"
+        assert setup_args["n_gpus"] == 4, (
+            "Helios only supports using whole nodes (cf. https://docs.cyfronet.pl/display/~plgpawlik/Helios)"
+        )
 
         return [
             slurm_command,
             f"--gres=gpu:{setup_args['n_gpus']}",
-            f"--array=0-{n_consecutive-1}%1",
+            f"--array=0-{n_consecutive - 1}%1",
             "--partition=plgrid-gpu-gh200",
             "--exclusive",
             "--account=plgllmefficont2-gpu-gh200",
+            f"--job-name={training_args['name']}",
+            f"--time={setup_args['time']}",
+            f"{setup_args['grid_entrypoint']}",
+            *self.get_runner_command(setup_args["runner"], runner_params),
+        ]
+
+
+class LemBackend(MachineBackend):
+    max_exp_time = 2 * 24 * 60 * 60
+
+    def get_default_train_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/lustre/pd03/plgrid/plgllmefficont2/datasets/c4/train"
+        elif dataset_type == "fineweb-edu":
+            raise NotImplementedError()
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_default_validation_dataset_path(self, dataset_type: str):
+        if dataset_type == "c4":
+            return "/lustre/pd03/plgrid/plgllmefficont2/datasets/c4/validation"
+        elif dataset_type == "fineweb-edu":
+            raise NotImplementedError()
+        return super().get_default_train_dataset_path(dataset_type)
+
+    def get_common_directory(self) -> str:
+        return "/lustre/pd03/plgrid/plgllmefficont2"
+
+    def get_cache_path(self) -> str:
+        return f"/lustre/pd03/plgrid/plgllmefficont2/{self.username}/.cache"
+
+    def get_grid_entrypoint(self) -> str:
+        return "research/attention_moe/entrypoints/lem.sh"
+
+    def get_cemetery_directory(self):
+        return (
+            f"/lustre/pd03/plgrid/plgllmefficont2/{self.username}/llm_random_cemetery"
+        )
+
+    def get_subprocess_args(
+        self,
+        slurm_command,
+        setup_args,
+        training_args,
+        singularity_env_arguments,
+        runner_params,
+        n_consecutive: int = 1,
+    ):
+        return [
+            slurm_command,
+            f"--gres=gpu:hopper:{setup_args['n_gpus']}",
+            f"--array=0-{n_consecutive - 1}%1",
+            "--partition=plgrid-lem-gpu-h100",
+            "--account=plgllmefficont2",
+            f"--cpus-per-gpu={setup_args['cpus_per_gpu']}",
+            f"--mem={max(125, setup_args['mem_per_gpu'] * setup_args['n_gpus'])}G",
             f"--job-name={training_args['name']}",
             f"--time={setup_args['time']}",
             f"{setup_args['grid_entrypoint']}",
@@ -521,5 +576,7 @@ def get_machine_backend(
         return AWS1Backend(username)
     elif "helios" in node:
         return HeliosBackend(username)
+    elif "wcss" in node:
+        return LemBackend(username)
     else:
         return LocalBackend(username)
