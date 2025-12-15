@@ -160,7 +160,7 @@ def introduce_parser_arguments(
         help="Whether to log the norm of the update. This option is separate from normal logging intervals, because it uses up a lot of memory.",
     )
     parser.add_argument("--eval_interval", type=int, default=1000)
-    parser.add_argument("--n_eval_batches", type=int, default=10)
+    parser.add_argument("--n_eval_batches", type=int, default=100)
     parser.add_argument("--log_gradients_and_weights", action="store_true")
     parser.add_argument("--path_to_entry_config", type=str, default=None)
     parser.add_argument("--all_config_paths", type=str, default=None)
