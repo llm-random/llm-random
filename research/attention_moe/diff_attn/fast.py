@@ -82,7 +82,7 @@ class Lowrank(nn.Module):
             x = self.w1(x)
             if hasattr(self, "dropout"):
                 x = self.dropout(x)
-            x = self.w2(x)
+            x = self.w2(x) * self.lowrank_scaling
             return x.to(original_dtype)
 
 
