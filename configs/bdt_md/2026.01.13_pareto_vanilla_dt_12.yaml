@@ -1,0 +1,76 @@
+runner: "research.attention_moe.train.train"
+time: "12:00:00"
+n_gpus: 4
+interactive_debug: false
+backends_module: research.attention_moe.backends
+
+# train params
+params:
+  name: "diff_pareto"
+
+  # base bass
+  mixed_precision: true
+  flash_attention: true
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 1000
+  logging_interval_light: 500
+  logging_interval_loss: 1000
+  # save_weights_path: "model_ckpt"
+  save_weights_interval: 24_000
+  tags: ["diff_pareto"]
+
+
+  cutoff: 2048
+  batch_size: 64
+  n_steps: 24_000
+  final_lr_step: 24_000
+  scheduler: cosine
+  lr_warmup_steps: 240
+  final_lr_fraction: 0.1
+
+  model_type: gpt
+  dataset_type: c4
+  
+  # model
+  use_rope: true
+
+  # lowrank_dtype: float32
+  ^dmodel: [768]
+  n_blocks: 12
+  n_att_heads: 12
+  data_seed: 42
+  init_type: truncated_normal
+  init_scale: 0.1
+  mixed_precision_dtype: bfloat16
+
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  grad_clip: 1.0
+  weight_decay: 0.1
+  rms_norm_eps: 0.000001
+  norm_class: rms_norm
+  rope_theta: 10000
+  ff_mode: swi_glu
+  use_final_norm: true
+
+  ^attention_mode: [vanilla, differential]
+  ^n_kv_heads: [12]
+  ^dff: [2048]
+  ^learning_rate: [1e-3]
+  ^use_qk_norm: [true]
+  ^diff_transformer_adapter_type: [lora]
+  ^diff_transformer_double_kv_cache: [true]
+  ^diff_transformer_lowrank_dim: [64]
+  ^diff_transformer_lowrank_scaling: [1.0]
+  ^diff_transformer_lowrank_init_with_zeros: [b]
+  ^diff_transformer_lowrank_dropout: [0.0]
+
+  # fsdp
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+  fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+  torch_compile: false
+  log_gradients_and_weights: true
