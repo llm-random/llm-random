@@ -1,0 +1,199 @@
+runner: "research.attention_moe.train.train"
+time: "12:00:00"
+n_gpus: 4
+interactive_debug: false
+backends_module: research.attention_moe.backends
+
+# train params
+params:
+  name: "diff_fixed_config_lora_gda"
+
+  # base bass
+  mixed_precision: true
+  flash_attention: true
+
+  # logging etc.
+  logger_types: "neptune"
+  project_name: "pmtest/llm-random"
+  logging_interval_heavy: 1000
+  logging_interval_light: 500
+  logging_interval_loss: 1000
+  # save_weights_path: "model_ckpt"
+  save_weights_interval: 15000
+  tags: ["diff_neurips", "diff_fixed_config_lora_gda"]
+
+
+  cutoff: 2048
+  batch_size: 64
+  n_steps: 45_000
+  final_lr_step: 45_000
+  scheduler: cosine
+  lr_warmup_steps: 450
+  final_lr_fraction: 0.1
+
+  model_type: gpt
+  dataset_type: c4
+
+  
+  # model
+  use_rope: true
+
+  # lowrank_dtype: float32
+  ^dmodel: [768]
+  n_blocks: 12
+  n_att_heads: 12
+  data_seed: 42
+  init_type: truncated_normal
+  init_scale: 0.1
+  mixed_precision_dtype: bfloat16
+  # ^n_kv_heads: [12]
+
+  # ^learning_rate: [5e-4, 1e-3, 2e-3, 5e-3]
+
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  grad_clip: 1.0
+  weight_decay: 0.1
+  rms_norm_eps: 0.000001
+  norm_class: rms_norm
+  rope_theta: 10000
+  ff_mode: swi_glu
+  use_final_norm: true
+
+  ^attention_mode: [gda]
+  ^diff_transformer_n_negative_heads: [2]
+#  ^diff_transformer_negative_heads_permutation: [repeat, interleave, flip_repeat, flip_interleave, roll_repeat, repeat_roll, roll_interleave]
+  ^learning_rate: [1e-3]
+  ^diff_transformer_adapter_type: [lora]
+  ^diff_transformer_lowrank_dim: [64]
+  ^dff: [2255]
+#  ^dff: [1814]
+#  ^diff_transformer_lowrank_scaling: [0.5, 1.0, 2.0, 4.0]
+  ^diff_transformer_lowrank_scaling: [1.0, 2.0]
+  ^diff_transformer_lowrank_bias: [false]
+  ^diff_transformer_double_kv_cache: [false]
+
+
+
+  # ^diff_transformer_lowrank_dim: [64]
+  # ^dff: [
+  #   2240
+  # ]
+  # ^attention_mode: [
+  #   adapter_differential,
+  # ]
+  # ^learning_rate: [5e-4, 1e-3, 2e-3]
+  # save_weights_path: "/storage_nvme_2/mpioro/checkpoints_better_diff"
+
+
+  # ^dff: [
+  #   2048
+  # ]
+  # ^attention_mode: [
+  #   differential, vanilla
+  # ]
+  # ^learning_rate: [1e-3]
+
+
+#  ^n_kv_heads: [6]
+#  save_weights_path: "/storage_nvme_2/mpioro/checkpoints_better_diff"
+
+
+  # ^dff: [
+  #   2388
+  # ]
+  # ^attention_mode: [
+  #   differential
+  # ]
+  # ^n_kv_heads: [4]
+
+  ## helios
+  # gradient_accumulation_steps: 1
+  # save_weights_path: "/storage_nvme_2/mpioro/checkpoints_better_diff"
+  # ^learning_rate: [1e-3]
+  ## athena
+  # gradient_accumulation_steps: 2
+  # ^learning_rate: [5e-4, 2e-3, 5e-3]
+  # save_weights_path: "model_ckpt"
+
+
+  # ^dff: [
+  #   2472
+  # ]
+  # ^attention_mode: [
+  #   differential
+  # ]
+  # ^n_kv_heads: [2]
+  # gradient_accumulation_steps: 2
+
+  # ^diff_transformer_lowrank_dim: [64]
+  # ^dff: [
+  #   2436
+  # ]
+  # ^attention_mode: [
+  #   adapter_differential,
+  # ]
+  # ^n_kv_heads: [6]
+  # gradient_accumulation_steps: 1
+  # save_weights_path: "/storage_nvme_2/mpioro/checkpoints_better_diff"
+
+  # ^diff_transformer_lowrank_dim: [64]
+  # ^dff: [
+  #   2500
+  # ]
+  # ^attention_mode: [
+  #   adapter_differential,
+  # ]
+  # ^n_kv_heads: [4]
+  # gradient_accumulation_steps: 1
+
+  # ^diff_transformer_lowrank_dim: [64]
+  # ^dff: [
+  #   2500
+  # ]
+  # ^attention_mode: [
+  #   adapter_differential,
+  # ]
+  # ^n_kv_heads: [4]
+  # gradient_accumulation_steps: 1
+
+  # ^diff_transformer_lowrank_dim: [32]
+  # ^dff: [
+  #   2596
+  # ]
+  # ^attention_mode: [
+  #   adapter_differential,
+  # ]
+  # ^n_kv_heads: [2]
+  ## entropy h100
+  # gradient_accumulation_steps: 1
+  # save_weights_path: "/storage_nvme_2/mpioro/checkpoints_better_diff"
+  # ^learning_rate: [1e-3]
+  ## athena
+  # gradient_accumulation_steps: 2
+  # ^learning_rate: [5e-4, 2e-3, 5e-3]
+  # save_weights_path: "model_ckpt"
+
+
+  # ^dff: [
+  #   2580
+  # ]
+  # ^attention_mode: [
+  #   gda,
+  # ]
+  # ^n_kv_heads: [2]
+  # ^diff_transformer_n_negative_heads: [1]
+  # ^learning_rate: [1e-3]
+  # gradient_accumulation_steps: 1
+  # save_weights_path: "/storage_nvme_2/mpioro/checkpoints_better_diff"
+
+
+
+
+
+  # fsdp
+  fsdp_enabled: true
+  fsdp_modules_to_wrap: "TransformerBlock,EmbeddingLayer,PredictionHead"
+  fsdp_selective_precision_modules: "AttentionMechanism,RoPE"
+  torch_compile: false
+  log_gradients_and_weights: true
